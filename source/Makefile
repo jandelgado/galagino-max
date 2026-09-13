@@ -41,6 +41,9 @@ upload:
 upload-only:
 	pio run $(VERBOSE) -e $(ENV) -t upload
 
+release_azDeliveryDevKitV4:
+	$(MAKE) upload ENV=$@
+
 cyd-2432s028r:
 	$(MAKE) upload ENV=$@
 

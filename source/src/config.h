@@ -1,9 +1,20 @@
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
 
+// Optional, git-ignored per-board settings. Defines there or in
+// platformio.ini build_flags win over the defaults below. Define
+// USE_PIO_CONFIG there to supply your own pins.
+#if __has_include("config_local.h")
+#include "config_local.h"
+#endif
+
 // game config
+#ifndef MASTER_ATTRACT_MENU_TIMEOUT
 #define MASTER_ATTRACT_MENU_TIMEOUT  20000      // start games while sitting idle in menu for 20 seconds, undefine to disable
+#endif
+#ifndef MASTER_ATTRACT_GAME_TIMEOUT
 #define MASTER_ATTRACT_GAME_TIMEOUT  60000 * 5  // restart after 5 minutes 
+#endif
 
 // video config
 //#define TFT_SPICLK  40000000    // 40 Mhz. Some displays cope with 80 Mhz
@@ -28,11 +39,15 @@
 
 // led config
 //#define LED_PIN           18 // pin used for optional WS2812 stripe
+#ifndef LED_BRIGHTNESS
 #define LED_BRIGHTNESS 	  50 // range 0..255
+#endif
 
 // audio config
 //#define SND_DIFF   	 // set to output differential audio on GPIO25 _and_ inverted on GPIO26
+#ifndef SND_RIGHT_CHANNEL // Use GPIO 25 for audio
 #define SND_LEFT_CHANNEL // Use GPIO 26 for audio
+#endif
 
 // esp32 model config
 //#define CHEAP_YELLOW_DISPLAY_CONF
@@ -42,7 +57,7 @@
   #define TFT_CS          15
   #define TFT_DC          2
   #define TFT_RST         -1
-  #define TFT_BL          27   // don't set if backlight is hard wired
+  #define TFT_BL          21   // don't set if backlight is hard wired
   #define TFT_BL_LEVEL    HIGH  // backlight on with low or high signal
   //#define TFT_ILI9341 // define for ili9341, otherwise st7789
   //#define TFT_VFLIP   // define for upside down
@@ -56,7 +71,7 @@
   #define BTN_START_PIN	  35
   //#define BTN_COIN_PIN    21   // if this is not defined, then start will act as coin & start
 
-  #define BTN_LEFT_PIN    21
+  #define BTN_LEFT_PIN    23
   #define BTN_RIGHT_PIN   22
   #define BTN_DOWN_PIN    16
   #define BTN_UP_PIN      17
