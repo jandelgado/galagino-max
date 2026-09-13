@@ -286,7 +286,7 @@ void dkong::blit_tile(short row, char col) {
 // games, in dkong black is not always transparent. Black pixels
 // are instead used for masking
 void dkong::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = dkong_sprites[sprite[s].flags & 3][sprite[s].code];
+  const uint32_t *spr = dkong_sprites[sprite[s].flags & 3][sprite[s].code];
   const unsigned short *colors = dkong_colormap_sprite[colortable_select][sprite[s].color];
   
   // create mask for sprites that clip left or right

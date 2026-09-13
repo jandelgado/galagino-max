@@ -26,7 +26,13 @@ class dkong : public machineBase
 {
 public:
 	dkong() { }
-	~dkong() { }
+	~dkong() {
+		dkong_rom_cpu1.release();
+		dkong_rom_cpu2.release();
+		dkong_tilemap.release();
+		dkong_sprites.release();
+		dkong_colormap.release();
+	}
 
  	void reset() override;
 	signed char machineType() override { return MCH_DKONG; } 
