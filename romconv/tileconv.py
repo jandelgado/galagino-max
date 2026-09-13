@@ -2,6 +2,9 @@
 
 import sys
 
+sys.path.insert(0, "pyconv")
+from romdata_emit import emit_compressed, emit_plain
+
 def BIT(value, shift):
     return (value >> shift) & 1
 
@@ -38,16 +41,17 @@ def show_chr_3bpp(data):
             print(" .-+x*X#"[pix], end="")
         print("")
 
-def dump_chr(data):
-    hexs = [ ]
-    
+def dump_chr_values(data):
+    vals = [ ]
     for y in range(8):
         val = 0
         for x in range(8):
             val = (val >> 2) + (data[y][x] << (16-2))
-        hexs.append(hex(val))
+        vals.append(val & 0xFFFF)
+    return vals
 
-    return ",".join(hexs)
+def dump_chr(data):
+    return ",".join(hex(v) for v in dump_chr_values(data))
 
 # 1942 can flip background tiles
 def dump_tile_1942(data, hflip=False, vflip=False):
@@ -125,18 +129,20 @@ def parse_charmap(id, inname, outname):
     charmap_data = f.read()
     f.close()
 
+    is_1942 = len(charmap_data) == 8192
+
     chars = []
-    if len(charmap_data) == 8192:
+    if is_1942:
         # 1942 2bpp format
         for chr in range(512):
             chars.append(parse_chr_1942(charmap_data[16*chr:16*(chr+1)]))
-        
+
     elif len(charmap_data) == 4096:
         # galaga and pacman 2bpp format
 
-        if id == "eyes_tilemap" or id == "mrtnt_tilemap":    
+        if id == "eyes_tilemap" or id == "mrtnt_tilemap":
          charmap_data = decode_Data(charmap_data)
-        
+
         # read and parse all 256 characters
         for chr in range(256):
             chars.append(parse_chr(charmap_data[16*chr:16*(chr+1)]))
@@ -145,19 +151,23 @@ def parse_charmap(id, inname, outname):
         # digdug format
         for chr in range(128):
             chars.append(parse_chr_dd(charmap_data[8*chr:8*(chr+1)]))
-            
+
     #for c in chars: show_chr(c)
 
     # write as c source
     f = open(outname, "w")
-    
-    print("const unsigned short "+id+"[][8] = {", file=f )
-    chars_str = []
-    for c in chars:
-        chars_str.append(" { " + dump_chr(c) + " }")
-    print(",\n".join(chars_str), file=f)
-    print("};", file=f)
-    
+
+    if is_1942:
+        flat = [v for c in chars for v in dump_chr_values(c)]
+        emit_compressed(f, id, "unsigned short", "[8]", len(chars), flat)
+    else:
+        print("const unsigned short "+id+"[][8] = {", file=f )
+        chars_str = []
+        for c in chars:
+            chars_str.append(" { " + dump_chr(c) + " }")
+        print(",\n".join(chars_str), file=f)
+        print("};", file=f)
+
     f.close()
 
 def parse_tile_1942(b0,b1,b2):
@@ -200,8 +210,7 @@ def parse_tilemap_1942(id, files, outname):
 
     # write as c source
     f = open(outname, "w")
-    
-    print("const unsigned long "+id+"[]["+str(len(tiles))+"][32] = {", file=f )
+
     tiles_maps_str = []
     for xflip in [ False, True ]:
         for yflip in [ False, True ]:
@@ -209,9 +218,9 @@ def parse_tilemap_1942(id, files, outname):
             for t in tiles:
                 tiles_str.append(" { " + dump_tile_1942(t,xflip,yflip) + " }")
             tiles_maps_str.append("{\n" + ",\n".join(tiles_str) +"\n}")
-    print(",\n".join(tiles_maps_str), file=f)
-    print("};", file=f)
-    
+    body = ",\n".join(tiles_maps_str)
+    emit_plain(f, id, "unsigned long", "[" + str(len(tiles)) + "][32]", 4, body)
+
     f.close()
         
 def parse_charmap_frogger(id, innames, outname):
