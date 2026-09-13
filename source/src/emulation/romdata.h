@@ -1,8 +1,12 @@
 #ifndef ROMDATA_H
 #define ROMDATA_H
 
+#ifdef ARDUINO
+#include <Arduino.h>
+#else
 #include <cstdio>
 #include <cstdlib>
+#endif
 #include <new>
 #include "uzlib.h"
 
@@ -46,6 +50,10 @@ public:
 
 private:
     void unpack() const {
+#ifdef ARDUINO
+      unsigned long t0 = millis();
+#endif
+
       T *buf = new (std::nothrow) T[count];
       if (!buf) {
         printf("RomData: allocation failed (%u bytes)\n", (unsigned)(count * sizeof(T)));
@@ -79,6 +87,16 @@ private:
                status, (unsigned long)(d.dest - d.dest_start), (unsigned long)(count * sizeof(T)));
         abort();
       }
+
+      unsigned long ms = 0;
+#ifdef ARDUINO
+      ms = millis() - t0;
+#endif
+      unsigned int decompressedBytes = count * sizeof(T);
+      double ratio = 100.0 * (1.0 - (double)packedLen / (double)decompressedBytes);
+      printf("RomData: unpacked %u bytes (packed %u, %.1f%% smaller) in %lu ms\n",
+             decompressedBytes, packedLen, ratio, ms);
+
       current = buf;
     }
 
