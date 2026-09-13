@@ -39,4 +39,12 @@ assert "static const unsigned long _test_plain_data[][2] = {" in out
 assert "static RomData<unsigned long[2]> _test_plain(_test_plain_data, 3);" in out
 print("3. emit_plain wraps body + RomData line: OK")
 
+# 4. compressed array includes size/ratio comment
+f = io.StringIO()
+emit_compressed(f, "test_arr", "unsigned char", "", 4, [0, 0, 0, 0])
+out = f.getvalue()
+assert "// test_arr: 4 -> " in out, "missing size/ratio comment"
+assert "bytes" in out and "%" in out
+print("4. emit_compressed includes size/ratio comment: OK")
+
 print("\nALL ROMDATA_EMIT TESTS PASSED")

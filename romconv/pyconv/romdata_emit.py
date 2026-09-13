@@ -19,8 +19,10 @@ def emit_compressed(f, name, ctype, inner_dims, count, flat_values):
     width = _WIDTH[ctype]
     raw = b"".join(struct.pack(_PACK[ctype], v & ((1 << (8 * width)) - 1)) for v in flat_values)
     packed = zlib.compress(raw, 9)
+    ratio = 100.0 * (1.0 - len(packed) / len(raw)) if raw else 0.0
 
     print('#include "../../emulation/romdata.h"', file=f)
+    print(f"// {name}: {len(raw)} -> {len(packed)} bytes ({ratio:.1f}% smaller)", file=f)
     print(f"static const unsigned char {name}_packed[] = {{\n  " + _hex_block(packed) + "\n};", file=f)
     print(f"static RomData<{ctype}{inner_dims}> {name}({name}_packed, sizeof({name}_packed), {count});", file=f)
 
