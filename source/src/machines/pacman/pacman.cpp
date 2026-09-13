@@ -128,7 +128,7 @@ void pacman::blit_tile(short row, char col) {
 }
 
 void pacman::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = spriteRom(sprite[s].flags & 3, sprite[s].code);
+  const uint32_t *spr = spriteRom(sprite[s].flags & 3, sprite[s].code);
   const unsigned short *colors = colorRom(sprite[s].color & 63);
 
   // create mask for sprites that clip left or right
@@ -190,7 +190,7 @@ const unsigned short *pacman::colorRom(unsigned short addr) {
   return pacman_colormap[addr];
 }
 
-const unsigned long *pacman::spriteRom(unsigned char flags, unsigned char code) {
+const uint32_t *pacman::spriteRom(unsigned char flags, unsigned char code) {
   return pacman_sprites[flags][code];
 }
 

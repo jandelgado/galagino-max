@@ -15,7 +15,11 @@ class pacman : public machineBase
 {
 public:
 	pacman() { }
-	~pacman() { }
+	~pacman() {
+		pacman_rom.release();
+		pacman_tilemap.release();
+		pacman_sprites.release();
+	}
 
 	signed char machineType() override { return MCH_PACMAN; } 
 	unsigned char rdZ80(unsigned short Addr) override;
@@ -40,7 +44,7 @@ protected:
 	void blit_sprite(short row, unsigned char s) override;
 	virtual const unsigned short *tileRom(unsigned short addr);
 	virtual const unsigned short *colorRom(unsigned short addr);
-	virtual const unsigned long *spriteRom(unsigned char flags, unsigned char code);
+	virtual const uint32_t *spriteRom(unsigned char flags, unsigned char code);
 
 };
 
