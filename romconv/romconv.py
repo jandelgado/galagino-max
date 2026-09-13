@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 import sys
+sys.path.insert(0, "pyconv")
+
+from romdata_emit import emit_compressed
 
 PATCHES = {
     "galaga_rom_cpu1":
@@ -12,7 +15,7 @@ PATCHES = {
 	( 0x348a, 0x1e, 0x01 ),
         # skip rom test
 	( 0x352b, 0xe5, 0xc9 )      # ret
-    ]    
+    ]
 }
 
 def bit_permute_step(x, m, shift):
@@ -20,12 +23,10 @@ def bit_permute_step(x, m, shift):
     x = (x ^ t) ^ (t << shift)
     return x
 
-def parse_rom(id, infiles, outfile, apply_patches = False, decode = False):
+def parse_rom(id, infiles, outfile, apply_patches = False, decode = False, compress = False):
     offset = 0
-    of = open(outfile, "w")
+    all_bytes = bytearray()
 
-    print("const unsigned char "+id+"[] = {\n  ", end="", file=of)
-    
     for name_idx in range(len(infiles)):
         f = open(infiles[name_idx], "rb")
         rom_data = f.read()
@@ -38,7 +39,7 @@ def parse_rom(id, infiles, outfile, apply_patches = False, decode = False):
             for i in range(len(rom_data)):
                 rom_data[i] = (rom_data[i] & 0xfc) | ((rom_data[i] & 2)>>1) | ((rom_data[i] & 1)<<1)
             rom_data = bytes(rom_data)
-            
+
         # apply patches
         if apply_patches:
             rom_data = list(rom_data)
@@ -51,32 +52,43 @@ def parse_rom(id, infiles, outfile, apply_patches = False, decode = False):
                                 rom_data[p[0] - offset] = p[2]
                             else:
                                 raise ValueError("Unexpected patchdata")
-        
+            rom_data = bytes(rom_data)
+
         offset += len(rom_data)
-        rom_data = list(rom_data)
-        for i in range(len(rom_data)):
-            # value, bitMask, shift left
-            if decode:
-             rom_data[i] = bit_permute_step(rom_data[i], 8, 2)
-            
-            print("0x{:02X}".format(rom_data[i]), end="", file=of)
-            if i != len(rom_data)-1 or name_idx != len(infiles)-1:
+
+        if decode:
+            rom_data = list(rom_data)
+            for i in range(len(rom_data)):
+                rom_data[i] = bit_permute_step(rom_data[i], 8, 2)
+            rom_data = bytes(rom_data)
+
+        all_bytes.extend(rom_data)
+
+    of = open(outfile, "w")
+    if compress:
+        emit_compressed(of, id, "unsigned char", "", len(all_bytes), list(all_bytes))
+    else:
+        print("const unsigned char "+id+"[] = {\n  ", end="", file=of)
+        hexs = ["0x{:02X}".format(b) for b in all_bytes]
+        for i, h in enumerate(hexs):
+            print(h, end="", file=of)
+            if i != len(hexs) - 1:
                 print(",", end="", file=of)
-                if i&15 == 15:
+                if i & 15 == 15:
                     print("\n  ", end="", file=of)
-            else:
-                print("", file=of)
-        
-    print("};", file=of)
+        print("", file=of)
+        print("};", file=of)
     of.close()
 
 if len(sys.argv) < 3:
     print("Invalid arguments")
     exit(-1)
 
-if sys.argv[1] == "-p":       
+if sys.argv[1] == "-p":
     parse_rom(sys.argv[2], sys.argv[3:-1], sys.argv[-1], True)
-elif sys.argv[1] == "-d":       
+elif sys.argv[1] == "-d":
     parse_rom(sys.argv[2], sys.argv[3:-1], sys.argv[-1], False, True)
+elif sys.argv[1] == "-c":
+    parse_rom(sys.argv[2], sys.argv[3:-1], sys.argv[-1], compress=True)
 else:
     parse_rom(sys.argv[1], sys.argv[2:-1], sys.argv[-1])
