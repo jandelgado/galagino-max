@@ -1,12 +1,6 @@
 @echo off
-echo --------- Convert Turtles ---------
-echo Converting Turtles
-cd turtles
-python ./turtles_rom_convert.py
-cd ..
+python ./pyconv/conv_turtles.py
 if errorlevel 1 goto :error
-
-echo --- Success ---
 goto end
 
 :error

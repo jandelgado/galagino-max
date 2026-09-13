@@ -16,7 +16,7 @@ run_in_workdir("bg_tiles.py")
 run_in_workdir("fg_tiles.py")
 
 info("MrDo Sprites")
-run_in_workdir("sprites.py")
+run_in_workdir("Sprites.py")
 
 info("MrDo Colormaps")
 run_in_workdir("Palette_mrdo.py")

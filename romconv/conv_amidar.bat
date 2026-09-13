@@ -1,12 +1,6 @@
 @echo off
-echo --------- Convert Amidar ---------
-echo Converting Amidar
-cd amidar
-python ./amidar_rom_convert.py
-cd ..
+python ./pyconv/conv_amidar.py
 if errorlevel 1 goto :error
-
-echo --- Success ---
 goto end
 
 :error

@@ -1,10 +1,6 @@
 @echo off
-echo --------- Convert M6502 ---------
-echo M6502
-python3 ./m6502patch.py
+python ./pyconv/conv_m6502.py
 if errorlevel 1 goto :error
-
-echo --- Success ---
 goto end
 
 :error
