@@ -80,15 +80,15 @@ def parse_rom(id, infiles, outfile, apply_patches = False, decode = False, compr
         print("};", file=of)
     of.close()
 
-if len(sys.argv) < 3:
+FLAGS = {"-p": "apply_patches", "-d": "decode", "-c": "compress"}
+
+args = sys.argv[1:]
+opts = {"apply_patches": False, "decode": False, "compress": False}
+while args and args[0] in FLAGS:
+    opts[FLAGS[args.pop(0)]] = True
+
+if len(args) < 3:
     print("Invalid arguments")
     exit(-1)
 
-if sys.argv[1] == "-p":
-    parse_rom(sys.argv[2], sys.argv[3:-1], sys.argv[-1], True)
-elif sys.argv[1] == "-d":
-    parse_rom(sys.argv[2], sys.argv[3:-1], sys.argv[-1], False, True)
-elif sys.argv[1] == "-c":
-    parse_rom(sys.argv[2], sys.argv[3:-1], sys.argv[-1], compress=True)
-else:
-    parse_rom(sys.argv[1], sys.argv[2:-1], sys.argv[-1])
+parse_rom(args[0], args[1:-1], args[-1], **opts)
