@@ -20,7 +20,13 @@ class galaga : public machineBase
 {
 public:
   galaga() { }
-  ~galaga() { }
+  ~galaga() {
+    galaga_rom_cpu1.release();
+    galaga_rom_cpu2.release();
+    galaga_rom_cpu3.release();
+    galaga_tilemap.release();
+    galaga_sprites.release();
+  }
 
   signed char machineType() override { return MCH_GALAGA; } 
   
