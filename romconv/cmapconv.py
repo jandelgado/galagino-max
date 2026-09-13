@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import sys
+sys.path.insert(0, "pyconv")
+from romdata_emit import emit_compressed
 
 def parse_palette(name, name2=None):
     # galaga: the palette contains 32 8 bit rgb values. The first 16 are
@@ -83,36 +85,29 @@ def parse_colormap_1942_tiles(id, inname, palette, outname):
     # load map parts
     f = open(mapname0, "rb");  map0 = f.read(); f.close()
     f = open(mapname1, "rb");  map1 = f.read(); f.close()
-    
+
     map = []
     for i in range(len(map0)):
         # only use lower 2 bits of sb-2.d1
         map.append(map0[i] + 16*(map1[i]&3))
 
-    # create 16 palettes with 16 entries each
-
     # output of colormap_data is 4 bit and goes into lower four
     # bits of sb-3/sb-2 map. The upper 4 bits come externally,
     # resulting in 16 tables with 32 x 8 color maps each
-    tab = 0
-
-    # write as c source
     f = open(outname, "w")
-    print("const unsigned short "+id+"[][32][8] = {", file=f )
 
-    tabs = []
-    for tab in range(16):    
-        colors = []
+    flat = []
+    for tab in range(16):
         for idx in range(32):
             c = colormap_data[8*idx:8*(idx+1)]
             # check if values are sane
             if ( c[0] < 0 or c[0] > 15 or c[0] < 0 or c[1] > 15 or
                  c[2] < 0 or c[2] > 15 or c[3] < 0 or c[3] > 15):
                 raise ValueError("Color index out of range")
-            colors.append("{" + ",".join([ hex(palette[map[16*tab+a]]) for a in c ]) +"}")
-        tabs.append("{" + ",".join(colors) + "}")
-    print(",\n".join(tabs), file=f)
-    print("};", file=f)
+            for a in c:
+                flat.append(palette[map[16*tab+a]])
+
+    emit_compressed(f, id, "unsigned short", "[32][8]", 16, flat)
     f.close()
 
         
