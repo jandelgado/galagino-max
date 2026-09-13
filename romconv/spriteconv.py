@@ -171,7 +171,7 @@ def dump_c_source_4bpp(sprites, f):
         sprites_str.append("  { " + dump_sprite_4bpp(s) + " }")
     print(",\n".join(sprites_str), file=f)
 
-def parse_spritemap(id, fmt, infiles, outfile):
+def parse_spritemap(id, fmt, infiles, outfile, compress=False):
     sprites = []
 
     if fmt == "frogger":
@@ -323,6 +323,28 @@ def parse_spritemap(id, fmt, infiles, outfile):
         # versions of all sprites
         dump_c_source(sprites,  True,  False, f)
         print("};", file=f)
+    elif compress:
+        # 2bpp sprites pack differently than 1942's 4bpp sprites (dump_sprite, not
+        # dump_sprite_4bpp): each variant is `unsigned long[16]`, one long per row.
+        def sprite_row_values(s, flip_x, flip_y):
+            vals = []
+            for y in range(16) if not flip_y else reversed(range(16)):
+                val = 0
+                for x in range(16):
+                    if not flip_x:
+                        val = (val >> 2) + (s[y][x] << (32 - 2))
+                    else:
+                        val = (val << 2) + s[y][x]
+                vals.append(val & 0xffffffff)
+            return vals
+
+        flat = []
+        for flip_x, flip_y in [(False, False), (False, True), (True, False), (True, True)]:
+            for s in sprites:
+                flat.extend(sprite_row_values(s, flip_x, flip_y))
+        # Variant is the RomData element, so name[variant][sprite][row]
+        # indexes like the plain array.
+        emit_compressed(f, id, "unsigned long", "["+str(len(sprites))+"][16]", 4, flat)
     else:
         # write 2 bpp
         print("const unsigned long "+id+"[]["+str(len(sprites))+"][16] = {", file=f)
@@ -335,12 +357,15 @@ def parse_spritemap(id, fmt, infiles, outfile):
         dump_c_source(sprites,  True,  True, f)
         print("};", file=f)
 
-if len(sys.argv) < 5:
+args = sys.argv[1:]
+compress = False
+if args and args[0] == "-c":
+    compress = True
+    args.pop(0)
+
+if len(args) < 4:
     print("Invalid arguments")
     exit(-1)
 
-if sys.argv[1] == "-d":       
-    parse_spritemap(sys.argv[2], sys.argv[3], sys.argv[4:-1], sys.argv[-1], True)
-else:
-    parse_spritemap(sys.argv[1], sys.argv[2], sys.argv[3:-1], sys.argv[-1])
+parse_spritemap(args[0], args[1], args[2:-1], args[-1], compress)
 
