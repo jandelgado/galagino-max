@@ -21,7 +21,7 @@ class _1942 : public machineBase
 {
 public:
 	_1942() { last_coin = 0; }
-	~_1942() { }
+	~_1942();
 
 	signed char machineType() override { return MCH_1942; } 
 	unsigned char rdZ80(unsigned short Addr) override;
