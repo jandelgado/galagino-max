@@ -65,6 +65,15 @@ void test_literal_type() {
   printf("6. RomData<T> is a literal type (trivial destructor): OK\n");
 }
 
+void test_release_on_plain_is_safe() {
+  RomData<unsigned char> plain(plain_data, 4);
+  plain.release();  // must not attempt to delete[] the flash pointer
+  assert(plain[0] == 10 && plain[1] == 20 && plain[2] == 30 && plain[3] == 40);
+  plain.release();  // idempotent
+  assert(plain.data() == plain_data);
+  printf("7. release() on a plain-constructed RomData is a safe no-op: OK\n");
+}
+
 int main() {
   test_compressed_scalar();
   test_compressed_multidim();
@@ -72,6 +81,7 @@ int main() {
   test_release_frees_and_is_idempotent();
   test_const_romdata();
   test_literal_type();
+  test_release_on_plain_is_safe();
   printf("\nALL ROMDATA TESTS PASSED\n");
   return 0;
 }
