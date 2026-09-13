@@ -1,12 +1,6 @@
 #ifndef SCRAMBLE_H
 #define SCRAMBLE_H
 
-#include "scramble_logo.h"
-#include "scramble_main_rom.h"
-#include "scramble_audio_rom.h"
-#include "scramble_spritemap.h"
-#include "scramble_tilemap.h"
-#include "scramble_cmap.h"
 #include "scramble_dipswitches.h"
 
 #include "../tileaddr.h"

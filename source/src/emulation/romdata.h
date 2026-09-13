@@ -4,24 +4,48 @@
 #ifdef ARDUINO
 #include <Arduino.h>
 #else
-#include <cstdio>
+#include <cstdio>       // host tests
 #include <cstdlib>
 #endif
+#include <cstdint>
 #include <new>
 #include "uzlib.h"
+
+enum eMode { PLAIN, COMPRESSED };
 
 // Plain flash array or zlib blob unpacked to heap on first access. Same
 // interface either way, so converters can switch formats without touching
 // call sites.
-template<typename T>
-class RomData {
-public:
-    // Plain: points into flash, no copy.
-    constexpr RomData(const T *flashData, unsigned int count)
-      : packed(nullptr), packedLen(0), count(count), current(flashData) { }
+// `mode` picks the variant at compile time, so each carries only the
+// state it needs.
+template<typename T, eMode mode> class RomData;
 
-    // Compressed: unpacked on first access, kept until release().
-    constexpr RomData(const unsigned char *packed, unsigned int packedLen, unsigned int count)
+template<typename T>
+class RomData<T, PLAIN> {
+public:
+    // Points into flash, no copy.
+    constexpr RomData(const T *flashData, unsigned int count)
+      : data_(flashData) { }
+
+    RomData(const RomData &) = delete;
+    RomData &operator=(const RomData &) = delete;
+
+    const T *data() const { return data_; }
+    const T &operator[](unsigned int idx) const { return data_[idx]; }
+
+    // No-op: nothing owned. Kept so callers can treat every RomData
+    // instance the same at machine-teardown time regardless of mode.
+    void release() { }
+
+private:
+    const T *data_;
+};
+
+template<typename T>
+class RomData<T, COMPRESSED> {
+public:
+    // Unpacked on first access and cached.
+    constexpr RomData(const uint8_t *packed, uint32_t packedLen, uint32_t count)
       : packed(packed), packedLen(packedLen), count(count), current(nullptr) { }
 
     // Must stay trivial. A non-trivial destructor registers every global
@@ -37,21 +61,17 @@ public:
       return current;
     }
 
-    const T &operator[](unsigned int idx) const { return data()[idx]; }
+    const T &operator[](uint32_t idx) const { return data()[idx]; }
 
-    // Safe no-op for a plain (flash-resident) instance: packed is null there,
-    // so this never touches `current`, which points at flash we don't own.
     void release() {
-      if (packed) {
-        delete[] current;
-        current = nullptr;
-      }
+      delete[] current;
+      current = nullptr;
     }
 
 private:
     void unpack() const {
 #ifdef ARDUINO
-      unsigned long t0 = millis();
+      uint32_t t0 = millis();
 #endif
 
       T *buf = new (std::nothrow) T[count];
@@ -70,8 +90,8 @@ private:
 
       // Returns window size on success, not a TINF_* status.
       int hdr = uzlib_zlib_parse_header(&d);
-      d.dest_start = d.dest = (unsigned char *)buf;
-      d.dest_limit = (unsigned char *)buf + count * sizeof(T);
+      d.dest_start = d.dest = (uint8_t *)buf;
+      d.dest_limit = (uint8_t *)buf + count * sizeof(T);
 
       int status = hdr;
       if (hdr >= 0) {
@@ -83,26 +103,26 @@ private:
       }
 
       if (status != TINF_DONE || d.dest != d.dest_limit) {
-        printf("RomData: decompress failed (status=%d, got %lu/%lu bytes)\n",
-               status, (unsigned long)(d.dest - d.dest_start), (unsigned long)(count * sizeof(T)));
+        printf("RomData: decompress failed (status=%d, got %u/%u bytes)\n",
+               status, (unsigned)(d.dest - d.dest_start), (unsigned)(count * sizeof(T)));
         abort();
       }
 
-      unsigned long ms = 0;
+      uint32_t ms = 0;
 #ifdef ARDUINO
       ms = millis() - t0;
 #endif
-      unsigned int decompressedBytes = count * sizeof(T);
+      uint32_t decompressedBytes = count * sizeof(T);
       double ratio = 100.0 * (1.0 - (double)packedLen / (double)decompressedBytes);
-      printf("RomData: unpacked %u bytes (packed %u, %.1f%% smaller) in %lu ms\n",
+      printf("RomData: unpacked %u bytes (packed %u, %.1f%% smaller) in %u ms\n",
              decompressedBytes, packedLen, ratio, ms);
 
       current = buf;
     }
 
-    const unsigned char *packed;
-    unsigned int packedLen;
-    unsigned int count;
+    const uint8_t *packed;
+    uint32_t packedLen;
+    uint32_t count;
     mutable const T *current;
 };
 

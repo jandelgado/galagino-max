@@ -1,4 +1,10 @@
 #include "turtles.h"
+#include "turtles_logo.h"
+#include "turtles_main_rom.h"
+#include "turtles_audio_rom.h"
+#include "turtles_spritemap.h"
+#include "turtles_tilemap.h"
+#include "turtles_cmap.h"
 
 void turtles::start() {
   ignoreFireButton = 1;

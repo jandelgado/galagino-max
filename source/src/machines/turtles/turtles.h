@@ -1,12 +1,6 @@
 #ifndef TURTLES_H
 #define TURTLES_H
 
-#include "turtles_logo.h"
-#include "turtles_main_rom.h"
-#include "turtles_audio_rom.h"
-#include "turtles_spritemap.h"
-#include "turtles_tilemap.h"
-#include "turtles_cmap.h"
 #include "turtles_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"

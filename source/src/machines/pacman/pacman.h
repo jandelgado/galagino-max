@@ -2,12 +2,6 @@
 #define PACMAN_H
 
 #include "pacman_dipswitches.h"
-#include "pacman_logo.h"
-#include "pacman_rom.h"
-#include "pacman_tilemap.h"
-#include "pacman_spritemap.h"
-#include "pacman_cmap.h"
-#include "pacman_wavetable.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
 
@@ -15,11 +9,7 @@ class pacman : public machineBase
 {
 public:
 	pacman() { }
-	~pacman() {
-		pacman_rom.release();
-		pacman_tilemap.release();
-		pacman_sprites.release();
-	}
+	~pacman();
 
 	signed char machineType() override { return MCH_PACMAN; } 
 	unsigned char rdZ80(unsigned short Addr) override;

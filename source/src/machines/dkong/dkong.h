@@ -4,21 +4,7 @@
 #define DKONG_AUDIO_QUEUE_LEN   16
 #define DKONG_AUDIO_QUEUE_MASK (DKONG_AUDIO_QUEUE_LEN-1)
 
-#include "dkong_rom1.h"
-#include "dkong_rom2.h"
 #include "dkong_dipswitches.h"
-#include "dkong_logo.h"
-#include "dkong_tilemap.h"
-#include "dkong_spritemap.h"
-#include "dkong_cmap.h"
-#include "dkong_sample_walk0.h"
-#include "dkong_sample_walk1.h"
-#include "dkong_sample_walk2.h"
-#include "dkong_sample_jump.h"
-#include "dkong_sample_stomp.h"
-#include "dkong_sample_fall.h"
-#include "dkong_sample_roar.h"
-#include "dkong_sample_snapjaw.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
 
@@ -26,13 +12,7 @@ class dkong : public machineBase
 {
 public:
 	dkong() { }
-	~dkong() {
-		dkong_rom_cpu1.release();
-		dkong_rom_cpu2.release();
-		dkong_tilemap.release();
-		dkong_sprites.release();
-		dkong_colormap.release();
-	}
+	~dkong();
 
  	void reset() override;
 	signed char machineType() override { return MCH_DKONG; } 

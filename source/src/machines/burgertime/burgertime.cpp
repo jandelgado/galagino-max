@@ -1,4 +1,11 @@
 #include "burgertime.h"
+#include "burgertime_rom_main.h"
+#include "burgertime_rom_audio.h"
+#include "burgertime_chartiles.h"
+#include "burgertime_spritetiles.h"
+#include "burgertime_bgtiles.h"
+#include "burgertime_bgmap.h"
+#include "burgertime_logo.h"
 
 // ---------------------------------------------------------------------------
 // DECO CPU-7 decrypt (decocpu7.cpp, letto per intero): SOLO sul fetch di

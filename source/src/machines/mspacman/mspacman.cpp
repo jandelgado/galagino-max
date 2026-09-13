@@ -1,4 +1,5 @@
 #include "mspacman.h"
+#include "../pacman/pacman_rom.h"
 
 static inline bool mspacman_is_disable_trap(unsigned short Addr) {
   return (Addr >= 0x0038 && Addr <= 0x003F) ||

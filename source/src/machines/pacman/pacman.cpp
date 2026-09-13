@@ -1,4 +1,16 @@
 #include "pacman.h"
+#include "pacman_logo.h"
+#include "pacman_rom.h"
+#include "pacman_tilemap.h"
+#include "pacman_spritemap.h"
+#include "pacman_cmap.h"
+#include "pacman_wavetable.h"
+
+pacman::~pacman() {
+	pacman_rom.release();
+	pacman_tilemap.release();
+	pacman_sprites.release();
+}
 
 unsigned char pacman::opZ80(unsigned short Addr) {
   return pacman_rom[Addr];

@@ -1,4 +1,17 @@
 #include "frogger.h"
+#include "frogger_logo.h"
+#include "frogger_rom1.h"
+#include "frogger_rom2.h"
+#include "frogger_tilemap.h"
+#include "frogger_spritemap.h"
+#include "frogger_cmap.h"
+
+frogger::~frogger() {
+	frogger_rom_cpu1.release();
+	frogger_rom_cpu2.release();
+	frogger_tilemap.release();
+	frogger_sprites.release();
+}
 
 unsigned char frogger::opZ80(unsigned short Addr) {
   if (current_cpu == 0)
@@ -302,7 +315,7 @@ void frogger::blit_tile_scroll(short row, signed char col, short scroll) {
 }
 
 void frogger::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = spriteRom(sprite[s].flags & 3, sprite[s].code);
+  const uint32_t *spr = spriteRom(sprite[s].flags & 3, sprite[s].code);
   const unsigned short *colors = colorRom(sprite[s].color);
   
   // create mask for sprites that clip left or right
@@ -390,7 +403,7 @@ const unsigned short *frogger::colorRom(unsigned short addr) {
   return frogger_colormap[addr];
 }
 
-const unsigned long *frogger::spriteRom(unsigned char flags, unsigned char code) {
+const uint32_t *frogger::spriteRom(unsigned char flags, unsigned char code) {
   return frogger_sprites[flags][code];
 }
 
