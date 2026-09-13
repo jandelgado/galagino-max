@@ -18,7 +18,7 @@ public:
   void reset() override;
   void run_frame() override;
   void render_row(short row) override;
-  const unsigned short *logo() override { return nibbler_logo; }
+  static const unsigned short *logo() { return nibbler_logo; }
   unsigned char vanguardSoundRom(unsigned short addr) override {
     return addr<sizeof(nibbler_sound_rom)?nibbler_sound_rom[addr]:0xff;
   }

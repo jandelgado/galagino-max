@@ -599,6 +599,7 @@ void starforce::gameLeds(CRGB *leds) {
 }
 
 void starforce::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_BLUE, LED_CYAN, LED_BLUE, LED_WHITE, LED_BLUE, LED_CYAN, LED_BLUE};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif

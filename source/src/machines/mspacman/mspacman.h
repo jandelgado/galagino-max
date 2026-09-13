@@ -32,7 +32,7 @@ public:
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
   unsigned char opZ80(unsigned short Addr) override;
-  const unsigned short *logo(void) override;
+  static const unsigned short *logo(void);
 
 protected:
   const unsigned short *tileRom(unsigned short addr) override;

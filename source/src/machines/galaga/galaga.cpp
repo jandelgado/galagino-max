@@ -468,6 +468,7 @@ void galaga::gameLeds(CRGB *leds) {
 }
 
 void galaga::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_RED, LED_BLUE, LED_WHITE, LED_WHITE, LED_WHITE, LED_BLUE, LED_RED};
   memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB));
 }
 #endif

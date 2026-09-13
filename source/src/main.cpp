@@ -25,7 +25,7 @@
   #include "emulation/led.h"
 #endif
 
-signed char machinesCount = (signed char)(sizeof(machines) / sizeof(unsigned short*));
+signed char machinesCount = (signed char)countof(machines);
 
 machineBase *currentMachine;
 
@@ -154,11 +154,9 @@ void setup() {
   frame_buffer = (unsigned short*)malloc(240 * 8 * 2);
   sprite_buffer = (sprite_S*)malloc(128 * sizeof(sprite_S));
   memory = (uint8_t *)malloc(RAMSIZE);
-  currentMachine = machines[0];
-
   printf("Before init - Heap: Free=%d MaxAlloc=%d MinFree=%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
-  for (int i = 0; i < machinesCount; i++)
-    machines[i]->init(&input, frame_buffer, sprite_buffer, memory);
+  currentMachine = machines[0].create();
+  currentMachine->init(&input, frame_buffer, sprite_buffer, memory);
   printf("After  init - Heap: Free=%d MaxAlloc=%d MinFree=%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
 
   audio.init();
@@ -183,7 +181,7 @@ void loop(void) {
   updateAudioVideo();
 
 #ifdef LED_PIN
-  led.update(machines, menu.machineIndexPreselection(), menu.machineIndexSelected());
+  led.update(machines, currentMachine, menu.machineIndexPreselection(), menu.machineIndexSelected());
 #endif
 }
 
@@ -196,7 +194,9 @@ void updateAudioVideo(void) {
   }
   else {
     if (menu.startMachine()) {
-      currentMachine = machines[menu.machineIndexSelected()];
+      delete currentMachine;
+      currentMachine = machines[menu.machineIndexSelected()].create();
+      currentMachine->init(&input, frame_buffer, sprite_buffer, memory);
       audio.start(currentMachine);
       video.flip(currentMachine->videoFlipY(), currentMachine->videoFlipX());
 

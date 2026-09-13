@@ -443,6 +443,7 @@ void digdug::gameLeds(CRGB *leds) {
 }
 
 void digdug::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_WHITE, LED_BLUE, LED_RED, LED_RED, LED_RED, LED_BLUE, LED_WHITE};
   memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB));
 }
 #endif

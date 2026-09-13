@@ -202,156 +202,356 @@
 #endif
 
 // change machine order is possible here...
-machineBase *machines[] = {
+machineInfo machines[] = {
 #ifdef ENABLE_PACMAN
-  new pacman(),
+  { []() -> machineBase* { return new pacman(); }, pacman::logo,
+#ifdef LED_PIN
+    pacman::menuLeds,
+#endif
+    MCH_PACMAN },
 #endif
 #ifdef ENABLE_GALAGA
-  new galaga(),
+  { []() -> machineBase* { return new galaga(); }, galaga::logo,
+#ifdef LED_PIN
+    galaga::menuLeds,
+#endif
+    MCH_GALAGA },
 #endif
 #ifdef ENABLE_DIGDUG
-  new digdug(),
+  { []() -> machineBase* { return new digdug(); }, digdug::logo,
+#ifdef LED_PIN
+    digdug::menuLeds,
+#endif
+    MCH_DIGDUG },
 #endif
 #ifdef ENABLE_FROGGER
-  new frogger(),
+  { []() -> machineBase* { return new frogger(); }, frogger::logo,
+#ifdef LED_PIN
+    frogger::menuLeds,
+#endif
+    MCH_FROGGER },
 #endif
 #ifdef ENABLE_DKONG
-  new dkong(),
+  { []() -> machineBase* { return new dkong(); }, dkong::logo,
+#ifdef LED_PIN
+    dkong::menuLeds,
+#endif
+    MCH_DKONG },
 #endif
 #ifdef ENABLE_1942
-  new _1942(),
+  { []() -> machineBase* { return new _1942(); }, _1942::logo,
+#ifdef LED_PIN
+    _1942::menuLeds,
+#endif
+    MCH_1942 },
 #endif
 #ifdef ENABLE_LIZWIZ
-  new lizwiz(),
+  { []() -> machineBase* { return new lizwiz(); }, lizwiz::logo,
+#ifdef LED_PIN
+    lizwiz::menuLeds,
+#endif
+    MCH_LIZWIZ },
 #endif
 #ifdef ENABLE_EYES
-  new eyes(),
+  { []() -> machineBase* { return new eyes(); }, eyes::logo,
+#ifdef LED_PIN
+    eyes::menuLeds,
+#endif
+    MCH_EYES },
 #endif
 #ifdef ENABLE_MRTNT
-  new mrtnt(),
+  { []() -> machineBase* { return new mrtnt(); }, mrtnt::logo,
+#ifdef LED_PIN
+    mrtnt::menuLeds,
+#endif
+    MCH_MRTNT },
 #endif
 #ifdef ENABLE_THEGLOB
-  new theglob(),
+  { []() -> machineBase* { return new theglob(); }, theglob::logo,
+#ifdef LED_PIN
+    theglob::menuLeds,
+#endif
+    MCH_THEGLOB },
 #endif
 #ifdef ENABLE_CRUSH
-  new crush(),
+  { []() -> machineBase* { return new crush(); }, crush::logo,
+#ifdef LED_PIN
+    crush::menuLeds,
+#endif
+    MCH_CRUSH },
 #endif
 #ifdef ENABLE_ANTEATER
-  new anteater(),
+  { []() -> machineBase* { return new anteater(); }, anteater::logo,
+#ifdef LED_PIN
+    anteater::menuLeds,
+#endif
+    MCH_ANTEATER },
 #endif
 #ifdef ENABLE_BOMBJACK
-  new bombjack(),
+  { []() -> machineBase* { return new bombjack(); }, bombjack::logo,
+#ifdef LED_PIN
+    bombjack::menuLeds,
+#endif
+    MCH_BOMBJACK },
 #endif
 #ifdef ENABLE_MRDO
-  new mrdo(),
+  { []() -> machineBase* { return new mrdo(); }, mrdo::logo,
+#ifdef LED_PIN
+    mrdo::menuLeds,
+#endif
+    MCH_MRDO },
 #endif
 #ifdef ENABLE_BAGMAN
-  new bagman(),
+  { []() -> machineBase* { return new bagman(); }, bagman::logo,
+#ifdef LED_PIN
+    bagman::menuLeds,
+#endif
+    MCH_BAGMAN },
 #endif
 #ifdef ENABLE_PENGO
-  new pengo(),
+  { []() -> machineBase* { return new pengo(); }, pengo::logo,
+#ifdef LED_PIN
+    pacman::menuLeds,
+#endif
+    MCH_PENGO },
 #endif
 #ifdef ENABLE_MSPACMAN
-  new mspacman(),
+  { []() -> machineBase* { return new mspacman(); }, mspacman::logo,
+#ifdef LED_PIN
+    pacman::menuLeds,
+#endif
+    MCH_MSPACMAN },
 #endif
 #ifdef ENABLE_GALAXIAN
-  new galaxian(),
+  { []() -> machineBase* { return new galaxian(); }, galaxian::logo,
+#ifdef LED_PIN
+    galaxian::menuLeds,
+#endif
+    MCH_GALAXIAN },
 #endif
 #ifdef ENABLE_LADYBUG
-  new ladybug(),
+  { []() -> machineBase* { return new ladybug(); }, ladybug::logo,
+#ifdef LED_PIN
+    ladybug::menuLeds,
+#endif
+    MCH_LADYBUG },
 #endif
 #ifdef ENABLE_SPACEINVADERS
-  new spaceinvaders(),
+  { []() -> machineBase* { return new spaceinvaders(); }, spaceinvaders::logo,
+#ifdef LED_PIN
+    spaceinvaders::menuLeds,
+#endif
+    MCH_SPACEINVADERS },
 #endif
 #ifdef ENABLE_TIMEPLT
-  new timeplt(),
+  { []() -> machineBase* { return new timeplt(); }, timeplt::logo,
+#ifdef LED_PIN
+    timeplt::menuLeds,
+#endif
+    MCH_TIMEPLT },
 #endif
 #ifdef ENABLE_GYRUSS
-  new gyruss(),
+  { []() -> machineBase* { return new gyruss(); }, gyruss::logo,
+#ifdef LED_PIN
+    gyruss::menuLeds,
+#endif
+    MCH_GYRUSS },
 #endif
 #ifdef ENABLE_TUTANKHM
-  new tutankhm(),
+  { []() -> machineBase* { return new tutankhm(); }, tutankhm::logo,
+#ifdef LED_PIN
+    tutankhm::menuLeds,
+#endif
+    MCH_TUTANKHM },
 #endif
 #ifdef ENABLE_DKONGJR
-  new dkongjr(),
+  { []() -> machineBase* { return new dkongjr(); }, dkongjr::logo,
+#ifdef LED_PIN
+    dkong::menuLeds,
+#endif
+    MCH_DKONGJR },
 #endif
 #ifdef ENABLE_STARFORCE
-  new starforce(),
+  { []() -> machineBase* { return new starforce(); }, starforce::logo,
+#ifdef LED_PIN
+    starforce::menuLeds,
+#endif
+    MCH_STARFORCE },
 #endif
 #ifdef ENABLE_MOONCRESTA
-  new mooncresta(),
+  { []() -> machineBase* { return new mooncresta(); }, mooncresta::logo,
+#ifdef LED_PIN
+    mooncresta::menuLeds,
+#endif
+    MCH_MOONCRESTA },
 #endif
 #ifdef ENABLE_SCRAMBLE
-  new scramble(),
+  { []() -> machineBase* { return new scramble(); }, scramble::logo,
+#ifdef LED_PIN
+    scramble::menuLeds,
+#endif
+    MCH_SCRAMBLE },
 #endif
 #ifdef ENABLE_SUPERCOBRA
-  new supercobra(),
+  { []() -> machineBase* { return new supercobra(); }, supercobra::logo,
+#ifdef LED_PIN
+    supercobra::menuLeds,
+#endif
+    MCH_SUPERCOBRA },
 #endif
 #ifdef ENABLE_DKONG3
-  new dkong3(),
+  { []() -> machineBase* { return new dkong3(); }, dkong3::logo,
+#ifdef LED_PIN
+    dkong3::menuLeds,
+#endif
+    MCH_DKONG3 },
 #endif
 #ifdef ENABLE_POOYAN
-  new pooyan(),
+  { []() -> machineBase* { return new pooyan(); }, pooyan::logo,
+#ifdef LED_PIN
+    pooyan::menuLeds,
+#endif
+    MCH_POOYAN },
 #endif
 #ifdef ENABLE_PHOENIX
-  new phoenix(),
+  { []() -> machineBase* { return new phoenix(); }, phoenix::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_PHOENIX },
 #endif
 #ifdef ENABLE_BURGERTIME
-  new burgertime(),
+  { []() -> machineBase* { return new burgertime(); }, burgertime::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_BURGERTIME },
 #endif
 #ifdef ENABLE_XEVIOUS
-  new xevious(),
+  { []() -> machineBase* { return new xevious(); }, xevious::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_XEVIOUS },
 #endif
 #ifdef ENABLE_BNJ
-  new bnj(),
+  { []() -> machineBase* { return new bnj(); }, bnj::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_BNJ },
 #endif
 #ifdef ENABLE_MAPPY
-  new mappy(),
+  { []() -> machineBase* { return new mappy(); }, mappy::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_MAPPY },
 #endif
 #ifdef ENABLE_GAPLUS
-  new gaplus(),
+  { []() -> machineBase* { return new gaplus(); }, gaplus::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_GAPLUS },
 #endif
 #ifdef ENABLE_ALIBABA
-  new alibaba(),
+  { []() -> machineBase* { return new alibaba(); }, alibaba::logo,
+#ifdef LED_PIN
+    pacman::menuLeds,
+#endif
+    MCH_ALIBABA },
 #endif
 #ifdef ENABLE_AMIDAR
-  new amidar(),
+  { []() -> machineBase* { return new amidar(); }, amidar::logo,
+#ifdef LED_PIN
+    amidar::menuLeds,
+#endif
+    MCH_AMIDAR },
 #endif
 #ifdef ENABLE_TURTLES
-  new turtles(),
+  { []() -> machineBase* { return new turtles(); }, turtles::logo,
+#ifdef LED_PIN
+    turtles::menuLeds,
+#endif
+    MCH_TURTLES },
 #endif
 #ifdef ENABLE_CIRCUSC
-  new circusc(),
+  { []() -> machineBase* { return new circusc(); }, circusc::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_CIRCUSC },
 #endif
 #ifdef ENABLE_ROCNROPE
-  new rocnrope(),
+  { []() -> machineBase* { return new rocnrope(); }, rocnrope::logo,
+#ifdef LED_PIN
+    rocnrope::menuLeds,
+#endif
+    MCH_ROCNROPE },
 #endif
 #ifdef ENABLE_TODRUAGA
-  new todruaga(),
+  { []() -> machineBase* { return new todruaga(); }, todruaga::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_TODRUAGA },
 #endif
 #ifdef ENABLE_VANVAN
-  new vanvan(),
+  { []() -> machineBase* { return new vanvan(); }, vanvan::logo,
+#ifdef LED_PIN
+    vanvan::menuLeds,
+#endif
+    MCH_VANVAN },
 #endif
 #ifdef ENABLE_PBACTION
-  new pbaction(),
+  { []() -> machineBase* { return new pbaction(); }, pbaction::logo,
+#ifdef LED_PIN
+    pbaction::menuLeds,
+#endif
+    MCH_PBACTION },
 #endif
 #ifdef ENABLE_MOTORACE
-  new motorace(),
+  { []() -> machineBase* { return new motorace(); }, motorace::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_MOTORACE },
 #endif
 #ifdef ENABLE_ROADFIGHTER
-  new roadfighter(),
+  { []() -> machineBase* { return new roadfighter(); }, roadfighter::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_ROADFIGHTER },
 #endif
 #ifdef ENABLE_FANTASY
-  new fantasy(),
+  { []() -> machineBase* { return new fantasy(); }, fantasy::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_FANTASY },
 #endif
 #ifdef ENABLE_NIBBLER
-  new nibbler(),
+  { []() -> machineBase* { return new nibbler(); }, nibbler::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_NIBBLER },
 #endif
 #ifdef ENABLE_SCREGG
-  new scregg(),
+  { []() -> machineBase* { return new scregg(); }, scregg::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_SCREGG },
 #endif
 #ifdef ENABLE_VANGUARD
-  new vanguard(),
+  { []() -> machineBase* { return new vanguard(); }, vanguard::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_VANGUARD },
 #endif
 };
 

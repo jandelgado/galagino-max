@@ -18,7 +18,7 @@ public:
   void reset() override;
   void run_frame() override;
   void render_row(short row) override;
-  const unsigned short *logo() override { return fantasy_logo; }
+  static const unsigned short *logo() { return fantasy_logo; }
   unsigned char vanguardSoundRom(unsigned short addr) override {
     return addr < sizeof(fantasy_sound_rom) ? fantasy_sound_rom[addr] : 0xff;
   }

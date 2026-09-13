@@ -25,10 +25,10 @@ public:
 
   void run_frame(void) override;
   const signed char *waveRom(unsigned char value) override;
-  const unsigned short *logo(void) override;
+  static const unsigned short *logo(void);
 
 #ifdef LED_PIN
-  void menuLeds(CRGB *leds) override;
+  static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;
 #endif
 
@@ -46,10 +46,6 @@ private:
   uint8_t m_maketrax_disable_protection;
   unsigned long timerSoundChanged;
 
-#ifdef LED_PIN
-  const CRGB menu_leds[7] = { LED_RED, LED_YELLOW, LED_GREEN, LED_CYAN, LED_BLUE, LED_MAGENTA, LED_WHITE
- };
-#endif
 };
 
 

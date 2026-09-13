@@ -562,10 +562,11 @@ const unsigned short *gyruss::logo(void) {
 
 #ifdef LED_PIN
 void gyruss::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_BLUE, LED_CYAN, LED_WHITE, LED_CYAN, LED_WHITE, LED_CYAN, LED_BLUE};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 
 void gyruss::gameLeds(CRGB *leds) {
-  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
+  menuLeds(leds);
 }
 #endif

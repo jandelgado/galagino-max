@@ -15,7 +15,7 @@ class theglob : public pacman
 {
 public:
   theglob() { }
-  ~theglob() { }
+  ~theglob() { free(decrypt_rom_buffer); }
 
   void init(Input *input, unsigned short *framebuffer, sprite_S *spritebuffer, unsigned char *memorybuffer) override;
    void reset() override;
@@ -29,10 +29,10 @@ public:
 
   void run_frame(void) override;
   const signed char *waveRom(unsigned char value) override;
-  const unsigned short *logo(void) override;  
+  static const unsigned short *logo(void);  
 
 #ifdef LED_PIN
-  void menuLeds(CRGB *leds) override;
+  static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;
 #endif
   
@@ -66,10 +66,6 @@ private:
     return bitswap(val, b...);
   }
 
-private:
-#ifdef LED_PIN
-       const CRGB menu_leds[7] = { LED_RED, LED_BLUE, LED_YELLOW, LED_WHITE, LED_YELLOW, LED_BLUE, LED_RED };
-#endif
 };
 
 #endif

@@ -27,10 +27,10 @@ public:
 	void run_frame(void) override;
 	void prepare_frame(void) override;
 	void render_row(short row) override;
-    const unsigned short *logo(void) override;
+    static const unsigned short *logo(void);
 
 #ifdef LED_PIN	
-	void menuLeds(CRGB *leds) override;
+	static void menuLeds(CRGB *leds);
 	void gameLeds(CRGB *leds) override;
 #endif
 
@@ -47,11 +47,6 @@ protected:
 	unsigned char snd_filter;
 	unsigned long snd_icnt;
 	unsigned char snd_ay_port;
-
-private:
-#ifdef LED_PIN
-	const CRGB menu_leds[7] = { LED_RED, LED_GREEN, LED_YELLOW, LED_YELLOW, LED_YELLOW, LED_GREEN, LED_RED };
-#endif
 
 };
 

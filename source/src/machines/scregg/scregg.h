@@ -20,7 +20,7 @@ public:
   void run_frame() override;
   void prepare_frame() override;
   void render_row(short row) override;
-  const unsigned short *logo() override { return scregg_logo; }
+  static const unsigned short *logo() { return scregg_logo; }
 
   const int   renderWidth() { return 240; }
   const int   renderBuffer() { return 240 * 2 * 8; }

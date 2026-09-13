@@ -38,10 +38,10 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-    const unsigned short *logo(void) override;
+    static const unsigned short *logo(void);
 
 #ifdef LED_PIN	
-  void menuLeds(CRGB *leds) override;
+  static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;
 #endif
 
@@ -62,10 +62,6 @@ private:
   bool m_nmi_on;              // Flag per abilitare l'interrupt NMI
   bool m_mmi_skip_audio_cpu;
   bool m_flip;                // Flag per lo screen flip
-
-#ifdef LED_PIN
-  const CRGB menu_leds[7] = { LED_BLUE, LED_RED, LED_YELLOW, LED_WHITE, LED_YELLOW, LED_RED, LED_BLUE };
-#endif
 
 };
 

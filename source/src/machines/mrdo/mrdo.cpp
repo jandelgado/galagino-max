@@ -434,6 +434,7 @@ void mrdo::gameLeds(CRGB *leds) {
 }
 
 void mrdo::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_RED, LED_GREEN, LED_YELLOW, LED_YELLOW, LED_YELLOW, LED_GREEN, LED_RED};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif

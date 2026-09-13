@@ -27,11 +27,11 @@ public:
 	void prepare_frame(void) override;
 	void render_row(short row) override;
 	const signed char *waveRom(unsigned char value) override;
-	const unsigned short *logo(void) override;
+	static const unsigned short *logo(void);
 	bool hasNamcoAudio() override { return true; }
 	
 #ifdef LED_PIN
-	void menuLeds(CRGB *leds) override;
+	static void menuLeds(CRGB *leds);
 	void gameLeds(CRGB *leds) override;
 #endif
 
@@ -42,10 +42,6 @@ protected:
 	virtual const unsigned short *colorRom(unsigned short addr);
 	virtual const unsigned long *spriteRom(unsigned char flags, unsigned char code);
 
-private:
-#ifdef LED_PIN
-	const CRGB menu_leds[7] = { LED_BLUE, LED_BLACK, LED_YELLOW, LED_YELLOW, LED_YELLOW, LED_BLACK, LED_BLUE };
-#endif
 };
 
 #endif

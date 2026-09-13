@@ -83,7 +83,7 @@ public:
   void render_row(short row) override;
 
   const signed char *waveRom(unsigned char value) override;
-  const unsigned short *logo(void) override;
+  static const unsigned short *logo(void);
   bool hasNamcoAudio() override { return true; }
 
   // esplosioni: campioni PCM digitalizzati (stesso schema di

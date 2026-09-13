@@ -71,7 +71,7 @@ public:
     void prepare_frame(void) override;
     void run_frame(void) override;
     void render_row(short row) override;
-    const unsigned short *logo(void) override;
+    static const unsigned short *logo(void);
 
     // Public: accessed by audio.cpp
     static const int DK3_SAMPLES = 1024;
@@ -80,7 +80,7 @@ public:
     short    dk3_samples[DK3_SAMPLES];
 
 #ifdef LED_PIN
-    void menuLeds(CRGB *leds) override;
+    static void menuLeds(CRGB *leds);
     void gameLeds(CRGB *leds) override;
 #endif
 
@@ -124,9 +124,6 @@ private:
     static uint8_t snd1_read (m6502_t *cpu, uint16_t addr);
     static void    snd1_write(m6502_t *cpu, uint16_t addr, uint8_t val);
 
-#ifdef LED_PIN
-    const CRGB menu_leds[7] = { LED_GREEN, LED_BLUE, LED_YELLOW, LED_WHITE, LED_YELLOW, LED_BLUE, LED_GREEN };
-#endif
 };
 
 #endif

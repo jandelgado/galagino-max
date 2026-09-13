@@ -31,11 +31,11 @@ public:
 	void run_frame(void) override;
 	void prepare_frame(void) override;
 	void render_row(short row) override;
-	const unsigned short *logo(void) override;
+	static const unsigned short *logo(void);
 	bool hasNamcoAudio() override { return false; }
 
 #ifdef LED_PIN
-	void menuLeds(CRGB *leds) override;
+	static void menuLeds(CRGB *leds);
 	void gameLeds(CRGB *leds) override;
 #endif
 
@@ -47,9 +47,6 @@ private:
 	void blit_bgtile_row(short row);
 	void lsl64(unsigned long *mask, int pix);
 	void lsr64(unsigned long *mask, int pix);
-#ifdef LED_PIN
-	const CRGB menu_leds[7] = { LED_WHITE, LED_BLACK, LED_GREEN, LED_GREEN, LED_GREEN, LED_BLACK, LED_WHITE };
-#endif
 	unsigned char _1942_bank = 0;
 	unsigned char _1942_palette = 0;
 	unsigned short _1942_scroll = 0;

@@ -180,7 +180,6 @@ public:
     virtual const signed char *vanguardSample(unsigned char index) { return 0; }
     virtual unsigned long vanguardSampleLength(unsigned char index) { return 0; }
     virtual unsigned char vanguardSampleDivider(unsigned char index) { return 1; }
-    virtual const unsigned short *logo(void) { return 0; };
     virtual bool hasNamcoAudio() { return false; }
 
     // WSG 15XX 8 voices (Mappy): register layout different from 3 voice WSG
@@ -196,8 +195,14 @@ public:
     virtual int renderDrumSample() { return 0; }
 
 #ifdef LED_PIN
-    virtual void menuLeds(CRGB *leds) { memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB)); };
-    virtual void gameLeds(CRGB *leds) { memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB)); };
+    // Static: menu preview runs before any machine instance exists.
+    static void defaultMenuLeds(CRGB *leds) {
+      static const CRGB black[NUM_LEDS] = { LED_BLACK, LED_BLACK, LED_BLACK, LED_BLACK, LED_BLACK, LED_BLACK, LED_BLACK };
+      memcpy(leds, black, sizeof(black));
+    }
+
+    // Only read from the running machine, so it can stay virtual.
+    virtual void gameLeds(CRGB *leds) { defaultMenuLeds(leds); }
 #endif
     char game_started;	
     unsigned char soundregs[80];
@@ -229,11 +234,16 @@ protected:
     unsigned char *memory;
 
     M6502 cpu6502[2];
+};
 
-private:	
+// Per-title data for the menu. No instance exists until create().
+struct machineInfo {
+  machineBase *(*create)();
+  const unsigned short *(*logo)();
 #ifdef LED_PIN
-    const CRGB menu_leds[7] = { LED_BLACK, LED_BLACK, LED_BLACK, LED_BLACK, LED_BLACK, LED_BLACK, LED_BLACK };
+  void (*menuLeds)(CRGB *leds);
 #endif
+  signed char type;
 };
 
 #endif

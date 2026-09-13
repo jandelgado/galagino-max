@@ -106,6 +106,7 @@ const unsigned short *mrtnt::logo(void) {
 
 #ifdef LED_PIN
 void mrtnt::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_RED, LED_YELLOW, LED_RED, LED_BLACK, LED_RED, LED_YELLOW, LED_RED};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 

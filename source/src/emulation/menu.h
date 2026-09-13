@@ -11,7 +11,7 @@ public:
   Menu() { }
   ~Menu() { }
 
-  void init(Input *input, machineBase **machines, signed char machinesCount, unsigned short *framebuffer);
+  void init(Input *input, const machineInfo *machines, signed char machinesCount, unsigned short *framebuffer);
   void attract_resetTimer();
   bool attract_gameTimeout();
   void render_row(short row);
@@ -29,7 +29,7 @@ private:
   Input *input;
   signed char machinesCount;
   machineBase *currentMachine;
-  machineBase **machines;
+  const machineInfo *machines;
   unsigned short *frame_buffer;
   unsigned char last_mask;
   bool menuWasSelected;

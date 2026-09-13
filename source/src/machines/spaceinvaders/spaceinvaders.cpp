@@ -237,6 +237,7 @@ void spaceinvaders::gameLeds(CRGB *leds) {
 }
 
 void spaceinvaders::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_GREEN, LED_WHITE, LED_GREEN, LED_WHITE, LED_GREEN, LED_WHITE, LED_GREEN};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif

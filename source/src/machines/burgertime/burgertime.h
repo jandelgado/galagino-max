@@ -61,7 +61,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  const unsigned short *logo(void) override;
+  static const unsigned short *logo(void);
 
 protected:
   void blit_tile(short row, char col) override;

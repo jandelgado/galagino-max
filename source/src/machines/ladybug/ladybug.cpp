@@ -382,6 +382,7 @@ void ladybug::gameLeds(CRGB *leds) {
 }
 
 void ladybug::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_RED, LED_RED, LED_BLACK, LED_RED, LED_BLACK, LED_RED, LED_RED};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif

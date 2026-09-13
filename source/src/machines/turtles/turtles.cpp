@@ -279,6 +279,7 @@ void turtles::gameLeds(CRGB *leds) {
 }
 
 void turtles::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_GREEN, LED_YELLOW, LED_GREEN, LED_WHITE, LED_GREEN, LED_YELLOW, LED_GREEN};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
