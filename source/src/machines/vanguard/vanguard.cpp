@@ -1,15 +1,26 @@
 #include "vanguard.h"
+#include "vanguard_rom.h"
+#include "vanguard_gfx.h"
+#include "vanguard_proms.h"
+#include "vanguard_sound_rom.h"
 #include "vanguard_samples.h"
 
-static_assert(sizeof(vanguard_rom) == 0x8000, "Unexpected Vanguard program ROM size");
-static_assert(sizeof(vanguard_gfx) == 0x1000, "Unexpected Vanguard graphics ROM size");
-static_assert(sizeof(vanguard_proms) == 0x40, "Unexpected Vanguard palette PROM size");
-static_assert(sizeof(vanguard_sound_rom) == 0x1000, "Unexpected Vanguard sound ROM size");
 static_assert(VANGUARD_SAMPLE_COUNT == 18, "Unexpected Vanguard sample count");
+
+vanguard::~vanguard() {
+	vanguard_rom.release();
+	vanguard_gfx.release();
+	vanguard_sound_rom.release();
+	vanguard_samples.release();
+}
+
+unsigned char vanguard::vanguardSoundRom(unsigned short addr) {
+  return vanguard_sound_rom[addr & 0x0fff];
+}
 
 const signed char *vanguard::vanguardSample(unsigned char index) {
   return index < VANGUARD_SAMPLE_COUNT ?
-    reinterpret_cast<const signed char *>(vanguard_samples + vanguard_sample_offsets[index]) : nullptr;
+    reinterpret_cast<const signed char *>(vanguard_samples.data() + vanguard_sample_offsets[index]) : nullptr;
 }
 
 unsigned long vanguard::vanguardSampleLength(unsigned char index) {

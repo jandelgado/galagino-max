@@ -1,10 +1,6 @@
 #ifndef VANGUARD_H
 #define VANGUARD_H
 
-#include "vanguard_rom.h"
-#include "vanguard_gfx.h"
-#include "vanguard_proms.h"
-#include "vanguard_sound_rom.h"
 #include "vanguard_logo.h"
 #include "vanguard_dipswitches.h"
 #include "../../cpus/m6502/m6502.h"
@@ -13,13 +9,14 @@
 class vanguard : public machineBase {
 public:
   vanguard() { memset(&m_cpu, 0, sizeof(m_cpu)); }
+  ~vanguard();
   signed char machineType() override { return MCH_VANGUARD; }
   void start() override;
   void reset() override;
   void run_frame() override;
   void render_row(short row) override;
   static const unsigned short *logo() { return vanguard_logo; }
-  unsigned char vanguardSoundRom(unsigned short addr) override { return vanguard_sound_rom[addr & 0x0fff]; }
+  unsigned char vanguardSoundRom(unsigned short addr) override;
   bool vanguardMusic0Muted() override { return music0_muted; }
   void vanguardMusic0Ended() override { music0_muted=true; }
   bool vanguardMusic1Muted() override { return music1_muted; }
