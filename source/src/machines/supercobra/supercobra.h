@@ -2,11 +2,6 @@
 #define SUPERCOBRA_H
 
 #include "supercobra_logo.h"
-#include "supercobra_main_rom.h"
-#include "supercobra_audio_rom.h"
-#include "supercobra_spritemap.h"
-#include "supercobra_tilemap.h"
-#include "supercobra_cmap.h"
 #include "supercobra_dipswitches.h"
 
 #include "../tileaddr.h"
@@ -51,7 +46,7 @@ class supercobra : public scramble
 {
 public:
   supercobra() {}
-  ~supercobra() {}
+  ~supercobra();
 
   signed char machineType() override { return MCH_SUPERCOBRA; }
 

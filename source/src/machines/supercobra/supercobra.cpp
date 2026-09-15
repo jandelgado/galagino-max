@@ -1,4 +1,16 @@
 #include "supercobra.h"
+#include "supercobra_main_rom.h"
+#include "supercobra_audio_rom.h"
+#include "supercobra_spritemap.h"
+#include "supercobra_tilemap.h"
+#include "supercobra_cmap.h"
+
+supercobra::~supercobra() {
+	supercobra_main_rom.release();
+	supercobra_audio_rom.release();
+	supercobra_spritemap.release();
+	supercobra_tilemap.release();
+}
 
 unsigned char supercobra::opZ80(unsigned short Addr) {
   if (current_cpu == 0 && Addr < CPU1_ROM_SIZE)
@@ -377,7 +389,7 @@ void supercobra::blit_tile_scroll(short row, signed char col, unsigned char scro
 }
 
 void supercobra::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = supercobra_spritemap[sprite[s].flags & 3][sprite[s].code];
+  const uint32_t *spr = supercobra_spritemap[sprite[s].flags & 3][sprite[s].code];
   const unsigned short *colors = supercobra_colormap[sprite[s].color];
 
   unsigned long mask = 0xffffffff;
