@@ -1,4 +1,14 @@
 #include "bagman.h"
+#include "bagman_rom.h"
+#include "bagman_tilemap.h"
+#include "bagman_spritemap.h"
+#include "bagman_cmap.h"
+
+bagman::~bagman() {
+	bagman_rom_cpu.release();
+	bagman_tilemap.release();
+	bagman_sprites.release();
+}
 
 unsigned char bagman::opZ80(unsigned short Addr) {
   return bagman_rom_cpu[Addr];
@@ -181,7 +191,7 @@ void bagman::blit_tile(short row, char col) {
 }
 
 void bagman::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = spriteRom(sprite[s].flags, sprite[s].code);
+  const uint32_t *spr = spriteRom(sprite[s].flags, sprite[s].code);
   const unsigned short *colors = colorRom(sprite[s].color);
   
   // create mask for sprites that clip left or right
@@ -244,7 +254,7 @@ const unsigned short *bagman::colorRom(unsigned short addr) {
   return bagman_colormap[addr];
 }
 
-const unsigned long *bagman::spriteRom(unsigned char flags, unsigned char code) {
+const uint32_t *bagman::spriteRom(unsigned char flags, unsigned char code) {
   return bagman_sprites[flags][code];
 }
 
