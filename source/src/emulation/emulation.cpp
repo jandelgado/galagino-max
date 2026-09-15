@@ -1,7 +1,12 @@
 #include "Arduino.h"
+#include "esp_task_wdt.h"
 #include "emulation.h"
 #include "input.h"
 #include "../machines/machineBase.h"
+
+// CONFIG_ESP_TASK_WDT_* build flags are ignored: the framework's sdkconfig is
+// precompiled. Arm the watchdog at runtime so a hung emulation task panics.
+static const uint32_t EMULATION_WDT_TIMEOUT_S = 8;
 
 // including of "../machines/machineBase.h" in "emulation.h" not possible
 extern machineBase *currentMachine;
@@ -16,6 +21,12 @@ void emulation_start() {
   currentMachine->reset();
   currentMachine->start();
   xTaskCreatePinnedToCore(emulation_task, "emulation task", 4096, NULL, 2, &emulationTaskHandle, ARDUINO_RUNNING_CORE == 0 ? 1 : 0);
+
+  // Framework default only warns. Re-init on every machine switch: the new
+  // task has a new handle.
+  esp_task_wdt_deinit();
+  esp_task_wdt_init(EMULATION_WDT_TIMEOUT_S, true);
+  esp_task_wdt_add(emulationTaskHandle);
 }
 
 void emulation_stop() {
@@ -57,9 +68,11 @@ IRAM_ATTR void emulation_task(void *p) {
 #endif
 
     currentMachine->run_frame();
+    esp_task_wdt_reset();
 
     if (doDeleteEmulationTask) {
       doDeleteEmulationTask = 0;
+      esp_task_wdt_delete(emulationTaskHandle);
       vTaskDelete(emulationTaskHandle);
     }
 
