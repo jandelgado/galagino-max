@@ -1,5 +1,22 @@
 #include "gaplus.h"
 
+gaplus::gaplus() : rom_main(gaplus_rom_main.data()),
+  rom_sub(gaplus_rom_sub.data()),
+  rom_sub2(gaplus_rom_sub2.data()),
+  tiles(gaplus_tilemap.data()),
+  cmap_tiles(gaplus_colormap_tiles),
+  cmap_prio(gaplus_colormap_tiles_prio),
+  cmap_sprites(gaplus_colormap_sprites.data()) { }
+
+gaplus::~gaplus() {
+	gaplus_rom_main.release();
+	gaplus_rom_sub.release();
+	gaplus_rom_sub2.release();
+	gaplus_tilemap.release();
+	gaplus_colormap_sprites.release();
+	gaplus_sample_bang.release();
+}
+
 void gaplus::reset() {
   machineBase::reset();
 
@@ -157,8 +174,8 @@ void IRAM_ATTR gaplus::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if ((addr & 0xFFF0) == 0x6820) {
     unsigned char off = addr & 0x0F;
     if (off == 9 && val >= 0x0F) {
-      snd_bang_cnt = sizeof(gaplus_sample_bang);
-      snd_bang_ptr = (const signed char *)gaplus_sample_bang;
+      snd_bang_cnt = GAPLUS_SAMPLE_BANG_LEN;
+      snd_bang_ptr = (const signed char *)gaplus_sample_bang.data();
     }
     customio3_ram[off] = val;
     return;
@@ -563,7 +580,7 @@ void gaplus::prepare_frame(void) {
 // colormap 0 (lookup 0xFF nel converter)
 void gaplus::blit_sprite(short row, unsigned char s) {
   unsigned short code = sprite[s].code | ((unsigned short)sprite[s].color_block << 8);
-  const unsigned long *spr = gaplus_sprites[sprite[s].flags & 3][code];
+  const uint32_t *spr = gaplus_sprites[sprite[s].flags & 3][code];
   const unsigned short *colors = cmap_sprites[sprite[s].color & 0x3F];
 
   short y_offset = sprite[s].y - 8 * row;

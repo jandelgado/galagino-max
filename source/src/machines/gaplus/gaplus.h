@@ -50,14 +50,9 @@
 class gaplus : public machineBase
 {
 public:
-    gaplus() : rom_main(gaplus_rom_main), 
-               rom_sub(gaplus_rom_sub),
-               rom_sub2(gaplus_rom_sub2), 
-               tiles(gaplus_tilemap),
-               cmap_tiles(gaplus_colormap_tiles), 
-               cmap_prio(gaplus_colormap_tiles_prio),
-               cmap_sprites(gaplus_colormap_sprites) { }
-    ~gaplus() { }
+    // ctor/dtor in .cpp: a header-static RomData is per-TU; data() and release() must hit one copy.
+    gaplus();
+    ~gaplus();
 
     signed char machineType() override { return MCH_GAPLUS; }
     signed char useVideoHalfRate() override { return 1; }
