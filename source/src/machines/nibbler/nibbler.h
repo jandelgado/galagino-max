@@ -1,10 +1,6 @@
 #ifndef NIBBLER_H
 #define NIBBLER_H
 
-#include "nibbler_rom.h"
-#include "nibbler_gfx.h"
-#include "nibbler_proms.h"
-#include "nibbler_sound_rom.h"
 #include "nibbler_logo.h"
 #include "nibbler_dipswitches.h"
 #include "../../cpus/m6502/m6502.h"
@@ -13,15 +9,14 @@
 class nibbler : public machineBase {
 public:
   nibbler() { memset(&m_cpu,0,sizeof(m_cpu)); }
+  ~nibbler();
   signed char machineType() override { return MCH_NIBBLER; }
   void start() override;
   void reset() override;
   void run_frame() override;
   void render_row(short row) override;
   static const unsigned short *logo() { return nibbler_logo; }
-  unsigned char vanguardSoundRom(unsigned short addr) override {
-    return addr<sizeof(nibbler_sound_rom)?nibbler_sound_rom[addr]:0xff;
-  }
+  unsigned char vanguardSoundRom(unsigned short addr) override;
   bool vanguardMusic0Muted() override { return music_muted[0]; }
   bool vanguardMusic1Muted() override { return music_muted[1]; }
   bool vanguardMusic2Muted() override { return music_muted[2]; }
