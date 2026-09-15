@@ -528,11 +528,6 @@ void gyruss::blit_sprite(short row, unsigned char s_idx) {
   int code = s->code + (s->color_block ? 256 : 0);
   if (code >= 512) code = 0;
 
-  // ROT90 swaps flip axes: flip_y → variant bit 0, flip_x → variant bit 1
-  int variant = 0;
-  if (s->flip_y) variant |= 1;   // row reversal = frame_x flip
-  if (s->flip_x) variant |= 2;   // pixel reversal = frame_y flip
-
   unsigned char color_group = s->color;
   const unsigned short *colors = gyruss_sprite_colormap[color_group];
 
@@ -542,14 +537,18 @@ void gyruss::blit_sprite(short row, unsigned char s_idx) {
   int y_base = spr_start_y - row_pixel_start;
 
   // ROM row r → frame_x offset (0..15), ROM col c → frame_y offset (0..7)
+  // Sprites are stored unflipped; flipping here saves 4x sprite RAM.
+  // ROT90 swaps flip axes: flip_y → row reversal, flip_x → pixel reversal
   for (int r = 0; r < 16; r++) {
     int screen_x = s->x + r;
     if (screen_x < 0 || screen_x >= 224) continue;
 
-    unsigned long row_data = gyruss_sprites[variant][code][r];
+    int src_r = s->flip_y ? (15 - r) : r;
+    unsigned long row_data = gyruss_sprites[code][src_r];
 
     for (int c = c_start; c < c_end; c++) {
-      unsigned char px = (row_data >> (c * 4)) & 0x0F;
+      int src_c = s->flip_x ? (7 - c) : c;
+      unsigned char px = (row_data >> (src_c * 4)) & 0x0F;
       if (px) {
         frame_buffer[(y_base + c) * 224 + screen_x] = colors[px];
       }

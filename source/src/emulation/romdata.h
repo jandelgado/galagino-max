@@ -113,7 +113,9 @@ private:
       printf("Free heap: %d\n", ESP.getFreeHeap());
 #endif
 
-      T *buf = new (std::nothrow) T[count];
+      // uzlib writes literals without a bounds check and can write one byte
+      // past dest_limit. Pad so that byte does not corrupt the heap.
+      T *buf = new (std::nothrow) T[count + 1];
       if (!buf) {
         printf("RomData: allocation failed (%u bytes)\n", (unsigned)(count * sizeof(T)));
         abort();

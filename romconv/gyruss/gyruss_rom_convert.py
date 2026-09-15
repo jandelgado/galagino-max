@@ -220,45 +220,23 @@ def decode_sprite_pixel(data, sprite_base, row, pixel, data_len):
 def decode_sprites(gfx_data):
     """Decode 512 sprites (8x16, 4bpp) from combined sprite ROMs.
     gfx_data = gyrussk.6 + gyrussk.5 (region 0) + gyrussk.8 + gyrussk.7 (region 1)
-    Returns sprites[4][512][16] (4 flip variants, 512 sprites, 16 rows).
-    Each row packs 8 pixels x 4 bits = 32 bits (uint32_t)."""
+    Returns sprites[512][16] in canonical (unflipped) orientation.
+    Each row packs 8 pixels x 4 bits = 32 bits (uint32_t).
+    X/Y flip variants are no longer precomputed here -- gyruss::blit_sprite
+    derives them at render time (row/nibble reversal), same technique as
+    blit_tile, cutting decompressed sprite RAM 4x."""
     data_len = len(gfx_data)
     num_sprites = 512  # 512 sprites total (128 per ROM file, 4 files)
-    sprites = [[[0] * 16 for _ in range(num_sprites)] for _ in range(4)]
+    sprites = [[0] * 16 for _ in range(num_sprites)]
 
     for s in range(num_sprites):
         base = s * 64  # 64 bytes per sprite
-        
-        normal = []
         for r in range(16):
             row_val = 0
             for p in range(8):
                 px = decode_sprite_pixel(gfx_data, base, r, p, data_len)
                 row_val |= px << (p * 4)
-            normal.append(row_val)
-
-        # Variant 0: normal
-        sprites[0][s] = normal[:]
-
-        # Variant 1: Y flip (reverse rows)
-        sprites[1][s] = normal[::-1]
-
-        # Variant 2: X flip (reverse pixels in each row)
-        for r in range(16):
-            flipped = 0
-            for p in range(8):
-                px = (normal[r] >> (p * 4)) & 0xF
-                flipped |= px << ((7 - p) * 4)
-            sprites[2][s][r] = flipped
-
-        # Variant 3: XY flip (both)
-        for r in range(16):
-            flipped = 0
-            src_row = normal[15 - r]
-            for p in range(8):
-                px = (src_row >> (p * 4)) & 0xF
-                flipped |= px << ((7 - p) * 4)
-            sprites[3][s][r] = flipped
+            sprites[s][r] = row_val
 
     return sprites
 
@@ -389,15 +367,17 @@ def write_tilemap_h(tiles, filepath, patch_values):
 
 def write_spritemap_h(sprites, filepath, patch_values):
     """Write spritemap as C header, patched (if any) and zlib-compressed.
-    Flat order (variant, then sprite, then row) matches spr_patch.table's
-    per-position layout -- see write_tilemap_h."""
-    flat = [row for v in range(4) for s in range(512) for row in sprites[v][s]]
+    Flat order (sprite, then row) matches the leading (variant 0) slice of
+    spr_patch.table's layout -- see write_tilemap_h. The 3 flipped-variant
+    slices that used to follow are gone (see decode_sprites); apply_patch_values
+    only consumes as many entries as flat has, so the same table still works."""
+    flat = [row for s in range(512) for row in sprites[s]]
     flat = apply_patch_values(flat, patch_values, 0xFFFFFFFF)
     with open(filepath, "w") as f:
-        f.write("// Gyruss sprites (512 sprites, 8x16, 4bpp, 4 flip variants)\n")
+        f.write("// Gyruss sprites (512 sprites, 8x16, 4bpp, canonical orientation)\n")
         f.write("// Generated from gyrussk.6 + gyrussk.5 + gyrussk.8 + gyrussk.7\n")
-        f.write("// Variant 0=normal, 1=Y-flip, 2=X-flip, 3=XY-flip\n\n")
-        emit_compressed(f, "gyruss_sprites", "uint32_t", "[512][16]", 4, flat)
+        f.write("// X/Y flip applied at render time -- see gyruss::blit_sprite\n\n")
+        emit_compressed(f, "gyruss_sprites", "uint32_t", "[16]", 512, flat)
 
 
 def write_palette_h(palette_565, sprite_cmap, char_cmap, filepath):
@@ -526,7 +506,7 @@ def main():
 
     # 5. Sprites from gyrussk.6+5 (region 0) + gyrussk.8+7 (region 1)
     print("\n=== GENERAZIONE SPRITEMAP ===")
-    print("Decoding sprites (512 x 8x16 x 4bpp, 4 variants)...")
+    print("Decoding sprites (512 x 8x16 x 4bpp)...")
     sprite_data = bytearray(0x8000)
     sprite_data[0x0000:0x2000] = load_file("gyrussk.6") or bytearray(0x2000)
     sprite_data[0x2000:0x4000] = load_file("gyrussk.5") or bytearray(0x2000)
@@ -538,7 +518,7 @@ def main():
     sprite_patch = load_patch_values("spr_patch.table")
     write_spritemap_h(sprites, final_file, sprite_patch)
 
-    print(f"  File finale: {final_file} (512 sprites x 4 variants)")
+    print(f"  File finale: {final_file} (512 sprites)")
 
     # 6. Palette and color maps from PROMs (no patch)
     print("\nGenerazione palette e color maps...")
@@ -561,7 +541,7 @@ def main():
     print(f"  Sub ROM:     {len(sub_raw):6d} bytes (+ {len(sub_decrypt)} decrypted)")
     print(f"  Audio ROM:   {len(audio_rom):6d} bytes")
     print(f"  Tiles:       {len(tiles):6d} (8x8, 2bpp)")
-    print(f"  Sprites:     512 (8x16, 4bpp, 4 variants)")
+    print(f"  Sprites:     512 (8x16, 4bpp)")
     print(f"  Palette:     32 base colors + lookup tables")
 
 
