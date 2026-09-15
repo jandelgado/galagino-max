@@ -1,4 +1,17 @@
 #include "bnj.h"
+#include "bnj_rom_main.h"
+#include "bnj_rom_audio.h"
+#include "bnj_chartiles.h"
+#include "bnj_spritetiles.h"
+#include "bnj_bgtiles.h"
+
+bnj::~bnj() {
+	bnj_rom_main.release();
+	bnj_rom_audio.release();
+	bnj_chartiles.release();
+	bnj_spritetiles.release();
+	bnj_bgtiles.release();
+}
 
 // ---------------------------------------------------------------------------
 // DECO C10707 decrypt (deco222.cpp, letto per intero): bitswap STATICO e
