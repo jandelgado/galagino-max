@@ -1,4 +1,20 @@
 #include "gyruss.h"
+#include "gyruss_rom_main.h"
+#include "gyruss_rom_sub.h"
+#include "gyruss_rom_audio.h"
+#include "gyruss_rom_i8039.h"
+#include "gyruss_tilemap.h"
+#include "gyruss_spritemap.h"
+
+gyruss::~gyruss() {
+	gyruss_rom_main.release();
+	gyruss_rom_sub_raw.release();
+	gyruss_rom_sub_decrypt.release();
+	gyruss_rom_audio.release();
+	gyruss_rom_i8039.release();
+	gyruss_tilemap.release();
+	gyruss_sprites.release();
+}
 
 // ============================================================
 // M6809 sub-CPU memory map
