@@ -44,11 +44,9 @@
 class todruaga : public machineBase
 {
 public:
-    todruaga() : rom_main(todruaga_rom_main), rom_sub(todruaga_rom_sub),
-                 tiles(todruaga_tilemap), cmap_tiles(todruaga_colormap_tiles),
-                 cmap_prio(todruaga_colormap_tiles_prio),
-                 cmap_sprites(todruaga_colormap_sprites) { }
-    ~todruaga() { }
+    // ctor/dtor in .cpp: a header-static RomData is per-TU; data() and release() must hit one copy.
+    todruaga();
+    ~todruaga();
 
     signed char machineType() override { return MCH_TODRUAGA; }
     signed char useVideoHalfRate() override { return 1; }
