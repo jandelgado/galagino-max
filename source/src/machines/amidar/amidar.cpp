@@ -1,4 +1,16 @@
 #include "amidar.h"
+#include "amidar_main_rom.h"
+#include "amidar_audio_rom.h"
+#include "amidar_spritemap.h"
+#include "amidar_tilemap.h"
+#include "amidar_cmap.h"
+
+amidar::~amidar() {
+	amidar_main_rom.release();
+	amidar_audio_rom.release();
+	amidar_spritemap.release();
+	amidar_tilemap.release();
+}
 
 // Amidar ROM is 20KB (0x0000-0x4FFF); reads above that return 0xFF.
 // wrZ80(), run_frame(), prepare_frame(), render_row() inherited from turtles.
@@ -104,7 +116,7 @@ void amidar::blit_tile(short row, char col) {
 }
 
 void amidar::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = amidar_spritemap[sprite[s].flags & 3][sprite[s].code];
+  const uint32_t *spr = amidar_spritemap[sprite[s].flags & 3][sprite[s].code];
   const unsigned short *colors = amidar_colormap[sprite[s].color];
 
   unsigned long mask = 0xffffffff;

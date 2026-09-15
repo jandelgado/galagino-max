@@ -2,11 +2,6 @@
 #define AMIDAR_H
 
 #include "amidar_logo.h"
-#include "amidar_main_rom.h"
-#include "amidar_audio_rom.h"
-#include "amidar_spritemap.h"
-#include "amidar_tilemap.h"
-#include "amidar_cmap.h"
 #include "amidar_dipswitches.h"
 #include "../turtles/turtles.h"
 
@@ -26,7 +21,7 @@ class amidar : public turtles
 {
 public:
   amidar() {}
-  ~amidar() {}
+  ~amidar();
 
   signed char machineType() override { return MCH_AMIDAR; }
 
