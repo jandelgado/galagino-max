@@ -2,6 +2,11 @@
 """
 Questo script converte i file ROM binari di Pengo in un header file C (.h).
 """
+import os
+import sys
+
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 # --- CONFIGURAZIONE DEI LAVORI DI CONVERSIONE ---
 CONVERSION_JOBS = [
@@ -49,18 +54,7 @@ def create_c_array(job_description, infiles, outfile, array_name):
         f.write(f"// File generato da cpu_conv.py\n")
         f.write(f"// ROM per: {job_description}\n")
         f.write(f"// Dimensione totale: {len(all_rom_data)} bytes\n\n")
-        f.write(f"const unsigned char {array_name}[] = {{\n  ")
-
-        for i, byte in enumerate(all_rom_data):
-            f.write(f"0x{byte:02X}")
-            if i < len(all_rom_data) - 1:
-                f.write(",")
-                if (i + 1) % 16 == 0:
-                    f.write("\n  ")
-                else:
-                    f.write(" ")
-
-        f.write("\n};")
+        emit_compressed(f, array_name, "unsigned char", "", len(all_rom_data), list(all_rom_data))
     
     print(f"\nConversione per '{job_description}' completata con successo!")
     print(f"Il file '{outfile}' è stato creato.")

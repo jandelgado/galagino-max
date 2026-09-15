@@ -1,13 +1,8 @@
 #ifndef PENGO_H
 #define PENGO_H
 
-#include "pengo_rom.h"
 #include "pengo_dipswitches.h"
 #include "pengo_logo.h"
-#include "pengo_tiles.h"
-#include "pengo_spritemap.h"
-#include "pengo_colormap.h"
-#include "pengo_wavetable.h"
 #include "../tileaddr.h"
 #include "../pacman/pacman.h"
 
@@ -20,7 +15,7 @@ class pengo : public pacman
 {
 public:
 	pengo() { }
-	~pengo() { }
+	~pengo();
 
 	signed char machineType() override { return MCH_PENGO; } 
 	unsigned char rdZ80(unsigned short Addr) override;
