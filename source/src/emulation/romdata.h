@@ -25,21 +25,23 @@ class RomData<T, PLAIN> {
 public:
     // Points into flash, no copy.
     constexpr RomData(const T *flashData, unsigned int count)
-      : data_(flashData) { }
+      : data_(flashData), count_(count) { }
 
     RomData(const RomData &) = delete;
     RomData &operator=(const RomData &) = delete;
 
     const T *data() const { return data_; }
     operator const T* () const {return data_;}
-//    const T &operator[](unsigned int idx) const { return data_[idx]; }
 
-    // No-op: nothing owned. Kept so callers can treat every RomData
-    // instance the same at machine-teardown time regardless of mode.
+    // Element count. sizeof(name) only sees the wrapper.
+    unsigned int size() const { return count_; }
+
+    // No-op, so teardown treats both modes alike.
     void release() { }
 
 private:
     const T *data_;
+    unsigned int count_;
 };
 
 template<typename T>
@@ -63,7 +65,8 @@ public:
     }
     operator const T*() const {return data();}
 
- //   const T &operator[](uint32_t idx) const { return data()[idx]; }
+    // Element count. sizeof(name) only sees the wrapper.
+    uint32_t size() const { return count; }
 
     void release() {
       delete[] current;
@@ -74,6 +77,7 @@ private:
     void unpack() const {
 #ifdef ARDUINO
       uint32_t t0 = millis();
+      printf("Free heap: %d\n", ESP.getFreeHeap());
 #endif
 
       T *buf = new (std::nothrow) T[count];
@@ -116,8 +120,8 @@ private:
 #endif
       uint32_t decompressedBytes = count * sizeof(T);
       double ratio = 100.0 * (1.0 - (double)packedLen / (double)decompressedBytes);
-      printf("RomData: unpacked %u bytes (packed %u, %.1f%% smaller) in %u ms\n",
-             decompressedBytes, packedLen, ratio, ms);
+      printf("RomData: unpacked %u bytes (packed %u, %.1f%% smaller) in %u ms. Free: %d\n",
+             decompressedBytes, packedLen, ratio, ms, ESP.getFreeHeap());
 
       current = buf;
     }

@@ -15,7 +15,7 @@ fantasy::~fantasy() {
 }
 
 unsigned char fantasy::vanguardSoundRom(unsigned short addr) {
-  return addr < 0x1800 ? fantasy_sound_rom[addr] : 0xff;
+  return addr < fantasy_sound_rom.size() ? fantasy_sound_rom[addr] : 0xff;
 }
 
 const signed char *fantasy::vanguardSample(unsigned char index) {

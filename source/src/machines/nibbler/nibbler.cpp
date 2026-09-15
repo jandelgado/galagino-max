@@ -11,7 +11,7 @@ nibbler::~nibbler() {
 }
 
 unsigned char nibbler::vanguardSoundRom(unsigned short addr) {
-  return addr < 0x1800 ? nibbler_sound_rom[addr] : 0xff;
+  return addr < nibbler_sound_rom.size() ? nibbler_sound_rom[addr] : 0xff;
 }
 
 uint16_t nibbler::pen(unsigned char p) const {

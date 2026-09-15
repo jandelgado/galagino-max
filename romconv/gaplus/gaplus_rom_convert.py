@@ -339,7 +339,6 @@ def write_sample_bang():
         print(f"// resampled @24000 Hz signed 8bit (bit pattern in unsigned char,", file=f)
         print(f"// {len(samples8)} samples ({len(samples8)/target_fr:.3f}s a 24000 Hz)", file=f)
         flat = [int(v) & 0xFF for v in samples8]
-        print(f"#define GAPLUS_SAMPLE_BANG_LEN {len(flat)}", file=f)
         emit_compressed(f, "gaplus_sample_bang", "unsigned char", "", len(flat), flat)
     print(f"gaplus_sample_bang.h: {len(samples8)} samples @24kHz ({len(samples8)/target_fr:.3f}s)")
 

@@ -666,10 +666,10 @@ void xevious::trigger_sound_explosion(unsigned char ship) {
   if (snd_boom_cnt && (snd_boom_ship || !ship)) return;   // gia' in corso
   snd_boom_ship = ship;
   if (ship) {
-    snd_boom_cnt = XEVIOUS_SAMPLE_BOOM2_LEN;   // 1 byte/campione a 24kHz
+    snd_boom_cnt = xevious_sample_boom2.size();   // 1 byte/campione a 24kHz
     snd_boom_ptr = (const signed char*)xevious_sample_boom2.data();
   } else {
-    snd_boom_cnt = XEVIOUS_SAMPLE_BOOM_LEN;
+    snd_boom_cnt = xevious_sample_boom.size();
     snd_boom_ptr = (const signed char*)xevious_sample_boom.data();
   }
 }

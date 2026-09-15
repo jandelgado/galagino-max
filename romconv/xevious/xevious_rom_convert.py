@@ -304,7 +304,6 @@ def write_sample_boom():
             print(f"// read with cast 'const signed char*' like galaga_sample_boom.h).", file=f)
             print(f"// {len(samples8)} samples ({len(samples8)/target_fr:.3f}s at 24000 Hz)", file=f)
             flat = [int(v) & 0xFF for v in samples8]
-            print(f"#define {name.upper()}_LEN {len(flat)}", file=f)
             emit_compressed(f, name, "unsigned char", "", len(flat), flat)
         print(f"{name}.h: {len(samples8)} samples @24kHz ({len(samples8)/target_fr:.3f}s)")
 

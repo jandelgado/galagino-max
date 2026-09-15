@@ -309,7 +309,7 @@ void _1942::blit_bgtile_row(short row) {
     unsigned char attr = memory[addr + col + 16];
     const unsigned short *colors = _1942_colormap_tiles[_1942_palette][attr & 31];
     unsigned short chr = memory[addr + col] + ((attr & 0x80) <<1);
-    const unsigned long *tile = _1942_tilemap[(attr >> 5) &3][chr] + 2 * yoffset;
+    const uint32_t *tile = _1942_tilemap[(attr >> 5) &3][chr] + 2 * yoffset;
 
     // draw up to 8 pixel rows
     char r;
@@ -367,7 +367,7 @@ void _1942::blit_tile(short row, char col) {
 }
 
 void _1942::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = _1942_sprites[sprite[s].code + 256 * (sprite[s].flags & 1)];
+  const uint32_t *spr = _1942_sprites[sprite[s].code + 256 * (sprite[s].flags & 1)];
   const unsigned short *colors = _1942_colormap_sprites[4 * (sprite[s].color & 15)];
 
   // create mask for sprites that clip left or right

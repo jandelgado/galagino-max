@@ -174,7 +174,7 @@ void IRAM_ATTR gaplus::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if ((addr & 0xFFF0) == 0x6820) {
     unsigned char off = addr & 0x0F;
     if (off == 9 && val >= 0x0F) {
-      snd_bang_cnt = GAPLUS_SAMPLE_BANG_LEN;
+      snd_bang_cnt = gaplus_sample_bang.size();
       snd_bang_ptr = (const signed char *)gaplus_sample_bang.data();
     }
     customio3_ram[off] = val;
