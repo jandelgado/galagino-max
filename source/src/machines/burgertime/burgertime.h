@@ -45,7 +45,7 @@ public:
     memset(&cpu_main, 0, sizeof(cpu_main)); 
     memset(&cpu_audio, 0, sizeof(cpu_audio)); 
   }
-  ~burgertime() {}
+  ~burgertime();
 
   signed char machineType() override { return MCH_BURGERTIME; }
   void start() override;

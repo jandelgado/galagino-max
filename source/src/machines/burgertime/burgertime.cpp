@@ -7,6 +7,15 @@
 #include "burgertime_bgmap.h"
 #include "burgertime_logo.h"
 
+burgertime::~burgertime() {
+	burgertime_rom_main.release();
+	burgertime_rom_audio.release();
+	burgertime_chartiles.release();
+	burgertime_spritetiles.release();
+	burgertime_bgtiles.release();
+	burgertime_bgmap.release();
+}
+
 // ---------------------------------------------------------------------------
 // DECO CPU-7 decrypt (decocpu7.cpp, letto per intero): SOLO sul fetch di
 // opcode, SOLO se l'istruzione precedente ha scritto in memoria (flag
