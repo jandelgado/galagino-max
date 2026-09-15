@@ -22,6 +22,9 @@ ROM set (mooncrsu / mooncrstu) - Moon Cresta (Nichibutsu, unencrypted)
 import os
 import sys
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
+
 ROM_SRC = os.path.normpath(os.path.join("..", "roms"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "mooncresta"))
 
@@ -207,45 +210,22 @@ def convert_sprites(plane0, plane1):
 def write_rom(filename, name, data):
     with open(filename, 'w') as f:
         f.write("// Moon Cresta program ROM ({} bytes)\n".format(len(data)))
-        f.write("const unsigned char {}[] = {{\n".format(name))
-        for i in range(0, len(data), 16):
-            line = ", ".join(hex8(data[j]) for j in range(i, min(i+16, len(data))))
-            f.write("  " + line)
-            if i + 16 < len(data):
-                f.write(",")
-            f.write("\n")
-        f.write("};\n")
+        emit_compressed(f, name, "unsigned char", "", len(data), list(data))
     print("Written: {} ({} bytes)".format(filename, len(data)))
 
 def write_tilemap(filename, tiles):
     with open(filename, 'w') as f:
         f.write("// Moon Cresta tilemap: {} tiles, 8x8, 2bpp\n".format(len(tiles)))
-        f.write("const unsigned short mooncresta_tilemap[][8] = {\n")
-        for t, rows in enumerate(tiles):
-            f.write("  { " + ", ".join(hex16(r) for r in rows) + " }")
-            if t < len(tiles) - 1:
-                f.write(",")
-            f.write("\n")
-        f.write("};\n")
+        flat = [v for rows in tiles for v in rows]
+        emit_compressed(f, "mooncresta_tilemap", "unsigned short", "[8]", len(tiles), flat)
     print("Written: {} ({} tiles)".format(filename, len(tiles)))
 
 def write_spritemap(filename, all_orientations):
     num_sprites = len(all_orientations[0])
     with open(filename, 'w') as f:
         f.write("// Moon Cresta spritemap: {} sprites, 16x16, 2bpp, 4 orientations\n".format(num_sprites))
-        f.write("const unsigned long mooncresta_spritemap[][%d][16] = {\n" % num_sprites)
-        for o, sprites in enumerate(all_orientations):
-            f.write("  { // orientation %d\n" % o)
-            for s, rows in enumerate(sprites):
-                f.write("    { " + ", ".join(hex32(r) for r in rows) + " }")
-                if s < len(sprites) - 1:
-                    f.write(",")
-                f.write("\n")
-            f.write("  }")
-            if o < 3:
-                f.write(",")
-            f.write("\n")
-        f.write("};\n")
+        flat = [v for orientation in all_orientations for rows in orientation for v in rows]
+        emit_compressed(f, "mooncresta_spritemap", "unsigned long", "[%d][16]" % num_sprites, 4, flat)
     print("Written: {} ({} sprites x 4 orientations)".format(filename, num_sprites))
 
 def write_colormap(filename, rgb565):
