@@ -1,13 +1,7 @@
 #ifndef DKONG3_H
 #define DKONG3_H
 
-#include "dkong3_tilemap.h"
-#include "dkong3_spritemap.h"
-#include "dkong3_cmap.h"
-#include "dkong3_color_codes.h"
-#include "dkong3_rom.h"
 #include "dkong3_logo.h"
-#include "dkong3_sound_roms.h"
 #include "../../cpus/m6502/m6502.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
@@ -58,7 +52,7 @@ class dkong3 : public machineBase
 {
 public:
     dkong3() { memset(snd_cpu, 0, sizeof(snd_cpu)); }
-    ~dkong3() { }
+    ~dkong3();
 
     void reset() override;
     void start() override;
