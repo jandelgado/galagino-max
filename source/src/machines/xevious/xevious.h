@@ -68,8 +68,9 @@
 class xevious : public machineBase
 {
 public:
-  xevious() { }
-  ~xevious() { }
+  // ctor/dtor in .cpp: a header-static RomData is per-TU; data() and release() must hit one copy.
+  xevious();
+  ~xevious();
 
   signed char machineType() override { return MCH_XEVIOUS; }
 
@@ -105,15 +106,15 @@ private:
   // planet-map e gfx tile/colormap vengono copiati in DRAM interna (~58KB);
   // gli sprite (160KB) restano in flash. Se l'alloc fallisce i puntatori
   // restano sugli array flash (fallback trasparente).
-  const unsigned char  *rom_cpu1  = xevious_rom_cpu1;
-  const unsigned char  *rom_cpu2  = xevious_rom_cpu2;
-  const unsigned char  *rom_cpu3  = xevious_rom_cpu3;
-  const unsigned char  *planetmap = xevious_planetmap;
-  const unsigned char  (*fgtiles)[8]  = xevious_fgtilemap;
-  const unsigned short (*bgtiles)[8]  = xevious_bgtilemap;
+  const unsigned char  *rom_cpu1  = xevious_rom_cpu1.data();
+  const unsigned char  *rom_cpu2  = xevious_rom_cpu2.data();
+  const unsigned char  *rom_cpu3  = xevious_rom_cpu3.data();
+  const unsigned char  *planetmap = xevious_planetmap.data();
+  const unsigned char  (*fgtiles)[8]  = xevious_fgtilemap.data();
+  const unsigned short (*bgtiles)[8]  = xevious_bgtilemap.data();
   const unsigned short (*cmap_fg)[2]  = xevious_colormap_fg;
-  const unsigned short (*cmap_bg)[4]  = xevious_colormap_bg;
-  const unsigned short (*cmap_spr)[8] = xevious_colormap_sprites;
+  const unsigned short (*cmap_bg)[4]  = xevious_colormap_bg.data();
+  const unsigned short (*cmap_spr)[8] = xevious_colormap_sprites.data();
 
   // planet-map lookup (schematic 9B), formula esatta da xevious_bb_r()
   unsigned char xevious_bb_r(unsigned char offset);
