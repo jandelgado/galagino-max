@@ -46,7 +46,7 @@ class scramble : public machineBase
 {
 public:
   scramble() {}
-  ~scramble() {}
+  ~scramble();
 
   signed char machineType() override { return MCH_SCRAMBLE; }
   void start() override;
