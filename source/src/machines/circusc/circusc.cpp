@@ -1,4 +1,16 @@
 #include "circusc.h"
+#include "circusc_main_rom.h"
+#include "circusc_audio_rom.h"
+#include "circusc_tilemap.h"
+#include "circusc_spritemap.h"
+#include "circusc_cmap.h"
+
+circusc::~circusc() {
+	circusc_main_rom.release();
+	circusc_audio_rom.release();
+	circusc_tilemap.release();
+	circusc_spritemap.release();
+}
 
 void circusc::reset() {
   machineBase::reset();

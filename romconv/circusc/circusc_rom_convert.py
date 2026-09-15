@@ -25,6 +25,8 @@ import sys
 
 sys.dont_write_bytecode = True
 from helper_functions import load_file
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "circusc.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "circusc"))
@@ -82,19 +84,12 @@ def write_tiles(tiles):
         print("// Circus Charlie tiles — 512 tile 8x8 4bpp", file=f)
         print("// PRE-ROTATED ROT90 galagino; nibble LSB-first:", file=f)
         print("//   px = (tile[r][c>>1] >> ((c&1)*4)) & 0xF", file=f)
-        print("const unsigned char circusc_tilemap[][8][4] = {", file=f)
-        rows = []
+        flat = []
         for t in tiles:
-            lines = []
             for y in range(8):
-                vals = []
                 for xb in range(4):
-                    v = t[y][2 * xb] | (t[y][2 * xb + 1] << 4)
-                    vals.append(f"0x{v:02X}")
-                lines.append("{" + ",".join(vals) + "}")
-            rows.append(" {" + ",".join(lines) + "}")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+                    flat.append(t[y][2 * xb] | (t[y][2 * xb + 1] << 4))
+        emit_compressed(f, "circusc_tilemap", "unsigned char", "[8][4]", len(tiles), flat)
 
 def write_sprites(sprites):
     # orientamento LANDSCAPE nativo (rotazione nel blit trasposto), una
@@ -103,19 +98,12 @@ def write_sprites(sprites):
         print("// Circus Charlie sprites — 384 sprite 16x16 4bpp", file=f)
         print("// LANDSCAPE orientation, flip at runtime (like rocnrope):", file=f)
         print("//   px = (spr[row][col>>1] >> ((col&1)*4)) & 0xF", file=f)
-        print("const unsigned char circusc_spritemap[][16][8] = {", file=f)
-        rows = []
+        flat = []
         for s in sprites:
-            lines = []
             for y in range(16):
-                vals = []
                 for xb in range(8):
-                    v = s[y][2 * xb] | (s[y][2 * xb + 1] << 4)
-                    vals.append(f"0x{v:02X}")
-                lines.append("{" + ",".join(vals) + "}")
-            rows.append(" {" + ",".join(lines) + "}")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+                    flat.append(s[y][2 * xb] | (s[y][2 * xb + 1] << 4))
+        emit_compressed(f, "circusc_spritemap", "unsigned char", "[16][8]", len(sprites), flat)
 
 def rgb565_swapped(c):
     b = 31*((c>>6) & 0x3)//3
@@ -155,10 +143,7 @@ def write_colormaps(pal_prom, char_lut, spr_lut):
 def write_rom(name, sym, data, comment):
     with open(os.path.join(OUT_DIR, name), "w") as f:
         print(f"// {comment}", file=f)
-        print(f"const unsigned char {sym}[] = {{", file=f)
-        for i in range(0, len(data), 16):
-            print("  " + ",".join(f"0x{b:02X}" for b in data[i:i+16]) + ",", file=f)
-        print("};", file=f)
+        emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
 
 # ------------------------------------------------------------
 def preview(tiles_rot, sprites, pal_prom, char_lut, spr_lut, outpng):

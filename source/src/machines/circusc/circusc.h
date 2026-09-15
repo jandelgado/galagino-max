@@ -34,11 +34,6 @@
 // ============================================================================
 
 #include "circusc_logo.h"
-#include "circusc_main_rom.h"
-#include "circusc_audio_rom.h"
-#include "circusc_tilemap.h"
-#include "circusc_spritemap.h"
-#include "circusc_cmap.h"
 #include "circusc_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
@@ -67,7 +62,7 @@ class circusc : public machineBase
 {
 public:
   circusc() {}
-  ~circusc() {}
+  ~circusc();
 
   signed char machineType() override { return MCH_CIRCUSC; }
   void start() override;
