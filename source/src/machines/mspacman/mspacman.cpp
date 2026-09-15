@@ -1,5 +1,16 @@
 #include "mspacman.h"
 #include "../pacman/pacman_rom.h"
+#include "mspacman_pacrom.h"
+#include "mspacman_auxrom.h"
+#include "mspacman_tilemap.h"
+#include "mspacman_spritemap.h"
+
+mspacman::~mspacman() {
+	mspacman_pacrom.release();
+	mspacman_auxrom.release();
+	mspacman_tilemap.release();
+	mspacman_sprites.release();
+}
 
 static inline bool mspacman_is_disable_trap(unsigned short Addr) {
   return (Addr >= 0x0038 && Addr <= 0x003F) ||
@@ -141,7 +152,7 @@ const unsigned short *mspacman::tileRom(unsigned short addr) {
   return mspacman_tilemap[memory[addr]];
 }
 
-const unsigned long *mspacman::spriteRom(unsigned char flags, unsigned char code) {
+const uint32_t *mspacman::spriteRom(unsigned char flags, unsigned char code) {
   return mspacman_sprites[flags][code];
 }
 
