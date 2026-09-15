@@ -24,6 +24,9 @@ import hashlib
 
 sys.dont_write_bytecode = True
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
+
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "rocnrope.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "rocnrope"))
 
@@ -45,13 +48,7 @@ def load_file(name, sha1):
 def write_rom(filename, name, data, comment):
     with open(filename, 'w') as f:
         f.write(f"// {comment} ({len(data)} bytes)\n")
-        f.write(f"const unsigned char {name}[] = {{\n")
-        for i in range(0, len(data), 16):
-            line = ", ".join(hex8(data[j]) for j in range(i, min(i+16, len(data))))
-            f.write("  " + line)
-            if i + 16 < len(data): f.write(",")
-            f.write("\n")
-        f.write("};\n")
+        emit_compressed(f, name, "unsigned char", "", len(data), list(data))
     print(f"Wrote: {os.path.abspath(filename)} ({len(data)} bytes)")
 
 # ---- Color PROM -> base RGB565 palette (32 entries) ----
@@ -152,19 +149,10 @@ def write_tilemap(filename, tiles, tile_cmap):
     with open(filename, 'w') as f:
         f.write(f"// Roc'n Rope tilemap: {len(tiles)} tiles, 8x8, 4bpp, portrait orientation\n")
         f.write(f"// pixel = (rocnrope_tilemap[tile][row][col>>1] >> ((col&1)*4)) & 0xF\n")
-        f.write(f"const unsigned char rocnrope_tilemap[{len(tiles)}][8][4] = {{\n")
-        for t, tile in enumerate(tiles):
-            f.write("  { ")
-            rows_str = []
-            for row in tile:
-                rows_str.append("{ " + ", ".join(hex8(b) for b in row) + " }")
-            f.write(", ".join(rows_str))
-            f.write(" }")
-            if t < len(tiles) - 1: f.write(",")
-            f.write("\n")
-        f.write("};\n\n")
+        flat = [b for tile in tiles for row in tile for b in row]
+        emit_compressed(f, "rocnrope_tilemap", "unsigned char", "[8][4]", len(tiles), flat)
 
-        f.write("// Tile color map: 16 palettes x 16 colors, RGB565 byte-swapped\n")
+        f.write("\n// Tile color map: 16 palettes x 16 colors, RGB565 byte-swapped\n")
         f.write("const unsigned short rocnrope_tile_cmap[16][16] = {\n")
         for pal in range(16):
             colors = tile_cmap[pal]
@@ -232,19 +220,10 @@ def write_spritemap(filename, sprites, sprite_cmap):
         f.write(f"// Roc'n Rope spritemap: {len(sprites)} sprites, 16x16, 4bpp, landscape orientation\n")
         f.write(f"// pixel = (rocnrope_spritemap[sprite][row][col>>1] >> ((col&1)*4)) & 0xF\n")
         f.write(f"// pixel==0 is transparent\n")
-        f.write(f"const unsigned char rocnrope_spritemap[{len(sprites)}][16][8] = {{\n")
-        for s, spr in enumerate(sprites):
-            f.write("  { ")
-            rows_str = []
-            for row in spr:
-                rows_str.append("{ " + ", ".join(hex8(b) for b in row) + " }")
-            f.write(", ".join(rows_str))
-            f.write(" }")
-            if s < len(sprites) - 1: f.write(",")
-            f.write("\n")
-        f.write("};\n\n")
+        flat = [b for spr in sprites for row in spr for b in row]
+        emit_compressed(f, "rocnrope_spritemap", "unsigned char", "[16][8]", len(sprites), flat)
 
-        f.write("// Sprite color map: 16 palettes x 16 colors, RGB565 byte-swapped\n")
+        f.write("\n// Sprite color map: 16 palettes x 16 colors, RGB565 byte-swapped\n")
         f.write("const unsigned short rocnrope_sprite_cmap[16][16] = {\n")
         for pal in range(16):
             colors = sprite_cmap[pal]

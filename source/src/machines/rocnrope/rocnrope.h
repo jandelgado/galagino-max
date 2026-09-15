@@ -2,10 +2,6 @@
 #define ROCNROPE_H
 
 #include "rocnrope_logo.h"
-#include "rocnrope_main_rom.h"
-#include "rocnrope_audio_rom.h"
-#include "rocnrope_tilemap.h"
-#include "rocnrope_spritemap.h"
 #include "rocnrope_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
@@ -62,7 +58,7 @@ class rocnrope : public machineBase
 {
 public:
   rocnrope() {}
-  ~rocnrope() {}
+  ~rocnrope();
 
   signed char machineType() override { return MCH_ROCNROPE; }
   void start() override;

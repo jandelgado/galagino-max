@@ -1,4 +1,15 @@
 #include "rocnrope.h"
+#include "rocnrope_main_rom.h"
+#include "rocnrope_audio_rom.h"
+#include "rocnrope_tilemap.h"
+#include "rocnrope_spritemap.h"
+
+rocnrope::~rocnrope() {
+	rocnrope_main_rom.release();
+	rocnrope_audio_rom.release();
+	rocnrope_tilemap.release();
+	rocnrope_spritemap.release();
+}
 
 void rocnrope::reset() {
   machineBase::reset();
