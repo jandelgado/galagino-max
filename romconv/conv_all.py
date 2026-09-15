@@ -43,6 +43,7 @@ GAMES = [
     "pengo",
     "phoenix",
     "pooyan",
+    "roadfighter",
     "rocnrope",
     "scramble",
     "scregg",
