@@ -1,4 +1,20 @@
 #include "bombjack.h"
+#include "bombjack_rom1.h"
+#include "bombjack_rom2.h"
+#include "bombjack_bg_maps.h"
+#include "bombjack_bg_tiles.h"
+#include "bombjack_fg_tiles.h"
+#include "bombjack_sprites.h"
+
+bombjack::~bombjack() {
+	bombjack_rom_cpu1.release();
+	bombjack_rom_cpu2.release();
+	bombjack_bg_tiles.release();
+	bombjack_fg_tiles.release();
+	bombjack_bg_maps.release();
+	bombjack_sprites_16x16.release();
+	bombjack_sprites_32x32.release();
+}
 
 void bombjack::reset() {
   machineBase::reset();
@@ -340,7 +356,7 @@ void bombjack::blit_tile_bg(short logical_row) {
       int final_pixel_x = pixel_x_in_tile;
 
       // --- ESTRAZIONE DEL PIXEL DAI DATI NON RUOTATI ---
-      const unsigned long *tile_gfx = bombjack_bg_tiles[tile_code];
+      const uint32_t *tile_gfx = bombjack_bg_tiles[tile_code];
 
       unsigned long packed_data;
       uint8_t pen;
@@ -378,7 +394,7 @@ void bombjack::blit_tile_fg(short row, char col) {
   uint16_t tile_id = chr | ((clr & 0x10) << 4);
   uint8_t color_block = (clr & 0x0F) << 3;
 
-  const unsigned long *tile_gfx = bombjack_fg_tiles[tile_id];
+  const uint32_t *tile_gfx = bombjack_fg_tiles[tile_id];
   unsigned short *ptr = frame_buffer + (col * 8);
 
   for (char r = 0; r < 8; r++) {
@@ -404,7 +420,7 @@ void bombjack::blit_sprite(short row, unsigned char s_idx) {
   struct sprite_S *s = &sprite[s_idx];
   int size = s->is_32x32 ? 32 : 16;
 
-  const unsigned long *sprite_gfx_data;
+  const uint32_t *sprite_gfx_data;
   if (s->is_32x32) {
     if (s->code >= 64)
       return;

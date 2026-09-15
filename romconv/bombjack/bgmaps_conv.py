@@ -2,6 +2,9 @@
 import sys
 import os
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
+
 # --- Configurazione per la Mappa del Background di Bomb Jack ---
 INPUT_ROM_FILE = "../roms/02_p04t.bin"
 OUTPUT_HEADER_FILE = "../../source/src/machines/bombjack/bombjack_bg_maps.h"
@@ -13,18 +16,7 @@ def create_output_file(rom_data, outfile, id_name):
     with open(outfile, "w") as of:
         of.write(f"// File generato automaticamente per la mappa del background di Bomb Jack.\n")
         of.write(f"// Dati estratti da: {INPUT_ROM_FILE}\n\n")
-        of.write(f"const unsigned char {id_name}[{len(rom_data)}] = {{\n  ")
-        
-        for i, byte in enumerate(rom_data):
-            of.write(f"0x{byte:02X}")
-            if i < len(rom_data) - 1:
-                of.write(",")
-                if (i + 1) % 16 == 0:
-                    of.write("\n  ")
-            else:
-                of.write("\n")
-        
-        of.write("};")
+        emit_compressed(of, id_name, "unsigned char", "", len(rom_data), list(rom_data))
     print("Completato.")
 
 def convert_bg_maps():
