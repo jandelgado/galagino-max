@@ -1,4 +1,16 @@
 #include "theglob.h"
+#include "theglob_rom.h"
+#include "theglob_tilemap.h"
+#include "theglob_spritemap.h"
+#include "theglob_cmap.h"
+#include "theglob_wavetable.h"
+
+theglob::~theglob() {
+	free(decrypt_rom_buffer);
+	theglob_rom.release();
+	theglob_tilemap.release();
+	theglob_sprites.release();
+}
 
 void theglob::init(Input *input, unsigned short *framebuffer, sprite_S *spritebuffer, unsigned char *memorybuffer) {
   machineBase::init(input, framebuffer, spritebuffer, memorybuffer);	
@@ -152,7 +164,7 @@ const unsigned short *theglob::colorRom(unsigned short addr) {
   return theglob_colormap[addr];
 }
 
-const unsigned long *theglob::spriteRom(unsigned char flags, unsigned char code) {
+const uint32_t *theglob::spriteRom(unsigned char flags, unsigned char code) {
   return theglob_sprites[flags][code];
 }
 

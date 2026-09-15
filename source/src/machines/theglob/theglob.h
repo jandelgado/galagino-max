@@ -3,11 +3,6 @@
 
 #include "theglob_dipswitches.h"
 #include "theglob_logo.h"
-#include "theglob_rom.h"
-#include "theglob_tilemap.h"
-#include "theglob_spritemap.h"
-#include "theglob_cmap.h"
-#include "theglob_wavetable.h"
 #include "../tileaddr.h"
 #include "../pacman/pacman.h"
 
@@ -15,7 +10,7 @@ class theglob : public pacman
 {
 public:
   theglob() { }
-  ~theglob() { free(decrypt_rom_buffer); }
+  ~theglob();
 
   void init(Input *input, unsigned short *framebuffer, sprite_S *spritebuffer, unsigned char *memorybuffer) override;
    void reset() override;
@@ -39,7 +34,7 @@ public:
 protected:
   const unsigned short *tileRom(unsigned short addr) override;
   const unsigned short *colorRom(unsigned short addr) override;
-  const unsigned long *spriteRom(unsigned char flags, unsigned char code) override;
+  const uint32_t *spriteRom(unsigned char flags, unsigned char code) override;
 
 private:
   uint8_t epos_decryption_w(short offset);
