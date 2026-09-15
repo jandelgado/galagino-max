@@ -2,6 +2,9 @@
 import sys
 import os
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
+
 # --- Configurazione ---
 # File ROM di input per la Sound CPU di dkongjrj
 INPUT_ROM_FILE = "../roms/c_3h.bin"
@@ -39,22 +42,7 @@ def convert_sound_rom():
     with open(OUTPUT_HEADER_FILE, "w") as of:
         of.write(f"// File header generato automaticamente per la Sound CPU di dkongjrj\n")
         of.write(f"// Contiene i dati del file: {INPUT_ROM_FILE}\n\n")
-        of.write(f"const unsigned char {OUTPUT_ARRAY_NAME}[{len(rom_data)}] = {{\n  ")
-        
-        for i, byte in enumerate(rom_data):
-            # Scrive il byte in formato esadecimale (es. 0x4A)
-            of.write(f"0x{byte:02X}")
-            
-            # Aggiunge una virgola se non è l'ultimo byte
-            if i < len(rom_data) - 1:
-                of.write(",")
-                # Va a capo ogni 16 byte per una migliore leggibilità
-                if (i + 1) % 16 == 0:
-                    of.write("\n  ")
-            else:
-                of.write("\n") # Nuova riga alla fine dell'array
-        
-        of.write("};")
+        emit_compressed(of, OUTPUT_ARRAY_NAME, "unsigned char", "", len(rom_data), list(rom_data))
     
     print("\nConversione completata con successo!")
     print(f"Il file '{OUTPUT_HEADER_FILE}' è stato creato.")

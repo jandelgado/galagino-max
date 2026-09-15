@@ -2,6 +2,9 @@
 import sys
 import os
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
+
 # --- Configurazione Specifica per Donkey Kong Jr. (dkongjrj) ---
 
 # I due file ROM che contengono i dati dei tile (caratteri grafici)
@@ -35,19 +38,19 @@ def parse_chr_2(data0, data1):
         char.append(row)
     return char
 
-def dump_chr(data):
+def dump_chr_values(data):
     """
-    Converte una matrice di pixel 8x8 in un array di 8 short (16-bit),
-    impacchettando 8 pixel a 2-bit in ogni short.
+    Converte una matrice di pixel 8x8 in una lista di 8 valori (16-bit),
+    impacchettando 8 pixel a 2-bit in ogni valore.
     """
-    hexs = []
+    vals = []
     for y in range(8):
         val = 0
         for x in range(8):
             # Logica di impacchettamento bit a bit
             val = (val >> 2) | (data[y][x] << (14))
-        hexs.append(hex(val))
-    return ",".join(hexs)
+        vals.append(val)
+    return vals
 
 def convert_dkjr_tilemap():
     """
@@ -92,14 +95,8 @@ def convert_dkjr_tilemap():
     with open(OUTPUT_HEADER_FILE, "w") as f:
         f.write(f"// File generato automaticamente per la tilemap di Donkey Kong Jr.\n")
         f.write(f"// Dati estratti da: {INPUT_ROM_FILE_1}, {INPUT_ROM_FILE_2}\n\n")
-        f.write(f"const unsigned short {OUTPUT_ARRAY_NAME}[{NUM_TILES}][8] = {{\n")
-        
-        chars_str = []
-        for c in chars:
-            chars_str.append("  { " + dump_chr(c) + " }")
-        
-        f.write(",\n".join(chars_str))
-        f.write("\n};")
+        flat = [v for c in chars for v in dump_chr_values(c)]
+        emit_compressed(f, OUTPUT_ARRAY_NAME, "unsigned short", "[8]", NUM_TILES, flat)
 
     print(f"\nProcesso completato! Il file '{OUTPUT_HEADER_FILE}' è stato creato.")
 
