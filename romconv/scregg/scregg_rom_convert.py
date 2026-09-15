@@ -11,6 +11,8 @@ import hashlib
 sys.dont_write_bytecode = True
 
 from helper_functions import load_file
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "scregg.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "scregg"))
@@ -78,36 +80,19 @@ def planes3(region_bits):
 def write_rom(name, sym, data, comment):
   with open(os.path.join(OUT_DIR, name), "w") as f:
     print(f"// {comment}", file=f)
-    print(f"const unsigned char {sym}[] = {{", file=f)
-    for i in range(0, len(data), 16):
-      print("  " + ",".join(f"0x{b:02X}" for b in data[i:i+16]) + ",", file=f)
-    print("};", file=f)
+    emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
 
 def write_char_tiles(tiles):
     with open(os.path.join(OUT_DIR, "scregg_chartiles.h"), "w") as f:
         print("// Scrambled Egg char set #1", file=f)
-        print("const unsigned char scregg_chartiles[][8][8] = {", file=f)
-        rows = []
-        for t in tiles:
-            trows = []
-            for y in range(8):
-                trows.append("{" + ",".join(str(v) for v in t[y]) + "}")
-            rows.append(" {" + ",".join(trows) + "}")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+        flat = [v for t in tiles for y in range(8) for v in t[y]]
+        emit_compressed(f, "scregg_chartiles", "unsigned char", "[8][8]", len(tiles), flat)
 
 def write_sprite_tiles(tiles):
     with open(os.path.join(OUT_DIR, "scregg_spritetiles.h"), "w") as f:
         print("// Scrambled Egg sprites", file=f)
-        print("const unsigned char scregg_spritetiles[][16][16] = {", file=f)
-        rows = []
-        for t in tiles:
-            trows = []
-            for y in range(16):
-                trows.append("{" + ",".join(str(v) for v in t[y]) + "}")
-            rows.append(" {" + ",".join(trows) + "}")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+        flat = [v for t in tiles for y in range(16) for v in t[y]]
+        emit_compressed(f, "scregg_spritetiles", "unsigned char", "[16][16]", len(tiles), flat)
 
 def preview(char_tiles, sprite_tiles, outpng):
     try:
