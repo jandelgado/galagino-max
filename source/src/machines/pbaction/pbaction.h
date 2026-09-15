@@ -1,12 +1,6 @@
 #ifndef PBACTION_H
 #define PBACTION_H
 
-#include "pbaction_main_rom.h"
-#include "pbaction_audio_rom.h"
-#include "pbaction_fg_tiles.h"
-#include "pbaction_bg_tiles.h"
-#include "pbaction_sprites16.h"
-#include "pbaction_sprites32.h"
 #include "pbaction_dipswitches.h"
 #include "pbaction_logo.h"
 #include "../tileaddr.h"
@@ -53,7 +47,7 @@ class pbaction : public machineBase
 {
 public:
   pbaction() { }
-  ~pbaction() { }
+  ~pbaction();
 
   void reset() override;
   signed char machineType() override { return MCH_PBACTION; }

@@ -1,4 +1,18 @@
 #include "pbaction.h"
+#include "pbaction_main_rom.h"
+#include "pbaction_audio_rom.h"
+#include "pbaction_fg_tiles.h"
+#include "pbaction_bg_tiles.h"
+#include "pbaction_sprites16.h"
+#include "pbaction_sprites32.h"
+
+pbaction::~pbaction() {
+	pbaction_main_rom.release();
+	pbaction_audio_rom.release();
+	pbaction_fg_tiles.release();
+	pbaction_sprites16.release();
+	pbaction_sprites32.release();
+}
 
 // ===========================================================================
 // Pinball Action (Tehkan, 1985) - port of MAME `pbaction` set 1.
