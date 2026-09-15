@@ -1,4 +1,21 @@
 #include "starforce.h"
+#include "starforce_bg1_tiles.h"
+#include "starforce_bg2_tiles.h"
+#include "starforce_bg3_tiles.h"
+#include "starforce_fg_tiles.h"
+#include "starforce_sprites.h"
+#include "starforce_main_cpu_rom.h"
+#include "starforce_sub_cpu_rom.h"
+
+starforce::~starforce() {
+	starforce_main_cpu_rom.release();
+	starforce_sub_cpu_rom.release();
+	starforce_bg1_tilemap.release();
+	starforce_bg2_tilemap.release();
+	starforce_bg3_tilemap.release();
+	starforce_fg_tilemap.release();
+	starforce_sprites_16x16.release();
+}
 
 unsigned char starforce::opZ80(unsigned short Addr) {
   if (current_cpu == 0)
@@ -367,21 +384,21 @@ void starforce::blit_background_line(short start_screen_row, int layer_num) {
 
   switch (layer_num) {
   case 1:
-    base_tile_ptr = (const uint32_t *)starforce_bg1_tilemap;
+    base_tile_ptr = (const uint32_t *)starforce_bg1_tilemap.data();
     vram_data = &memory[STARFORCE_BG1_VIDEO_RAM];
     scroll_x = hw_control_ram[0x35];
     scroll_y = hw_control_ram[0x30] + (hw_control_ram[0x31] << 8);
     palette_bank_offset = 64;
     break;
   case 2:
-    base_tile_ptr = (const uint32_t *)starforce_bg2_tilemap;
+    base_tile_ptr = (const uint32_t *)starforce_bg2_tilemap.data();
     vram_data = &memory[STARFORCE_BG2_VIDEO_RAM];
     scroll_x = hw_control_ram[0x35];
     scroll_y = hw_control_ram[0x30] + (hw_control_ram[0x31] << 8);
     palette_bank_offset = 128;
     break;
   case 3:
-    base_tile_ptr = (const uint32_t *)starforce_bg3_tilemap;
+    base_tile_ptr = (const uint32_t *)starforce_bg3_tilemap.data();
     vram_data = &memory[STARFORCE_BG3_VIDEO_RAM];
     scroll_x = hw_control_ram[0x25];
     scroll_y = hw_control_ram[0x20] + (hw_control_ram[0x21] << 8);
