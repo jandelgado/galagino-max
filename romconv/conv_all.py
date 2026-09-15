@@ -33,6 +33,7 @@ GAMES = [
     "m6502",
     "mappy",
     "mooncresta",
+    "motorace",
     "mrdo",
     "mrtnt",
     "mspacman",
