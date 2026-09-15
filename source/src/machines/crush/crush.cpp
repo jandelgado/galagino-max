@@ -1,4 +1,15 @@
 #include "crush.h"
+#include "crush_rom.h"
+#include "crush_tilemap.h"
+#include "crush_spritemap.h"
+#include "crush_cmap.h"
+#include "crush_wavetable.h"
+
+crush::~crush() {
+	crush_rom.release();
+	crush_tilemap.release();
+	crush_sprites.release();
+}
 
 void crush::maketrax_protection_w(uint8_t data)
 {
@@ -182,7 +193,7 @@ const unsigned short *crush::colorRom(unsigned short addr) {
   return crush_colormap[addr];
 }
 
-const unsigned long *crush::spriteRom(unsigned char flags, unsigned char code) {
+const uint32_t *crush::spriteRom(unsigned char flags, unsigned char code) {
   return crush_sprites[flags][code];
 }
 

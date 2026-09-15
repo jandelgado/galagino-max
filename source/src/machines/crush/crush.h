@@ -3,11 +3,6 @@
 
 #include "crush_dipswitches.h"
 #include "crush_logo.h"
-#include "crush_rom.h"
-#include "crush_tilemap.h"
-#include "crush_spritemap.h"
-#include "crush_cmap.h"
-#include "crush_wavetable.h"
 #include "../tileaddr.h"
 #include "../pacman/pacman.h"
 
@@ -15,7 +10,7 @@ class crush : public pacman
 {
 public:
   crush() { }
-  ~crush() { }
+  ~crush();
 
   signed char machineType() override { return MCH_CRUSH; }
   unsigned char rdZ80(unsigned short Addr) override;
@@ -35,7 +30,7 @@ public:
 protected:
   const unsigned short *tileRom(unsigned short addr) override;
   const unsigned short *colorRom(unsigned short addr) override;
-  const unsigned long *spriteRom(unsigned char flags, unsigned char code) override;
+  const uint32_t *spriteRom(unsigned char flags, unsigned char code) override;
 
 private:
   void maketrax_protection_w(uint8_t data);
