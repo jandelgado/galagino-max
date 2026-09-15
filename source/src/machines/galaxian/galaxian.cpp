@@ -1,5 +1,15 @@
 #include "galaxian.h"
+#include "galaxian_rom.h"
+#include "galaxian_tilemap.h"
+#include "galaxian_spritemap.h"
+#include "galaxian_cmap.h"
 #include "../../emulation/input.h"
+
+galaxian::~galaxian() {
+	galaxian_rom.release();
+	galaxian_tilemap.release();
+	galaxian_spritemap.release();
+}
 
 unsigned char galaxian::opZ80(unsigned short Addr) {
   // Galaxian hardware ignores A15 — 0x8000-0xFFFF mirrors 0x0000-0x7FFF
@@ -233,7 +243,7 @@ void galaxian::blit_tile_scroll(short row, signed char col, unsigned char scroll
 }
 
 void galaxian::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = galaxian_spritemap[sprite[s].flags & 3][sprite[s].code];
+  const uint32_t *spr = galaxian_spritemap[sprite[s].flags & 3][sprite[s].code];
   const unsigned short *colors = galaxian_colormap[sprite[s].color];
 
   unsigned long mask = 0xffffffff;
