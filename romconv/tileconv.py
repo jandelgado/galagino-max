@@ -282,7 +282,7 @@ def parse_charmap_frogger(id, innames, outname, compress=False):
 
     f.close()
 
-def parse_charmap_anteater(id, innames, outname):
+def parse_charmap_anteater(id, innames, outname, compress=False):
     complete = []
     for file in innames:        
         f = open(file, "rb")
@@ -318,17 +318,21 @@ def parse_charmap_anteater(id, innames, outname):
 
     # write as c source
     f = open(outname, "w")
-    
-    print("const unsigned short "+id+"[][8] = {", file=f )
-    chars_str = []
-    for c in chars:
-        chars_str.append(" { " + dump_chr(c) + " }")
-    print(",\n".join(chars_str), file=f)
-    print("};", file=f)
-    
+
+    if compress:
+        flat = [v for c in chars for v in dump_chr_values(c)]
+        emit_compressed(f, id, "unsigned short", "[8]", len(chars), flat)
+    else:
+        print("const unsigned short "+id+"[][8] = {", file=f )
+        chars_str = []
+        for c in chars:
+            chars_str.append(" { " + dump_chr(c) + " }")
+        print(",\n".join(chars_str), file=f)
+        print("};", file=f)
+
     f.close()
 
-def parse_charmap_bagman(id, innames, outname):
+def parse_charmap_bagman(id, innames, outname, compress=False):
     # swap bits 0 and 1 in an integer
     def bit01_swap(a):
         return (a & 0xfffc) | ((a & 2)>>1) | ((a & 1)<<1) 
@@ -370,14 +374,18 @@ def parse_charmap_bagman(id, innames, outname):
 
     # write as c source
     f = open(outname, "w")
-    
-    print("const unsigned short "+id+"[][8] = {", file=f )
-    chars_str = []
-    for c in chars:
-        chars_str.append(" { " + dump_chr(c) + " }")
-    print(",\n".join(chars_str), file=f)
-    print("};", file=f)
-    
+
+    if compress:
+        flat = [v for c in chars for v in dump_chr_values(c)]
+        emit_compressed(f, id, "unsigned short", "[8]", len(chars), flat)
+    else:
+        print("const unsigned short "+id+"[][8] = {", file=f )
+        chars_str = []
+        for c in chars:
+            chars_str.append(" { " + dump_chr(c) + " }")
+        print(",\n".join(chars_str), file=f)
+        print("};", file=f)
+
     f.close()
 
 args = sys.argv[1:]
@@ -395,9 +403,9 @@ elif len(args) == 4:
     parse_charmap_frogger(args[0], args[1:3], args[3], compress)
 elif len(args) == 5:
     if args[0] == "anteater":
-      parse_charmap_anteater(args[1], args[2:4], args[4])
+      parse_charmap_anteater(args[1], args[2:4], args[4], compress)
     else:
-      parse_charmap_bagman(args[1], args[2:4], args[4])
+      parse_charmap_bagman(args[1], args[2:4], args[4], compress)
 else:
     print("Invalid arguments")
     exit(-1)

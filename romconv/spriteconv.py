@@ -164,6 +164,20 @@ def dump_c_source(sprites, flip_x, flip_y, f):
     if flip_x and flip_y: print(" }", file=f)
     else:                 print(" },", file=f)
 
+def sprite_row_values(s, flip_x, flip_y):
+    # 2bpp sprites pack as unsigned long[16], one long per row (differs from
+    # 1942's 4bpp dump_sprite_4bpp_values).
+    vals = []
+    for y in range(16) if not flip_y else reversed(range(16)):
+        val = 0
+        for x in range(16):
+            if not flip_x:
+                val = (val >> 2) + (s[y][x] << (32 - 2))
+            else:
+                val = (val << 2) + s[y][x]
+        vals.append(val & 0xffffffff)
+    return vals
+
 def dump_c_source_4bpp(sprites, f):
     # write as c source
     sprites_str = []
@@ -314,6 +328,13 @@ def parse_spritemap(id, fmt, infiles, outfile, compress=False):
     if fmt == "1942":
         flat = [v for s in sprites for v in dump_sprite_4bpp_values(s)]
         emit_compressed(f, id, "unsigned long", "[32]", len(sprites), flat)
+    elif fmt == "bagman" and compress:
+        # bagman only precomputes 2 variants (normal, x-flipped), not 4.
+        flat = []
+        for flip_x, flip_y in [(False, False), (True, False)]:
+            for s in sprites:
+                flat.extend(sprite_row_values(s, flip_x, flip_y))
+        emit_compressed(f, id, "unsigned long", "["+str(len(sprites))+"][16]", 2, flat)
     elif fmt == "bagman":
         # write 2 bpp
         print("const unsigned long "+id+"[]["+str(len(sprites))+"][16] = {", file=f)
@@ -326,18 +347,6 @@ def parse_spritemap(id, fmt, infiles, outfile, compress=False):
     elif compress:
         # 2bpp sprites pack differently than 1942's 4bpp sprites (dump_sprite, not
         # dump_sprite_4bpp): each variant is `unsigned long[16]`, one long per row.
-        def sprite_row_values(s, flip_x, flip_y):
-            vals = []
-            for y in range(16) if not flip_y else reversed(range(16)):
-                val = 0
-                for x in range(16):
-                    if not flip_x:
-                        val = (val >> 2) + (s[y][x] << (32 - 2))
-                    else:
-                        val = (val << 2) + s[y][x]
-                vals.append(val & 0xffffffff)
-            return vals
-
         flat = []
         for flip_x, flip_y in [(False, False), (False, True), (True, False), (True, True)]:
             for s in sprites:
