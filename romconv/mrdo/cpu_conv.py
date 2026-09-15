@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+import os
+import sys
+
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 # Nomi dei file ROM da leggere, in ordine di concatenazione.
 # Questi file devono trovarsi nella stessa cartella dello script.
@@ -40,23 +45,7 @@ def create_c_array(infiles, outfile, array_name):
         # Scrive l'intestazione dell'array
         f.write(f"// File generato da convert_rom.py\n")
         f.write(f"// Dimensione totale: {len(all_rom_data)} bytes\n\n")
-        f.write(f"const unsigned char {array_name}[] = {{\n  ")
-
-        # Scrive ogni byte formattato in esadecimale
-        for i, byte in enumerate(all_rom_data):
-            f.write(f"0x{byte:02X}")
-
-            # Aggiunge una virgola se non è l'ultimo byte
-            if i < len(all_rom_data) - 1:
-                f.write(",")
-                # Va a capo ogni 16 byte per una migliore leggibilità
-                if (i + 1) % 16 == 0:
-                    f.write("\n  ")
-                else:
-                    f.write(" ") # Aggiunge uno spazio dopo la virgola
-
-        # Chiude l'array
-        f.write("\n};")
+        emit_compressed(f, array_name, "unsigned char", "", len(all_rom_data), list(all_rom_data))
     
     print("\nConversione completata con successo!")
     print(f"Il file '{outfile}' è stato creato.")

@@ -1,4 +1,17 @@
 #include "mrdo.h"
+#include "mrdo_rom1.h"
+#include "mrdo_bg_tiles.h"
+#include "mrdo_fg_tiles.h"
+#include "mrdo_sprites.h"
+#include "mrdo_sprite_colormap.h"
+#include "mrdo_palette.h"
+
+mrdo::~mrdo() {
+	mrdo_rom1.release();
+	mrdo_bg_tiles.release();
+	mrdo_fg_tiles.release();
+	mrdo_sprites.release();
+}
 
 void mrdo::reset() {
   machineBase::reset();
