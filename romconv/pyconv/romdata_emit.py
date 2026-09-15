@@ -3,8 +3,8 @@
 import struct
 import zlib
 
-_WIDTH = {"unsigned char": 1, "unsigned short": 2, "unsigned long": 4}
-_PACK  = {"unsigned char": "B", "unsigned short": "<H", "unsigned long": "<L"}
+_WIDTH = {"unsigned char": 1, "signed char": 1, "unsigned short": 2, "unsigned long": 4}
+_PACK  = {"unsigned char": "B", "signed char": "B", "unsigned short": "<H", "unsigned long": "<L"}
 
 def _hex_block(data, per_line=16):
     hexs = ["0x{:02X}".format(b) for b in data]
