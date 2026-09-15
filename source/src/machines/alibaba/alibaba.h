@@ -1,13 +1,8 @@
 #ifndef ALIBABA_H
 #define ALIBABA_H
 
-#include "alibaba_rom.h"
 #include "alibaba_dipswitches.h"
 #include "alibaba_logo.h"
-#include "alibaba_tilemap.h"
-#include "alibaba_spritemap.h"
-#include "alibaba_clockmap.h"
-#include "alibaba_cmap.h"
 #include "../tileaddr.h"
 #include "../pacman/pacman.h"
 
@@ -37,7 +32,7 @@ class alibaba : public pacman
 {
 public:
 	alibaba() { }
-	~alibaba() { }
+	~alibaba();
 
 	signed char machineType() override { return MCH_ALIBABA; }
 
@@ -53,7 +48,7 @@ public:
 protected:
 	const unsigned short *tileRom(unsigned short addr) override;
 	const unsigned short *colorRom(unsigned short addr) override;
-	const unsigned long *spriteRom(unsigned char flags, unsigned char code) override;
+	const uint32_t *spriteRom(unsigned char flags, unsigned char code) override;
 
 	void blit_clock(short row);
 

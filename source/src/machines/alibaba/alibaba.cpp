@@ -1,4 +1,16 @@
 #include "alibaba.h"
+#include "alibaba_rom.h"
+#include "alibaba_tilemap.h"
+#include "alibaba_spritemap.h"
+#include "alibaba_clockmap.h"
+#include "alibaba_cmap.h"
+
+alibaba::~alibaba() {
+	alibaba_rom.release();
+	alibaba_tilemap.release();
+	alibaba_sprites.release();
+	alibaba_clockmap.release();
+}
 
 unsigned char alibaba::opZ80(unsigned short Addr) {
   return alibaba_rom[Addr];
@@ -247,7 +259,7 @@ const unsigned short *alibaba::colorRom(unsigned short addr) {
   return alibaba_colormap[addr];
 }
 
-const unsigned long *alibaba::spriteRom(unsigned char flags, unsigned char code) {
+const uint32_t *alibaba::spriteRom(unsigned char flags, unsigned char code) {
   return alibaba_sprites[flags][code];
 }
 
@@ -298,7 +310,7 @@ static void blit_clock_tile(unsigned short *frame_buffer, short row, short clock
   short local_row = row - CLOCK_ROW;
   if(local_row < 0 || local_row >= 3) return;
 
-  const unsigned long *tile = alibaba_clockmap[tile_code & 0x1f];
+  const uint32_t *tile = alibaba_clockmap[tile_code & 0x1f];
   unsigned short *ptr = frame_buffer + 8 * clock_col;
 
   for(char r = 0; r < 8; r++, ptr += (224 - 16)) {

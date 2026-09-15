@@ -17,8 +17,10 @@ import os
 import sys
 
 sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join("..", "pyconv"))
 from helper_functions import load_file
 from helper_functions import hex8, hex16, hex32
+from romdata_emit import emit_compressed, emit_plain
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "alibaba.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "alibaba"))
@@ -106,10 +108,7 @@ def convert_rom():
         f.write("// Populated: 0x0000-0x3fff, 0x8000-0x8fff, 0xa000-0xbfff (0x800-byte bank\n")
         f.write("// 'ab7=6m' mirrored 4x per MAME map(0xa000,0xa7ff).mirror(0x1800).rom()).\n")
         f.write("// Rest is zero and never legitimately fetched, but kept in-bounds.\n")
-        f.write("const unsigned char alibaba_rom[] = {\n")
-        for i in range(0, len(rom), 16):
-            f.write("  " + ",".join(hex8(b) for b in rom[i:i + 16]) + ",\n")
-        f.write("};\n")
+        emit_compressed(f, "alibaba_rom", "unsigned char", "", size, list(rom))
     print("Written:", outfile, "(", size, "bytes )")
 
 
@@ -202,16 +201,14 @@ def convert_tiles_sprites():
     outfile = os.path.join(OUT_DIR, "alibaba_tilemap.h")
     with open(outfile, "w") as f:
         f.write("// Ali Baba tiles: 8x8, 2bpp, packed as one uint16 per row (2 bits/pixel)\n")
-        f.write("const unsigned short alibaba_tilemap[][8] = {\n")
+        flat = []
         for img in tiles:
-            row_words = []
             for y in range(8):
                 word = 0
                 for x in range(8):
                     word |= img[y][x] << (2 * x)
-                row_words.append(hex16(word))
-            f.write(" { " + ",".join(row_words) + " },\n")
-        f.write("};\n")
+                flat.append(word)
+        emit_compressed(f, "alibaba_tilemap", "unsigned short", "[8]", len(tiles), flat)
     print("Written:", outfile, "(", len(tiles), "tiles )")
 
     # --- sprites: decoded from offset 0x1000 of gfx1, 64 sprites, 16x16 ---
@@ -250,22 +247,18 @@ def convert_tiles_sprites():
     outfile = os.path.join(OUT_DIR, "alibaba_spritemap.h")
     with open(outfile, "w") as f:
         f.write("// Ali Baba sprites: 16x16, 2bpp, packed as one uint32 per row, 4 flip orientations\n")
-        f.write("const unsigned long alibaba_sprites[][64][16] = {\n")
+        flat = []
         for flags in range(4):
             flipx = flags & 1
             flipy = (flags >> 1) & 1
-            f.write(" {\n")
             for img in sprites:
                 fimg = rotate_cw(flipped(img, flipx, flipy))
-                row_words = []
                 for y in range(16):
                     word = 0
                     for x in range(16):
                         word |= fimg[y][x] << (2 * x)
-                    row_words.append(hex32(word))
-                f.write("  { " + ",".join(row_words) + " },\n")
-            f.write(" },\n")
-        f.write("};\n")
+                    flat.append(word)
+        emit_compressed(f, "alibaba_sprites", "unsigned long", "["+str(len(sprites))+"][16]", 4, flat)
     print("Written:", outfile, "(", len(sprites), "sprites x 4 flips )")
 
 
@@ -304,16 +297,14 @@ def convert_clock():
         f.write("// same hardware quirk as tiles/sprites), 2bpp (2-tone: plane0==plane1\n")
         f.write("// always, since the source ROM is byte-identical in both halves).\n")
         f.write("// Packed as one uint32 per row (16 pixels x 2 bits fits in 32 bits).\n")
-        f.write("const unsigned long alibaba_clockmap[][24] = {\n")
+        flat = []
         for img in clocks:
-            row_words = []
             for y in range(24):
                 word = 0
                 for x in range(16):
                     word |= img[y][x] << (2 * x)
-                row_words.append(hex32(word))
-            f.write(" { " + ",".join(row_words) + " },\n")
-        f.write("};\n")
+                flat.append(word)
+        emit_compressed(f, "alibaba_clockmap", "unsigned long", "[24]", len(clocks), flat)
     print("Written:", outfile, "(", len(clocks), "clock tiles )")
 
 
