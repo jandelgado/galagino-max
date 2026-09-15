@@ -31,7 +31,8 @@ public:
     RomData &operator=(const RomData &) = delete;
 
     const T *data() const { return data_; }
-    const T &operator[](unsigned int idx) const { return data_[idx]; }
+    operator const T* () const {return data_;}
+//    const T &operator[](unsigned int idx) const { return data_[idx]; }
 
     // No-op: nothing owned. Kept so callers can treat every RomData
     // instance the same at machine-teardown time regardless of mode.
@@ -60,8 +61,9 @@ public:
       if (!current) { unpack(); }
       return current;
     }
+    operator const T*() const {return data();}
 
-    const T &operator[](uint32_t idx) const { return data()[idx]; }
+ //   const T &operator[](uint32_t idx) const { return data()[idx]; }
 
     void release() {
       delete[] current;

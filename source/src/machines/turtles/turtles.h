@@ -37,7 +37,7 @@ class turtles : public scramble
 {
 public:
   turtles() {}
-  ~turtles() {}
+  ~turtles();
 
   signed char machineType() override { return MCH_TURTLES; }
   void start() override;
