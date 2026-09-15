@@ -1,4 +1,15 @@
 #include "mrtnt.h"
+#include "mrtnt_rom.h"
+#include "mrtnt_tilemap.h"
+#include "mrtnt_spritemap.h"
+#include "mrtnt_cmap.h"
+#include "mrtnt_wavetable.h"
+
+mrtnt::~mrtnt() {
+	mrtnt_rom.release();
+	mrtnt_tilemap.release();
+	mrtnt_sprites.release();
+}
 
 unsigned char mrtnt::opZ80(unsigned short Addr) {
   return mrtnt_rom[Addr];
@@ -92,7 +103,7 @@ const unsigned short *mrtnt::colorRom(unsigned short addr) {
   return mrtnt_colormap[addr];
 }
 
-const unsigned long *mrtnt::spriteRom(unsigned char flags, unsigned char code) {
+const uint32_t *mrtnt::spriteRom(unsigned char flags, unsigned char code) {
   return mrtnt_sprites[flags][code];
 }
 
