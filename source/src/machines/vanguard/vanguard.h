@@ -15,7 +15,7 @@ public:
   void reset() override;
   void run_frame() override;
   void render_row(short row) override;
-  static const unsigned short *logo() { return vanguard_logo; }
+  static RomData<unsigned short, COMPRESSED> &logo() { return vanguard_logo; }
   unsigned char vanguardSoundRom(unsigned short addr) override;
   bool vanguardMusic0Muted() override { return music0_muted; }
   void vanguardMusic0Ended() override { music0_muted=true; }

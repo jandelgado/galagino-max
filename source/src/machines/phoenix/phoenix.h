@@ -54,7 +54,7 @@ public:
   void prepare_frame()       override;
   void render_row(short row) override;
 
-  static const unsigned short *logo(void);
+  static RomData<unsigned short, COMPRESSED> &logo(void);
 
 private:
   void blit_tile_t(short strip_r, char col_arcade);

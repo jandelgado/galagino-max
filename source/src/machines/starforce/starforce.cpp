@@ -596,7 +596,7 @@ void starforce::render_row(short row) {
   blit_background_line(row * 8, 3); // BG3
 }
 
-const unsigned short *starforce::logo(void) {
+RomData<unsigned short, COMPRESSED> &starforce::logo(void) {
   return starforce_logo;
 }
 

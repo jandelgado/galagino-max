@@ -297,6 +297,6 @@ const signed char * pengo::waveRom(unsigned char value) {
   return pengo_wavetable[value]; 
 }
 
-const unsigned short *pengo::logo(void) {
+RomData<unsigned short, COMPRESSED> &pengo::logo(void) {
   return pengo_logo;
 }

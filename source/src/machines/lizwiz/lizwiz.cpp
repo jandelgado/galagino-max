@@ -114,7 +114,7 @@ const signed char *lizwiz::waveRom(unsigned char value) {
   return lizwiz_wavetable[value]; 
 }
 
-const unsigned short *lizwiz::logo(void) {
+RomData<unsigned short, COMPRESSED> &lizwiz::logo(void) {
   return lizwiz_logo;
 }
 

@@ -43,7 +43,7 @@ public:
 	void run_frame(void) override;
 	void prepare_frame(void) override;
 	void render_row(short row) override;
-	static const unsigned short *logo(void);
+	static RomData<unsigned short, COMPRESSED> &logo(void);
 
 protected:
 	const unsigned short *tileRom(unsigned short addr) override;

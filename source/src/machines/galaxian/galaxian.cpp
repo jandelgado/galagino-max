@@ -388,7 +388,7 @@ void galaxian::render_row(short row) {
   }
 }
 
-const unsigned short *galaxian::logo(void) {
+RomData<unsigned short, COMPRESSED> &galaxian::logo(void) {
   return galaxian_logo;
 }
 

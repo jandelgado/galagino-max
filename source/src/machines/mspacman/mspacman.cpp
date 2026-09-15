@@ -156,6 +156,6 @@ const uint32_t *mspacman::spriteRom(unsigned char flags, unsigned char code) {
   return mspacman_sprites[flags][code];
 }
 
-const unsigned short *mspacman::logo(void) {
+RomData<unsigned short, COMPRESSED> &mspacman::logo(void) {
   return mspacman_logo;
 }

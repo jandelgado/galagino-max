@@ -274,7 +274,7 @@ void turtles::render_row(short row) {
   }
 }
 
-const unsigned short *turtles::logo(void) {
+RomData<unsigned short, COMPRESSED> &turtles::logo(void) {
   return turtles_logo;
 }
 

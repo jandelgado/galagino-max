@@ -395,7 +395,7 @@ void motorace::render_row(short strip_r) {
   }
 }
 
-const unsigned short *motorace::logo(void) {
+RomData<unsigned short, COMPRESSED> &motorace::logo(void) {
   return motorace_logo;
 }
 

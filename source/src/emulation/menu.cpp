@@ -13,6 +13,7 @@ void Menu::init(Input *input, const machineInfo *machines,  signed char machines
   else {
     machineIndex = MCH_MENU;
     menu_sel = 2;
+    enterMenu();
   }
 }
 
@@ -26,6 +27,8 @@ void Menu::show_menu() {
   // prevent start after a reset
   last_mask = BUTTON_START;
   printf("show menu\n");
+
+  enterMenu();
 }
 
 signed char Menu::machineIndexSelected() {
@@ -40,9 +43,38 @@ bool Menu::startMachine() {
   if(machineIndex != machineIndexLast | menuWasSelected) {
     machineIndexLast = machineIndex;
     menuWasSelected = false;
+    leaveMenu();
     return true;
   }
   return false;
+}
+
+// Pool lives for the whole menu session. Per-logo new/delete fragments the heap.
+void Menu::enterMenu() {
+  if(logo_pool[0]) { return; }
+
+  for(logo_pool_count = 0; logo_pool_count < LOGO_CACHE_SIZE; logo_pool_count++) {
+    // +1: slack in case uzlib writes past dest_limit.
+    unsigned short *slot = new (std::nothrow) unsigned short[LOGO_PIXELS + 1];
+    if(!slot) {
+      // Fragmented heap: run with fewer slots instead of aborting.
+      printf("Menu: logo pool only got %u/%u slots (slot %u allocation of %u bytes failed)\n",
+             logo_pool_count, LOGO_CACHE_SIZE, logo_pool_count, (unsigned)(LOGO_PIXELS * sizeof(unsigned short)));
+      break;
+    }
+    logo_pool[logo_pool_count] = slot;
+    slot_logo[logo_pool_count] = nullptr;
+  }
+}
+
+// Free before the machine's ROM buffers claim the heap.
+void Menu::leaveMenu() {
+  for(unsigned char i = 0; i < LOGO_CACHE_SIZE; i++) {
+    delete[] logo_pool[i];
+    logo_pool[i] = nullptr;
+    slot_logo[i] = nullptr;
+  }
+  logo_pool_count = 0;
 }
 
 bool Menu::machineIndexIsMenu() {
@@ -122,53 +154,56 @@ void Menu::handle() {
 }
 
 void Menu::render_row(short row) {
+  if(row == 0) {
+    refreshLogoCache();
+  }
+
   if(machinesCount <= 3) {
     // non-scrolling menu for 2 or 3 machines
     for(char i = 0; i < machinesCount; i++) {
       char offset = i * 12;
-      if(machinesCount == 2) offset += 6;	
+      if(machinesCount == 2) offset += 6;
       if(row >= offset && row < offset + 12)
-	menu_logo(8 * (row - offset), machines[i].logo(), menu_sel == i + 1);
+	menu_logo(8 * (row - offset), logoBuffer(machines[i].logo()), menu_sel == i + 1);
     }
   }
   else {
     // scrolling menu for more than 3 machines
-    // valid offset values range from 0 to MACHINE * 96 - 1
-    static int offset = 0;
+    // valid scroll_offset values range from 0 to MACHINE * 96 - 1
 
     // check which logo would show up in this row. Actually
     // two may show up in the same character row when scrolling
-    int logo_idx = ((row + offset / 8) / 12) % machinesCount;
+    int logo_idx = ((row + scroll_offset / 8) / 12) % machinesCount;
     if(logo_idx < 0) logo_idx += machinesCount;
 
-    int logo_y = (row * 8 + offset) % 96;  // logo line in this row
+    int logo_y = (row * 8 + scroll_offset) % 96;  // logo line in this row
 
     // check if logo at logo_y shows up in current row
-    menu_logo(logo_y, machines[logo_idx].logo(), (menu_sel-1) == logo_idx);
+    menu_logo(logo_y, logoBuffer(machines[logo_idx].logo()), (menu_sel-1) == logo_idx);
 
     // check if a second logo may show up here
     if(logo_y > (96 - 8)) {
       logo_idx = (logo_idx + 1) % machinesCount;
       logo_y -= 96;
-      menu_logo(logo_y, machines[logo_idx].logo(), (menu_sel-1) == logo_idx);
+      menu_logo(logo_y, logoBuffer(machines[logo_idx].logo()), (menu_sel-1) == logo_idx);
     }
 
     if(row == 35) {
-      // finally offset is bound to game, something like 96 * game:
+      // finally scroll_offset is bound to game, something like 96 * game:
       int new_offset = 96 * ((unsigned)(menu_sel - 2) % machinesCount);
       if(menu_sel == 1)
         new_offset = (machinesCount - 1) * 96;
 
       // check if we need to scroll
-      if(new_offset != offset) {
-        int diff = (new_offset - offset) % (machinesCount * 96);
+      if(new_offset != scroll_offset) {
+        int diff = (new_offset - scroll_offset) % (machinesCount * 96);
         if(diff < 0) diff += machinesCount * 96;
         if(diff < machinesCount * 96 / 2)
-          offset = (offset + 8) % (machinesCount * 96);
+          scroll_offset = (scroll_offset + 8) % (machinesCount * 96);
         else
-          offset = (offset - 8) % (machinesCount * 96);
-        if(offset < 0)
-          offset += machinesCount * 96;
+          scroll_offset = (scroll_offset - 8) % (machinesCount * 96);
+        if(scroll_offset < 0)
+          scroll_offset += machinesCount * 96;
       }
     }
   }
@@ -176,51 +211,99 @@ void Menu::render_row(short row) {
 
 // render one of three the menu logos. Only the active one is colorful
 // render logo into current buffer starting with line "row" of the logo
-void Menu::menu_logo(short row, const unsigned short *logo, char active) {
-  unsigned short marker = logo[0];
-  const unsigned short *data = logo + 1;
-
-  // current pixel to be drawn
-  unsigned short ipix = 0;
-
+void Menu::menu_logo(short row, const unsigned short *img, char active) {
   // less than 8 rows in image left?
   unsigned short pix2draw = ((row <= 96 - 8) ? (224 * 8) : ((96 - row) * 224));
 
-  if(row >= 0) {
-    // skip ahead to row
-    unsigned short col = 0;
-    unsigned short pix = 0;
-    while(pix < 224 * row) {
-      if(data[0] != marker) {
-        pix++;
-        data++;
-      } else {
-        pix += data[1] + 1;
-        col = data[2];
-        data += 3;
+  unsigned short ipix = (row < 0) ? (unsigned short)(-row * 224) : 0;
+
+  // Logo got no pool slot.
+  if(!img) {
+    while(ipix < pix2draw) { frame_buffer[ipix++] = 0; }
+    return;
+  }
+
+  const unsigned short *src = img + 224 * (row >= 0 ? row : 0);
+
+  while(ipix < pix2draw)
+    frame_buffer[ipix++] = active ? *src++ : convert_RGB565_to_greyscale(*src++);
+}
+
+// Decode only logos visible this frame. Caching all ~50 does not fit in RAM.
+void Menu::refreshLogoCache() {
+  RomData<unsigned short, COMPRESSED> *needed[LOGO_CACHE_SIZE] = { };
+  unsigned char needed_count = 0;
+
+  auto addNeeded = [&](signed char idx) {
+    RomData<unsigned short, COMPRESSED> *r = &machines[idx].logo();
+    for(unsigned char i = 0; i < needed_count; i++) {
+      if(needed[i] == r) { return; }
+    }
+    if(needed_count < LOGO_CACHE_SIZE) {
+      needed[needed_count++] = r;
+    }
+  };
+
+  if(machinesCount <= 3) {
+    for(signed char i = 0; i < machinesCount; i++) {
+      addNeeded(i);
+    }
+  } else {
+    for(short row = 0; row < 36; row++) {
+      int logo_idx = ((row + scroll_offset / 8) / 12) % machinesCount;
+      if(logo_idx < 0) { logo_idx += machinesCount; }
+      addNeeded(logo_idx);
+
+      if((row * 8 + scroll_offset) % 96 > (96 - 8)) {
+        addNeeded((logo_idx + 1) % machinesCount);
+      }
+    }
+  }
+
+  // logo_pool_count, not LOGO_CACHE_SIZE: enterMenu() may get fewer slots.
+  for(unsigned char n = 0; n < needed_count; n++) {
+    bool resident = false;
+    for(unsigned char i = 0; i < logo_pool_count; i++) {
+      if(slot_logo[i] == needed[n]) {
+        resident = true;
+        break;
+      }
+    }
+    if(resident) { continue; }
+
+    // Evict an unneeded slot, else the logo closest to scrolling off
+    // (lowest needed[] index). Otherwise a short pool keeps evicting the
+    // incoming logo, which then never shows.
+    unsigned char victim = 0;
+    signed char victim_rank = needed_count;
+    for(unsigned char i = 0; i < logo_pool_count; i++) {
+      signed char rank = -1;
+      for(unsigned char j = 0; j < needed_count; j++) {
+        if(slot_logo[i] == needed[j]) {
+          rank = j;
+          break;
+        }
+      }
+      if(rank < victim_rank) {
+        victim = i;
+        victim_rank = rank;
+        if(rank == -1) { break; }
       }
     }
 
-    // draw pixels remaining from previous run
-    if(!active) col = convert_RGB565_to_greyscale(col);
-    while(ipix < ((pix - 224 * row < pix2draw) ? (pix - 224 * row) : pix2draw))
-      frame_buffer[ipix++] = col;
-  } else
-    // if row is negative, then skip target pixel
-    ipix -= row * 224;
+    needed[n]->decodeInto(logo_pool[victim]);
+    slot_logo[victim] = needed[n];
+  }
+}
 
-  while(ipix < pix2draw) {
-    if(data[0] != marker)
-      frame_buffer[ipix++] = active ? *data++ : convert_RGB565_to_greyscale(*data++);
-    else {
-      unsigned short color = data[2];
-      if(!active) color = convert_RGB565_to_greyscale(color);
-      for(unsigned short j = 0; j < data[1] + 1 && ipix < pix2draw; j++)
-        frame_buffer[ipix++] = color;
-
-      data += 3;
+// nullptr unless refreshLogoCache() made the logo resident this frame.
+const unsigned short *Menu::logoBuffer(RomData<unsigned short, COMPRESSED> &logo) {
+  for(unsigned char i = 0; i < LOGO_CACHE_SIZE; i++) {
+    if(slot_logo[i] == &logo) {
+      return logo_pool[i];
     }
   }
+  return nullptr;
 }
 
 unsigned short Menu::convert_RGB565_to_greyscale(unsigned short in) {
@@ -228,7 +311,7 @@ unsigned short Menu::convert_RGB565_to_greyscale(unsigned short in) {
   unsigned short g = ((in << 3) & 0x38) | ((in >> 13) & 0x07);
   unsigned short b = (in >> 8) & 31;
   unsigned short avg = (2 * r + g + 2 * b) / 4;
- 
+
   return (((avg << 13) & 0xe000) |   // g2-g0
           ((avg <<  7) & 0x1f00) |   // b5-b0
           ((avg <<  2) & 0x00f8) |   // r5-r0
@@ -293,4 +376,3 @@ const char *mchName(signed char machineType) {
 
   return "";
 }
-

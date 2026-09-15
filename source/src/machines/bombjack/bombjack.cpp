@@ -492,7 +492,7 @@ void bombjack::render_row(short row) {
   }
 }
 
-const unsigned short *bombjack::logo(void) {
+RomData<unsigned short, COMPRESSED> &bombjack::logo(void) {
   return bombjack_logo;
 }
 

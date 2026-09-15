@@ -65,7 +65,7 @@ public:
     void prepare_frame(void) override;
     void run_frame(void) override;
     void render_row(short row) override;
-    static const unsigned short *logo(void);
+    static RomData<unsigned short, COMPRESSED> &logo(void);
 
     // Public: accessed by audio.cpp
     static const int DK3_SAMPLES = 1024;

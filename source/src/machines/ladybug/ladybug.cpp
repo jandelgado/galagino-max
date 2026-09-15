@@ -368,7 +368,7 @@ void ladybug::render_row(short row) {
   }
 }
 
-const unsigned short *ladybug::logo(void) {
+RomData<unsigned short, COMPRESSED> &ladybug::logo(void) {
   return ladybug_logo;
 }
 

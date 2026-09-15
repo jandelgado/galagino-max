@@ -20,7 +20,7 @@ public:
 
   void run_frame(void) override;
   const signed char *waveRom(unsigned char value) override;
-  static const unsigned short *logo(void);  
+  static RomData<unsigned short, COMPRESSED> &logo(void);  
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

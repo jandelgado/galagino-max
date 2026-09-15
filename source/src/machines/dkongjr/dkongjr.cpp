@@ -285,6 +285,6 @@ void dkongjr::blit_sprite(short row, unsigned char s) {
   }
 }
 
-const unsigned short *dkongjr::logo(void) {
+RomData<unsigned short, COMPRESSED> &dkongjr::logo(void) {
   return dkongjr_logo;
 }

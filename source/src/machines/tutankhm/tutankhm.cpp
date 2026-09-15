@@ -364,7 +364,7 @@ void tutankhm::render_row(short row) {
     }
 }
 
-const unsigned short *tutankhm::logo(void) {
+RomData<unsigned short, COMPRESSED> &tutankhm::logo(void) {
     return tutankhm_logo;
 }
 

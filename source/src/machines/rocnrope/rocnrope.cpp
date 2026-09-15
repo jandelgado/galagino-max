@@ -393,7 +393,7 @@ void rocnrope::render_row(short row) {
   }
 }
 
-const unsigned short *rocnrope::logo(void) {
+RomData<unsigned short, COMPRESSED> &rocnrope::logo(void) {
   return rocnrope_logo;
 }
 

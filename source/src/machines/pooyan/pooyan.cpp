@@ -400,7 +400,7 @@ void pooyan::render_row(short row) {
   }
 }
 
-const unsigned short *pooyan::logo(void) {
+RomData<unsigned short, COMPRESSED> &pooyan::logo(void) {
   return pooyan_logo;
 }
 

@@ -665,12 +665,15 @@ void xevious::render_row(short row) {
 void xevious::trigger_sound_explosion(unsigned char ship) {
   if (snd_boom_cnt && (snd_boom_ship || !ship)) return;   // gia' in corso
   snd_boom_ship = ship;
+  // Pointer before count: audio.transmit() runs on the other core and only
+  // checks snd_boom_cnt. data() decompresses lazily on first trigger, so
+  // setting cnt first would leave ptr stale/NULL for the whole decode.
   if (ship) {
-    snd_boom_cnt = xevious_sample_boom2.size();   // 1 byte/campione a 24kHz
     snd_boom_ptr = (const signed char*)xevious_sample_boom2.data();
+    snd_boom_cnt = xevious_sample_boom2.size();   // 1 byte/campione a 24kHz
   } else {
-    snd_boom_cnt = xevious_sample_boom.size();
     snd_boom_ptr = (const signed char*)xevious_sample_boom.data();
+    snd_boom_cnt = xevious_sample_boom.size();
   }
 }
 
@@ -678,6 +681,6 @@ const signed char *xevious::waveRom(unsigned char value) {
   return xevious_wavetable[value];
 }
 
-const unsigned short *xevious::logo(void) {
+RomData<unsigned short, COMPRESSED> &xevious::logo(void) {
   return xevious_logo;
 }

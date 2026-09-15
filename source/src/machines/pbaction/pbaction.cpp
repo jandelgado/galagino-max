@@ -595,7 +595,7 @@ void pbaction::render_row(short row) {
     blit_tile_fg(row, col);
 }
 
-const unsigned short *pbaction::logo(void) {
+RomData<unsigned short, COMPRESSED> &pbaction::logo(void) {
   return pbaction_logo;
 }
 

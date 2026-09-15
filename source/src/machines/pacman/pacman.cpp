@@ -210,7 +210,7 @@ const signed char *pacman::waveRom(unsigned char value) {
   return pacman_wavetable[value]; 
 }
 
-const unsigned short *pacman::logo(void) {
+RomData<unsigned short, COMPRESSED> &pacman::logo(void) {
   return pacman_logo;
 }
 

@@ -410,7 +410,7 @@ const uint32_t *anteater::spriteRom(unsigned char flags, unsigned char code) {
   return anteater_sprites[flags][code];
 }
 
-const unsigned short *anteater::logo(void) {
+RomData<unsigned short, COMPRESSED> &anteater::logo(void) {
   return anteater_logo;
 }
 

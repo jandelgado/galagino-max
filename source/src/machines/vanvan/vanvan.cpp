@@ -249,7 +249,7 @@ void vanvan::render_row(short row) {
   }
 }
 
-const unsigned short *vanvan::logo(void) {
+RomData<unsigned short, COMPRESSED> &vanvan::logo(void) {
   return vanvan_logo;
 }
 

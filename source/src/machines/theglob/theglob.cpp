@@ -172,7 +172,7 @@ const signed char *theglob::waveRom(unsigned char value) {
   return theglob_wavetable[value]; 
 }
 
-const unsigned short *theglob::logo(void) {
+RomData<unsigned short, COMPRESSED> &theglob::logo(void) {
   return theglob_logo;
 }
 

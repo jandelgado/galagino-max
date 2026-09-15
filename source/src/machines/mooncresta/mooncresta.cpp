@@ -456,7 +456,7 @@ inline unsigned short mooncresta::rgb_to_swapped565(unsigned char r, unsigned ch
   return (c >> 8) | (c << 8);  // byte-swap
 }
 
-const unsigned short *mooncresta::logo(void) {
+RomData<unsigned short, COMPRESSED> &mooncresta::logo(void) {
   return mooncresta_logo;
 }
 
