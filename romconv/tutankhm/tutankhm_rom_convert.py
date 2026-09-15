@@ -38,6 +38,9 @@ Usage: python tutankhm.py
 import os
 import sys
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
+
 # ── ROM source directory (like mspacman_rom_convert.py) ──
 ROM_SRC = os.path.normpath(os.path.join("..", "roms"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "tutankhm"))
@@ -68,11 +71,7 @@ def write_header(filename, varname, data, comment=""):
     path = os.path.join(OUT_DIR, filename)
     with open(path, "w") as f:
         f.write(f"// {comment}\n")
-        f.write(f"const unsigned char {varname}[] = {{\n")
-        for i in range(0, len(data), 16):
-            chunk = data[i:i+16]
-            f.write("  " + ", ".join(f"0x{b:02X}" for b in chunk) + ",\n")
-        f.write("};\n")
+        emit_compressed(f, varname, "unsigned char", "", len(data), list(data))
     print(f"  Written {os.path.basename(path)} ({len(data)} bytes)")
 
 def main():

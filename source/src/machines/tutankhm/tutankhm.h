@@ -2,9 +2,6 @@
 #define TUTANKHM_H
 
 #include "../machineBase.h"
-#include "tutankhm_rom.h"
-#include "tutankhm_bank_rom.h"
-#include "tutankhm_snd_rom.h"
 #include "tutankhm_dipswitches.h"
 #include "tutankhm_logo.h"
 
@@ -27,7 +24,7 @@ class tutankhm : public machineBase
 {
 public:
     tutankhm() { }
-    ~tutankhm() { }
+    ~tutankhm();
 
     void start() override;
     void reset() override;
