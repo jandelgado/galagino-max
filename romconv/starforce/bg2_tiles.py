@@ -186,7 +186,7 @@ def write_c_array_packed(tiles_data):
                         pixel_value = row[x]
                         packed_int |= pixel_value << (BPP * (7 - x_in_chunk))
                     flat.append(packed_int)
-        emit_compressed(f_c, C_ARRAY_NAME, "unsigned long",
+        emit_compressed(f_c, C_ARRAY_NAME, "uint32_t",
                          "[%d][%d]" % (height, chunks_per_row), NUM_TILES, flat)
     print(f"File '{OUTPUT_C_FILE}' generato con successo!")
 def generate_preview_png(tiles_data):

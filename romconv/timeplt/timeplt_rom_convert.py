@@ -249,7 +249,7 @@ def write_spritemap(filename, all_orientations, sprite_colors):
     with open(filename, 'w') as f:
         f.write("// Time Pilot spritemap: {} sprites, 16x16, 2bpp, 4 orientations\n".format(num_sprites))
         flat = [v for orientation in all_orientations for rows in orientation for v in rows]
-        emit_compressed(f, "timeplt_spritemap", "unsigned long", "[%d][16]" % num_sprites, 4, flat)
+        emit_compressed(f, "timeplt_spritemap", "uint32_t", "[%d][16]" % num_sprites, 4, flat)
         f.write("\n")
 
         # Sprite color palettes (64 palettes x 4 colors)

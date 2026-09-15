@@ -222,7 +222,7 @@ def parse_tilemap_1942(id, files, outname):
                 tiles_str.append(" { " + dump_tile_1942(t,xflip,yflip) + " }")
             tiles_maps_str.append("{\n" + ",\n".join(tiles_str) +"\n}")
     body = ",\n".join(tiles_maps_str)
-    emit_plain(f, id, "unsigned long", "[" + str(len(tiles)) + "][32]", 4, body)
+    emit_plain(f, id, "uint32_t", "[" + str(len(tiles)) + "][32]", 4, body)
 
     f.close()
         

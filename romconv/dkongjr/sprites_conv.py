@@ -112,7 +112,7 @@ def convert_dkjr_spritemap():
         for flip_x, flip_y in [(False, False), (False, True), (True, False), (True, True)]:
             for s in sprites:
                 flat.extend(dump_sprite_values(s, flip_x, flip_y))
-        emit_compressed(f, OUTPUT_ARRAY_NAME, "unsigned long", "[%d][16]" % NUM_SPRITES, 4, flat)
+        emit_compressed(f, OUTPUT_ARRAY_NAME, "uint32_t", "[%d][16]" % NUM_SPRITES, 4, flat)
         
     print(f"\nProcesso completato! Il file '{OUTPUT_HEADER_FILE}' è stato creato.")
 

@@ -84,10 +84,10 @@ def convert_bombjack_fg_tiles():
         chars.append(final_char)
 
     with open(OUTPUT_HEADER_FILE, "w") as f:
-        f.write(f"// File generato automaticamente per Bomb Jack (formato unsigned long).\n")
+        f.write(f"// File generato automaticamente per Bomb Jack (formato uint32_t).\n")
         f.write(f"// Ordine dei bit-plane corretto per i colori.\n\n")
         flat = [v for c in chars for v in dump_chr_values(c)]
-        emit_compressed(f, OUTPUT_ARRAY_NAME, "unsigned long", "[%d]" % TILE_HEIGHT, NUM_TILES, flat)
+        emit_compressed(f, OUTPUT_ARRAY_NAME, "uint32_t", "[%d]" % TILE_HEIGHT, NUM_TILES, flat)
 
     print(f"\nProcesso completato! Il file '{OUTPUT_HEADER_FILE}' è stato creato.")
 

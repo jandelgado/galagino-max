@@ -258,7 +258,7 @@ def convert_tiles_sprites():
                     for x in range(16):
                         word |= fimg[y][x] << (2 * x)
                     flat.append(word)
-        emit_compressed(f, "alibaba_sprites", "unsigned long", "["+str(len(sprites))+"][16]", 4, flat)
+        emit_compressed(f, "alibaba_sprites", "uint32_t", "["+str(len(sprites))+"][16]", 4, flat)
     print("Written:", outfile, "(", len(sprites), "sprites x 4 flips )")
 
 
@@ -304,7 +304,7 @@ def convert_clock():
                 for x in range(16):
                     word |= img[y][x] << (2 * x)
                 flat.append(word)
-        emit_compressed(f, "alibaba_clockmap", "unsigned long", "[24]", len(clocks), flat)
+        emit_compressed(f, "alibaba_clockmap", "uint32_t", "[24]", len(clocks), flat)
     print("Written:", outfile, "(", len(clocks), "clock tiles )")
 
 

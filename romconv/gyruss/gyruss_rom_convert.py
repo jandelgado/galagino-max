@@ -221,7 +221,7 @@ def decode_sprites(gfx_data):
     """Decode 512 sprites (8x16, 4bpp) from combined sprite ROMs.
     gfx_data = gyrussk.6 + gyrussk.5 (region 0) + gyrussk.8 + gyrussk.7 (region 1)
     Returns sprites[4][512][16] (4 flip variants, 512 sprites, 16 rows).
-    Each row packs 8 pixels x 4 bits = 32 bits (unsigned long)."""
+    Each row packs 8 pixels x 4 bits = 32 bits (uint32_t)."""
     data_len = len(gfx_data)
     num_sprites = 512  # 512 sprites total (128 per ROM file, 4 files)
     sprites = [[[0] * 16 for _ in range(num_sprites)] for _ in range(4)]
@@ -397,7 +397,7 @@ def write_spritemap_h(sprites, filepath, patch_values):
         f.write("// Gyruss sprites (512 sprites, 8x16, 4bpp, 4 flip variants)\n")
         f.write("// Generated from gyrussk.6 + gyrussk.5 + gyrussk.8 + gyrussk.7\n")
         f.write("// Variant 0=normal, 1=Y-flip, 2=X-flip, 3=XY-flip\n\n")
-        emit_compressed(f, "gyruss_sprites", "unsigned long", "[512][16]", 4, flat)
+        emit_compressed(f, "gyruss_sprites", "uint32_t", "[512][16]", 4, flat)
 
 
 def write_palette_h(palette_565, sprite_cmap, char_cmap, filepath):

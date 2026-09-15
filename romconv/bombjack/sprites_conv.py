@@ -59,7 +59,7 @@ def decode_sprite(rom_planes, width, height, base_offset):
     return sprite_matrix
 
 def dump_sprite_values(data):
-    """Converte una matrice 2D di pixel in una lista di valori 'unsigned long'."""
+    """Converte una matrice 2D di pixel in una lista di valori 'uint32_t'."""
     vals = []
     width = len(data[0])
     for y_row in data:
@@ -87,7 +87,7 @@ def process_and_write(rom_data, width, height, num_sprites, array_name, f_out):
 
         flat.extend(dump_sprite_values(sprite_matrix))
 
-    emit_compressed(f_out, array_name, "unsigned long", "[%d]" % (width * height // 8), num_sprites, flat)
+    emit_compressed(f_out, array_name, "uint32_t", "[%d]" % (width * height // 8), num_sprites, flat)
 
 def main():
     print("--- Conversione Sprite per Bomb Jack (Logica Corretta) ---")

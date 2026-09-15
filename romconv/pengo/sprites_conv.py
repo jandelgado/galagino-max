@@ -124,7 +124,7 @@ def main():
                     sprite_idx = bank * 64 + i
                     flipped = flip_sprite(final_sprites_unflipped[sprite_idx], flip_x, flip_y)
                     flat.extend(dump_sprite_values(flipped))
-        emit_compressed(f, "pengo_sprites", "unsigned long", "[4][64][16]", 2, flat)
+        emit_compressed(f, "pengo_sprites", "uint32_t", "[4][64][16]", 2, flat)
     create_preview(final_sprites_unflipped, 16, 16, OUTPUT_PREVIEW)
     print("--- Elaborazione SPRITE completata ---")
 

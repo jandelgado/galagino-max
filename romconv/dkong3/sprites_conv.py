@@ -128,7 +128,7 @@ def main():
                 flip_y = (flip_flag & 2) != 0
                 for s in sprites:
                     flat.extend(dump_sprite_values(s, flip_x, flip_y))
-            emit_compressed(f, OUTPUT_ARRAY_NAME, "unsigned long", "[%d][%d]" % (NUM_SPRITES, SPRITE_HEIGHT), 4, flat)
+            emit_compressed(f, OUTPUT_ARRAY_NAME, "uint32_t", "[%d][%d]" % (NUM_SPRITES, SPRITE_HEIGHT), 4, flat)
 
         print(f"\nProcesso completato! Creato '{OUTPUT_HEADER_FILE}'.")
     except Exception as e:

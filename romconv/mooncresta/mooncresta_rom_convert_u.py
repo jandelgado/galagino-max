@@ -118,7 +118,7 @@ def parse_sprite_galaxian(data0, data1):
     return sprite
 
 def dump_sprite(data, flip_x, flip_y):
-    """Pack 16x16 sprite into unsigned long values.
+    """Pack 16x16 sprite into uint32_t values.
     Same as original galagino spriteconv.py dump_sprite."""
     vals = []
     y_range = range(16) if not flip_y else reversed(range(16))
@@ -181,7 +181,7 @@ def write_spritemap(filename, all_orientations):
     num_sprites = len(all_orientations[0])
     with open(filename, 'w') as f:
         f.write("// Moon Cresta spritemap: {} sprites, 16x16, 2bpp, 4 orientations\n".format(num_sprites))
-        f.write("const unsigned long mooncresta_spritemap[][%d][16] = {\n" % num_sprites)
+        f.write("const uint32_t mooncresta_spritemap[][%d][16] = {\n" % num_sprites)
         for o, sprites in enumerate(all_orientations):
             f.write("  { // orientation %d\n" % o)
             for s, rows in enumerate(sprites):

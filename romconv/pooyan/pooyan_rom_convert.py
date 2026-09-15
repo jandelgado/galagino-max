@@ -144,7 +144,7 @@ def write_tilemap(filename, tiles, char_colors):
         f.write("// Pooyan tilemap: {} tile, 8x8, 4bpp, ruotati 90CW (portrait)\n".format(len(tiles)))
         f.write("// pixel = (riga >> (px*4)) & 0xF\n")
         flat = [r for rows in tiles for r in rows]
-        emit_compressed(f, "pooyan_tilemap", "unsigned long", "[8]", len(tiles), flat)
+        emit_compressed(f, "pooyan_tilemap", "uint32_t", "[8]", len(tiles), flat)
         f.write("\n// Pooyan char colormap: 16 gruppi x 16 pen, RGB565 byte-swapped\n")
         f.write("const unsigned short pooyan_char_colormap[][16] = {\n")
         for grp in range(16):

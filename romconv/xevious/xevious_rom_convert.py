@@ -159,7 +159,7 @@ def write_sprites(sprites):
         print("// Xevious sprites (xvi_15.4m+xvi_17.4p+xvi_16.4n+xvi_18.4r, dopo", file=f)
         print("// init_xevious() unpack) — 320 sprite 16x16 3bpp (valori pixel 0-7),", file=f)
         print("// impacchettati a nibble (4 bit) come mappy/gaplus_spritemap.h.", file=f)
-        print("const unsigned long xevious_sprites[][320][32] = {", file=f)
+        print("const uint32_t xevious_sprites[][320][32] = {", file=f)
         for (fx, fy) in [(0,0),(0,1),(1,0),(1,1)]:
             print(" {", file=f)
             rows = []

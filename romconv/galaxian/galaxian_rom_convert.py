@@ -111,7 +111,7 @@ def parse_sprite_galaxian(data0, data1):
     return sprite
 
 def dump_sprite(data, flip_x, flip_y):
-    """Pack 16x16 sprite into unsigned long values.
+    """Pack 16x16 sprite into uint32_t values.
     Same as original galagino spriteconv.py dump_sprite."""
     vals = []
     y_range = range(16) if not flip_y else reversed(range(16))
@@ -163,7 +163,7 @@ def write_spritemap(filename, all_orientations):
     with open(filename, 'w') as f:
         f.write("// Galaxian spritemap: {} sprites, 16x16, 2bpp, 4 orientations\n".format(num_sprites))
         flat = [v for orientation in all_orientations for rows in orientation for v in rows]
-        emit_compressed(f, "galaxian_spritemap", "unsigned long", "[%d][16]" % num_sprites, 4, flat)
+        emit_compressed(f, "galaxian_spritemap", "uint32_t", "[%d][16]" % num_sprites, 4, flat)
     print("Written: {} ({} sprites x 4 orientations)".format(filename, num_sprites))
 
 def write_colormap(filename, rgb565):

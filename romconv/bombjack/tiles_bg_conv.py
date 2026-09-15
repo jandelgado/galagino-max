@@ -51,7 +51,7 @@ def parse_chr_3bpp_16x16_from_c_logic(data0, data1, data2):
     return matrix
 
 def dump_row_to_ulong_pair(row_data):
-    """Converte una riga di 16 pixel in una coppia di 'unsigned long'."""
+    """Converte una riga di 16 pixel in una coppia di 'uint32_t'."""
     val1 = 0
     for x in range(8): val1 = (val1 << 3) | row_data[x]
     val2 = 0
@@ -100,7 +100,7 @@ def convert_bombjack_bg_tiles():
                 val1, val2 = dump_row_to_ulong_pair(c[y])
                 flat.append(val1)
                 flat.append(val2)
-        emit_compressed(f, OUTPUT_ARRAY_NAME, "unsigned long", "[%d]" % (TILE_HEIGHT * 2), NUM_TILES, flat)
+        emit_compressed(f, OUTPUT_ARRAY_NAME, "uint32_t", "[%d]" % (TILE_HEIGHT * 2), NUM_TILES, flat)
 
     print(f"\nProcesso completato! Il file '{OUTPUT_HEADER_FILE}' è stato creato.")
 

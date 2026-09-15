@@ -97,7 +97,7 @@ def write_c_array_packed(filename, array_name, sprites, width, height, compress=
                     flat.append(packed_int)
 
         if compress:
-            emit_compressed(f, array_name, "unsigned long",
+            emit_compressed(f, array_name, "uint32_t",
                              "[%d][%d]" % (height, chunks_per_row), len(sprites), flat)
         else:
             body_rows = []
@@ -108,7 +108,7 @@ def write_c_array_packed(filename, array_name, sprites, width, height, compress=
                     vals = ["0x{:06X}".format(v) for v in flat[base:base + chunks_per_row]]
                     row_groups.append("{ " + ", ".join(vals) + " }")
                 body_rows.append("  { " + ",\n    ".join(row_groups) + " }")
-            emit_plain(f, array_name, "unsigned long",
+            emit_plain(f, array_name, "uint32_t",
                        "[%d][%d]" % (height, chunks_per_row), len(sprites), ",\n".join(body_rows))
         f.write("\n")
     print("Scrittura completata.")

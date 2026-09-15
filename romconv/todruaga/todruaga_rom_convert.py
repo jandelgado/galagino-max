@@ -175,7 +175,7 @@ def write_sprites(sprites):
                         v |= t[y][x] << (4*x)
                     flat.append(v & 0xffffffff)
                     flat.append(v >> 32)
-        emit_compressed(f, "todruaga_sprites", "unsigned long", "[%d][32]" % len(sprites), 4, flat)
+        emit_compressed(f, "todruaga_sprites", "uint32_t", "[%d][32]" % len(sprites), 4, flat)
 
 def rgb565_swapped(c):
     # bbgggrrr -> RGB565 byte-swapped, identico a cmapconv.py (galaga/pacman)

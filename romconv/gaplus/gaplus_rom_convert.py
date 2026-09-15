@@ -181,7 +181,7 @@ def write_sprites(sprites):
                 rows.append("  { " + ",".join(vals) + " }")
             body_parts.append(" {\n" + ",\n".join(rows) + "\n }")
         body = ",\n".join(body_parts)
-        emit_plain(f, "gaplus_sprites", "unsigned long", "[%d][32]" % len(sprites), 4, body)
+        emit_plain(f, "gaplus_sprites", "uint32_t", "[%d][32]" % len(sprites), 4, body)
 
 def rgb565_swapped(r, g, b):
     # r,g,b gia' 0..255 -> RGB565 byte-swapped, identico a cmapconv.py

@@ -203,7 +203,7 @@ def main():
     sprite_values = apply_patch_values(sprite_values, sprite_patch, 0xFFFFFFFF)
 
     with open(final_file, 'w', encoding='utf-8') as f:
-        emit_compressed(f, "mspacman_sprites", "unsigned long", "[64][16]", 4, sprite_values)
+        emit_compressed(f, "mspacman_sprites", "uint32_t", "[64][16]", 4, sprite_values)
 
     print(f"  File finale: {final_file}")
 
