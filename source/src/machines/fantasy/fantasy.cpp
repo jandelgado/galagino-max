@@ -1,16 +1,27 @@
 #include "fantasy.h"
+#include "fantasy_rom.h"
+#include "fantasy_gfx.h"
+#include "fantasy_proms.h"
+#include "fantasy_sound_rom.h"
 #include "fantasy_samples.h"
 
-static_assert(sizeof(fantasy_rom) == 0x9000, "Unexpected Fantasy program ROM size");
-static_assert(sizeof(fantasy_gfx) == 0x2000, "Unexpected Fantasy graphics ROM size");
-static_assert(sizeof(fantasy_proms) == 0x40, "Unexpected Fantasy palette PROM size");
-static_assert(sizeof(fantasy_sound_rom) == 0x1800, "Unexpected Fantasy sound ROM size");
 static_assert(FANTASY_SAMPLE_COUNT == 12, "Unexpected Fantasy sample count");
+
+fantasy::~fantasy() {
+	fantasy_rom.release();
+	fantasy_gfx.release();
+	fantasy_sound_rom.release();
+	fantasy_samples.release();
+}
+
+unsigned char fantasy::vanguardSoundRom(unsigned short addr) {
+  return addr < 0x1800 ? fantasy_sound_rom[addr] : 0xff;
+}
 
 const signed char *fantasy::vanguardSample(unsigned char index) {
   if(index < 2 || index - 2 >= FANTASY_SAMPLE_COUNT) return nullptr;
   index -= 2;
-  return (const signed char *)(fantasy_samples + fantasy_sample_offsets[index]);
+  return (const signed char *)(fantasy_samples.data() + fantasy_sample_offsets[index]);
 }
 
 unsigned long fantasy::vanguardSampleLength(unsigned char index) {
