@@ -6,7 +6,6 @@
 #include "theglob_wavetable.h"
 
 theglob::~theglob() {
-	free(decrypt_rom_buffer);
 	theglob_rom.release();
 	theglob_tilemap.release();
 	theglob_sprites.release();
@@ -25,8 +24,7 @@ void theglob::init(Input *input, unsigned short *framebuffer, sprite_S *spritebu
   /* While the PAL supports up to 16 decryption methods, only four
   are actually used in the PAL.  Therefore, we'll take a little
   memory overhead and decrypt the ROMs using each method in advance. */
-  decrypt_rom_buffer = (unsigned char*)malloc(0x4000 * 4);
-
+  decrypt_rom_buffer = Arena::alloc(0x4000*4);
   epos_decrypt_rom(decrypt_rom_buffer, 0xfc, 0x0000, bs[0]);
   epos_decrypt_rom(decrypt_rom_buffer, 0xf6, 0x4000, bs[1]);
   epos_decrypt_rom(decrypt_rom_buffer, 0x7d, 0x8000, bs[2]);
