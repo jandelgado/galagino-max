@@ -22,7 +22,7 @@
 class starforce : public machineBase
 {
 public:
-	starforce() { }
+	starforce();
 	~starforce();
 
 	signed char machineType() override { return MCH_STARFORCE; }

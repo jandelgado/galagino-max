@@ -7,13 +7,27 @@
 #include "starforce_main_cpu_rom.h"
 #include "starforce_sub_cpu_rom.h"
 
+starforce::starforce() {
+	// force largest-first decompress: heap is freshest right after create(),
+	// so the 64K sprite block gets placed before smaller ones fragment it
+	(void)starforce_sprites_16x16.data();
+	(void)starforce_main_cpu_rom.data();
+	(void)starforce_bg1_tilemap.data();
+	(void)starforce_bg2_tilemap.data();
+	(void)starforce_bg3_tilemap.data();
+	(void)starforce_fg_tilemap.data();
+	(void)starforce_sub_cpu_rom.data();
+}
+
 starforce::~starforce() {
-	starforce_main_cpu_rom.release();
+	// release in reverse allocation order (LIFO) so freeing never opens a
+	// hole below still-resident blocks
 	starforce_sub_cpu_rom.release();
-	starforce_bg1_tilemap.release();
-	starforce_bg2_tilemap.release();
-	starforce_bg3_tilemap.release();
 	starforce_fg_tilemap.release();
+	starforce_bg3_tilemap.release();
+	starforce_bg2_tilemap.release();
+	starforce_bg1_tilemap.release();
+	starforce_main_cpu_rom.release();
 	starforce_sprites_16x16.release();
 }
 
