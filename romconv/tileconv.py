@@ -214,15 +214,10 @@ def parse_tilemap_1942(id, files, outname):
     # write as c source
     f = open(outname, "w")
 
-    tiles_maps_str = []
-    for xflip in [ False, True ]:
-        for yflip in [ False, True ]:
-            tiles_str = []
-            for t in tiles:
-                tiles_str.append(" { " + dump_tile_1942(t,xflip,yflip) + " }")
-            tiles_maps_str.append("{\n" + ",\n".join(tiles_str) +"\n}")
-    body = ",\n".join(tiles_maps_str)
-    emit_plain(f, id, "uint32_t", "[" + str(len(tiles)) + "][32]", 4, body)
+    # Unflipped tiles only: 1942.cpp flips at blit time, 1/4 the size.
+    tiles_str = [" { " + dump_tile_1942(t) + " }" for t in tiles]
+    body = ",\n".join(tiles_str)
+    emit_plain(f, id, "uint32_t", "[32]", len(tiles), body)
 
     f.close()
         
