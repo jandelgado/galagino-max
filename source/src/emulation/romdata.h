@@ -3,6 +3,7 @@
 
 #ifdef ARDUINO
 #include <Arduino.h>
+#include <esp_heap_caps.h>
 #else
 #include <cstdio>       // host tests
 #include <cstdlib>
@@ -110,14 +111,19 @@ private:
     void unpack() const {
 #ifdef ARDUINO
       uint32_t t0 = millis();
-      printf("Free heap: %d\n", ESP.getFreeHeap());
 #endif
+      // ESP.getMaxAllocHeap() only checks MALLOC_CAP_INTERNAL, which can
+      // report a block plain new[]/malloc() (MALLOC_CAP_DEFAULT|INTERNAL)
+      // can't actually use -- query the same combined mask new[] does below
+      printf("Free heap: %d (largest block: %d)\n", ESP.getFreeHeap(),
+             heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT | MALLOC_CAP_INTERNAL));
 
       // uzlib writes literals without a bounds check and can write one byte
       // past dest_limit. Pad so that byte does not corrupt the heap.
       T *buf = new (std::nothrow) T[count + 1];
       if (!buf) {
-        printf("RomData: allocation failed (%u bytes)\n", (unsigned)(count * sizeof(T)));
+        printf("RomData: allocation failed (%u bytes, largest block: %d)\n",
+               (unsigned)(count * sizeof(T)), heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT | MALLOC_CAP_INTERNAL));
         abort();
       }
 
@@ -129,8 +135,8 @@ private:
 #endif
       uint32_t decompressedBytes = count * sizeof(T);
       double ratio = 100.0 * (1.0 - (double)packedLen / (double)decompressedBytes);
-      printf("RomData: unpacked %u bytes (packed %u, %.1f%% smaller) in %u ms. Free: %d\n",
-             decompressedBytes, packedLen, ratio, ms, ESP.getFreeHeap());
+      printf("RomData: unpacked %u bytes (packed %u, %.1f%% smaller) in %u ms. Free: %d (largest block: %d)\n",
+             decompressedBytes, packedLen, ratio, ms, ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT | MALLOC_CAP_INTERNAL));
 
       current = buf;
     }
