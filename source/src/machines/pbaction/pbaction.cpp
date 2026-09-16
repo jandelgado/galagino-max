@@ -6,6 +6,14 @@
 #include "pbaction_sprites16.h"
 #include "pbaction_sprites32.h"
 
+// Unpack eagerly, largest first: only this order fits Arena's two blocks.
+pbaction::pbaction() {
+	pbaction_fg_tiles.data();
+	pbaction_main_rom.data();
+	pbaction_sprites32.data();
+	pbaction_audio_rom.data();
+}
+
 pbaction::~pbaction() {
 	pbaction_main_rom.release();
 	pbaction_audio_rom.release();

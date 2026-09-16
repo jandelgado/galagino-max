@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <type_traits>
 #include "../src/emulation/romdata.h"
+#include "../src/emulation/arena.h"
 
 static_assert(std::is_literal_type<RomData<unsigned char, COMPRESSED>>::value, "RomData<T, COMPRESSED> must be a literal type");
 static_assert(std::is_literal_type<RomData<unsigned char, PLAIN>>::value, "RomData<T, PLAIN> must be a literal type");
@@ -115,6 +116,8 @@ void test_unpack_prints_timing_and_ratio() {
 }
 
 int main() {
+  Arena::init();   // RomData<T, COMPRESSED>::data() allocates from here
+
   test_compressed_scalar();
   test_compressed_multidim();
   test_plain_zero_alloc_path();

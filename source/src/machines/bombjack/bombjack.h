@@ -16,7 +16,7 @@
 class bombjack : public machineBase
 {
 public:
-  bombjack() { }
+  bombjack();
   ~bombjack();
 
   void reset() override;

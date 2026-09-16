@@ -1,4 +1,5 @@
 #include "menu.h"
+#include "arena.h"
 
 void Menu::init(Input *input, const machineInfo *machines,  signed char machinesCount, unsigned short *framebuffer) {
   this->master_attract_timeout = millis();
@@ -49,32 +50,27 @@ bool Menu::startMachine() {
   return false;
 }
 
-// Pool lives for the whole menu session. Per-logo new/delete fragments the heap.
+// Pool lives for the whole menu session. The last machine is deleted by
+// now, so reset() reclaims its assets.
 void Menu::enterMenu() {
   if(logo_pool[0]) { return; }
 
+  Arena::reset();
   for(logo_pool_count = 0; logo_pool_count < LOGO_CACHE_SIZE; logo_pool_count++) {
     // +1: slack in case uzlib writes past dest_limit.
-    unsigned short *slot = new (std::nothrow) unsigned short[LOGO_PIXELS + 1];
-    if(!slot) {
-      // Fragmented heap: run with fewer slots instead of aborting.
-      printf("Menu: logo pool only got %u/%u slots (slot %u allocation of %u bytes failed)\n",
-             logo_pool_count, LOGO_CACHE_SIZE, logo_pool_count, (unsigned)(LOGO_PIXELS * sizeof(unsigned short)));
-      break;
-    }
-    logo_pool[logo_pool_count] = slot;
+    logo_pool[logo_pool_count] = Arena::alloc<unsigned short>(LOGO_PIXELS + 1);
     slot_logo[logo_pool_count] = nullptr;
   }
 }
 
-// Free before the machine's ROM buffers claim the heap.
+// Free before the machine's assets claim the arena.
 void Menu::leaveMenu() {
   for(unsigned char i = 0; i < LOGO_CACHE_SIZE; i++) {
-    delete[] logo_pool[i];
     logo_pool[i] = nullptr;
     slot_logo[i] = nullptr;
   }
   logo_pool_count = 0;
+  Arena::reset();
 }
 
 bool Menu::machineIndexIsMenu() {
@@ -260,7 +256,7 @@ void Menu::refreshLogoCache() {
     }
   }
 
-  // logo_pool_count, not LOGO_CACHE_SIZE: enterMenu() may get fewer slots.
+  // Only cache misses decode.
   for(unsigned char n = 0; n < needed_count; n++) {
     bool resident = false;
     for(unsigned char i = 0; i < logo_pool_count; i++) {
@@ -272,8 +268,7 @@ void Menu::refreshLogoCache() {
     if(resident) { continue; }
 
     // Evict an unneeded slot, else the logo closest to scrolling off
-    // (lowest needed[] index). Otherwise a short pool keeps evicting the
-    // incoming logo, which then never shows.
+    // (lowest needed[] index).
     unsigned char victim = 0;
     signed char victim_rank = needed_count;
     for(unsigned char i = 0; i < logo_pool_count; i++) {

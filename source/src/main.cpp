@@ -16,6 +16,7 @@
 #include "config.h"
 #include "machines.h"
 #include "machines/machineBase.h"
+#include "emulation/arena.h"
 #include "emulation/audio.h"
 #include "emulation/video.h"
 #include "emulation/input.h"
@@ -57,6 +58,9 @@ bool doReset = false;
 uint32_t ESP_getFlashChipId(void);
 
 void setup() {
+  // before anything fragments the heap
+  Arena::init();
+
   #if CONFIG_IDF_TARGET_ESP32S3
   delay(2000); // USB delay
   #endif

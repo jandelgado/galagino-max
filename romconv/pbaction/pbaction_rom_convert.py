@@ -386,7 +386,10 @@ def main() -> None:
     write_tiles_header(os.path.join(OUT_DIR, "pbaction_sprites16.h"), "PBACTION_SPRITES16_H",
                        "pbaction_sprites16", s16, 16,
                        "Normal sprites (b-c7/d7/f7), spritelayout1, 3bpp (pen 0-7). "
-                       "gfx[2]: color = spriteram[offs+1]&0x0f, transparent pen 0.")
+                       "gfx[2]: color = spriteram[offs+1]&0x0f, transparent pen 0. "
+                       "RAM budget exception: stays PLAIN/flash-resident (see Arena's "
+                       "capacity in arena.h).",
+                       compress=False)
     write_tiles_header(os.path.join(OUT_DIR, "pbaction_sprites32.h"), "PBACTION_SPRITES32_H",
                        "pbaction_sprites32", s32, 32,
                        "Large sprites (same ROMs, +0x1000), spritelayout2, 3bpp (pen 0-7). "
