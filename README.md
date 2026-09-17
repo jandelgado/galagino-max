@@ -170,6 +170,15 @@ With the current configuration, the buttons have the following additional functi
 
 In Attract mode, the machine cycles through all games if you do not touch the joystick. The games end after 5 minutes.
 
+Attract mode settings in `config.h`:
+
+* `MASTER_ATTRACT_MENU_TIMEOUT`: idle time in the menu before a game starts (ms).
+* `MASTER_ATTRACT_GAME_TIMEOUT`: time until an attract game ends (ms).
+* `MASTER_ATTRACT_MENU_SHOW_COUNTDOWN`: shows a bar in the menu with the time
+  left until a game starts. Comment out in `config.h` to hide it.
+* `MASTER_ATTRACT_MENU_COUNTDOWN_BAR_COLOR565`: bar color, byte-swapped RGB565
+  (SPI byte order).
+
 ## Limitations
 
 Because of no free GPIO´s, the following buttons are not connected and do not work:

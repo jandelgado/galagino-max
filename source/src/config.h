@@ -16,6 +16,11 @@
 #define MASTER_ATTRACT_GAME_TIMEOUT  60000 * 5  // restart after 5 minutes 
 #endif
 
+#define MASTER_ATTRACT_MENU_SHOW_COUNTDOWN      // undefine to hide the countdown bar in the menu
+#ifndef MASTER_ATTRACT_MENU_COUNTDOWN_BAR_COLOR565
+#define MASTER_ATTRACT_MENU_COUNTDOWN_BAR_COLOR565 0x1234  // byte-swapped RGB565 0x3412, #318294 teal blue
+#endif
+
 // video config
 //#define TFT_SPICLK  40000000    // 40 Mhz. Some displays cope with 80 Mhz
 //#define TFT_SPICLK  80000000    // 80 Mhz. Some displays cope with 80 Mhz

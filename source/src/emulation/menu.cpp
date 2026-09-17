@@ -96,7 +96,11 @@ bool Menu::attract_gameTimeout() {
 }
 
 void Menu::attract_resetTimer() {
-  if (master_attract_timeout != 0) {
+  if (machineIndexIsMenu()) {
+    // in menu: restart the countdown instead of disabling it
+    master_attract_timeout = millis();
+  }
+  else if (master_attract_timeout != 0) {
     master_attract_timeout = 0;
     printf("MASTER ATTRACT timer reset!!!\n");
   }
@@ -155,7 +159,11 @@ void Menu::render_row(short row) {
   }
 
   if(machinesCount <= 3) {
-    // non-scrolling menu for 2 or 3 machines
+    // non-scrolling menu for 2 or 3 machines. 2 machines leave rows
+    // 0-5 and 30-35 empty: clear them, else the previous strip
+    // (e.g. the countdown bar) repeats there
+    if(machinesCount == 2 && (row < 6 || row >= 30))
+      memset(frame_buffer, 0, 224 * 8 * sizeof(unsigned short));
     for(char i = 0; i < machinesCount; i++) {
       char offset = i * 12;
       if(machinesCount == 2) offset += 6;
@@ -203,6 +211,19 @@ void Menu::render_row(short row) {
       }
     }
   }
+
+#if defined(MASTER_ATTRACT_MENU_TIMEOUT) && defined(MASTER_ATTRACT_MENU_SHOW_COUNTDOWN)
+  if(row==0 && master_attract_timeout) {
+    // elapsed can exceed the timeout for one frame at the deadline.
+    // Signed math clamps to 0; unsigned would wrap.
+    long elapsed = (long)(millis() - master_attract_timeout);
+    long t_remaining = elapsed >= (long)MASTER_ATTRACT_MENU_TIMEOUT ? 0 : MASTER_ATTRACT_MENU_TIMEOUT - elapsed;
+    int bar = (int)(224L * t_remaining / MASTER_ATTRACT_MENU_TIMEOUT);
+    for(int x=0; x<bar && x<224; x++) {
+        frame_buffer[x] = MASTER_ATTRACT_MENU_COUNTDOWN_BAR_COLOR565;
+    }
+  }
+#endif
 }
 
 // render one of three the menu logos. Only the active one is colorful
