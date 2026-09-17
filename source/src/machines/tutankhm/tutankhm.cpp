@@ -13,19 +13,13 @@ void tutankhm::reset() {
   machineBase::reset();
   m6809_reset(&main_cpu);
 
-  if(videoram) {
-    free(videoram);
-    videoram = nullptr;
-  }
+  videoram = nullptr;  // arena memory, reclaimed by Arena::reset()
 }
 
 void tutankhm::start() {
-  // Allocate 32KB video RAM from PSRAM
+  // start() runs twice per session; arena has no free, so allocate once.
   if (!videoram) {
-    videoram = (uint8_t*)ps_malloc(32768);
-    if (!videoram)
-      videoram = (uint8_t*)malloc(32768);
-
+    videoram = Arena::alloc(32768);
     memset(videoram, 0, 32768);
   }
 
@@ -84,8 +78,8 @@ unsigned char tutankhm::m6809_read(m6809_state *s, uint16_t addr) {
     if (keymask & BUTTON_UP)     retval &= ~0x04;  // Move Up
     if (keymask & BUTTON_DOWN)   retval &= ~0x08;  // Move Down
     // Fire is ABXY
-    // EXTRA is COIN/START 
-    // GALAGINO CONTROLLER maps L2=EXTRA and R2=COIN. 
+    // EXTRA is COIN/START
+    // GALAGINO CONTROLLER maps L2=EXTRA and R2=COIN.
     if (keymask & BUTTON_FIRE)                                                retval &= ~0x10;  // Shoot Left
     if (keymask & BUTTON_FIRE)                                                retval &= ~0x20;  // Shoot Right
     if (keymask & BUTTON_EXTRA || keymask & BUTTON_L1 || keymask & BUTTON_R1) retval &= ~0x40;  // Flash Bomb
@@ -342,7 +336,7 @@ void tutankhm::render_row(short row) {
 
         // Unrolled inner loop: videoram row is at y*128 + half_x
         // bmp_y = (sx + y_base) & 0xFF for each sx
-        
+
 
         const uint8_t *vram_col = videoram + half_x;  // column base
 
