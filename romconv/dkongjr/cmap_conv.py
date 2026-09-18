@@ -4,6 +4,7 @@ import os
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
+from gfxutil import get_bit
 
 # --- Configurazione per Donkey Kong Jr. (dkongjrj) ---
 
@@ -20,10 +21,6 @@ OUTPUT_HEADER_FILE = "../../source/src/machines/dkongjr/dkongjr_cmap.h"
 # Nome base per gli array C che verranno generati
 OUTPUT_ARRAY_NAME_BASE = "dkongjr_colormap"
 
-
-def get_bit(value, bit):
-    """Estrae un singolo bit da un valore."""
-    return (value >> bit) & 1
 
 def generate_palette():
     """Usa la TUA logica di conversione colore, ma con la mappatura dei bit di MAME."""

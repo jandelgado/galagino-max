@@ -17,9 +17,8 @@ import hashlib
 
 sys.dont_write_bytecode = True
 
-from helper_functions import hex8, hex16, hex32
-from helper_functions import load_file
-from helper_functions import get_bit, rgb888_to_rgb565_le
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from gfxutil import load_file, hex8, hex16, hex32, get_bit, rgb888_to_rgb565_le
 from helper_gfx       import tiles_create_preview, sprites_create_preview
 from helper_gfx       import rotate_gfx
 from helper_gfx       import decode_tile_8x8, dump_tile_packed

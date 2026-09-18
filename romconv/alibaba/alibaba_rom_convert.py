@@ -18,8 +18,7 @@ import sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from helper_functions import load_file
-from helper_functions import hex8, hex16, hex32
+from gfxutil import load_file, hex8, hex16, hex32
 from romdata_emit import emit_compressed, emit_plain
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "alibaba.zip"))

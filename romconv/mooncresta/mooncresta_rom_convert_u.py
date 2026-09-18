@@ -22,6 +22,9 @@ ROM set (mooncrsu / mooncrstu) - Moon Cresta (Nichibutsu, unencrypted)
 import os
 import sys
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from gfxutil import hex8, hex16, hex32
+
 ROM_SRC = os.path.normpath(os.path.join("..", "roms"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "mooncresta"))
 
@@ -38,15 +41,6 @@ def load_file(name):
         return None
     with open(path, "rb") as f:
         return bytearray(f.read())
-
-def hex8(v):
-    return "0x{:02X}".format(v & 0xFF)
-
-def hex16(v):
-    return "0x{:04X}".format(v & 0xFFFF)
-
-def hex32(v):
-    return "0x{:08X}".format(v & 0xFFFFFFFF)
 
 # ---- Color PROM -> RGB565 palette ----
 def convert_colors(prom):

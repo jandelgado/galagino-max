@@ -26,12 +26,10 @@ sys.dont_write_bytecode = True
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
+from gfxutil import hex8, hex16
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "rocnrope.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "rocnrope"))
-
-def hex8(v):  return "0x{:02x}".format(v & 0xFF)
-def hex16(v): return "0x{:04x}".format(v & 0xFFFF)
 
 def load_file(name, sha1):
     with zipfile.ZipFile(ROM_SET) as z:

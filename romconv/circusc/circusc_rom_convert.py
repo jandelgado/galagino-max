@@ -24,8 +24,8 @@ import os
 import sys
 
 sys.dont_write_bytecode = True
-from helper_functions import load_file
 sys.path.insert(0, os.path.join("..", "pyconv"))
+from gfxutil import load_file, rot_galagino
 from romdata_emit import emit_compressed
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "circusc.zip"))
@@ -69,11 +69,6 @@ def decode_packed(data, base, w, h):
             row.append((b >> 4) & 0xF if (x & 1) == 0 else b & 0xF)
         tile.append(row)
     return tile
-
-# rotazione galagino (portrait, ROT90 + 180 display): out[y][x] = mame[N-1-x][y]
-def rot_galagino(tile):
-    n = len(tile)
-    return [[tile[n - 1 - x][y] for x in range(n)] for y in range(n)]
 
 # ------------------------------------------------------------
 # scritture header

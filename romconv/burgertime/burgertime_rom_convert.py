@@ -10,8 +10,8 @@ import hashlib
 
 sys.dont_write_bytecode = True
 
-from helper_functions import load_file
 sys.path.insert(0, os.path.join("..", "pyconv"))
+from gfxutil import load_file, mame_decode, rot_galagino
 from romdata_emit import emit_compressed, emit_plain
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "btime.zip"))
@@ -53,32 +53,6 @@ GALAGINO_FILES = {
   "preview_sprites": "burgertime_sprites_preview.png",
 }
 
-# ------------------------------------------------------------
-# decoder gfx generico stile MAME (planes/xoffs/yoffs come OFFSET BIT
-# assoluti), stesso decoder di xevious_rom_convert.py/gaplus_rom_convert.py
-# ------------------------------------------------------------
-def mame_decode(data, width, height, planes, xoffs, yoffs, bits_per_tile, count):
-    tiles = []
-    for t in range(count):
-        base = t * bits_per_tile
-        tile = []
-        for y in range(height):
-            row = []
-            for x in range(width):
-                v = 0
-                for p in planes:
-                    off = base + yoffs[y] + xoffs[x] + p
-                    bit = (data[off >> 3] >> (7 - (off & 7))) & 1
-                    v = (v << 1) | bit
-                row.append(v)
-            tile.append(row)
-        tiles.append(tile)
-    return tiles
-
-# rotazione galagino (portrait): out[y][x] = mame[N-1-x][y]
-def rot_galagino(tile):
-    n = len(tile)
-    return [[tile[n - 1 - x][y] for x in range(n)] for y in range(n)]
 
 # ------------------------------------------------------------
 # Layout MAME letti PER INTERO da btime.cpp (righe 2087-2130):

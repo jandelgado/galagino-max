@@ -53,8 +53,8 @@ import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True
-from helper_functions import load_file
 sys.path.insert(0, os.path.join("..", "pyconv"))
+from gfxutil import load_file, mame_decode, rot_galagino
 from romdata_emit import emit_compressed, emit_plain
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "pbaction.zip"))
@@ -131,36 +131,9 @@ class RomSource:
         return b
 
 
-# --- generic MAME planar gfx decoder --------------------------------------
-# planes / xoffs / yoffs are ABSOLUTE BIT offsets into `data` (measured from
-# `base_bit`), exactly like gfx_element::decode() in src/emu/drawgfx.cpp.
-# planes[0] is the most-significant pen bit, planes[-1] the least.
-def mame_decode(data: bytes, width: int, height: int, planes: list[int],
-                xoffs: list[int], yoffs: list[int], bits_per_tile: int,
-                count: int, base_bit: int = 0) -> list[list[list[int]]]:
-    tiles = []
-    for t in range(count):
-        base = base_bit + t * bits_per_tile
-        tile = []
-        for y in range(height):
-            row = []
-            for x in range(width):
-                v = 0
-                for p in planes:
-                    off = base + yoffs[y] + xoffs[x] + p
-                    bit = (data[off >> 3] >> (7 - (off & 7))) & 1
-                    v = (v << 1) | bit
-                row.append(v)
-            tile.append(row)
-        tiles.append(tile)
-    return tiles
-
-
-def rot_galagino(tile: list[list[int]]) -> list[list[int]]:
-    """Rotate a square tile 90 degrees clockwise (ROT90 cabinet), matching
-    the galagino blitter convention (rot_galagino() in bnj/bombjack)."""
-    n = len(tile)
-    return [[tile[n - 1 - x][y] for x in range(n)] for y in range(n)]
+# mame_decode / rot_galagino: see romconv/pyconv/gfxutil.py. planes[0] is
+# the most-significant pen bit, planes[-1] the least, matching
+# gfx_element::decode() in src/emu/drawgfx.cpp.
 
 
 # --------------------------------------------------------------------------
