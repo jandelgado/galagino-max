@@ -68,11 +68,7 @@ def write_sprite_tiles(tiles):
         emit_compressed(f, "scregg_spritetiles", "unsigned char", "[16][16]", len(tiles), flat)
 
 def preview(char_tiles, sprite_tiles, outpng):
-    try:
-        from PIL import Image
-    except ImportError:
-        print("PIL import failed.")
-        return
+    from PIL import Image
     # palette di comodo SOLO per la preview (in gioco e' RAM dinamica):
     # scala di grigi 8 livelli, cosi' si vede la forma dei tile.
     def gray(v):

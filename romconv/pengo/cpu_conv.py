@@ -7,6 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
+from convutil import fatal
 
 # --- CONFIGURAZIONE DEI LAVORI DI CONVERSIONE ---
 CONVERSION_JOBS = [
@@ -43,10 +44,7 @@ def create_c_array(job_description, infiles, outfile, array_name):
                 print(f"  - Leggendo {filename}...")
                 all_rom_data.extend(f.read())
         except FileNotFoundError:
-            print(f"\nERRORE: File non trovato '{filename}'.")
-            print("Assicurati che tutti i file .bin siano nella stessa cartella dello script.")
-            print(f"--- Processo per {job_description} interrotto. ---\n")
-            return
+            fatal(f"File non trovato '{filename}'.")
 
     # Scrive i dati concatenati nel file di output
     print(f"\nScrittura dell'array C nel file '{outfile}'...")

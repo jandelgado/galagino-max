@@ -142,11 +142,7 @@ def write_rom(name, sym, data, comment):
 
 # ------------------------------------------------------------
 def preview(tiles_rot, sprites, pal_prom, char_lut, spr_lut, outpng):
-    try:
-        from PIL import Image
-    except ImportError:
-        print("PIL import failed")
-        return
+    from PIL import Image
     def pal_rgb(c):
         return (255*((c>>0)&7)//7, 255*((c>>3)&7)//7, 255*((c>>6)&3)//3)
     pal = [pal_rgb(c) for c in pal_prom]

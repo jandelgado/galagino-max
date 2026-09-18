@@ -1,13 +1,10 @@
 import os
 import sys
-try:
-    from PIL import Image, ImageDraw, ImageFont
-    PIL_AVAILABLE = True
-except ImportError:
-    PIL_AVAILABLE = False
+from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
+from convutil import fatal
 
 # --- CONFIGURAZIONE ---
 # Decommenta il blocco relativo al layer che vuoi generare.
@@ -80,8 +77,7 @@ def decode_bg_tiles():
     files_to_check = [FILE_PLANE0, FILE_PLANE1, FILE_PLANE2]
     for filename in files_to_check:
         if not os.path.exists(filename):
-            print(f"Errore: File ROM '{filename}' non trovato.")
-            return None
+            fatal(f"File ROM '{filename}' non trovato.")
 
     print(f"Lettura dati da '{FILE_PLANE0}', '{FILE_PLANE1}', '{FILE_PLANE2}'...")
     with open(FILE_PLANE0, 'rb') as f_p0, open(FILE_PLANE1, 'rb') as f_p1, open(FILE_PLANE2, 'rb') as f_p2:
@@ -92,8 +88,7 @@ def decode_bg_tiles():
     bytes_per_tile_plane = (TILE_WIDTH * TILE_HEIGHT) // 8
     expected_size = NUM_TILES * bytes_per_tile_plane
     if len(plane0_data) != expected_size or len(plane1_data) != expected_size or len(plane2_data) != expected_size:
-        print(f"Errore: Dimensione file non corretta. Dovrebbe essere {expected_size} bytes per {NUM_TILES} tiles.")
-        return None
+        fatal(f"Dimensione file non corretta. Dovrebbe essere {expected_size} bytes per {NUM_TILES} tiles.")
 
     layout_x = [ 0, 1, 2, 3, 4, 5, 6, 7, 8*8+0, 8*8+1, 8*8+2, 8*8+3, 8*8+4, 8*8+5, 8*8+6, 8*8+7 ]
     layout_y = [ 0*8, 1*8, 2*8, 3*8, 4*8, 5*8, 6*8, 7*8, 16*8, 17*8, 18*8, 19*8, 20*8, 21*8, 22*8, 23*8 ]
@@ -157,8 +152,7 @@ def decode_bg_tiles():
 # ... (le funzioni write_c_array_packed e generate_preview_png sono identiche a prima) ...
 def write_c_array_packed(tiles_data):
     if not tiles_data:
-        print("Nessun dato da scrivere.")
-        return
+        fatal("Nessun dato da scrivere.")
     print(f"Scrittura dell'array C compatto nel file '{OUTPUT_C_FILE}'...")
     with open(OUTPUT_C_FILE, 'w') as f_c:
         f_c.write(f"// File generato da bg_tiles.py\n")
@@ -190,13 +184,10 @@ def write_c_array_packed(tiles_data):
                          "[%d][%d]" % (height, chunks_per_row), NUM_TILES, flat)
     print(f"File '{OUTPUT_C_FILE}' generato con successo!")
 def generate_preview_png(tiles_data):
-    if not PIL_AVAILABLE:
-        print("\nAVVISO: La libreria Pillow (PIL) non è installata.")
-        return
-    if not tiles_data: return
+    if not tiles_data:
+        fatal("Nessun dato per generare l'anteprima.")
     print(f"Generazione dell'anteprima PNG in '{PREVIEW_PNG_FILE}'...")
     PREVIEW_PALETTE = [ (0,0,0), (0,0,255), (0,255,0), (0,255,255), (255,0,0), (255,0,255), (255,255,0), (255,255,255) ]
-    if not tiles_data: return
     height = len(tiles_data[0])
     width = len(tiles_data[0][0])
     GRID_COLS, UPSCALE_FACTOR = 16, 2

@@ -1,10 +1,6 @@
 import os
 import sys
-try:
-    from PIL import Image, ImageDraw, ImageFont
-    PIL_AVAILABLE = True
-except ImportError:
-    PIL_AVAILABLE = False
+from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed, emit_plain
@@ -115,7 +111,6 @@ def write_c_array_packed(filename, array_name, sprites, width, height, compress=
 
 
 def generate_preview(filename, sprites, width, height, grid_cols=32):
-    if not PIL_AVAILABLE: return
     print(f"Generazione anteprima PNG in '{filename}'...")
     num_sprites = len(sprites)
     grid_rows = (num_sprites + grid_cols - 1) // grid_cols

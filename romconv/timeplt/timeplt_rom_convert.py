@@ -18,6 +18,7 @@ import os, sys
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
 from gfxutil import hex8, hex16, hex32
+from convutil import fatal
 
 ROM_SRC = os.path.normpath(os.path.join("..", "roms"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "timeplt"))
@@ -31,8 +32,7 @@ def load_file(name):
                 path = alt_path
                 break
     if not os.path.exists(path):
-        print(f"ERRORE: File '{name}' non trovato in {os.path.abspath(ROM_SRC)}")
-        return None
+        fatal(f"File '{name}' non trovato in {os.path.abspath(ROM_SRC)}")
     with open(path, "rb") as f:
         return bytearray(f.read())
 
@@ -279,8 +279,7 @@ def main():
     # Verifica che tutti i file siano stati caricati
     files_ok = all(v is not None for v in [tm1, tm2, tm3, tm4, tm5, tm6, tm7, prom_b4, prom_b5, prom_e9, prom_e12])
     if not files_ok:
-        print("ERRORE: Non tutti i file sono stati caricati correttamente.")
-        return
+        fatal("Non tutti i file sono stati caricati correttamente.")
 
     print("Loaded all ROMs from {}".format(ROM_SRC))
     print("  tm1-tm3: {} + {} + {} = {} bytes (main CPU)".format(len(tm1), len(tm2), len(tm3), len(tm1)+len(tm2)+len(tm3)))

@@ -12,6 +12,7 @@ import sys
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
+from convutil import fatal
 
 ROM_SRC = os.path.normpath(os.path.join("..", "roms"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "mspacman"))
@@ -25,8 +26,7 @@ def load_file(name):
                 path = alt_path
                 break
     if not os.path.exists(path):
-        print(f"ERRORE: File '{name}' non trovato in {os.path.abspath(ROM_SRC)}")
-        return None
+        fatal(f"File '{name}' non trovato in {os.path.abspath(ROM_SRC)}")
     with open(path, "rb") as f:
         return bytearray(f.read())
 

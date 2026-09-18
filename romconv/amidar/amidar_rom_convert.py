@@ -25,6 +25,8 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
 from gfxutil import hex8, hex16, hex32
+from galaxian_hw import parse_chr_2, dump_chr, convert_tiles, parse_sprite_galaxian, dump_sprite, convert_sprites
+from convutil import fatal
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "amidar.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "amidar"))
@@ -37,11 +39,9 @@ def load_file(names, sha1):
                     rom = bytearray(f.read())
                     digest = hashlib.sha1(rom).hexdigest()
                     if sha1 != digest:
-                        print(f"bad hash for {name}: expected {sha1}, got {digest}")
-                        return None
+                        fatal(f"bad hash for {name}: expected {sha1}, got {digest}")
                     return rom
-    print(f"ERROR: None of {names} found in {os.path.abspath(ROM_SET)}")
-    return None
+    fatal(f"None of {names} found in {os.path.abspath(ROM_SET)}")
 
 def write_rom(filename, name, data):
     with open(filename, 'w') as f:
@@ -75,76 +75,6 @@ def write_colormap(filename, rgb565):
             f.write("  // palette {}\n".format(pal))
         f.write("};\n")
     print("Wrote: {} (8 palettes)".format(os.path.abspath(filename)))
-
-def parse_chr_2(data0, data1):
-    char = []
-    for y in range(8):
-        row = []
-        for x in range(8):
-            c0 = 1 if data0[7 - x] & (0x80 >> y) else 0
-            c1 = 2 if data1[7 - x] & (0x80 >> y) else 0
-            row.append(c0 + c1)
-        char.append(row)
-    return char
-
-def dump_chr(data):
-    vals = []
-    for y in range(8):
-        val = 0
-        for x in range(8):
-            val = (val >> 2) + (data[y][x] << (16 - 2))
-        vals.append(val)
-    return vals
-
-def convert_tiles(plane0, plane1):
-    num_tiles = len(plane0) // 8
-    tiles = []
-    for t in range(num_tiles):
-        d0 = plane0[t * 8 : t * 8 + 8]
-        d1 = plane1[t * 8 : t * 8 + 8]
-        tiles.append(dump_chr(parse_chr_2(d0, d1)))
-    return tiles
-
-def parse_sprite_galaxian(data0, data1):
-    sprite = []
-    for y in range(16):
-        row = []
-        for x in range(16):
-            ym = (y & 7) | ((x & 8) ^ 8)
-            xm = (x & 7) | (y & 8)
-            byte_idx = (xm ^ 7) + ((ym & 8) << 1)
-            bit_mask = 0x80 >> (ym & 7)
-            c0 = 1 if data0[byte_idx] & bit_mask else 0
-            c1 = 2 if data1[byte_idx] & bit_mask else 0
-            row.append(c0 + c1)
-        sprite.append(row)
-    return sprite
-
-def dump_sprite(data, flip_x, flip_y):
-    vals = []
-    y_range = range(16) if not flip_y else reversed(range(16))
-    for y in y_range:
-        val = 0
-        for x in range(16):
-            if not flip_x:
-                val = (val >> 2) + (data[y][x] << (32 - 2))
-            else:
-                val = (val << 2) + data[y][x]
-        vals.append(val)
-    return vals
-
-def convert_sprites(plane0, plane1):
-    num_sprites = len(plane0) // 32
-    sprites = []
-    for s in range(num_sprites):
-        d0 = plane0[32 * s : 32 * (s + 1)]
-        d1 = plane1[32 * s : 32 * (s + 1)]
-        sprites.append(parse_sprite_galaxian(d0, d1))
-    all_orientations = []
-    for flip_x, flip_y in [(False, False), (False, True), (True, False), (True, True)]:
-        orientation = [dump_sprite(s, flip_x, flip_y) for s in sprites]
-        all_orientations.append(orientation)
-    return all_orientations
 
 def convert_colors(prom):
     rgb565 = []
@@ -200,8 +130,7 @@ def main():
 
     if not all(v is not None for v in [rom_2c, rom_2e, rom_2f, rom_2h,
                                        rom_5c, rom_5d, rom_5f, rom_5h, prom_clr]):
-        print("ERROR: Not all files loaded")
-        return
+        fatal("Not all files loaded")
 
     if rom_2j is None:
       main_cpu = rom_2c + rom_2e + rom_2f + rom_2h          # 4 x 4KB = 16KB

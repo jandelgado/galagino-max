@@ -12,6 +12,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import load_file, mame_decode, rot_galagino
 from romdata_emit import emit_compressed
+from namco_hw import flip_tile, parse_chr_ref, parse_sprite_ref, pal_rgb, rgb565_swapped_packed as rgb565_swapped
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "mappy.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "mappy"))
@@ -36,12 +37,6 @@ MAPPY_FILES = {
   "proms4":   {"names": ["mp1-3.3m"], "sha1": "847cbaf7c88616576c410177e066ae1d792ac0ba"},
 }
 
-def flip_tile(tile, fx, fy):
-    out = tile
-    if fy: out = list(reversed(out))
-    if fx: out = [list(reversed(r)) for r in out]
-    return out
-
 # ------------------------------------------------------------
 # layout MAME
 # ------------------------------------------------------------
@@ -65,30 +60,6 @@ MSPR_YOFFS = [y*16 for y in range(8)] + [512 + y*16 for y in range(8)]
 # ESATTAMENTE parse_chr/parse_sprite (copiati da tileconv/spriteconv)
 # sulle ROM di galaga gia' validate su HW
 # ------------------------------------------------------------
-def parse_chr_ref(data):
-    char = []
-    for y in range(8):
-        row = []
-        for x in range(8):
-            byte = data[15 - x - 2*(y&4)]
-            c0 = 1 if byte & (0x08 >> (y&3)) else 0
-            c1 = 2 if byte & (0x80 >> (y&3)) else 0
-            row.append(c0+c1)
-        char.append(row)
-    return char
-
-def parse_sprite_ref(data):
-    sprite = []
-    for y in range(16):
-        row = []
-        for x in range(16):
-            idx = ((y&8)<<1) + (((x&8)^8)<<2) + (7-(x&7)) + 2*(y&4)
-            c0 = 1 if data[idx] & (0x08 >> (y&3)) else 0
-            c1 = 2 if data[idx] & (0x80 >> (y&3)) else 0
-            row.append(c0+c1)
-        sprite.append(row)
-    return sprite
-
 def selftest():
     with open(os.path.join(ROMS, "gg1_9.4l"), "rb") as f:
         cdata = f.read()
@@ -141,14 +112,6 @@ def write_sprites(sprites):
                     flat.append(v & 0xffffffff)
                     flat.append(v >> 32)
         emit_compressed(f, "mappy_sprites", "uint32_t", "[%d][32]" % len(sprites), 4, flat)
-
-def rgb565_swapped(c):
-    # bbgggrrr -> RGB565 byte-swapped, identico a cmapconv.py (galaga/pacman)
-    b = 31*((c>>6) & 0x3)//3
-    g = 63*((c>>3) & 0x7)//7
-    r = 31*((c>>0) & 0x7)//7
-    rgb = (r << 11) + (g << 5) + b
-    return ((rgb & 0xff00) >> 8) + ((rgb & 0xff) << 8)
 
 def write_colormaps(pal_prom, char_lut, spr_lut):
     pal = [rgb565_swapped(c) for c in pal_prom]  # 32 colori
@@ -211,13 +174,7 @@ def write_wavetable(prom):
 # preview PNG (validazione offline orientamento/decode)
 # ------------------------------------------------------------
 def preview(tiles, sprites, pal_prom, char_lut, spr_lut, outpng):
-    try:
-        from PIL import Image
-    except ImportError:
-        print("PIL missing, no preview")
-        return
-    def pal_rgb(c):
-        return (255*((c>>0)&7)//7, 255*((c>>3)&7)//7, 255*((c>>6)&3)//3)
+    from PIL import Image
     pal = [pal_rgb(c) for c in pal_prom]
     # tiles: griglia 16x16 (144px), sprite: griglia 16x8 (288px)
     img = Image.new("RGB", (16*18, 16*9 + 8*18 + 8), (32, 32, 32))

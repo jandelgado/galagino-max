@@ -24,6 +24,8 @@ import sys
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import hex8, hex16, hex32
+from galaxian_hw import parse_chr_2, dump_chr, convert_tiles, parse_sprite_galaxian, dump_sprite, convert_sprites
+from convutil import fatal
 
 ROM_SRC = os.path.normpath(os.path.join("..", "roms"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "mooncresta"))
@@ -37,8 +39,7 @@ def load_file(name):
                 path = alt_path
                 break
     if not os.path.exists(path):
-        print(f"ERROR: File '{name}' not found in {os.path.abspath(ROM_SRC)}")
-        return None
+        fatal(f"File '{name}' not found in {os.path.abspath(ROM_SRC)}")
     with open(path, "rb") as f:
         return bytearray(f.read())
 
@@ -57,93 +58,6 @@ def convert_colors(prom):
         # Byte-swap for ESP32 SPI display (matches Frogger/Pac-Man format)
         rgb565.append(((val & 0xFF) << 8) | ((val >> 8) & 0xFF))
     return rgb565
-
-# ---- Tile conversion using original galagino parse_chr_2 + dump_chr ----
-def parse_chr_2(data0, data1):
-    """Parse 8x8 tile from two separate plane ROMs.
-    Same as original galagino tileconv.py parse_chr_2."""
-    char = []
-    for y in range(8):
-        row = []
-        for x in range(8):
-            c0 = 1 if data0[7 - x] & (0x80 >> y) else 0
-            c1 = 2 if data1[7 - x] & (0x80 >> y) else 0
-            row.append(c0 + c1)
-        char.append(row)
-    return char
-
-def dump_chr(data):
-    """Pack 8x8 tile into unsigned short values.
-    Same as original galagino tileconv.py dump_chr."""
-    vals = []
-    for y in range(8):
-        val = 0
-        for x in range(8):
-            val = (val >> 2) + (data[y][x] << (16 - 2))
-        vals.append(val)
-    return vals
-
-def convert_tiles(plane0, plane1):
-    num_tiles = len(plane0) // 8  # 256
-    tiles = []
-    for t in range(num_tiles):
-        d0 = plane0[t * 8 : t * 8 + 8]
-        d1 = plane1[t * 8 : t * 8 + 8]
-        char_data = parse_chr_2(d0, d1)
-        tiles.append(dump_chr(char_data))
-    return tiles
-
-# ---- Sprite conversion using original galagino parse_sprite_frogger + dump_sprite ----
-def parse_sprite_galaxian(data0, data1):
-    """Parse 16x16 sprite from Galaxian hardware (same as Frogger without D0/D1 swap).
-    Based on original galagino spriteconv.py parse_sprite_frogger."""
-    sprite = []
-    for y in range(16):
-        row = []
-        for x in range(16):
-            ym = (y & 7) | ((x & 8) ^ 8)
-            xm = (x & 7) | (y & 8)
-            byte_idx = (xm ^ 7) + ((ym & 8) << 1)
-            bit_mask = 0x80 >> (ym & 7)
-            c0 = 1 if data0[byte_idx] & bit_mask else 0
-            c1 = 2 if data1[byte_idx] & bit_mask else 0
-            row.append(c0 + c1)
-        sprite.append(row)
-    return sprite
-
-def dump_sprite(data, flip_x, flip_y):
-    """Pack 16x16 sprite into uint32_t values.
-    Same as original galagino spriteconv.py dump_sprite."""
-    vals = []
-    y_range = range(16) if not flip_y else reversed(range(16))
-    for y in y_range:
-        val = 0
-        for x in range(16):
-            if not flip_x:
-                val = (val >> 2) + (data[y][x] << (32 - 2))
-            else:
-                val = (val << 2) + data[y][x]
-        vals.append(val)
-    return vals
-
-def convert_sprites(plane0, plane1):
-    num_sprites = len(plane0) // 32  # 64
-    # Parse all sprites first
-    sprites = []
-    for s in range(num_sprites):
-        d0 = plane0[32 * s : 32 * (s + 1)]
-        d1 = plane1[32 * s : 32 * (s + 1)]
-        sprites.append(parse_sprite_galaxian(d0, d1))
-
-    # Generate 4 orientations: [no flip, Y flip, X flip, XY flip]
-    all_orientations = []
-    for flip_x, flip_y in [(False, False), (False, True), (True, False), (True, True)]:
-        orientation = []
-        for s in sprites:
-            orientation.append(dump_sprite(s, flip_x, flip_y))
-        all_orientations.append(orientation)
-
-    return all_orientations
 
 # ---- Write C header files ----
 def write_rom(filename, name, data):
@@ -230,8 +144,7 @@ def main():
                                            gfx_mcs_b, gfx_mcs_d, gfx_mcs_a, gfx_mcs_c, 
                                            prom_6l])
     if not files_ok:
-        print("ERROR: Not all files have been loaded")
-        return
+        fatal("Not all files have been loaded")
 
     print("All files loaded.")
 
