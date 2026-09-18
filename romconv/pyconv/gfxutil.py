@@ -64,6 +64,30 @@ def rgb888_to_rgb565_le(r, g, b):
   return ((val_be & 0x00FF) << 8) | ((val_be & 0xFF00) >> 8)
 
 # -------------------------------------------------------------------
+# render a list of decoded tiles (list[y][x] pixel value) as a labeled
+# grid PNG, for eyeballing a ROM converter's decode output
+def render_tile_grid(tiles, tile_w, tile_h, palette, tiles_per_row, output_file, bg=(30, 30, 30)):
+  from PIL import Image, ImageDraw, ImageFont
+
+  num_rows = (len(tiles) + tiles_per_row - 1) // tiles_per_row
+  cell_w, cell_h = tile_w + 4, tile_h + 14
+  img = Image.new('RGB', (cell_w * tiles_per_row, cell_h * num_rows), bg)
+  draw = ImageDraw.Draw(img)
+  font = ImageFont.load_default()
+
+  for idx, tile in enumerate(tiles):
+    row_idx, col_idx = divmod(idx, tiles_per_row)
+    x0, y0 = col_idx * cell_w + 2, row_idx * cell_h + 2
+    for y in range(tile_h):
+      for x in range(tile_w):
+        img.putpixel((x0 + x, y0 + y), palette.get(tile[y][x], bg))
+    draw.text((x0, y0 + tile_h), str(idx), font=font, fill=(200, 200, 200))
+    draw.rectangle([x0 - 1, y0 - 1, x0 + tile_w, y0 + tile_h], outline=(80, 80, 80))
+
+  img.save(output_file)
+  print(f"Preview saved as '{output_file}' ({len(tiles)} tiles)")
+
+# -------------------------------------------------------------------
 def hex8(v):
   return "0x{:02x}".format(v & 0xFF)
 

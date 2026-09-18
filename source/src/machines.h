@@ -201,6 +201,10 @@
   #include "machines/vanguard/vanguard.h"
 #endif
 
+#ifdef ENABLE_ZAXXON
+  #include "machines/zaxxon/zaxxon.h"
+#endif
+
 // change machine order is possible here...
 machineInfo machines[] = {
 #ifdef ENABLE_PACMAN
@@ -552,6 +556,13 @@ machineInfo machines[] = {
     machineBase::defaultMenuLeds,
 #endif
     MCH_VANGUARD },
+#endif
+#ifdef ENABLE_ZAXXON
+  { []() -> machineBase* { return new zaxxon(); }, zaxxon::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_ZAXXON },
 #endif
 };
 

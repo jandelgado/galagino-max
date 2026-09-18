@@ -114,6 +114,8 @@ Like in the original from Till Harbaum's Galaga emulator, download these files:
     * [Super Cobra](https://www.google.com/search?q=scobra.zip+arcade+rom)
     * [Donkey Kong 3](https://www.google.com/search?q=dkong3.zip+arcade+rom)
     * [Pooyan](https://www.google.com/search?q=pooyan.zip+arcade+rom)
+    * [Zaxxon](https://www.google.com/search?q=zaxxon.zip+arcade+mame+rom+rev+d)
+    * [Zaxxon audio](https://www.google.com/search?q=zaxxon+audio+samples+mame) save as zaxxon-audio.zip
 
 Galagino uses code that is not freely available and thus not included in this repository. Preparing the firmware thus consists of a few additional steps:
 

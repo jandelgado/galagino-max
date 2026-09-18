@@ -30,12 +30,11 @@ def parse_logo(inname, outname):
     c_name = outname.split("/")[-1].split(".")[0]
     if c_name[0].isnumeric(): c_name = "_" + c_name
 
-    f = open(outname, "w")
-    emit_compressed(f, c_name, "unsigned short", "", len(rgb565), rgb565)
-    f.close()
+    with open(outname, "w") as f:
+        emit_compressed(f, c_name, "unsigned short", "", len(rgb565), rgb565)
 
 if len(sys.argv) != 3:
-    print("Invalid arguments")
-    exit(-1)
+    print(f"usage: {sys.argv[0]} <logo-png> <output-header>")
+    sys.exit(-1)
 
 parse_logo(sys.argv[1], sys.argv[2])
