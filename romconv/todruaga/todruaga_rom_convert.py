@@ -18,8 +18,8 @@ import os
 import sys
 
 sys.dont_write_bytecode = True
-from helper_functions import load_file
 sys.path.insert(0, os.path.join("..", "pyconv"))
+from gfxutil import load_file, mame_decode, rot_galagino
 from romdata_emit import emit_compressed
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "todruaga.zip"))
@@ -38,32 +38,6 @@ REQUIRED = [
     ("td1-7.5k", 0x0400, "dfd7d6b2740761c3bcab4c7999d2699d920843e7"),
     ("td1-3.3m", 0x0100, "16db55525034bacb71e7dc8bd2a7c3c4464d4808"),
 ]
-
-# ------------------------------------------------------------
-# decoder gfx generico stile MAME (planes[0] = bit PIU' significativo)
-# ------------------------------------------------------------
-def mame_decode(data, width, height, planes, xoffs, yoffs, bits_per_tile, count):
-    tiles = []
-    for t in range(count):
-        base = t * bits_per_tile
-        tile = []
-        for y in range(height):
-            row = []
-            for x in range(width):
-                v = 0
-                for p in planes:
-                    off = base + yoffs[y] + xoffs[x] + p
-                    bit = (data[off >> 3] >> (7 - (off & 7))) & 1
-                    v = (v << 1) | bit
-                row.append(v)
-            tile.append(row)
-        tiles.append(tile)
-    return tiles
-
-# rotazione galagino (portrait): out[y][x] = mame[N-1-x][y]
-def rot_galagino(tile):
-    n = len(tile)
-    return [[tile[n - 1 - x][y] for x in range(n)] for y in range(n)]
 
 def flip_tile(tile, fx, fy):
     out = tile

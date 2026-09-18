@@ -6,21 +6,13 @@ import sys
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
+from gfxutil import get_bit, rgb888_to_rgb565_le
 
 # --- CONFIGURAZIONE PER PENGO ---
 PALETTE_PROM_FILE = "../roms/pr1633.78"
 LOOKUP_PROM_FILE = "../roms/pr1634.88"
 OUTPUT_H_FILE = "../../source/src/machines/pengo/pengo_colormap.h"
 C_COLORMAP_ARRAY_NAME = "pengo_colormap"
-
-def get_bit(value, bit):
-    return (value >> bit) & 1
-
-def rgb888_to_rgb565_le(r, g, b):
-    """Converte un colore RGB 888 in formato RGB565 Little Endian."""
-    r, g, b = [max(0, min(255, c)) for c in (r, g, b)]
-    val_be = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
-    return ((val_be & 0x00FF) << 8) | ((val_be & 0xFF00) >> 8)
 
 def process_pengo_colormaps():
     """

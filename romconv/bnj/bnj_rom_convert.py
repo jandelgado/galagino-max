@@ -12,8 +12,8 @@ import hashlib
 
 sys.dont_write_bytecode = True
 
-from helper_functions import load_file
 sys.path.insert(0, os.path.join("..", "pyconv"))
+from gfxutil import load_file, mame_decode, rot_galagino
 from romdata_emit import emit_compressed, emit_plain
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "bnj.zip"))
@@ -54,32 +54,6 @@ BNJM_FILES = {
   "gfx2_01":   {"names": ["bnj10e.bin"],     "sha1": "b356512d2ebd4e2005e76496b434e5ecebadb251"}, # gfx2 half0
   "gfx2_02":   {"names": ["bnj10f.bin"],     "sha1": "49d5f9c0b695f474197fbb761bacc065b6b5808a"}  # gfx2 half1
 }
-
-# ------------------------------------------------------------
-# generic gfx decoder MAME (planes/xoffs/yoffs as absolute OFFSET BIT)
-# same as burgertimer_rom_convert.py
-# ------------------------------------------------------------
-def mame_decode(data, width, height, planes, xoffs, yoffs, bits_per_tile, count):
-    tiles = []
-    for t in range(count):
-        base = t * bits_per_tile
-        tile = []
-        for y in range(height):
-            row = []
-            for x in range(width):
-                v = 0
-                for p in planes:
-                    off = base + yoffs[y] + xoffs[x] + p
-                    bit = (data[off >> 3] >> (7 - (off & 7))) & 1
-                    v = (v << 1) | bit
-                row.append(v)
-            tile.append(row)
-        tiles.append(tile)
-    return tiles
-
-def rot_galagino(tile):
-    n = len(tile)
-    return [[tile[n - 1 - x][y] for x in range(n)] for y in range(n)]
 
 # ------------------------------------------------------------
 # Layout MAME (btime.cpp righe 2087-2130, IDENTICI a btime per char/sprite:

@@ -24,6 +24,7 @@ import sys
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
+from gfxutil import hex8, hex16, hex32
 
 ROM_SRC = os.path.normpath(os.path.join("..", "roms"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "pooyan"))
@@ -32,10 +33,6 @@ def load_file(name):
     path = os.path.join(ROM_SRC, name)
     with open(path, "rb") as f:
         return bytearray(f.read())
-
-def hex8(v):  return "0x{:02X}".format(v & 0xFF)
-def hex16(v): return "0x{:04X}".format(v & 0xFFFF)
-def hex32(v): return "0x{:08X}".format(v & 0xFFFFFFFF)
 
 # ---- Palette PROM (pr1, 32 colori) -> RGB565 byte-swapped ----
 # MAME pooyan_state::palette: R = bit0-2 (1k/470/220), G = bit3-5 (1k/470/220),

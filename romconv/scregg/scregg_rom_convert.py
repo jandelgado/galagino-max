@@ -10,8 +10,8 @@ import hashlib
 
 sys.dont_write_bytecode = True
 
-from helper_functions import load_file
 sys.path.insert(0, os.path.join("..", "pyconv"))
+from gfxutil import load_file, mame_decode, rot_galagino
 from romdata_emit import emit_compressed
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "scregg.zip"))
@@ -36,33 +36,6 @@ SCREGG_FILES = {
   "prom1":     {"names": ["dc0.c6"], "sha1": "d09738915da456449bb4e8d9eefb8e6378f0edea"}, # palette
   "prom2":     {"names": ["db1.b4"], "sha1": "2a283fc17fac32e63385948bfe180d05f1fb8727"}, # unused
 }
-
-# ------------------------------------------------------------
-# decoder gfx generico stile MAME (planes/xoffs/yoffs come OFFSET BIT
-# assoluti), stesso decoder di xevious_rom_convert.py/gaplus_rom_convert.py
-# ------------------------------------------------------------
-def mame_decode(data, width, height, planes, xoffs, yoffs, bits_per_tile, count):
-    tiles = []
-    for t in range(count):
-        base = t * bits_per_tile
-        tile = []
-        for y in range(height):
-            row = []
-            for x in range(width):
-                v = 0
-                for p in planes:
-                    off = base + yoffs[y] + xoffs[x] + p
-                    bit = (data[off >> 3] >> (7 - (off & 7))) & 1
-                    v = (v << 1) | bit
-                row.append(v)
-            tile.append(row)
-        tiles.append(tile)
-    return tiles
-
-# rotazione galagino (portrait): out[y][x] = mame[N-1-x][y]
-def rot_galagino(tile):
-    n = len(tile)
-    return [[tile[n - 1 - x][y] for x in range(n)] for y in range(n)]
 
 # ------------------------------------------------------------
 CHAR_XOFFS = [0,1,2,3,4,5,6,7]
