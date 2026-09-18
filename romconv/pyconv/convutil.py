@@ -15,6 +15,10 @@ def info(text):
 def error(text):
     print(f"-- Error: {WHITE_ON_RED}{text}{RESET}")
 
+def fatal(text):
+    error(text)
+    sys.exit(1)
+
 def run(*args, cwd=None):
     workdir = ROOT / cwd if cwd else ROOT
     result = subprocess.run([sys.executable, *args], cwd=workdir, capture_output=True, text=True)

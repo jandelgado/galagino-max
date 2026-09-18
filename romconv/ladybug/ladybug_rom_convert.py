@@ -6,6 +6,7 @@ import sys
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
+from convutil import fatal
 
 # Configurazione percorsi
 ROM_SRC = os.path.normpath(os.path.join("..", "roms"))
@@ -42,11 +43,9 @@ def load_file(filename):
         with open(filepath, 'rb') as f:
             return bytearray(f.read())
     except FileNotFoundError:
-        print(f"ERRORE: File non trovato: {filepath}")
-        return None
+        fatal(f"File non trovato: {filepath}")
     except Exception as e:
-        print(f"ERRORE caricamento {filename}: {e}")
-        return None
+        fatal(f"ERRORE caricamento {filename}: {e}")
 
 def load_patch_values(patch_filename, expected_count):
     """Carica i valori di delta dal file (un valore per riga)"""
@@ -290,8 +289,7 @@ def main():
     for filename, expected_size in ROM_FILES["cpu"]:
         data = load_file(filename)
         if data is None:
-            print("ERRORE: Impossibile procedere senza tutti i file CPU")
-            return
+            fatal("Impossibile procedere senza tutti i file CPU")
         if len(data) != expected_size:
             print(f" ATTENZIONE: {filename} dimensione {len(data)} bytes, attesi {expected_size}")
             if len(data) > expected_size:
@@ -309,20 +307,17 @@ def main():
     tile_file, tile_size = ROM_FILES["tiles"]
     tile_data = load_file(tile_file)
     if tile_data is None:
-        print("ERRORE: Impossibile procedere senza file tile")
-        return
+        fatal("Impossibile procedere senza file tile")
     
     sprite_bank0_file, sprite_bank0_size = ROM_FILES["sprites_bank0"]
     sprite_bank0 = load_file(sprite_bank0_file)
     if sprite_bank0 is None:
-        print("ERRORE: Impossibile procedere senza sprite bank 0")
-        return
+        fatal("Impossibile procedere senza sprite bank 0")
     
     sprite_bank1_file, sprite_bank1_size = ROM_FILES["sprites_bank1"]
     sprite_bank1 = load_file(sprite_bank1_file)
     if sprite_bank1 is None:
-        print("ERRORE: Impossibile procedere senza sprite bank 1")
-        return
+        fatal("Impossibile procedere senza sprite bank 1")
     
     print()
     

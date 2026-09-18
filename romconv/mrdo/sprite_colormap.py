@@ -1,7 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 import re
+import sys
+
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from convutil import fatal
 
 # --- CONFIGURAZIONE ---
 SOURCE_H_FILE = "../../source/src/machines/mrdo/mrdo_palette.h" 
@@ -17,8 +22,7 @@ def parse_header_palette(file_content):
     
     match = re.search(r"const uint16_t mrdo_master_palette\[256\] = \{(.*?)\};", file_content, re.DOTALL)
     if not match:
-        print(f"ERRORE: Impossibile trovare l'array 'mrdo_master_palette' nel file.")
-        return None
+        fatal("Impossibile trovare l'array 'mrdo_master_palette' nel file.")
         
     palette_data_str = match.group(1)
     
@@ -28,8 +32,7 @@ def parse_header_palette(file_content):
     hex_values = re.findall(r"^\s*(0x[0-9a-fA-F]+)", palette_data_str, re.MULTILINE)
     
     if len(hex_values) != 256:
-        print(f"ERRORE: Trovati {len(hex_values)} colori, ma ne erano attesi 256. Controlla il formato del file di input.")
-        return None
+        fatal(f"Trovati {len(hex_values)} colori, ma ne erano attesi 256. Controlla il formato del file di input.")
         
     palette_le = [int(val, 16) for val in hex_values]
     
@@ -47,8 +50,7 @@ def generate_sprite_colormap_file(master_palette_le):
         with open(SPRITE_LOOKUP_PROM_FILE, 'rb') as f:
             lookup_prom = f.read(32)
     except FileNotFoundError:
-        print(f"ERRORE: File PROM '{SPRITE_LOOKUP_PROM_FILE}' non trovato.")
-        return
+        fatal(f"File PROM '{SPRITE_LOOKUP_PROM_FILE}' non trovato.")
 
     print(f"Fase 3: Costruzione della colormap 16x4 degli sprite e scrittura del file '{OUTPUT_H_FILE}'...")
     
@@ -84,8 +86,7 @@ def main():
         with open(SOURCE_H_FILE, 'r') as f:
             c_content = f.read()
     except FileNotFoundError:
-        print(f"ERRORE: File sorgente '{SOURCE_H_FILE}' non trovato.")
-        return
+        fatal(f"File sorgente '{SOURCE_H_FILE}' non trovato.")
         
     master_palette = parse_header_palette(c_content)
     if master_palette:

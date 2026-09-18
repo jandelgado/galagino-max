@@ -285,11 +285,7 @@ def write_tiles_header(path: Path, guard: str, sym: str, tiles: list, dim: int, 
 
 # --- optional PNG preview ----------------------------------------------
 def preview(fg, bg, s16, s32, outpng: Path) -> None:
-    try:
-        from PIL import Image
-    except ImportError:
-        print("  (PIL not installed - skipping preview)")
-        return
+    from PIL import Image
 
     PAL = [(20, 20, 20), (200, 60, 60), (60, 200, 60), (60, 60, 200),
            (200, 200, 60), (200, 60, 200), (60, 200, 200), (230, 230, 230),

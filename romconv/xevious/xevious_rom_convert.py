@@ -22,6 +22,8 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import load_file, mame_decode, rot_galagino
 from romdata_emit import emit_compressed, emit_plain
+from namco_hw import flip_tile, nudge, rgb565_swapped_rgb as rgb565_swapped
+from convutil import fatal
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "xevious.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "xevious"))
@@ -55,12 +57,6 @@ REQUIRED = [
     ("xvi-2.7n",    0x0100, "816a0fafa0b084ac11ae1af70a5186539376fc2a"), # namco WSG waveform
     ("xvi-1.5n",    0x0100, "0c4d0bee858b97632411c440bea6948a74759746"), # namco timing (non usato)
 ]
-
-def flip_tile(tile, fx, fy):
-    out = tile
-    if fy: out = list(reversed(out))
-    if fx: out = [list(reversed(r)) for r in out]
-    return out
 
 # ------------------------------------------------------------
 # layout MAME (bit offset assoluti nel buffer GIA' ricostruito come da
@@ -144,10 +140,6 @@ def write_sprites(sprites):
         body = ",\n".join(body_parts)
         emit_plain(f, "xevious_sprites", "uint32_t", "[%d][32]" % len(sprites), 4, body)
 
-def rgb565_swapped(r, g, b):
-    rgb = ((r*31//255) << 11) + ((g*63//255) << 5) + (b*31//255)
-    return ((rgb & 0xff00) >> 8) + ((rgb & 0xff) << 8)
-
 def decode_palette(red_prom, green_prom, blue_prom):
     # xevious_palette() (xevious.cpp): resistenze pesate 0x0e/0x1f/0x43/0x8f
     def comp(byte):
@@ -164,9 +156,6 @@ def decode_palette(red_prom, green_prom, blue_prom):
         b = comp(blue_prom[i])
         pal.append(rgb565_swapped(r, g, b))
     return pal
-
-def nudge(v):
-    return v if v != 0 else 0x2000  # nero vero -> quasi nero (0 e' trasparenza)
 
 def write_colormaps(pal, bg_lut_lo, bg_lut_hi, spr_lut_lo, spr_lut_hi):
     # bg: gruppi da 4 pen (2bpp), sprite: gruppi da 8 pen (3bpp). Formule
@@ -242,17 +231,12 @@ def write_sample_boom():
     # noti. Ricampionati a 24000 Hz 8 bit CON SEGNO (stesso trucco di
     # galaga_sample_boom.h/gaplus_sample_bang.h: bit pattern in unsigned
     # char, letto a runtime con un cast a signed char*).
-    try:
-        import numpy as np
-    except ImportError:
-        print("import numpy failed: xevious_sample_boom*.h not generated")
-        return
+    import numpy as np
     for wav, name in (("xevious_explo1", "xevious_sample_boom"),
                       ("xevious_explo2", "xevious_sample_boom2")):
         path = os.path.join("..", "..", "samples", wav + ".wav")
         if not os.path.exists(path):
-            print(f"{wav}.wav not found, {name}.h not generated")
-            continue
+            fatal(f"{wav}.wav not found, {name}.h not generated")
         w = wave.open(path, "rb")
         nch, sw, fr, nframes = w.getnchannels(), w.getsampwidth(), w.getframerate(), w.getnframes()
         frames = w.readframes(nframes)
@@ -295,11 +279,7 @@ def write_planetmap(rom2a, rom2b, rom2c):
 # preview PNG (validazione offline orientamento/decode)
 # ------------------------------------------------------------
 def preview(fg_tiles, bg_tiles, sprites, pal, bg_lut_lo, bg_lut_hi, spr_lut_lo, spr_lut_hi, outpng):
-    try:
-        from PIL import Image
-    except ImportError:
-        print("PIL non disponibile, niente preview")
-        return
+    from PIL import Image
     def unswap(c):
         rgb = ((c & 0xff) << 8) | (c >> 8)
         r = (rgb >> 11) & 0x1f

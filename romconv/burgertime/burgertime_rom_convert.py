@@ -125,11 +125,7 @@ def write_bg_map(data):
                "(vedi draw_background() in btime.cpp)")
 
 def preview(char_tiles, sprite_tiles, bg_tiles, outpng):
-    try:
-        from PIL import Image
-    except ImportError:
-        print("PIL non disponibile, niente preview")
-        return
+    from PIL import Image
     # palette di comodo SOLO per la preview (in gioco e' RAM dinamica):
     # scala di grigi 8 livelli, cosi' si vede la forma dei tile.
     def gray(v):

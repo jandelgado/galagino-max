@@ -25,6 +25,8 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import load_file, mame_decode, rot_galagino
 from romdata_emit import emit_compressed, emit_plain
+from namco_hw import flip_tile, nudge, rgb565_swapped_rgb as rgb565_swapped
+from convutil import fatal
 
 ROM_SET_GAPLUS  = os.path.normpath(os.path.join("..", "..", "romszip", "gaplus.zip"))
 ROM_SET_GALAGA3 = os.path.normpath(os.path.join("..", "..", "romszip", "galaga3.zip"))
@@ -94,12 +96,6 @@ GALAGA3_FILES = {
   "plds1" :     {"names": ["pal10l8.8n"], "sha1": "1aa7fa1a61795703af84ae427d0d8588ef8c4c3f"},
 }
 
-def flip_tile(tile, fx, fy):
-    out = tile
-    if fy: out = list(reversed(out))
-    if fx: out = [list(reversed(r)) for r in out]
-    return out
-
 # ------------------------------------------------------------
 # layout MAME (bit offset assoluti dentro il buffer GIA' ricostruito
 # come da driver_init, vedi main())
@@ -156,11 +152,6 @@ def write_sprites(sprites):
         body = ",\n".join(body_parts)
         emit_plain(f, "gaplus_sprites", "uint32_t", "[%d][32]" % len(sprites), 4, body)
 
-def rgb565_swapped(r, g, b):
-    # r,g,b gia' 0..255 -> RGB565 byte-swapped, identico a cmapconv.py
-    rgb = ((r*31//255) << 11) + ((g*63//255) << 5) + (b*31//255)
-    return ((rgb & 0xff00) >> 8) + ((rgb & 0xff) << 8)
-
 def decode_palette(red_prom, green_prom, blue_prom):
     # gaplus_palette(): resistenze pesate 0x0e/0x1f/0x43/0x8f sui 4 bit
     def comp(byte):
@@ -177,9 +168,6 @@ def decode_palette(red_prom, green_prom, blue_prom):
         b = comp(blue_prom[i])
         pal.append(rgb565_swapped(r, g, b))
     return pal
-
-def nudge(v):
-    return v if v != 0 else 0x2000  # nero vero -> quasi nero (0 e' il marcatore trasparenza)
 
 def write_colormaps(pal, char_lut, spr_lut_lo, spr_lut_hi):
     with open(os.path.join(OUT_DIR, "gaplus_cmap.h"), "w") as f:
@@ -280,15 +268,10 @@ def write_starfield(stars, pal, spr_lut_lo, spr_lut_hi):
         print("};", file=f)
 
 def write_sample_bang():
-    try:
-        import numpy as np
-    except ImportError:
-        print("numpy non disponibile: gaplus_sample_bang.h NON generato")
-        return
+    import numpy as np
     path = os.path.join("..", "..", "samples", "gaplus_bang.wav")
     if not os.path.exists(path):
-        print("gaplus_bang.wav missing, gaplus_sample_bang.h not generated")
-        return
+        fatal("gaplus_bang.wav missing, gaplus_sample_bang.h not generated")
     w = wave.open(path, "rb")
     nch, sw, fr, nframes = w.getnchannels(), w.getsampwidth(), w.getframerate(), w.getnframes()
     frames = w.readframes(nframes)
@@ -319,11 +302,7 @@ def write_sample_bang():
 # preview PNG
 # ------------------------------------------------------------
 def preview(tiles, sprites, pal, char_lut, spr_lut_lo, spr_lut_hi, outpng):
-    try:
-        from PIL import Image
-    except ImportError:
-        print("PIL not available")
-        return
+    from PIL import Image
     def unswap(c):
         rgb = ((c & 0xff) << 8) | (c >> 8)
         r = (rgb >> 11) & 0x1f

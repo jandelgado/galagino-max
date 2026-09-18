@@ -138,11 +138,7 @@ def write_bg_tiles(tiles):
         emit_compressed(f, "bnj_bgtiles", "unsigned char", "[16][16]", len(tiles), flat)
 
 def preview(char_tiles, sprite_tiles, bg_tiles, outpng):
-    try:
-        from PIL import Image
-    except ImportError:
-        print("PIL import error. no preview")
-        return
+    from PIL import Image
 
     # preview pallete - in game pallete comes from RAM
     PALETTE = [(20,20,20),(200,60,60),(60,200,60),(60,60,200),

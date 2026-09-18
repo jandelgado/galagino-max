@@ -27,6 +27,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
 from gfxutil import hex8, hex16
+from convutil import fatal
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "rocnrope.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "rocnrope"))
@@ -34,13 +35,12 @@ OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines",
 def load_file(name, sha1):
     with zipfile.ZipFile(ROM_SET) as z:
         if name not in z.namelist():
-            print(f"ERROR: '{name}' not found in {os.path.abspath(ROM_SET)}")
-            return None
+            fatal(f"'{name}' not found in {os.path.abspath(ROM_SET)}")
         with z.open(name) as f:
             data = bytearray(f.read())
             digest = hashlib.sha1(data).hexdigest()
             if sha1 and digest != sha1:
-                print(f"WARNING: bad hash for {name}: expected {sha1}, got {digest}")
+                fatal(f"bad hash for {name}: expected {sha1}, got {digest}")
             return data
 
 def write_rom(filename, name, data, comment):
@@ -266,8 +266,7 @@ def main():
              tile_h12, tile_h11, spr_a11, spr_a12, spr_a9, spr_a10,
              prom_a17, prom_b16, prom_pr3]
     if any(f is None for f in files):
-        print("ERROR: Not all ROM files loaded")
-        return
+        fatal("Not all ROM files loaded")
 
     # Assemble 40KB main ROM (CPU addresses 0x6000-0xFFFF)
     main_rom = bytearray(rr1 + rr2 + rr3 + rr4 + rr5)

@@ -1,13 +1,10 @@
 import os
 import sys
-try:
-    from PIL import Image, ImageDraw, ImageFont
-    PIL_AVAILABLE = True
-except ImportError:
-    PIL_AVAILABLE = False
+from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
+from convutil import fatal
 
 # --- Configurazione per i TILE DI BACKGROUND ---
 # Nomi dei file ROM di input per il background (gfx2)
@@ -45,8 +42,7 @@ def flip_tile_horizontal(tile):
 def convert_tiles():
     """Legge i dati dei bitplane dai file ROM e li converte in un formato di tile 2D."""
     if not os.path.exists(FILE_PLANE0_LSB) or not os.path.exists(FILE_PLANE1_MSB):
-        print(f"Errore: Assicurati che i file '{FILE_PLANE0_LSB}' e '{FILE_PLANE1_MSB}' siano presenti nella stessa cartella.")
-        return None
+        fatal(f"Assicurati che i file '{FILE_PLANE0_LSB}' e '{FILE_PLANE1_MSB}' siano presenti nella stessa cartella.")
 
     print(f"Lettura dati da '{FILE_PLANE0_LSB}' (LSB) e '{FILE_PLANE1_MSB}' (MSB)...")
     with open(FILE_PLANE0_LSB, 'rb') as f_p0, open(FILE_PLANE1_MSB, 'rb') as f_p1:
@@ -54,8 +50,7 @@ def convert_tiles():
         plane1_data = f_p1.read()
 
     if len(plane0_data) != 4096 or len(plane1_data) != 4096:
-        print("Errore: Dimensione file non corretta. Dovrebbe essere 4096 bytes ciascuno.")
-        return None
+        fatal("Dimensione file non corretta. Dovrebbe essere 4096 bytes ciascuno.")
 
     print("Decodifica dei tiles in corso...")
     decoded_tiles = []
@@ -91,8 +86,7 @@ def convert_tiles():
 def write_c_array(tiles_data):
     """Scrive i dati dei tile decodificati in un file sorgente C."""
     if not tiles_data:
-        print("Nessun dato da scrivere.")
-        return
+        fatal("Nessun dato da scrivere.")
     print(f"Scrittura dell'array C nel file '{OUTPUT_C_FILE}'...")
     with open(OUTPUT_C_FILE, 'w') as f_c:
         f_c.write(f"// File generato da script. Contiene i {NUM_TILES} tiles di BACKGROUND (8x8, 2bpp) per Mr. Do! (Universal).\n")
@@ -109,13 +103,8 @@ def write_c_array(tiles_data):
 
 def generate_preview_png(tiles_data):
     """Genera un'immagine PNG di anteprima con tutti i tiles in una griglia."""
-    if not PIL_AVAILABLE:
-        print("\nAVVISO: La libreria Pillow non è installata. Impossibile generare l'anteprima PNG.")
-        print("Installa con: pip install Pillow")
-        return
     if not tiles_data:
-        print("Nessun dato per generare l'anteprima.")
-        return
+        fatal("Nessun dato per generare l'anteprima.")
     print(f"Generazione dell'anteprima PNG in '{OUTPUT_PNG_FILE}'...")
     PREVIEW_PALETTE = [(0, 0, 0), (0, 0, 255), (0, 255, 0), (255, 255, 255)]
     GRID_COLS, UPSCALE_FACTOR = 32, 4

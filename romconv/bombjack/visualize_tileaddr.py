@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 from PIL import Image, ImageDraw, ImageFont
 
 # --- CONFIGURAZIONE ---
@@ -109,3 +110,4 @@ if __name__ == "__main__":
         create_visualization(tile_address_map)
     except Exception as e:
         print(f"\nERRORE: {e}")
+        sys.exit(1)
