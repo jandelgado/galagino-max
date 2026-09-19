@@ -1,14 +1,9 @@
 #!/usr/bin/env python
 import sys
-import os
-import re
-import struct
-import zlib
 from PIL import Image, ImageDraw, ImageFont
 
 # --- Configurazione ---
 
-INPUT_TILEMAP_FILE = "../../source/src/machines/dkongjr/dkongjr_tilemap.h"
 OUTPUT_IMAGE_FILE = "dkongjr_tileset.png"
 
 PALETTE = {
@@ -23,29 +18,6 @@ TILE_ZOOM = 6
 TILES_PER_ROW = 32
 PADDING = 8
 LABEL_HEIGHT = 30
-
-def parse_tile_data_from_header(filename):
-    """Legge il file .h e estrae i dati esadecimali dei tile (formato RomData compresso)."""
-    print(f"Lettura e analisi del file: {filename}...")
-    try:
-        with open(filename, 'r') as f:
-            content = f.read()
-    except FileNotFoundError:
-        print(f"ERRORE: File non trovato: {filename}")
-        sys.exit(1)
-
-    match = re.search(r'_packed\[\]\s*=\s*\{(.*?)\};', content, re.DOTALL)
-    if not match:
-        print("ERRORE: Array compresso non trovato nel file.")
-        sys.exit(1)
-
-    packed = bytes(int(v, 16) for v in re.findall(r'0x[0-9A-Fa-f]{2}', match.group(1)))
-    raw = zlib.decompress(packed)
-    values = [v[0] for v in struct.iter_unpack('<H', raw)]
-
-    all_tiles_data = [values[i:i + 8] for i in range(0, len(values), 8)]
-    print(f"Trovati {len(all_tiles_data)} tile nel file.")
-    return all_tiles_data
 
 def visualize_tiles_as_image(all_tiles_data):
     """Crea un'immagine PNG con tutti i tile, ingranditi e con etichette leggibili."""
@@ -123,16 +95,3 @@ def visualize_tiles_as_image(all_tiles_data):
 
     image.save(OUTPUT_IMAGE_FILE)
     print(f"\nImmagine salvata con successo come '{OUTPUT_IMAGE_FILE}'")
-
-
-def main():
-    """Funzione principale"""
-    if not os.path.exists(INPUT_TILEMAP_FILE):
-        print(f"ERRORE: Il file '{INPUT_TILEMAP_FILE}' non è stato trovato.")
-        sys.exit(1)
-
-    tile_data = parse_tile_data_from_header(INPUT_TILEMAP_FILE)
-    visualize_tiles_as_image(tile_data)
-
-if __name__ == "__main__":
-    main()

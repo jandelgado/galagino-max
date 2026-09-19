@@ -102,35 +102,42 @@ def dump_sprite_values(data, flip_x, flip_y):
 
     return vals
 
+def decode_sprites():
+    """Decodifica i 256 sprite (non trasformati da flip)."""
+    roms_data = []
+    for filename in INPUT_ROM_FILES:
+        if not os.path.exists(filename):
+            raise FileNotFoundError(f"File ROM non trovato: {filename}")
+        with open(filename, "rb") as f:
+            roms_data.append(f.read())
+
+    sprites = []
+    for i in range(NUM_SPRITES):
+        sprite_offset = i * 16
+        data_chunks = [rom[sprite_offset : sprite_offset + 16] for rom in roms_data]
+        sprites.append(parse_sprite_dkong(data_chunks, i))
+    return sprites
+
+def write_header(sprites):
+    with open(OUTPUT_HEADER_FILE, "w") as f:
+        f.write(f"// File generato da sprites_conv.py (modifica: flip/rotazione per sprite)\n")
+        f.write(f"// Dati da: {', '.join(INPUT_ROM_FILES)}\n\n")
+
+        flat = []
+        for flip_flag in range(4):
+            flip_x = (flip_flag & 1) != 0
+            flip_y = (flip_flag & 2) != 0
+            for s in sprites:
+                flat.extend(dump_sprite_values(s, flip_x, flip_y))
+        emit_compressed(f, OUTPUT_ARRAY_NAME, "uint32_t", "[%d][%d]" % (NUM_SPRITES, SPRITE_HEIGHT), 4, flat)
+
+    print(f"\nProcesso completato! Creato '{OUTPUT_HEADER_FILE}'.")
+
 def main():
     print("Avvio conversione sprite per DK3j...")
     try:
-        roms_data = []
-        for filename in INPUT_ROM_FILES:
-            if not os.path.exists(filename):
-                raise FileNotFoundError(f"File ROM non trovato: {filename}")
-            with open(filename, "rb") as f:
-                roms_data.append(f.read())
-
-        sprites = []
-        for i in range(NUM_SPRITES):
-            sprite_offset = i * 16
-            data_chunks = [rom[sprite_offset : sprite_offset + 16] for rom in roms_data]
-            sprites.append(parse_sprite_dkong(data_chunks, i))
-
-        with open(OUTPUT_HEADER_FILE, "w") as f:
-            f.write(f"// File generato da sprites_conv.py (modifica: flip/rotazione per sprite)\n")
-            f.write(f"// Dati da: {', '.join(INPUT_ROM_FILES)}\n\n")
-
-            flat = []
-            for flip_flag in range(4):
-                flip_x = (flip_flag & 1) != 0
-                flip_y = (flip_flag & 2) != 0
-                for s in sprites:
-                    flat.extend(dump_sprite_values(s, flip_x, flip_y))
-            emit_compressed(f, OUTPUT_ARRAY_NAME, "uint32_t", "[%d][%d]" % (NUM_SPRITES, SPRITE_HEIGHT), 4, flat)
-
-        print(f"\nProcesso completato! Creato '{OUTPUT_HEADER_FILE}'.")
+        sprites = decode_sprites()
+        write_header(sprites)
     except Exception as e:
         print(f"ERRORE: {e}")
         sys.exit(1)

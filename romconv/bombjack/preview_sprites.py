@@ -1,38 +1,11 @@
 #!/usr/bin/env python
-import os
-import re
 from PIL import Image, ImageDraw, ImageFont
 
+from sprites_conv import load_rom_planes, build_sprite_set
+
 # --- CONFIGURAZIONE ---
-SPRITE_DATA_FILE = "../../source/src/machines/bombjack/bombjack_sprites.h"
 OUTPUT_IMAGE_16 = "bombjack_sprites_16_preview.png"
 OUTPUT_IMAGE_32 = "bombjack_sprites_32_preview.png"
-
-def parse_c_array(filename, array_name):
-    """Legge un array C e restituisce una lista flat di valori interi."""
-    print(f"Parsing di '{filename}' per l'array '{array_name}'...")
-    if not os.path.exists(filename):
-        raise FileNotFoundError(f"File non trovato: {filename}")
-    
-    with open(filename, 'r') as f:
-        content = f.read()
-    
-    match = re.search(re.escape(array_name) + r'\[.*?\]\[.*?\]\s*=\s*\{', content)
-    if not match:
-        raise ValueError(f"Array '{array_name}' non trovato in '{filename}'")
-    
-    content = content[match.end():]
-    brace_level = 1
-    array_content = ""
-    for char in content:
-        if char == '{': brace_level += 1
-        elif char == '}': brace_level -= 1
-        if brace_level == 0: break
-        array_content += char
-    
-    array_content = re.sub(r'//.*|\/\*.*?\*\/', '', array_content)
-    values = re.findall(r'0x[0-9a-fA-F]+|\d+', array_content)
-    return [int(v, 0) for v in values]
 
 def create_preview(data_flat, num_sprites, width, height, tiles_per_row, output_file):
     """Genera un'immagine di anteprima per un set di sprite."""
@@ -82,14 +55,16 @@ def create_preview(data_flat, num_sprites, width, height, tiles_per_row, output_
     print(f"Immagine di anteprima salvata come '{output_file}'")
 
 def main():
+    rom_data = load_rom_planes()
+
     # Processa sprite 16x16
-    data_16 = parse_c_array(SPRITE_DATA_FILE, "bombjack_sprites_16x16")
+    data_16 = build_sprite_set(rom_data, 16, 16, 256)
     create_preview(data_16, 256, 16, 16, 16, OUTPUT_IMAGE_16)
 
     print("-" * 20)
 
     # Processa sprite 32x32
-    data_32 = parse_c_array(SPRITE_DATA_FILE, "bombjack_sprites_32x32")
+    data_32 = build_sprite_set(rom_data, 32, 32, 64)
     create_preview(data_32, 64, 32, 32, 8, OUTPUT_IMAGE_32)
 
 if __name__ == "__main__":
