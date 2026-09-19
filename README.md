@@ -121,7 +121,7 @@ Galagino uses code that is not freely available and thus not included in this re
 * Then install the Phyton Pillow Imaging Library. For that, run the command: pip install pillow
 * Optional: If you want to run the logoconv.py to recreate the menu logos, you must install NumPy: pip install numpy
 * The ROM ZIP files have to be placed in the [romszip directory](romszip/), together with the ZIP file containing the Z80 emulator.
-* A set of [python scripts](romconv/) is then being used to convert and patch the ROM data and emulator code and to include the resulting code into the galagino machines directory. For all games, just use conv__all.bat.
+* A set of [python scripts](romconv/) is then being used to convert and patch the ROM data and emulator code and to include the resulting code into the galagino machines directory. For all games, just use convert.bat (Windows) or convert.sh (Linux/macOS).
 
 The [ROM conversion](./romconv) create a whole bunch of additional files in the [source directory](./source). Please check the README in the [romconv](./romconv) directory for further instructions.
 Please ensure that the stripts run without errors!
