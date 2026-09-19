@@ -3,93 +3,24 @@
 import os
 import zipfile
 
-ZIPLOC="../romszip/"
-ZIP="Z80-081707.zip"
-DEST="../source/src/cpus/z80/"
+from pypatch import apply_patch
 
-FILES2COPY=[ "CodesCB.h", "Codes.h", "CodesXX.h", "CodesED.h", "CodesXCB.h", "Tables.h" ]
+ZIPLOC = "../romszip/"
+ZIP = "Z80-081707.zip"
+DEST = "../source/src/cpus/z80/"
+PATCH_FILE = "z80/z80.patch"
 
-Z80H_EXTRA=b"""void JumpZ80(word PC);
-#endif
+# Files copied verbatim from the vendor ZIP (CRLF normalized only).
+# Z80.h / Z80.c additionally receive local modifications via PATCH_FILE.
+FILES = ["CodesCB.h", "Codes.h", "CodesXX.h", "CodesED.h", "CodesXCB.h", "Tables.h", "Z80.h", "Z80.c"]
 
-#include "esp_attr.h"
-
-IRAM_ATTR void StepZ80(register Z80 *R);
-unsigned char OpZ80_INL(unsigned short Addr);
-
-#ifdef __cplusplus
-}
-#endif
-#endif /* Z80_H */
-
-#include "../../emulation/emulation.h"
-"""
-
-Z80H_EXTRA2=b"""#undef word 
-#define word unsigned short
-//"""
-
-Z80C_EXTRA=b"""
-void StepZ80(Z80 *R)
-{
-  register byte I;
-  register pair J;
-
-  I=OpZ80_INL(R->PC.W++);
-
-  switch(I)
-  {
-#include "Codes.h"
-    case PFX_CB: CodesCB(R);break;
-    case PFX_ED: CodesED(R);break;
-    case PFX_FD: CodesFD(R);break;
-    case PFX_DD: CodesDD(R);break;
-  }
-
-  if(R->IFF&IFF_EI)
-    R->IFF=(R->IFF&~IFF_EI)|IFF_1; /* Done with AfterEI state */
-}
-"""
-
-def unpack_z80(name):
-  with zipfile.ZipFile(name, 'r') as zip:
-    # most files are just unpacked
-    for i in FILES2COPY:
-      print("Copying", i)
-      code = zip.read("Z80/"+i)
-      code = code.replace(b"\r\n", b"\n")
-      with open(DEST+i, "wb") as of:
+def unpack_z80(zip_path):
+  with zipfile.ZipFile(zip_path, 'r') as zf:
+    for name in FILES:
+      print("Copying", name)
+      code = zf.read("Z80/" + name).replace(b"\r\n", b"\n")
+      with open(DEST + name, "wb") as of:
         of.write(code)
-
-    # Z80.h patch
-    print("Patching Z80.h")
-    code = zip.read("Z80/Z80.h")
-    with open(DEST+"Z80.h", "wb") as of:
-      # read file line by line and uncomment this line:
-      STR1 = b"/* #define LSB_FIRST */        /* Compile for low-endian CPU */"
-      STR2 = b"typedef unsigned short word;"
-      STR3 = b"void JumpZ80(word PC);"
-
-      for i in code.split(b"\r\n"):
-        if i == STR3:
-          of.write(Z80H_EXTRA)
-          break
-
-        if i == STR2:
-          of.write(Z80H_EXTRA2)
-
-        if i == STR1:
-          of.write(b"#define LSB_FIRST        /* Compile for low-endian CPU */\n")
-        else:
-          of.write(i + b"\n")
-  
-    # Z80.c gets an additional function
-    print("Patching Z80.c")
-    code = zip.read("Z80/Z80.c")
-    code = code.replace(b"\r\n", b"\n")
-    with open(DEST+"Z80.c", "wb") as of:
-      of.write(code)
-      of.write(Z80C_EXTRA)
 
 def main():
   os.makedirs(DEST, exist_ok=True)
@@ -97,8 +28,10 @@ def main():
   print(f"Load ZIP from: {os.path.abspath(ZIPLOC + ZIP)}")
   print(f"Target files:  {os.path.abspath(DEST)}")
 
-  unpack_z80( ZIPLOC + ZIP )
+  unpack_z80(ZIPLOC + ZIP)
+
+  print("Patching Z80.h / Z80.c")
+  apply_patch(PATCH_FILE, DEST)
 
 if __name__ == "__main__":
     main()
-
