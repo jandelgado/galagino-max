@@ -3,7 +3,7 @@
   "shell": {
     "init_hook": [
       "test -z $FISH_VERSION && . $VENV_DIR/bin/activate || source $VENV_DIR/bin/activate.fish",
-      "pip install --quiet --upgrade pip numpy pillow platformio==6.1.19 zombie-imp packaging intelhex setuptools gcovr==8.6"
+      "pip install --quiet --upgrade pip numpy pillow patch-ng platformio==6.1.19 zombie-imp packaging intelhex setuptools gcovr==8.6"
     ]
   }
 }

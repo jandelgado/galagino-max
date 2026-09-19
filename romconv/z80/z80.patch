@@ -1,0 +1,65 @@
+diff -ruN --no-dereference a/z80/Z80.c b/z80/Z80.c
+--- a/Z80.c	2026-09-19 13:01:59.105165099 +0200
++++ b/Z80.c	2026-09-19 13:01:59.111133661 +0200
+@@ -682,3 +682,23 @@
+   return(R->PC.W);
+ }
+ #endif /* !EXECZ80 */
++
++void StepZ80(Z80 *R)
++{
++  register byte I;
++  register pair J;
++
++  I=OpZ80_INL(R->PC.W++);
++
++  switch(I)
++  {
++#include "Codes.h"
++    case PFX_CB: CodesCB(R);break;
++    case PFX_ED: CodesED(R);break;
++    case PFX_FD: CodesFD(R);break;
++    case PFX_DD: CodesDD(R);break;
++  }
++
++  if(R->IFF&IFF_EI)
++    R->IFF=(R->IFF&~IFF_EI)|IFF_1; /* Done with AfterEI state */
++}
+diff -ruN --no-dereference a/z80/Z80.h b/z80/Z80.h
+--- a/Z80.h	2026-09-19 13:01:59.105021498 +0200
++++ b/Z80.h	2026-09-19 13:01:59.111074489 +0200
+@@ -19,7 +19,7 @@
+ 
+                                /* Compilation options:       */
+ /* #define DEBUG */            /* Compile debugging version  */
+-/* #define LSB_FIRST */        /* Compile for low-endian CPU */
++#define LSB_FIRST        /* Compile for low-endian CPU */
+ /* #define MSB_FIRST */        /* Compile for hi-endian CPU  */
+ 
+                                /* LoopZ80() may return:      */
+@@ -62,7 +62,9 @@
+ #endif
+ #ifndef WORD_TYPE_DEFINED
+ #define WORD_TYPE_DEFINED
+-typedef unsigned short word;
++#undef word 
++#define word unsigned short
++//typedef unsigned short word;
+ #endif
+ typedef signed char offset;
+ 
+@@ -182,7 +184,14 @@
+ void JumpZ80(word PC);
+ #endif
+ 
++#include "esp_attr.h"
++
++IRAM_ATTR void StepZ80(register Z80 *R);
++unsigned char OpZ80_INL(unsigned short Addr);
++
+ #ifdef __cplusplus
+ }
+ #endif
+ #endif /* Z80_H */
++
++#include "../../emulation/emulation.h"
