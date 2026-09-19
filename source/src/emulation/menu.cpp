@@ -388,6 +388,7 @@ const char *mchName(signed char machineType) {
     case MCH_NIBBLER:       return "Nibbler";
     case MCH_SCREGG:        return "Scrambled Egg";
     case MCH_VANGUARD:      return "Vanguard";
+    case MCH_ZAXXON:        return "Zaxxon";
   }
 
   return "";
