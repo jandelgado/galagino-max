@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run
 import sys
 
-from pyconv.convutil import info, run
+from internal.pyconv.convutil import info, run
 
 GAMES = [
     "z80",
@@ -31,7 +31,7 @@ GAMES = [
     "m6502",
     "mappy",
     "mooncresta",
-#    "motorace",
+    "motorace",
     "mrdo",
     "mrtnt",
     "mspacman",
@@ -41,7 +41,7 @@ GAMES = [
     "pengo",
     "phoenix",
     "pooyan",
-#    "roadfighter",
+    "roadfighter",
     "rocnrope",
     "scramble",
     "scregg",
@@ -63,6 +63,6 @@ games = GAMES if len(sys.argv[1:]) == 0 else sys.argv[1:]
 info(f"--------- Convert {'all' if games is GAMES else ' '.join(games)} ---------")
 
 for game in games:
-    run(f"pyconv/conv_{game}.py")
+    run(f"internal/pyconv/conv_{game}.py")
 
 info("--- Success ---")
