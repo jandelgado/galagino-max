@@ -44,4 +44,10 @@ convert.bat z80 galaga pacman
 convert.sh z80 galaga pacman
 ```
 
-Game names match the `pyconv/conv_<name>.py` scripts.
+Game names match the `internal/pyconv/conv_<name>.py` scripts.
+
+## Layout
+
+`convert.py`/`.sh`/`.bat` are the only scripts meant to be run
+directly. Everything else (`internal/`) is implementation detail:
+per-game converters, shared helpers, and unpacked ROM working data.

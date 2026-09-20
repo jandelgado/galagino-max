@@ -14,14 +14,14 @@ die() {
 
 if [[ -f ../romszip/motorace.zip ]]; then
   #echo Motorace USA Logos
-  #python3 ./logoconv.py ../logos/motorace.png ../source/src/machines/motorace/motorace_logo.h || die
+  #python3 ./internal/logoconv.py ../logos/motorace.png ../source/src/machines/motorace/motorace_logo.h || die
 
   echo Converting Motorace USA
-  cd motorace || die
+  cd internal/motorace || die
 
   python3 ./motorace_rom_convert.py || die
 
-  cd ..
+  cd ../..
 else
   die
 fi

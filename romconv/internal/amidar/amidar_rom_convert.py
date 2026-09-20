@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""
+Amidar ROM converter for GALAGINO
+
+ROM set (amidar1) MAME:
+  Main CPU:  4x 0x1000  amidar.2c/2e/2f/2h  (16KB, 0x0000-0x3FFF)
+  Audio CPU: 2x 0x1000  amidar.5c/5d
+  gfx:       2x 0x0800  amidar.5f/5h
+  prom:      1x 0x0020  amidar.clr
+
+ROM set (amidar) MAME:
+  Main CPU:  5x 0x1000  1.2c/2.2e/3.2f/4.2h/5.2j 
+  Audio CPU: 2x 0x1000  s1.5c/s2.5d
+  gfx:       2x 0x0800  c2.5f/c2.5d
+  prom:      1x 0x0020  amidar.clr
+
+"""
+
+import os
+import sys
+import zipfile
+import hashlib
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
+from gfxutil import hex8, hex16, hex32
+from galaxian_hw import parse_chr_2, dump_chr, convert_tiles, parse_sprite_galaxian, dump_sprite, convert_sprites
+from convutil import fatal
+
+ROM_SET = os.path.normpath(os.path.join("..", "..", "..", "romszip", "amidar.zip"))
+OUT_DIR = os.path.normpath(os.path.join("..", "..", "..", "source", "src", "machines", "amidar"))
+
+def load_file(names, sha1):
+    for name in names:
+        with zipfile.ZipFile(ROM_SET) as z:
+            if name in z.namelist():
+                with z.open(name, 'r') as f:
+                    rom = bytearray(f.read())
+                    digest = hashlib.sha1(rom).hexdigest()
+                    if sha1 != digest:
+                        fatal(f"bad hash for {name}: expected {sha1}, got {digest}")
+                    return rom
+    fatal(f"None of {names} found in {os.path.abspath(ROM_SET)}")
+
+def write_rom(filename, name, data):
+    with open(filename, 'w') as f:
+        f.write("// Amidar program ROM ({} bytes)\n".format(len(data)))
+        emit_compressed(f, name, "unsigned char", "", len(data), list(data))
+    print("Wrote: {} ({} bytes)".format(os.path.abspath(filename), len(data)))
+
+def write_tilemap(filename, tiles):
+    with open(filename, 'w') as f:
+        f.write("// Amidar tilemap: {} tiles, 8x8, 2bpp\n".format(len(tiles)))
+        flat = [v for rows in tiles for v in rows]
+        emit_compressed(f, "amidar_tilemap", "unsigned short", "[8]", len(tiles), flat)
+    print("Wrote: {} ({} tiles)".format(os.path.abspath(filename), len(tiles)))
+
+def write_spritemap(filename, all_orientations):
+    num_sprites = len(all_orientations[0])
+    with open(filename, 'w') as f:
+        f.write("// Amidar spritemap: {} sprites, 16x16, 2bpp, 4 orientations\n".format(num_sprites))
+        flat = [v for orientation in all_orientations for rows in orientation for v in rows]
+        emit_compressed(f, "amidar_spritemap", "uint32_t", "[%d][16]" % num_sprites, 4, flat)
+    print("Wrote: {} ({} sprites x 4 orientations)".format(os.path.abspath(filename), num_sprites))
+
+def write_colormap(filename, rgb565):
+    with open(filename, 'w') as f:
+        f.write("// Amidar colormap: 8 palettes x 4 colors, RGB565\n")
+        f.write("const unsigned short amidar_colormap[][4] = {\n")
+        for pal in range(8):
+            colors = rgb565[pal*4 : pal*4+4]
+            f.write("  { " + ", ".join(hex16(c) for c in colors) + " }")
+            if pal < 7: f.write(",")
+            f.write("  // palette {}\n".format(pal))
+        f.write("};\n")
+    print("Wrote: {} (8 palettes)".format(os.path.abspath(filename)))
+
+def convert_colors(prom):
+    rgb565 = []
+    for i in range(32):
+        bits = prom[i]
+        # Resistors: R,G = 1k/470/220 ohm, B = 470/220 ohm, RGB_MAXIMUM=224 (MAME galaxian_palette)
+        r = 0x1D * ((bits >> 0) & 1) + 0x3E * ((bits >> 1) & 1) + 0x85 * ((bits >> 2) & 1)
+        g = 0x1D * ((bits >> 3) & 1) + 0x3E * ((bits >> 4) & 1) + 0x85 * ((bits >> 5) & 1)
+        b = 0x48 * ((bits >> 6) & 1) + 0x99 * ((bits >> 7) & 1)
+        r5 = (r >> 3) & 0x1F
+        g6 = (g >> 2) & 0x3F
+        b5 = (b >> 3) & 0x1F
+        val = (r5 << 11) | (g6 << 5) | b5
+        rgb565.append(((val & 0xFF) << 8) | ((val >> 8) & 0xFF))
+    return rgb565
+
+def main():
+    os.makedirs(OUT_DIR, exist_ok=True)
+    print(f"Load ROM from: {os.path.abspath(ROM_SET)}")
+    print(f"Target files:  {os.path.abspath(OUT_DIR)}")
+
+    # romset amidar1.zip
+    if False:
+      rom_2c   = load_file(["amidar.2c"], "399325bf1559e8cdbddf7cfbf0dc739f9ed72ef0") # main cpu
+      rom_2e   = load_file(["amidar.2e"], "e9c4f8c594640424b456505e676352a98b758c03")
+      rom_2f   = load_file(["amidar.2f"], "9d652f66bedcf17a6453c0e0ead30bfd7ea0bd0a")
+      rom_2h   = load_file(["amidar.2h"], "c047bc393b297c0d47668a5f6f4870e3fac937ef")
+      rom_2j   = None
+
+      rom_5c   = load_file(["amidar.5c"], "9d09dbde4019f7be3abe0815b0e06d542c01c255") # audio cpu
+      rom_5d   = load_file(["amidar.5d"], "c8c85e3a6a204feccd7859b4527bd649e96134b4")
+
+      rom_5f   = load_file(["amidar.5f"], "dfe84db7e2b1a45a1d484fcf37291f536bc5324c") # gfx1
+      rom_5h   = load_file(["amidar.5h"], "83c330eca20dfcc6a4099001943b9ed7a7c3db5b")
+
+      prom_clr = load_file(["amidar.clr"], "1015e56f37c244a850a8f4bf0e36668f047fd46d") # color prom
+
+    # romset amidar.zip
+    if True:
+      rom_2c   = load_file(["1.2c"],         "f064eccfb7da18119ed3088a5f939085eb446c90") # main cpu
+      rom_2e   = load_file(["2.2e"],         "12b2a0c09926d006781bee5d450bc0c391cc1fb5")
+      rom_2f   = load_file(["3.2f"],         "e83f049b25aba481e09606db3158726145ebd656")
+      rom_2h   = load_file(["4.2h"],         "9ef1d27f0780612be0ea2be94c3a2c781a4924c8")
+      rom_2j   = load_file(["5.2j"],         "1530b374d15e0d05c8eb988cc1cbab48b0be211c")
+
+      rom_5c   = load_file(["s1.5c"],        "4f4c2915503b85abe141d717fd254ee10c9da99e") # audio cpu
+      rom_5d   = load_file(["s2.5d"],        "84d953618c8bf510d23b42232a856ac55f1baff5")
+
+      rom_5f   = load_file(["c2.5f"],        "0d86a78008ac8653c17fff5be5ebdf1f0a9d31eb") # gfx1
+      rom_5h   = load_file(["c2.5d"],        "8764deec9fbff4220d61df621b12fc36c3702601")
+
+      prom_clr = load_file(["amidar.clr"], "1015e56f37c244a850a8f4bf0e36668f047fd46d") # color prom
+
+    if not all(v is not None for v in [rom_2c, rom_2e, rom_2f, rom_2h,
+                                       rom_5c, rom_5d, rom_5f, rom_5h, prom_clr]):
+        fatal("Not all files loaded")
+
+    if rom_2j is None:
+      main_cpu = rom_2c + rom_2e + rom_2f + rom_2h          # 4 x 4KB = 16KB
+    else:
+      main_cpu = rom_2c + rom_2e + rom_2f + rom_2h + rom_2j # 5 x 4KB = 20KB
+    write_rom(os.path.join(OUT_DIR, "amidar_main_rom.h"), "amidar_main_rom", main_cpu)
+
+    audio_cpu = rom_5c + rom_5d  # 2 x 4KB = 8KB
+    write_rom(os.path.join(OUT_DIR, "amidar_audio_rom.h"), "amidar_audio_rom", audio_cpu)
+
+    tiles = convert_tiles(rom_5f, rom_5h)   # amidar: 5f@0x0000=plane0, 5h@0x0800=plane1
+    write_tilemap(os.path.join(OUT_DIR, "amidar_tilemap.h"), tiles)
+
+    sprites = convert_sprites(rom_5f, rom_5h)
+    write_spritemap(os.path.join(OUT_DIR, "amidar_spritemap.h"), sprites)
+
+    rgb565 = convert_colors(prom_clr)
+    write_colormap(os.path.join(OUT_DIR, "amidar_cmap.h"), rgb565)
+
+    print("\n--- Complete ---")
+    print(f"All files generated in: {os.path.abspath(OUT_DIR)}")
+
+if __name__ == "__main__":
+    main()
