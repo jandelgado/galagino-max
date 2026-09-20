@@ -15,7 +15,8 @@ public:
 	~dkong();
 
  	void reset() override;
-	signed char machineType() override { return MCH_DKONG; } 
+	void start(void) override;
+	signed char machineType() override { return MCH_DKONG; }
 	unsigned char rdZ80(unsigned short Addr) override;
 	void wrZ80(unsigned short Addr, unsigned char Value) override;
 	unsigned char opZ80(unsigned short Addr) override;
@@ -57,6 +58,8 @@ private:
 	// special variables for dkong
 	unsigned char colortable_select = 0;
 
+	// Cached: hot path reads these per access; data() checks the cache on every call.
+	const unsigned char *rom_cpu1_ptr = nullptr;
 };
 
 #endif

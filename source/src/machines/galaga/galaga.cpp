@@ -1,22 +1,18 @@
 #include "galaga.h"
 
+void galaga::start(void) {
+  rom_ptr[0] = galaga_rom_cpu1.data();
+  rom_ptr[1] = galaga_rom_cpu2.data();
+  rom_ptr[2] = galaga_rom_cpu3.data();
+}
+
 unsigned char galaga::opZ80(unsigned short Addr) {
-  if (current_cpu == 0)
-    return galaga_rom_cpu1[Addr];
-  else if (current_cpu == 1)
-    return galaga_rom_cpu2[Addr];
-  else
-    return galaga_rom_cpu3[Addr];
+  return rom_ptr[(unsigned char)current_cpu][Addr];
 }
 
 unsigned char galaga::rdZ80(unsigned short Addr) {
   if(Addr < 16384) {
-    if (current_cpu == 0)
-      return galaga_rom_cpu1[Addr];
-    else if (current_cpu == 1)
-      return galaga_rom_cpu2[Addr];
-    else
-      return galaga_rom_cpu3[Addr];
+    return rom_ptr[(unsigned char)current_cpu][Addr];
   }
 
   /* video/sprite ram */
@@ -97,9 +93,14 @@ void galaga::wrZ80(unsigned short Addr, unsigned char Value) {
 
   if((Addr & 0xe000) == 0x8000) {
     memory[Addr-0x8000] = Value;
+
+    // Score-clear write (gg1-4.s L1725) is in this range; the return below would skip it.
+    if(Value == 0 && Addr == 0x8210)
+      game_started = 1;
+
     return;
   }
-  
+
   // namco 06xx
   if((Addr & 0xf800) == 0x7000) {
     
@@ -159,11 +160,6 @@ void galaga::wrZ80(unsigned short Addr, unsigned char Value) {
       }
     }
     return;
-  }
-  
-  if(Value == 0 && Addr == 0x8210) { // gg1-4.s L1725
-    game_started = 1;
-    //printf("game_started\n");
   }
   
   if((Addr & 0xfff0) == 0xa000) {

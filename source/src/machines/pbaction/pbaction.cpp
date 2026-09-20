@@ -84,15 +84,20 @@ void pbaction::reset() {
 // ---------------------------------------------------------------------------
 // CPU memory access
 // ---------------------------------------------------------------------------
+void pbaction::start(void) {
+  rom_main_ptr = pbaction_main_rom.data();
+  rom_audio_ptr = pbaction_audio_rom.data();
+}
+
 unsigned char pbaction::opZ80(unsigned short Addr) {
   if (current_cpu == 0) {
     if (Addr < 0xc000)
-      return pbaction_main_rom[Addr];
+      return rom_main_ptr[Addr];
     return 0xff;
   }
-  
+
   if (Addr < 0x2000)
-    return pbaction_audio_rom[Addr];
+    return rom_audio_ptr[Addr];
   return 0xff;
 }
 
@@ -100,7 +105,7 @@ unsigned char pbaction::rdZ80(unsigned short Addr) {
   if (current_cpu == 0) {
     // 0x0000-0xbfff : ROM
     if (Addr < 0xc000)
-      return pbaction_main_rom[Addr];
+      return rom_main_ptr[Addr];
 
     // 0xc000-0xcfff : work RAM
     if (Addr < 0xd000)
@@ -163,7 +168,7 @@ unsigned char pbaction::rdZ80(unsigned short Addr) {
 
   // ---- audio CPU ----
   if (Addr < 0x2000)
-    return pbaction_audio_rom[Addr];
+    return rom_audio_ptr[Addr];
   if (Addr >= 0x4000 && Addr <= 0x47ff)
     return memory[PBACTION_AUDIO_RAM + (Addr - 0x4000)];
   if (Addr == 0x8000) {

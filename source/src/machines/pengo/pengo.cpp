@@ -12,15 +12,19 @@ pengo::~pengo() {
 	pengo_colormap.release();
 }
 
+void pengo::start(void) {
+  rom_ptr = pengo_rom.data();
+}
+
 unsigned char pengo::opZ80(unsigned short Addr) {
   if (Addr < 0x8000)
-    return pengo_rom[Addr];
+    return rom_ptr[Addr];
   else
     return memory[Addr - 0x8000];
 }
 
 unsigned char pengo::rdZ80(unsigned short Addr) {
-  if (Addr < 0x8000) return pengo_rom[Addr];
+  if (Addr < 0x8000) return rom_ptr[Addr];
     
   if (Addr >= 0x8000 && Addr <= 0x8FFF) return memory[Addr - 0x8000];
 

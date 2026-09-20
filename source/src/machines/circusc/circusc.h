@@ -61,7 +61,7 @@
 class circusc : public machineBase
 {
 public:
-  circusc() {}
+  circusc();
   ~circusc();
 
   signed char machineType() override { return MCH_CIRCUSC; }
@@ -123,6 +123,10 @@ private:
   volatile uint16_t dac_wr = 0, dac_rd = 0;
   uint8_t dac_val = 128, dac_last = 128;
   int dac_acc = 0;
+
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *main_rom_ptr = nullptr;
+  const unsigned char *audio_rom_ptr = nullptr;
 };
 
 #endif

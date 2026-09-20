@@ -18,18 +18,23 @@ void anteater::reset() {
   game_started = 1;
 }
 
-unsigned char anteater::opZ80(unsigned short Addr) {
-  if (current_cpu == 0)
-    return anteater_rom_cpu1[Addr];
-  else
-    return anteater_rom_cpu2[Addr];
+void anteater::start(void) {
+  rom_cpu1_ptr = anteater_rom_cpu1.data();
+  rom_cpu2_ptr = anteater_rom_cpu2.data();
 }
 
-unsigned char anteater::rdZ80(unsigned short Addr) {   
+unsigned char anteater::opZ80(unsigned short Addr) {
+  if (current_cpu == 0)
+    return rom_cpu1_ptr[Addr];
+  else
+    return rom_cpu2_ptr[Addr];
+}
+
+unsigned char anteater::rdZ80(unsigned short Addr) {
   if(current_cpu == 0) {
     // ROM
     if(Addr <= 0x3fff)
-      return anteater_rom_cpu1[Addr];
+      return rom_cpu1_ptr[Addr];
 
     // 0x8000 - 0x87ff - main RAM
     if((Addr & 0xf800) == 0x8000) 
@@ -89,8 +94,8 @@ unsigned char anteater::rdZ80(unsigned short Addr) {
       return 0x00;
   } else {
     // anteater audio cpu 0x1000
-    if(Addr < 4096) 
-      return anteater_rom_cpu2[Addr];
+    if(Addr < 4096)
+      return rom_cpu2_ptr[Addr];
 
     // konami_sound_map: 0x8000, 0x83ff
     if((Addr & 0xf000) == 0x8000)

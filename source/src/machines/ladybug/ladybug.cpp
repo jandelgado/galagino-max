@@ -16,11 +16,15 @@ void ladybug::reset() {
   startupFrameCount = 0;
 }
 
+void ladybug::start(void) {
+  rom_ptr = ladybug_rom_cpu1.data();
+}
+
 // ============================================================================
 // Opcode fetch - direct pointer, NO bounds check (matches galaga pattern)
 // ============================================================================
 unsigned char ladybug::opZ80(unsigned short Addr) {
-  if (Addr < 0x6000) return ladybug_rom_cpu1[Addr];
+  if (Addr < 0x6000) return rom_ptr[Addr];
   return rdZ80(Addr);
 }
 
@@ -30,7 +34,7 @@ unsigned char ladybug::opZ80(unsigned short Addr) {
 unsigned char ladybug::rdZ80(unsigned short Addr) {
   // ROM: 0x0000-0x5FFF (24KB)
   if (Addr < 0x6000)
-    return ladybug_rom_cpu1[Addr];
+    return rom_ptr[Addr];
 
   // Work RAM: 0x6000-0x6FFF (4KB)
   if ((Addr & 0xF000) == 0x6000)

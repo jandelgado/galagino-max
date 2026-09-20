@@ -11,7 +11,8 @@ public:
 	pacman() { }
 	~pacman();
 
-	signed char machineType() override { return MCH_PACMAN; } 
+	signed char machineType() override { return MCH_PACMAN; }
+	void start(void) override;
 	unsigned char rdZ80(unsigned short Addr) override;
 	void wrZ80(unsigned short Addr, unsigned char Value) override;
 	void outZ80(unsigned short Port, unsigned char Value) override;
@@ -36,6 +37,9 @@ protected:
 	virtual const unsigned short *colorRom(unsigned short addr);
 	virtual const uint32_t *spriteRom(unsigned char flags, unsigned char code);
 
+	// Cached: hot path reads these per access; data() checks the cache on every call.
+	// Protected: mspacman uses pacman_rom in Pac-Man mode.
+	const unsigned char *rom_ptr = nullptr;
 };
 
 #endif

@@ -16,6 +16,7 @@ public:
   ~galaxian();
 
   signed char machineType() override { return MCH_GALAXIAN; }
+  void start(void) override;
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
   unsigned char opZ80(unsigned short Addr) override;
@@ -54,6 +55,8 @@ private:
   bool stars_initialized = false;
   void stars_init();
 
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_ptr = nullptr;
 };
 
 #endif

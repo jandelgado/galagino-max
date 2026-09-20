@@ -6,6 +6,14 @@
 #include "gyruss_tilemap.h"
 #include "gyruss_spritemap.h"
 
+gyruss::gyruss() {
+  // Before start_audio_task(): the audio task reads these.
+  main_rom_ptr = gyruss_rom_main.data();
+  audio_rom_ptr = gyruss_rom_audio.data();
+  sub_raw_ptr = gyruss_rom_sub_raw.data();
+  sub_decrypt_ptr = gyruss_rom_sub_decrypt.data();
+}
+
 gyruss::~gyruss() {
 	gyruss_rom_main.release();
 	gyruss_rom_sub_raw.release();
@@ -33,7 +41,7 @@ unsigned char gyruss::m6809_read(m6809_state *s, uint16_t addr) {
   }
   // ROM at 0xE000-0xFFFF only (no mirror, matching MAME)
   if (addr >= 0xE000) {
-    return gyruss_rom_sub_raw[addr - 0xE000];
+    return sub_raw_ptr[addr - 0xE000];
   }
   return 0xFF;
 }
@@ -57,7 +65,7 @@ void gyruss::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
 unsigned char gyruss::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   // Konami-1 decrypted opcodes at 0xE000-0xFFFF only (no mirror)
   if (addr >= 0xE000) {
-    return gyruss_rom_sub_decrypt[addr - 0xE000];
+    return sub_decrypt_ptr[addr - 0xE000];
   }
   return m6809_read(s, addr);
 }
@@ -163,6 +171,7 @@ void gyruss::start() {
 }
 
 void gyruss::reset() {
+    printf("gyrus: reset\n");
   stop_audio_task();
   m6809_reset(&sub_cpu);
   machineBase::reset();
@@ -197,12 +206,12 @@ inline bool gyruss::is_audio_cpu() {
 unsigned char gyruss::opZ80(unsigned short Addr) {
   if (!is_audio_cpu()) {
     if (Addr < 0x6000)
-      return gyruss_rom_main[Addr];
+      return main_rom_ptr[Addr];
     return rdZ80(Addr);
-  } 
+  }
   else {
     if (Addr < 0x4000)
-      return gyruss_rom_audio[Addr];
+      return audio_rom_ptr[Addr];
     return rdZ80(Addr);
   }
 }
@@ -210,7 +219,7 @@ unsigned char gyruss::opZ80(unsigned short Addr) {
 unsigned char gyruss::rdZ80(unsigned short Addr) {
   if (!is_audio_cpu()) {
     if (Addr < 0x6000)
-      return gyruss_rom_main[Addr];
+      return main_rom_ptr[Addr];
 
     if (Addr >= 0x8000 && Addr <= 0x83FF)
       return memory[GYR_CRAM_OFF + (Addr & 0x3FF)];
@@ -253,7 +262,7 @@ unsigned char gyruss::rdZ80(unsigned short Addr) {
   }
   else {
     if (Addr < 0x4000)
-      return gyruss_rom_audio[Addr];
+      return audio_rom_ptr[Addr];
 
 
     if (Addr >= 0x6000 && Addr <= 0x63FF)

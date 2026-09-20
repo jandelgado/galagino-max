@@ -30,18 +30,23 @@ void bombjack::reset() {
   machineBase::reset();
 }
 
+void bombjack::start(void) {
+  rom_cpu1_ptr = bombjack_rom_cpu1.data();
+  rom_cpu2_ptr = bombjack_rom_cpu2.data();
+}
+
 unsigned char bombjack::opZ80(unsigned short Addr) {
   if (current_cpu == 0)
-    return bombjack_rom_cpu1[Addr];
+    return rom_cpu1_ptr[Addr];
   else
-    return bombjack_rom_cpu2[Addr];
+    return rom_cpu2_ptr[Addr];
 }
 
 unsigned char bombjack::rdZ80(unsigned short Addr) {
   if (current_cpu == 0) {
     // --- Lettura dalle aree ROM mappate ---
-    if (Addr >= 0x0000 && Addr <= 0x7FFF) { return bombjack_rom_cpu1[Addr]; }
-    if (Addr >= 0xC000 && Addr <= 0xDFFF) { return bombjack_rom_cpu1[Addr]; }
+    if (Addr >= 0x0000 && Addr <= 0x7FFF) { return rom_cpu1_ptr[Addr]; }
+    if (Addr >= 0xC000 && Addr <= 0xDFFF) { return rom_cpu1_ptr[Addr]; }
 
     // --- Gestione delle aree RAM mappate ---
     if (Addr >= 0x8000 && Addr <= 0x8FFF) { return memory[Addr - 0x8000]; } // 4096 bytes
@@ -98,7 +103,7 @@ unsigned char bombjack::rdZ80(unsigned short Addr) {
 
     // --- Audio CPU Read Logic ---
     // Handle ROM reads
-    if (Addr <= 0x3FFF) { return bombjack_rom_cpu2[Addr]; }
+    if (Addr <= 0x3FFF) { return rom_cpu2_ptr[Addr]; }
 
     // Handle RAM reads
     if (Addr >= 0x4000 && Addr <= 0x47FF) { return memory[(Addr - 0x4000 + 0x1000 + 0x400 + 0x400 + 0x80 + 2)]; }

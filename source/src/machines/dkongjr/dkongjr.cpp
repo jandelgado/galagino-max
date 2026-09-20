@@ -24,14 +24,18 @@ unsigned char dkongjr::rdI8048_rom(struct i8048_state_S *state, unsigned short a
   return dkongjr_rom2[addr];
 }
 
+void dkongjr::start(void) {
+  rom_ptr = dkongjr_rom1.data();
+}
+
 unsigned char dkongjr::opZ80(unsigned short Addr) {
-  return dkongjr_rom1[Addr];
+  return rom_ptr[Addr];
 }
 
 unsigned char dkongjr::rdZ80(unsigned short Addr) {
   // --- Regione ROM: 0x0000 - 0x5FFF (24 KB) --- CPU PRINCIPALE Z80
   if (Addr < 0x6000) {
-    return dkongjr_rom1[Addr];
+    return rom_ptr[Addr];
   }
 
   // 0x6000 - 0x77ff

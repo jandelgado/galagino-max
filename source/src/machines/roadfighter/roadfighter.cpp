@@ -13,6 +13,13 @@
 #include "roadfighter_tiles.h"
 #include "roadfighter_sprites.h"
 
+roadfighter::roadfighter() {
+	// In ctor: m6809_reset() reads the reset vector through these.
+	main_raw_ptr = roadfighter_rom_main_raw.data();
+	main_decrypted_ptr = roadfighter_rom_main_decrypted.data();
+	audio_rom_ptr = roadfighter_rom_audio.data();
+}
+
 roadfighter::~roadfighter() {
 	roadfighter_rom_main_raw.release();
 	roadfighter_rom_main_decrypted.release();
@@ -47,6 +54,9 @@ void roadfighter::init(Input *input, unsigned short *framebuffer,
   //roadf_set_m6809_callbacks();
 }
 
+void roadfighter::start(void) {
+}
+
 void roadfighter::reset() {
   machineBase::reset();
   //g_roadfighter_instance = this;
@@ -77,7 +87,7 @@ void roadfighter::reset() {
 
 uint8_t roadfighter::m6809_read(m6809_state *s, uint16_t addr) {
   if (addr >= 0x4000)
-    return roadfighter_rom_main_raw[addr - 0x4000];
+    return main_raw_ptr[addr - 0x4000];
 
   // I/O reads (PRIMA del catch-all RAM, altrimenti il gioco legge RAM stantia)
   if (addr == 0x1600) return ROADF_DSW2;
@@ -99,7 +109,7 @@ uint8_t roadfighter::m6809_read(m6809_state *s, uint16_t addr) {
 
 uint8_t roadfighter::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   if (addr >= 0x4000)
-    return roadfighter_rom_main_decrypted[addr - 0x4000];
+    return main_decrypted_ptr[addr - 0x4000];
   return m6809_read(s, addr);
 }
 
@@ -177,7 +187,7 @@ unsigned char roadfighter::opZ80(unsigned short Addr) { return rdZ80(Addr); }
 
 unsigned char roadfighter::rdZ80(unsigned short Addr) {
   if (Addr < 0x4000)
-    return roadfighter_rom_audio[Addr & 0x1FFF];
+    return audio_rom_ptr[Addr & 0x1FFF];
   if ((Addr & 0xF000) == 0x4000)
     return snd_ram[Addr & 0x0FFF];
   if (Addr == 0x6000)

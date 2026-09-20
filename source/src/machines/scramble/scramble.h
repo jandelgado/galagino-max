@@ -159,6 +159,10 @@ private:
 
   unsigned char *cpu2_ram      = memory + CPU2_RAM_OFFSET;
 
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_main_ptr = nullptr;
+  const unsigned char *rom_audio_ptr = nullptr;
+
   static_assert(CPU2_MEM_FREE <= RAMSIZE, "RAMSIZE is too low");
 
   static constexpr int AY1_ADDR_PORT = 0x10;

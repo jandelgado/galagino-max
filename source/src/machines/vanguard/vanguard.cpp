@@ -44,6 +44,7 @@ void vanguard::start() {
   color_ram=memory+0xc00; char_ram=memory+0x1000;
   for (int i=0;i<64;i++) palette[i]=pen(vanguard_proms[i]);
   m_cpu.read=main_read; m_cpu.write=main_write; m_cpu.fetch=nullptr; m_cpu.user=this;
+  rom_ptr = vanguard_rom.data();
   reset();
 }
 
@@ -60,8 +61,8 @@ void vanguard::reset() {
 uint8_t vanguard::main_read(m6502_t *cpu, uint16_t a) {
   vanguard *s=static_cast<vanguard*>(cpu->user);
   if (a<0x2000) return s->memory[a];
-  if (a>=0x4000 && a<0xc000) return vanguard_rom[a-0x4000];
-  if (a>=0xf000) return vanguard_rom[0x4000+(a&0xfff)];
+  if (a>=0x4000 && a<0xc000) return s->rom_ptr[a-0x4000];
+  if (a>=0xf000) return s->rom_ptr[0x4000+(a&0xfff)];
   unsigned char k=s->input->buttons_get();
   if (a==0x3104) {
     unsigned char v=0;
@@ -143,6 +144,8 @@ void vanguard::run_frame() {
 }
 
 void vanguard::render_row(short strip) {
+  // Hoisted: data() checks the cache on every call.
+  const unsigned char *gfx = vanguard_gfx.data();
   for(int oy=0;oy<8;oy++){
     int py=strip*8+oy-16; if(py<0||py>=256)continue;
     uint16_t *dst=frame_buffer+oy*224;
@@ -161,7 +164,7 @@ void vanguard::render_row(short strip) {
         bcode=bg_ram[ti];bcolor=(color_ram[ti]>>3)&7;last_brow=brow;
       }
       unsigned short base=(bcode<<3)+(by&7);
-      unsigned char bpix=(vanguard_gfx[base]&bmask?1:0)|(vanguard_gfx[base+0x800]&bmask?2:0);
+      unsigned char bpix=(gfx[base]&bmask?1:0)|(gfx[base+0x800]&bmask?2:0);
       unsigned char pi=bpix?(32+bcolor*4+bpix):(32+backcolor*4);
 
       int frow=sy>>3;

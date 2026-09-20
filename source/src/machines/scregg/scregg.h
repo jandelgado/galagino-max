@@ -52,6 +52,9 @@ private:
     unsigned char flip_x, flip_y;
   } sprite_list[8];
   unsigned char sprite_count = 0;
+
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_ptr = nullptr;
 };
 
 #endif

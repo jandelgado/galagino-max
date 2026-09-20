@@ -222,6 +222,8 @@ void dkong3::start() {
     video_ram   = memory + 0x1400;
     memset(memory, 0, 0x1800);
 
+    rom_ptr = dkong3_rom_cpu.data();
+
     memset(snd_ram,    0, sizeof(snd_ram));
     memset(dk3_samples,0, sizeof(dk3_samples));
     sound_latch[0] = sound_latch[1] = sound_latch[2] = 0;
@@ -275,12 +277,12 @@ void dkong3::reset() {
 // Z80 main CPU memory map
 // ---------------------------------------------------------------------------
 unsigned char dkong3::opZ80(unsigned short Addr) {
-    return dkong3_rom_cpu[Addr];
+    return rom_ptr[Addr];
 }
 
 unsigned char dkong3::rdZ80(unsigned short Addr) {
-    if (Addr < 0x6000)                         return dkong3_rom_cpu[Addr];
-    if (Addr >= 0x8000 && Addr <= 0x9FFF)      return dkong3_rom_cpu[Addr];
+    if (Addr < 0x6000)                         return rom_ptr[Addr];
+    if (Addr >= 0x8000 && Addr <= 0x9FFF)      return rom_ptr[Addr];
     if (Addr >= 0x6000 && Addr <= 0x6FFF)      return general_ram[Addr - 0x6000];
     if (Addr >= 0x7000 && Addr <= 0x73FF)      return sprite_ram[Addr - 0x7000];
     if (Addr >= 0x7400 && Addr <= 0x77FF)      return video_ram[Addr - 0x7400];

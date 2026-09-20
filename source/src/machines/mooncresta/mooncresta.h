@@ -113,5 +113,7 @@ private:
   uint8_t gfx_bank[4] = {0x00,0x00,0x00,0x00};
   uint8_t gfx_scroll;
 
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_ptr = nullptr;
 };
 #endif

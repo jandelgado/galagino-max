@@ -11,15 +11,19 @@ eyes::~eyes() {
 	eyes_sprites.release();
 }
 
+void eyes::start(void) {
+  rom_ptr = eyes_rom.data();
+}
+
 unsigned char eyes::opZ80(unsigned short Addr) {
-  return eyes_rom[Addr];
+  return rom_ptr[Addr];
 }
 
 unsigned char eyes::rdZ80(unsigned short Addr) {
   Addr &= 0x7fff;   // a15 is unused
 
   if(Addr < 16384)
-    return eyes_rom[Addr];
+    return rom_ptr[Addr];
 
   if((Addr & 0xf000) == 0x4000) {    
     // this includes spriteram 1

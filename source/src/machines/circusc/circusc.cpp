@@ -5,6 +5,12 @@
 #include "circusc_spritemap.h"
 #include "circusc_cmap.h"
 
+circusc::circusc() {
+	// In ctor: m6809_reset() reads the reset vector through these.
+	main_rom_ptr = circusc_main_rom.data();
+	audio_rom_ptr = circusc_audio_rom.data();
+}
+
 circusc::~circusc() {
 	circusc_main_rom.release();
 	circusc_audio_rom.release();
@@ -51,14 +57,14 @@ void circusc::start() {
 unsigned char IRAM_ATTR circusc::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   if (addr >= 0x6000) {
     uint8_t xormask = ((addr & 0x02) ? 0x80 : 0x20) | ((addr & 0x08) ? 0x08 : 0x02);
-    return circusc_main_rom[addr - 0x6000] ^ xormask;
+    return main_rom_ptr[addr - 0x6000] ^ xormask;
   }
   return m6809_read(s, addr);
 }
 
 unsigned char IRAM_ATTR circusc::m6809_read(m6809_state *s, uint16_t addr) {
   if (addr >= 0x6000)
-    return circusc_main_rom[addr - 0x6000];
+    return main_rom_ptr[addr - 0x6000];
 
   if ((addr & 0xE000) == 0x2000)          // RAM 0x2000-0x3FFF
     return memory[addr - 0x2000];
@@ -137,12 +143,12 @@ void IRAM_ATTR circusc::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) 
 // Z80 audio
 // ============================================================
 unsigned char circusc::opZ80(unsigned short Addr) {
-  if (Addr < 0x4000) return circusc_audio_rom[Addr];
+  if (Addr < 0x4000) return audio_rom_ptr[Addr];
   return 0xFF;
 }
 
 unsigned char circusc::rdZ80(unsigned short Addr) {
-  if (Addr < 0x4000) return circusc_audio_rom[Addr];
+  if (Addr < 0x4000) return audio_rom_ptr[Addr];
 
   if ((Addr & 0xE000) == 0x4000)          // RAM 1KB (mirror su 0x4000-0x5FFF)
     return snd_ram[Addr & 0x3FF];

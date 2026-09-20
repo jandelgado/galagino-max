@@ -23,7 +23,7 @@
 class tutankhm : public machineBase
 {
 public:
-    tutankhm() { }
+    tutankhm();
     ~tutankhm();
 
     void start() override;
@@ -79,6 +79,10 @@ private:
     // ROM bank select
     unsigned char bank_select;
 
+    // Cached: hot path reads these per access; data() checks the cache on every call.
+    const unsigned char *rom_ptr = nullptr;
+    const unsigned char *bank_rom_ptr = nullptr;
+    const unsigned char *snd_rom_ptr = nullptr;
 };
 
 #endif

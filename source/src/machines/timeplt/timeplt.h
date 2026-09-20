@@ -45,6 +45,7 @@ public:
   ~timeplt();
 
   signed char machineType() override { return MCH_TIMEPLT; }
+  void start(void) override;
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
   unsigned char opZ80(unsigned short Addr) override;
@@ -87,6 +88,9 @@ private:
   unsigned char ay_addr[2];
   unsigned char ay_regs[2][16];
 
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_ptr = nullptr;
+  const unsigned char *snd_rom_ptr = nullptr;
 };
 
 #endif

@@ -50,6 +50,7 @@ public:
 
   signed char machineType() override { return MCH_SUPERCOBRA; }
 
+  void start(void) override;
   unsigned char opZ80(unsigned short Addr) override;
   unsigned char rdZ80(unsigned short Addr) override;
   unsigned char inZ80(unsigned short Port) override;
@@ -136,5 +137,8 @@ private:
   static constexpr int AY1_OFFSET = 0x00;
   static constexpr int AY2_OFFSET = 0x10;
 
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_main_ptr = nullptr;
+  const unsigned char *rom_audio_ptr = nullptr;
 };
 #endif

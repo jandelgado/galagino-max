@@ -12,11 +12,18 @@ supercobra::~supercobra() {
 	supercobra_tilemap.release();
 }
 
+// supercobra has its own ROMs; scramble::start() does not cache them.
+void supercobra::start(void) {
+  scramble::start();
+  rom_main_ptr = supercobra_main_rom.data();
+  rom_audio_ptr = supercobra_audio_rom.data();
+}
+
 unsigned char supercobra::opZ80(unsigned short Addr) {
   if (current_cpu == 0 && Addr < CPU1_ROM_SIZE)
-    return supercobra_main_rom[Addr];
+    return rom_main_ptr[Addr];
   if (current_cpu == 1 && Addr < CPU2_ROM_SIZE)
-    return supercobra_audio_rom[Addr];
+    return rom_audio_ptr[Addr];
 
   return 0x00; // 0x00 - NOP 0xff RST38
 }
@@ -25,7 +32,7 @@ unsigned char supercobra::rdZ80(unsigned short Addr) {
 
   if(current_cpu == 0) {
     if (Addr < CPU1_ROM_SIZE)
-      return supercobra_main_rom[Addr];
+      return rom_main_ptr[Addr];
 
     if (Addr >= CPU1_RAM_ADDR && Addr < CPU1_RAM_ADDR + CPU1_RAM_SIZE)
       return cpu_ram[Addr - CPU1_RAM_ADDR];
@@ -98,7 +105,7 @@ unsigned char supercobra::rdZ80(unsigned short Addr) {
   }
   else {
     if (Addr < CPU2_ROM_SIZE)
-      return supercobra_audio_rom[Addr];
+      return rom_audio_ptr[Addr];
 
     if (Addr >= CPU2_RAM_ADDR && Addr < CPU2_RAM_ADDR + CPU2_RAM_SIZE)
       return cpu2_ram[Addr - CPU2_RAM_ADDR];

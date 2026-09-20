@@ -39,6 +39,9 @@ void bnj::start() {
   bnj_bgtiles.data();
   bnj_rom_audio.data();
 
+  rom_main_ptr = bnj_rom_main.data();
+  rom_audio_ptr = bnj_rom_audio.data();
+
   work_ram  = memory + WORK_RAM_OFFSET;
   video_ram = memory + VIDEORAM_OFFSET;
   color_ram = memory + COLORRAM_OFFSET;
@@ -97,7 +100,7 @@ uint8_t bnj::main_read(m6502_t *cpu, uint16_t addr) {
 
   // ROM controllata per PRIMA (stesso motivo/fix performance di Burger Time:
   // e' il path piu' frequente ad ogni singola istruzione).
-  if (addr >= 0xa000) return bnj_rom_main[addr - 0xa000];
+  if (addr >= 0xa000) return s->rom_main_ptr[addr - 0xa000];
 
   if (addr < 0x0800) return s->work_ram[addr];
 
@@ -179,7 +182,7 @@ uint8_t bnj::audio_read(m6502_t *cpu, uint16_t addr) {
     cpu->irq = 0; // ack-on-read (stesso schema di btime, non separate_acknowledge)
     return s->sound_latch;
   }
-  if (addr >= 0xe000) return bnj_rom_audio[addr & 0x0fff];
+  if (addr >= 0xe000) return s->rom_audio_ptr[addr & 0x0fff];
   return 0xff;
 }
 

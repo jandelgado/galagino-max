@@ -96,6 +96,9 @@ private:
     unsigned char *sprite_ram;
     unsigned char *video_ram;
 
+    // Cached: hot path reads these per access; data() checks the cache on every call.
+    const unsigned char *rom_ptr = nullptr;
+
     // Sound latches (Z80 writes, RP2A03 reads)
     // latch[0]: $7C00 → CPU A $4016
     // latch[1]: $7C80 → CPU A $4017

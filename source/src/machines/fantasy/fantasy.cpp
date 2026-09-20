@@ -44,6 +44,7 @@ void fantasy::start() {
   fg_ram=memory+0x400; bg_ram=memory+0x800; color_ram=memory+0xc00; char_ram=memory+0x1000;
   for(int i=0;i<64;i++) palette[i]=pen(fantasy_proms[i]);
   m_cpu.read=main_read; m_cpu.write=main_write; m_cpu.fetch=nullptr; m_cpu.user=this;
+  rom_ptr = fantasy_rom.data();
   reset();
 }
 
@@ -59,8 +60,8 @@ void fantasy::reset() {
 uint8_t fantasy::main_read(m6502_t *cpu, uint16_t a) {
   fantasy *s=static_cast<fantasy *>(cpu->user);
   if(a<0x2000) return s->memory[a];
-  if(a>=0x3000 && a<0xc000) return fantasy_rom[a-0x3000];
-  if(a>=0xf000) return fantasy_rom[0x5000+(a&0x0fff)];
+  if(a>=0x3000 && a<0xc000) return s->rom_ptr[a-0x3000];
+  if(a>=0xf000) return s->rom_ptr[0x5000+(a&0x0fff)];
   unsigned char k=s->input->buttons_get();
   if(a==0x2104){
     unsigned char v=0;
@@ -133,6 +134,8 @@ void fantasy::run_frame() {
 }
 
 void fantasy::render_row(short strip) {
+  // Hoisted: data() checks the cache on every call.
+  const unsigned char *gfx = fantasy_gfx.data();
   for(int oy=0;oy<8;oy++){
     int py=strip*8+oy-16;if(py<0||py>=256)continue;
     uint16_t *dst=frame_buffer+oy*224;
@@ -150,7 +153,7 @@ void fantasy::render_row(short strip) {
       // In MAME's planar decoder plane 0 is the most significant pen bit.
       // Keeping the ROM order as bit 0 swapped palette pens 1 and 2 (for
       // example blue sea became green and cyan clouds became white).
-      unsigned char bpix=(fantasy_gfx[base]&bmask?2:0)|(fantasy_gfx[base+0x1000]&bmask?1:0);
+      unsigned char bpix=(gfx[base]&bmask?2:0)|(gfx[base+0x1000]&bmask?1:0);
       unsigned char pi=bpix?(32+bcolor*4+bpix):(32+backcolor*4);
       int frow=sy>>3;
       if(frow!=last_frow){

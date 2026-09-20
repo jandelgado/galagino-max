@@ -5,23 +5,19 @@ void digdug::reset() {
   sub_cpu_reset = 1;
 }
 
-unsigned char digdug::opZ80(unsigned short Addr) {
-  if (current_cpu == 0)
-    return digdug_rom_cpu1[Addr];
-  else if (current_cpu == 1)
-    return digdug_rom_cpu2[Addr];
-  else
-    return digdug_rom_cpu3[Addr];
+void digdug::start(void) {
+  rom_ptr[0] = digdug_rom_cpu1.data();
+  rom_ptr[1] = digdug_rom_cpu2.data();
+  rom_ptr[2] = digdug_rom_cpu3.data();
 }
 
-unsigned char digdug::rdZ80(unsigned short Addr) { 
+unsigned char digdug::opZ80(unsigned short Addr) {
+  return rom_ptr[(unsigned char)current_cpu][Addr];
+}
+
+unsigned char digdug::rdZ80(unsigned short Addr) {
   if(Addr < 16384) {
-    if (current_cpu == 0)
-      return digdug_rom_cpu1[Addr];
-    else if (current_cpu == 1)
-      return digdug_rom_cpu2[Addr];
-    else
-      return digdug_rom_cpu3[Addr];
+    return rom_ptr[(unsigned char)current_cpu][Addr];
   }
 
   /* video/sprite ram */

@@ -12,7 +12,8 @@ public:
 	dkongjr() { }
 	~dkongjr();
 
-	signed char machineType() override { return MCH_DKONGJR; } 
+	signed char machineType() override { return MCH_DKONGJR; }
+	void start(void) override;
 	unsigned char rdZ80(unsigned short Addr) override;
 	void wrZ80(unsigned short Addr, unsigned char Value) override;
 	unsigned char opZ80(unsigned short Addr) override;
@@ -31,6 +32,9 @@ private:
 	unsigned char palette_bank = 0; // bank-switching   byte (8 bit) 256 valori massimi  Banco 0: Contiene i tile dall'indice 0 al 255. Banco 1: Contiene i tile dall'indice 256 al 511.
 	unsigned char gfx_bank = 0; // bank-switching   byte (8 bit) 256 valori massimi  Banco 0: Contiene i tile dall'indice 0 al 255. Banco 1: Contiene i tile dall'indice 256 al 511.
 	unsigned char flip_screen = 0;//penso venga usata per tabletop io non penso di usarla
+
+	// Cached: hot path reads these per access; data() checks the cache on every call.
+	const unsigned char *rom_ptr = nullptr;
 };
 
 #endif

@@ -3,6 +3,13 @@
 #include "tutankhm_bank_rom.h"
 #include "tutankhm_snd_rom.h"
 
+tutankhm::tutankhm() {
+	// In ctor: m6809_reset() reads the reset vector through these.
+	rom_ptr = tutankhm_rom.data();
+	bank_rom_ptr = tutankhm_bank_rom.data();
+	snd_rom_ptr = tutankhm_snd_rom.data();
+}
+
 tutankhm::~tutankhm() {
 	tutankhm_rom.release();
 	tutankhm_bank_rom.release();
@@ -34,7 +41,7 @@ void tutankhm::start() {
 
 unsigned char tutankhm::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   if (addr >= 0xA000)
-    return tutankhm_rom[addr - 0xA000];
+    return rom_ptr[addr - 0xA000];
 
   return 0xff;
 }
@@ -100,11 +107,11 @@ unsigned char tutankhm::m6809_read(m6809_state *s, uint16_t addr) {
 
   // Banked ROM 0x9000-0x9FFF (4KB, selected by write to 0x8300)
   if (addr >= 0x9000 && addr <= 0x9FFF)
-    return tutankhm_bank_rom[bank_select * 0x1000 + (addr - 0x9000)];
+    return bank_rom_ptr[bank_select * 0x1000 + (addr - 0x9000)];
 
   // Fixed ROM 0xA000-0xFFFF (24KB: m1+m2+3j+m4+m5+j6)
   if (addr >= 0xA000)
-    return tutankhm_rom[addr - 0xA000];
+    return rom_ptr[addr - 0xA000];
 
   return 0xFF;
 }
@@ -207,14 +214,14 @@ unsigned short tutankhm::palette_to_rgb565(uint8_t val) {
 
 unsigned char tutankhm::opZ80(unsigned short Addr) {
   if (Addr < 0x2000)
-    return tutankhm_snd_rom[Addr];
+    return snd_rom_ptr[Addr];
 
   return 0xFF;
 }
 
 unsigned char tutankhm::rdZ80(unsigned short Addr) {
   if (Addr < 0x2000)
-    return tutankhm_snd_rom[Addr];
+    return snd_rom_ptr[Addr];
 
   // RAM 0x3000-0x3FFF (1KB mirrored)
   if (Addr >= 0x3000 && Addr <= 0x33FF)

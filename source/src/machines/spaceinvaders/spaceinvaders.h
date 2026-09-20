@@ -48,6 +48,7 @@ public:
     ~spaceinvaders();
 
     signed char machineType() override { return MCH_SPACEINVADERS; }
+    void start(void) override;
     unsigned char rdZ80(unsigned short Addr) override;
     void wrZ80(unsigned short Addr, unsigned char Value) override;
     void outZ80(unsigned short Port, unsigned char Value) override;
@@ -79,6 +80,8 @@ private:
     // Color overlay lookup (RGB565 byte-swapped)
     unsigned short get_pixel_color(int y);
 
+    // Cached: hot path reads these per access; data() checks the cache on every call.
+    const unsigned char *rom_ptr = nullptr;
 };
 
 #endif

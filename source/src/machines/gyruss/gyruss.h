@@ -48,7 +48,7 @@
 class gyruss : public machineBase
 {
 public:
-    gyruss() { }
+    gyruss();
     ~gyruss();
 
     void start() override;
@@ -164,6 +164,11 @@ private:
     unsigned char multiplexUsed;
     unsigned char multiplexUsedPart1 = 0;
 
+    // Cached: hot path reads these per access; data() checks the cache on every call.
+    const unsigned char *main_rom_ptr = nullptr;
+    const unsigned char *audio_rom_ptr = nullptr;
+    const unsigned char *sub_raw_ptr = nullptr;
+    const unsigned char *sub_decrypt_ptr = nullptr;
 };
 
 #endif

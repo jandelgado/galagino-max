@@ -43,6 +43,7 @@ public:
   ~ladybug();
 
   void reset() override;
+  void start(void) override;
   signed char machineType() override { return MCH_LADYBUG; }
   signed char videoFlipX() override { return 1; }
   signed char videoFlipY() override { return 1; }
@@ -82,6 +83,9 @@ private:
 
   // Coin NMI tracking
   unsigned char coinPrev = 0;
+
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_ptr = nullptr;
 };
 
 #endif
