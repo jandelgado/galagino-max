@@ -11,15 +11,20 @@ timeplt::~timeplt() {
 	timeplt_spritemap.release();
 }
 
+void timeplt::start(void) {
+  rom_ptr = timeplt_rom.data();
+  snd_rom_ptr = timeplt_snd_rom.data();
+}
+
 unsigned char timeplt::opZ80(unsigned short Addr) {
   if(current_cpu == 0) {
     if(Addr < 0x6000)
-      return timeplt_rom[Addr];
+      return rom_ptr[Addr];
   }
   else {
     // Sound CPU ROM 0x0000-0x0FFF (4KB data)
     if(Addr < 0x1000)
-      return timeplt_snd_rom[Addr];
+      return snd_rom_ptr[Addr];
     // 0x1000-0x2FFF mapped as ROM but no data (returns 0xFF)
   }
   return 0xff;
@@ -30,7 +35,7 @@ unsigned char timeplt::rdZ80(unsigned short Addr) {
     // ---- Sound CPU memory map (MAME: timeplt_sound_map) ----
     // ROM 0x0000-0x2FFF (only 0x0000-0x0FFF has data)
     if(Addr < 0x1000)
-      return timeplt_snd_rom[Addr];
+      return snd_rom_ptr[Addr];
 
     if(Addr < 0x3000)
       return 0xFF;  // unmapped ROM space
@@ -66,7 +71,7 @@ unsigned char timeplt::rdZ80(unsigned short Addr) {
   // ---- Main CPU memory map ----
   // ROM 0x0000-0x5FFF
   if(Addr < 0x6000)
-    return timeplt_rom[Addr];
+    return rom_ptr[Addr];
 
   // Color RAM 0xA000-0xA3FF
   if(Addr >= 0xA000 && Addr <= 0xA3FF)

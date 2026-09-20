@@ -103,6 +103,11 @@ public:
   void prepare_frame(void) override;
   void render_row(short row) override;
 
+#ifdef LED_PIN
+  static void menuLeds(CRGB *leds);
+  void gameLeds(CRGB *leds) override;
+#endif
+
 protected:
   void blit_tile(short row, char col) override;
   void blit_sprite(short row, unsigned char s) override;
@@ -136,6 +141,7 @@ private:
   uint8_t *work_ram;
   uint8_t *video_ram;
   uint8_t *sprite_ram;
+
   uint8_t last_coin = 0;
 
   uint16_t bg_position = 0;   // fff8/fff9, 11 bits

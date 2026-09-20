@@ -47,6 +47,9 @@ void burgertime::start() {
   burgertime_rom_audio.data();
   burgertime_bgmap.data();
 
+  rom_main_ptr = burgertime_rom_main.data();
+  rom_audio_ptr = burgertime_rom_audio.data();
+
   work_ram  = memory + WORK_RAM_OFFSET;
   video_ram = memory + VIDEORAM_OFFSET;
   color_ram = memory + COLORRAM_OFFSET;
@@ -123,7 +126,7 @@ uint8_t burgertime::main_read(m6502_t *cpu, uint16_t addr) {
   // versione controllava RAM/video/color PRIMA della ROM, penalizzando
   // il percorso piu' caldo ad ogni singola istruzione eseguita (misurato
   // con DEBUG_TIMING: CPU quasi al 100% del budget per frame).
-  if (addr >= 0xb000) return burgertime_rom_main[addr - 0xb000];
+  if (addr >= 0xb000) return s->rom_main_ptr[addr - 0xb000];
 
   if (addr < 0x0800) return s->work_ram[addr];
   if (addr >= 0x1000 && addr < 0x1400) return s->video_ram[addr - 0x1000];
@@ -206,7 +209,7 @@ uint8_t burgertime::audio_read(m6502_t *cpu, uint16_t addr) {
     cpu->irq = 0;
     return s->sound_latch;
   }
-  if (addr >= 0xe000) return burgertime_rom_audio[addr & 0x0fff];
+  if (addr >= 0xe000) return s->rom_audio_ptr[addr & 0x0fff];
   return 0xff;
 }
 

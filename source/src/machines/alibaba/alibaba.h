@@ -36,6 +36,7 @@ public:
 
 	signed char machineType() override { return MCH_ALIBABA; }
 
+	void start(void) override;
 	unsigned char rdZ80(unsigned short Addr) override;
 	void wrZ80(unsigned short Addr, unsigned char Value) override;
 	unsigned char opZ80(unsigned short Addr) override;
@@ -60,6 +61,9 @@ private:
 	unsigned char mystery_control = 0;
 	unsigned char mystery_clock = 0;
 	unsigned char mystery_prescaler = 0;
+
+	// Cached: hot path reads these per access; data() checks the cache on every call.
+	const unsigned char *rom_ptr = nullptr;
 };
 
 #endif

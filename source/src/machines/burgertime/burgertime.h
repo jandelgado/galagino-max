@@ -126,6 +126,11 @@ protected:
 private:
   unsigned char burgertime_tilemap[4] = {0, 0, 0, 0};
 
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  // Private: bnj has its own ROMs and pointers.
+  const unsigned char *rom_main_ptr = nullptr;
+  const unsigned char *rom_audio_ptr = nullptr;
+
   // --- CPU 6502 principale: fetch cifrato CPU-7 (SOLO Burger Time, bnj
   // usa un fetch statico diverso, vedi bnj.h) ---
   bool cpu7_had_written = false;

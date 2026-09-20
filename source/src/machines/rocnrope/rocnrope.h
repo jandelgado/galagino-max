@@ -57,7 +57,7 @@
 class rocnrope : public machineBase
 {
 public:
-  rocnrope() {}
+  rocnrope();
   ~rocnrope();
 
   signed char machineType() override { return MCH_ROCNROPE; }
@@ -110,6 +110,9 @@ private:
   uint8_t ay_regs[2][16];
   unsigned long snd_icnt = 0;
 
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *main_rom_ptr = nullptr;
+  const unsigned char *audio_rom_ptr = nullptr;
 };
 
 #endif

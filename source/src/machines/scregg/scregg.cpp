@@ -35,6 +35,7 @@ void scregg::start() {
   m_cpu.write = main_write;
   m_cpu.fetch = nullptr;
   m_cpu.user = this;
+  rom_ptr = scregg_rom.data();
   m6502_reset(&m_cpu);
 }
 
@@ -55,8 +56,8 @@ void scregg::reset() {
 
 uint8_t scregg::main_read(m6502_t *cpu, uint16_t addr) {
   scregg *s = static_cast<scregg *>(cpu->user);
-  if (addr >= 0x3000 && addr < 0x8000) return scregg_rom[addr - 0x3000];
-  if (addr >= 0xf000) return scregg_rom[0x4000 + (addr & 0x0fff)];
+  if (addr >= 0x3000 && addr < 0x8000) return s->rom_ptr[addr - 0x3000];
+  if (addr >= 0xf000) return s->rom_ptr[0x4000 + (addr & 0x0fff)];
   if (addr < 0x0800) return s->work_ram[addr];
   if (addr >= 0x1000 && addr < 0x1400) return s->video_ram[addr - 0x1000];
   if (addr >= 0x1400 && addr < 0x1800) return s->color_ram[addr - 0x1400];
@@ -168,13 +169,15 @@ void scregg::blit_tile(short row, char col) {
   }
   unsigned short offs = 32 * (31 - xTile) + yTile;
   unsigned short code = video_ram[offs] + 256 * (color_ram[offs] & 3);
+  // Hoisted: data() checks the cache on every call.
+  const auto &tile = scregg_chartiles.data()[code];
   for (int y = 0; y < 8; y++) {
     unsigned short *dst = frame_buffer + y * 240;
     for (int x = 0; x < 8; x++) {
       int source_y = flip_screen ? y : 7 - y;
       int source_x = flip_screen ? x : 7 - x;
       int output_x = col * 8 + x;
-      dst[output_x] = palette[scregg_chartiles[code][source_y][source_x]];
+      dst[output_x] = palette[tile[source_y][source_x]];
     }
   }
 }
@@ -182,6 +185,8 @@ void scregg::blit_tile(short row, char col) {
 void scregg::blit_sprite(short row, unsigned char index) {
   const scregg_sprite_s &sp = sprite_list[index];
   short band = row * 8;
+  // Hoisted: data() checks the cache on every call.
+  const auto &tile = scregg_spritetiles.data()[sp.code];
   for (int y = 0; y < 16; y++) {
     short py = sp.y + y;
     if (py < band || py >= band + 8) continue;
@@ -192,7 +197,7 @@ void scregg::blit_sprite(short row, unsigned char index) {
         short px = sp.x + wrap + x;
         if (px < 0 || px >= 240) continue;
         int sx = sp.flip_y ? x : 15 - x;
-        unsigned char pen = scregg_spritetiles[sp.code][sy][sx];
+        unsigned char pen = tile[sy][sx];
         if (pen) dst[px] = palette[pen];
       }
     }

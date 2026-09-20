@@ -44,16 +44,20 @@ motorace::~motorace() {
 #define ARCADE_Y_OFFSET 16  // shift portrait_y -> fb_x per centrare il game
 
 // ── Z80 instruction fetch ──
+void motorace::start(void) {
+  rom_ptr = motorace_rom.data();
+}
+
 unsigned char motorace::opZ80(unsigned short Addr) {
   if (Addr < 0x8000)
-    return motorace_rom[Addr];
+    return rom_ptr[Addr];
   return 0xFF;
 }
 
 // ── Z80 memory read ──
 unsigned char motorace::rdZ80(unsigned short Addr) {
   if (Addr < 0x8000)
-    return motorace_rom[Addr];
+    return rom_ptr[Addr];
 
   if (Addr >= 0x8000 && Addr <= 0x8FFF)
     return memory[MR_MEM_VRAM + (Addr - 0x8000)];

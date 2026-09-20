@@ -43,6 +43,7 @@ public:
   void init(Input *input, unsigned short *framebuffer,
             sprite_S *spritebuffer, unsigned char *memorybuffer) override;
   void reset() override;
+  void start(void) override;
 
   signed char machineType()      override { return MCH_PHOENIX; }
 
@@ -70,6 +71,9 @@ private:
   // VBLANK polling (no IRQ): pilotato deterministicamente in 2 fasi dentro
   // run_frame (vblank_active=true → bit 7 = 0; false → bit 7 = 1).
   bool vblank_active = false;
+
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_ptr = nullptr;
 };
 
 #endif

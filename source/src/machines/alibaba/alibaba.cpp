@@ -12,8 +12,12 @@ alibaba::~alibaba() {
 	alibaba_clockmap.release();
 }
 
+void alibaba::start(void) {
+  rom_ptr = alibaba_rom.data();
+}
+
 unsigned char alibaba::opZ80(unsigned short Addr) {
-  return alibaba_rom[Addr];
+  return rom_ptr[Addr];
 }
 
 unsigned char alibaba::rdZ80(unsigned short Addr) {
@@ -24,15 +28,15 @@ unsigned char alibaba::rdZ80(unsigned short Addr) {
   // Mascherarlo farebbe leggere/eseguire i dati sbagliati per quegli indirizzi.
 
   if(Addr < 0x4000)
-    return alibaba_rom[Addr];
+    return rom_ptr[Addr];
 
   // banchi ROM extra: 0x8000-0x8fff (6l) e 0xa000-0xbfff (6m, mirror(0x1800)
   // per MAME -> replicato 4 volte in alibaba_rom.h). Letture DATI (non solo
   // fetch istruzioni via opZ80) devono vedere questi byte, non 0xff.
   if(Addr >= 0x8000 && Addr <= 0x8fff)
-    return alibaba_rom[Addr];
+    return rom_ptr[Addr];
   if(Addr >= 0xa000 && Addr <= 0xbfff)
-    return alibaba_rom[Addr];
+    return rom_ptr[Addr];
 
   // videoram/colorram/spriteram1, identico al layout pacman base.
   // ATTENZIONE: in MAME la RAM ha mirror(0xa000) -- i bit 13 e 15 NON sono

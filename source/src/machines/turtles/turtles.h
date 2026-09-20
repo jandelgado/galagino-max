@@ -95,6 +95,9 @@ private:
 
   unsigned char bg_r = 0, bg_g = 0, bg_b = 0;
 
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_main_ptr = nullptr;
+  const unsigned char *rom_audio_ptr = nullptr;
 };
 
 #endif

@@ -16,6 +16,7 @@ public:
   ~mrdo();
 
   void reset() override;
+  void start(void) override;
   signed char machineType() override { return MCH_MRDO; }
   signed char videoFlipY() override { return 1; }
   signed char useVideoHalfRate() override { return 1; } 
@@ -51,6 +52,8 @@ private:
   unsigned char ignoreFireButton;
   int sn_last_register[2];
 
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_ptr = nullptr;
 };
 
 #endif

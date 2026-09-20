@@ -27,28 +27,35 @@ void mspacman::reset() {
   decode = false;
 }
 
+// pacman::start() caches pacman_rom, used in Pac-Man mode.
+void mspacman::start(void) {
+  pacman::start();
+  pacrom_ptr = mspacman_pacrom.data();
+  auxrom_ptr = mspacman_auxrom.data();
+}
+
 unsigned char mspacman::opZ80(unsigned short Addr) {
   // ENABLE trap: lettura di 0x3FF8-0x3FFF attiva Ms.Pac-Man mode
   if(Addr >= 0x3FF8 && Addr <= 0x3FFF) {
     decode = true;
-    return mspacman_pacrom[Addr];
+    return pacrom_ptr[Addr];
   }
 
   // DISABLE trap: lettura di alcune zone attiva Pac-Man mode
   if(mspacman_is_disable_trap(Addr)) {
     decode = false;
-    return (Addr < 0x4000) ? pacman_rom[Addr] : pacman_rom[Addr & 0x3FFF];
+    return (Addr < 0x4000) ? rom_ptr[Addr] : rom_ptr[Addr & 0x3FFF];
   }
 
   // Lettura normale in base allo stato decode
   if(Addr < 0x4000)
-    return decode ? mspacman_pacrom[Addr] : pacman_rom[Addr];
+    return decode ? pacrom_ptr[Addr] : rom_ptr[Addr];
 
   if(Addr >= 0x8000 && Addr < 0xA000)
-    return decode ? mspacman_auxrom[Addr - 0x8000] : pacman_rom[Addr & 0x3FFF];
+    return decode ? auxrom_ptr[Addr - 0x8000] : rom_ptr[Addr & 0x3FFF];
 
   if(Addr >= 0xA000)
-    return decode ? mspacman_pacrom[Addr - 0x8000] : pacman_rom[Addr & 0x3FFF];
+    return decode ? pacrom_ptr[Addr - 0x8000] : rom_ptr[Addr & 0x3FFF];
 
   return 0xFF;
 }
@@ -57,24 +64,24 @@ unsigned char mspacman::rdZ80(unsigned short Addr) {
   // ENABLE trap
   if(Addr >= 0x3FF8 && Addr <= 0x3FFF) {
     decode = true;
-    return mspacman_pacrom[Addr];
+    return pacrom_ptr[Addr];
   }
 
   // DISABLE trap
   if(mspacman_is_disable_trap(Addr)) {
     decode = false;
-    return (Addr < 0x4000) ? pacman_rom[Addr] : pacman_rom[Addr & 0x3FFF];
+    return (Addr < 0x4000) ? rom_ptr[Addr] : rom_ptr[Addr & 0x3FFF];
   }
 
   // ROM
   if(Addr < 0x4000)
-    return decode ? mspacman_pacrom[Addr] : pacman_rom[Addr];
+    return decode ? pacrom_ptr[Addr] : rom_ptr[Addr];
 
   if(Addr >= 0x8000 && Addr < 0xA000)
-    return decode ? mspacman_auxrom[Addr - 0x8000] : pacman_rom[Addr & 0x3FFF];
+    return decode ? auxrom_ptr[Addr - 0x8000] : rom_ptr[Addr & 0x3FFF];
 
   if(Addr >= 0xA000)
-    return decode ? mspacman_pacrom[Addr - 0x8000] : pacman_rom[Addr & 0x3FFF];
+    return decode ? pacrom_ptr[Addr - 0x8000] : rom_ptr[Addr & 0x3FFF];
 
   // VRAM/RAM
   if((Addr & 0xF000) == 0x4000)

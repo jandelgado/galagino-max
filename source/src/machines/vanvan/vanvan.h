@@ -39,6 +39,7 @@ public:
   ~vanvan();
 
   void reset() override;
+  void start(void) override;
   signed char machineType() override { return MCH_VANVAN; }
   signed char videoFlipY() override { return 1; }
 
@@ -69,6 +70,9 @@ private:
   unsigned short startupFrameCount = 0;
   unsigned long lastFrameMs = 0;
 
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_ptr = nullptr;
+  const unsigned char *rom2_ptr = nullptr;
 };
 
 #endif

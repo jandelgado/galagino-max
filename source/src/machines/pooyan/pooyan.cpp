@@ -11,15 +11,20 @@ pooyan::~pooyan() {
 	pooyan_spritemap.release();
 }
 
+void pooyan::start(void) {
+  rom_ptr = pooyan_rom.data();
+  snd_rom_ptr = pooyan_snd_rom.data();
+}
+
 unsigned char pooyan::opZ80(unsigned short Addr) {
   if(current_cpu == 0) {
     if(Addr < 0x8000)
-      return pooyan_rom[Addr];
+      return rom_ptr[Addr];
   }
   else {
     // Sound CPU ROM 0x0000-0x1FFF (8KB data)
     if(Addr < 0x2000)
-      return pooyan_snd_rom[Addr];
+      return snd_rom_ptr[Addr];
     // 0x2000-0x2FFF mapped as ROM but no data (returns 0xFF)
   }
   return 0xff;
@@ -30,7 +35,7 @@ unsigned char pooyan::rdZ80(unsigned short Addr) {
     // ---- Sound CPU memory map (MAME: timeplt_sound_map) ----
     // ROM 0x0000-0x2FFF (only 0x0000-0x1FFF has data)
     if(Addr < 0x2000)
-      return pooyan_snd_rom[Addr];
+      return snd_rom_ptr[Addr];
 
     if(Addr < 0x3000)
       return 0xFF;  // unmapped ROM space
@@ -67,7 +72,7 @@ unsigned char pooyan::rdZ80(unsigned short Addr) {
   // ---- Main CPU memory map ----
   // ROM 0x0000-0x7FFF
   if(Addr < 0x8000)
-    return pooyan_rom[Addr];
+    return rom_ptr[Addr];
 
   // Color RAM 0x8000-0x83FF
   if(Addr <= 0x83FF)

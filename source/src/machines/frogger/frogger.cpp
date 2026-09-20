@@ -13,19 +13,24 @@ frogger::~frogger() {
 	frogger_sprites.release();
 }
 
+void frogger::start(void) {
+  rom_cpu1_ptr = frogger_rom_cpu1.data();
+  rom_cpu2_ptr = frogger_rom_cpu2.data();
+}
+
 unsigned char frogger::opZ80(unsigned short Addr) {
   if (current_cpu == 0)
-    return frogger_rom_cpu1[Addr];
+    return rom_cpu1_ptr[Addr];
   else
-    return frogger_rom_cpu2[Addr];
+    return rom_cpu2_ptr[Addr];
 }
 
 unsigned char frogger::rdZ80(unsigned short Addr) {
   // frogger main cpu
   if(current_cpu == 0) {
-    
+
     if(Addr < 16384)
-      return frogger_rom_cpu1[Addr];
+      return rom_cpu1_ptr[Addr];
 
     // 0x8000 - 0x87ff - main RAM
     if((Addr & 0xf800) == 0x8000) return memory[Addr - 0x8000];
@@ -67,7 +72,7 @@ unsigned char frogger::rdZ80(unsigned short Addr) {
     }
   } else {
     // frogger audio cpu
-    if(Addr <  6144) return frogger_rom_cpu2[Addr];
+    if(Addr <  6144) return rom_cpu2_ptr[Addr];
     
     // main ram
     if((Addr & 0xfc00) == 0x4000) return memory[Addr - 0x4000 + 0x1000];

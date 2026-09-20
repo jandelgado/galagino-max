@@ -20,8 +20,9 @@ public:
   ~bombjack();
 
   void reset() override;
-  signed char machineType() override { return MCH_BOMBJACK; } 
-  signed char useVideoHalfRate() override { return 1; } 
+  void start(void) override;
+  signed char machineType() override { return MCH_BOMBJACK; }
+  signed char useVideoHalfRate() override { return 1; }
 
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
@@ -57,6 +58,9 @@ private:
   bool m_mmi_skip_audio_cpu;
   bool m_flip;                // Flag per lo screen flip
 
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_cpu1_ptr = nullptr;
+  const unsigned char *rom_cpu2_ptr = nullptr;
 };
 
 #endif

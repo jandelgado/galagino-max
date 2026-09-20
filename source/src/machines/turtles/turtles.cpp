@@ -16,6 +16,9 @@ turtles::~turtles() {
 void turtles::start() {
   ignoreFireButton = 1;
   game_started = 1;
+
+  rom_main_ptr = turtles_main_rom.data();
+  rom_audio_ptr = turtles_audio_rom.data();
 }
 
 void turtles::run_frame(void) {
@@ -40,16 +43,16 @@ void turtles::run_frame(void) {
 
 unsigned char turtles::opZ80(unsigned short Addr) {
   if (current_cpu == 0 && Addr < CPU1_ROM_SIZE)
-    return turtles_main_rom[Addr];
+    return rom_main_ptr[Addr];
   if (current_cpu == 1 && Addr < CPU2_ROM_SIZE)
-    return turtles_audio_rom[Addr];
+    return rom_audio_ptr[Addr];
   return 0x00;
 }
 
 unsigned char turtles::rdZ80(unsigned short Addr) {
   if (current_cpu == 0) {
     if (Addr < CPU1_ROM_SIZE)
-      return turtles_main_rom[Addr];
+      return rom_main_ptr[Addr];
 
     if (Addr >= CPU1_RAM_ADDR && Addr < CPU1_RAM_ADDR + CPU1_RAM_SIZE)
       return memory[Addr - CPU1_RAM_ADDR];
@@ -110,7 +113,7 @@ unsigned char turtles::rdZ80(unsigned short Addr) {
   else {
     // Audio CPU
     if (Addr < CPU2_ROM_SIZE)
-      return turtles_audio_rom[Addr];
+      return rom_audio_ptr[Addr];
 
     if (Addr >= CPU2_RAM_ADDR && Addr < CPU2_RAM_ADDR + CPU2_RAM_SIZE)
       return memory[CPU2_RAM_OFFSET + Addr - CPU2_RAM_ADDR];

@@ -28,8 +28,9 @@ public:
     galaga_sprites.release();
   }
 
-  signed char machineType() override { return MCH_GALAGA; } 
-  
+  signed char machineType() override { return MCH_GALAGA; }
+
+  void start(void) override;
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
   unsigned char opZ80(unsigned short Addr) override;
@@ -59,6 +60,9 @@ private:
   void render_stars_set(short row, const struct galaga_star *set);
   void trigger_sound_explosion(void);
   void check_galaga_sprite(struct sprite_S *spr);
+
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_ptr[3] = { nullptr, nullptr, nullptr };
 
   unsigned char led_state = 0;       // state set by game (usually video driver)
   unsigned char stars_scroll_y = 0;

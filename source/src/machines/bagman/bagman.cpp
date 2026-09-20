@@ -10,12 +10,16 @@ bagman::~bagman() {
 	bagman_sprites.release();
 }
 
+void bagman::start(void) {
+  rom_ptr = bagman_rom_cpu.data();
+}
+
 unsigned char bagman::opZ80(unsigned short Addr) {
-  return bagman_rom_cpu[Addr];
+  return rom_ptr[Addr];
 }
 
 unsigned char bagman::rdZ80(unsigned short Addr) {
-  if(Addr < 24576) return bagman_rom_cpu[Addr];
+  if(Addr < 24576) return rom_ptr[Addr];
     
   if((Addr >= 0x6000) && (Addr <= 0x67ff)) return memory[Addr - 0x6000];
 

@@ -26,7 +26,8 @@ public:
 	~starforce();
 
 	signed char machineType() override { return MCH_STARFORCE; }
-	signed char useVideoHalfRate() override { return 1; } 
+	signed char useVideoHalfRate() override { return 1; }
+	void start(void) override;
 
 	unsigned char opZ80(unsigned short Addr) override; 
 	unsigned char rdZ80(unsigned short Addr) override;
@@ -64,6 +65,9 @@ private:
 	unsigned char coinBackup = 0;
 	unsigned char coinFrameCounter = 0;
 
+	// Cached: hot path reads these per access; data() checks the cache on every call.
+	const unsigned char *rom_main_ptr = nullptr;
+	const unsigned char *rom_sub_ptr = nullptr;
 };
 
 #endif

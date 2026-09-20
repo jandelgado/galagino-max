@@ -13,8 +13,9 @@ public:
   ~anteater();
 
  	void reset() override;
+  void start(void) override;
 
-  signed char machineType() override { return MCH_ANTEATER; } 
+  signed char machineType() override { return MCH_ANTEATER; }
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
   void outZ80(unsigned short Port, unsigned char Value) override;
@@ -44,7 +45,10 @@ protected:
 private:
   unsigned char showCustomBackground;
   unsigned char ignoreFireButton;
-  
+
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_cpu1_ptr = nullptr;
+  const unsigned char *rom_cpu2_ptr = nullptr;
 };
 
 #endif

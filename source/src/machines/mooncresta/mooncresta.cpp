@@ -13,11 +13,13 @@ mooncresta::~mooncresta() {
 
 void mooncresta::start() {
   stars_init();
+
+  rom_ptr = mooncresta_rom.data();
 }
 
 unsigned char mooncresta::opZ80(unsigned short Addr) {
   if(Addr < 0x4000)
-    return mooncresta_rom[Addr];
+    return rom_ptr[Addr];
 
   return 0x00;
 }
@@ -25,7 +27,7 @@ unsigned char mooncresta::opZ80(unsigned short Addr) {
 unsigned char mooncresta::rdZ80(unsigned short Addr) {
 
   if (Addr < 0x4000)
-    return mooncresta_rom[Addr];
+    return rom_ptr[Addr];
 
   if (Addr >= MC_BASE_WORKRAM && Addr <= MC_BASE_WORKRAM + 0x03ff)
     return memory[Addr - MC_BASE_WORKRAM + MC_OFF_WORKRAM];

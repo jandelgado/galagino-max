@@ -287,7 +287,7 @@ void zaxxon::prepare_frame(void) {
   for (uint16_t j = 0; j < 224; j++) {
     const uint8_t ry = 239 - j;
     const uint16_t srcy = ry + (((bg_position_snapshot << 1) ^ 0xfff) + 1);
-    const uint16_t bg_row = srcy & 0xfff; // 4096-row plane
+    const uint16_t bg_row = srcy & 0xfff;  // 4096-row plane
     bg_tile_row_snapshot[j] = bg_row >> 3; // 0-511
     bg_sub_bg_y_snapshot[j] = 7 - (bg_row & 7);
   }
@@ -528,3 +528,53 @@ void zaxxon::blit_sprite(short row, unsigned char s) {
     }
   }
 }
+
+#ifdef LED_PIN
+static const CRGB ZAXXON_LED_DARKBLUE(0x000033);
+static const CRGB ZAXXON_LED_LIGHTBLUE(0x3399ff);
+
+void zaxxon::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[NUM_LEDS] = {
+      ZAXXON_LED_DARKBLUE, LED_BLUE, ZAXXON_LED_LIGHTBLUE, LED_CYAN,
+      ZAXXON_LED_LIGHTBLUE, LED_BLUE, ZAXXON_LED_DARKBLUE};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
+}
+
+void zaxxon::gameLeds(CRGB *leds) {
+  static int explosion_cnt = 0;
+  // bg_color_bank (fffb) turns red on fuel alarm and player hit.
+  if (bg_color_bank && explosion_cnt == 0) {
+      explosion_cnt = 90;  // show explosion fx for 1.5s
+  }
+  if (explosion_cnt > 0) {
+    for (uint8_t c = 0; c < NUM_LEDS; c++) {
+      leds[c] = (random(2) & 1) == 0 ? LED_RED : LED_YELLOW;
+    }
+    explosion_cnt--;
+    return;
+  }
+
+  static char sub_cnt = 0;  // update only every 1/10s
+  if (sub_cnt++ < 6) {
+    return;
+  }
+  sub_cnt = 0;
+
+  // Animate only while the playfield scrolls (fff8/fff9 bg_position).
+  static uint16_t last_bg_position = bg_position;
+  const bool scrolling = bg_position != last_bg_position;
+  last_bg_position = bg_position;
+  if (!scrolling) {
+    return;
+  }
+
+  static const CRGB idle_leds[] = {ZAXXON_LED_DARKBLUE, LED_BLUE,
+                                   ZAXXON_LED_LIGHTBLUE, LED_CYAN};
+  static char led = 0;
+  for (char c = 0; c < (NUM_LEDS + 1) / 2; c++) {
+    leds[NUM_LEDS - 1 - c] = leds[c] =
+        idle_leds[(c + led) % (sizeof(idle_leds) / sizeof(CRGB))];
+  }
+  led = (led + 1) % (sizeof(idle_leds) / sizeof(CRGB));
+}
+#endif

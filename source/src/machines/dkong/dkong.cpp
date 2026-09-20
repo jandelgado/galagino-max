@@ -73,16 +73,17 @@ unsigned char dkong::rdI8048_rom(struct i8048_state_S *state, unsigned short add
   return dkong_rom_cpu2[addr];
 }
 
+void dkong::start(void) {
+  rom_cpu1_ptr = dkong_rom_cpu1.data();
+}
+
 unsigned char dkong::opZ80(unsigned short Addr) {
-  if (current_cpu == 0)
-    return dkong_rom_cpu1[Addr];
-  else
-    return dkong_rom_cpu1[Addr];
+  return rom_cpu1_ptr[Addr];
 }
 
 unsigned char dkong::rdZ80(unsigned short Addr) {
   if(Addr < 16384)
-    return dkong_rom_cpu1[Addr];
+    return rom_cpu1_ptr[Addr];
 
   // 0x6000 - 0x77ff
   if(((Addr & 0xf000) == 0x6000) || ((Addr & 0xf800) == 0x7000)) 

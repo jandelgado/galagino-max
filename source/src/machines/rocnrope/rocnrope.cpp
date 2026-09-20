@@ -4,6 +4,12 @@
 #include "rocnrope_tilemap.h"
 #include "rocnrope_spritemap.h"
 
+rocnrope::rocnrope() {
+	// In ctor: m6809_reset() reads the reset vector through these.
+	main_rom_ptr = rocnrope_main_rom.data();
+	audio_rom_ptr = rocnrope_audio_rom.data();
+}
+
 rocnrope::~rocnrope() {
 	rocnrope_main_rom.release();
 	rocnrope_audio_rom.release();
@@ -49,7 +55,7 @@ unsigned char rocnrope::m6809_read_opcode(m6809_state *s, uint16_t addr) {
     return memory[RNR_VECTORS + (addr - 0xFFF2)];
   if (addr >= 0x6000) {
     uint8_t xormask = ((addr & 0x02) ? 0x80 : 0x20) | ((addr & 0x08) ? 0x08 : 0x02);
-    return rocnrope_main_rom[addr - 0x6000] ^ xormask;
+    return main_rom_ptr[addr - 0x6000] ^ xormask;
   }
   if (addr >= 0x4000)
     return memory[addr - 0x4000];  // sprite/video RAM (CPU 0x4000-0x5FFF)
@@ -63,7 +69,7 @@ unsigned char rocnrope::m6809_read(m6809_state *s, uint16_t addr) {
   if (addr >= 0xFFF2 && addr <= 0xFFFD)
     return memory[RNR_VECTORS + (addr - 0xFFF2)];
   if (addr >= 0x6000)
-    return rocnrope_main_rom[addr - 0x6000];
+    return main_rom_ptr[addr - 0x6000];
 
   // Input ports
   if (addr == 0x3000) {
@@ -157,12 +163,12 @@ void rocnrope::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
 // Z80 sound CPU (timeplt_audio, same as Tutankham/TimePlt)
 // ============================================================
 unsigned char rocnrope::opZ80(unsigned short Addr) {
-  if (Addr < 0x2000) return rocnrope_audio_rom[Addr];
+  if (Addr < 0x2000) return audio_rom_ptr[Addr];
   return 0xFF;
 }
 
 unsigned char rocnrope::rdZ80(unsigned short Addr) {
-  if (Addr < 0x2000) return rocnrope_audio_rom[Addr];
+  if (Addr < 0x2000) return audio_rom_ptr[Addr];
   if (Addr < 0x3000) return 0xFF;
 
   if (Addr >= 0x3000 && Addr <= 0x33FF)

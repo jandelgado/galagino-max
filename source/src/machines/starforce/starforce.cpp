@@ -31,11 +31,16 @@ starforce::~starforce() {
 	starforce_sprites_16x16.release();
 }
 
+void starforce::start(void) {
+  rom_main_ptr = starforce_main_cpu_rom.data();
+  rom_sub_ptr = starforce_sub_cpu_rom.data();
+}
+
 unsigned char starforce::opZ80(unsigned short Addr) {
   if (current_cpu == 0)
-    return starforce_main_cpu_rom[Addr];
-  else 
-    return starforce_sub_cpu_rom[Addr];
+    return rom_main_ptr[Addr];
+  else
+    return rom_sub_ptr[Addr];
 }
 
 unsigned char starforce::rdZ80(unsigned short Addr) {
@@ -43,7 +48,7 @@ unsigned char starforce::rdZ80(unsigned short Addr) {
     // --- Letture dalla CPU Principale ---
     // 0x0000 - 0x7FFF: ROM principale (32 KB)
     if (Addr < 0x8000)
-      return starforce_main_cpu_rom[Addr];
+      return rom_main_ptr[Addr];
 
     // 0x8000 - 0x8FFF: RAM Generica (4 KB)
     if (Addr >= 0x8000 && Addr <= 0x8FFF)
@@ -132,7 +137,7 @@ unsigned char starforce::rdZ80(unsigned short Addr) {
     // --- Letture dalla CPU Audio ---
     // 0x0000 - 0x1FFF: ROM Audio (8 KB)
     if (Addr < 0x2000)
-      return starforce_sub_cpu_rom[Addr];
+      return rom_sub_ptr[Addr];
 
     // 0x4000 - 0x43FF: RAM Audio (1 KB)
     if (Addr >= 0x4000 && Addr <= 0x43FF)

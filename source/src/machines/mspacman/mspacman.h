@@ -25,6 +25,7 @@ public:
 
   signed char machineType() override { return MCH_MSPACMAN; }
   void reset() override;
+  void start(void) override;
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
   unsigned char opZ80(unsigned short Addr) override;
@@ -36,6 +37,11 @@ protected:
 
 private:
   bool decode; // true = Ms. Pac-Man mode, false = original Pac-Man mode
+
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  // pacman_rom uses the inherited rom_ptr.
+  const unsigned char *pacrom_ptr = nullptr;
+  const unsigned char *auxrom_ptr = nullptr;
 };
 
 #endif

@@ -13,7 +13,8 @@ public:
   bagman() { }
   ~bagman();
 
-  signed char machineType() override { return MCH_BAGMAN; } 
+  signed char machineType() override { return MCH_BAGMAN; }
+  void start(void) override;
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
   unsigned char opZ80(unsigned short Addr) override;
@@ -38,6 +39,9 @@ protected:
 private:
   void pitch_w(uint8_t data);
   unsigned char gfxbank;
+
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_ptr = nullptr;
 };
 
 #endif

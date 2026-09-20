@@ -19,15 +19,20 @@ void vanvan::reset() {
   sn_last_register[0] = sn_last_register[1] = 0;
 }
 
+void vanvan::start(void) {
+  rom_ptr = vanvan_rom.data();
+  rom2_ptr = vanvan_rom2.data();
+}
+
 unsigned char vanvan::opZ80(unsigned short Addr) {
-  if (Addr < 0x4000) return vanvan_rom[Addr];
-  if (Addr >= 0x8000 && Addr < 0x9000) return vanvan_rom2[Addr - 0x8000];
+  if (Addr < 0x4000) return rom_ptr[Addr];
+  if (Addr >= 0x8000 && Addr < 0x9000) return rom2_ptr[Addr - 0x8000];
   return rdZ80(Addr);
 }
 
 unsigned char vanvan::rdZ80(unsigned short Addr) {
-  if (Addr < 0x4000) return vanvan_rom[Addr];
-  if (Addr >= 0x8000 && Addr < 0x9000) return vanvan_rom2[Addr - 0x8000];
+  if (Addr < 0x4000) return rom_ptr[Addr];
+  if (Addr >= 0x8000 && Addr < 0x9000) return rom2_ptr[Addr - 0x8000];
 
   unsigned short a = Addr & 0x7fff;   // a15 don't-care for the RAM/IO region
 

@@ -26,23 +26,31 @@ _1942::~_1942() {
   _1942_sprites.release();
 }
 
+void _1942::start(void) {
+  rom_cpu1_ptr = _1942_rom_cpu1.data();
+  rom_cpu2_ptr = _1942_rom_cpu2.data();
+  rom_cpu1_b0_ptr = _1942_rom_cpu1_b0.data();
+  rom_cpu1_b1_ptr = _1942_rom_cpu1_b1.data();
+  rom_cpu1_b2_ptr = _1942_rom_cpu1_b2.data();
+}
+
 unsigned char _1942::opZ80(unsigned short Addr) {
   if (current_cpu == 0)
-    return _1942_rom_cpu1[Addr];
+    return rom_cpu1_ptr[Addr];
   else
-    return _1942_rom_cpu2[Addr];
+    return rom_cpu2_ptr[Addr];
 }
 
 unsigned char _1942::rdZ80(unsigned short Addr) {
   if(current_cpu == 0) {
-    // main CPU    
-    if(Addr < 32768) return _1942_rom_cpu1[Addr];
+    // main CPU
+    if(Addr < 32768) return rom_cpu1_ptr[Addr];
 
     // CPU1 banked ROM
     if((Addr & 0xc000) == 0x8000) {
-      if(_1942_bank == 0)                           return _1942_rom_cpu1_b0[Addr - 0x8000];
-      else if((_1942_bank == 1) && (Addr < 0xb000)) return _1942_rom_cpu1_b1[Addr - 0x8000];
-      else if(_1942_bank == 2)	                    return _1942_rom_cpu1_b2[Addr - 0x8000];
+      if(_1942_bank == 0)                           return rom_cpu1_b0_ptr[Addr - 0x8000];
+      else if((_1942_bank == 1) && (Addr < 0xb000)) return rom_cpu1_b1_ptr[Addr - 0x8000];
+      else if(_1942_bank == 2)	                    return rom_cpu1_b2_ptr[Addr - 0x8000];
     }
     
     // RAM mapping
@@ -107,7 +115,7 @@ unsigned char _1942::rdZ80(unsigned short Addr) {
     
   } else {
     // second/audio CPU
-    if(Addr < 16384) return _1942_rom_cpu2[Addr];
+    if(Addr < 16384) return rom_cpu2_ptr[Addr];
     
     // 2k audio ram
     if((Addr & 0xf800) == 0x4000)

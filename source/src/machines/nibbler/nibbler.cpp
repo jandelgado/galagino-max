@@ -26,6 +26,7 @@ void nibbler::start() {
   fg_ram=memory+0x400;bg_ram=memory+0x800;color_ram=memory+0xc00;char_ram=memory+0x1000;
   for(int i=0;i<64;i++)palette[i]=pen(nibbler_proms[i]);
   m_cpu.read=main_read;m_cpu.write=main_write;m_cpu.fetch=nullptr;m_cpu.user=this;
+  rom_ptr = nibbler_rom.data();
   reset();
 }
 
@@ -40,8 +41,8 @@ void nibbler::reset() {
 uint8_t nibbler::main_read(m6502_t *cpu,uint16_t a) {
   nibbler *s=static_cast<nibbler *>(cpu->user);
   if(a<0x2000)return s->memory[a];
-  if(a>=0x3000&&a<0xc000)return nibbler_rom[a-0x3000];
-  if(a>=0xf000)return nibbler_rom[0x5000+(a&0x0fff)];
+  if(a>=0x3000&&a<0xc000)return s->rom_ptr[a-0x3000];
+  if(a>=0xf000)return s->rom_ptr[0x5000+(a&0x0fff)];
   unsigned char k=s->input->buttons_get();
   if(a==0x2104){
     unsigned char v=0;
@@ -90,6 +91,8 @@ void nibbler::run_frame() {
 }
 
 void nibbler::render_row(short strip) {
+  // Hoisted: data() checks the cache on every call.
+  const unsigned char *gfx = nibbler_gfx.data();
   for(int oy=0;oy<8;oy++){
     int py=strip*8+oy-16;if(py<0||py>=256)continue;
     uint16_t *dst=frame_buffer+oy*224;
@@ -104,7 +107,7 @@ void nibbler::render_row(short strip) {
         bcode=bg_ram[ti]+(charbank<<8);bcolor=(color_ram[ti]>>3)&7;last_brow=brow;
       }
       unsigned short base=(bcode<<3)+(by&7);
-      unsigned char bpix=(nibbler_gfx[base]&bmask?2:0)|(nibbler_gfx[base+0x1000]&bmask?1:0);
+      unsigned char bpix=(gfx[base]&bmask?2:0)|(gfx[base+0x1000]&bmask?1:0);
       unsigned char pi=bpix?(32+bcolor*4+bpix):(32+backcolor*4);
       int frow=sy>>3;
       if(frow!=last_frow){

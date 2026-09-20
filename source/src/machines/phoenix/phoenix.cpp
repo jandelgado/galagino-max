@@ -45,9 +45,13 @@ RomData<unsigned short, COMPRESSED> &phoenix::logo(void) {
   return phoenix_logo;
 }
 
+void phoenix::start(void) {
+  rom_ptr = phoenix_rom.data();
+}
+
 unsigned char phoenix::opZ80(unsigned short Addr) {
   if (Addr < 0x4000)
-    return phoenix_rom[Addr];
+    return rom_ptr[Addr];
 
   return 0x00;
 }
@@ -55,7 +59,7 @@ unsigned char phoenix::opZ80(unsigned short Addr) {
 unsigned char phoenix::rdZ80(unsigned short Addr) {
   // ROM 0x0000-0x3FFF
   if (Addr < 0x4000)
-    return phoenix_rom[Addr];
+    return rom_ptr[Addr];
 
   // VRAM 0x4000-0x4FFF (page corrente)
   if (Addr >= 0x4000 && Addr <= 0x4FFF) {

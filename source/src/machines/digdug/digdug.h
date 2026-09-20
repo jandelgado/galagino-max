@@ -34,7 +34,8 @@ public:
 	}
 
 	void reset() override;
-	signed char machineType() override { return MCH_DIGDUG; } 
+	void start(void) override;
+	signed char machineType() override { return MCH_DIGDUG; }
 
 	unsigned char rdZ80(unsigned short Addr) override;
 	void wrZ80(unsigned short Addr, unsigned char Value) override;
@@ -63,6 +64,9 @@ private:
 	unsigned char namco_credit = 0x00;
 	unsigned char digdug_video_latch;
 	char sub_cpu_reset = 1;
+
+	// Cached: hot path reads these per access; data() checks the cache on every call.
+	const unsigned char *rom_ptr[3] = { nullptr, nullptr, nullptr };
 };
 
 #endif
