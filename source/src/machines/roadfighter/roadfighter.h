@@ -46,12 +46,13 @@
 
 class roadfighter : public machineBase {
 public:
-  roadfighter() { }
+  roadfighter();
   ~roadfighter();
 
   void init(Input *input, unsigned short *framebuffer,
             sprite_S *spritebuffer, unsigned char *memorybuffer) override;
   void reset() override;
+  void start(void) override;
 
   signed char machineType()      override { return MCH_ROADFIGHTER; }
 
@@ -111,6 +112,11 @@ private:
   unsigned char scroll_snap[0x40];
   unsigned char spr_snap[0xC0];
   void blit_sprite_strip(short row, unsigned char s);
+
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *main_raw_ptr = nullptr;
+  const unsigned char *main_decrypted_ptr = nullptr;
+  const unsigned char *audio_rom_ptr = nullptr;
 };
 
 #endif // ENABLE_ROADFIGHTER

@@ -50,6 +50,7 @@ public:
   ~pbaction();
 
   void reset() override;
+  void start(void) override;
   signed char machineType() override { return MCH_PBACTION; }
   signed char useVideoHalfRate() override { return 1; }
 
@@ -100,6 +101,9 @@ private:
   unsigned char coinBackup = 0;
   unsigned char coinFrameCounter = 0;
 
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_main_ptr = nullptr;
+  const unsigned char *rom_audio_ptr = nullptr;
 };
 
 #endif

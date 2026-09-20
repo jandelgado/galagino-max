@@ -33,6 +33,9 @@ private:
   unsigned char scroll_x=0,scroll_y=0,backcolor=0,charbank=0,flip_screen=0;
   volatile bool music_muted[3]={true,true,true};
   bool coin_down=false;
+
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_ptr = nullptr;
 };
 
 #endif

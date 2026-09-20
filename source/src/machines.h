@@ -560,7 +560,7 @@ machineInfo machines[] = {
 #ifdef ENABLE_ZAXXON
   { []() -> machineBase* { return new zaxxon(); }, zaxxon::logo,
 #ifdef LED_PIN
-    machineBase::defaultMenuLeds,
+    zaxxon::menuLeds,
 #endif
     MCH_ZAXXON },
 #endif

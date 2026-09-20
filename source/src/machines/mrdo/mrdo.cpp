@@ -18,13 +18,17 @@ void mrdo::reset() {
   ignoreFireButton = 1;
 }
 
+void mrdo::start(void) {
+  rom_ptr = mrdo_rom1.data();
+}
+
 unsigned char mrdo::opZ80(unsigned short Addr) {
-  return mrdo_rom1[Addr];
+  return rom_ptr[Addr];
 }
 
 unsigned char mrdo::rdZ80(unsigned short Addr) {
   if (Addr < 0x8000)
-    return mrdo_rom1[Addr];
+    return rom_ptr[Addr];
 
   if (Addr >= 0x8000 && Addr <= 0x87FF) {
     if (Addr < 0x8400)

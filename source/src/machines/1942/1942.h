@@ -23,7 +23,8 @@ public:
 	_1942();
 	~_1942();
 
-	signed char machineType() override { return MCH_1942; } 
+	signed char machineType() override { return MCH_1942; }
+	void start(void) override;
 	unsigned char rdZ80(unsigned short Addr) override;
 	void wrZ80(unsigned short Addr, unsigned char Value) override;
 	unsigned char opZ80(unsigned short Addr) override;
@@ -47,6 +48,13 @@ private:
 	void blit_bgtile_row(short row);
 	void lsl64(unsigned long *mask, int pix);
 	void lsr64(unsigned long *mask, int pix);
+	// Cached: hot path reads these per access; data() checks the cache on every call.
+	const unsigned char *rom_cpu1_ptr = nullptr;
+	const unsigned char *rom_cpu2_ptr = nullptr;
+	const unsigned char *rom_cpu1_b0_ptr = nullptr;
+	const unsigned char *rom_cpu1_b1_ptr = nullptr;
+	const unsigned char *rom_cpu1_b2_ptr = nullptr;
+
 	unsigned char _1942_bank = 0;
 	unsigned char _1942_palette = 0;
 	unsigned short _1942_scroll = 0;

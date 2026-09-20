@@ -11,18 +11,22 @@ lizwiz::~lizwiz() {
 	lizwiz_sprites.release();
 }
 
-unsigned char lizwiz::opZ80(unsigned short Addr) {
-  if(Addr < 16384)
-    return lizwiz_rom[Addr];
- else
-    return lizwiz_rom[Addr - 0x4000];
+void lizwiz::start(void) {
+  rom_ptr = lizwiz_rom.data();
 }
 
-unsigned char lizwiz::rdZ80(unsigned short Addr) {    
+unsigned char lizwiz::opZ80(unsigned short Addr) {
   if(Addr < 16384)
-    return lizwiz_rom[Addr];
+    return rom_ptr[Addr];
+ else
+    return rom_ptr[Addr - 0x4000];
+}
+
+unsigned char lizwiz::rdZ80(unsigned short Addr) {
+  if(Addr < 16384)
+    return rom_ptr[Addr];
   else if (Addr >= 0x8000 && Addr <= 0xbfff)
-    return lizwiz_rom[Addr - 0x4000];
+    return rom_ptr[Addr - 0x4000];
  
   if((Addr & 0xf000) == 0x4000) {   
     // this includes spriteram 1

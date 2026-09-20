@@ -11,11 +11,15 @@ galaxian::~galaxian() {
 	galaxian_spritemap.release();
 }
 
+void galaxian::start(void) {
+  rom_ptr = galaxian_rom.data();
+}
+
 unsigned char galaxian::opZ80(unsigned short Addr) {
   // Galaxian hardware ignores A15 — 0x8000-0xFFFF mirrors 0x0000-0x7FFF
   Addr &= 0x7FFF;
   if(Addr < 0x4000)
-    return galaxian_rom[Addr];
+    return rom_ptr[Addr];
   return 0xff;
 }
 
@@ -24,7 +28,7 @@ unsigned char galaxian::rdZ80(unsigned short Addr) {
   Addr &= 0x7FFF;
 
   if(Addr < 0x4000)
-    return galaxian_rom[Addr];
+    return rom_ptr[Addr];
 
   if((Addr & 0xf800) == 0x4000)
     return memory[Addr - 0x4000];

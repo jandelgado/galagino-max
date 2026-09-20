@@ -13,6 +13,7 @@ public:
   ~crush();
 
   signed char machineType() override { return MCH_CRUSH; }
+  void start(void) override;
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
   void outZ80(unsigned short Port, unsigned char Value) override;
@@ -41,6 +42,8 @@ private:
   uint8_t m_maketrax_disable_protection;
   unsigned long timerSoundChanged;
 
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_ptr = nullptr;
 };
 
 

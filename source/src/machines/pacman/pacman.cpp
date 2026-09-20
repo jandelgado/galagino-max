@@ -12,15 +12,19 @@ pacman::~pacman() {
 	pacman_sprites.release();
 }
 
+void pacman::start(void) {
+  rom_ptr = pacman_rom.data();
+}
+
 unsigned char pacman::opZ80(unsigned short Addr) {
-  return pacman_rom[Addr];
+  return rom_ptr[Addr];
 }
 
 unsigned char pacman::rdZ80(unsigned short Addr) {
   Addr &= 0x7fff;   // a15 is unused
 
   if(Addr < 16384)
-    return pacman_rom[Addr];
+    return rom_ptr[Addr];
 
   if((Addr & 0xf000) == 0x4000) {    
     // this includes spriteram 1

@@ -86,15 +86,19 @@ uint8_t crush::maketrax_special_port3_r(unsigned short offset)
   }
 }
 
+void crush::start(void) {
+  rom_ptr = crush_rom.data();
+}
+
 unsigned char crush::opZ80(unsigned short Addr) {
-  return crush_rom[Addr];
+  return rom_ptr[Addr];
 }
 
 unsigned char crush::rdZ80(unsigned short Addr) {
   Addr &= 0x7fff;   // a15 is unused
 
   if(Addr < 16384)
-    return crush_rom[Addr];
+    return rom_ptr[Addr];
 
   if((Addr & 0xf000) == 0x4000) {    
     // this includes spriteram 1

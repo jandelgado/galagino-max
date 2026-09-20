@@ -17,7 +17,8 @@ public:
 	pengo() { }
 	~pengo();
 
-	signed char machineType() override { return MCH_PENGO; } 
+	signed char machineType() override { return MCH_PENGO; }
+	void start(void) override;
 	unsigned char rdZ80(unsigned short Addr) override;
 	void wrZ80(unsigned short Addr, unsigned char Value) override;
 	unsigned char opZ80(unsigned short Addr) override;
@@ -36,6 +37,9 @@ private:
 	char flipscreen = 0;// Indirizzi base nella RAM emulata (memory[])
 	char coinFrameCounter = 0;
 	char coinBackup = 0x00;
+
+	// Cached: hot path reads these per access; data() checks the cache on every call.
+	const unsigned char *rom_ptr = nullptr;
 
 protected:
 	void blit_tile(short row, char col) override;

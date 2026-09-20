@@ -11,15 +11,19 @@ mrtnt::~mrtnt() {
 	mrtnt_sprites.release();
 }
 
+void mrtnt::start(void) {
+  rom_ptr = mrtnt_rom.data();
+}
+
 unsigned char mrtnt::opZ80(unsigned short Addr) {
-  return mrtnt_rom[Addr];
+  return rom_ptr[Addr];
 }
 
 unsigned char mrtnt::rdZ80(unsigned short Addr) {
   Addr &= 0x7fff;   // a15 is unused
- 
+
   if(Addr < 16384)
-    return mrtnt_rom[Addr];
+    return rom_ptr[Addr];
 
   if((Addr & 0xf000) == 0x4000) {    
     // this includes spriteram 1

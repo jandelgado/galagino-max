@@ -39,5 +39,8 @@ private:
   bool coin_down = false;
   unsigned char speech_cmd = 0, speech_data_bytes = 0;
   unsigned long speech_addr = 0;
+
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_ptr = nullptr;
 };
 #endif

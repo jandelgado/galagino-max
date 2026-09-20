@@ -11,7 +11,8 @@ public:
 	frogger() { }
 	~frogger();
 
-	signed char machineType() override { return MCH_FROGGER; } 
+	signed char machineType() override { return MCH_FROGGER; }
+	void start(void) override;
 	unsigned char rdZ80(unsigned short Addr) override;
 	void wrZ80(unsigned short Addr, unsigned char Value) override;
 	void outZ80(unsigned short Port, unsigned char Value) override;
@@ -42,6 +43,9 @@ protected:
 	unsigned long snd_icnt;
 	unsigned char snd_ay_port;
 
+	// Cached: hot path reads these per access; data() checks the cache on every call.
+	const unsigned char *rom_cpu1_ptr = nullptr;
+	const unsigned char *rom_cpu2_ptr = nullptr;
 };
 
 #endif

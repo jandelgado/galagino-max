@@ -12,7 +12,8 @@ public:
   mrtnt() { }
   ~mrtnt();
 
-  signed char machineType() override { return MCH_MRTNT; } 
+  signed char machineType() override { return MCH_MRTNT; }
+  void start(void) override;
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
   void outZ80(unsigned short Port, unsigned char Value) override;
@@ -32,6 +33,9 @@ protected:
   const unsigned short *colorRom(unsigned short addr) override;
   const uint32_t *spriteRom(unsigned char flags, unsigned char code) override;
 
+private:
+  // Cached: hot path reads these per access; data() checks the cache on every call.
+  const unsigned char *rom_ptr = nullptr;
 };
 
 #endif
