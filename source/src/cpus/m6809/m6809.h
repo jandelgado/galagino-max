@@ -57,11 +57,12 @@ typedef struct m6809_state_S {
        virtual dispatch), which dominates the per-instruction cost.
        Opt-in per machine (used by mappy, dual 6809): m6809_reset() clears
        the window, so it must be (re)installed after every reset call.
-       Do NOT use on CPUs with encrypted opcodes (KONAMI-1: gyruss sub,
-       tutankhm, rocnrope) - it would bypass m6809_read_opcode. */
+       CPUs with KONAMI-1 encrypted opcodes must also set konami1, else
+       opcode fetches from the window bypass decryption. */
     const uint8_t *rom_direct;
     uint16_t rom_base;
     uint16_t rom_size;
+    uint8_t  konami1;    /* decrypt KONAMI-1 opcodes fetched from rom_direct */
 } m6809_state;
 
 /* Reset the CPU - sets PC from reset vector at 0xFFFE */

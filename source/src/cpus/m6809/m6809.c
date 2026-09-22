@@ -22,11 +22,18 @@ static inline uint8_t fetch8(m6809_state *s) {
     return m6809_read(s, pc);
 }
 
+/* KONAMI-1 opcode XOR, keyed by address bits A1/A3: index (A3<<1)|A1 */
+static const uint8_t konami1_xor[4] = { 0x22, 0x82, 0x28, 0x88 };
+
 static inline uint8_t fetch_op(m6809_state *s) {
     uint16_t pc = s->PC++;
     uint16_t off = (uint16_t)(pc - s->rom_base);
-    if (off < s->rom_size)
-        return s->rom_direct[off];
+    if (off < s->rom_size) {
+        uint8_t op = s->rom_direct[off];
+        if (s->konami1)
+            op ^= konami1_xor[((pc >> 1) & 1) | ((pc >> 2) & 2)];
+        return op;
+    }
     return m6809_read_opcode(s, pc);
 }
 
@@ -513,6 +520,7 @@ void m6809_reset(m6809_state *s) {
     s->rom_direct = 0;
     s->rom_base = 0;
     s->rom_size = 0;
+    s->konami1 = 0;
     s->PC = READ16(s, 0xFFFE);
 }
 
