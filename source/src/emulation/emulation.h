@@ -7,13 +7,11 @@
 #include "cpus/mos6502/M6502.h"
 
 //#define DEBUG_TIMING
+//#define DEBUG_TIMING_FPS_HUD
 
-#ifdef DEBUG_TIMING
-static int counter;
-static unsigned long timeTotal = 0;
-static unsigned long cpuStart;
-static unsigned long cpuSum = 0;
-static unsigned long videoSum = 0;
+#ifdef DEBUG_TIMING_FPS_HUD
+// emulated frames per second, updated every 10 frames by the emulation task
+extern volatile uint16_t emulation_fps;
 #endif
 
 void emulation_start(void);
