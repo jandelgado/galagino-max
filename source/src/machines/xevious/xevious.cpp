@@ -429,6 +429,16 @@ void xevious::run_frame(void) {
     }
   }
 
+  vblank.publish([this](VideoState &v) {
+    memcpy(v.sr1, memory + RAM_SR1 + SPRITE_ATTR_OFFSET, SPRITE_ATTR_SIZE);
+    memcpy(v.sr2, memory + RAM_SR2 + SPRITE_ATTR_OFFSET, SPRITE_ATTR_SIZE);
+    memcpy(v.sr3, memory + RAM_SR3 + SPRITE_ATTR_OFFSET, SPRITE_ATTR_SIZE);
+    v.bg_scrollx = bg_scrollx;
+    v.bg_scrolly = bg_scrolly;
+    v.fg_scrollx = fg_scrollx;
+    v.fg_scrolly = fg_scrolly;
+  });
+
   if (irq_enable[0]) {
     current_cpu = 0;
     IntZ80(&cpu[0], INT_RST38);
@@ -449,10 +459,11 @@ void xevious::run_frame(void) {
 // portrait diretto (solo offset additivo, gia' incluso nella formula mx).
 // ============================================================================
 void xevious::prepare_frame(void) {
+  vblank.read(video);
   active_sprites = 0;
-  unsigned char *sr1 = memory + RAM_SR1 + 0x780;
-  unsigned char *sr2 = memory + RAM_SR2 + 0x780;
-  unsigned char *sr3 = memory + RAM_SR3 + 0x780;
+  const unsigned char *sr1 = video.sr1;
+  const unsigned char *sr2 = video.sr2;
+  const unsigned char *sr3 = video.sr3;
 
   for (int offs = 0; offs < 0x80 && active_sprites < 120; offs += 2) {
     if (sr3[offs + 1] & 0x40) continue;   // sprite disabilitato
@@ -546,8 +557,8 @@ void xevious::blit_sprite(short row, unsigned char s) {
 // (nessun supporto cocktail in questo progetto).
 // ============================================================================
 void xevious::blit_tilemap_row(short row, bool bg) {
-  unsigned short scrollx = bg ? bg_scrollx : fg_scrollx;
-  unsigned short scrolly = bg ? bg_scrolly : fg_scrolly;
+  unsigned short scrollx = bg ? video.bg_scrollx : video.fg_scrollx;
+  unsigned short scrolly = bg ? video.bg_scrolly : video.fg_scrolly;
   // offset MAME (scrolldx/scrolldy da video_start()). Convenzione MAME:
   // tile = schermo + scroll - scrolldx, quindi si SOTTRAGGONO (dx/dy sotto
   // sono gia' i valori scrolldx/scrolldy di MAME: bg(-20,-16) fg(-32,-18)).

@@ -17,6 +17,7 @@
 #include "xevious_dipswitches.h"
 #include "xevious_logo.h"
 #include "../machineBase.h"
+#include "../../emulation/seqlock.h"
 
 // ============================================================
 // Xevious (Namco 1982) — 3xZ80 (main/motion/sound), stessa famiglia
@@ -161,6 +162,23 @@ private:
   static constexpr unsigned short RAM_BGCOLOR = 5 * 0x800;  // 0xb800-0xbfff
   static constexpr unsigned short RAM_FGVIDEO = 6 * 0x800;  // 0xc000-0xc7ff
   static constexpr unsigned short RAM_BGVIDEO = 7 * 0x800;  // 0xc800-0xcfff
+
+  // sprite attributes live in the top 0x80 bytes of each SR block
+  static constexpr unsigned short SPRITE_ATTR_OFFSET = 0x780;
+  static constexpr unsigned short SPRITE_ATTR_SIZE   = 0x80;
+
+  // Sprite/scroll state as of the main CPU's vblank IRQ (MAME's render
+  // point), handed to the video core via Seqlock (see seqlock.h).
+  // prepare_frame()/render read video.*, never live RAM/registers.
+  struct VideoState {
+    unsigned char sr1[SPRITE_ATTR_SIZE];
+    unsigned char sr2[SPRITE_ATTR_SIZE];
+    unsigned char sr3[SPRITE_ATTR_SIZE];
+    unsigned short bg_scrollx, bg_scrolly;
+    unsigned short fg_scrollx, fg_scrolly;
+  };
+  Seqlock<VideoState> vblank;
+  VideoState video = {};
 };
 
 #endif

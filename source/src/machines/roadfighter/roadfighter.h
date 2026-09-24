@@ -2,6 +2,7 @@
 #define ROADFIGHTER_H
 
 #include "../machineBase.h"
+#include "../../emulation/seqlock.h"
 
 #ifdef ENABLE_ROADFIGHTER
 
@@ -116,11 +117,18 @@ private:
   unsigned char input_system();
   unsigned char input_p1();
 
-  // Video snapshot (tearing-free): catturati in prepare_frame
-  unsigned char vram_snap[0x800];
-  unsigned char cram_snap[0x800];
-  unsigned char scroll_snap[0x40];
-  unsigned char spr_snap[0xC0];
+  // Video state as of the vblank IRQ, handed to the video core via
+  // Seqlock (see seqlock.h). VRAM/CRAM included: the road streams new
+  // tile rows while scrolling.
+  struct VideoState {
+    unsigned char vram[0x800];
+    unsigned char cram[0x800];
+    unsigned char scroll[0x40];
+    unsigned char spr[0xC0];
+    unsigned char flip_screen;
+  };
+  Seqlock<VideoState> vblank;
+  VideoState video = {};
   void blit_sprite_strip(int tcol, unsigned char s);
 
   // Cached: hot path reads these per access; data() checks the cache on every call.

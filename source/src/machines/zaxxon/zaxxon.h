@@ -1,8 +1,6 @@
 #ifndef ZAXXON_H
 #define ZAXXON_H
 
-#include <atomic>
-
 #include "zaxxon_rom_main.h"
 #include "zaxxon_chartiles.h"
 #include "zaxxon_bgtiles.h"
@@ -23,6 +21,7 @@
 #include "zaxxon_sample_noise_intro.h"
 #include "zaxxon_sample_noise_asteroid.h"
 #include "../machineBase.h"
+#include "../../emulation/seqlock.h"
 
 // PPI-triggered discrete sample board (zaxxon_a.cpp zaxxon_sample_names):
 // 12 channels, indexed exactly as MAME's sample table so Audio can trigger
@@ -148,36 +147,22 @@ private:
   uint8_t bg_color_bank = 0;  // fffa, 0x00 or 0x80
   uint8_t bg_enable = 0;      // fffb
 
-  // Render-time snapshot of bg/fg state, refreshed once per screen draw in
-  // prepare_frame() -- same point sprites are already snapshotted into
-  // sprite[]. blit_bg_row/blit_tile read these, never the live fields
-  // above, so background and sprites stay consistent for the whole draw
-  // instead of drifting as run_frame() mutates live state mid-draw
-  // (VIDEO_HALF_RATE runs it twice per screen, concurrently with render).
-  uint8_t *video_ram_snapshot = nullptr; // Arena-backed, VIDEORAM_SIZE bytes
-  uint16_t bg_position_snapshot = 0;
-  uint8_t bg_color_bank_snapshot = 0;
-  uint8_t bg_enable_snapshot = 0;
-
-  uint8_t *sprite_ram_snapshot = nullptr; // Arena-backed, SPRITERAM_SIZE bytes
-
-  // Sprite/bg state as of the end of run_frame() (= MAME's render point,
-  // before the vblank IRQ handler rewrites sprite RAM and scroll).
-  // prepare_frame() runs on the video core right after the notify that
-  // starts the next run_frame(), so reading live RAM there races the IRQ
-  // handler: sprites and scroll from different frames, a +-1px wobble that
-  // persists while the two cores stay phase-locked. publish_vblank() /
-  // read_vblank() hand this copy over via a seqlock (odd = write active).
-  void publish_vblank(void);
-  void read_vblank(void);
-  std::atomic<uint32_t> vblank_seq{0};
-  uint8_t vblank_sprite_ram[SPRITE_COUNT * 4] = {};
-  uint16_t vblank_bg_position = 0;
-  uint8_t vblank_bg_color_bank = 0;
-  uint8_t vblank_bg_enable = 0;
+  // Sprite/bg/fg state as of the end of run_frame() (= MAME's render point,
+  // before the vblank IRQ handler rewrites sprite RAM and scroll), handed
+  // to the video core via Seqlock (see seqlock.h). fg tile RAM (HUD) is in
+  // here too so tiles, sprites and scroll always come from the same frame.
+  struct VideoState {
+    uint8_t video_ram[VIDEORAM_SIZE];
+    uint8_t sprite_ram[SPRITE_COUNT * 4];
+    uint16_t bg_position;
+    uint8_t bg_color_bank;
+    uint8_t bg_enable;
+  };
+  Seqlock<VideoState> vblank;
+  VideoState video = {};
 
   // blit_bg_row's dst_x-axis terms (draw_background's tile_row/sub_bg_y)
-  // depend only on the column j and bg_position_snapshot -- never on the
+  // depend only on the column j and video.bg_position -- never on the
   // band or the 8 sub_y sub-rows blit_bg_row loops over -- so precompute
   // them once per frame here (in prepare_frame()) instead of redoing the
   // same 224 values 8x/band = 256x/frame inside the per-pixel hot loop.

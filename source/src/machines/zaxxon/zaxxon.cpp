@@ -72,16 +72,6 @@ void zaxxon::start(void) {
   work_ram = memory + WORK_RAM_OFFSET;
   video_ram = memory + VIDEORAM_OFFSET;
   sprite_ram = memory + SPRITERAM_OFFSET;
-
-  // Arena-backed, guarded: emulation_start() and emulation_task() both call
-  // start() once each per session (see tutankhm::start()) -- Arena has no
-  // per-call free, so an unguarded alloc here would bump-allocate twice.
-  if (!video_ram_snapshot) {
-    video_ram_snapshot = Arena::alloc(VIDEORAM_SIZE);
-  }
-  if (!sprite_ram_snapshot) {
-    sprite_ram_snapshot = Arena::alloc(SPRITERAM_SIZE);
-  }
 }
 
 unsigned char zaxxon::opZ80(unsigned short Addr) {
@@ -265,7 +255,13 @@ void zaxxon::run_frame(void) {
     StepZ80(&cpu[0]);
   }
 
-  publish_vblank();
+  vblank.publish([this](VideoState &s) {
+    memcpy(s.video_ram, video_ram, sizeof(s.video_ram));
+    memcpy(s.sprite_ram, sprite_ram, sizeof(s.sprite_ram));
+    s.bg_position = bg_position;
+    s.bg_color_bank = bg_color_bank;
+    s.bg_enable = bg_enable;
+  });
 
   if (irq_enable[0]) {
     IntZ80(&cpu[0], INT_IRQ);
@@ -279,14 +275,13 @@ void zaxxon::run_frame(void) {
 //   byte2 = color group (bits 0-4)
 //   byte3 = X pos (raw band axis, run through find_minimum_x)
 void zaxxon::prepare_frame(void) {
-  memcpy(video_ram_snapshot, video_ram, VIDEORAM_SIZE);
-  read_vblank();
+  vblank.read(video);
 
   // See bg_tile_row_snapshot's declaration: dst_x-axis (column) terms are
   // frame-constant, blit_bg_row must not redo them per band/sub_y.
   for (uint16_t j = 0; j < 224; j++) {
     const uint8_t ry = 239 - j;
-    const uint16_t srcy = ry + (((bg_position_snapshot << 1) ^ 0xfff) + 1);
+    const uint16_t srcy = ry + (((video.bg_position << 1) ^ 0xfff) + 1);
     const uint16_t bg_row = srcy & 0xfff;  // 4096-row plane
     bg_tile_row_snapshot[j] = bg_row >> 3; // 0-511
     bg_sub_bg_y_snapshot[j] = 7 - (bg_row & 7);
@@ -295,45 +290,18 @@ void zaxxon::prepare_frame(void) {
   active_sprites = 0;
 
   for (int16_t offs = (SPRITE_COUNT - 1) * 4; offs >= 0; offs -= 4) {
-    const uint8_t attr = sprite_ram_snapshot[offs + 1];
+    const uint8_t attr = video.sprite_ram[offs + 1];
 
     struct sprite_S spr;
     spr.code = attr & 0x3f;
-    spr.color = sprite_ram_snapshot[offs + 2] & 0x1f;
+    spr.color = video.sprite_ram[offs + 2] & 0x1f;
     spr.flip_x = (attr & 0x40) ? 1 : 0;
     spr.flip_y = (attr & 0x80) ? 1 : 0;
-    spr.y = find_minimum_x(sprite_ram_snapshot[offs + 3]); // MAME sx -> band axis
-    spr.x = find_minimum_y(sprite_ram_snapshot[offs + 0]); // MAME sy -> dst_x axis
+    spr.y = find_minimum_x(video.sprite_ram[offs + 3]); // MAME sx -> band axis
+    spr.x = find_minimum_y(video.sprite_ram[offs + 0]); // MAME sy -> dst_x axis
 
     sprite[active_sprites++] = spr;
   }
-}
-
-// Emulation core, frame boundary: store sprite/bg state for the renderer.
-void zaxxon::publish_vblank(void) {
-  const uint32_t seq = vblank_seq.load(std::memory_order_relaxed);
-  vblank_seq.store(seq + 1, std::memory_order_relaxed); // odd: writing
-  std::atomic_thread_fence(std::memory_order_release);
-
-  memcpy(vblank_sprite_ram, sprite_ram, sizeof(vblank_sprite_ram));
-  vblank_bg_position = bg_position;
-  vblank_bg_color_bank = bg_color_bank;
-  vblank_bg_enable = bg_enable;
-
-  vblank_seq.store(seq + 2, std::memory_order_release);
-}
-
-// Video core: copy the last published state, retry if a publish overlapped.
-void zaxxon::read_vblank(void) {
-  uint32_t seq;
-  do {
-    seq = vblank_seq.load(std::memory_order_acquire);
-    memcpy(sprite_ram_snapshot, vblank_sprite_ram, sizeof(vblank_sprite_ram));
-    bg_position_snapshot = vblank_bg_position;
-    bg_color_bank_snapshot = vblank_bg_color_bank;
-    bg_enable_snapshot = vblank_bg_enable;
-    std::atomic_thread_fence(std::memory_order_acquire);
-  } while ((seq & 1) || seq != vblank_seq.load(std::memory_order_relaxed));
 }
 
 uint8_t zaxxon::find_minimum_x(uint8_t value) { return (value + 0xf0) & 0xff; }
@@ -418,7 +386,7 @@ void zaxxon::blit_bg_row(uint8_t row) {
   for (uint8_t sub_y = 0; sub_y < 8; sub_y++) {
     const uint8_t rx = tcol * 8 + sub_y; // raw X, uncropped 0-255
 
-    if (!bg_enable_snapshot) {
+    if (!video.bg_enable) {
       for (uint8_t j = 0; j < 224; j++) {
         ptr[j] = 0x0000;
       }
@@ -442,7 +410,7 @@ void zaxxon::blit_bg_row(uint8_t row) {
       // transposed+mirrored indices instead of the raw sub-tile offsets.
       const uint8_t pix = bgtiles[code][sub_bg_x][sub_bg_y];
 
-      ptr[j] = palette[group * 8 + pix + bg_color_bank_snapshot];
+      ptr[j] = palette[group * 8 + pix + video.bg_color_bank];
     }
     ptr += 224;
   }
@@ -454,7 +422,7 @@ void zaxxon::blit_bg_row(uint8_t row) {
 // straight (unrotated), same as the pre-rotation code, since the ROM tile
 // bitmaps decode upright already (see romconv preview).
 void zaxxon::blit_tile(short row, char col) {
-  const uint8_t code = video_ram_snapshot[row * 32 + col];
+  const uint8_t code = video.video_ram[row * 32 + col];
 
   // MAME zaxxon_get_fg_tile_info: color group selected by screen column and
   // row-quadrant, not by tile data; tileinfo color = group * 2, palette
