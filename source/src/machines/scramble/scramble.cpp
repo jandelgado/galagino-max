@@ -292,6 +292,13 @@ void scramble::run_frame(void) {
     }
   }
 
+  vblank.publish([this](VideoState &v) {
+    memcpy(v.vram, video_ram, sizeof(v.vram));
+    memcpy(v.attr, attribute_ram, sizeof(v.attr));
+    memcpy(v.sprite, sprite_ram, sizeof(v.sprite));
+    memcpy(v.bullet, bullet_ram, sizeof(v.bullet));
+  });
+
   if(irq_enable[0]) {
     current_cpu = 0;
     IntZ80(&cpu[0], INT_NMI);
@@ -300,12 +307,13 @@ void scramble::run_frame(void) {
 
 
 void scramble::prepare_frame(void) {
+  vblank.read(video);
   active_sprites = 0;
 
   // Sprite data at sprite_ram (HW 0x5040), 4 bytes per sprite
   // base[0]=Y  base[1]=code|flipx|flipy  base[2]=color  base[3]=X
   for(int idx = 7; idx >= 0 && active_sprites < 128; idx--) {
-    unsigned char *base = sprite_ram + (idx << 2);
+    const unsigned char *base = video.sprite + (idx << 2);
 
     struct sprite_S spr;
     spr.code = base[1] & 0x3f;
@@ -329,7 +337,7 @@ void scramble::prepare_frame(void) {
   // Indices 0-6 = enemy shells (white), index 7 = player missile (yellow)
   bullet_active = 0;
   for(int idx = 0; idx < 8; idx++) {
-    unsigned char *bbase = bullet_ram + (idx<<2);
+    const unsigned char *bbase = video.bullet + (idx<<2);
     // galagino X = must match tile scroll direction (ship uses scroll registers)
     // The scroll shifts tiles RIGHT with increasing value.
     // bbase[1] encodes the bullet's scanline position in the same direction as scroll.
@@ -347,8 +355,8 @@ void scramble::blit_tile(short row, char col) {
     return;
 
   unsigned short addr = tileaddr[row][col];
-  const unsigned short *tile = scramble_tilemap[video_ram[addr]];
-  int c = attribute_ram[2 * (addr & 31) + 1] & 7;
+  const unsigned short *tile = scramble_tilemap[video.vram[addr]];
+  int c = video.attr[2 * (addr & 31) + 1] & 7;
   const unsigned short *colors = scramble_colormap[c];
 
   unsigned short *ptr = frame_buffer + 8 * col;
@@ -387,8 +395,8 @@ void scramble::blit_tile_scroll(short row, signed char col, unsigned char scroll
     mask = 0xffff << (2 * (8 - sub));
   }
 
-  const unsigned short *tile = scramble_tilemap[video_ram[addr]];
-  int c = attribute_ram[2 * (addr & 31) + 1] & 7;
+  const unsigned short *tile = scramble_tilemap[video.vram[addr]];
+  int c = video.attr[2 * (addr & 31) + 1] & 7;
   const unsigned short *colors = scramble_colormap[c];
   unsigned short *ptr = frame_buffer + 8 * col + sub;
 
@@ -465,7 +473,7 @@ void scramble::render_row(short row) {
 
   // Read scroll register for this portrait row (per-column scroll in MAME terms)
   // ObjRAM even bytes at 0x5000+2*col → attribute_ram[2*(row-2)]
-  unsigned char scroll = attribute_ram[2 * (row - 2)];
+  unsigned char scroll = video.attr[2 * (row - 2)];
 
   if(scroll == 0) {
     for(char col = 0; col < 28; col++)

@@ -5,6 +5,7 @@
 
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/seqlock.h"
 
 // ============================================================
 // Scramble (Konami 1981) memory map:
@@ -164,6 +165,20 @@ private:
   const unsigned char *rom_audio_ptr = nullptr;
 
   static_assert(CPU2_MEM_FREE <= RAMSIZE, "RAMSIZE is too low");
+
+  // Tiles, scroll/color attributes, sprites and bullets as of the main CPU's
+  // vblank NMI, handed to the video core via Seqlock (see seqlock.h).
+  // prepare_frame()/render read video.*, never live RAM. Tile RAM is
+  // included: the game rewrites the tile row that just left the left edge,
+  // and a snapshot scroll 1-2 frames behind live tiles would show it there.
+  struct VideoState {
+    unsigned char vram[CPU1_VRAM_SIZE];
+    unsigned char attr[CPU1_ATTR_SIZE];
+    unsigned char sprite[CPU1_SPRITE_SIZE];
+    unsigned char bullet[CPU1_BULLET_SIZE];
+  };
+  Seqlock<VideoState> vblank;
+  VideoState video = {};
 
   static constexpr int AY1_ADDR_PORT = 0x10;
   static constexpr int AY2_ADDR_PORT = 0x40;
