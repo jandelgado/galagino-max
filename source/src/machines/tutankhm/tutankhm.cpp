@@ -309,6 +309,8 @@ void tutankhm::run_frame(void) {
     }
   }
 
+  vblank.publish([this](VideoState &v) { v.scroll = scroll_reg; });
+
   // VBlank IRQ: fires every OTHER frame (toggle flip-flop, per MAME)
   irq_toggle ^= 1;
   if (irq_toggle && irq_enable) {
@@ -318,6 +320,7 @@ void tutankhm::run_frame(void) {
 
 void tutankhm::prepare_frame(void) {
   // No sprite extraction needed — Tutankham is purely bitmap-based
+  vblank.read(video);
 }
 
 // ============================================================
@@ -339,7 +342,7 @@ void tutankhm::render_row(short row) {
         // Pre-compute constants that don't change across sx
         int half_x = bmp_x >> 1;        // bmp_x / 2
         int odd_x = bmp_x & 1;          // nibble select: 0=low, 1=high
-        int y_base = bmp_x < 192 ? (16 + scroll_reg) : 16;  // scroll offset
+        int y_base = bmp_x < 192 ? (16 + video.scroll) : 16;  // scroll offset
 
         // Unrolled inner loop: videoram row is at y*128 + half_x
         // bmp_y = (sx + y_base) & 0xFF for each sx

@@ -2,6 +2,7 @@
 #define TUTANKHM_H
 
 #include "../machineBase.h"
+#include "../../emulation/seqlock.h"
 #include "tutankhm_dipswitches.h"
 #include "tutankhm_logo.h"
 
@@ -83,6 +84,15 @@ private:
     const unsigned char *rom_ptr = nullptr;
     const unsigned char *bank_rom_ptr = nullptr;
     const unsigned char *snd_rom_ptr = nullptr;
+
+    // Scroll register as of the vblank IRQ, handed to the video core via
+    // Seqlock (see seqlock.h), so all rows of a frame share one scroll.
+    // The 32 KB bitmap (CPU-drawn sprites included) stays live.
+    struct VideoState {
+        unsigned char scroll;
+    };
+    Seqlock<VideoState> vblank;
+    VideoState video = {};
 };
 
 #endif
