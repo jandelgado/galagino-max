@@ -233,6 +233,15 @@ void _1942::run_frame(void) {
       }
     }
 
+    // RST 10h is the vblank IRQ
+    if(f == 1) {
+      vblank.publish([this](VideoState &v) {
+        memcpy(v.sprite_ram, memory + SPRITE_RAM, sizeof(v.sprite_ram));
+        v.scroll = _1942_scroll;
+        v.palette = _1942_palette;
+      });
+    }
+
     // generate interrupts, main CPU two times per frame
     if(f & 1) {
       current_cpu = 0;
@@ -252,11 +261,13 @@ void _1942::run_frame(void) {
 void _1942::prepare_frame(void) {
   // Do all the preparations to render a screen.
   
+  vblank.read(video);
+
   /* preprocess sprites */
   active_sprites = 0;
   for(int idx = 0; idx < 32 && active_sprites < 124; idx++) {
     struct sprite_S spr;         
-    unsigned char *sprite_base_ptr = memory + 0x2400 + 4 * (31 - idx);
+    const unsigned char *sprite_base_ptr = video.sprite_ram + 4 * (31 - idx);
    
     if(sprite_base_ptr[3] && sprite_base_ptr[2]) {
       // unlike all other machine, 1942 has 512 sprites
@@ -334,7 +345,7 @@ void _1942::blit_bgtile_row(short row) {
 
   // calculate first pixel line to be displayed from row and
   // scroll register
-  int line = (-8 * row + _1942_scroll) & 511;
+  int line = (-8 * row + video.scroll) & 511;
   char yoffset = (16 - line) & 15;
   
   // if yoffset > 8, then the data is not sufficient for a full
@@ -349,7 +360,7 @@ void _1942::blit_bgtile_row(short row) {
     unsigned short *ptr = frame_buffer + 16 * col;
     
     unsigned char attr = memory[addr + col + 16];
-    const unsigned short *colors = _1942_colormap_tiles[_1942_palette][attr & 31];
+    const unsigned short *colors = _1942_colormap_tiles[video.palette][attr & 31];
     unsigned short chr = memory[addr + col] + ((attr & 0x80) <<1);
     bool xflip = (attr >> 6) & 1;
     bool yflip = (attr >> 5) & 1;
@@ -373,7 +384,7 @@ void _1942::blit_bgtile_row(short row) {
       int next_line = (line - 16) & 511;
       unsigned short next_addr = 0x2000 + 32 * (((line - 17) & 511) / 16) + 1;
       attr = memory[next_addr + col + 16];
-      colors = _1942_colormap_tiles[_1942_palette][attr & 31];
+      colors = _1942_colormap_tiles[video.palette][attr & 31];
       chr = memory[next_addr + col] + ((attr & 0x80) << 1);
       xflip = (attr >> 6) & 1;
       yflip = (attr >> 5) & 1;

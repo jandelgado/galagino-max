@@ -16,6 +16,7 @@
 #include "1942_tile_cmap.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/seqlock.h"
 
 class _1942 : public machineBase
 {
@@ -63,6 +64,22 @@ private:
 	char sub_cpu_reset = 1;
 
 	unsigned char last_coin = 0;
+
+	static constexpr uint16_t SPRITE_RAM = 0x2400;      // CPU 0xcc00
+	static constexpr uint16_t SPRITE_RAM_SIZE = 0x80;
+
+	// Sprites and bg scroll/palette as of the main CPU's vblank IRQ (RST 10h),
+	// handed to the video core via Seqlock (see seqlock.h).
+	// prepare_frame()/render read video.*, never live RAM/registers. bg tile
+	// RAM stays live: the 512-line plane has 256 hidden lines, so freshly
+	// streamed rows are never exposed.
+	struct VideoState {
+		unsigned char sprite_ram[SPRITE_RAM_SIZE];
+		uint16_t scroll;
+		uint8_t palette;
+	};
+	Seqlock<VideoState> vblank;
+	VideoState video = {};
 };
 
 #endif
