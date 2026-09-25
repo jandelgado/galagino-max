@@ -194,7 +194,11 @@ void loop(void) {
 #endif
 }
 
+// max time between full rate frames giving the idle task CPU time
+static const uint32_t IDLE_YIELD_MS = 1000;
+
 void updateAudioVideo(void) {
+  static uint32_t last_yield_ms = 0;
   uint32_t t0 = micros();
 
   bool isMenu = menu.machineIndexIsMenu();
@@ -256,10 +260,17 @@ void updateAudioVideo(void) {
 
     // one screen at 60 Hz is 16.6ms
     unsigned long t1 = (micros() - t0) / 1000;  // calculate time in milliseconds
-    if(t1 < 16)
+    if(t1 < 16) {
       vTaskDelay(16 - t1);
-    else
-      vTaskDelay(1);    // at least 1 ms delay to prevent watchdog timeout
+      last_yield_ms = millis();
+    }
+    // Idle task needs CPU time within the task watchdog timeout. Not every
+    // frame: a 1 tick delay pushes a frame just over 16 ms to 17 ms (the
+    // next tick), missing the 60 Hz display refresh.
+    else if(millis() - last_yield_ms > IDLE_YIELD_MS) {
+      vTaskDelay(1);
+      last_yield_ms = millis();
+    }
 
     // physical refresh is 60Hz. So send vblank trigger once a frame
     emulation_notifyGive();
