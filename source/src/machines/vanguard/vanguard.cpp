@@ -7,6 +7,21 @@
 
 static_assert(VANGUARD_SAMPLE_COUNT == 18, "Unexpected Vanguard sample count");
 
+static const uint16_t PLANE_SIZE = 0x800; // 2 bitplanes, 256 codes x 8 rows each
+
+// set bit (row, plane) of the 8 column words of one code row byte
+static void set_cols(uint16_t *cols, uint16_t offset, uint8_t value) {
+  uint16_t *w = cols + (((offset & (PLANE_SIZE - 1)) >> 3) << 3);
+  const uint16_t mask = 1 << (((offset & 7) << 1) | (offset / PLANE_SIZE));
+  for (int c = 0; c < 8; c++) {
+    if ((value << c) & 0x80) {
+      w[c] |= mask;
+    } else {
+      w[c] &= ~mask;
+    }
+  }
+}
+
 vanguard::~vanguard() {
 	vanguard_rom.release();
 	vanguard_gfx.release();
@@ -40,22 +55,42 @@ uint16_t vanguard::pen(unsigned char p) const {
 }
 
 void vanguard::start() {
-  work_ram=memory; fg_ram=memory+0x400; bg_ram=memory+0x800;
-  color_ram=memory+0xc00; char_ram=memory+0x1000;
+  work_ram=memory; char_ram=memory+0x1000;
   for (int i=0;i<64;i++) palette[i]=pen(vanguard_proms[i]);
   m_cpu.read=main_read; m_cpu.write=main_write; m_cpu.fetch=nullptr; m_cpu.user=this;
   rom_ptr = vanguard_rom.data();
+
+  if (!bg_cols) {
+    bg_cols = Arena::alloc<uint16_t>(COLS_WORDS);
+    fg_cols = Arena::alloc<uint16_t>(COLS_WORDS);
+    const unsigned char *gfx = vanguard_gfx.data();
+    for (uint16_t i = 0; i < 2 * PLANE_SIZE; i++) {
+      set_cols(bg_cols, i, gfx[i]);
+    }
+  }
   reset();
 }
 
 void vanguard::reset() {
   machineBase::reset();
-  work_ram=memory; fg_ram=memory+0x400; bg_ram=memory+0x800;
-  color_ram=memory+0xc00; char_ram=memory+0x1000;
+  work_ram=memory; char_ram=memory+0x1000;
   scroll_x=scroll_y=backcolor=flip_screen=0; charbank=1; fire_direction=0; coin_down=false;
   music0_muted=music1_muted=true;
   speech_cmd=speech_data_bytes=0; speech_addr=0;
   if (m_cpu.read) m6502_reset(&m_cpu);
+
+  // char RAM was just cleared
+  if (fg_cols) {
+    memset(fg_cols, 0, COLS_WORDS * sizeof(uint16_t));
+  }
+}
+
+void vanguard::char_write(uint16_t offset, uint8_t value) {
+  if (char_ram[offset] == value) {
+    return;
+  }
+  char_ram[offset] = value;
+  set_cols(fg_cols, offset, value);
 }
 
 uint8_t vanguard::main_read(m6502_t *cpu, uint16_t a) {
@@ -82,6 +117,7 @@ uint8_t vanguard::main_read(m6502_t *cpu, uint16_t a) {
 
 void vanguard::main_write(m6502_t *cpu, uint16_t a, uint8_t v) {
   vanguard *s=static_cast<vanguard*>(cpu->user);
+  if(a>=0x1000&&a<0x2000){s->char_write(a-0x1000,v);return;}
   if(a<0x2000){s->memory[a]=v;return;}
   if(a>=0x3100&&a<=0x3102){
     s->soundregs[a-0x3100]=v;
@@ -141,6 +177,7 @@ void vanguard::run_frame() {
   m6502_exec(&m_cpu,23520); // 11.289 MHz / 8 / 60 Hz
 
   vblank.publish([this](VideoState &v) {
+    memcpy(v.tile_ram, memory + TILE_RAM_OFFSET, TILE_RAM_SIZE);
     v.scroll_x = scroll_x;
     v.scroll_y = scroll_y;
     v.backcolor = backcolor;
@@ -155,39 +192,81 @@ void vanguard::prepare_frame() {
   vblank.read(video);
 }
 
-void vanguard::render_row(short strip) {
-  // Hoisted: data() checks the cache on every call.
-  const unsigned char *gfx = vanguard_gfx.data();
-  for(int oy=0;oy<8;oy++){
-    int py=strip*8+oy-16; if(py<0||py>=256)continue;
-    uint16_t *dst=frame_buffer+oy*224;
-    int sx=video.flip_screen?255-py:py;
-    int bx=(sx+video.scroll_x)&255;
-    unsigned char fmask=1<<(7-(sx&7)), bmask=1<<(7-(bx&7));
-    int last_frow=-1,last_brow=-1;
-    unsigned char fcode=0,fcolor=0,bcode=0,bcolor=0;
-    for(int ox=0;ox<224;ox++){
-      // Vanguard is ROT90 in MAME.  The previous mapping used the opposite
-      // cabinet orientation, producing an image rotated by 180 degrees.
-      int sy=video.flip_screen?ox:223-ox, by=(sy+video.scroll_y)&255;
-      int brow=by>>3;
-      if(brow!=last_brow){
-        unsigned short ti=(brow<<5)+(bx>>3);
-        bcode=bg_ram[ti];bcolor=(color_ram[ti]>>3)&7;last_brow=brow;
-      }
-      unsigned short base=(bcode<<3)+(by&7);
-      unsigned char bpix=(gfx[base]&bmask?1:0)|(gfx[base+0x800]&bmask?2:0);
-      unsigned char pi=bpix?(32+bcolor*4+bpix):(32+video.backcolor*4);
+// One output line = one native column sx, walked along native y (sy).
+// STEP is the frame buffer direction for increasing sy (-1 unflipped: sy
+// runs right to left), a template constant so the loops stay in registers.
+//
+// Two passes over whole tiles, one pre-rotated column word per tile (see
+// bg_cols): bg (scrolled, opaque through a 4-entry pen table), then fg
+// (fixed, pen 0 transparent, empty tiles skipped).
+template <int STEP>
+static void vanguard_line(uint16_t *p, int sx, int scroll_x, int scroll_y, uint16_t back,
+                          const uint16_t *pal, const uint16_t *bg_cols, const uint16_t *fg_cols,
+                          const unsigned char *bg, const unsigned char *fg, const unsigned char *col) {
+  uint16_t *const start = p; // pixel for sy == 0
 
-      int frow=sy>>3;
-      if(frow!=last_frow){
-        unsigned short ti=(frow<<5)+(sx>>3);
-        fcode=fg_ram[ti];fcolor=color_ram[ti]&7;last_frow=frow;
+  // background: tile runs along by = sy + scroll_y, wrapping at 256
+  const int bx = (sx + scroll_x) & 255;
+  const unsigned char *bgcode = bg + (bx >> 3);
+  const unsigned char *bgcolor = col + (bx >> 3);
+  const uint16_t *bgcols = bg_cols + (bx & 7);
+  int by = scroll_y;
+  for (int sy = 0; sy < 224;) {
+    const int ti = (by >> 3) << 5;
+    const uint16_t *bpal = pal + 32 + ((bgcolor[ti] >> 3) & 7) * 4;
+    const uint16_t pens[4] = { back, bpal[1], bpal[2], bpal[3] };
+    const int r = by & 7;
+    int n = 8 - r;
+    if (n > 224 - sy) {
+      n = 224 - sy;
+    }
+    sy += n;
+    by = (by + n) & 255;
+
+    uint32_t w = bgcols[bgcode[ti] << 3] >> (r << 1);
+    for (; n; n--, w >>= 2, p += STEP) {
+      *p = pens[w & 3];
+    }
+  }
+
+  // foreground: 28 fixed tiles, 8 pixels each
+  const unsigned char *fgcode = fg + (sx >> 3);
+  const unsigned char *fgcolor = col + (sx >> 3);
+  const uint16_t *fgcols = fg_cols + (sx & 7);
+  p = start;
+  for (int ti = 0; ti < 28 << 5; ti += 32, p += 8 * STEP) {
+    uint32_t w = fgcols[fgcode[ti] << 3];
+    if (!w) {
+      continue;
+    }
+
+    const uint16_t *fpal = pal + (fgcolor[ti] & 7) * 4;
+    for (uint16_t *q = p; w; w >>= 2, q += STEP) {
+      if (w & 3) {
+        *q = fpal[w & 3];
       }
-      base=(fcode<<3)+(sy&7);
-      unsigned char fpix=(char_ram[base]&fmask?1:0)|(char_ram[base+0x800]&fmask?2:0);
-      if(fpix)pi=fcolor*4+fpix;
-      dst[ox]=palette[pi];
+    }
+  }
+}
+
+void vanguard::render_row(short strip) {
+  // Vanguard is ROT90 in MAME: each output line is one native column.
+  const uint16_t back = palette[32 + video.backcolor * 4];
+  const unsigned char *fg = video.tile_ram;
+  const unsigned char *bg = fg + 0x400, *col = fg + 0x800;
+  for (int oy = 0; oy < 8; oy++) {
+    const int py = strip * 8 + oy - 16;
+    if (py < 0 || py >= 256) {
+      continue;
+    }
+
+    uint16_t *line = frame_buffer + oy * 224;
+    if (video.flip_screen) {
+      vanguard_line<1>(line, 255 - py, video.scroll_x, video.scroll_y, back,
+                       palette, bg_cols, fg_cols, bg, fg, col);
+    } else {
+      vanguard_line<-1>(line + 223, py, video.scroll_x, video.scroll_y, back,
+                        palette, bg_cols, fg_cols, bg, fg, col);
     }
   }
 }
