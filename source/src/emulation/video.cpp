@@ -49,6 +49,7 @@ static spi_device_interface_config_t if_cfg {
   #else
     #define MADCTL_DEFAULT (TFT_MAC)
   #endif
+  #define MADCTL_SCAN(m) (m)
 #else
   #ifdef TFT_VFLIP
     // 0x00 top to bottom + 0x00 left to right
@@ -57,6 +58,11 @@ static spi_device_interface_config_t if_cfg {
     // 0x80 bottom to top + 0x40 right to left
     #define MADCTL_DEFAULT (0xc0)
   #endif
+  // MADCTL ML (0x10): panel refresh order. Coupled to MY (0x80, row write
+  // order) so the panel scans in the direction the frame is written.
+  // Opposite directions cross once every frame: a tear line on every frame.
+  // See video_vsync_and_vblank.md.
+  #define MADCTL_SCAN(m) (((m) & 0x80) ? ((m) | 0x10) : ((m) & ~0x10))
 #endif
 
 spi_bus_config_t bus_cfg{
@@ -114,7 +120,7 @@ static const uint8_t init_cmd[] = {
   0xff, 10,                         // 10 ms delay
   0x3a, 1, 0x55,                    // Set color mode 16-bit color
   0xff, 10,                         // 10 ms delay
-  0x36, 1, MADCTL_DEFAULT,
+  0x36, 1, MADCTL_SCAN(MADCTL_DEFAULT),
   0x2a, 4, W16(0), W16(240),        // Column addr set, XSTART = 0, XEND = 240     
   0x2b, 4, W16(0), W16(320),        // Row addr set, YSTART = 0, YEND = 320
 #ifndef TFT_INVERT
@@ -225,7 +231,7 @@ void Video::flip(char flipY, char flipX) {
     spi_device_get_trans_result(handle, &r_trans, portMAX_DELAY);
 
   writeCommand(CMD_MADCTL);
-  write8(madctl);
+  write8(MADCTL_SCAN(madctl));
   writeCommand(CMD_RAMWR);
 
   madctl_last = madctl;
