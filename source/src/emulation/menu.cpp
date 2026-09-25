@@ -25,8 +25,9 @@ void Menu::show_menu() {
   // when going back to menu, reactivate attract mode
   master_attract_timeout = millis();
 
-  // prevent start after a reset
-  last_mask = BUTTON_START;
+  // prevent start after a reset: buttons still held from the reset
+  // combo (e.g. nunchuck C+Z) must be released before they count
+  last_mask = 0xff;
   printf("show menu\n");
 
   enterMenu();

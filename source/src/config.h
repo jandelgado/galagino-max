@@ -76,11 +76,18 @@
   #define BTN_START_PIN	  35
   //#define BTN_COIN_PIN    21   // if this is not defined, then start will act as coin & start
 
-  #define BTN_LEFT_PIN    23
-  #define BTN_RIGHT_PIN   22
-  #define BTN_DOWN_PIN    16
-  #define BTN_UP_PIN      17
-  #define BTN_FIRE_PIN    4
+  #ifndef NUNCHUCK_INPUT
+    #define BTN_LEFT_PIN    23
+    #define BTN_RIGHT_PIN   22
+    #define BTN_DOWN_PIN    16
+    #define BTN_UP_PIN      17
+    #define BTN_FIRE_PIN    4
+  #else
+    // CN1 connector
+    #define NUNCHUCK_SDA  22
+    #define NUNCHUCK_SCL  27
+    #define NUNCHUCK_MOVE_THRESHOLD 30 // This is the dead-zone for where minor movements on the stick will not be considered valid movements
+  #endif
 #endif
 
 #ifndef CHEAP_YELLOW_DISPLAY_CONF
