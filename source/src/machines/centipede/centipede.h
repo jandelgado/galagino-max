@@ -6,6 +6,7 @@
 #include "../../cpus/m6502/m6502.h"
 #include "../machineBase.h"
 #include "../../emulation/seqlock.h"
+#include "../../emulation/er2055.h"
 
 // Atari Centipede, MAME centiped3 (revision 3), atari/centiped.cpp.
 // One M6502 at 12.096 MHz / 8, POKEY sound, 256x240 screen, ROT270.
@@ -35,8 +36,6 @@ private:
   uint32_t cpu_clock() const;
   uint8_t in1() const;
   uint8_t in3() const;
-  void earom_control(uint8_t v);
-  void earom_update();
   void render_line(uint16_t *line, int x) const;
 
   static const uint32_t CYCLES_PER_FRAME = 25200; // 1.512 MHz / 60 Hz
@@ -54,9 +53,7 @@ private:
   uint8_t led_frame = 0;     // gameLeds() animation counter
   uint8_t worm_pal = 15;     // palette entry of last seen centipede body
 
-  // ER2055 high score EAROM, 64 bytes, volatile
-  uint8_t earom[64];
-  uint8_t earom_addr = 0, earom_data = 0, earom_state = 0;
+  Er2055 earom; // high score EAROM
 
   // Pre-rotated gfx, one word per (code, flipy, native column): 2 bits per
   // pixel along native y. Tiles: 64 codes (0x40..0x7f), 8 px. Sprites: 128

@@ -90,7 +90,6 @@ centipede::centipede() {
   m_cpu.user = this;
   rom = centipede_rom.data();
   gfx = centipede_gfx.data();
-  memset(earom, 0xff, sizeof(earom)); // ER2055 nvram default
 }
 
 centipede::~centipede() {
@@ -139,7 +138,7 @@ void centipede::reset() {
   memset(palette_ram, 0, sizeof(palette_ram));
   start_lamp = false;
   coin_leds = 0;
-  earom_control(0); // MAME machine reset
+  earom.reset();
   m6502_reset(&m_cpu);
 }
 
@@ -209,7 +208,7 @@ uint8_t centipede::main_read(m6502_t *cpu, uint16_t a) {
   }
 
   if (a >= EAROM_READ && a < EAROM_READ + EAROM_SIZE) {
-    return s->earom_data;
+    return s->earom.read();
   }
   return 0;
 }
@@ -241,12 +240,11 @@ void centipede::main_write(m6502_t *cpu, uint16_t a, uint8_t v) {
     return;
   }
   if (a >= EAROM_WRITE && a < EAROM_WRITE + EAROM_SIZE) {
-    s->earom_addr = a & (EAROM_SIZE - 1);
-    s->earom_data = v;
+    s->earom.latch(a, v);
     return;
   }
   if (a == EAROM_CONTROL) {
-    s->earom_control(v);
+    s->earom.control(v);
     return;
   }
   if (a == IRQ_ACK) {
@@ -260,36 +258,6 @@ void centipede::main_write(m6502_t *cpu, uint16_t a, uint8_t v) {
     s->coin_leds = COIN_LED_FRAMES;
   }
   // 0x2000 watchdog: ignored
-}
-
-// MAME earom_control_w -> er2055_device::set_control/set_clk:
-// CK = DB0, C1 = !DB1, C2 = DB2, CS1 = DB3, CS2 = 1
-void centipede::earom_control(uint8_t v) {
-  enum { CK = 1, C1 = 2, C2 = 4, CS1 = 8, CS2 = 16, SEL = CS1 | CS2 };
-  uint8_t old = earom_state;
-  earom_state = (old & CK) | ((v & 2) ? 0 : C1) | ((v & 4) ? C2 : 0) | ((v & 8) ? CS1 : 0) | CS2;
-  if ((earom_state & SEL) == SEL && earom_state != old) {
-    earom_update();
-  }
-
-  // operations happen on the falling clock edge while selected
-  old = earom_state;
-  earom_state = (v & 1) ? (earom_state | CK) : (earom_state & ~CK);
-  if ((earom_state & SEL) != SEL || earom_state == old || (v & 1)) {
-    return;
-  }
-  if (earom_state & C1) {
-    earom_data = earom[earom_addr]; // read mode
-  }
-  earom_update();
-}
-
-void centipede::earom_update() {
-  enum { C1 = 2, C2 = 4 };
-  switch (earom_state & (C1 | C2)) {
-    case 0: earom[earom_addr] &= earom_data; break; // write, needs prior erase
-    case C2: earom[earom_addr] = 0xff; break;       // erase
-  }
 }
 
 bool centipede::pokey_running() const {
