@@ -31,6 +31,8 @@ private:
   static uint8_t main_read(m6502_t *, uint16_t);
   static void main_write(m6502_t *, uint16_t, uint8_t);
   void run_until(uint32_t cycle);
+  bool pokey_running() const;
+  uint32_t cpu_clock() const;
   uint8_t in1() const;
   uint8_t in3() const;
   void earom_control(uint8_t v);
@@ -44,6 +46,7 @@ private:
   const unsigned char *rom = nullptr, *gfx = nullptr;
   uint32_t frame_cycles = 0; // cycles run in the current frame
   uint32_t total_cycles = 0; // cycles of all finished frames (POKEY clock)
+  uint32_t random_base = 0;  // cpu_clock() when SKCTL left reset
   bool in_vblank = false;
   uint8_t palette_ram[16] = {};
   bool start_lamp = false;   // outlatch 3, START1 lamp: off in attract, blinks with credits

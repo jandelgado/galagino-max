@@ -31,6 +31,7 @@ enum : uint16_t {
 // POKEY register offsets beyond AUDF1..AUDC4 (0-7)
 enum : uint8_t { POKEY_AUDCTL = 0x08, POKEY_RANDOM = 0x0a, POKEY_SKCTL = 0x0f };
 static const uint8_t AUDCTL_POLY9 = 0x80;
+static const uint8_t SK_RESET = 0x03; // SKCTL bits, both clear = reset
 
 // outlatch bits, MAME centiped_base: 0-2 coin counters, 3-4 START lamps
 // (active low), 7 flip
@@ -133,7 +134,7 @@ void centipede::start() {
 
 void centipede::reset() {
   machineBase::reset();
-  frame_cycles = total_cycles = 0;
+  frame_cycles = total_cycles = random_base = 0;
   in_vblank = false;
   memset(palette_ram, 0, sizeof(palette_ram));
   start_lamp = false;
@@ -199,8 +200,12 @@ uint8_t centipede::main_read(m6502_t *cpu, uint16_t a) {
     if ((a & 0x0f) != POKEY_RANDOM) {
       return 0;
     }
+    // polys hold at 0 in reset and restart on release; the game checks
+    // that two reads during reset match, else it inflates the credits and
+    // traps in the IRQ handler (0x38ac)
     const bool poly9 = s->soundregs[Pokey::REG_AUDCTL] & AUDCTL_POLY9;
-    return Pokey::random(s->total_cycles + s->frame_cycles, poly9);
+    const uint32_t clock = s->pokey_running() ? s->cpu_clock() - s->random_base : 0;
+    return Pokey::random(clock, poly9);
   }
 
   if (a >= EAROM_READ && a < EAROM_READ + EAROM_SIZE) {
@@ -223,6 +228,9 @@ void centipede::main_write(m6502_t *cpu, uint16_t a, uint8_t v) {
     if (r <= POKEY_AUDCTL) {
       s->soundregs[r] = v;
     } else if (r == POKEY_SKCTL) {
+      if (!s->pokey_running() && (v & SK_RESET)) {
+        s->random_base = s->cpu_clock();
+      }
       s->soundregs[Pokey::REG_SKCTL] = v;
     }
     return;
@@ -282,6 +290,14 @@ void centipede::earom_update() {
     case 0: earom[earom_addr] &= earom_data; break; // write, needs prior erase
     case C2: earom[earom_addr] = 0xff; break;       // erase
   }
+}
+
+bool centipede::pokey_running() const {
+  return soundregs[Pokey::REG_SKCTL] & SK_RESET;
+}
+
+uint32_t centipede::cpu_clock() const {
+  return total_cycles + frame_cycles;
 }
 
 // cycle: target cycle count within the frame
