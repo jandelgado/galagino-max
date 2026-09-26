@@ -208,6 +208,9 @@
 #ifdef ENABLE_CENTIPEDE
   #include "machines/centipede/centipede.h"
 #endif
+#ifdef ENABLE_MILLIPEDE
+  #include "machines/millipede/millipede.h"
+#endif
 
 // change machine order is possible here...
 machineInfo machines[] = {
@@ -574,6 +577,13 @@ machineInfo machines[] = {
     centipede::menuLeds,
 #endif
     MCH_CENTIPEDE },
+#endif
+#ifdef ENABLE_MILLIPEDE
+  { []() -> machineBase* { return new millipede(); }, millipede::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_MILLIPEDE },
 #endif
 };
 
