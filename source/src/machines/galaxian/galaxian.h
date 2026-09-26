@@ -5,6 +5,7 @@
 #include "galaxian_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/seqlock.h"
 
 // Starfield: max number of visible stars (LFSR generates ~252)
 #define GAL_MAX_STARS 256
@@ -57,6 +58,23 @@ private:
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
+
+  // Tiles, object RAM (scroll/color attributes, sprites, bullets) and the
+  // stars enable as of the vblank NMI, handed to the video core via Seqlock
+  // (see seqlock.h). prepare_frame()/render read video.*, never live RAM.
+  // Tile RAM is included: per-row scroll moves the alien formation, a
+  // snapshot scroll against live tiles would mix two frames.
+  static const uint16_t VRAM_BASE = 0x0800;    // HW 0x5000
+  static const uint16_t OBJRAM_BASE = 0x0C00;  // HW 0x5800
+  static const uint16_t SPRITE_OFS = 0x40;
+  static const uint16_t BULLET_OFS = 0x60;
+  struct VideoState {
+    unsigned char vram[0x400];
+    unsigned char objram[0x80];  // attr 0x00-0x3F, sprites 0x40, bullets 0x60
+    unsigned char stars_enabled;
+  };
+  Seqlock<VideoState> vblank;
+  VideoState video = {};
 };
 
 #endif
