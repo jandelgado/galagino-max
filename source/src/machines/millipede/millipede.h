@@ -24,6 +24,10 @@ public:
   const int renderWidth() override { return 240; }
   const int renderBuffer() override { return 240 * 2 * 8; }
   static RomData<unsigned short, COMPRESSED> &logo() { return millipede_logo; }
+#ifdef LED_PIN
+  static void menuLeds(CRGB *leds);
+  void gameLeds(CRGB *leds) override;
+#endif
 
 private:
   static uint8_t main_read(m6502_t *, uint16_t);
@@ -49,6 +53,10 @@ private:
   uint8_t allpot[2] = {};        // ALLPOT latch, read back while in reset
   bool in_vblank = false;
   bool tben = false;             // outlatch 5, low: P8 DIPs on IN0/IN1
+  bool start_lamp = false;       // outlatch 3, START1 lamp: off in attract, blinks with credits
+  uint8_t coin_leds = 0;         // frames left of coin LED flash, set by outlatch 0-2
+  uint8_t led_frame = 0;         // gameLeds() animation counter
+  uint8_t worm_pal = 0x13;       // palette entry of last seen millipede body
   uint8_t palette_ram[32] = {};
   Er2055 earom; // high score EAROM
 

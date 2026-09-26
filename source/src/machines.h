@@ -581,7 +581,7 @@ machineInfo machines[] = {
 #ifdef ENABLE_MILLIPEDE
   { []() -> machineBase* { return new millipede(); }, millipede::logo,
 #ifdef LED_PIN
-    machineBase::defaultMenuLeds,
+    millipede::menuLeds,
 #endif
     MCH_MILLIPEDE },
 #endif
