@@ -1,7 +1,7 @@
 GalaginoMAX
 ===========
 
-This is my (JD) custom Galagino build with Zaxxon and working Road Fighter
+This is my (JD) custom Galagino build with Zaxxon, Centipede and working Road Fighter
 added. It uses compression and allows to squeeze all games at once into the
 4MB flash of the classic ESP32 module.
 
@@ -147,5 +147,6 @@ default. Enable with `#define MENU_CYLINDER` in `config_local.h`, or add
 | Road Fighter (roadf2.zip)      | ![_](/logos/roadfighter.png)  | ![_](/images/roadfighter.png)  |  |                
 | Motorace USA (motorace.zip)    | ![_](/logos/motorace.png)     | ![_](/images/motorace.png)     | x.y = 256x240      |
 | Zaxxon (zaxxon.zip)            | ![_](/logos/zaxxon.png)       |                                | US Rev D. Audio samples: zaxxon-audio.zip |
+| Centipede (centiped.zip)            | ![_](/logos/centipede.png)       |                                |  |
 
 ### ...
