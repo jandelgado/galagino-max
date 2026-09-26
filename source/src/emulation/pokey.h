@@ -28,7 +28,9 @@ private:
     uint8_t out, filter;
   };
   Channel ch[4];
-  uint32_t i4, i5, i9, i17; // poly positions at current sample start
+  uint32_t i4, i5, i9;      // poly positions at current sample start
+  uint32_t s17;             // poly17 window at next sample start
+  uint64_t w17;             // poly17 bits of current sample, bit t = clock t
   int32_t dc_q8, lp;        // DC blocker (Q8) and low pass state
   void event(int c, uint8_t audc, uint8_t audctl, int32_t t);
 };
