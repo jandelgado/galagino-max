@@ -5,6 +5,7 @@
 #include "timeplt_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/seqlock.h"
 
 // Time Pilot (Konami 1982) memory map:
 //   Main CPU (Z80 @ 3.072 MHz):
@@ -74,8 +75,6 @@ private:
   unsigned char scanline_counter;
   unsigned char multiplexUsed;
   unsigned char multiplexUsedCopy;
-  unsigned char multiplexBank0[0x100];
-  unsigned char multiplexBank1[0x100];
 
   // Sound CPU state
   Z80 snd_cpu;
@@ -91,6 +90,24 @@ private:
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
   const unsigned char *snd_rom_ptr = nullptr;
+
+  // Sprite RAM as of the vblank NMI, handed to the video core via Seqlock
+  // (see seqlock.h). The game multiplexes sprites: top-half set captured at
+  // the first scanline read (0xC000), bottom-half set left in sprite RAM at
+  // vblank. Reading either live from prepare_frame() races run_frame().
+  // Only offsets 0x00-0x3F are used by extract_sprites().
+  static const uint8_t SPRITE_BYTES = 0x40;
+  struct SpriteSet {
+    unsigned char bank0[SPRITE_BYTES];
+    unsigned char bank1[SPRITE_BYTES];
+  };
+  struct VideoState {
+    SpriteSet top, bottom;
+    unsigned char video_enable;
+  };
+  SpriteSet multiplex = {};  // top-half set, emulation core only
+  Seqlock<VideoState> vblank;
+  VideoState video = {};
 };
 
 #endif
