@@ -13,6 +13,7 @@ GAMES = [
     "bnj",
     "bombjack",
     "centipede",
+    "millipede",
     "btime",
     "circusc",
     "crush",
