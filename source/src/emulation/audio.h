@@ -247,8 +247,9 @@ private:
   int16_t zx_adpcm_predictor[12] = {0};
   int8_t zx_adpcm_step[12] = {0};
 
-  // Atari POKEY (Centipede)
-  Pokey pokey;
+  // Atari POKEY (Centipede: 1, Millipede: 2)
+  static const int MAX_POKEYS = 2;
+  Pokey pokey[MAX_POKEYS];
 };
 
 #endif
