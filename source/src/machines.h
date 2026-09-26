@@ -571,7 +571,7 @@ machineInfo machines[] = {
 #ifdef ENABLE_CENTIPEDE
   { []() -> machineBase* { return new centipede(); }, centipede::logo,
 #ifdef LED_PIN
-    machineBase::defaultMenuLeds,
+    centipede::menuLeds,
 #endif
     MCH_CENTIPEDE },
 #endif

@@ -23,6 +23,7 @@ enum : uint16_t {
   EAROM_READ = 0x1700, // 0x1700-0x173f
   EAROM_SIZE = 0x40,
   IRQ_ACK = 0x1800,
+  OUTLATCH = 0x1c00,  // 0x1c00-0x1c07, data bit 7
   ROM_BASE = 0x2000,
   REG_BLOCK_MASK = 0xfff0, // POKEY and palette decode 16 registers
 };
@@ -30,6 +31,12 @@ enum : uint16_t {
 // POKEY register offsets beyond AUDF1..AUDC4 (0-7)
 enum : uint8_t { POKEY_AUDCTL = 0x08, POKEY_RANDOM = 0x0a, POKEY_SKCTL = 0x0f };
 static const uint8_t AUDCTL_POLY9 = 0x80;
+
+// outlatch bits, MAME centiped_base: 0-2 coin counters, 3-4 START lamps
+// (active low), 7 flip
+enum : uint8_t { OUTLATCH_COIN = 0, OUTLATCH_LAMP = 3 };
+static const uint8_t COIN_LED_FRAMES = 30; // counter pulse is too short to see
+static const uint8_t OUTLATCH_DATA = 0x80;
 
 // active low input bits
 enum : uint8_t {
@@ -55,8 +62,10 @@ static inline uint8_t gfx_pen(const unsigned char *gfx, uint16_t row, int x) {
 }
 
 // MAME centiped_paletteram_w: inverted bits, bit 3 low dims blue, else green
-static uint16_t centipede_color(uint8_t d) {
-  uint8_t r = (d & 1) ? 0 : 0xff, g = (d & 2) ? 0 : 0xff, b = (d & 4) ? 0 : 0xff;
+static void centipede_rgb(uint8_t d, uint8_t &r, uint8_t &g, uint8_t &b) {
+  r = (d & 1) ? 0 : 0xff;
+  g = (d & 2) ? 0 : 0xff;
+  b = (d & 4) ? 0 : 0xff;
   if (!(d & 8)) {
     if (b) {
       b = 0xc0;
@@ -64,6 +73,11 @@ static uint16_t centipede_color(uint8_t d) {
       g = 0xc0;
     }
   }
+}
+
+static uint16_t centipede_color(uint8_t d) {
+  uint8_t r, g, b;
+  centipede_rgb(d, r, g, b);
   uint16_t rgb = ((r & 0xf8) << 8) | ((g & 0xfc) << 3) | (b >> 3);
   return (rgb >> 8) | (rgb << 8);
 }
@@ -122,6 +136,8 @@ void centipede::reset() {
   frame_cycles = total_cycles = 0;
   in_vblank = false;
   memset(palette_ram, 0, sizeof(palette_ram));
+  start_lamp = false;
+  coin_leds = 0;
   earom_control(0); // MAME machine reset
   m6502_reset(&m_cpu);
 }
@@ -227,8 +243,15 @@ void centipede::main_write(m6502_t *cpu, uint16_t a, uint8_t v) {
   }
   if (a == IRQ_ACK) {
     cpu->irq = 0;
+    return;
   }
-  // 0x1c00-0x1c07 outlatch (coin counters, LEDs, flip) and 0x2000 watchdog: ignored
+  // outlatch: only START1 lamp and coin counters, for the LEDs; flip ignored
+  if (a == OUTLATCH + OUTLATCH_LAMP) {
+    s->start_lamp = !(v & OUTLATCH_DATA);
+  } else if (a >= OUTLATCH + OUTLATCH_COIN && a < OUTLATCH + OUTLATCH_LAMP && (v & OUTLATCH_DATA)) {
+    s->coin_leds = COIN_LED_FRAMES;
+  }
+  // 0x2000 watchdog: ignored
 }
 
 // MAME earom_control_w -> er2055_device::set_control/set_clk:
@@ -367,3 +390,99 @@ void centipede::render_row(short strip) {
     render_line(frame_buffer + oy * 240, 255 - py);
   }
 }
+
+#ifdef LED_PIN
+// logo colors
+static const CRGB CENTIPEDE_LED_GREEN(0x50b147), CENTIPEDE_LED_LIGHTGREEN(0x90c734),
+    CENTIPEDE_LED_YELLOW(0xfcd736), CENTIPEDE_LED_BRIGHTYELLOW(0xfdfa59);
+
+void centipede::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[NUM_LEDS] = {
+      CENTIPEDE_LED_GREEN, CENTIPEDE_LED_LIGHTGREEN, CENTIPEDE_LED_YELLOW, CENTIPEDE_LED_BRIGHTYELLOW,
+      CENTIPEDE_LED_YELLOW, CENTIPEDE_LED_LIGHTGREEN, CENTIPEDE_LED_GREEN};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
+}
+
+// sprite codes, traced from sprite RAM in attract and play
+static const uint8_t SPR_SEGMENT_END = 0x08; // centipede head/body 0x00-0x07
+static const uint8_t SPR_PLAYER = 0x08;
+static const uint8_t SPR_DEATH = 0x10; // code & 0x3c: 0x10-0x13, 0x50-0x53
+static const uint8_t SPR_SPIDER_FIRST = 0x0a, SPR_SPIDER_LAST = 0x0d; // code & 0x3f
+static const int SPIDER_RANGE = 64; // native px, player to spider
+
+// In priority order: coin inserted: white. Player death: red pulse. POKEY
+// noise (explosions): bright flash. START1 lamp off (attract, no credit):
+// logo colors, so with a credit they blink along with the lamp. Else a two
+// LED centipede in the on screen centipede's color bouncing across the
+// strip, turning red from the edges as the spider closes in on the player.
+void centipede::gameLeds(CRGB *leds) {
+  if (coin_leds) {
+    coin_leds--;
+    fill_solid(leds, NUM_LEDS, CRGB::White);
+    return;
+  }
+
+  const uint8_t *sr = video.ram + SPRITE_OFS;
+  int player = -1, spider = -1;
+  for (int i = 0; i < 16; i++) {
+    const uint8_t code = ((sr[i] & 0x3e) >> 1) | ((sr[i] & 1) << 6);
+    if ((code & 0x3c) == SPR_DEATH) {
+      fill_solid(leds, NUM_LEDS, (code & 0x40) ? CRGB(0xff, 0, 0) : CRGB(0x40, 0, 0));
+      return;
+    }
+    if (code < SPR_SEGMENT_END) {
+      // body color: pen 3, palette select in color byte bits 5-4
+      const uint8_t sel = (sr[0x30 + i] >> 4) & 3;
+      if (sel) {
+        worm_pal = 12 + sel;
+      }
+    } else if (code == SPR_PLAYER) {
+      player = i;
+    } else if ((code & 0x3f) >= SPR_SPIDER_FIRST && (code & 0x3f) <= SPR_SPIDER_LAST) {
+      spider = i;
+    }
+  }
+
+  bool noise = false;
+  for (int c = 0; c < 4; c++) {
+    const uint8_t audc = soundregs[2 * c + 1];
+    noise |= !(audc & 0x20) && (audc & 0x0f);
+  }
+  if (noise) {
+    fill_solid(leds, NUM_LEDS, CENTIPEDE_LED_BRIGHTYELLOW);
+    return;
+  }
+
+  if (!start_lamp) {
+    menuLeds(leds);
+    return;
+  }
+
+  // one step per 4 frames, ping-pong over the strip, body one LED behind
+  CRGB color;
+  centipede_rgb(video.palette[worm_pal], color.r, color.g, color.b);
+  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  led_frame = (led_frame + 1) % (4 * 2 * (NUM_LEDS - 1));
+  const int t = led_frame / 4;
+  const int dir = t < NUM_LEDS - 1 ? 1 : -1;
+  const int head = dir > 0 ? t : 2 * (NUM_LEDS - 1) - t;
+  const int body = head - dir;
+  leds[head] = color;
+  if (body >= 0 && body < NUM_LEDS) {
+    leds[body] = color;
+  }
+
+  if (player < 0 || spider < 0) {
+    return;
+  }
+  const int d = abs(sr[0x20 + player] - sr[0x20 + spider]) + abs(sr[0x10 + player] - sr[0x10 + spider]);
+  if (d >= SPIDER_RANGE) {
+    return;
+  }
+  const int amount = (SPIDER_RANGE - d) * 255 / SPIDER_RANGE;
+  const int half = NUM_LEDS / 2;
+  for (int i = 0; i < NUM_LEDS; i++) {
+    nblend(leds[i], CRGB::Red, amount * abs(i - half) / half);
+  }
+}
+#endif

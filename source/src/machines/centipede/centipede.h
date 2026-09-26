@@ -22,6 +22,10 @@ public:
   const int renderWidth() override { return 240; }
   const int renderBuffer() override { return 240 * 2 * 8; }
   static RomData<unsigned short, COMPRESSED> &logo() { return centipede_logo; }
+#ifdef LED_PIN
+  static void menuLeds(CRGB *leds);
+  void gameLeds(CRGB *leds) override;
+#endif
 
 private:
   static uint8_t main_read(m6502_t *, uint16_t);
@@ -42,6 +46,10 @@ private:
   uint32_t total_cycles = 0; // cycles of all finished frames (POKEY clock)
   bool in_vblank = false;
   uint8_t palette_ram[16] = {};
+  bool start_lamp = false;   // outlatch 3, START1 lamp: off in attract, blinks with credits
+  uint8_t coin_leds = 0;     // frames left of coin LED flash, set by outlatch 0-2
+  uint8_t led_frame = 0;     // gameLeds() animation counter
+  uint8_t worm_pal = 15;     // palette entry of last seen centipede body
 
   // ER2055 high score EAROM, 64 bytes, volatile
   uint8_t earom[64];
