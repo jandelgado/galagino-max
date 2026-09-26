@@ -205,6 +205,10 @@
   #include "machines/zaxxon/zaxxon.h"
 #endif
 
+#ifdef ENABLE_CENTIPEDE
+  #include "machines/centipede/centipede.h"
+#endif
+
 // change machine order is possible here...
 machineInfo machines[] = {
 #ifdef ENABLE_PACMAN
@@ -563,6 +567,13 @@ machineInfo machines[] = {
     zaxxon::menuLeds,
 #endif
     MCH_ZAXXON },
+#endif
+#ifdef ENABLE_CENTIPEDE
+  { []() -> machineBase* { return new centipede(); }, centipede::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_CENTIPEDE },
 #endif
 };
 
