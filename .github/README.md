@@ -28,6 +28,7 @@ it has Moon Cresta, Scramble and Super Cobra and the games from [speckhoiler/gal
 * mos6502 emulation (WIP)
 * Flash compression allows to include ALL games even in the ESP32 4MB flash versions
 * Optional on-screen FPS display (`DEBUG_TIMING_FPS_HUD`)
+* Optional cylinder menu, logos on a rotating drum (`MENU_CYLINDER`)
 
 ### Hardware Used
 
@@ -84,6 +85,12 @@ Settings in `config.h`:
 
 Add `-D DEBUG_TIMING_FPS_HUD` to `build_flags` in `platformio.ini` to show
 the emulation frame rate at the bottom of the screen. Off by default.
+
+### Cylinder menu
+
+Shows the menu logos on a rotating drum instead of a flat list. Off by
+default. Enable with `#define MENU_CYLINDER` in `config_local.h`, or add
+`-D MENU_CYLINDER` to `build_flags` in `platformio.ini`.
 
 ### Games
 

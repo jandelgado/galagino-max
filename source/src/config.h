@@ -21,6 +21,8 @@
 #define MASTER_ATTRACT_MENU_COUNTDOWN_BAR_COLOR565 0x1234  // byte-swapped RGB565 0x3412, #318294 teal blue
 #endif
 
+//#define MENU_CYLINDER   // scrolling menu: logos on a rotating drum instead of a flat list
+
 // video config
 //#define TFT_SPICLK  40000000    // 40 Mhz. Some displays cope with 80 Mhz
 //#define TFT_SPICLK  80000000    // 80 Mhz. Some displays cope with 80 Mhz

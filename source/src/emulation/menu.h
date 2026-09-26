@@ -33,6 +33,9 @@ private:
   const unsigned short *logoBuffer(RomData<unsigned short, COMPRESSED> &logo);
   void enterMenu();
   void leaveMenu();
+#ifdef MENU_CYLINDER
+  void render_row_cylinder(short row);
+#endif
 
   Input *input;
   signed char machinesCount;
@@ -53,6 +56,17 @@ private:
   unsigned char logo_pool_count = 0;
   unsigned short *logo_pool[LOGO_CACHE_SIZE] = { };
   RomData<unsigned short, COMPRESSED> *slot_logo[LOGO_CACHE_SIZE] = { };
+
+#ifdef MENU_CYLINDER
+  // per screen line of the drum, built by enterMenu(), lives in Arena
+  struct CylinderLine {
+    short line;            // line in the 288 line flat menu window, -1 = black
+    unsigned char width;   // drawn width in pixels, centred (perspective)
+    unsigned char shade;   // brightness, 255 = unshaded
+    unsigned char sat;     // colour saturation, 255 = full, 0 = grey
+  };
+  CylinderLine *cylinder_lut = nullptr;
+#endif
 };
 
 const char *mchName(signed char machineType);
