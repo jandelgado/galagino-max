@@ -171,6 +171,10 @@ void Audio::start(machineBase *machineBase) {
   else if (machineType == MCH_MOTORACE)   { AY = 2; AY_INC = 5; AY_VOL = 5;  }
   else if (machineType == MCH_SCREGG)     { AY = 2; AY_INC = 8; AY_VOL = 7;  }
 
+  if (machineType == MCH_CENTIPEDE) {
+    pokey.reset();
+  }
+
   for(char ay = 0; ay < NUM_AY_CHIPS; ay++) {
     for (int c = 0; c < 4; c++) {
       audio_cnt[ay][c] = 1;
@@ -330,6 +334,8 @@ void Audio::transmit() {
       vanguard_render_buffer();
     else if(machineType == MCH_ZAXXON)
       zaxxon_render_buffer();
+    else if(machineType == MCH_CENTIPEDE)
+      pokey_render_buffer();
   } while(bytesOut);
 }
 
@@ -491,6 +497,13 @@ void Audio::zaxxonStartChannel(int ch, ZaxxonPlayMode mode) {
 
 void Audio::zaxxonStopChannel(int ch) {
   zx_active[ch] = false;
+}
+
+// Atari POKEY (Centipede): registers in soundregs[0..9], see pokey.h
+void Audio::pokey_render_buffer(void) {
+  int16_t samples[64];
+  pokey.render(currentMachine->soundregs, samples, 64);
+  for (int i = 0; i < 64; i++) valueToBuffer(i, samples[i]);
 }
 
 void Audio::zaxxon_render_buffer(void) {

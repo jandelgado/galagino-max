@@ -12,6 +12,7 @@
 #include "../machines/roadfighter/roadfighter.h"
 #include "../machines/zaxxon/zaxxon.h"
 #include "../config.h"
+#include "pokey.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 4)
 // See https://github.com/espressif/arduino-esp32/issues/8467
@@ -60,6 +61,7 @@ private:
   void dkong3_render_buffer(void);
   void vanguard_render_buffer(void);
   void zaxxon_render_buffer(void);
+  void pokey_render_buffer(void);
   void zaxxonStartChannel(int ch, ZaxxonPlayMode mode);
   void zaxxonStopChannel(int ch);
   void generateSinusWave(int32_t amplitude, short* buffer, uint16_t length);
@@ -244,6 +246,9 @@ private:
   uint32_t zx_pos[12] = {0};
   int16_t zx_adpcm_predictor[12] = {0};
   int8_t zx_adpcm_step[12] = {0};
+
+  // Atari POKEY (Centipede)
+  Pokey pokey;
 };
 
 #endif
