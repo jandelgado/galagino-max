@@ -7,7 +7,7 @@
 
 // Experimental: dim halo around each line, like a vector monitor's beam
 // bloom. Costs 480 bytes of Arena and some render time.
-#define ASTEROIDS_GLOW
+//#define ASTEROIDS_GLOW
 
 // memory map (MAME asteroid_map), 15 bit address bus
 enum : uint16_t {
@@ -87,6 +87,20 @@ static uint16_t glow565(uint8_t level) {
   return rgb565(l * 3 / 4, l * 7 / 8, l * 3 / 2 > 255 ? 255 : l * 3 / 2);
 }
 
+// "(C) ATARI 1979" is a vector ROM subroutine (DVG word 0x852) starting with
+// LABS y=128 x=400 scale 0. Scale 1 doubles it, glyphs included, for the
+// small panel; x 310 keeps its center (width 180 -> 360). Patches the
+// unpacked copy in Arena, idempotent.
+// Doubled so it stays readable on the small display and we don't forget
+// which nice company brought this game to us.
+static void enlarge_copyright(unsigned char *vrom) {
+  static const uint16_t LABS_W1 = (0x853 - 0x800) * 2; // x + global scale
+  if (vrom[LABS_W1] == 0x90 && vrom[LABS_W1 + 1] == 0x01) { // x=400, scale 0
+    vrom[LABS_W1] = 0x36;     // x=310
+    vrom[LABS_W1 + 1] = 0x11; // scale 1
+  }
+}
+
 asteroids::asteroids() {
   memset(&m_cpu, 0, sizeof(m_cpu));
   m_cpu.read = main_read;
@@ -94,6 +108,7 @@ asteroids::asteroids() {
   m_cpu.user = this;
   rom = asteroids_rom.data();
   vrom = asteroids_vrom.data();
+  enlarge_copyright(const_cast<unsigned char *>(vrom));
 
   // DVG intensity 0-15 as grey; the game uses mostly 7 (objects) and 15
   // (bullets, text), both must stand out on the small LCD
