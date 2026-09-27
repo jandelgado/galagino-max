@@ -73,6 +73,8 @@ private:
   uint16_t *line_next = nullptr, *line_active = nullptr, *strip_head = nullptr;
   vec2d::StripRasterizer raster;
   uint16_t palette[16]; // intensity -> RGB565, byte swapped
+  uint16_t *glow_carry = nullptr; // one per column, Arena, see ASTEROIDS_GLOW
+  uint16_t glow[16];              // intensity -> glow RGB565, byte swapped
 };
 
 #endif

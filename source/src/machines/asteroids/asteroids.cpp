@@ -5,6 +5,10 @@
 #include "../../emulation/asteroids_sound.h"
 #include "../../emulation/dvg.h"
 
+// Experimental: dim halo around each line, like a vector monitor's beam
+// bloom. Costs 480 bytes of Arena and some render time.
+#define ASTEROIDS_GLOW
+
 // memory map (MAME asteroid_map), 15 bit address bus
 enum : uint16_t {
   ADDR_MASK = 0x7fff,
@@ -68,9 +72,19 @@ static int16_t panel_row(int16_t y) {
   return TOP_BORDER + (((VISIBLE.y1 - y) * SCALE_MUL) >> SCALE_SHIFT);
 }
 
-static uint16_t grey565(uint8_t level) {
-  const uint16_t rgb = ((level & 0xf8) << 8) | ((level & 0xfc) << 3) | (level >> 3);
+static uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
+  const uint16_t rgb = ((r & 0xf8) << 8) | ((g & 0xfc) << 3) | (b >> 3);
   return (rgb >> 8) | (rgb << 8);
+}
+
+static uint16_t grey565(uint8_t level) {
+  return rgb565(level, level, level);
+}
+
+// half the line's level, tinted blue like a vector monitor's phosphor bloom
+static uint16_t glow565(uint8_t level) {
+  const uint8_t l = level / 2;
+  return rgb565(l * 3 / 4, l * 7 / 8, l * 3 / 2 > 255 ? 255 : l * 3 / 2);
 }
 
 asteroids::asteroids() {
@@ -83,9 +97,10 @@ asteroids::asteroids() {
 
   // DVG intensity 0-15 as grey; the game uses mostly 7 (objects) and 15
   // (bullets, text), both must stand out on the small LCD
-  palette[0] = 0;
+  palette[0] = glow[0] = 0;
   for (uint8_t i = 1; i < 16; i++) {
     palette[i] = grey565(80 + i * 11);
+    glow[i] = glow565(80 + i * 11);
   }
 }
 
@@ -103,7 +118,10 @@ void asteroids::start() {
   line_next = Arena::alloc<uint16_t>(MAX_LINES);
   line_active = Arena::alloc<uint16_t>(MAX_LINES);
   strip_head = Arena::alloc<uint16_t>(STRIPS);
-  raster.init(line_next, line_active, strip_head, STRIPS);
+#ifdef ASTEROIDS_GLOW
+  glow_carry = Arena::alloc<uint16_t>(renderWidth());
+#endif
+  raster.init(line_next, line_active, strip_head, STRIPS, glow_carry);
   raster.begin(lines, 0);
 }
 
@@ -266,7 +284,11 @@ void asteroids::prepare_frame() {
 
 // frame_buffer is cleared by the caller
 void asteroids::render_row(short row) {
+#ifdef ASTEROIDS_GLOW
+  raster.render(row, frame_buffer, 240, palette, glow);
+#else
   raster.render(row, frame_buffer, 240, palette);
+#endif
 }
 
 #ifdef LED_PIN

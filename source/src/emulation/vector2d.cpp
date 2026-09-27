@@ -46,8 +46,9 @@ bool clip(Line &l, const Rect &r) {
   return true;
 }
 
-void StripRasterizer::init(uint16_t *next_, uint16_t *active_, uint16_t *head_, uint8_t strips_) {
-  next = next_; active = active_; head = head_; strips = strips_;
+void StripRasterizer::init(uint16_t *next_, uint16_t *active_, uint16_t *head_, uint8_t strips_,
+                           uint16_t *carry_) {
+  next = next_; active = active_; head = head_; strips = strips_; carry = carry_;
 }
 
 void StripRasterizer::begin(Line *lines_, uint16_t count) {
@@ -72,21 +73,63 @@ void StripRasterizer::begin(Line *lines_, uint16_t count) {
   }
 }
 
+static inline void halo(uint16_t *p, uint16_t g) {
+  if (!*p) {
+    *p = g;
+  }
+}
+
+// Glow of the pixels line l has in row (the next strip's first) into dst
+// (this strip's last row), stepping a copy of the Bresenham state.
+VEC2D_IRAM void StripRasterizer::glow_above(const Line &l, int16_t x, int16_t y, int16_t err,
+                                            int16_t row, uint16_t *dst, uint16_t g) {
+  const int16_t step = l.sx ? -1 : 1;
+  while (y == row) {
+    halo(dst + x, g);
+    if (x == l.x1 && y == l.y1) {
+      break;
+    }
+    const int32_t e2 = 2 * (int32_t)err;
+    if (e2 > -l.dy) { err -= l.dy; x += step; }
+    if (e2 < l.dx) { err += l.dx; y++; }
+  }
+}
+
 VEC2D_IRAM void StripRasterizer::render(uint8_t strip, uint16_t *buf, int16_t width,
-                                        const uint16_t *palette) {
+                                        const uint16_t *palette, const uint16_t *glow) {
   for (uint16_t i = head[strip]; i != NONE; i = next[i]) {
     active[active_count++] = i;
   }
 
+  // glow below the previous strip's last row
+  if (glow) {
+    for (int16_t x = 0; x < width; x++) {
+      if (strip) {
+        buf[x] = carry[x];
+      }
+      carry[x] = 0;
+    }
+  }
+
   const int16_t row0 = strip * STRIP_H, end = row0 + STRIP_H;
+  uint16_t *const last = buf + (STRIP_H - 1) * width;
   for (uint16_t a = 0; a < active_count;) {
     Line &l = lines[active[a]];
     const uint16_t c = palette[l.color];
+    const uint16_t g = glow ? glow[l.color] : 0;
     const int16_t step = l.sx ? -1 : 1;
     int16_t x = l.x0, y = l.y0, err = l.err;
     bool done = false;
     while (y < end) {
-      buf[(y - row0) * width + x] = c;
+      uint16_t *p = buf + (y - row0) * width + x;
+      *p = c;
+      if (g) {
+        if (x > 0) halo(p - 1, g);
+        if (x < width - 1) halo(p + 1, g);
+        if (y > row0) halo(p - width, g);
+        if (y < end - 1) halo(p + width, g);
+        else halo(carry + x, g);
+      }
       if (x == l.x1 && y == l.y1) { done = true; break; }
       const int32_t e2 = 2 * (int32_t)err;
       if (e2 > -l.dy) { err -= l.dy; x += step; }
@@ -95,8 +138,22 @@ VEC2D_IRAM void StripRasterizer::render(uint8_t strip, uint16_t *buf, int16_t wi
     if (done) {
       active[a] = active[--active_count]; // swap-remove, revisit slot a
     } else {
+      if (g) {
+        glow_above(l, x, y, err, end, last, g);
+      }
       l.x0 = x; l.y0 = y; l.err = err;
       a++;
+    }
+  }
+
+  // glow above lines starting in the next strip's first row
+  if (glow && strip + 1 < strips) {
+    for (uint16_t i = head[strip + 1]; i != NONE; i = next[i]) {
+      const Line &l = lines[i];
+      const uint16_t g = glow[l.color];
+      if (g && l.y0 == end) {
+        glow_above(l, l.x0, l.y0, l.err, end, last, g);
+      }
     }
   }
 }

@@ -38,18 +38,26 @@ public:
   static const int STRIP_H = 8;
   static const uint16_t NONE = 0xffff;
 
-  // next/active: one entry per line, head: one per strip
-  void init(uint16_t *next, uint16_t *active, uint16_t *head, uint8_t strips);
+  // next/active: one entry per line, head: one per strip, carry: one per
+  // column, only needed for glow
+  void init(uint16_t *next, uint16_t *active, uint16_t *head, uint8_t strips,
+            uint16_t *carry = nullptr);
   // lines must lie inside [0, width) x [0, strips * 8)
   void begin(Line *lines, uint16_t count);
   // Plots all pixels with row in [strip * 8, strip * 8 + 8) into
   // buf[(row - strip * 8) * width + col]. Strips must follow in increasing
-  // order after begin(). The caller clears buf.
-  void render(uint8_t strip, uint16_t *buf, int16_t width, const uint16_t *palette);
+  // order after begin(), starting with strip 0. The caller clears buf.
+  // glow (optional, needs carry): color per palette index for the 4
+  // neighbors of each line pixel, drawn where no line is.
+  void render(uint8_t strip, uint16_t *buf, int16_t width, const uint16_t *palette,
+              const uint16_t *glow = nullptr);
 
 private:
+  void glow_above(const Line &l, int16_t x, int16_t y, int16_t err, int16_t row,
+                  uint16_t *dst, uint16_t g);
+
   Line *lines = nullptr;
-  uint16_t *next = nullptr, *active = nullptr, *head = nullptr;
+  uint16_t *next = nullptr, *active = nullptr, *head = nullptr, *carry = nullptr;
   uint16_t active_count = 0;
   uint8_t strips = 0;
 };

@@ -11,10 +11,13 @@ static uint16_t screen[W * H], ref[W * H];
 static uint16_t strip_mem[GUARD + W * 8 + GUARD];
 static uint16_t next_idx[MAXL], active_idx[MAXL], head_idx[STRIPS];
 static Line lines[MAXL];
-static uint16_t palette[256];
+static uint16_t palette[256], glow[256], carry[W];
 
 void setUp(void) {
-  for (int i = 0; i < 256; i++) palette[i] = 0x1000 + i;
+  for (int i = 0; i < 256; i++) {
+    palette[i] = 0x1000 + i;
+    glow[i] = 0x2000 + i;
+  }
 }
 void tearDown(void) {}
 
@@ -41,16 +44,16 @@ static void ref_line(Line l) {
   }
 }
 
-static void raster_all(Line *src, int n) {
+static void raster_all(Line *src, int n, const uint16_t *g = nullptr) {
   memcpy(lines, src, n * sizeof(Line));
   StripRasterizer r;
-  r.init(next_idx, active_idx, head_idx, STRIPS);
+  r.init(next_idx, active_idx, head_idx, STRIPS, carry);
   r.begin(lines, n);
   uint16_t *strip = strip_mem + GUARD;
   for (int s = 0; s < STRIPS; s++) {
     for (int i = 0; i < GUARD; i++) strip_mem[i] = strip_mem[GUARD + W * 8 + i] = 0xdead;
     memset(strip, 0, W * 8 * 2);
-    r.render(s, strip, W, palette);
+    r.render(s, strip, W, palette, g);
     for (int i = 0; i < GUARD; i++) {
       TEST_ASSERT_EQUAL_HEX16(0xdead, strip_mem[i]);
       TEST_ASSERT_EQUAL_HEX16(0xdead, strip_mem[GUARD + W * 8 + i]);
@@ -96,6 +99,49 @@ static void test_matches_reference_random(void) {
     src[i] = mk(v[0], v[1], v[2], v[3], 7);
   }
   check(src, 2000);
+}
+
+// reference glow: glow color on each unlit 4-neighbor of a lit pixel
+static void ref_glow(uint8_t c) {
+  static uint16_t lit[W * H];
+  memcpy(lit, ref, sizeof(lit));
+  for (int y = 0; y < H; y++) {
+    for (int x = 0; x < W; x++) {
+      if (lit[y * W + x]) continue;
+      if ((x > 0 && lit[y * W + x - 1]) || (x < W - 1 && lit[y * W + x + 1]) ||
+          (y > 0 && lit[(y - 1) * W + x]) || (y < H - 1 && lit[(y + 1) * W + x])) {
+        ref[y * W + x] = glow[c];
+      }
+    }
+  }
+}
+
+static void check_glow(Line *src, int n) {
+  memset(ref, 0, sizeof(ref));
+  for (int i = 0; i < n; i++) ref_line(src[i]);
+  ref_glow(src[0].color);
+  raster_all(src, n, glow);
+  TEST_ASSERT_EQUAL_MEMORY(ref, screen, sizeof(ref));
+}
+
+static void test_glow_matches_reference(void) {
+  Line cases[] = {
+    mk(0, 7, 239, 7), mk(0, 8, 239, 8), mk(5, 0, 5, 287), mk(120, 16, 120, 16),
+    mk(30, 7, 60, 8), mk(0, 100, 239, 110), mk(239, 0, 0, 287), mk(0, 287, 239, 287),
+  };
+  for (unsigned i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) check_glow(&cases[i], 1);
+
+  static Line src[300];
+  uint32_t seed = 777;
+  for (int i = 0; i < 300; i++) {
+    int v[4];
+    for (int k = 0; k < 4; k++) {
+      seed = seed * 1103515245u + 12345u;
+      v[k] = (seed >> 8) % (k & 1 ? H : W);
+    }
+    src[i] = mk(v[0], v[1], v[2], v[3], 7);
+  }
+  check_glow(src, 300);
 }
 
 static void test_empty_frame(void) {
@@ -147,6 +193,7 @@ int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_matches_reference_edge_cases);
   RUN_TEST(test_matches_reference_random);
+  RUN_TEST(test_glow_matches_reference);
   RUN_TEST(test_empty_frame);
   RUN_TEST(test_clip_inside_unchanged);
   RUN_TEST(test_clip_fully_outside_false);
