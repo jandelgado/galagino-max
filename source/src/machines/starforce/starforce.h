@@ -1,8 +1,6 @@
 #ifndef STARFORCE_H
 #define STARFORCE_H
 
-#include "starforce_logo.h"
-#include "starforce_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
 #include "../../emulation/seqlock.h"
@@ -28,7 +26,6 @@ public:
 
 	signed char machineType() override { return MCH_STARFORCE; }
 	signed char useVideoHalfRate() override { return 1; }
-	void start(void) override;
 
 	unsigned char opZ80(unsigned short Addr) override; 
 	unsigned char rdZ80(unsigned short Addr) override;
@@ -45,6 +42,23 @@ public:
 	static void menuLeds(CRGB *leds);
 	void gameLeds(CRGB *leds) override;
 #endif
+
+protected:
+	// ROM assets of one game on this board (starforce, baluba)
+	struct Roms {
+		RomData<unsigned char, COMPRESSED> &main_cpu;
+		RomData<unsigned char, COMPRESSED> &sub_cpu;
+		RomData<uint32_t[8], COMPRESSED> &fg;
+		RomData<uint32_t[16][2], COMPRESSED> &bg1;
+		RomData<uint32_t[16][2], COMPRESSED> &bg2;
+		RomData<uint32_t[16][2], COMPRESSED> &bg3;
+		RomData<uint32_t[16][2], PLAIN> &sprites_16x16;
+		RomData<uint32_t[32][4], PLAIN> &sprites_32x32;
+	};
+	explicit starforce(const Roms &roms);
+
+	virtual uint8_t dsw1();  // read at 0xD004
+	virtual uint8_t dsw2();  // read at 0xD005
 
 private:
 	void blit_tile_bg(short logical_row);
@@ -67,9 +81,15 @@ private:
 	unsigned char coinBackup = 0;
 	unsigned char coinFrameCounter = 0;
 
+	const Roms roms;
+
 	// Cached: hot path reads these per access; data() checks the cache on every call.
-	const unsigned char *rom_main_ptr = nullptr;
-	const unsigned char *rom_sub_ptr = nullptr;
+	const unsigned char *rom_main_ptr;
+	const unsigned char *rom_sub_ptr;
+	const uint32_t (*fg_ptr)[8];
+	const uint32_t (*bg_ptr[3])[16][2];  // bg1..bg3
+	const uint32_t (*spr16_ptr)[16][2];
+	const uint32_t (*spr32_ptr)[32][4];
 
 	// Sprite/scroll/bg state as of the main CPU's vblank IRQ (MAME's render
 	// point), handed to the video core via Seqlock (see seqlock.h).
