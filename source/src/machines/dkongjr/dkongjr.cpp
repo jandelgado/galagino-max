@@ -5,13 +5,12 @@
 #include "dkongjr_spritemap.h"
 #include "dkongjr_cmap.h"
 
-dkongjr::~dkongjr() {
-	dkongjr_rom1.release();
-	dkongjr_rom2.release();
-	dkongjr_tilemap.release();
-	dkongjr_sprites.release();
-	dkongjr_colormap.release();
-}
+dkongjr::dkongjr()
+  : dkongjr_colormap(dkongjr_colormap_blob),
+    dkongjr_rom1(dkongjr_rom1_blob),
+    dkongjr_rom2(dkongjr_rom2_blob),
+    dkongjr_sprites(dkongjr_sprites_blob),
+    dkongjr_tilemap(dkongjr_tilemap_blob) { }
 
 unsigned char dkongjr::rdI8048_xdm(struct i8048_state_S *state, unsigned char addr) {
   if(state->p2_state & 0x40)
@@ -289,6 +288,6 @@ void dkongjr::blit_sprite(short row, unsigned char s) {
   }
 }
 
-RomData<unsigned short, COMPRESSED> &dkongjr::logo(void) {
+Asset<unsigned short, COMPRESSED> &dkongjr::logo(void) {
   return dkongjr_logo;
 }

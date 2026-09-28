@@ -43,9 +43,15 @@
 
 class spaceinvaders : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> spaceinvaders_rom;
 public:
-    spaceinvaders() { }
-    ~spaceinvaders();
+    // read by Audio::spaceinvaders_render_buffer()
+    Asset<signed char, COMPRESSED> si_sample_shot;
+    Asset<signed char, COMPRESSED> si_sample_invhit;
+
+    spaceinvaders();
 
     signed char machineType() override { return MCH_SPACEINVADERS; }
     void start(void) override;
@@ -58,7 +64,7 @@ public:
     void run_frame(void) override;
     void prepare_frame(void) override;
     void render_row(short row) override;
-    static RomData<unsigned short, COMPRESSED> &logo(void);
+    static Asset<unsigned short, COMPRESSED> &logo(void);
     void reset() override;
 
 #ifdef LED_PIN

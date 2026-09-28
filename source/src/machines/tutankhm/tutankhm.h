@@ -23,9 +23,13 @@
 
 class tutankhm : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> tutankhm_bank_rom;
+  Asset<unsigned char, COMPRESSED> tutankhm_rom;
+  Asset<unsigned char, COMPRESSED> tutankhm_snd_rom;
 public:
     tutankhm();
-    ~tutankhm();
 
     void start() override;
     void reset() override;
@@ -43,7 +47,7 @@ public:
     void run_frame(void) override;
     void prepare_frame(void) override;
     void render_row(short row) override;
-    static RomData<unsigned short, COMPRESSED> &logo(void);
+    static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN
     static void menuLeds(CRGB *leds);

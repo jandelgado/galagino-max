@@ -8,9 +8,14 @@
 
 class anteater : public frogger
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> anteater_rom_cpu1;
+  Asset<unsigned char, COMPRESSED> anteater_rom_cpu2;
+  Asset<uint32_t[64][16], COMPRESSED> anteater_sprites;
+  Asset<unsigned short[8], COMPRESSED> anteater_tilemap;
 public:
-  anteater() { }
-  ~anteater();
+  anteater();
 
  	void reset() override;
   void start(void) override;
@@ -26,7 +31,7 @@ public:
   void prepare_frame(void) override;
   void render_row(short row) override;
 
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN	
   static void menuLeds(CRGB *leds);

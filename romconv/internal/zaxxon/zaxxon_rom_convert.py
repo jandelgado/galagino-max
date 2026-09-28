@@ -16,7 +16,7 @@ sys.dont_write_bytecode = True
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import load_file, mame_decode, rot_galagino
-from romdata_emit import emit_compressed, emit_plain
+from asset_emit import emit_compressed, emit_plain
 from convutil import fatal
 from adpcm import ima_encode
 
@@ -161,7 +161,7 @@ def resample_to_8bit(wav_file):
     return np.clip(np.round(resampled * scale), -128, 127).astype(np.int8)
 
 def write_samples(audio_set):
-    # PLAIN/flash-resident, not RomData<COMPRESSED>: the existing gfx assets
+    # PLAIN/flash-resident, not Asset<COMPRESSED>: the existing gfx assets
     # already fill Arena to ~13KB spare (see ARENA BUDGET note in
     # zaxxon_rom_main.h), and up to 12 of these can play concurrently, so
     # heap-decompressing even one (let alone several at once) doesn't fit --
@@ -181,7 +181,7 @@ def write_samples(audio_set):
             print("// little-endian initial predictor followed by one nibble per", file=f)
             print("// remaining sample. PLAIN/flash-resident: see ARENA BUDGET note in", file=f)
             print("// zaxxon_rom_main.h -- up to 12 of these play concurrently and Arena", file=f)
-            print("// has no headroom left for heap decompression; the RomData count", file=f)
+            print("// has no headroom left for heap decompression; the Asset count", file=f)
             print("// below is the decoded sample count, not the encoded byte count.", file=f)
             print(f"// {len(samples8)} samples ({len(samples8)/AUDIO_SAMPLE_RATE:.3f}s)", file=f)
             emit_plain(f, sym, "unsigned char", "", len(samples8), _plain_hex_block(flat))

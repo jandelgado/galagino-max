@@ -41,9 +41,14 @@
 
 class timeplt : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> timeplt_rom;
+  Asset<unsigned char, COMPRESSED> timeplt_snd_rom;
+  Asset<uint32_t[256][16], COMPRESSED> timeplt_spritemap;
+  Asset<unsigned short[8], COMPRESSED> timeplt_tilemap;
 public:
-  timeplt() { }
-  ~timeplt();
+  timeplt();
 
   signed char machineType() override { return MCH_TIMEPLT; }
   void start(void) override;
@@ -54,7 +59,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

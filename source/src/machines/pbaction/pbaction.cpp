@@ -7,19 +7,17 @@
 #include "pbaction_sprites32.h"
 
 // Unpack eagerly, largest first: only this order fits Arena's two blocks.
-pbaction::pbaction() {
+pbaction::pbaction()
+  : pbaction_audio_rom(pbaction_audio_rom_blob),
+    pbaction_bg_tiles(pbaction_bg_tiles_blob),
+    pbaction_fg_tiles(pbaction_fg_tiles_blob),
+    pbaction_main_rom(pbaction_main_rom_blob),
+    pbaction_sprites16(pbaction_sprites16_blob),
+    pbaction_sprites32(pbaction_sprites32_blob) {
 	pbaction_fg_tiles.data();
 	pbaction_main_rom.data();
 	pbaction_sprites32.data();
 	pbaction_audio_rom.data();
-}
-
-pbaction::~pbaction() {
-	pbaction_main_rom.release();
-	pbaction_audio_rom.release();
-	pbaction_fg_tiles.release();
-	pbaction_sprites16.release();
-	pbaction_sprites32.release();
 }
 
 // ===========================================================================
@@ -608,7 +606,7 @@ void pbaction::render_row(short row) {
     blit_tile_fg(row, col);
 }
 
-RomData<unsigned short, COMPRESSED> &pbaction::logo(void) {
+Asset<unsigned short, COMPRESSED> &pbaction::logo(void) {
   return pbaction_logo;
 }
 

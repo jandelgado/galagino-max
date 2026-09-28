@@ -5,11 +5,10 @@
 #include "crush_cmap.h"
 #include "crush_wavetable.h"
 
-crush::~crush() {
-	crush_rom.release();
-	crush_tilemap.release();
-	crush_sprites.release();
-}
+crush::crush()
+  : crush_rom(crush_rom_blob),
+    crush_sprites(crush_sprites_blob),
+    crush_tilemap(crush_tilemap_blob) { }
 
 void crush::maketrax_protection_w(uint8_t data)
 {
@@ -205,7 +204,7 @@ const signed char * crush::waveRom(unsigned char value) {
   return crush_wavetable[value]; 
 }
 
-RomData<unsigned short, COMPRESSED> &crush::logo(void) {
+Asset<unsigned short, COMPRESSED> &crush::logo(void) {
   return crush_logo;
 }
 

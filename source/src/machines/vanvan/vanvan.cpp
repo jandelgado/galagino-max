@@ -5,12 +5,11 @@
 #include "vanvan_spritemap.h"
 #include "vanvan_cmap.h"
 
-vanvan::~vanvan() {
-	vanvan_rom.release();
-	vanvan_rom2.release();
-	vanvan_tilemap.release();
-	vanvan_sprites.release();
-}
+vanvan::vanvan()
+  : vanvan_rom(vanvan_rom_blob),
+    vanvan_rom2(vanvan_rom2_blob),
+    vanvan_sprites(vanvan_sprites_blob),
+    vanvan_tilemap(vanvan_tilemap_blob) {}
 
 void vanvan::reset() {
   machineBase::reset();
@@ -254,7 +253,7 @@ void vanvan::render_row(short row) {
   }
 }
 
-RomData<unsigned short, COMPRESSED> &vanvan::logo(void) {
+Asset<unsigned short, COMPRESSED> &vanvan::logo(void) {
   return vanvan_logo;
 }
 

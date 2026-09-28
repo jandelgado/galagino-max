@@ -1,4 +1,4 @@
-#include "../../emulation/romdata.h"
+#include "../../emulation/asset.h"
 // theglob_logo: 43008 -> 9777 bytes (77.3% smaller)
 static const unsigned char theglob_logo_packed[] = {
   0x78,0xDA,0xED,0x7D,0x09,0x5C,0x94,0xD5,0xFE,0xFE,0x39,0xEF,0xA2,0x80,0x5A,0xB8,
@@ -614,4 +614,4 @@ static const unsigned char theglob_logo_packed[] = {
   0x2D,0xD7,0x72,0x2D,0xD7,0x72,0x2D,0xD7,0xFA,0x9F,0xAE,0xFF,0x07,0xD3,0xAB,0x76,
   0x0C
 };
-static RomData<unsigned short, COMPRESSED> theglob_logo(theglob_logo_packed, sizeof(theglob_logo_packed), 21504);
+static Asset<unsigned short, COMPRESSED> theglob_logo(theglob_logo_packed, sizeof(theglob_logo_packed), 21504);

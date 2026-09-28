@@ -4,11 +4,11 @@
 #include <cstring>
 #include <unistd.h>
 #include <type_traits>
-#include "../src/emulation/romdata.h"
+#include "../src/emulation/asset.h"
 #include "../src/emulation/arena.h"
 
-static_assert(std::is_literal_type<RomData<unsigned char, COMPRESSED>>::value, "RomData<T, COMPRESSED> must be a literal type");
-static_assert(std::is_literal_type<RomData<unsigned char, PLAIN>>::value, "RomData<T, PLAIN> must be a literal type");
+static_assert(std::is_literal_type<Asset<unsigned char, COMPRESSED>>::value, "Asset<T, COMPRESSED> must be a literal type");
+static_assert(std::is_literal_type<Asset<unsigned char, PLAIN>>::value, "Asset<T, PLAIN> must be a literal type");
 
 // zlib.compress(bytes(range(64)), 9) — 64 sequential unsigned char values 0..63
 static const unsigned char scalar_packed[] = {
@@ -20,7 +20,7 @@ static const unsigned char scalar_packed[] = {
 };
 
 // zlib.compress(struct.pack("<HHHHHH", 0x0102,0x0304, 0x0506,0x0708, 0x0900,0x0A0B), 9)
-// three rows of two unsigned shorts each -> exercises RomData<unsigned short[2]>
+// three rows of two unsigned shorts each -> exercises Asset<unsigned short[2]>
 static const unsigned char rows_packed[] = {
   0x78, 0xDA, 0x63, 0x62, 0x64, 0x61, 0x66, 0x63, 0xE5, 0x60, 0x67, 0xE0, 0xE4, 0xE6, 0x02, 0x00,
   0x01, 0x53, 0x00, 0x43
@@ -29,28 +29,28 @@ static const unsigned char rows_packed[] = {
 static const unsigned char plain_data[4] = { 10, 20, 30, 40 };
 
 void test_compressed_scalar() {
-  RomData<unsigned char, COMPRESSED> rom(scalar_packed, sizeof(scalar_packed), 64);
+  Asset<unsigned char, COMPRESSED> rom(scalar_packed, sizeof(scalar_packed), 64);
   for (unsigned int i = 0; i < 64; i++) assert(rom[i] == i);
   printf("1. compressed unsigned char round-trip via operator[]: OK\n");
 }
 
 void test_compressed_multidim() {
-  RomData<unsigned short[2], COMPRESSED> rows(rows_packed, sizeof(rows_packed), 3);
+  Asset<unsigned short[2], COMPRESSED> rows(rows_packed, sizeof(rows_packed), 3);
   assert(rows[0][0] == 0x0102 && rows[0][1] == 0x0304);
   assert(rows[1][0] == 0x0506 && rows[1][1] == 0x0708);
   assert(rows[2][0] == 0x0900 && rows[2][1] == 0x0A0B);
-  printf("2. compressed RomData<unsigned short[2]> chained [][]: OK\n");
+  printf("2. compressed Asset<unsigned short[2]> chained [][]: OK\n");
 }
 
 void test_plain_zero_alloc_path() {
-  RomData<unsigned char, PLAIN> plain(plain_data, 4);
+  Asset<unsigned char, PLAIN> plain(plain_data, 4);
   assert(plain[0] == 10 && plain[1] == 20 && plain[2] == 30 && plain[3] == 40);
   assert(plain.data() == plain_data);  // no decompression/allocation happened
   printf("3. plain constructor returns the flash pointer directly: OK\n");
 }
 
 void test_release_frees_and_is_idempotent() {
-  RomData<unsigned char, COMPRESSED> rom(scalar_packed, sizeof(scalar_packed), 64);
+  Asset<unsigned char, COMPRESSED> rom(scalar_packed, sizeof(scalar_packed), 64);
   (void)rom[0];       // force decompression
   rom.release();
   rom.release();      // must not double-free or crash
@@ -58,25 +58,25 @@ void test_release_frees_and_is_idempotent() {
   printf("4. release() frees, is idempotent, and re-decompresses on next use: OK\n");
 }
 
-void test_const_romdata() {
-  static const RomData<unsigned char, PLAIN> const_check(plain_data, 4);
+void test_const_asset() {
+  static const Asset<unsigned char, PLAIN> const_check(plain_data, 4);
   assert(const_check[0] == 10);
   assert(const_check.data()[1] == 20);
-  printf("5. const RomData indexing and data() access work: OK\n");
+  printf("5. const Asset indexing and data() access work: OK\n");
 }
 
 void test_literal_type() {
-  static_assert(std::is_literal_type<RomData<unsigned char, COMPRESSED>>::value, "literal type check");
-  printf("6. RomData<T> is a literal type (trivial destructor): OK\n");
+  static_assert(std::is_literal_type<Asset<unsigned char, COMPRESSED>>::value, "literal type check");
+  printf("6. Asset<T> is a literal type (trivial destructor): OK\n");
 }
 
 void test_release_on_plain_is_safe() {
-  RomData<unsigned char, PLAIN> plain(plain_data, 4);
+  Asset<unsigned char, PLAIN> plain(plain_data, 4);
   plain.release();  // must not attempt to delete[] the flash pointer
   assert(plain[0] == 10 && plain[1] == 20 && plain[2] == 30 && plain[3] == 40);
   plain.release();  // idempotent
   assert(plain.data() == plain_data);
-  printf("7. release() on a plain-constructed RomData is a safe no-op: OK\n");
+  printf("7. release() on a plain-constructed Asset is a safe no-op: OK\n");
 }
 
 void test_unpack_prints_timing_and_ratio() {
@@ -84,7 +84,7 @@ void test_unpack_prints_timing_and_ratio() {
   const char *tmpdir = getenv("TMPDIR");
   if (!tmpdir) tmpdir = "/tmp";
   char tmpname[256];
-  snprintf(tmpname, sizeof(tmpname), "%s/romdata_test_output_XXXXXX", tmpdir);
+  snprintf(tmpname, sizeof(tmpname), "%s/asset_test_output_XXXXXX", tmpdir);
   int tmpfd = mkstemp(tmpname);
   assert(tmpfd >= 0);
   FILE *tmp = fdopen(tmpfd, "w+");
@@ -94,7 +94,7 @@ void test_unpack_prints_timing_and_ratio() {
   dup2(fileno(tmp), fileno(stdout));
 
   {
-    RomData<unsigned char, COMPRESSED> rom(scalar_packed, sizeof(scalar_packed), 64);
+    Asset<unsigned char, COMPRESSED> rom(scalar_packed, sizeof(scalar_packed), 64);
     (void)rom[0]; // force decompression, triggers the print
   }
 
@@ -107,7 +107,7 @@ void test_unpack_prints_timing_and_ratio() {
   buf[n] = '\0';
   fclose(tmp);
 
-  assert(strstr(buf, "RomData:") != nullptr);
+  assert(strstr(buf, "Asset:") != nullptr);
   assert(strstr(buf, "ms") != nullptr);
   assert(strstr(buf, "%") != nullptr);
   assert(strstr(buf, "64") != nullptr);   // decompressed byte count
@@ -116,16 +116,16 @@ void test_unpack_prints_timing_and_ratio() {
 }
 
 int main() {
-  Arena::init();   // RomData<T, COMPRESSED>::data() allocates from here
+  Arena::init();   // Asset<T, COMPRESSED>::data() allocates from here
 
   test_compressed_scalar();
   test_compressed_multidim();
   test_plain_zero_alloc_path();
   test_release_frees_and_is_idempotent();
-  test_const_romdata();
+  test_const_asset();
   test_literal_type();
   test_release_on_plain_is_safe();
   test_unpack_prints_timing_and_ratio();
-  printf("\nALL ROMDATA TESTS PASSED\n");
+  printf("\nALL ASSET TESTS PASSED\n");
   return 0;
 }

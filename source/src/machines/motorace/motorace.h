@@ -19,9 +19,14 @@
 
 class motorace : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> motorace_rom;
+  Asset<unsigned char, COMPRESSED> motorace_snd_rom;
+  Asset<uint32_t[32], COMPRESSED> motorace_spritemap;
+  Asset<uint32_t[8], COMPRESSED> motorace_tilemap;
 public:
   motorace();
-  ~motorace();
 
   signed char machineType()    override { return MCH_MOTORACE; }
   // flipY toggles both MY and MX (video.cpp); flipX undoes MX.
@@ -45,7 +50,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
 
   // M6803 sound CPU memory access (chiamati da callback C)
   uint8_t snd_read(uint16_t addr);

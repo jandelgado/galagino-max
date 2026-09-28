@@ -1,19 +1,17 @@
 #include "xevious.h"
 
-xevious::xevious() { }
-
-xevious::~xevious() {
-	xevious_rom_cpu1.release();
-	xevious_rom_cpu2.release();
-	xevious_rom_cpu3.release();
-	xevious_planetmap.release();
-	xevious_fgtilemap.release();
-	xevious_bgtilemap.release();
-	xevious_colormap_bg.release();
-	xevious_colormap_sprites.release();
-	xevious_sample_boom.release();
-	xevious_sample_boom2.release();
-}
+xevious::xevious()
+  : xevious_bgtilemap(xevious_bgtilemap_blob),
+    xevious_colormap_bg(xevious_colormap_bg_blob),
+    xevious_colormap_sprites(xevious_colormap_sprites_blob),
+    xevious_fgtilemap(xevious_fgtilemap_blob),
+    xevious_planetmap(xevious_planetmap_blob),
+    xevious_rom_cpu1(xevious_rom_cpu1_blob),
+    xevious_rom_cpu2(xevious_rom_cpu2_blob),
+    xevious_rom_cpu3(xevious_rom_cpu3_blob),
+    xevious_sample_boom(xevious_sample_boom_blob),
+    xevious_sample_boom2(xevious_sample_boom2_blob),
+    xevious_sprites(xevious_sprites_blob) { }
 
 // ============================================================================
 // CPU dispatch — ogni CPU ha una ROM di dimensione diversa (16K/8K/4K),
@@ -692,6 +690,6 @@ const signed char *xevious::waveRom(unsigned char value) {
   return xevious_wavetable[value];
 }
 
-RomData<unsigned short, COMPRESSED> &xevious::logo(void) {
+Asset<unsigned short, COMPRESSED> &xevious::logo(void) {
   return xevious_logo;
 }

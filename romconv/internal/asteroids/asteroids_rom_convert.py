@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pyconv"))
 from gfxutil import load_file
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..", "..", "..")

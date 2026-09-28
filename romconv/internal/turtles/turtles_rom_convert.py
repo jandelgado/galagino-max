@@ -17,7 +17,7 @@ import hashlib
 sys.dont_write_bytecode = True
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 from gfxutil import hex8, hex16, hex32
 from galaxian_hw import parse_chr_2, dump_chr, convert_tiles, parse_sprite_galaxian, dump_sprite, convert_sprites
 from convutil import fatal

@@ -5,7 +5,7 @@ Recompress spaceinvaders_samples.h in place.
 The original .wav -> PCM converter script this header was generated from
 (convert_si_samples.py) is no longer present in the repo; only its checked-in
 output is. This script treats that plain-array output as the source of truth
-and re-emits it zlib-compressed (RomData<signed char, COMPRESSED>), without
+and re-emits it zlib-compressed (Asset<signed char, COMPRESSED>), without
 touching the PCM sample values themselves.
 """
 
@@ -14,7 +14,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "..", "source", "src", "machines", "spaceinvaders"))
 HEADER = os.path.join(OUT_DIR, "spaceinvaders_samples.h")

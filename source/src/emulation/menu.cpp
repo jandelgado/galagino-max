@@ -365,11 +365,11 @@ void Menu::render_row_cylinder(short row) {
 
 // Decode only logos visible this frame. Caching all ~50 does not fit in RAM.
 void Menu::refreshLogoCache() {
-  RomData<unsigned short, COMPRESSED> *needed[LOGO_CACHE_SIZE] = { };
+  Asset<unsigned short, COMPRESSED> *needed[LOGO_CACHE_SIZE] = { };
   unsigned char needed_count = 0;
 
   auto addNeeded = [&](signed char idx) {
-    RomData<unsigned short, COMPRESSED> *r = &machines[idx].logo();
+    Asset<unsigned short, COMPRESSED> *r = &machines[idx].logo();
     for(unsigned char i = 0; i < needed_count; i++) {
       if(needed[i] == r) { return; }
     }
@@ -430,7 +430,7 @@ void Menu::refreshLogoCache() {
 }
 
 // nullptr unless refreshLogoCache() made the logo resident this frame.
-const unsigned short *Menu::logoBuffer(RomData<unsigned short, COMPRESSED> &logo) {
+const unsigned short *Menu::logoBuffer(Asset<unsigned short, COMPRESSED> &logo) {
   for(unsigned char i = 0; i < LOGO_CACHE_SIZE; i++) {
     if(slot_logo[i] == &logo) {
       return logo_pool[i];

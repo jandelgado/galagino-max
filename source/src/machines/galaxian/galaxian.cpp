@@ -5,11 +5,10 @@
 #include "galaxian_cmap.h"
 #include "../../emulation/input.h"
 
-galaxian::~galaxian() {
-	galaxian_rom.release();
-	galaxian_tilemap.release();
-	galaxian_spritemap.release();
-}
+galaxian::galaxian()
+  : galaxian_rom(galaxian_rom_blob),
+    galaxian_spritemap(galaxian_spritemap_blob),
+    galaxian_tilemap(galaxian_tilemap_blob) { }
 
 void galaxian::start(void) {
   rom_ptr = galaxian_rom.data();
@@ -400,7 +399,7 @@ void galaxian::render_row(short row) {
   }
 }
 
-RomData<unsigned short, COMPRESSED> &galaxian::logo(void) {
+Asset<unsigned short, COMPRESSED> &galaxian::logo(void) {
   return galaxian_logo;
 }
 

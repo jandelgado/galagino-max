@@ -41,9 +41,14 @@
 
 class pooyan : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> pooyan_rom;
+  Asset<unsigned char, COMPRESSED> pooyan_snd_rom;
+  Asset<unsigned char[64][16][8], COMPRESSED> pooyan_spritemap;
+  Asset<uint32_t[8], COMPRESSED> pooyan_tilemap;
 public:
-	pooyan() { }
-	~pooyan();
+	pooyan();
 
 	signed char machineType() override { return MCH_POOYAN; }
 	void start(void) override;
@@ -55,7 +60,7 @@ public:
 	void run_frame(void) override;
 	void prepare_frame(void) override;
 	void render_row(short row) override;
-	static RomData<unsigned short, COMPRESSED> &logo(void);
+	static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN
 	static void menuLeds(CRGB *leds);

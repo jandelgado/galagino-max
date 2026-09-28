@@ -30,7 +30,7 @@ private:
   void menu_logo(short row, const unsigned short *img, char active);
   unsigned short convert_RGB565_to_greyscale(unsigned short in);
   void refreshLogoCache();
-  const unsigned short *logoBuffer(RomData<unsigned short, COMPRESSED> &logo);
+  const unsigned short *logoBuffer(Asset<unsigned short, COMPRESSED> &logo);
   void enterMenu();
   void leaveMenu();
 #ifdef MENU_CYLINDER
@@ -55,7 +55,7 @@ private:
   // logo decodes once and stays until scrolled off.
   unsigned char logo_pool_count = 0;
   unsigned short *logo_pool[LOGO_CACHE_SIZE] = { };
-  RomData<unsigned short, COMPRESSED> *slot_logo[LOGO_CACHE_SIZE] = { };
+  Asset<unsigned short, COMPRESSED> *slot_logo[LOGO_CACHE_SIZE] = { };
 
 #ifdef MENU_CYLINDER
   // per screen line of the drum, built by enterMenu(), lives in Arena

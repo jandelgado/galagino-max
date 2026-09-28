@@ -30,9 +30,14 @@
 
 class alibaba : public pacman
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<uint32_t[24], COMPRESSED> alibaba_clockmap;
+  Asset<unsigned char, COMPRESSED> alibaba_rom;
+  Asset<uint32_t[64][16], COMPRESSED> alibaba_sprites;
+  Asset<unsigned short[8], COMPRESSED> alibaba_tilemap;
 public:
-	alibaba() { }
-	~alibaba();
+	alibaba();
 
 	signed char machineType() override { return MCH_ALIBABA; }
 
@@ -44,7 +49,7 @@ public:
 	void run_frame(void) override;
 	void prepare_frame(void) override;
 	void render_row(short row) override;
-	static RomData<unsigned short, COMPRESSED> &logo(void);
+	static Asset<unsigned short, COMPRESSED> &logo(void);
 
 protected:
 	const unsigned short *tileRom(unsigned short addr) override;

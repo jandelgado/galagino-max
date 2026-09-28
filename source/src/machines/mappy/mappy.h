@@ -39,10 +39,14 @@
 
 class mappy : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> mappy_rom_main;
+  Asset<unsigned char, COMPRESSED> mappy_rom_sub;
+  Asset<uint32_t[128][32], COMPRESSED> mappy_sprites;
+  Asset<unsigned short[8], COMPRESSED> mappy_tilemap;
 public:
-    // ctor/dtor in .cpp: a header-static RomData is per-TU; data() and release() must hit one copy.
     mappy();
-    ~mappy();
 
     signed char machineType() override { return MCH_MAPPY; }
     signed char useVideoHalfRate() override { return 1; }
@@ -62,7 +66,7 @@ public:
     bool namcoSoundEnabled() override { return wsg_enable != 0; }
     const signed char *waveRom(unsigned char value) override { return mappy_wavetable[value & 7]; }
 
-    static RomData<unsigned short, COMPRESSED> &logo(void) { return mappy_logo; }
+    static Asset<unsigned short, COMPRESSED> &logo(void) { return mappy_logo; }
 
 protected:
     void blit_tile(unsigned short idx, short x, char prio);

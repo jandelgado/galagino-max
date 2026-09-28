@@ -49,10 +49,17 @@
 
 class gaplus : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned short[8], COMPRESSED> gaplus_colormap_sprites;
+  Asset<unsigned char, COMPRESSED> gaplus_rom_main;
+  Asset<unsigned char, COMPRESSED> gaplus_rom_sub;
+  Asset<unsigned char, COMPRESSED> gaplus_rom_sub2;
+  Asset<unsigned char, COMPRESSED> gaplus_sample_bang;
+  Asset<uint32_t[384][32], PLAIN> gaplus_sprites;
+  Asset<unsigned short[8], COMPRESSED> gaplus_tilemap;
 public:
-    // ctor/dtor in .cpp: a header-static RomData is per-TU; data() and release() must hit one copy.
     gaplus();
-    ~gaplus();
 
     signed char machineType() override { return MCH_GAPLUS; }
     signed char useVideoHalfRate() override { return 1; }
@@ -72,7 +79,7 @@ public:
     bool namcoSoundEnabled() override { return wsg_enable != 0; }
     const signed char *waveRom(unsigned char value) override { return gaplus_wavetable[value & 7]; }
 
-    static RomData<unsigned short, COMPRESSED> &logo(void) { return gaplus_logo; }
+    static Asset<unsigned short, COMPRESSED> &logo(void) { return gaplus_logo; }
 
     // campione esplosione "bang" (customio_3, offset9>=0x0F), mixato in
     // Audio::namco_15xx_render_buffer (gated MCH_GAPLUS), stesso schema di

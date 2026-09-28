@@ -24,7 +24,7 @@ sys.dont_write_bytecode = True
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import load_file, mame_decode, rot_galagino
-from romdata_emit import emit_compressed, emit_plain
+from asset_emit import emit_compressed, emit_plain
 from namco_hw import flip_tile, nudge, rgb565_swapped_rgb as rgb565_swapped
 from convutil import fatal
 

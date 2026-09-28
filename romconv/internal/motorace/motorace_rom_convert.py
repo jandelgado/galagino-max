@@ -18,7 +18,7 @@ import hashlib
 sys.dont_write_bytecode = True
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "..", "romszip", "motorace.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "..", "source", "src", "machines", "motorace"))
@@ -201,7 +201,7 @@ def pack_sprite_row(pixels_16):
 # mirrored at render time (motorace::blit_sprite_t), same convention as
 # every other machine in this codebase (e.g. 1942's tile_row_words).
 # Baking all 4 flip combinations here would quadruple the decompressed
-# footprint past Arena's budget (see romdata.h / arena.h).
+# footprint past Arena's budget (see asset.h / arena.h).
 sprites_packed = []  # [sprite_idx] = list of 16 (w0,w1) tuples
 for s in range(num_sprites):
     landscape = decode_sprite_3bpp(spr_plane0, spr_plane1, spr_plane2, s)

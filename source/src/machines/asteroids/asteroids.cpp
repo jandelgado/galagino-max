@@ -101,7 +101,9 @@ static void enlarge_copyright(unsigned char *vrom) {
   }
 }
 
-asteroids::asteroids() {
+asteroids::asteroids()
+  : asteroids_rom(asteroids_rom_blob),
+    asteroids_vrom(asteroids_vrom_blob) {
   memset(&m_cpu, 0, sizeof(m_cpu));
   m_cpu.read = main_read;
   m_cpu.write = main_write;
@@ -117,11 +119,6 @@ asteroids::asteroids() {
     palette[i] = grey565(80 + i * 11);
     glow[i] = glow565(80 + i * 11);
   }
-}
-
-asteroids::~asteroids() {
-  asteroids_rom.release();
-  asteroids_vrom.release();
 }
 
 void asteroids::start() {

@@ -5,17 +5,14 @@
 #include "circusc_spritemap.h"
 #include "circusc_cmap.h"
 
-circusc::circusc() {
+circusc::circusc()
+  : circusc_audio_rom(circusc_audio_rom_blob),
+    circusc_main_rom(circusc_main_rom_blob),
+    circusc_spritemap(circusc_spritemap_blob),
+    circusc_tilemap(circusc_tilemap_blob) {
 	// In ctor: m6809_reset() reads the reset vector through these.
 	main_rom_ptr = circusc_main_rom.data();
 	audio_rom_ptr = circusc_audio_rom.data();
-}
-
-circusc::~circusc() {
-	circusc_main_rom.release();
-	circusc_audio_rom.release();
-	circusc_tilemap.release();
-	circusc_spritemap.release();
 }
 
 void circusc::reset() {

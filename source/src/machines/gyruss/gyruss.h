@@ -47,9 +47,17 @@
 
 class gyruss : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> gyruss_rom_audio;
+  Asset<unsigned char, COMPRESSED> gyruss_rom_i8039;
+  Asset<unsigned char, COMPRESSED> gyruss_rom_main;
+  Asset<unsigned char, COMPRESSED> gyruss_rom_sub_raw;
+  Asset<unsigned char, COMPRESSED> gyruss_rom_sub_decrypt;
+  Asset<uint32_t[16], COMPRESSED> gyruss_sprites;
+  Asset<unsigned short[8], COMPRESSED> gyruss_tilemap;
 public:
     gyruss();
-    ~gyruss();
 
     void start() override;
     void reset() override;
@@ -107,7 +115,7 @@ public:
     void run_frame(void) override;
     void prepare_frame(void) override;
     void render_row(short row) override;
-    static RomData<unsigned short, COMPRESSED> &logo(void);
+    static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN
     static void menuLeds(CRGB *leds);

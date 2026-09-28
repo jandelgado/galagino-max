@@ -6,22 +6,19 @@
 #include "gyruss_tilemap.h"
 #include "gyruss_spritemap.h"
 
-gyruss::gyruss() {
+gyruss::gyruss()
+  : gyruss_rom_audio(gyruss_rom_audio_blob),
+    gyruss_rom_i8039(gyruss_rom_i8039_blob),
+    gyruss_rom_main(gyruss_rom_main_blob),
+    gyruss_rom_sub_raw(gyruss_rom_sub_raw_blob),
+    gyruss_rom_sub_decrypt(gyruss_rom_sub_decrypt_blob),
+    gyruss_sprites(gyruss_sprites_blob),
+    gyruss_tilemap(gyruss_tilemap_blob) {
   // Before start_audio_task(): the audio task reads these.
   main_rom_ptr = gyruss_rom_main.data();
   audio_rom_ptr = gyruss_rom_audio.data();
   sub_raw_ptr = gyruss_rom_sub_raw.data();
   sub_decrypt_ptr = gyruss_rom_sub_decrypt.data();
-}
-
-gyruss::~gyruss() {
-	gyruss_rom_main.release();
-	gyruss_rom_sub_raw.release();
-	gyruss_rom_sub_decrypt.release();
-	gyruss_rom_audio.release();
-	gyruss_rom_i8039.release();
-	gyruss_tilemap.release();
-	gyruss_sprites.release();
 }
 
 // ============================================================
@@ -585,7 +582,7 @@ void gyruss::render_row(short row) {
 // Logo
 // ============================================================
 
-RomData<unsigned short, COMPRESSED> &gyruss::logo(void) {
+Asset<unsigned short, COMPRESSED> &gyruss::logo(void) {
   return gyruss_logo;
 }
 

@@ -43,10 +43,15 @@
 
 class todruaga : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned short[16], COMPRESSED> todruaga_colormap_sprites;
+  Asset<unsigned char, COMPRESSED> todruaga_rom_main;
+  Asset<unsigned char, COMPRESSED> todruaga_rom_sub;
+  Asset<uint32_t[128][32], COMPRESSED> todruaga_sprites;
+  Asset<unsigned short[8], COMPRESSED> todruaga_tilemap;
 public:
-    // ctor/dtor in .cpp: a header-static RomData is per-TU; data() and release() must hit one copy.
     todruaga();
-    ~todruaga();
 
     signed char machineType() override { return MCH_TODRUAGA; }
     signed char useVideoHalfRate() override { return 1; }
@@ -66,7 +71,7 @@ public:
     bool namcoSoundEnabled() override { return wsg_enable != 0; }
     const signed char *waveRom(unsigned char value) override { return todruaga_wavetable[value & 7]; }
 
-    static RomData<unsigned short, COMPRESSED> &logo(void) { return todruaga_logo; }
+    static Asset<unsigned short, COMPRESSED> &logo(void) { return todruaga_logo; }
 
 protected:
     void blit_tile(unsigned short idx, short x, char prio);

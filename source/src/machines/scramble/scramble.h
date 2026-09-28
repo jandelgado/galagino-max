@@ -45,9 +45,14 @@
 
 class scramble : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> scramble_audio_rom;
+  Asset<unsigned char, COMPRESSED> scramble_main_rom;
+  Asset<uint32_t[64][16], COMPRESSED> scramble_spritemap;
+  Asset<unsigned short[8], COMPRESSED> scramble_tilemap;
 public:
-  scramble() {}
-  ~scramble();
+  scramble();
 
   signed char machineType() override { return MCH_SCRAMBLE; }
   void start() override;
@@ -61,7 +66,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

@@ -53,9 +53,14 @@
 #define ROADF_DSW2  0x2D
 
 class roadfighter : public machineBase {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> roadfighter_rom_audio;
+  Asset<unsigned char, COMPRESSED> roadfighter_rom_main_raw;
+  Asset<uint32_t[32], COMPRESSED> roadfighter_sprites;
+  Asset<uint32_t[8], COMPRESSED> roadfighter_tiles;
 public:
   roadfighter();
-  ~roadfighter();
 
   void init(Input *input, unsigned short *framebuffer,
             sprite_S *spritebuffer, unsigned char *memorybuffer) override;
@@ -87,7 +92,7 @@ public:
   void prepare_frame(void)  override;
   void render_row(short row) override;
 
-  static RomData<unsigned short, COMPRESSED> &logo(void) { return roadfighter_logo; }
+  static Asset<unsigned short, COMPRESSED> &logo(void) { return roadfighter_logo; }
 
   int roadf_dac_sample() const { return dac_sample; }
 

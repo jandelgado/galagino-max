@@ -4,17 +4,14 @@
 #include "rocnrope_tilemap.h"
 #include "rocnrope_spritemap.h"
 
-rocnrope::rocnrope() {
+rocnrope::rocnrope()
+  : rocnrope_audio_rom(rocnrope_audio_rom_blob),
+    rocnrope_main_rom(rocnrope_main_rom_blob),
+    rocnrope_spritemap(rocnrope_spritemap_blob),
+    rocnrope_tilemap(rocnrope_tilemap_blob) {
 	// In ctor: m6809_reset() reads the reset vector through these.
 	main_rom_ptr = rocnrope_main_rom.data();
 	audio_rom_ptr = rocnrope_audio_rom.data();
-}
-
-rocnrope::~rocnrope() {
-	rocnrope_main_rom.release();
-	rocnrope_audio_rom.release();
-	rocnrope_tilemap.release();
-	rocnrope_spritemap.release();
 }
 
 void rocnrope::reset() {
@@ -399,7 +396,7 @@ void rocnrope::render_row(short row) {
   }
 }
 
-RomData<unsigned short, COMPRESSED> &rocnrope::logo(void) {
+Asset<unsigned short, COMPRESSED> &rocnrope::logo(void) {
   return rocnrope_logo;
 }
 

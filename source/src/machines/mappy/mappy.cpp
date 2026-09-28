@@ -1,18 +1,16 @@
 #include "mappy.h"
 
-mappy::mappy() : rom_main(mappy_rom_main.data()),
+mappy::mappy()
+  : mappy_rom_main(mappy_rom_main_blob),
+    mappy_rom_sub(mappy_rom_sub_blob),
+    mappy_sprites(mappy_sprites_blob),
+    mappy_tilemap(mappy_tilemap_blob),
+    rom_main(mappy_rom_main.data()),
   rom_sub(mappy_rom_sub.data()),
   tiles(mappy_tilemap.data()),
   cmap_tiles(mappy_colormap_tiles),
   cmap_prio(mappy_colormap_tiles_prio),
   cmap_sprites(mappy_colormap_sprites) { }
-
-mappy::~mappy() {
-	mappy_rom_main.release();
-	mappy_rom_sub.release();
-	mappy_tilemap.release();
-	mappy_sprites.release();
-}
 
 void mappy::reset() {
   machineBase::reset();

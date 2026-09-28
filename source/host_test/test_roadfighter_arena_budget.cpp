@@ -2,7 +2,7 @@
 // Arena::alloc() aborts on machine start.
 #include <cassert>
 #include <cstdio>
-#include "../src/emulation/romdata.h"
+#include "../src/emulation/asset.h"
 #include "../src/emulation/arena.h"
 #include "../src/machines/roadfighter/roadfighter_rom_main.h"
 #include "../src/machines/roadfighter/roadfighter_rom_audio.h"

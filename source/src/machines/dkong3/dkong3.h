@@ -50,9 +50,15 @@ struct dk3_apu_t {
 
 class dkong3 : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> dkong3_rom_cpu;
+  Asset<unsigned char, COMPRESSED> dkong3_rom_sound_a;
+  Asset<unsigned char, COMPRESSED> dkong3_rom_sound_b;
+  Asset<uint32_t[256][16], COMPRESSED> dkong3_sprites;
+  Asset<unsigned short[8], COMPRESSED> dkong3_tilemap;
 public:
-    dkong3() { memset(snd_cpu, 0, sizeof(snd_cpu)); }
-    ~dkong3();
+    dkong3();
 
     void reset() override;
     void start() override;
@@ -65,7 +71,7 @@ public:
     void prepare_frame(void) override;
     void run_frame(void) override;
     void render_row(short row) override;
-    static RomData<unsigned short, COMPRESSED> &logo(void);
+    static Asset<unsigned short, COMPRESSED> &logo(void);
 
     // Public: accessed by audio.cpp
     static const int DK3_SAMPLES = 1024;
@@ -98,6 +104,7 @@ private:
 
     // Cached: hot path reads these per access; data() checks the cache on every call.
     const unsigned char *rom_ptr = nullptr;
+    const unsigned char *snd_rom_ptr[2] = { nullptr, nullptr };  // sound CPU #0, #1
 
     // Sound latches (Z80 writes, RP2A03 reads)
     // latch[0]: $7C00 → CPU A $4016

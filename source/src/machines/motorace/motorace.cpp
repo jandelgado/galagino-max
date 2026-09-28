@@ -18,16 +18,13 @@
 #include "motorace_spritemap.h"
 #include "motorace_cmap.h"
 
-motorace::motorace() {
+motorace::motorace()
+  : motorace_rom(motorace_rom_blob),
+    motorace_snd_rom(motorace_snd_rom_blob),
+    motorace_spritemap(motorace_spritemap_blob),
+    motorace_tilemap(motorace_tilemap_blob) {
   rom_ptr = motorace_rom.data();
   snd_rom_ptr = motorace_snd_rom.data();
-}
-
-motorace::~motorace() {
-	motorace_rom.release();
-	motorace_snd_rom.release();
-	motorace_tilemap.release();
-	motorace_spritemap.release();
 }
 
 #define FB_W 240
@@ -366,7 +363,7 @@ void motorace::render_row(short strip_r) {
   }
 }
 
-RomData<unsigned short, COMPRESSED> &motorace::logo(void) {
+Asset<unsigned short, COMPRESSED> &motorace::logo(void) {
   return motorace_logo;
 }
 

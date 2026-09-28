@@ -5,12 +5,11 @@
 #include "anteater_spritemap.h"
 #include "anteater_cmap.h"
 
-anteater::~anteater() {
-	anteater_rom_cpu1.release();
-	anteater_rom_cpu2.release();
-	anteater_tilemap.release();
-	anteater_sprites.release();
-}
+anteater::anteater()
+  : anteater_rom_cpu1(anteater_rom_cpu1_blob),
+    anteater_rom_cpu2(anteater_rom_cpu2_blob),
+    anteater_sprites(anteater_sprites_blob),
+    anteater_tilemap(anteater_tilemap_blob) { }
 
 void anteater::reset() {
   machineBase::reset();
@@ -415,7 +414,7 @@ const uint32_t *anteater::spriteRom(unsigned char flags, unsigned char code) {
   return anteater_sprites[flags][code];
 }
 
-RomData<unsigned short, COMPRESSED> &anteater::logo(void) {
+Asset<unsigned short, COMPRESSED> &anteater::logo(void) {
   return anteater_logo;
 }
 

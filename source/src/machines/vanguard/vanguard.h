@@ -8,16 +8,21 @@
 #include "../../emulation/seqlock.h"
 
 class vanguard : public machineBase {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> vanguard_gfx;
+  Asset<unsigned char, COMPRESSED> vanguard_rom;
+  Asset<unsigned char, COMPRESSED> vanguard_samples;
+  Asset<unsigned char, COMPRESSED> vanguard_sound_rom;
 public:
-  vanguard() { memset(&m_cpu, 0, sizeof(m_cpu)); }
-  ~vanguard();
+  vanguard();
   signed char machineType() override { return MCH_VANGUARD; }
   void start() override;
   void reset() override;
   void run_frame() override;
   void prepare_frame() override;
   void render_row(short row) override;
-  static RomData<unsigned short, COMPRESSED> &logo() { return vanguard_logo; }
+  static Asset<unsigned short, COMPRESSED> &logo() { return vanguard_logo; }
   unsigned char vanguardSoundRom(unsigned short addr) override;
   bool vanguardMusic0Muted() override { return music0_muted; }
   void vanguardMusic0Ended() override { music0_muted=true; }

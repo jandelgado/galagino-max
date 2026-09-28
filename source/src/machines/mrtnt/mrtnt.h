@@ -8,9 +8,13 @@
 
 class mrtnt : public pacman
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> mrtnt_rom;
+  Asset<uint32_t[64][16], COMPRESSED> mrtnt_sprites;
+  Asset<unsigned short[8], COMPRESSED> mrtnt_tilemap;
 public:
-  mrtnt() { }
-  ~mrtnt();
+  mrtnt();
 
   signed char machineType() override { return MCH_MRTNT; }
   void start(void) override;
@@ -21,7 +25,7 @@ public:
 
   void run_frame(void) override;
   const signed char * waveRom(unsigned char value) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);  
+  static Asset<unsigned short, COMPRESSED> &logo(void);  
 
 #ifdef LED_PIN
        static void menuLeds(CRGB *leds);

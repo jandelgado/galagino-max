@@ -10,34 +10,25 @@
 #include "starforce_sub_cpu_rom.h"
 
 starforce::starforce() : starforce(Roms{
-	starforce_main_cpu_rom, starforce_sub_cpu_rom, starforce_fg_tilemap,
-	starforce_bg1_tilemap, starforce_bg2_tilemap, starforce_bg3_tilemap,
-	starforce_sprites_16x16, starforce_sprites_32x32,
+	starforce_main_cpu_rom_blob, starforce_sub_cpu_rom_blob, starforce_fg_tilemap_blob,
+	starforce_bg1_tilemap_blob, starforce_bg2_tilemap_blob, starforce_bg3_tilemap_blob,
+	starforce_sprites_16x16_blob, starforce_sprites_32x32_blob,
 }) { }
 
-starforce::starforce(const Roms &r) : roms(r) {
+starforce::starforce(const Roms &r)
+	: main_cpu_rom(r.main_cpu), sub_cpu_rom(r.sub_cpu), fg_tiles(r.fg),
+	  bg1_tiles(r.bg1), bg2_tiles(r.bg2), bg3_tiles(r.bg3),
+	  sprites_16x16(r.sprites_16x16), sprites_32x32(r.sprites_32x32) {
 	// decompress largest first: heap is freshest right after create(), so
 	// big blocks get placed before smaller ones fragment it
-	spr16_ptr = roms.sprites_16x16.data();
-	spr32_ptr = roms.sprites_32x32.data();
-	rom_main_ptr = roms.main_cpu.data();
-	bg_ptr[0] = roms.bg1.data();
-	bg_ptr[1] = roms.bg2.data();
-	bg_ptr[2] = roms.bg3.data();
-	fg_ptr = roms.fg.data();
-	rom_sub_ptr = roms.sub_cpu.data();
-}
-
-starforce::~starforce() {
-	// release in reverse allocation order (LIFO) so freeing never opens a
-	// hole below still-resident blocks
-	roms.sub_cpu.release();
-	roms.fg.release();
-	roms.bg3.release();
-	roms.bg2.release();
-	roms.bg1.release();
-	roms.main_cpu.release();
-	roms.sprites_16x16.release();
+	spr16_ptr = sprites_16x16.data();
+	spr32_ptr = sprites_32x32.data();
+	rom_main_ptr = main_cpu_rom.data();
+	bg_ptr[0] = bg1_tiles.data();
+	bg_ptr[1] = bg2_tiles.data();
+	bg_ptr[2] = bg3_tiles.data();
+	fg_ptr = fg_tiles.data();
+	rom_sub_ptr = sub_cpu_rom.data();
 }
 
 uint8_t starforce::dsw1() {
@@ -643,7 +634,7 @@ void starforce::render_row(short row) {
   blit_background_line(row * 8, 3); // BG3
 }
 
-RomData<unsigned short, COMPRESSED> &starforce::logo(void) {
+Asset<unsigned short, COMPRESSED> &starforce::logo(void) {
   return starforce_logo;
 }
 

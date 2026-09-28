@@ -18,15 +18,20 @@
 
 class galaga : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> galaga_rom_cpu1;
+  Asset<unsigned char, COMPRESSED> galaga_rom_cpu2;
+  Asset<unsigned char, COMPRESSED> galaga_rom_cpu3;
+  Asset<uint32_t[128][16], COMPRESSED> galaga_sprites;
+  Asset<unsigned short[8], COMPRESSED> galaga_tilemap;
 public:
-  galaga() { }
-  ~galaga() {
-    galaga_rom_cpu1.release();
-    galaga_rom_cpu2.release();
-    galaga_rom_cpu3.release();
-    galaga_tilemap.release();
-    galaga_sprites.release();
-  }
+  galaga()
+    : galaga_rom_cpu1(galaga_rom_cpu1_blob),
+      galaga_rom_cpu2(galaga_rom_cpu2_blob),
+      galaga_rom_cpu3(galaga_rom_cpu3_blob),
+      galaga_sprites(galaga_sprites_blob),
+      galaga_tilemap(galaga_tilemap_blob) { }
 
   signed char machineType() override { return MCH_GALAGA; }
 
@@ -40,7 +45,7 @@ public:
   void render_row(short row) override;
 
   const signed char *waveRom(unsigned char value) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
   bool hasNamcoAudio() override { return true; }
 
   // the ship explosion sound is stored as a digi sample.

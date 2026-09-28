@@ -7,9 +7,13 @@
 
 class pacman : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> pacman_rom;
+  Asset<uint32_t[64][16], COMPRESSED> pacman_sprites;
+  Asset<unsigned short[8], COMPRESSED> pacman_tilemap;
 public:
-	pacman() { }
-	~pacman();
+	pacman();
 
 	signed char machineType() override { return MCH_PACMAN; }
 	void start(void) override;
@@ -22,7 +26,7 @@ public:
 	void prepare_frame(void) override;
 	void render_row(short row) override;
 	const signed char *waveRom(unsigned char value) override;
-	static RomData<unsigned short, COMPRESSED> &logo(void);
+	static Asset<unsigned short, COMPRESSED> &logo(void);
 	bool hasNamcoAudio() override { return true; }
 	
 #ifdef LED_PIN

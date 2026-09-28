@@ -66,7 +66,7 @@ import zipfile
 import hashlib
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "..", "romszip", "roadf2.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "..", "source", "src", "machines", "roadfighter"))

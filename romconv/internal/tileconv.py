@@ -3,7 +3,7 @@
 import sys
 
 sys.path.insert(0, "internal/pyconv")
-from romdata_emit import emit_compressed, emit_plain
+from asset_emit import emit_compressed, emit_plain
 
 def BIT(value, shift):
     return (value >> shift) & 1

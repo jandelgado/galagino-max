@@ -13,17 +13,14 @@
 #include "roadfighter_tiles.h"
 #include "roadfighter_sprites.h"
 
-roadfighter::roadfighter() {
+roadfighter::roadfighter()
+  : roadfighter_rom_audio(roadfighter_rom_audio_blob),
+    roadfighter_rom_main_raw(roadfighter_rom_main_raw_blob),
+    roadfighter_sprites(roadfighter_sprites_blob),
+    roadfighter_tiles(roadfighter_tiles_blob) {
 	// In ctor: m6809_reset() reads the reset vector through these.
 	main_raw_ptr = roadfighter_rom_main_raw.data();
 	audio_rom_ptr = roadfighter_rom_audio.data();
-}
-
-roadfighter::~roadfighter() {
-	roadfighter_rom_main_raw.release();
-	roadfighter_rom_audio.release();
-	roadfighter_tiles.release();
-	roadfighter_sprites.release();
 }
 
 /*

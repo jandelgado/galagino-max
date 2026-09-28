@@ -1,4 +1,4 @@
-#include "../../emulation/romdata.h"
+#include "../../emulation/asset.h"
 // supercobra_logo: 43008 -> 14691 bytes (65.8% smaller)
 static const unsigned char supercobra_logo_packed[] = {
   0x78,0xDA,0xED,0x7D,0x0B,0x58,0x13,0x57,0xDA,0x7F,0x04,0xD4,0xEC,0xAE,0xEE,0xD2,
@@ -921,4 +921,4 @@ static const unsigned char supercobra_logo_packed[] = {
   0x70,0x1B,0xDC,0x06,0xB7,0xC1,0x6D,0x70,0x1B,0xDC,0xFE,0xFD,0xDB,0xFF,0x03,0x80,
   0x2C,0x27,0xB3
 };
-static RomData<unsigned short, COMPRESSED> supercobra_logo(supercobra_logo_packed, sizeof(supercobra_logo_packed), 21504);
+static Asset<unsigned short, COMPRESSED> supercobra_logo(supercobra_logo_packed, sizeof(supercobra_logo_packed), 21504);

@@ -21,17 +21,24 @@
 
 class digdug : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned short[8], COMPRESSED> digdug_pftiles;
+  Asset<unsigned char, COMPRESSED> digdug_playfield;
+  Asset<unsigned char, COMPRESSED> digdug_rom_cpu1;
+  Asset<unsigned char, COMPRESSED> digdug_rom_cpu2;
+  Asset<unsigned char, COMPRESSED> digdug_rom_cpu3;
+  Asset<uint32_t[256][16], COMPRESSED> digdug_sprites;
+  Asset<unsigned short[8], COMPRESSED> digdug_tilemap;
 public:
-	digdug() { }
-	~digdug() {
-		digdug_rom_cpu1.release();
-		digdug_rom_cpu2.release();
-		digdug_rom_cpu3.release();
-		digdug_playfield.release();
-		digdug_tilemap.release();
-		digdug_pftiles.release();
-		digdug_sprites.release();
-	}
+	digdug()
+	  : digdug_pftiles(digdug_pftiles_blob),
+	    digdug_playfield(digdug_playfield_blob),
+	    digdug_rom_cpu1(digdug_rom_cpu1_blob),
+	    digdug_rom_cpu2(digdug_rom_cpu2_blob),
+	    digdug_rom_cpu3(digdug_rom_cpu3_blob),
+	    digdug_sprites(digdug_sprites_blob),
+	    digdug_tilemap(digdug_tilemap_blob) { }
 
 	void reset() override;
 	void start(void) override;
@@ -46,7 +53,7 @@ public:
 	void render_row(short row) override;
 	
 	const signed char *waveRom(unsigned char value) override;
-	static RomData<unsigned short, COMPRESSED> &logo(void);
+	static Asset<unsigned short, COMPRESSED> &logo(void);
 	bool hasNamcoAudio() override { return true; }
 #ifdef LED_PIN
 	static void menuLeds(CRGB *leds);

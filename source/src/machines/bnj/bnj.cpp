@@ -5,13 +5,12 @@
 #include "bnj_spritetiles.h"
 #include "bnj_bgtiles.h"
 
-bnj::~bnj() {
-	bnj_rom_main.release();
-	bnj_rom_audio.release();
-	bnj_chartiles.release();
-	bnj_spritetiles.release();
-	bnj_bgtiles.release();
-}
+bnj::bnj()
+  : bnj_bgtiles(bnj_bgtiles_blob),
+    bnj_chartiles(bnj_chartiles_blob),
+    bnj_rom_audio(bnj_rom_audio_blob),
+    bnj_rom_main(bnj_rom_main_blob),
+    bnj_spritetiles(bnj_spritetiles_blob) { memset(&cpu_main, 0, sizeof(cpu_main)); memset(&cpu_audio, 0, sizeof(cpu_audio)); }
 
 // ---------------------------------------------------------------------------
 // DECO C10707 decrypt (deco222.cpp, letto per intero): bitswap STATICO e
@@ -439,6 +438,6 @@ void bnj::render_row(short row) {
   }
 }
 
-RomData<unsigned short, COMPRESSED> &bnj::logo(void) {
+Asset<unsigned short, COMPRESSED> &bnj::logo(void) {
   return bnj_logo;
 }

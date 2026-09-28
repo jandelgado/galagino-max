@@ -8,23 +8,20 @@
 
 // Unpack eagerly, largest first: only this order fits Arena's two blocks.
 // Also caches the pointers the hot paths read (see bombjack.h).
-bombjack::bombjack() {
+bombjack::bombjack()
+  : bombjack_bg_maps(bombjack_bg_maps_blob),
+    bombjack_bg_tiles(bombjack_bg_tiles_blob),
+    bombjack_fg_tiles(bombjack_fg_tiles_blob),
+    bombjack_rom_cpu1(bombjack_rom_cpu1_blob),
+    bombjack_rom_cpu2(bombjack_rom_cpu2_blob),
+    bombjack_sprites_16x16(bombjack_sprites_16x16_blob),
+    bombjack_sprites_32x32(bombjack_sprites_32x32_blob) {
 	rom_cpu1_ptr = bombjack_rom_cpu1.data();
 	bombjack_sprites_32x32.data();
 	bombjack_sprites_16x16.data();
 	bombjack_fg_tiles.data();
 	rom_cpu2_ptr = bombjack_rom_cpu2.data();
 	bg_maps_ptr = bombjack_bg_maps.data();
-}
-
-bombjack::~bombjack() {
-	bombjack_rom_cpu1.release();
-	bombjack_rom_cpu2.release();
-	bombjack_bg_tiles.release();
-	bombjack_fg_tiles.release();
-	bombjack_bg_maps.release();
-	bombjack_sprites_16x16.release();
-	bombjack_sprites_32x32.release();
 }
 
 void bombjack::reset() {
@@ -461,7 +458,7 @@ void bombjack::render_row(short row) {
   }
 }
 
-RomData<unsigned short, COMPRESSED> &bombjack::logo(void) {
+Asset<unsigned short, COMPRESSED> &bombjack::logo(void) {
   return bombjack_logo;
 }
 

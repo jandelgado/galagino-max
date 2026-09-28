@@ -6,13 +6,12 @@
 #include "dkong3_cmap.h"
 #include "dkong3_color_codes.h"
 
-dkong3::~dkong3() {
-	dkong3_rom_cpu.release();
-	dkong3_rom_sound_a.release();
-	dkong3_rom_sound_b.release();
-	dkong3_tilemap.release();
-	dkong3_sprites.release();
-}
+dkong3::dkong3()
+  : dkong3_rom_cpu(dkong3_rom_cpu_blob),
+    dkong3_rom_sound_a(dkong3_rom_sound_a_blob),
+    dkong3_rom_sound_b(dkong3_rom_sound_b_blob),
+    dkong3_sprites(dkong3_sprites_blob),
+    dkong3_tilemap(dkong3_tilemap_blob) { memset(snd_cpu, 0, sizeof(snd_cpu)); }
 
 // ---------------------------------------------------------------------------
 // NES APU synthesis tables
@@ -103,8 +102,8 @@ static int dk3_apu_sample(dk3_apu_t *a, int ticks) {
 // 6502 memory map for sound CPU #0  (ROM: dkong3_rom_sound_a)
 // ---------------------------------------------------------------------------
 IRAM_ATTR uint8_t dkong3::snd0_read(m6502_t *cpu, uint16_t addr) {
-    if (addr >= 0x8000) return dkong3_rom_sound_a[addr & 0x1FFF]; // fast path: ~85% of reads
     dkong3 *s = (dkong3*)cpu->user;
+    if (addr >= 0x8000) return s->snd_rom_ptr[0][addr & 0x1FFF]; // fast path: ~85% of reads
     if (addr < 0x0800) return s->snd_ram[0][addr & 0x07FF];
     if (addr == 0x4016) return s->sound_latch[0];  // latch1 ($7C00)
     if (addr == 0x4017) return s->sound_latch[1];  // latch2 ($7C80)
@@ -160,8 +159,8 @@ IRAM_ATTR void dkong3::snd0_write(m6502_t *cpu, uint16_t addr, uint8_t val) {
 // 6502 memory map for sound CPU #1  (ROM: dkong3_rom_sound_b)
 // ---------------------------------------------------------------------------
 IRAM_ATTR uint8_t dkong3::snd1_read(m6502_t *cpu, uint16_t addr) {
-    if (addr >= 0x8000) return dkong3_rom_sound_b[addr & 0x1FFF]; // fast path
     dkong3 *s = (dkong3*)cpu->user;
+    if (addr >= 0x8000) return s->snd_rom_ptr[1][addr & 0x1FFF]; // fast path
     if (addr < 0x0800) return s->snd_ram[1][addr & 0x07FF];
     if (addr == 0x4016) return s->sound_latch[2];  // latch3 ($7D00)
     if (addr == 0x4017) return 0xFF;               // nopr (not connected)
@@ -223,6 +222,8 @@ void dkong3::start() {
     memset(memory, 0, 0x1800);
 
     rom_ptr = dkong3_rom_cpu.data();
+    snd_rom_ptr[0] = dkong3_rom_sound_a.data();
+    snd_rom_ptr[1] = dkong3_rom_sound_b.data();
 
     memset(snd_ram,    0, sizeof(snd_ram));
     memset(dk3_samples,0, sizeof(dk3_samples));
@@ -558,7 +559,7 @@ void dkong3::render_row(short row) {
     }
 }
 
-RomData<unsigned short, COMPRESSED> &dkong3::logo(void) {
+Asset<unsigned short, COMPRESSED> &dkong3::logo(void) {
     return dkong3_logo;
 }
 

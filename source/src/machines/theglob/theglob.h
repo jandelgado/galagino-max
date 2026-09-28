@@ -8,9 +8,13 @@
 
 class theglob : public pacman
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> theglob_rom;
+  Asset<uint32_t[64][16], COMPRESSED> theglob_sprites;
+  Asset<unsigned short[8], COMPRESSED> theglob_tilemap;
 public:
-  theglob() { }
-  ~theglob();
+  theglob();
 
   void init(Input *input, unsigned short *framebuffer, sprite_S *spritebuffer, unsigned char *memorybuffer) override;
    void reset() override;
@@ -24,7 +28,7 @@ public:
 
   void run_frame(void) override;
   const signed char *waveRom(unsigned char value) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);  
+  static Asset<unsigned short, COMPRESSED> &logo(void);  
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

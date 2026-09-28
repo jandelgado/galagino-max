@@ -10,9 +10,15 @@
 
 class dkong : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned short[256][4], COMPRESSED> dkong_colormap;
+  Asset<unsigned char, COMPRESSED> dkong_rom_cpu1;
+  Asset<unsigned char, COMPRESSED> dkong_rom_cpu2;
+  Asset<uint32_t[128][16], COMPRESSED> dkong_sprites;
+  Asset<unsigned short[8], COMPRESSED> dkong_tilemap;
 public:
-	dkong() { }
-	~dkong();
+	dkong();
 
  	void reset() override;
 	void start(void) override;
@@ -29,7 +35,7 @@ public:
 	void run_frame(void) override;
 	void prepare_frame(void) override;
 	void render_row(short row) override;
-	static RomData<unsigned short, COMPRESSED> &logo(void);
+	static Asset<unsigned short, COMPRESSED> &logo(void);
 #ifdef LED_PIN
 	static void menuLeds(CRGB *leds);
 	void gameLeds(CRGB *leds) override;

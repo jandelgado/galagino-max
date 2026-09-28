@@ -1,17 +1,15 @@
 #include "todruaga.h"
 
-todruaga::todruaga() : rom_main(todruaga_rom_main.data()), rom_sub(todruaga_rom_sub.data()),
+todruaga::todruaga()
+  : todruaga_colormap_sprites(todruaga_colormap_sprites_blob),
+    todruaga_rom_main(todruaga_rom_main_blob),
+    todruaga_rom_sub(todruaga_rom_sub_blob),
+    todruaga_sprites(todruaga_sprites_blob),
+    todruaga_tilemap(todruaga_tilemap_blob),
+    rom_main(todruaga_rom_main.data()), rom_sub(todruaga_rom_sub.data()),
   tiles(todruaga_tilemap.data()), cmap_tiles(todruaga_colormap_tiles),
   cmap_prio(todruaga_colormap_tiles_prio),
   cmap_sprites(todruaga_colormap_sprites.data()) { }
-
-todruaga::~todruaga() {
-	todruaga_rom_main.release();
-	todruaga_rom_sub.release();
-	todruaga_tilemap.release();
-	todruaga_sprites.release();
-	todruaga_colormap_sprites.release();
-}
 
 // ============================================================================
 // Reset

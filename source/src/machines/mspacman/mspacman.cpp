@@ -5,12 +5,11 @@
 #include "mspacman_tilemap.h"
 #include "mspacman_spritemap.h"
 
-mspacman::~mspacman() {
-	mspacman_pacrom.release();
-	mspacman_auxrom.release();
-	mspacman_tilemap.release();
-	mspacman_sprites.release();
-}
+mspacman::mspacman()
+  : mspacman_auxrom(mspacman_auxrom_blob),
+    mspacman_pacrom(mspacman_pacrom_blob),
+    mspacman_sprites(mspacman_sprites_blob),
+    mspacman_tilemap(mspacman_tilemap_blob) { }
 
 static inline bool mspacman_is_disable_trap(unsigned short Addr) {
   return (Addr >= 0x0038 && Addr <= 0x003F) ||
@@ -163,6 +162,6 @@ const uint32_t *mspacman::spriteRom(unsigned char flags, unsigned char code) {
   return mspacman_sprites[flags][code];
 }
 
-RomData<unsigned short, COMPRESSED> &mspacman::logo(void) {
+Asset<unsigned short, COMPRESSED> &mspacman::logo(void) {
   return mspacman_logo;
 }

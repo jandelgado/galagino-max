@@ -4,11 +4,10 @@
 #include "scregg_spritetiles.h"
 #include "scregg_colorprom.h"
 
-scregg::~scregg() {
-	scregg_rom.release();
-	scregg_chartiles.release();
-	scregg_spritetiles.release();
-}
+scregg::scregg()
+  : scregg_chartiles(scregg_chartiles_blob),
+    scregg_rom(scregg_rom_blob),
+    scregg_spritetiles(scregg_spritetiles_blob) { memset(&m_cpu, 0, sizeof(m_cpu)); }
 
 unsigned short scregg::xy_swap(unsigned short offset) {
   return 32 * (offset & 31) + (offset >> 5);

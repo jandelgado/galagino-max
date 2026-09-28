@@ -15,9 +15,17 @@
 
 class bombjack : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> bombjack_bg_maps;
+  Asset<uint32_t[32], PLAIN> bombjack_bg_tiles;
+  Asset<uint32_t[8], COMPRESSED> bombjack_fg_tiles;
+  Asset<unsigned char, COMPRESSED> bombjack_rom_cpu1;
+  Asset<unsigned char, COMPRESSED> bombjack_rom_cpu2;
+  Asset<uint32_t[32], COMPRESSED> bombjack_sprites_16x16;
+  Asset<uint32_t[128], COMPRESSED> bombjack_sprites_32x32;
 public:
   bombjack();
-  ~bombjack();
 
   void reset() override;
   signed char machineType() override { return MCH_BOMBJACK; }
@@ -32,7 +40,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-    static RomData<unsigned short, COMPRESSED> &logo(void);
+    static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN	
   static void menuLeds(CRGB *leds);

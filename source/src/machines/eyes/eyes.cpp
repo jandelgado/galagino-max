@@ -5,11 +5,10 @@
 #include "eyes_cmap.h"
 #include "eyes_wavetable.h"
 
-eyes::~eyes() {
-	eyes_rom.release();
-	eyes_tilemap.release();
-	eyes_sprites.release();
-}
+eyes::eyes()
+  : eyes_rom(eyes_rom_blob),
+    eyes_sprites(eyes_sprites_blob),
+    eyes_tilemap(eyes_tilemap_blob) { }
 
 void eyes::start(void) {
   rom_ptr = eyes_rom.data();
@@ -119,7 +118,7 @@ const signed char * eyes::waveRom(unsigned char value) {
   return eyes_wavetable[value]; 
 }
 
-RomData<unsigned short, COMPRESSED> &eyes::logo(void) {
+Asset<unsigned short, COMPRESSED> &eyes::logo(void) {
   return eyes_logo;
 }
 

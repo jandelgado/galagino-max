@@ -3,7 +3,7 @@ import sys
 import os
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 
 # --- Configurazione Specifica per Bomb Jack (Sprites) ---
 INPUT_ROM_FILES = ["../../roms/16_m07b.bin", "../../roms/15_l07b.bin", "../../roms/14_j07b.bin"]

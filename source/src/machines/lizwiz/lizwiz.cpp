@@ -5,11 +5,10 @@
 #include "lizwiz_cmap.h"
 #include "lizwiz_wavetable.h"
 
-lizwiz::~lizwiz() {
-	lizwiz_rom.release();
-	lizwiz_tilemap.release();
-	lizwiz_sprites.release();
-}
+lizwiz::lizwiz()
+  : lizwiz_rom(lizwiz_rom_blob),
+    lizwiz_sprites(lizwiz_sprites_blob),
+    lizwiz_tilemap(lizwiz_tilemap_blob) { }
 
 void lizwiz::start(void) {
   rom_ptr = lizwiz_rom.data();
@@ -118,7 +117,7 @@ const signed char *lizwiz::waveRom(unsigned char value) {
   return lizwiz_wavetable[value]; 
 }
 
-RomData<unsigned short, COMPRESSED> &lizwiz::logo(void) {
+Asset<unsigned short, COMPRESSED> &lizwiz::logo(void) {
   return lizwiz_logo;
 }
 
