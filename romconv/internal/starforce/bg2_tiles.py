@@ -11,7 +11,7 @@ import senjyo_sets
 game, rom_set = senjyo_sets.get(sys.argv)
 FILE_PLANE0, FILE_PLANE1, FILE_PLANE2 = (senjyo_sets.rom(f) for f in rom_set["bg2"])
 NUM_TILES = 256
-INVERT_BITPLANES = False # Per BG2 proviamo a lasciare l'ordine standard
+INVERT_BITPLANES = True  # MAME: first ROM of the region is the MSB plane
 OUTPUT_C_FILE = senjyo_sets.out_header(game, "bg2_tiles")
 C_ARRAY_NAME = f"{game}_bg2_tilemap"
 PREVIEW_PNG_FILE = f"{game}_bg2_tiles_preview.png"

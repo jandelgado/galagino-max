@@ -363,25 +363,22 @@ void starforce::prepare_frame(void) {
 
     struct sprite_S *spr = &sprite[active_sprites];
     spr->is_32x32 = (code_byte & 0xC0) == 0xC0;
+    // 32x32 sprites use the low 7 bits as index
+    spr->code = spr->is_32x32 ? (code_byte & 0x7F) : code_byte;
 
-    if (spr->is_32x32) {
-      // L'indice corretto si ottiene mascherando con 0x7F (127)
-      spr->code = code_byte & 0x7F;
-      spr->x = 224 - y_byte;
-    }
-    else {
-      spr->code = code_byte;
-      spr->x = 240 - y_byte;
-    }
-
-    spr->y = x_byte;
+    // MAME: native sx = x_byte, sy = 240 - y_byte (224 for 32x32). ROT90
+    // onto the 288 row screen: row = sx + 16, left column =
+    // 239 - sy - (size - 1) = y_byte - 16 for both sizes.
+    spr->x = y_byte - 16;
+    spr->y = x_byte + 16;
 
     short size = spr->is_32x32 ? 32 : 16;
     if (spr->x > 224 || (spr->x + size) < 0 || spr->y > 288 || (spr->y + size) < 0)
       continue;
 
     spr->color = attr_byte & 0x07;
-    spr->flags = ((attr_byte & 0x40) ? 1 : 0) | ((attr_byte & 0x80) ? 2 : 0);
+    // native flipy (0x80) mirrors screen columns, native flipx (0x40) rows
+    spr->flags = ((attr_byte & 0x80) ? 1 : 0) | ((attr_byte & 0x40) ? 2 : 0);
     spr->priority = (attr_byte & 0x30) >> 4;
     active_sprites++;
   }
@@ -415,10 +412,6 @@ inline unsigned short starforce::calculate_color_starforce(unsigned char raw_pal
 }
 
 void starforce::blit_background_line(short start_screen_row, int layer_num) {
-  short start_tile_row = start_screen_row >> 3; // / 8 -> >> 3
-  if (start_tile_row < 4 || start_tile_row >= 32)
-    return;
-
   const uint32_t *base_tile_ptr;
   const unsigned char *vram_data;
   int scroll_x, scroll_y;
@@ -454,7 +447,8 @@ void starforce::blit_background_line(short start_screen_row, int layer_num) {
   // each): pixels [shift..7] of chunk0, then [0..shift-1] of chunk1.
   //   logical_x: |c0 c0 c0 c0 c0 c0 c0 c0|c1 c1 c1 ...
   //   strip:              |0  1  2  3  4  5  6  7|   (shift = 5)
-  const int logical_x_start = start_screen_row + scroll_x;
+  // screen row 16 is native x 0; screen column c is native y 239 - c
+  const int logical_x_start = start_screen_row - 16 + scroll_x;
   const int shift = logical_x_start & 7;
   const int split = 8 - shift; // first strip line taken from chunk1
   const int chunk0 = logical_x_start >> 3;
@@ -467,7 +461,7 @@ void starforce::blit_background_line(short start_screen_row, int layer_num) {
   unsigned short *fb_col = &frame_buffer[223];
 
   for (int x_buffer = 0; x_buffer < 224; x_buffer++, fb_col--) {
-    const int logical_y = x_buffer + scroll_y;
+    const int logical_y = x_buffer + 16 + scroll_y;
     const unsigned char *vram_row_ptr = vram_data + (((logical_y >> 4) & 31) << 4);
     const int y_tile_offset = (logical_y & 15) << 1;
 
@@ -624,7 +618,7 @@ void starforce::blit_sprite(short row, unsigned char s_idx) {
       if (px != 0) {
         // 2. Calculate the target coordinate on the screen
         int dest_x = spr_x_start + x_in_sprite;
-        fb_row_ptr[223 - dest_x] = colors[px];
+        fb_row_ptr[dest_x] = colors[px];
       }
     }
   }

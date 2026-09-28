@@ -47,26 +47,13 @@ def decode_gfx_correct(rom_data, num_sprites, width, height, layout_x, layout_y,
                 pixel_value = 0
                 bit_offset = layout_y[y] + layout_x[x]
                 
-                # ================================================================
-                # --- INIZIO CORREZIONE LOGICA BITPLANE PER SPRITE ---
-                #
-                # A differenza del foreground, per gli sprite usiamo l'ordine
-                # dei bitplane come definito letteralmente dal driver MAME,
-                # senza scambiare LSB e MSB.
-                
+                # MAME gfx_layout: plane 0 (first ROM of the region) is the MSB
                 for plane_idx in range(BPP):
                     byte_addr = char_base_offset + (bit_offset // 8)
                     bit_pos = 7 - (bit_offset % 8)
                     rom_addr = plane_offsets[plane_idx] + byte_addr
-                    
                     pixel_bit = (rom_data[rom_addr] >> bit_pos) & 1
-                    
-                    # plane_idx 0 (da 6.10lm) è il LSB
-                    # plane_idx 1 (da 5.9lm) è il bit centrale
-                    # plane_idx 2 (da 4.8lm) è il MSB
-                    pixel_value |= (pixel_bit << plane_idx)
-                # --- FINE CORREZIONE LOGICA BITPLANE PER SPRITE ---
-                # ================================================================
+                    pixel_value |= pixel_bit << (BPP - 1 - plane_idx)
 
                 sprite_data[y][x] = pixel_value
         decoded_sprites.append(sprite_data)
