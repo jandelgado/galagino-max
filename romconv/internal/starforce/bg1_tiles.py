@@ -5,39 +5,16 @@ from PIL import Image, ImageDraw, ImageFont
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
 from convutil import fatal
+import senjyo_sets
 
 # --- CONFIGURAZIONE ---
-# Decommenta il blocco relativo al layer che vuoi generare.
-
-# --- Background Layer 1 (256 tiles) ---
-FILE_PLANE0 = "../../roms/15.10jk"  # Questo sarà trattato come MSB
-FILE_PLANE1 = "../../roms/14.9jk"  # Questo rimane il bit centrale
-FILE_PLANE2 = "../../roms/13.8jk"  # Questo sarà trattato come LSB
+game, rom_set = senjyo_sets.get(sys.argv)
+FILE_PLANE0, FILE_PLANE1, FILE_PLANE2 = (senjyo_sets.rom(f) for f in rom_set["bg1"])
 NUM_TILES = 256
 INVERT_BITPLANES = True  # <-- OPZIONE CHIAVE ATTIVATA PER BG1
-OUTPUT_C_FILE = "../../../source/src/machines/starforce/starforce_bg1_tiles.h"
-C_ARRAY_NAME = "starforce_bg1_tilemap"
-PREVIEW_PNG_FILE = "starforce_bg1_tiles_preview.png"
-
-# --- Background Layer 2 (256 tiles) ---
-# FILE_PLANE0 = "12.10de"
-# FILE_PLANE1 = "11.9de"
-# FILE_PLANE2 = "10.8de"
-# NUM_TILES = 256
-# INVERT_BITPLANES = False # Per BG2 proviamo a lasciare l'ordine standard
-# OUTPUT_C_FILE = "starforc_bg2_tiles.h"
-# C_ARRAY_NAME = "starforc_bg2_tilemap"
-# PREVIEW_PNG_FILE = "starforc_bg2_tiles_preview.png"
-
-# --- Background Layer 3 (128 tiles) ---
-# FILE_PLANE0 = "18.10pq"
-# FILE_PLANE1 = "17.9pq"
-# FILE_PLANE2 = "16.8pq"
-# NUM_TILES = 128
-# INVERT_BITPLANES = True # Anche per BG3 l'inversione è probabilmente corretta
-# OUTPUT_C_FILE = "starforc_bg3_tiles.h"
-# C_ARRAY_NAME = "starforc_bg3_tilemap"
-# PREVIEW_PNG_FILE = "starforc_bg3_tiles_preview.png"
+OUTPUT_C_FILE = senjyo_sets.out_header(game, "bg1_tiles")
+C_ARRAY_NAME = f"{game}_bg1_tilemap"
+PREVIEW_PNG_FILE = f"{game}_bg1_tiles_preview.png"
 
 
 # --- OPZIONI ---

@@ -5,19 +5,19 @@ from PIL import Image, ImageDraw, ImageFont
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
 from convutil import fatal
+import senjyo_sets
 
 # --- Configurazione ---
-FILE_PLANE0_LSB = "../../roms/7.2fh"
-FILE_PLANE1     = "../../roms/8.3fh"
-FILE_PLANE2_MSB = "../../roms/9.3fh"
-OUTPUT_C_FILE = "../../../source/src/machines/starforce/starforce_fg_tiles.h"
-C_ARRAY_NAME = "starforce_fg_tilemap"
+game, rom_set = senjyo_sets.get(sys.argv)
+FILE_PLANE0_LSB, FILE_PLANE1, FILE_PLANE2_MSB = (senjyo_sets.rom(f) for f in rom_set["fg"])
+OUTPUT_C_FILE = senjyo_sets.out_header(game, "fg_tiles")
+C_ARRAY_NAME = f"{game}_fg_tilemap"
 
 # --- OPZIONI ---
 ROTATE_TILES = True 
 FLIP_HORIZONTAL = False
 GENERATE_PREVIEW = True
-OUTPUT_PNG_FILE = "starforce_fg_tiles_preview.png"
+OUTPUT_PNG_FILE = f"{game}_fg_tiles_preview.png"
 
 # Parametri basati sull'hardware
 NUM_TILES = 512

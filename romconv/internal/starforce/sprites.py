@@ -4,24 +4,26 @@ from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed, emit_plain
+import senjyo_sets
 
 # --- Configurazione ---
-ROM_FILES = ["../../roms/6.10lm", "../../roms/5.9lm", "../../roms/4.8lm"]
+game, rom_set = senjyo_sets.get(sys.argv)
+ROM_FILES = [senjyo_sets.rom(f) for f in rom_set["sprites"]]
 ROM_FILE_SIZE = 16384
-OUTPUT_C_FILE = "../../../source/src/machines/starforce/starforce_sprites.h"
+OUTPUT_C_FILE = senjyo_sets.out_header(game, "sprites")
 ROTATE_TILES = True
 GENERATE_PREVIEW = True
 BPP = 3
 
 # Parametri Sprite 16x16
 NUM_SPRITES_16, SPRITE_WIDTH_16, SPRITE_HEIGHT_16 = 512, 16, 16
-C_ARRAY_NAME_16 = "starforce_sprites_16x16"
-PREVIEW_PNG_16 = "starforce_sprites_16x16_preview.png"
+C_ARRAY_NAME_16 = f"{game}_sprites_16x16"
+PREVIEW_PNG_16 = f"{game}_sprites_16x16_preview.png"
 
 # Parametri Sprite 32x32
 NUM_SPRITES_32, SPRITE_WIDTH_32, SPRITE_HEIGHT_32 = 128, 32, 32
-C_ARRAY_NAME_32 = "starforce_sprites_32x32"
-PREVIEW_PNG_32 = "starforce_sprites_32x32_preview.png"
+C_ARRAY_NAME_32 = f"{game}_sprites_32x32"
+PREVIEW_PNG_32 = f"{game}_sprites_32x32_preview.png"
 
 def rotate_matrix_90_cw(matrix, width, height):
     new_matrix = [[0] * height for _ in range(width)]
