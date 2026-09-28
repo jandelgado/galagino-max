@@ -49,6 +49,7 @@ GAMES = [
     "scramble",
     "scregg",
     "starforce",
+    "baluba",
     "supercobra",
     "theglob",
     "timeplt",
