@@ -55,7 +55,7 @@ private:
   };
   star_entry stars[GAL_MAX_STARS];
   int star_count = 0;
-  int star_scroll_offset = 0;   // scrolls +1 each frame
+  uint16_t star_scroll_offset = 0;   // run_frame() scrolls +1 each frame
   bool stars_enabled = false;
   bool stars_initialized = false;
   void stars_init();
@@ -64,7 +64,7 @@ private:
   const unsigned char *rom_ptr = nullptr;
 
   // Tiles, object RAM (scroll/color attributes, sprites, bullets) and the
-  // stars enable as of the vblank NMI, handed to the video core via Seqlock
+  // stars enable/scroll as of the vblank NMI, handed to the video core via Seqlock
   // (see seqlock.h). prepare_frame()/render read video.*, never live RAM.
   // Tile RAM is included: per-row scroll moves the alien formation, a
   // snapshot scroll against live tiles would mix two frames.
@@ -76,6 +76,7 @@ private:
     unsigned char vram[0x400];
     unsigned char objram[0x80];  // attr 0x00-0x3F, sprites 0x40, bullets 0x60
     unsigned char stars_enabled;
+    uint16_t star_scroll_offset;
   };
   Seqlock<VideoState> vblank;
   VideoState video = {};

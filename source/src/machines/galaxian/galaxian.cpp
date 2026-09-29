@@ -126,10 +126,16 @@ void galaxian::run_frame(void) {
     StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]);
   }
 
+  // Scroll stars: advance 1 pixel per emulated frame (slow upward scroll)
+  if(stars_enabled) {
+    star_scroll_offset = (star_scroll_offset + 1) % 288;
+  }
+
   vblank.publish([this](VideoState &v) {
     memcpy(v.vram, &memory[VRAM_BASE], sizeof(v.vram));
     memcpy(v.objram, &memory[OBJRAM_BASE], sizeof(v.objram));
     v.stars_enabled = stars_enabled;
+    v.star_scroll_offset = star_scroll_offset;
   });
 
   if(irq_enable[0]) {
@@ -142,11 +148,6 @@ void galaxian::prepare_frame(void) {
 
   // Initialize starfield on first frame
   if(!stars_initialized) stars_init();
-
-  // Scroll stars: advance 1 pixel per frame (slow upward scroll)
-  if(video.stars_enabled) {
-    star_scroll_offset = (star_scroll_offset + 1) % 288;
-  }
 
   active_sprites = 0;
 
@@ -340,7 +341,7 @@ void galaxian::render_row(short row) {
     int row_top = 8 * row;
     int row_bot = row_top + 8;
     for(int i = 0; i < star_count; i++) {
-      int sy = ((int)stars[i].y + star_scroll_offset) % 288;
+      int sy = ((int)stars[i].y + video.star_scroll_offset) % 288;
       if(sy < 16) sy += 272;
       if(sy >= row_top && sy < row_bot) {
         int sx = stars[i].x;

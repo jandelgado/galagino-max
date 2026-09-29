@@ -70,7 +70,8 @@ private:
   const unsigned char *rom_ptr[3] = { nullptr, nullptr, nullptr };
 
   unsigned char led_state = 0;       // state set by game (usually video driver)
-  unsigned char stars_scroll_y = 0;
+  unsigned char stars_scroll = 0;     // advanced by run_frame()
+  unsigned char stars_scroll_y = 0;   // render copy, set in prepare_frame()
   unsigned char credit = 0;
   char credit_mode = 0;
   int namco_cnt = 0;
