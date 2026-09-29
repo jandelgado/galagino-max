@@ -20,6 +20,11 @@ void Nunchuck::disable() {
   enabled = false;
 }
 
+// real I2C read, not a cached state
+bool Nunchuck::connected() {
+  return nchuk.update();
+}
+
 unsigned int Nunchuck::getInput() {
   // update every 100ms only
   unsigned long now = millis();

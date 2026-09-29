@@ -31,6 +31,7 @@ public:
   void enable();
   void disable();
   unsigned int getInput();
+  bool connected();
  
 private:
   Nunchuk nchuk;

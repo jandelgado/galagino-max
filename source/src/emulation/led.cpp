@@ -12,7 +12,16 @@ void Led::update(const machineInfo *machines, machineBase *currentMachine, signe
     machines[machineIndexPreselection].menuLeds(leds);
   else
     currentMachine->gameLeds(leds);
-  
+  show();
+}
+
+void Led::fill(CRGB color) {
+  fill_solid(leds, NUM_LEDS, color);
+  show();
+}
+
+// push leds to the strip, only if changed
+void Led::show() {
   bool changed = false;
   for (int i = 0; i < NUM_LEDS; i++) {
     if (ledsBackup[i].raw[0] != leds[i].raw[0] ||
