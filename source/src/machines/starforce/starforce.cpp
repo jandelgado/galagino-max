@@ -627,8 +627,15 @@ void starforce::render_row(short row) {
     blit_tile_fg(row, col);
   }
 
+  // BG maps wrap every 256 lines, the full height of rows 2-33. The game
+  // rewrites a map row only after it scrolls off the bottom, so until then
+  // the top 16 lines (rows 2, 3) show that row's old tiles.
+  if (row < 4) {
+    return;
+  }
+
   blit_background_line(row * 8, 1); // BG1
- 
+
   blit_background_line(row * 8, 2); // BG2
 
   blit_background_line(row * 8, 3); // BG3
