@@ -138,6 +138,24 @@ If you want to use a nunchuck, you need the NintendoExtensionCtrl library - emul
 
 The Galagino code can be configured through the [config.h](./source/src/config.h), [machines.h](./source/src/machines.h) and [platformio.ini](./source/platformio.ini) file. 
 
+Keep personal settings out of `config.h` so it stays close to upstream.
+Put them in `source/src/config_local.h` instead. The file is git-ignored
+and included at the top of `config.h` if present. Precedence:
+`platformio.ini` build flags, then `config_local.h`, then the `config.h`
+defaults. Example:
+
+```c
+#define MASTER_ATTRACT_GAME_TIMEOUT  60000 * 2
+#define LED_PIN           16
+#define SND_RIGHT_CHANNEL         // audio on GPIO 25 instead of 26
+
+// own pins: skip the board block in config.h
+#define USE_PIO_CONFIG
+#define TFT_CS            5
+#define TFT_DC            32
+// ... remaining TFT_* and BTN_* pins
+```
+
 ## Controls
 
 With the current configuration, the buttons have the following additional functions:
