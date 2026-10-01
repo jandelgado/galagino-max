@@ -27,10 +27,10 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  const unsigned short *logo(void) override;
+  static const unsigned short *logo(void);
 
 #ifdef LED_PIN
-  void menuLeds(CRGB *leds) override;
+  static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;
 #endif
 
@@ -58,9 +58,6 @@ private:
   bool stars_initialized = false;
   void stars_init();
 
-#ifdef LED_PIN
-  const CRGB menu_leds[7] = { LED_BLUE, LED_YELLOW, LED_BLUE, LED_YELLOW, LED_BLUE, LED_YELLOW, LED_BLUE };
-#endif
 };
 
 #endif

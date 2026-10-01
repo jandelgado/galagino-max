@@ -600,6 +600,7 @@ void pbaction::gameLeds(CRGB *leds) {
 }
 
 void pbaction::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_RED, LED_YELLOW, LED_RED, LED_WHITE, LED_RED, LED_YELLOW, LED_RED};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif

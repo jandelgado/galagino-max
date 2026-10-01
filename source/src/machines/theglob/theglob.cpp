@@ -166,6 +166,7 @@ const unsigned short *theglob::logo(void) {
 
 #ifdef LED_PIN
 void theglob::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_RED, LED_BLUE, LED_YELLOW, LED_WHITE, LED_YELLOW, LED_BLUE, LED_RED};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 

@@ -1,6 +1,6 @@
 #include "menu.h"
 
-void Menu::init(Input *input, machineBase **machines,  signed char machinesCount, unsigned short *framebuffer) {
+void Menu::init(Input *input, const machineInfo *machines,  signed char machinesCount, unsigned short *framebuffer) {
   this->master_attract_timeout = millis();
   this->input = input;
   this->machines = machines;
@@ -88,8 +88,8 @@ void Menu::handle() {
     machineIndex = menu_sel;
     printf("select machine #%d -> %d - %s\n",
       machineIndex,
-      machines[machineIndexSelected()]->machineType(),
-      mchName(machines[machineIndexSelected()]->machineType()));
+      machines[machineIndexSelected()].type,
+      mchName(machines[machineIndexSelected()].type));
   }
 
   if(machinesCount <= 3) {
@@ -114,8 +114,8 @@ void Menu::handle() {
     machineIndex = menu_sel;
     printf("MASTER ATTRACT to machine #%d -> %d - %s\n",
       machineIndex,
-      machines[machineIndexSelected()]->machineType(),
-      mchName(machines[machineIndexSelected()]->machineType()));
+      machines[machineIndexSelected()].type,
+      mchName(machines[machineIndexSelected()].type));
     printf("Heap: Free=%d MaxAlloc=%d MinFree=%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
   }
 #endif
@@ -128,7 +128,7 @@ void Menu::render_row(short row) {
       char offset = i * 12;
       if(machinesCount == 2) offset += 6;	
       if(row >= offset && row < offset + 12)
-	menu_logo(8 * (row - offset), machines[i]->logo(), menu_sel == i + 1);
+	menu_logo(8 * (row - offset), machines[i].logo(), menu_sel == i + 1);
     }
   }
   else {
@@ -144,13 +144,13 @@ void Menu::render_row(short row) {
     int logo_y = (row * 8 + offset) % 96;  // logo line in this row
 
     // check if logo at logo_y shows up in current row
-    menu_logo(logo_y, machines[logo_idx]->logo(), (menu_sel-1) == logo_idx);
+    menu_logo(logo_y, machines[logo_idx].logo(), (menu_sel-1) == logo_idx);
 
     // check if a second logo may show up here
     if(logo_y > (96 - 8)) {
       logo_idx = (logo_idx + 1) % machinesCount;
       logo_y -= 96;
-      menu_logo(logo_y, machines[logo_idx]->logo(), (menu_sel-1) == logo_idx);
+      menu_logo(logo_y, machines[logo_idx].logo(), (menu_sel-1) == logo_idx);
     }
 
     if(row == 35) {

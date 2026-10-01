@@ -364,6 +364,7 @@ void dkong::gameLeds(CRGB *leds) {
 }
 
 void dkong::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_BLACK, LED_YELLOW, LED_RED, LED_RED, LED_RED, LED_YELLOW, LED_BLACK};
   memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB));
 }
 #endif

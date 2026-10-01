@@ -196,6 +196,7 @@ const unsigned short *crush::logo(void) {
 
 #ifdef LED_PIN
 void crush::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_RED, LED_YELLOW, LED_GREEN, LED_CYAN, LED_BLUE, LED_MAGENTA, LED_WHITE};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 

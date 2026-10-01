@@ -503,6 +503,7 @@ void bombjack::gameLeds(CRGB *leds) {
 
 void bombjack::menuLeds(CRGB *leds)
 {
+  static const CRGB menu_leds[7] = {LED_BLUE, LED_RED, LED_YELLOW, LED_WHITE, LED_YELLOW, LED_RED, LED_BLUE};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif

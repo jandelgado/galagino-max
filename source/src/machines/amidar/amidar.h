@@ -33,10 +33,10 @@ public:
   unsigned char opZ80(unsigned short Addr) override;
   unsigned char rdZ80(unsigned short Addr) override;
 
-  const unsigned short *logo(void) override;
+  static const unsigned short *logo(void);
 
 #ifdef LED_PIN
-  void menuLeds(CRGB *leds) override;
+  static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;
 #endif
 
@@ -51,9 +51,6 @@ private:
   static constexpr unsigned short CPU1_ROM_SIZE = 0x5000;  // 4 x 4KB (amidar set)
   static constexpr unsigned short CPU2_ROM_SIZE = 0x2000;
 
-#ifdef LED_PIN
-  const CRGB menu_leds[7] = { LED_RED, LED_YELLOW, LED_RED, LED_WHITE, LED_RED, LED_YELLOW, LED_RED };
-#endif
 };
 
 #endif

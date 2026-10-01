@@ -18,7 +18,7 @@ public:
   void reset() override;
   void run_frame() override;
   void render_row(short row) override;
-  const unsigned short *logo() override { return vanguard_logo; }
+  static const unsigned short *logo() { return vanguard_logo; }
   unsigned char vanguardSoundRom(unsigned short addr) override { return vanguard_sound_rom[addr & 0x0fff]; }
   bool vanguardMusic0Muted() override { return music0_muted; }
   void vanguardMusic0Ended() override { music0_muted=true; }

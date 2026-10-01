@@ -56,10 +56,10 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  const unsigned short *logo(void) override;
+  static const unsigned short *logo(void);
 
 #ifdef LED_PIN
-  void menuLeds(CRGB *leds) override;
+  static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;
 #endif
 
@@ -91,9 +91,6 @@ private:
   unsigned char ay_addr[2];
   unsigned char ay_regs[2][16];
 
-#ifdef LED_PIN
-  const CRGB menu_leds[7] = { LED_CYAN, LED_WHITE, LED_CYAN, LED_WHITE, LED_CYAN, LED_WHITE, LED_CYAN };
-#endif
 };
 
 #endif

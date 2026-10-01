@@ -109,6 +109,7 @@ const unsigned short *lizwiz::logo(void) {
 
 #ifdef LED_PIN
 void lizwiz::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_GREEN, LED_MAGENTA, LED_GREEN, LED_WHITE, LED_GREEN, LED_MAGENTA, LED_GREEN};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 

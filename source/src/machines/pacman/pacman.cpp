@@ -222,6 +222,7 @@ void pacman::gameLeds(CRGB *leds) {
 }
 
 void pacman::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_BLUE, LED_BLACK, LED_YELLOW, LED_YELLOW, LED_YELLOW, LED_BLACK, LED_BLUE};
   memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB));
 }
 #endif

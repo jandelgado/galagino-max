@@ -25,10 +25,10 @@ public:
 
   void run_frame(void) override;
   const signed char * waveRom(unsigned char value) override;
-  const unsigned short *logo(void) override;  
+  static const unsigned short *logo(void);  
 
 #ifdef LED_PIN
-       void menuLeds(CRGB *leds) override;
+       static void menuLeds(CRGB *leds);
        void gameLeds(CRGB *leds) override;
 #endif
 
@@ -37,10 +37,6 @@ protected:
   const unsigned short *colorRom(unsigned short addr) override;
   const unsigned long *spriteRom(unsigned char flags, unsigned char code) override;
 
-private:
-#ifdef LED_PIN
-  const CRGB menu_leds[7] = { LED_RED, LED_YELLOW, LED_RED, LED_BLACK, LED_RED, LED_YELLOW, LED_RED };
-#endif
 };
 
 #endif

@@ -33,7 +33,7 @@ public:
   void render_row(short row) override;
 
   const signed char *waveRom(unsigned char value) override;
-  const unsigned short *logo(void) override;
+  static const unsigned short *logo(void);
   bool hasNamcoAudio() override { return true; }
 
   // the ship explosion sound is stored as a digi sample.
@@ -42,7 +42,7 @@ public:
   unsigned short snd_boom_cnt = 0;
   const signed char *snd_boom_ptr = NULL;
 #ifdef LED_PIN
-  void menuLeds(CRGB *leds) override;
+  static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;
 #endif
 
@@ -55,9 +55,6 @@ private:
   void check_galaga_sprite(struct sprite_S *spr);
 
   unsigned char led_state = 0;       // state set by game (usually video driver)
-#ifdef LED_PIN
-  const CRGB menu_leds[7] = { LED_RED, LED_BLUE, LED_WHITE, LED_WHITE, LED_WHITE, LED_BLUE, LED_RED };
-#endif
   unsigned char stars_scroll_y = 0;
   unsigned char credit = 0;
   char credit_mode = 0;

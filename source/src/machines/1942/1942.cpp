@@ -478,6 +478,7 @@ void _1942::gameLeds(CRGB *leds) {
 }
 
 void _1942::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_WHITE, LED_BLACK, LED_GREEN, LED_GREEN, LED_GREEN, LED_BLACK, LED_WHITE};
   memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB));
 }
 #endif

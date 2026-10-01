@@ -466,6 +466,7 @@ void mooncresta::gameLeds(CRGB *leds) {
 }
 
 void mooncresta::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_YELLOW, LED_BLUE, LED_GREEN, LED_WHITE, LED_GREEN, LED_BLUE, LED_YELLOW};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif

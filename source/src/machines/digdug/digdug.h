@@ -37,10 +37,10 @@ public:
 	void render_row(short row) override;
 	
 	const signed char *waveRom(unsigned char value) override;
-	const unsigned short *logo(void) override;
+	static const unsigned short *logo(void);
 	bool hasNamcoAudio() override { return true; }
 #ifdef LED_PIN
-	void menuLeds(CRGB *leds) override;
+	static void menuLeds(CRGB *leds);
 	void gameLeds(CRGB *leds) override;
 #endif
 protected:
@@ -48,9 +48,6 @@ protected:
 	void blit_sprite(short row, unsigned char s) override;
 
 private:
-#ifdef LED_PIN
-	const CRGB menu_leds[7] = { LED_WHITE, LED_BLUE, LED_RED, LED_RED, LED_RED, LED_BLUE, LED_WHITE };
-#endif
 	unsigned char keymask_d[3] = { 0x00, 0x00, 0x00};	
 	unsigned char namco_command = 0;
 	unsigned char namco_mode = 0;

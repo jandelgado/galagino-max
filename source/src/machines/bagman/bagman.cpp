@@ -270,6 +270,7 @@ void bagman::gameLeds(CRGB *leds) {
 }
 
 void bagman::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_YELLOW, LED_RED, LED_BLACK, LED_YELLOW, LED_BLACK, LED_RED, LED_YELLOW};
   memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB));
 }
 #endif

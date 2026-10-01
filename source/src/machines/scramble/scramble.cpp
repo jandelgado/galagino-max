@@ -554,6 +554,7 @@ void scramble::gameLeds(CRGB *leds) {
 }
 
 void scramble::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_GREEN, LED_CYAN, LED_BLUE, LED_WHITE, LED_BLUE, LED_CYAN, LED_GREEN};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif

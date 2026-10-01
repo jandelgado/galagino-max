@@ -110,6 +110,7 @@ const unsigned short *eyes::logo(void) {
 
 #ifdef LED_PIN
 void eyes::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_YELLOW, LED_RED, LED_BLUE, LED_BLACK, LED_BLUE, LED_RED, LED_YELLOW};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 

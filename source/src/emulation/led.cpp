@@ -6,11 +6,11 @@ void Led::init() {
   FastLED.setBrightness(LED_BRIGHTNESS);
 }
 
-void Led::update(machineBase *machines[], signed char machineIndexPreselection, signed char machineSelected) {
+void Led::update(const machineInfo *machines, machineBase *currentMachine, signed char machineIndexPreselection, signed char machineSelected) {
   if (machineSelected < 0)
-    machines[machineIndexPreselection]->menuLeds(leds);
+    machines[machineIndexPreselection].menuLeds(leds);
   else
-    machines[machineSelected]->gameLeds(leds);
+    currentMachine->gameLeds(leds);
   
   bool changed = false;
   for (int i = 0; i < NUM_LEDS; i++) {

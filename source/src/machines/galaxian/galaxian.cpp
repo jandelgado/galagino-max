@@ -398,6 +398,7 @@ void galaxian::gameLeds(CRGB *leds) {
 }
 
 void galaxian::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {LED_BLUE, LED_YELLOW, LED_BLUE, LED_YELLOW, LED_BLUE, LED_YELLOW, LED_BLUE};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
