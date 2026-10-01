@@ -2,6 +2,9 @@
 
 import sys
 
+sys.path.insert(0, "pyconv")
+from romdata_emit import emit_compressed, emit_plain
+
 def BIT(value, shift):
     return (value >> shift) & 1
 
@@ -38,16 +41,17 @@ def show_chr_3bpp(data):
             print(" .-+x*X#"[pix], end="")
         print("")
 
-def dump_chr(data):
-    hexs = [ ]
-    
+def dump_chr_values(data):
+    vals = [ ]
     for y in range(8):
         val = 0
         for x in range(8):
             val = (val >> 2) + (data[y][x] << (16-2))
-        hexs.append(hex(val))
+        vals.append(val & 0xFFFF)
+    return vals
 
-    return ",".join(hexs)
+def dump_chr(data):
+    return ",".join(hex(v) for v in dump_chr_values(data))
 
 # 1942 can flip background tiles
 def dump_tile_1942(data, hflip=False, vflip=False):
@@ -116,7 +120,7 @@ def parse_chr_1942(data):
         char.append(row)
     return char
             
-def parse_charmap(id, inname, outname):
+def parse_charmap(id, inname, outname, compress=False):
     # The character map rom contains the same set of 128 characters
     # two times. The second set is upside down for cocktail mode. We
     # ignore that.
@@ -125,18 +129,20 @@ def parse_charmap(id, inname, outname):
     charmap_data = f.read()
     f.close()
 
+    is_1942 = len(charmap_data) == 8192
+
     chars = []
-    if len(charmap_data) == 8192:
+    if is_1942:
         # 1942 2bpp format
         for chr in range(512):
             chars.append(parse_chr_1942(charmap_data[16*chr:16*(chr+1)]))
-        
+
     elif len(charmap_data) == 4096:
         # galaga and pacman 2bpp format
 
-        if id == "eyes_tilemap" or id == "mrtnt_tilemap":    
+        if id == "eyes_tilemap" or id == "mrtnt_tilemap":
          charmap_data = decode_Data(charmap_data)
-        
+
         # read and parse all 256 characters
         for chr in range(256):
             chars.append(parse_chr(charmap_data[16*chr:16*(chr+1)]))
@@ -145,19 +151,26 @@ def parse_charmap(id, inname, outname):
         # digdug format
         for chr in range(128):
             chars.append(parse_chr_dd(charmap_data[8*chr:8*(chr+1)]))
-            
+
     #for c in chars: show_chr(c)
 
     # write as c source
     f = open(outname, "w")
-    
-    print("const unsigned short "+id+"[][8] = {", file=f )
-    chars_str = []
-    for c in chars:
-        chars_str.append(" { " + dump_chr(c) + " }")
-    print(",\n".join(chars_str), file=f)
-    print("};", file=f)
-    
+
+    if is_1942:
+        flat = [v for c in chars for v in dump_chr_values(c)]
+        emit_compressed(f, id, "unsigned short", "[8]", len(chars), flat)
+    elif compress:
+        flat = [v for c in chars for v in dump_chr_values(c)]
+        emit_compressed(f, id, "unsigned short", "[8]", len(chars), flat)
+    else:
+        print("const unsigned short "+id+"[][8] = {", file=f )
+        chars_str = []
+        for c in chars:
+            chars_str.append(" { " + dump_chr(c) + " }")
+        print(",\n".join(chars_str), file=f)
+        print("};", file=f)
+
     f.close()
 
 def parse_tile_1942(b0,b1,b2):
@@ -200,8 +213,7 @@ def parse_tilemap_1942(id, files, outname):
 
     # write as c source
     f = open(outname, "w")
-    
-    print("const unsigned long "+id+"[]["+str(len(tiles))+"][32] = {", file=f )
+
     tiles_maps_str = []
     for xflip in [ False, True ]:
         for yflip in [ False, True ]:
@@ -209,12 +221,12 @@ def parse_tilemap_1942(id, files, outname):
             for t in tiles:
                 tiles_str.append(" { " + dump_tile_1942(t,xflip,yflip) + " }")
             tiles_maps_str.append("{\n" + ",\n".join(tiles_str) +"\n}")
-    print(",\n".join(tiles_maps_str), file=f)
-    print("};", file=f)
-    
+    body = ",\n".join(tiles_maps_str)
+    emit_plain(f, id, "unsigned long", "[" + str(len(tiles)) + "][32]", 4, body)
+
     f.close()
         
-def parse_charmap_frogger(id, innames, outname):
+def parse_charmap_frogger(id, innames, outname, compress=False):
     # swap bits 0 and 1 in an integer
     def bit01_swap(a):
         return (a & 0xfffc) | ((a & 2)>>1) | ((a & 1)<<1) 
@@ -256,14 +268,18 @@ def parse_charmap_frogger(id, innames, outname):
 
     # write as c source
     f = open(outname, "w")
-    
-    print("const unsigned short "+id+"[][8] = {", file=f )
-    chars_str = []
-    for c in chars:
-        chars_str.append(" { " + dump_chr(c) + " }")
-    print(",\n".join(chars_str), file=f)
-    print("};", file=f)
-    
+
+    if compress:
+        flat = [v for c in chars for v in dump_chr_values(c)]
+        emit_compressed(f, id, "unsigned short", "[8]", len(chars), flat)
+    else:
+        print("const unsigned short "+id+"[][8] = {", file=f )
+        chars_str = []
+        for c in chars:
+            chars_str.append(" { " + dump_chr(c) + " }")
+        print(",\n".join(chars_str), file=f)
+        print("};", file=f)
+
     f.close()
 
 def parse_charmap_anteater(id, innames, outname):
@@ -364,19 +380,24 @@ def parse_charmap_bagman(id, innames, outname):
     
     f.close()
 
-if len(sys.argv) != 4 and len(sys.argv) != 5 and len(sys.argv) != 9  and len(sys.argv) != 6:
+args = sys.argv[1:]
+compress = False
+if args and args[0] == "-c":
+    compress = True
+    args.pop(0)
+
+if len(args) == 8:
+    # 6 files are 1942 tiles which have a very different format
+    parse_tilemap_1942(args[0], (args[1:3], args[3:5], args[5:7]), args[7])
+elif len(args) == 3:
+    parse_charmap(args[0], args[1], args[2], compress)
+elif len(args) == 4:
+    parse_charmap_frogger(args[0], args[1:3], args[3], compress)
+elif len(args) == 5:
+    if args[0] == "anteater":
+      parse_charmap_anteater(args[1], args[2:4], args[4])
+    else:
+      parse_charmap_bagman(args[1], args[2:4], args[4])
+else:
     print("Invalid arguments")
     exit(-1)
-
-if len(sys.argv) == 9:
-    # 6 files are 1942 tiles which have a very different format
-    parse_tilemap_1942(sys.argv[1], (sys.argv[2:4], sys.argv[4:6], sys.argv[6:8] ), sys.argv[8])
-elif len(sys.argv) == 4:
-    parse_charmap(sys.argv[1], sys.argv[2], sys.argv[3])
-elif len(sys.argv) == 5:
-    parse_charmap_frogger(sys.argv[1], sys.argv[2:4], sys.argv[4])
-elif len(sys.argv) == 6:
-    if sys.argv[1] == "anteater":
-      parse_charmap_anteater(sys.argv[2], sys.argv[3:5], sys.argv[5])
-    else:
-      parse_charmap_bagman(sys.argv[2], sys.argv[3:5], sys.argv[5])

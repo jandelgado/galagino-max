@@ -1,5 +1,17 @@
 #include "1942.h"
 
+_1942::~_1942() {
+  _1942_rom_cpu1.release();
+  _1942_rom_cpu1_b0.release();
+  _1942_rom_cpu1_b1.release();
+  _1942_rom_cpu1_b2.release();
+  _1942_rom_cpu2.release();
+  _1942_charmap.release();
+  _1942_colormap_tiles.release();
+  _1942_tilemap.release();
+  _1942_sprites.release();
+}
+
 unsigned char _1942::opZ80(unsigned short Addr) {
   if (current_cpu == 0)
     return _1942_rom_cpu1[Addr];

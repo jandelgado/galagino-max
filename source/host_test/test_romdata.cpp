@@ -1,5 +1,8 @@
 #include <cassert>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h>
 #include <type_traits>
 #include "../src/emulation/romdata.h"
 
@@ -65,6 +68,51 @@ void test_literal_type() {
   printf("6. RomData<T> is a literal type (trivial destructor): OK\n");
 }
 
+void test_release_on_plain_is_safe() {
+  RomData<unsigned char> plain(plain_data, 4);
+  plain.release();  // must not attempt to delete[] the flash pointer
+  assert(plain[0] == 10 && plain[1] == 20 && plain[2] == 30 && plain[3] == 40);
+  plain.release();  // idempotent
+  assert(plain.data() == plain_data);
+  printf("7. release() on a plain-constructed RomData is a safe no-op: OK\n");
+}
+
+void test_unpack_prints_timing_and_ratio() {
+  char buf[4096];
+  const char *tmpdir = getenv("TMPDIR");
+  if (!tmpdir) tmpdir = "/tmp";
+  char tmpname[256];
+  snprintf(tmpname, sizeof(tmpname), "%s/romdata_test_output_XXXXXX", tmpdir);
+  int tmpfd = mkstemp(tmpname);
+  assert(tmpfd >= 0);
+  FILE *tmp = fdopen(tmpfd, "w+");
+  assert(tmp);
+  int saved_fd = dup(fileno(stdout));
+  fflush(stdout);
+  dup2(fileno(tmp), fileno(stdout));
+
+  {
+    RomData<unsigned char> rom(scalar_packed, sizeof(scalar_packed), 64);
+    (void)rom[0]; // force decompression, triggers the print
+  }
+
+  fflush(stdout);
+  dup2(saved_fd, fileno(stdout));
+  close(saved_fd);
+
+  rewind(tmp);
+  size_t n = fread(buf, 1, sizeof(buf) - 1, tmp);
+  buf[n] = '\0';
+  fclose(tmp);
+
+  assert(strstr(buf, "RomData:") != nullptr);
+  assert(strstr(buf, "ms") != nullptr);
+  assert(strstr(buf, "%") != nullptr);
+  assert(strstr(buf, "64") != nullptr);   // decompressed byte count
+  assert(strstr(buf, "72") != nullptr);   // packed byte count (sizeof(scalar_packed) == 72)
+  printf("8. unpack() prints decompress timing and compression ratio: OK\n");
+}
+
 int main() {
   test_compressed_scalar();
   test_compressed_multidim();
@@ -72,6 +120,8 @@ int main() {
   test_release_frees_and_is_idempotent();
   test_const_romdata();
   test_literal_type();
+  test_release_on_plain_is_safe();
+  test_unpack_prints_timing_and_ratio();
   printf("\nALL ROMDATA TESTS PASSED\n");
   return 0;
 }

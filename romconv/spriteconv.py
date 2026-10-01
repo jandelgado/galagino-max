@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import sys
 
+sys.path.insert(0, "pyconv")
+from romdata_emit import emit_compressed
+
 def bit_permute_step(x, m, shift):
     t = ((x >> shift) ^ x) & m
     x = (x ^ t) ^ (t << shift)
@@ -51,18 +54,19 @@ def dump_sprite(data, flip_x, flip_y):
 
     return ",".join(hexs)
     
-def dump_sprite_4bpp(data):
-    hexs = [ ]
-    
+def dump_sprite_4bpp_values(data):
+    vals = [ ]
     for y in range(16):
         val = 0
         for x in range(16):
             val = (val >> 4) + (data[y][x] << (64-4))
-        hexs.append(hex(val & 0xffffffff))
-        hexs.append(hex(val >> 32))
+        vals.append(val & 0xffffffff)
+        vals.append((val >> 32) & 0xffffffff)
+    return vals
 
-    return ",".join(hexs)
-    
+def dump_sprite_4bpp(data):
+    return ",".join(hex(v) for v in dump_sprite_4bpp_values(data))
+
 def parse_sprite_frogger(data):
     # in frogger D0/D1 of first rom are swapped
     d0 = list(data[0])
@@ -167,7 +171,7 @@ def dump_c_source_4bpp(sprites, f):
         sprites_str.append("  { " + dump_sprite_4bpp(s) + " }")
     print(",\n".join(sprites_str), file=f)
 
-def parse_spritemap(id, fmt, infiles, outfile):
+def parse_spritemap(id, fmt, infiles, outfile, compress=False):
     sprites = []
 
     if fmt == "frogger":
@@ -308,36 +312,60 @@ def parse_spritemap(id, fmt, infiles, outfile):
     f=open(outfile, "w")
 
     if fmt == "1942":
-        # write 4 bpp
-        print("const unsigned long "+id+"[][32] = {", file=f)    
-        dump_c_source_4bpp(sprites, f)
+        flat = [v for s in sprites for v in dump_sprite_4bpp_values(s)]
+        emit_compressed(f, id, "unsigned long", "[32]", len(sprites), flat)
     elif fmt == "bagman":
-        # write 2 bpp    
-        print("const unsigned long "+id+"[]["+str(len(sprites))+"][16] = {", file=f)    
+        # write 2 bpp
+        print("const unsigned long "+id+"[]["+str(len(sprites))+"][16] = {", file=f)
         dump_c_source(sprites, False, False, f)
-    
+
         # we have plenty of flash space, so we simply pre-compute x flipped
-        # versions of all sprites      
+        # versions of all sprites
         dump_c_source(sprites,  True,  False, f)
+        print("};", file=f)
+    elif compress:
+        # 2bpp sprites pack differently than 1942's 4bpp sprites (dump_sprite, not
+        # dump_sprite_4bpp): each variant is `unsigned long[16]`, one long per row.
+        def sprite_row_values(s, flip_x, flip_y):
+            vals = []
+            for y in range(16) if not flip_y else reversed(range(16)):
+                val = 0
+                for x in range(16):
+                    if not flip_x:
+                        val = (val >> 2) + (s[y][x] << (32 - 2))
+                    else:
+                        val = (val << 2) + s[y][x]
+                vals.append(val & 0xffffffff)
+            return vals
+
+        flat = []
+        for flip_x, flip_y in [(False, False), (False, True), (True, False), (True, True)]:
+            for s in sprites:
+                flat.extend(sprite_row_values(s, flip_x, flip_y))
+        # Variant is the RomData element, so name[variant][sprite][row]
+        # indexes like the plain array.
+        emit_compressed(f, id, "unsigned long", "["+str(len(sprites))+"][16]", 4, flat)
     else:
-        # write 2 bpp    
-        print("const unsigned long "+id+"[]["+str(len(sprites))+"][16] = {", file=f)    
+        # write 2 bpp
+        print("const unsigned long "+id+"[]["+str(len(sprites))+"][16] = {", file=f)
         dump_c_source(sprites, False, False, f)
-    
+
         # we have plenty of flash space, so we simply pre-compute x/y flipped
         # versions of all sprites
         dump_c_source(sprites, False,  True, f)
         dump_c_source(sprites,  True, False, f)
         dump_c_source(sprites,  True,  True, f)
-        
-    print("};", file=f)
+        print("};", file=f)
 
-if len(sys.argv) < 5:
+args = sys.argv[1:]
+compress = False
+if args and args[0] == "-c":
+    compress = True
+    args.pop(0)
+
+if len(args) < 4:
     print("Invalid arguments")
     exit(-1)
 
-if sys.argv[1] == "-d":       
-    parse_spritemap(sys.argv[2], sys.argv[3], sys.argv[4:-1], sys.argv[-1], True)
-else:
-    parse_spritemap(sys.argv[1], sys.argv[2], sys.argv[3:-1], sys.argv[-1])
+parse_spritemap(args[0], args[1], args[2:-1], args[-1], compress)
 
