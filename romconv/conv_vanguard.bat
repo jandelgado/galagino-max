@@ -1,27 +1,10 @@
 @echo off
-setlocal
-pushd "%~dp0"
-
-echo --------- Convert Vanguard ---------
-
-REM echo Vanguard Logo
-REM python ./logoconv.py ../logos/vanguard.png ../source/src/machines/vanguard/vanguard_logo.h
-REM if errorlevel 1 goto :error
-
-echo Converting Vanguard ROMs
-pushd vanguard
-python vanguard_rom_convert.py
-set "convert_error=%errorlevel%"
-popd
-if not "%convert_error%"=="0" goto :error
-
-echo --- Success ---
-popd
-endlocal
-exit /b 0
+python ./pyconv/conv_vanguard.py
+if errorlevel 1 goto :error
+goto end
 
 :error
 echo --- Error #%errorlevel%.
-popd
-endlocal
-exit /b 1
+pause
+
+:end

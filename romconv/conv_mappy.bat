@@ -1,18 +1,6 @@
 @echo off
-echo --------- Convert Mappy ---------
-
-rem echo Mappy Logo
-rem python ./logoconv.py ../logos/mappy.png ../source/src/machines/mappy/mappy_logo.h
-rem if errorlevel 1 goto :error
-
-echo Converting Mappy (tiles+sprites+palette+roms+wavetable)
-cd mappy
-python mappy_rom_convert.py
-cd ..
-
+python ./pyconv/conv_mappy.py
 if errorlevel 1 goto :error
-
-echo --- Success ---
 goto end
 
 :error

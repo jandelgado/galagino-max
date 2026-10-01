@@ -1,10 +1,6 @@
 @echo off
-echo --------- Convert Z80 ---------
-echo Z80
-python ./z80patch.py
+python ./pyconv/conv_z80.py
 if errorlevel 1 goto :error
-
-echo --- Success ---
 goto end
 
 :error

@@ -1,4 +1,10 @@
 @echo off
-cd /d "%~dp0rocnrope"
-python rocnrope_rom_convert.py
-cd..
+python ./pyconv/conv_rocnrope.py
+if errorlevel 1 goto :error
+goto end
+
+:error
+echo --- Error #%errorlevel%.
+pause
+
+:end
