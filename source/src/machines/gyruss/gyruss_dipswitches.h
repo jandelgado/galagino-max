@@ -17,4 +17,4 @@
 // DSW3 (read at 0xC100)
 // Bit 0: Demo music (1=off, 0=on)
 // Other bits: not used in gyruss
-#define GYRUSS_DSW3  0x00
+#define GYRUSS_DSW3  0x01
