@@ -144,7 +144,7 @@ void Menu::handle() {
     master_attract_timeout = millis();  // new timeout for running game
 
     machineIndex = menu_sel;
-    printf("MASTER ATTRACT to machine #%d -> %d - %s\n",
+    printf("MASTER ATTRACT to machine #%d -> type %d - %s\n",
       machineIndex,
       machines[machineIndexSelected()].type,
       mchName(machines[machineIndexSelected()].type));
