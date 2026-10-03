@@ -46,7 +46,7 @@
 class pbaction : public machineBase
 {
 public:
-  pbaction() { }
+  pbaction();
   ~pbaction();
 
   void reset() override;

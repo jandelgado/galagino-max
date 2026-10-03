@@ -161,7 +161,10 @@ if __name__ == "__main__":
         sprites_16 = [rotate_matrix_90_cw(s, SPRITE_WIDTH_16, SPRITE_HEIGHT_16) for s in sprites_16]
     if GENERATE_PREVIEW:
         generate_preview(PREVIEW_PNG_16, sprites_16, SPRITE_HEIGHT_16, SPRITE_WIDTH_16, grid_cols=32)
-    write_c_array_packed(OUTPUT_C_FILE, C_ARRAY_NAME_16, sprites_16, SPRITE_HEIGHT_16, SPRITE_WIDTH_16)
+    # plain, not compressed: this is the 64K block that won't fit a
+    # fragmented heap on unpack -- keep it resident in flash instead
+    write_c_array_packed(OUTPUT_C_FILE, C_ARRAY_NAME_16, sprites_16, SPRITE_HEIGHT_16, SPRITE_WIDTH_16,
+                          compress=False)
 
     # Decodifica 32x32
     layout_x_32 = [0,1,2,3,4,5,6,7, 8*8+0,8*8+1,8*8+2,8*8+3,8*8+4,8*8+5,8*8+6,8*8+7, 32*8+0,32*8+1,32*8+2,32*8+3,32*8+4,32*8+5,32*8+6,32*8+7, 40*8+0,40*8+1,40*8+2,40*8+3,40*8+4,40*8+5,40*8+6,40*8+7]

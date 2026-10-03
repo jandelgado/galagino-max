@@ -14,7 +14,7 @@ sys.dont_write_bytecode = True
 
 from helper_functions import load_file
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from romdata_emit import emit_compressed
+from romdata_emit import emit_compressed, emit_plain
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "bnj.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "bnj"))
@@ -145,8 +145,14 @@ def write_sprite_tiles(tiles):
     with open(os.path.join(OUT_DIR, "bnj_spritetiles.h"), "w") as f:
         print("// Bump 'n' Jump sprites", file=f)
         print("// (gfx1 16x16 -- tile16layout). 256 sprite 16x16 3bpp.", file=f)
+        print("// RAM budget exception: stays PLAIN/flash-resident (see Arena's", file=f)
+        print("// capacity in arena.h).", file=f)
         flat = [v for t in tiles for y in range(16) for v in t[y]]
-        emit_compressed(f, "bnj_spritetiles", "unsigned char", "[16][16]", len(tiles), flat)
+        body_rows = []
+        for t in tiles:
+            rows = ["{" + ",".join(str(v) for v in t[y]) + "}" for y in range(16)]
+            body_rows.append("  {" + ",".join(rows) + "}")
+        emit_plain(f, "bnj_spritetiles", "unsigned char", "[16][16]", len(tiles), ",\n".join(body_rows))
 
 def write_bg_tiles(tiles):
     with open(os.path.join(OUT_DIR, "bnj_bgtiles.h"), "w") as f:

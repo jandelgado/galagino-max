@@ -8,7 +8,7 @@
 #include <cstdlib>
 #endif
 #include <cstdint>
-#include <new>
+#include "arena.h"
 #include "uzlib.h"
 
 enum eMode { PLAIN, COMPRESSED };
@@ -47,6 +47,9 @@ private:
 template<typename T>
 class RomData<T, COMPRESSED> {
 public:
+    // uzlib may write one byte past dest_limit, independent of T.
+    static constexpr uint32_t OVERRUN_SLACK_BYTES = 1;
+
     // Unpacked on first access and cached.
     constexpr RomData(const uint8_t *packed, uint32_t packedLen, uint32_t count)
       : packed(packed), packedLen(packedLen), count(count), current(nullptr) { }
@@ -68,8 +71,8 @@ public:
     // Element count. sizeof(name) only sees the wrapper.
     uint32_t size() const { return count; }
 
+    // Arena::reset() frees the memory on menu/machine switch.
     void release() {
-      delete[] current;
       current = nullptr;
     }
 
@@ -110,16 +113,12 @@ private:
     void unpack() const {
 #ifdef ARDUINO
       uint32_t t0 = millis();
-      printf("Free heap: %d\n", ESP.getFreeHeap());
 #endif
-
       // uzlib writes literals without a bounds check and can write one byte
-      // past dest_limit. Pad so that byte does not corrupt the heap.
-      T *buf = new (std::nothrow) T[count + 1];
-      if (!buf) {
-        printf("RomData: allocation failed (%u bytes)\n", (unsigned)(count * sizeof(T)));
-        abort();
-      }
+      // past dest_limit. Pad so that byte does not corrupt the arena.
+      T *buf = (T *)Arena::alloc(count * sizeof(T) + OVERRUN_SLACK_BYTES, alignof(T));
+      // read now: the other core may allocate during decodeInto()
+      uint32_t usedAfterThisAlloc = Arena::bytesUsed();
 
       decodeInto(buf);
 
@@ -129,8 +128,8 @@ private:
 #endif
       uint32_t decompressedBytes = count * sizeof(T);
       double ratio = 100.0 * (1.0 - (double)packedLen / (double)decompressedBytes);
-      printf("RomData: unpacked %u bytes (packed %u, %.1f%% smaller) in %u ms. Free: %d\n",
-             decompressedBytes, packedLen, ratio, ms, ESP.getFreeHeap());
+      printf("RomData: unpacked %u bytes (packed %u, %.1f%% smaller) in %u ms. Arena used: %u/%u\n",
+             decompressedBytes, packedLen, ratio, ms, (unsigned)usedAfterThisAlloc, (unsigned)Arena::CAPACITY);
 
       current = buf;
     }

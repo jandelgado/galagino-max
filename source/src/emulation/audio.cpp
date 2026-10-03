@@ -1,5 +1,6 @@
 #include "audio.h"
 #include <math.h>
+#include <string.h>
 #ifdef ES8311_AUDIO
 #include <es8311.h>
 #endif
@@ -244,6 +245,12 @@ void Audio::mute(int m) {
   muted = m;
 }
 
+// Machine is deleted after this; stop reading its registers.
+void Audio::stop() {
+  currentMachine = nullptr;
+  memset(snd_buffer, 0, sizeof(snd_buffer));
+}
+
 void Audio::transmit() {
   // (try to) transmit as much audio data as possible. Since we
   // write data in exact the size of the DMA buffers we can be sure
@@ -255,6 +262,10 @@ void Audio::transmit() {
     i2s_write(I2S_NUM_0, snd_buffer, sizeof(snd_buffer), &bytesOut, 0);
     if (!bytesOut)
       return;
+
+    // menu: no machine, buffer stays silent
+    if (!currentMachine)
+      continue;
 
     // render the next audio chunk if data has actually been sent
     if (AY > 0)

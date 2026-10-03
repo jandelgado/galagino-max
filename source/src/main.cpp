@@ -16,6 +16,7 @@
 #include "config.h"
 #include "machines.h"
 #include "machines/machineBase.h"
+#include "emulation/arena.h"
 #include "emulation/audio.h"
 #include "emulation/video.h"
 #include "emulation/input.h"
@@ -57,6 +58,9 @@ bool doReset = false;
 uint32_t ESP_getFlashChipId(void);
 
 void setup() {
+  // before anything fragments the heap
+  Arena::init();
+
   #if CONFIG_IDF_TARGET_ESP32S3
   delay(2000); // USB delay
   #endif
@@ -150,17 +154,21 @@ void setup() {
   printf("AUDIO_ENABLE:     %s\n", "LOW");
   #endif
 
-  // allocate memory for a single tile/character row
+  // permanent buffers: largest first, so none has to fit a hole
+  memory = (uint8_t *)malloc(RAMSIZE);
   frame_buffer = (unsigned short*)malloc(240 * 8 * 2);
   sprite_buffer = (sprite_S*)malloc(128 * sizeof(sprite_S));
-  memory = (uint8_t *)malloc(RAMSIZE);
-  printf("Before init - Heap: Free=%d MaxAlloc=%d MinFree=%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
-  currentMachine = machines[0].create();
-  currentMachine->init(&input, frame_buffer, sprite_buffer, memory);
-  printf("After  init - Heap: Free=%d MaxAlloc=%d MinFree=%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
-
   audio.init();
-  audio.start(currentMachine);
+
+  // With a menu, a machine is created on selection, so the menu always
+  // starts from the same heap state.
+  if (machinesCount == 1) {
+    printf("Before init - Heap: Free=%d MaxAlloc=%d MinFree=%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
+    currentMachine = machines[0].create();
+    currentMachine->init(&input, frame_buffer, sprite_buffer, memory);
+    printf("After  init - Heap: Free=%d MaxAlloc=%d MinFree=%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
+    audio.start(currentMachine);
+  }
 
   input.init(machinesCount == 1);
   input.onVolumeUpDown(onVolumeUpDown);
@@ -207,17 +215,26 @@ void updateAudioVideo(void) {
   }
 
   if (doReset || menu.attract_gameTimeout()) {
-    // stop current machine
-    emulation_stop();
-    video.flipReset(currentMachine->videoFlipY(), currentMachine->videoFlipX());
+    // null if reset is pressed in the menu
+    if (currentMachine) {
+      // stop current machine
+      emulation_stop();
+      video.flipReset(currentMachine->videoFlipY(), currentMachine->videoFlipX());
 
-    menu.show_menu();
+      audio.stop();
+      delete currentMachine;
+      currentMachine = nullptr;
+
+      menu.show_menu();
+      isMenu = true;
+    }
     doReset = false;
   }
 
   bool videoHalfRate = true;
 #ifndef VIDEO_HALF_RATE
-  videoHalfRate = currentMachine->useVideoHalfRate() && !isMenu;
+  // !isMenu first: currentMachine is null while in the menu
+  videoHalfRate = !isMenu && currentMachine->useVideoHalfRate();
 #endif
   const int renderWidth = !isMenu ? currentMachine->renderWidth() : 224;
   const int renderWrite = renderWidth << 3;

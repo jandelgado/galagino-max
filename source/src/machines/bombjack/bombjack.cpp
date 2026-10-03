@@ -6,6 +6,16 @@
 #include "bombjack_fg_tiles.h"
 #include "bombjack_sprites.h"
 
+// Unpack eagerly, largest first: only this order fits Arena's two blocks.
+bombjack::bombjack() {
+	bombjack_rom_cpu1.data();
+	bombjack_sprites_32x32.data();
+	bombjack_sprites_16x16.data();
+	bombjack_fg_tiles.data();
+	bombjack_rom_cpu2.data();
+	bombjack_bg_maps.data();
+}
+
 bombjack::~bombjack() {
 	bombjack_rom_cpu1.release();
 	bombjack_rom_cpu2.release();

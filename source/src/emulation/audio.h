@@ -38,6 +38,7 @@ class Audio {
 public:
   void init();
   void start(machineBase *machineBase);
+  void stop();
   void transmit();
   void volumeUpDown(bool up, bool down);
   void mute(int m);

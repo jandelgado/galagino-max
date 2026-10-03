@@ -7,7 +7,8 @@ void Led::init() {
 }
 
 void Led::update(const machineInfo *machines, machineBase *currentMachine, signed char machineIndexPreselection, signed char machineSelected) {
-  if (machineSelected < 0)
+  // machineSelected is set a frame before currentMachine exists.
+  if (!currentMachine)
     machines[machineIndexPreselection].menuLeds(leds);
   else
     currentMachine->gameLeds(leds);

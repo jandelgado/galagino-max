@@ -47,12 +47,9 @@ private:
   signed char menu_sel;
   int scroll_offset = 0;
 
-  // Decoded logos, allocated only while the menu shows. slot_logo[i] owns
-  // logo_pool[i]. One block per slot: the heap is fragmented after setup(),
-  // a single combined block may not fit. Decoding every frame is too slow,
-  // so a logo decodes once and stays until scrolled off. logo_pool_count
-  // can be below LOGO_CACHE_SIZE: the last machine's ROM buffers stay
-  // resident for audio.
+  // Decoded logos, allocated from Arena only while the menu shows.
+  // slot_logo[i] owns logo_pool[i]. Decoding every frame is too slow, so a
+  // logo decodes once and stays until scrolled off.
   unsigned char logo_pool_count = 0;
   unsigned short *logo_pool[LOGO_CACHE_SIZE] = { };
   RomData<unsigned short, COMPRESSED> *slot_logo[LOGO_CACHE_SIZE] = { };
