@@ -10,7 +10,7 @@
 #include "roadfighter_logo.h"
 
 // ============================================================================
-// Road Fighter (Konami, 1984) — port SPINNERINO (board ESP32-P4).
+// Road Fighter (Konami, 1984).
 // Driver MAME: konami/hyperspt.cpp (roadf_state). KONAMI-1/M6809 + Z80 audio.
 //
 // >>> FASE 2 = CPU + memory map + audio Z80 + run_frame <<<
@@ -28,14 +28,21 @@
 // IRQ: IRQ0 (non NMI) a vblank quando irq_mask=1; ack su irq_mask=0.
 // ============================================================================
 
+// Native landscape size; render_row() rotates into portrait (ROT90).
 #define ROADF_SCREEN_W 256
 #define ROADF_SCREEN_H 224
+// Post-ROT90 display width == native ROADF_SCREEN_H (visarea row count).
+#define ROADF_RENDER_W 224
 
 // Offset nel buffer condiviso memory[] (16 KB, copre CPU $0000-$3FFF)
 #define ROADF_SPRRAM_OFF  0x1000   // 0x1000-0x10BF (192 byte)
 #define ROADF_SCROLL_OFF  0x10C0   // 0x10C0-0x10FF (64 byte)
 #define ROADF_VRAM_OFF    0x2000   // 0x2000-0x27FF (2 KB)
 #define ROADF_CRAM_OFF    0x2800   // 0x2800-0x2FFF (2 KB)
+
+// Main CPU ROM window $4000-$FFFF
+#define ROADF_ROM_BASE    0x4000
+#define ROADF_ROM_SIZE    0xC000
 
 // DIP di default da MAME INPUT_PORTS(roadf):
 //   DSW2 = 0x2D: Continue=No, Opponents=Normal, Speed=Fast, Fuel=Normal,
@@ -55,6 +62,9 @@ public:
   void start(void) override;
 
   signed char machineType()      override { return MCH_ROADFIGHTER; }
+
+  const int renderWidth()  override { return ROADF_RENDER_W; }
+  const int renderBuffer() override { return ROADF_RENDER_W * 2 * 8; }
 
   // Audio Z80 (sound CPU)
   unsigned char rdZ80(unsigned short Addr) override;
@@ -111,11 +121,10 @@ private:
   unsigned char cram_snap[0x800];
   unsigned char scroll_snap[0x40];
   unsigned char spr_snap[0xC0];
-  void blit_sprite_strip(short row, unsigned char s);
+  void blit_sprite_strip(int tcol, unsigned char s);
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *main_raw_ptr = nullptr;
-  const unsigned char *main_decrypted_ptr = nullptr;
   const unsigned char *audio_rom_ptr = nullptr;
 };
 

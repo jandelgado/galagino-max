@@ -16,13 +16,11 @@
 roadfighter::roadfighter() {
 	// In ctor: m6809_reset() reads the reset vector through these.
 	main_raw_ptr = roadfighter_rom_main_raw.data();
-	main_decrypted_ptr = roadfighter_rom_main_decrypted.data();
 	audio_rom_ptr = roadfighter_rom_audio.data();
 }
 
 roadfighter::~roadfighter() {
 	roadfighter_rom_main_raw.release();
-	roadfighter_rom_main_decrypted.release();
 	roadfighter_rom_audio.release();
 	roadfighter_tiles.release();
 	roadfighter_sprites.release();
@@ -71,14 +69,25 @@ void roadfighter::reset() {
   dac_sample = 0;
   irq_mask = 0;
   flip_screen = 0;
-  coin_latch = coin_hold = 0;
-  start_latch = start_hold = 0;
+  // Latches start armed so COIN/START held from the menu launch registers
+  // only after release; else the boot self-test reports "D BAD".
+  coin_latch = 1;
+  coin_hold = 0;
+  start_latch = 1;
+  start_hold = 0;
   gear_state = 0;
   prev_fire_btn = 0;
 
   current_cpu = 0;
   ResetZ80(&cpu[0]);          // audio Z80
   m6809_reset(&main_cpu);     // legge reset vector $FFFE (via main_read -> ROM raw)
+
+  // instruction fetches straight from ROM, skipping the per-byte callback
+  // chain; must follow m6809_reset(), which clears the window
+  main_cpu.rom_direct = main_raw_ptr;
+  main_cpu.rom_base = ROADF_ROM_BASE;
+  main_cpu.rom_size = ROADF_ROM_SIZE;
+  main_cpu.konami1 = 1;
 }
 
 // ============================================================
@@ -107,9 +116,9 @@ uint8_t roadfighter::m6809_read(m6809_state *s, uint16_t addr) {
   return memory[addr];
 }
 
+// ROM opcodes ($4000+) never get here: the core fetches and KONAMI-1
+// decrypts them from the rom_direct window installed in reset().
 uint8_t roadfighter::m6809_read_opcode(m6809_state *s, uint16_t addr) {
-  if (addr >= 0x4000)
-    return main_decrypted_ptr[addr - 0x4000];
   return m6809_read(s, addr);
 }
 
@@ -247,12 +256,25 @@ void roadfighter::run_frame(void) {
   prev_fire_btn = fire_now;
 
   static const int M6809_CYCLES_PER_FRAME = 25600;
+  static const int SLICES_PER_FRAME = 720;
+  // ~5000 Z80 steps/frame, as circusc
+  static const int Z80_STEPS_PER_SLICE = 7;
+  // rdZ80 $8000 reads snd_icnt>>8: 21*720/256 = 59 ticks/frame
+  static const int SND_TIMER_PER_SLICE = 21;
   int m6809_cycles = 0;
   int safety = 0;
   const int SAFETY_LIMIT = 80000;
 
-  for (int i = 0; i < 720; i++) {
-    int slice_target = (M6809_CYCLES_PER_FRAME * (i + 1)) / 720;
+  // Equals (CYCLES*(i+1))/SLICES_PER_FRAME without a per-slice divide.
+  const int slice_step = M6809_CYCLES_PER_FRAME / SLICES_PER_FRAME;
+  const int slice_step_rem = M6809_CYCLES_PER_FRAME % SLICES_PER_FRAME;
+  int slice_target = 0;
+  int slice_rem_acc = 0;
+
+  for (int i = 0; i < SLICES_PER_FRAME; i++) {
+    slice_target += slice_step;
+    slice_rem_acc += slice_step_rem;
+    if (slice_rem_acc >= SLICES_PER_FRAME) { slice_rem_acc -= SLICES_PER_FRAME; slice_target++; }
     while (m6809_cycles < slice_target && safety < SAFETY_LIMIT) {
       int c = m6809_step(&main_cpu, 1);
       if (c <= 0) c = 1;
@@ -260,9 +282,13 @@ void roadfighter::run_frame(void) {
       safety++;
     }
     current_cpu = 0;
-    // Audio Z80: piu' step/slice = audio piu' veloce (CPU sonora + timer $8000,
-    // che deriva da snd_icnt). 20 = ~2x del 10 iniziale (10 troppo lento, 30 troppo veloce).
-    for (int z = 0; z < 20; z++) { StepZ80(&cpu[0]); snd_icnt++; }
+
+    // Tempo follows the $8000 timer, not the Z80 step count; keep it at
+    // MAME's rate (1 tick per 1024 cycles). Same sound board as circusc.
+    for (int z = 0; z < Z80_STEPS_PER_SLICE; z++) {
+      StepZ80(&cpu[0]);
+    }
+    snd_icnt += SND_TIMER_PER_SLICE;
   }
 
   if (irq_mask)
@@ -275,7 +301,7 @@ void roadfighter::run_frame(void) {
 }
 
 // ============================================================
-// Video — roadf (ROT90 = SPINNERINO → NESSUN flip software, render nativo).
+// Video — roadf (ROT90, like zaxxon/galaxian).
 // Tilemap 64x32, scroll PER-RIGA (32 righe), visarea y 16..239 (tile row +2).
 //   tile code = vram | (cram&0x80)<<1 | (cram&0x60)<<4; color=cram&0x0f; flipx=cram&0x10
 // Sprite (48, draw_sprites base_state): code=byte2+8*(flags&0x20), color=flags&0x0f,
@@ -307,14 +333,16 @@ void roadfighter::prepare_frame(void) {
     sp.color = flags & 0x0F;
     sp.flags = (((flags & 0x40) == 0) ? 1 : 0)        // flipx (~flags & 0x40), NON cambia con flip_screen
              | (flipy ? 2 : 0);
-    sp.x = (short)sx;
-    sp.y = (short)(sy - 16);                           // buffer coords
-    // La tilemap (sfondo/banner/HUD percorso) e' corretta, ma gli sprite risultano
-    // ruotati 180° rispetto ad essa (auto "verso il basso", HUD laterale/menu sprite
-    // specchiati). Ruoto 180° SOLO gli sprite nel buffer (256x224).
-    sp.x = (short)(ROADF_SCREEN_W - 16 - (int)sp.x);   // 256-16-x  (flip orizzontale)
-    sp.y = (short)(ROADF_SCREEN_H - 16 - (int)sp.y);   // 224-16-y  (flip verticale)
-    sp.flags ^= 0x03;                                  // inverti flipx + flipy
+    short native_x = (short)sx;          // band axis after rotation
+    short native_sy = (short)(sy - 16);  // 0..223
+
+    // Sprite axes differ from render_row (verified on hardware): column is
+    // flipped, band is direct. The other forms put sprites on the wrong X
+    // and made cars drive downward.
+    // sp.flags stay in native axes: blit_sprite_strip indexes gfx by native
+    // axis, so swapping the bits would mirror sprites.
+    sp.x = (short)(223 - (int)native_sy);
+    sp.y = native_x;
     active_sprites++;
   }
 }
@@ -327,6 +355,8 @@ void roadfighter::prepare_frame(void) {
 //   riga 4: nera (separatore)
 // Disattivare mettendo a 0 dopo la diagnosi.
 #define ROADF_DEBUG_OVERLAY 0
+// Broken since ROT90: writes ROADF_SCREEN_W px/row into a ROADF_RENDER_W
+// frame_buffer and corrupts the heap. Resize before enabling.
 
 void roadfighter::render_row(short row) {
 #if ROADF_DEBUG_OVERLAY
@@ -371,89 +401,85 @@ void roadfighter::render_row(short row) {
   return;
 #endif
 
-  // Contenuto MAME-fedele (flip_screen: scroll negato + sprite sy/flipy gia' gestiti),
-  // poi flip 180° GLOBALE dell'immagine composta (display montato ruotato): rendo la
-  // strip speculare eff_row e inverto righe+colonne. Tile e sprite ruotano INSIEME.
-  short eff_row = 27 - row;
-  // --- Background tilemap (per-pixel con scroll per-riga) ---
-  int tile_row = eff_row + 2;                          // visarea: tile row 2..29
-  int srow = tile_row * 2;
-  int scrollx = scroll_snap[srow] | ((scroll_snap[srow + 1] & 0x01) << 8);
-  if (flip_screen) scrollx = -scrollx;                 // MAME: flip_screen nega lo scroll
+  // Band index 0..31 (raw native X / 8); 36 physical strips give a 2-band
+  // letterbox top+bottom (see zaxxon.cpp's identical tcol convention).
+  const int tcol = row - 2;
+  if (tcol < 0 || tcol >= 32) return;   // caller already memset this strip to 0
 
-  for (int line = 0; line < 8; line++) {
-    unsigned short *ptr = frame_buffer + line * ROADF_SCREEN_W;
-    int tile_r = line;                                 // game_y & 7 = line
-    int prev_col = -1;
-    uint32_t prow = 0;
+  // Band = 255-native_X, column = native_Y. Per-row scroll varies with j:
+  // native Y maps to the column axis.
+  for (int sub_y = 0; sub_y < 8; sub_y++) {
+    int rx = 255 - (tcol * 8 + sub_y);
+    unsigned short *ptr = frame_buffer + sub_y * ROADF_RENDER_W;
+
+    int prev_tile_row = -1, game_x = 0;
     const unsigned short *cmap = nullptr;
+    const uint32_t *tile_gfx = nullptr;
     int flipx = 0;
-    for (int x = 0; x < ROADF_SCREEN_W; x++) {
-      int game_x   = (x + scrollx) & 0x1FF;            // tilemap 512 wide wrap
-      int tile_col = (game_x >> 3) & 63;
-      if (tile_col != prev_col) {                      // ricarica GFX 1x ogni 8 px
+
+    for (int j = 0; j < ROADF_RENDER_W; j++) {
+      int ry = j + 16;                                  // raw native Y, 16..239
+      int tile_row = ry >> 3;                           // 2..29
+
+      if (tile_row != prev_tile_row) {                 // ricarica GFX 1x ogni 8 j (tile row)
+        int srow = tile_row * 2;
+        int scrollx = scroll_snap[srow] | ((scroll_snap[srow + 1] & 0x01) << 8);
+        if (flip_screen) scrollx = -scrollx;             // MAME: flip_screen nega lo scroll
+        game_x = (rx + scrollx) & 0x1FF;                // tilemap 512 wide wrap
+        int tile_col = (game_x >> 3) & 63;
         int ti = (tile_row * 64 + tile_col) & 0x7FF;
         unsigned char v = vram_snap[ti];
         unsigned char a = cram_snap[ti];
-        unsigned int code = (unsigned)v | (((unsigned)a & 0x80) << 1) | (((unsigned)a & 0x60) << 4);
-        if (code >= ROADF_NTILES) code %= ROADF_NTILES;
-        prow  = roadfighter_tiles[code][tile_r];
+        unsigned int c = (unsigned)v | (((unsigned)a & 0x80) << 1) | (((unsigned)a & 0x60) << 4);
+        if (c >= ROADF_NTILES) c %= ROADF_NTILES;
+        tile_gfx = roadfighter_tiles[c];
         cmap  = roadfighter_tile_colormap[a & 0x0F];
         flipx = a & 0x10;
-        prev_col = tile_col;
+        prev_tile_row = tile_row;
       }
+
+      uint32_t prow = tile_gfx[ry & 7];  // sub-row within tile varies every j
       int tile_c = game_x & 7;
       int src_c  = flipx ? (7 - tile_c) : tile_c;
       unsigned char pix = (prow >> (src_c * 4)) & 0x0F;
-      ptr[x] = cmap[pix];
+      ptr[j] = cmap[pix];
     }
   }
 
-  // --- Sprites --- (gia' ruotati 180° in prepare_frame; blittati su eff_row)
   for (unsigned char s = 0; s < active_sprites; s++)
-    blit_sprite_strip(eff_row, s);
-
-  // Reverse 8 righe × 256 col = completa il flip 180° globale del display.
-  for (int r0 = 0; r0 < 4; r0++) {
-    int r1 = 7 - r0;
-    unsigned short *p0 = frame_buffer + r0 * ROADF_SCREEN_W;
-    unsigned short *p1 = frame_buffer + r1 * ROADF_SCREEN_W;
-    for (int c = 0; c < ROADF_SCREEN_W / 2; c++) {
-      unsigned short a = p0[c], b = p0[ROADF_SCREEN_W - 1 - c];
-      unsigned short cc = p1[c], d = p1[ROADF_SCREEN_W - 1 - c];
-      p0[c] = d; p0[ROADF_SCREEN_W - 1 - c] = cc;
-      p1[c] = b; p1[ROADF_SCREEN_W - 1 - c] = a;
-    }
-  }
+    blit_sprite_strip(tcol, s);
 }
 
-void roadfighter::blit_sprite_strip(short row, unsigned char s) {
+// Native dx sweeps the band (direct), dy the column (flipped).
+void roadfighter::blit_sprite_strip(int tcol, unsigned char s) {
   sprite_S &sp = sprite[s];
-  short top = row * 8;
-  if (sp.y + 16 <= top || sp.y >= top + 8) return;     // sprite non in questo strip
+  int band_top = tcol * 8;
 
   int code = sp.code;
   int flipx = sp.flags & 1;
   int flipy = sp.flags & 2;
   const uint32_t *gfx = roadfighter_sprites[code];
+  const unsigned short *cmap = roadfighter_sprite_colormap[sp.color];
 
-  for (int dy = 0; dy < 16; dy++) {
-    int y_buf = sp.y + dy;
-    int strip_y = y_buf - top;
-    if (strip_y < 0 || strip_y >= 8) continue;
-    int sy_src = flipy ? (15 - dy) : dy;
-    unsigned short *ptr = frame_buffer + strip_y * ROADF_SCREEN_W;
+  for (int dx = 0; dx < 16; dx++) {
+    int band0 = sp.y + dx;
+    int band1 = sp.y - 256 + dx;                        // wrap (2o draw MAME, sx-256)
+    int sub_y;
+    if (band0 >= band_top && band0 < band_top + 8) sub_y = band0 - band_top;
+    else if (band1 >= band_top && band1 < band_top + 8) sub_y = band1 - band_top;
+    else continue;                                      // sprite non in questa banda
 
-    for (int dx = 0; dx < 16; dx++) {
-      int sx_src = flipx ? (15 - dx) : dx;
+    int sx_src = flipx ? (15 - dx) : dx;
+    unsigned short *ptr = frame_buffer + sub_y * ROADF_RENDER_W;
+
+    for (int dy = 0; dy < 16; dy++) {
+      int col = sp.x - dy;
+      if (col < 0 || col >= ROADF_RENDER_W) continue;
+      int sy_src = flipy ? (15 - dy) : dy;
       uint32_t gw = gfx[sy_src * 2 + (sx_src >= 8 ? 1 : 0)];
       unsigned char pix = (gw >> ((sx_src & 7) * 4)) & 0x0F;
-      if (!pix) continue;                              // pen 0 = trasparente
-      unsigned short c = roadfighter_sprite_colormap[sp.color][pix];
-      int x0 = sp.x + dx;
-      if (x0 >= 0 && x0 < ROADF_SCREEN_W) ptr[x0] = c;
-      int x1 = sp.x - 256 + dx;                         // wrap (2o draw MAME)
-      if (x1 >= 0 && x1 < ROADF_SCREEN_W) ptr[x1] = c;
+      if (!pix) continue;                               // pen 0 = trasparente
+      ptr[col] = cmap[pix];
     }
   }
 }

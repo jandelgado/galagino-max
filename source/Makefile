@@ -61,6 +61,9 @@ cyd-fnk0103f-usb-up: phony
 cyd-esp32-s3-display-usb-up: phony
 	$(MAKE) upload ENV=$@
 
+release_cheapYellowDisplay: phony
+	$(MAKE) upload ENV=$@
+
 image-info: phony
 	esptool --chip esp32s3 --port $(DEVICE_PATH) image-info .pio/build/cyd-esp32-s3-display-usb-up/GALAGINO_*_release.bin
 
