@@ -1,47 +1,32 @@
-Galagino
-========
+GalaginoMAX
+===========
 
-This is my custom Galagino build.
+This is my (JD) custom Galagino build with Zaxxon and working Road Fighter
+added. It uses compression and allows to squeeze all games at once into the
+4MB flash of the classic ESP32 module.
 
-It has Moon Cresta, Scramble and Super Cobra and the games from [speckhoiler/galagino](https://github.com/speckhoiler/galagino), from [SurvivalHacking/galagino3](https://github.com/SurvivalHacking/galagino3), [SurvivalHacking/spinnerino](https://github.com/SurvivalHacking/spinnerino), [VirtualClaudioBoy/GalaginoPlus](https://github.com/VirtualClaudioBoy/GalaginoPlus) and [BaasPierre/GalaginoPlusGoldstar](https://github.com/BaasPierre/GalaginoPlusGoldstar).
+It is based on [galagino/galagino](https://github.com/galagino/galagino](galagino/galagino) and
+it has Moon Cresta, Scramble and Super Cobra and the games from [speckhoiler/galagino](https://github.com/speckhoiler/galagino), from [SurvivalHacking/galagino3](https://github.com/SurvivalHacking/galagino3), [SurvivalHacking/spinnerino](https://github.com/SurvivalHacking/spinnerino), [VirtualClaudioBoy/GalaginoPlus](https://github.com/VirtualClaudioBoy/GalaginoPlus) and [BaasPierre/GalaginoPlusGoldstar](https://github.com/BaasPierre/GalaginoPlusGoldstar). Original Galagino by Till Harbaum [harbaum/galagino](https://github.com/harbaum/galagino)
 
 
 ### Quality of Life, improvements and fixes
 
 * `TFT_VFLIP` logic reworked to keep track of state and work across ST7789 and ILI9341
-
 * `TFT_INVERT` added to support CYD clones that show inverted colors
-
 * `m6809` emulation uses machineBase methods, so you can have multiple instances just like the `Z80` and `i8048`
-
 * Time Pilot sprite multiplexing
-
 * Bluetooth Controller over i2c see: [galagino-controller](https://github.com/galagino/galagino-controller)
-
 * Bluetooth Controller supports multiple action/fire/bomb buttons.
-
 * Support for ESP32-S3 CYD clone with 16MiB Flash
-
 * Support for External DAC (es8311). ESP32-S3's don't have internal DACs.
-
 * Linux `romconv` scripts.
-
 * `pengo.zip`, `pengoj.zip` romsets conversion (which is the one with the popcorn music).
-
 * Enabled machines selection moved to `platformio.ini`
-
 * File generation without unziping, some roms cause name clashes and is much cleaner. Not all roms yet.
-
 * Flash and PSRAM SPI configs for maximum speed available on each ESP32 version.
-
-* Many code cleanups for reduced RAM used - with 44 games around 260k free heap (Flash is the limiting factor, you need and ESP32 with 8MiB of flash).
-
+* Many code cleanups for reduced RAM used - with 44 games around 260k free heap ~~(Flash is the limiting factor, you need and ESP32 with 8MiB of flash)~~.
 * mos6502 emulation (WIP)
-
-### Limitations
-
-* You need an ESP32 board with at least 8MiB of flash to have a build with all the games. See below for an ESP32-S3 CYD clone with 16MiB Flash.
-
+* Flash compression allows to include ALL games even in the ESP32 4MB flash versions
 
 ### Hardware Used
 
@@ -57,6 +42,42 @@ It has Moon Cresta, Scramble and Super Cobra and the games from [speckhoiler/gal
 ### 3d printed enclosure
 
 I've used [Gavin Knight's](https://www.hackster.io/dynamight/cyd-galagino-arcade-cabinet-369ce9) very nice enclosure.
+
+### Building
+
+Place the ROM zips in [romszip](/romszip/), then run `romconv/convert.sh`
+(Linux/macOS) or `romconv/convert.bat` (Windows). 
+
+### Configuration
+
+Keep personal settings out of `config.h` so it stays close to upstream.
+Put them in `source/src/config_local.h` instead. The file is git-ignored
+and included at the top of `config.h` if present. Precedence:
+`platformio.ini` build flags, then `config_local.h`, then the `config.h`
+defaults. Example:
+
+```c
+#define MASTER_ATTRACT_GAME_TIMEOUT  60000 * 2
+#define LED_PIN           16
+#define SND_RIGHT_CHANNEL         // audio on GPIO 25 instead of 26
+
+// own pins: skip the board block in config.h
+#define USE_PIO_CONFIG
+#define TFT_CS            5
+#define TFT_DC            32
+// ... remaining TFT_* and BTN_* pins
+```
+
+### Attract mode
+
+Settings in `config.h`:
+
+* `MASTER_ATTRACT_MENU_TIMEOUT`: idle time in the menu before a game starts (ms).
+* `MASTER_ATTRACT_GAME_TIMEOUT`: time until an attract game ends (ms).
+* `MASTER_ATTRACT_MENU_SHOW_COUNTDOWN`: shows a bar in the menu with the time
+  left until a game starts. Comment out in `config.h` to hide it.
+* `MASTER_ATTRACT_MENU_COUNTDOWN_BAR_COLOR565`: bar color, byte-swapped RGB565
+  (SPI byte order).
 
 ### Games
 
@@ -110,7 +131,8 @@ I've used [Gavin Knight's](https://www.hackster.io/dynamight/cyd-galagino-arcade
 | Nibbler (nibblerp.zip)         | ![_](/logos/nibbler.png)      | ![_](/images/nibbler.png)      |       |
 | Vanguard (vanguard.zip)        | ![_](/logos/vanguard.png)     | ![_](/images/vanguard.png)     |       |
 | Scrambled Egg (scregg.zip)     | ![_](/logos/scregg.png)       | ![_](/images/scregg.png)       | Broken             |
-| Road Fighter (roadf2.zip)      | ![_](/logos/roadfighter.png)  | ![_](/images/roadfighter.png)  | WIP - doesn't work |                
+| Road Fighter (roadf2.zip)      | ![_](/logos/roadfighter.png)  | ![_](/images/roadfighter.png)  |  |                
 | Motorace USA (motorace.zip)    | ![_](/logos/motorace.png)     | ![_](/images/motorace.png)     | x.y = 256x240      |
+| Zaxxon (zaxxon.zip)            | ![_](/logos/zaxxon.png)       |                                | US Rev D. Audio samples: zaxxon-audio.zip |
 
 ### ...
