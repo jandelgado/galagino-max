@@ -154,9 +154,9 @@ void galaga::wrZ80(unsigned short Addr, unsigned char Value) {
       credit_mode = 0;   // this also resets the 51xx
       
       if(sub_cpu_reset) {
-        current_cpu = 1; ResetZ80(&cpu[1]);
-        current_cpu = 2; ResetZ80(&cpu[2]);
-      }        
+        ResetZ80(&cpu[1]);
+        ResetZ80(&cpu[2]);
+      }
     }
     return;
   }

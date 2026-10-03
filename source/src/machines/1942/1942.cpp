@@ -163,7 +163,6 @@ void _1942::wrZ80(unsigned short Addr, unsigned char Value) {
 	      sub_cpu_reset = Value & 0x10;
 	
 	      if(sub_cpu_reset) {
-	        current_cpu = 1;
 	        ResetZ80(&cpu[1]);
 	      }
 	      return;

@@ -154,8 +154,8 @@ void digdug::wrZ80(unsigned short Addr, unsigned char Value) {
 	        namco_mode = 0;
 	        namco_nmi_counter = 0;
 	  
-	        current_cpu = 1; ResetZ80(&cpu[1]);
-	        current_cpu = 2; ResetZ80(&cpu[2]);
+	        ResetZ80(&cpu[1]);
+	        ResetZ80(&cpu[2]);
         }
       }
     }
