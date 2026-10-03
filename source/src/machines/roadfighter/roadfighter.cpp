@@ -291,6 +291,14 @@ void roadfighter::run_frame(void) {
     snd_icnt += SND_TIMER_PER_SLICE;
   }
 
+  vblank.publish([this](VideoState &s) {
+    memcpy(s.vram,   memory + ROADF_VRAM_OFF,   sizeof(s.vram));
+    memcpy(s.cram,   memory + ROADF_CRAM_OFF,   sizeof(s.cram));
+    memcpy(s.scroll, memory + ROADF_SCROLL_OFF, sizeof(s.scroll));
+    memcpy(s.spr,    memory + ROADF_SPRRAM_OFF, sizeof(s.spr));
+    s.flip_screen = flip_screen;
+  });
+
   if (irq_mask)
     m6809_irq(&main_cpu);
 
@@ -309,24 +317,21 @@ void roadfighter::run_frame(void) {
 // ============================================================
 
 void roadfighter::prepare_frame(void) {
-  memcpy(vram_snap,   memory + ROADF_VRAM_OFF,   sizeof(vram_snap));
-  memcpy(cram_snap,   memory + ROADF_CRAM_OFF,   sizeof(cram_snap));
-  memcpy(scroll_snap, memory + ROADF_SCROLL_OFF, sizeof(scroll_snap));
-  memcpy(spr_snap,    memory + ROADF_SPRRAM_OFF, sizeof(spr_snap));
+  vblank.read(video);
 
   // Popola sprite[] in coordinate buffer (y in 0..223 = game_y - 16).
   active_sprites = 0;
   for (int offs = 0xC0 - 4; offs >= 0 && active_sprites < 96; offs -= 4) {
-    unsigned char flags  = spr_snap[offs + 0];
-    unsigned char sy_raw = spr_snap[offs + 1];
-    unsigned char code_l = spr_snap[offs + 2];
-    unsigned char sx     = spr_snap[offs + 3];
+    unsigned char flags  = video.spr[offs + 0];
+    unsigned char sy_raw = video.spr[offs + 1];
+    unsigned char code_l = video.spr[offs + 2];
+    unsigned char sx     = video.spr[offs + 3];
     if ((flags | sy_raw | code_l | sx) == 0) continue;   // slot vuoto
 
     // flip_screen MAME: sy = 240-(240-sy_raw)=sy_raw, poi +1; flipy invertito. flipx invariato.
     int flipy = (flags & 0x80) ? 1 : 0;
     int sy;
-    if (flip_screen) { sy = (int)sy_raw + 1; flipy = !flipy; }
+    if (video.flip_screen) { sy = (int)sy_raw + 1; flipy = !flipy; }
     else             { sy = 241 - (int)sy_raw; }
     sprite_S &sp = sprite[active_sprites];
     sp.code  = (unsigned short)((code_l + 8 * (flags & 0x20)) & (ROADF_NSPRITES - 1));
@@ -362,7 +367,7 @@ void roadfighter::render_row(short row) {
 #if ROADF_DEBUG_OVERLAY
   if (row < 5) {
     int vnz = 0;
-    for (int i = 0; i < 0x800; i++) if (vram_snap[i]) vnz++;
+    for (int i = 0; i < 0x800; i++) if (video.vram[i]) vnz++;
     unsigned short pc = dbg_pc;          // PC catturato STABILE in run_frame
     unsigned char hi = pc >> 8, lo = pc & 0xFF;
     for (int line = 0; line < 8; line++) {
@@ -423,13 +428,13 @@ void roadfighter::render_row(short row) {
 
       if (tile_row != prev_tile_row) {                 // ricarica GFX 1x ogni 8 j (tile row)
         int srow = tile_row * 2;
-        int scrollx = scroll_snap[srow] | ((scroll_snap[srow + 1] & 0x01) << 8);
-        if (flip_screen) scrollx = -scrollx;             // MAME: flip_screen nega lo scroll
+        int scrollx = video.scroll[srow] | ((video.scroll[srow + 1] & 0x01) << 8);
+        if (video.flip_screen) scrollx = -scrollx;             // MAME: flip_screen nega lo scroll
         game_x = (rx + scrollx) & 0x1FF;                // tilemap 512 wide wrap
         int tile_col = (game_x >> 3) & 63;
         int ti = (tile_row * 64 + tile_col) & 0x7FF;
-        unsigned char v = vram_snap[ti];
-        unsigned char a = cram_snap[ti];
+        unsigned char v = video.vram[ti];
+        unsigned char a = video.cram[ti];
         unsigned int c = (unsigned)v | (((unsigned)a & 0x80) << 1) | (((unsigned)a & 0x60) << 4);
         if (c >= ROADF_NTILES) c %= ROADF_NTILES;
         tile_gfx = roadfighter_tiles[c];
