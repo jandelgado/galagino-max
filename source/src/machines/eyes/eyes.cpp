@@ -1,4 +1,15 @@
 #include "eyes.h"
+#include "eyes_rom.h"
+#include "eyes_tilemap.h"
+#include "eyes_spritemap.h"
+#include "eyes_cmap.h"
+#include "eyes_wavetable.h"
+
+eyes::~eyes() {
+	eyes_rom.release();
+	eyes_tilemap.release();
+	eyes_sprites.release();
+}
 
 unsigned char eyes::opZ80(unsigned short Addr) {
   return eyes_rom[Addr];
@@ -96,7 +107,7 @@ const unsigned short *eyes::colorRom(unsigned short addr) {
   return eyes_colormap[addr];
 }
 
-const unsigned long *eyes::spriteRom(unsigned char flags, unsigned char code) {
+const uint32_t *eyes::spriteRom(unsigned char flags, unsigned char code) {
   return eyes_sprites[flags][code];
 }
 

@@ -2,6 +2,9 @@
 import sys
 import os
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
+
 # --- Configurazione Specifica per Donkey Kong Jr. (dkongjrj) ---
 
 # I quattro file ROM che, combinati, contengono i dati degli sprite.
@@ -41,15 +44,15 @@ def parse_sprite_dkong(data_chunks):
         sprite.append(row)
     return sprite
 
-def dump_sprite(data, flip_x, flip_y):
+def dump_sprite_values(data, flip_x, flip_y):
     """
-    Converte una matrice di pixel 16x16 in un array di 16 long (32-bit),
-    impacchettando 16 pixel a 2-bit in ogni long.
+    Converte una matrice di pixel 16x16 in una lista di 16 valori (32-bit),
+    impacchettando 16 pixel a 2-bit in ogni valore.
     Applica il flip orizzontale/verticale se richiesto.
     """
-    hexs = []
+    vals = []
     y_range = reversed(range(16)) if flip_y else range(16)
-    
+
     for y_idx in y_range:
         y = y_idx
         val = 0
@@ -58,9 +61,9 @@ def dump_sprite(data, flip_x, flip_y):
             x = x_idx
             # Impacchetta i pixel a 2 bit in un intero a 32 bit
             val = (val << 2) | data[y][x]
-        hexs.append(hex(val))
-        
-    return ",".join(hexs)
+        vals.append(val)
+
+    return vals
 
 def convert_dkjr_spritemap():
     """
@@ -104,34 +107,12 @@ def convert_dkjr_spritemap():
     with open(OUTPUT_HEADER_FILE, "w") as f:
         f.write(f"// File generato automaticamente per gli sprite di Donkey Kong Jr.\n")
         f.write(f"// Dati estratti da: {', '.join(INPUT_ROM_FILES)}\n\n")
-        
-        f.write(f"const unsigned long {OUTPUT_ARRAY_NAME}[4][{NUM_SPRITES}][16] = {{\n")
-        
-        # Array 0: Normale (no flip)
-        f.write("  // Flip: No\n  {\n")
-        sprite_lines = [f"    {{ {dump_sprite(s, False, False)} }}" for s in sprites]
-        f.write(",\n".join(sprite_lines))
-        f.write("\n  },\n")
-        
-        # Array 1: Flip solo Verticale
-        f.write("  // Flip: Y\n  {\n")
-        sprite_lines = [f"    {{ {dump_sprite(s, False, True)} }}" for s in sprites]
-        f.write(",\n".join(sprite_lines))
-        f.write("\n  },\n")
 
-        # Array 2: Flip solo Orizzontale
-        f.write("  // Flip: X\n  {\n")
-        sprite_lines = [f"    {{ {dump_sprite(s, True, False)} }}" for s in sprites]
-        f.write(",\n".join(sprite_lines))
-        f.write("\n  },\n")
-
-        # Array 3: Flip Orizzontale e Verticale
-        f.write("  // Flip: XY\n  {\n")
-        sprite_lines = [f"    {{ {dump_sprite(s, True, True)} }}" for s in sprites]
-        f.write(",\n".join(sprite_lines))
-        f.write("\n  }\n")
-
-        f.write("};")
+        flat = []
+        for flip_x, flip_y in [(False, False), (False, True), (True, False), (True, True)]:
+            for s in sprites:
+                flat.extend(dump_sprite_values(s, flip_x, flip_y))
+        emit_compressed(f, OUTPUT_ARRAY_NAME, "uint32_t", "[%d][16]" % NUM_SPRITES, 4, flat)
         
     print(f"\nProcesso completato! Il file '{OUTPUT_HEADER_FILE}' è stato creato.")
 

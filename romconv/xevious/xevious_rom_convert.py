@@ -20,6 +20,8 @@ import hashlib
 
 sys.dont_write_bytecode = True
 from helper_functions import load_file
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed, emit_plain
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "xevious.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "xevious"))
@@ -122,46 +124,38 @@ def write_fg_tiles(tiles):
     with open(os.path.join(OUT_DIR, "xevious_fgtilemap.h"), "w") as f:
         print("// Xevious foreground text tiles (xvi_12.3b) — 512 char 8x8 1bpp", file=f)
         print("// pen0=transparent (mapped via colormap), direct index to fg_videoram", file=f)
-        print("const unsigned char xevious_fgtilemap[][8] = {", file=f)
-        rows = []
+        flat = []
         for t in tiles:
-            vals = []
             for y in range(8):
                 v = 0
                 for x in range(8):
                     v |= t[y][x] << x
-                vals.append(hex(v))
-            rows.append(" { " + ",".join(vals) + " }")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+                flat.append(v)
+        emit_compressed(f, "xevious_fgtilemap", "unsigned char", "[8]", len(tiles), flat)
 
 def write_bg_tiles(tiles):
     with open(os.path.join(OUT_DIR, "xevious_bgtilemap.h"), "w") as f:
         print("// Xevious background tiles (xvi_13.3c+xvi_14.3d) — 512 tile 8x8 2bpp", file=f)
         print("// no transparency: layer bg is OPAQUE (drawn first)", file=f)
-        print("const unsigned short xevious_bgtilemap[][8] = {", file=f)
-        rows = []
+        flat = []
         for t in tiles:
-            vals = []
             for y in range(8):
                 v = 0
                 for x in range(8):
                     v |= t[y][x] << (2*x)
-                vals.append(hex(v))
-            rows.append(" { " + ",".join(vals) + " }")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+                flat.append(v)
+        emit_compressed(f, "xevious_bgtilemap", "unsigned short", "[8]", len(tiles), flat)
 
 def write_sprites(sprites):
     # varianti [0]=(fx0,fy0) [1]=(fx0,fy1) [2]=(fx1,fy0) [3]=(fx1,fy1), stesso
     # schema di galaga/mappy/gaplus_spritemap.h
+    # 160KB decompressed exceeds the Arena; stays PLAIN in flash.
     with open(os.path.join(OUT_DIR, "xevious_spritemap.h"), "w") as f:
         print("// Xevious sprites (xvi_15.4m+xvi_17.4p+xvi_16.4n+xvi_18.4r, dopo", file=f)
         print("// init_xevious() unpack) — 320 sprite 16x16 3bpp (valori pixel 0-7),", file=f)
         print("// impacchettati a nibble (4 bit) come mappy/gaplus_spritemap.h.", file=f)
-        print("const unsigned long xevious_sprites[][320][32] = {", file=f)
+        body_parts = []
         for (fx, fy) in [(0,0),(0,1),(1,0),(1,1)]:
-            print(" {", file=f)
             rows = []
             for s in sprites:
                 t = flip_tile(s, fx, fy)
@@ -173,9 +167,9 @@ def write_sprites(sprites):
                     vals.append(hex(v & 0xffffffff))
                     vals.append(hex(v >> 32))
                 rows.append("  { " + ",".join(vals) + " }")
-            print(",\n".join(rows), file=f)
-            print(" }," if not (fx and fy) else " }", file=f)
-        print("};", file=f)
+            body_parts.append(" {\n" + ",\n".join(rows) + "\n }")
+        body = ",\n".join(body_parts)
+        emit_plain(f, "xevious_sprites", "uint32_t", "[%d][32]" % len(sprites), 4, body)
 
 def rgb565_swapped(r, g, b):
     rgb = ((r*31//255) << 11) + ((g*63//255) << 5) + (b*31//255)
@@ -210,32 +204,24 @@ def write_colormaps(pal, bg_lut_lo, bg_lut_hi, spr_lut_lo, spr_lut_hi):
     with open(os.path.join(OUT_DIR, "xevious_cmap_bg.h"), "w") as f:
         print("// Xevious colormap sfondo, da xvi_7bpr.4h (lut low)/xvi_6bpr.4f (lut high)", file=f)
         print("// 128 gruppi x 4 pen (2bpp), layer OPACO -> nessuna trasparenza", file=f)
-        print("const unsigned short xevious_colormap_bg[][4] = {", file=f)
-        rows = []
+        flat = []
         for g in range(128):
-            vals = []
             for p in range(4):
                 idx = g*4 + p
                 lut = (bg_lut_lo[idx] & 0x0f) | ((bg_lut_hi[idx] & 0x0f) << 4)
-                vals.append(hex(nudge(pal[lut & 0x7f])))
-            rows.append("{" + ",".join(vals) + "}")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+                flat.append(nudge(pal[lut & 0x7f]))
+        emit_compressed(f, "xevious_colormap_bg", "unsigned short", "[4]", 128, flat)
 
     with open(os.path.join(OUT_DIR, "xevious_cmap_sprites.h"), "w") as f:
         print("// Xevious colormap sprite, da xvi_4bpr.3l (lut low)/xvi_5bpr.3m (lut high)", file=f)
         print("// 64 gruppi x 8 pen (3bpp). c&0x80==0 -> pen trasparente (valore 0).", file=f)
-        print("const unsigned short xevious_colormap_sprites[][8] = {", file=f)
-        rows = []
+        flat = []
         for g in range(64):
-            vals = []
             for p in range(8):
                 idx = g*8 + p
                 c = (spr_lut_lo[idx] & 0x0f) | ((spr_lut_hi[idx] & 0x0f) << 4)
-                vals.append(hex(0) if (c & 0x80) == 0 else hex(nudge(pal[c & 0x7f])))
-            rows.append("{" + ",".join(vals) + "}")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+                flat.append(0 if (c & 0x80) == 0 else nudge(pal[c & 0x7f]))
+        emit_compressed(f, "xevious_colormap_sprites", "unsigned short", "[8]", 64, flat)
 
     # colormap fg: dipende dal color code a 6 bit del tile (attr, non un
     # indice di gruppo fisso come bg/sprite), formula esatta in
@@ -256,10 +242,7 @@ def write_colormaps(pal, bg_lut_lo, bg_lut_hi, spr_lut_lo, spr_lut_hi):
 def write_rom(name, sym, data, comment):
     with open(os.path.join(OUT_DIR, name), "w") as f:
         print(f"// {comment}", file=f)
-        print(f"const unsigned char {sym}[] = {{", file=f)
-        for i in range(0, len(data), 16):
-            print("  " + ",".join(f"0x{b:02X}" for b in data[i:i+16]) + ",", file=f)
-        print("};", file=f)
+        emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
 
 def write_wavetable(prom):
     # stesso formato di galaga_wavetable.h: 8 forme x 32 campioni, solo
@@ -320,11 +303,8 @@ def write_sample_boom():
             print(f"// resampled at 24000 Hz signed 8bit (bit pattern in unsigned char,", file=f)
             print(f"// read with cast 'const signed char*' like galaga_sample_boom.h).", file=f)
             print(f"// {len(samples8)} samples ({len(samples8)/target_fr:.3f}s at 24000 Hz)", file=f)
-            print(f"const unsigned char {name}[] = {{", file=f)
-            vals = [f"0x{(int(v) & 0xFF):02X}" for v in samples8]
-            for i in range(0, len(vals), 16):
-                print("  " + ",".join(vals[i:i+16]) + ",", file=f)
-            print("};", file=f)
+            flat = [int(v) & 0xFF for v in samples8]
+            emit_compressed(f, name, "unsigned char", "", len(flat), flat)
         print(f"{name}.h: {len(samples8)} samples @24kHz ({len(samples8)/target_fr:.3f}s)")
 
 def write_planetmap(rom2a, rom2b, rom2c):

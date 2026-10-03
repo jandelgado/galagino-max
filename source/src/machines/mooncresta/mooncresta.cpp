@@ -1,5 +1,15 @@
 #include "mooncresta.h"
+#include "mooncresta_rom.h"
+#include "mooncresta_tilemap.h"
+#include "mooncresta_spritemap.h"
+#include "mooncresta_cmap.h"
 #include "../../emulation/input.h"
+
+mooncresta::~mooncresta() {
+	mooncresta_rom.release();
+	mooncresta_tilemap.release();
+	mooncresta_spritemap.release();
+}
 
 void mooncresta::start() {
   stars_init();
@@ -290,7 +300,7 @@ void mooncresta::blit_tile_scroll(short row, signed char col, unsigned char scro
 }
 
 void mooncresta::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = mooncresta_spritemap[sprite[s].flags & 3][sprite[s].code];
+  const uint32_t *spr = mooncresta_spritemap[sprite[s].flags & 3][sprite[s].code];
   const unsigned short *colors = mooncresta_colormap[sprite[s].color];
 
   /*

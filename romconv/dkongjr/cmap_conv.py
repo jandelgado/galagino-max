@@ -2,6 +2,9 @@
 import sys
 import os
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
+
 # --- Configurazione per Donkey Kong Jr. (dkongjrj) ---
 
 # File PROM per la palette (2 file da 4 bit ciascuno)
@@ -86,28 +89,16 @@ def generate_colormap(palette):
 
         # --- Scrittura della colormap per i TILE ---
         tile_map_name = f"{OUTPUT_ARRAY_NAME_BASE}"
-        f.write(f"const unsigned short {tile_map_name}[][256][4] = {{\n")
-        
-        screen_banks = []
+
+        flat = []
         for s in range(4):  # Loop per i 4 banchi di palette
-            color_entries = []
             for idx in colormap_lookup_data:
                 offset_idx = idx + (16 * s)
                 # Ogni indice punta a un gruppo di 4 colori nella palette finale
-                color_indices = [
-                    4 * offset_idx + 0,
-                    4 * offset_idx + 1,
-                    4 * offset_idx + 2,
-                    4 * offset_idx + 3
-                ]
-                # Prende i valori dalla palette pre-calcolata e li formatta
-                color_group = "{" + ",".join([hex(palette[ci]) for ci in color_indices]) + "}"
-                color_entries.append(color_group)
-            
-            screen_banks.append("  {\n    " + ",\n    ".join(color_entries) + "\n  }")
-
-        f.write(",\n".join(screen_banks))
-        f.write("\n};\n\n")
+                for p in range(4):
+                    flat.append(palette[4 * offset_idx + p])
+        emit_compressed(f, tile_map_name, "unsigned short", "[256][4]", 4, flat)
+        f.write("\n")
 
         # --- Scrittura della colormap per gli SPRITE ---
         sprite_map_name = f"{OUTPUT_ARRAY_NAME_BASE}_sprite"

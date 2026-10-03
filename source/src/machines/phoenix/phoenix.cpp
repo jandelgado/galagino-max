@@ -11,6 +11,16 @@
 // rotazione 90 gradi cablata nella matematica dei tile (come galaxian).
 // ============================================================================
 #include "phoenix.h"
+#include "phoenix_rom.h"
+#include "phoenix_bgtiles.h"
+#include "phoenix_fgtiles.h"
+#include "phoenix_palette.h"
+
+phoenix::~phoenix() {
+	phoenix_rom.release();
+	phoenix_bgtiles.release();
+	phoenix_fgtiles.release();
+}
 
 #define FB_W        224     // larghezza framebuffer galagino
 #define PX_OFFSET   8       // (224-208)/2, centratura orizzontale portrait

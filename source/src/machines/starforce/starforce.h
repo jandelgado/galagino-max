@@ -2,13 +2,6 @@
 #define STARFORCE_H
 
 #include "starforce_logo.h"
-#include "starforce_bg1_tiles.h"
-#include "starforce_bg2_tiles.h"
-#include "starforce_bg3_tiles.h"
-#include "starforce_fg_tiles.h"
-#include "starforce_sprites.h"
-#include "starforce_main_cpu_rom.h"
-#include "starforce_sub_cpu_rom.h"
 #include "starforce_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
@@ -30,7 +23,7 @@ class starforce : public machineBase
 {
 public:
 	starforce() { }
-	~starforce() { }
+	~starforce();
 
 	signed char machineType() override { return MCH_STARFORCE; }
 	signed char useVideoHalfRate() override { return 1; } 

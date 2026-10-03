@@ -1,14 +1,8 @@
 #ifndef MRDO_H
 #define MRDO_H
 
-#include "mrdo_rom1.h"
 #include "mrdo_dipswitches.h"
 #include "mrdo_logo.h"
-#include "mrdo_bg_tiles.h"
-#include "mrdo_fg_tiles.h"
-#include "mrdo_sprites.h"
-#include "mrdo_sprite_colormap.h"
-#include "mrdo_palette.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
 
@@ -19,7 +13,7 @@ class mrdo : public machineBase
 {
 public:
   mrdo() { }
-  ~mrdo() { }
+  ~mrdo();
 
   void reset() override;
   signed char machineType() override { return MCH_MRDO; }

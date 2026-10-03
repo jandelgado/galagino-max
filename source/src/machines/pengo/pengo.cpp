@@ -1,4 +1,16 @@
 #include "pengo.h"
+#include "pengo_rom.h"
+#include "pengo_tiles.h"
+#include "pengo_spritemap.h"
+#include "pengo_colormap.h"
+#include "pengo_wavetable.h"
+
+pengo::~pengo() {
+	pengo_rom.release();
+	pengo_tiles.release();
+	pengo_sprites.release();
+	pengo_colormap.release();
+}
 
 unsigned char pengo::opZ80(unsigned short Addr) {
   if (Addr < 0x8000)
@@ -235,7 +247,7 @@ void pengo::blit_sprite(short current_strip_row, unsigned char s) {
   }
 
   // --- 3. Seleziona i dati grafici e la palette corretti ---
-  const unsigned long *spr_data = pengo_sprites[gfx_bank][flags][sprite_code];
+  const uint32_t *spr_data = pengo_sprites[gfx_bank][flags][sprite_code];
     
   // *** LOGICA DEI COLORI CORRETTA ***
   // Combina il banco della tabella colori (1 bit) con l'attributo colore dello sprite (6 bit)

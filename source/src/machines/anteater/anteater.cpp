@@ -1,6 +1,18 @@
 #include "anteater.h"
+#include "anteater_rom1.h"
+#include "anteater_rom2.h"
+#include "anteater_tilemap.h"
+#include "anteater_spritemap.h"
+#include "anteater_cmap.h"
 
-void anteater::reset() { 
+anteater::~anteater() {
+	anteater_rom_cpu1.release();
+	anteater_rom_cpu2.release();
+	anteater_tilemap.release();
+	anteater_sprites.release();
+}
+
+void anteater::reset() {
   machineBase::reset();
   ignoreFireButton = 1;
   game_started = 1;
@@ -309,7 +321,7 @@ void anteater::blit_tile_scroll(short row, signed char col, short scroll) {
 }
 
 void anteater::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = spriteRom(sprite[s].flags, sprite[s].code);
+  const uint32_t *spr = spriteRom(sprite[s].flags, sprite[s].code);
   const unsigned short *colors = colorRom(sprite[s].color);
   
   // create mask for sprites that clip left or right
@@ -394,7 +406,7 @@ const unsigned short *anteater::colorRom(unsigned short addr) {
   return anteater_colormap[addr];
 }
 
-const unsigned long *anteater::spriteRom(unsigned char flags, unsigned char code) {
+const uint32_t *anteater::spriteRom(unsigned char flags, unsigned char code) {
   return anteater_sprites[flags][code];
 }
 

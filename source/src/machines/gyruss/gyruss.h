@@ -2,12 +2,6 @@
 #define GYRUSS_H
 
 #include "../machineBase.h"
-#include "gyruss_rom_main.h"
-#include "gyruss_rom_sub.h"
-#include "gyruss_rom_audio.h"
-#include "gyruss_rom_i8039.h"
-#include "gyruss_tilemap.h"
-#include "gyruss_spritemap.h"
 #include "gyruss_palette.h"
 #include "gyruss_dipswitches.h"
 #include "gyruss_logo.h"
@@ -55,7 +49,7 @@ class gyruss : public machineBase
 {
 public:
     gyruss() { }
-    ~gyruss() { }
+    ~gyruss();
 
     void start() override;
     void reset() override;

@@ -1,10 +1,6 @@
 #ifndef SCREGG_H
 #define SCREGG_H
 
-#include "scregg_rom.h"
-#include "scregg_chartiles.h"
-#include "scregg_spritetiles.h"
-#include "scregg_colorprom.h"
 #include "scregg_logo.h"
 #include "scregg_dipswitches.h"
 #include "../../cpus/m6502/m6502.h"
@@ -13,6 +9,7 @@
 class scregg : public machineBase {
 public:
   scregg() { memset(&m_cpu, 0, sizeof(m_cpu)); }
+  ~scregg();
 
   signed char machineType() override { return MCH_SCREGG; }
   void start() override;

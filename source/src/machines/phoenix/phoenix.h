@@ -3,10 +3,6 @@
 
 #include "../machineBase.h"
 #include "phoenix_logo.h"
-#include "phoenix_rom.h"
-#include "phoenix_bgtiles.h"
-#include "phoenix_fgtiles.h"
-#include "phoenix_palette.h"
 #include "phoenix_dipswitches.h"
 
 // ============================================================================
@@ -42,6 +38,7 @@
 class phoenix : public machineBase {
 public:
   phoenix() {};
+  ~phoenix();
 
   void init(Input *input, unsigned short *framebuffer,
             sprite_S *spritebuffer, unsigned char *memorybuffer) override;

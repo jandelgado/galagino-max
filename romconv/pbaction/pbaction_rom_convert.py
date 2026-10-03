@@ -54,6 +54,8 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 from helper_functions import load_file
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed, emit_plain
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "pbaction.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "pbaction"))
@@ -283,25 +285,28 @@ def write_bytes_header(path: Path, guard: str, sym: str, data: bytes, note: str)
         f.write(f"#ifndef {guard}\n#define {guard}\n\n")
         f.write(BANNER)
         f.write(f"// {note}\n\n")
-        f.write(f"const unsigned char {sym}[{len(data)}] = {{\n")
-        for i in range(0, len(data), 16):
-            f.write("  " + ",".join(f"0x{b:02X}" for b in data[i:i + 16]) + ",\n")
-        f.write("};\n\n#endif\n")
+        emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
+        f.write("\n#endif\n")
     print(f"  wrote {path} {len(data):#8x} bytes")
 
 
-def write_tiles_header(path: Path, guard: str, sym: str, tiles: list, dim: int, note: str) -> None:
+def write_tiles_header(path: Path, guard: str, sym: str, tiles: list, dim: int, note: str,
+                       compress: bool = True) -> None:
     with open(path, "w") as f:
         f.write(f"#ifndef {guard}\n#define {guard}\n\n")
         f.write(BANNER)
         f.write(f"// {note}\n")
         f.write(f"// {len(tiles)} tiles, {dim}x{dim} pixels, rotated 90 deg CW (ROT90).\n\n")
-        f.write(f"const unsigned char {sym}[{len(tiles)}][{dim}][{dim}] = {{\n")
-        for i, t in enumerate(tiles):
-            rows = ["{" + ",".join(str(v) for v in t[y]) + "}" for y in range(dim)]
-            f.write("  {" + ",".join(rows) + "}")
-            f.write(",\n" if i < len(tiles) - 1 else "\n")
-        f.write("};\n\n#endif\n")
+        flat = [v for t in tiles for y in range(dim) for v in t[y]]
+        if compress:
+            emit_compressed(f, sym, "unsigned char", "[%d][%d]" % (dim, dim), len(tiles), flat)
+        else:
+            body_rows = []
+            for i, t in enumerate(tiles):
+                rows = ["{" + ",".join(str(v) for v in t[y]) + "}" for y in range(dim)]
+                body_rows.append("  {" + ",".join(rows) + "}")
+            emit_plain(f, sym, "unsigned char", "[%d][%d]" % (dim, dim), len(tiles), ",\n".join(body_rows))
+        f.write("\n#endif\n")
     print(f"  wrote {path} {len(tiles)} tiles ({dim}x{dim})")
 
 
@@ -375,7 +380,9 @@ def main() -> None:
     write_tiles_header(os.path.join(OUT_DIR, "pbaction_bg_tiles.h"), "PBACTION_BG_TILES_H",
                        "pbaction_bg_tiles", bg, 8,
                        "Background chars (a-j5/j6/j7/j8), charlayout2, 4bpp (pen 0-15). "
-                       "gfx[1]: color = attr&0x07, opaque, palette base 128.")
+                       "gfx[1]: color = attr&0x07, opaque, palette base 128. "
+                       "RAM budget exception: stays PLAIN/flash-resident (128KB).",
+                       compress=False)
     write_tiles_header(os.path.join(OUT_DIR, "pbaction_sprites16.h"), "PBACTION_SPRITES16_H",
                        "pbaction_sprites16", s16, 16,
                        "Normal sprites (b-c7/d7/f7), spritelayout1, 3bpp (pen 0-7). "

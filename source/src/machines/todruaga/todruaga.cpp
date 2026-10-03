@@ -1,5 +1,18 @@
 #include "todruaga.h"
 
+todruaga::todruaga() : rom_main(todruaga_rom_main.data()), rom_sub(todruaga_rom_sub.data()),
+  tiles(todruaga_tilemap.data()), cmap_tiles(todruaga_colormap_tiles),
+  cmap_prio(todruaga_colormap_tiles_prio),
+  cmap_sprites(todruaga_colormap_sprites.data()) { }
+
+todruaga::~todruaga() {
+	todruaga_rom_main.release();
+	todruaga_rom_sub.release();
+	todruaga_tilemap.release();
+	todruaga_sprites.release();
+	todruaga_colormap_sprites.release();
+}
+
 // ============================================================================
 // Reset
 // ============================================================================
@@ -475,7 +488,7 @@ void todruaga::prepare_frame(void) {
 // sprite 16x16 4bpp: 2 unsigned long per riga galagino (nibble LSB-first),
 // trasparenza = colormap 0 (lookup 0xF nel converter)
 void todruaga::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = todruaga_sprites[sprite[s].flags & 3][sprite[s].code];
+  const uint32_t *spr = todruaga_sprites[sprite[s].flags & 3][sprite[s].code];
   const unsigned short *colors = cmap_sprites[sprite[s].color & 0x3F];
 
   short y_offset = sprite[s].y - 8 * row;

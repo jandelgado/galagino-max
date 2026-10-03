@@ -20,6 +20,10 @@ Layout gfx MAME (charlayout/spritelayout): 4 piani
 """
 
 import os
+import sys
+
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 ROM_SRC = os.path.normpath(os.path.join("..", "roms"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "pooyan"))
@@ -132,27 +136,16 @@ def convert_sprites(half1, half2):
 def write_bytes(filename, comment, name, data):
     with open(filename, 'w') as f:
         f.write("// {} ({} bytes)\n".format(comment, len(data)))
-        f.write("const unsigned char {}[] = {{\n".format(name))
-        for i in range(0, len(data), 16):
-            line = ", ".join(hex8(b) for b in data[i:i+16])
-            f.write("  " + line)
-            if i + 16 < len(data):
-                f.write(",")
-            f.write("\n")
-        f.write("};\n")
+        emit_compressed(f, name, "unsigned char", "", len(data), list(data))
     print("Written: {} ({} bytes)".format(filename, len(data)))
 
 def write_tilemap(filename, tiles, char_colors):
     with open(filename, 'w') as f:
         f.write("// Pooyan tilemap: {} tile, 8x8, 4bpp, ruotati 90CW (portrait)\n".format(len(tiles)))
         f.write("// pixel = (riga >> (px*4)) & 0xF\n")
-        f.write("const unsigned long pooyan_tilemap[][8] = {\n")
-        for t, rows in enumerate(tiles):
-            f.write("  { " + ", ".join(hex32(r) for r in rows) + " }")
-            f.write("," if t < len(tiles) - 1 else "")
-            f.write("\n")
-        f.write("};\n\n")
-        f.write("// Pooyan char colormap: 16 gruppi x 16 pen, RGB565 byte-swapped\n")
+        flat = [r for rows in tiles for r in rows]
+        emit_compressed(f, "pooyan_tilemap", "uint32_t", "[8]", len(tiles), flat)
+        f.write("\n// Pooyan char colormap: 16 gruppi x 16 pen, RGB565 byte-swapped\n")
         f.write("const unsigned short pooyan_char_colormap[][16] = {\n")
         for grp in range(16):
             colors = char_colors[grp*16 : grp*16+16]
@@ -167,22 +160,9 @@ def write_spritemap(filename, all_orientations, sprite_colors, transmask):
     with open(filename, 'w') as f:
         f.write("// Pooyan spritemap: {} sprite, 16x16, 4bpp, 4 orientamenti, landscape\n".format(num))
         f.write("// pixel col c = (riga[c>>1] >> ((c&1)*4)) & 0xF\n")
-        f.write("const unsigned char pooyan_spritemap[4][%d][16][8] = {\n" % num)
-        for o, sprites in enumerate(all_orientations):
-            f.write("  { // orientamento %d\n" % o)
-            for s, rows in enumerate(sprites):
-                f.write("    {")
-                for r, rb in enumerate(rows):
-                    f.write("{" + ",".join(hex8(b) for b in rb) + "}")
-                    if r < 15: f.write(",")
-                f.write("}")
-                if s < num - 1: f.write(",")
-                f.write("\n")
-            f.write("  }")
-            if o < 3: f.write(",")
-            f.write("\n")
-        f.write("};\n\n")
-        f.write("// Pooyan sprite colormap: 16 gruppi x 16 pen, RGB565 byte-swapped\n")
+        flat = [b for orientation in all_orientations for rows in orientation for rb in rows for b in rb]
+        emit_compressed(f, "pooyan_spritemap", "unsigned char", "[%d][16][8]" % num, 4, flat)
+        f.write("\n// Pooyan sprite colormap: 16 gruppi x 16 pen, RGB565 byte-swapped\n")
         f.write("const unsigned short pooyan_sprite_colormap[][16] = {\n")
         for grp in range(16):
             colors = sprite_colors[grp*16 : grp*16+16]

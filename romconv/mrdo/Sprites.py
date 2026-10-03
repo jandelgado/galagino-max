@@ -1,9 +1,13 @@
 import os
+import sys
 try:
     from PIL import Image, ImageDraw, ImageFont
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
+
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 # --- Configurazione per gli SPRITE ---
 SPRITE_ROM_FILES = ["../roms/h5-05.bin", "../roms/k5-06.bin"]
@@ -118,19 +122,9 @@ def write_c_array(sprites_data):
         if ROTATE_SPRITES: f_c.write(f"// Gli sprite sono stati ruotati di 90 gradi in senso antiorario.\n")
         if FLIP_HORIZONTAL: f_c.write(f"// Gli sprite sono stati flippati orizzontalmente.\n")
         f_c.write("#include <stdint.h>\n\n")
-        f_c.write(f"const uint8_t {C_ARRAY_NAME}[{NUM_SPRITES}][{SPRITE_HEIGHT}][{SPRITE_WIDTH}] = {{\n")
-        for i, sprite in enumerate(sprites_data):
-            f_c.write(f"  {{ // Sprite {i:03d} (0x{i:02X})\n")
-            for y, row in enumerate(sprite):
-                f_c.write("    {")
-                f_c.write(", ".join(f"{p:2}" for p in row))
-                f_c.write("}")
-                if y < SPRITE_HEIGHT - 1: f_c.write(",")
-                f_c.write("\n")
-            f_c.write("  }")
-            if i < NUM_SPRITES - 1: f_c.write(",")
-            f_c.write("\n")
-        f_c.write("};\n")
+        flat = [v for sprite in sprites_data for row in sprite for v in row]
+        emit_compressed(f_c, C_ARRAY_NAME, "unsigned char",
+                         "[%d][%d]" % (SPRITE_HEIGHT, SPRITE_WIDTH), NUM_SPRITES, flat)
     print(f"File '{OUTPUT_C_FILE}' generato con successo!")
 
 def generate_preview_png(sprites_data):

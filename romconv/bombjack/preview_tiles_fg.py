@@ -12,7 +12,7 @@ TILE_WIDTH = 8
 TILE_HEIGHT = 8
 
 def parse_c_array_from_file(filename, array_name, num_tiles, tile_height):
-    # MODIFICA QUI: const unsigned long
+    # MODIFICA QUI: const uint32_t
     start_line_pattern = f"{array_name}[{num_tiles}][{tile_height}]"
     all_values = []
     in_array = False

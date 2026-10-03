@@ -1,4 +1,11 @@
 #include "spaceinvaders.h"
+#include "spaceinvaders_rom.h"
+
+spaceinvaders::~spaceinvaders() {
+	spaceinvaders_rom.release();
+	si_sample_shot.release();
+	si_sample_invhit.release();
+}
 
 void spaceinvaders::reset() {
   machineBase::reset();

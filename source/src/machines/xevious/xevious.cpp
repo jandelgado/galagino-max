@@ -1,5 +1,20 @@
 #include "xevious.h"
 
+xevious::xevious() { }
+
+xevious::~xevious() {
+	xevious_rom_cpu1.release();
+	xevious_rom_cpu2.release();
+	xevious_rom_cpu3.release();
+	xevious_planetmap.release();
+	xevious_fgtilemap.release();
+	xevious_bgtilemap.release();
+	xevious_colormap_bg.release();
+	xevious_colormap_sprites.release();
+	xevious_sample_boom.release();
+	xevious_sample_boom2.release();
+}
+
 // ============================================================================
 // CPU dispatch — ogni CPU ha una ROM di dimensione diversa (16K/8K/4K),
 // a differenza di galaga.cpp che assume tutte e tre almeno 16K
@@ -498,7 +513,7 @@ void xevious::prepare_frame(void) {
 
 void xevious::blit_sprite(short row, unsigned char s) {
   unsigned short code = sprite[s].code | ((unsigned short)sprite[s].color_block << 8);
-  const unsigned long *spr = xevious_sprites[sprite[s].flags & 3][code];
+  const uint32_t *spr = xevious_sprites[sprite[s].flags & 3][code];
   const unsigned short *colors = cmap_spr[sprite[s].color & 0x3f];
 
   short y_offset = sprite[s].y - 8 * row;
@@ -651,11 +666,11 @@ void xevious::trigger_sound_explosion(unsigned char ship) {
   if (snd_boom_cnt && (snd_boom_ship || !ship)) return;   // gia' in corso
   snd_boom_ship = ship;
   if (ship) {
-    snd_boom_cnt = sizeof(xevious_sample_boom2);   // 1 byte/campione a 24kHz
-    snd_boom_ptr = (const signed char*)xevious_sample_boom2;
+    snd_boom_cnt = xevious_sample_boom2.size();   // 1 byte/campione a 24kHz
+    snd_boom_ptr = (const signed char*)xevious_sample_boom2.data();
   } else {
-    snd_boom_cnt = sizeof(xevious_sample_boom);
-    snd_boom_ptr = (const signed char*)xevious_sample_boom;
+    snd_boom_cnt = xevious_sample_boom.size();
+    snd_boom_ptr = (const signed char*)xevious_sample_boom.data();
   }
 }
 

@@ -27,6 +27,19 @@
 
 #ifdef ENABLE_MOTORACE
 
+#include "motorace_rom.h"
+#include "motorace_snd_rom.h"
+#include "motorace_tilemap.h"
+#include "motorace_spritemap.h"
+#include "motorace_cmap.h"
+
+motorace::~motorace() {
+	motorace_rom.release();
+	motorace_snd_rom.release();
+	motorace_tilemap.release();
+	motorace_spritemap.release();
+}
+
 #define FB_W            256
 #define ARCADE_Y_OFFSET 16  // shift portrait_y -> fb_x per centrare il game
 
@@ -337,7 +350,7 @@ void motorace::blit_sprite_t(short strip_r, unsigned char s) {
   if (r_min > r_max) return;
 
   int orientation = sprite[s].flags & 3;
-  const unsigned long  *spr_data = motorace_spritemap[orientation][sprite[s].code];
+  const uint32_t  *spr_data = motorace_spritemap[orientation][sprite[s].code];
   const unsigned short *colors   = motorace_spr_cmap[sprite[s].color];
 
   for (int r = r_min; r <= r_max; r++) {

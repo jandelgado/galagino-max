@@ -1,4 +1,16 @@
 #include "pacman.h"
+#include "pacman_logo.h"
+#include "pacman_rom.h"
+#include "pacman_tilemap.h"
+#include "pacman_spritemap.h"
+#include "pacman_cmap.h"
+#include "pacman_wavetable.h"
+
+pacman::~pacman() {
+	pacman_rom.release();
+	pacman_tilemap.release();
+	pacman_sprites.release();
+}
 
 unsigned char pacman::opZ80(unsigned short Addr) {
   return pacman_rom[Addr];
@@ -128,7 +140,7 @@ void pacman::blit_tile(short row, char col) {
 }
 
 void pacman::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = spriteRom(sprite[s].flags & 3, sprite[s].code);
+  const uint32_t *spr = spriteRom(sprite[s].flags & 3, sprite[s].code);
   const unsigned short *colors = colorRom(sprite[s].color & 63);
 
   // create mask for sprites that clip left or right
@@ -190,7 +202,7 @@ const unsigned short *pacman::colorRom(unsigned short addr) {
   return pacman_colormap[addr];
 }
 
-const unsigned long *pacman::spriteRom(unsigned char flags, unsigned char code) {
+const uint32_t *pacman::spriteRom(unsigned char flags, unsigned char code) {
   return pacman_sprites[flags][code];
 }
 

@@ -1,11 +1,6 @@
 #ifndef BNJ_H
 #define BNJ_H
 
-#include "bnj_rom_main.h"
-#include "bnj_rom_audio.h"
-#include "bnj_chartiles.h"
-#include "bnj_spritetiles.h"
-#include "bnj_bgtiles.h"
 #include "bnj_logo.h"
 #include "bnj_dipswitches.h"
 #include "../../cpus/m6502/m6502.h"
@@ -62,7 +57,7 @@ class bnj : public burgertime
 {
 public:
   bnj() { memset(&cpu_main, 0, sizeof(cpu_main)); memset(&cpu_audio, 0, sizeof(cpu_audio)); }
-  ~bnj() {}
+  ~bnj();
 
   signed char machineType() override { return MCH_BNJ; }
   void start() override;

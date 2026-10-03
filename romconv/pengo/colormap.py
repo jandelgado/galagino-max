@@ -2,6 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import os
+import sys
+
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 # --- CONFIGURAZIONE PER PENGO ---
 PALETTE_PROM_FILE = "../roms/pr1633.78"
@@ -98,15 +102,8 @@ def write_c_header(colormap):
 
         f.write(f"// Colormap finale [palette_bank][group_index][pen] -> [2][256][4]\n")
         f.write(f"// Questa tabella contiene già i colori finali in RGB565 Little Endian.\n")
-        f.write(f"const uint16_t {C_COLORMAP_ARRAY_NAME}[2][256][4] = {{\n")
-        for bank_idx, bank_data in enumerate(colormap):
-            f.write(f"  {{ // --- PALETTE BANK {bank_idx} (I/O 0x9042 = {bank_idx}) ---\n")
-            for group_idx, group_data in enumerate(bank_data):
-                f.write(f"    {{ ") # Un gruppo di 4 colori
-                f.write(", ".join([f"0x{color:04X}" for color in group_data]))
-                f.write(f" }}, // Gruppo {group_idx}\n")
-            f.write("  },\n")
-        f.write("};\n")
+        flat = [color for bank_data in colormap for group_data in bank_data for color in group_data]
+        emit_compressed(f, C_COLORMAP_ARRAY_NAME, "unsigned short", "[256][4]", 2, flat)
 
     print(f"File '{OUTPUT_H_FILE}' generato con successo!")
 

@@ -2,6 +2,9 @@
 import sys
 import os
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_plain
+
 # --- Configurazione per Bomb Jack (Background) ---
 INPUT_ROM_FILES = ["../roms/06_l08t.bin", "../roms/07_n08t.bin", "../roms/08_r08t.bin"]
 OUTPUT_HEADER_FILE = "../../source/src/machines/bombjack/bombjack_bg_tiles.h"
@@ -48,12 +51,12 @@ def parse_chr_3bpp_16x16_from_c_logic(data0, data1, data2):
     return matrix
 
 def dump_row_to_ulong_pair(row_data):
-    """Converte una riga di 16 pixel in una coppia di 'unsigned long'."""
+    """Converte una riga di 16 pixel in una coppia di 'uint32_t'."""
     val1 = 0
     for x in range(8): val1 = (val1 << 3) | row_data[x]
     val2 = 0
     for x in range(8, 16): val2 = (val2 << 3) | row_data[x]
-    return f"0x{val1:06X}, 0x{val2:06X}"
+    return val1, val2
 
 def convert_bombjack_bg_tiles():
     rotation_status = "abilitata" if ROTATE_TILES else "disabilitata"
@@ -91,19 +94,18 @@ def convert_bombjack_bg_tiles():
     with open(OUTPUT_HEADER_FILE, "w") as f:
         f.write(f"// File generato automaticamente per il background di Bomb Jack.\n")
         f.write(f"// Dati decodificati seguendo la logica C funzionante.\n")
-        f.write(f"const unsigned long {OUTPUT_ARRAY_NAME}[{NUM_TILES}][{TILE_HEIGHT * 2}] = {{\n")
-        
-        for i, c in enumerate(chars):
-            f.write(f"  {{ // Tile {i}\n")
-            rows_str = []
+        f.write(f"// RAM budget: kept PLAIN/flash-resident, not zlib-compressed --\n")
+        f.write(f"// used every frame, not worth a permanent heap-decompressed copy.\n")
+        rows = []
+        for c in chars:
+            vals = []
             for y in range(TILE_HEIGHT):
-                rows_str.append("    " + dump_row_to_ulong_pair(c[y]))
-            f.write(",\n".join(rows_str))
-            f.write("\n  }")
-            if i < NUM_TILES - 1:
-                f.write(",\n")
-        
-        f.write("\n};")
+                val1, val2 = dump_row_to_ulong_pair(c[y])
+                vals.append(hex(val1))
+                vals.append(hex(val2))
+            rows.append("  { " + ",".join(vals) + " }")
+        body = ",\n".join(rows)
+        emit_plain(f, OUTPUT_ARRAY_NAME, "uint32_t", "[%d]" % (TILE_HEIGHT * 2), NUM_TILES, body)
 
     print(f"\nProcesso completato! Il file '{OUTPUT_HEADER_FILE}' è stato creato.")
 

@@ -1,12 +1,8 @@
 #ifndef LADYBUG_H
 #define LADYBUG_H
 
-#include "ladybug_rom.h"
 #include "ladybug_dipswitches.h"
 #include "ladybug_logo.h"
-#include "ladybug_tilemap.h"
-#include "ladybug_spritemap.h"
-#include "ladybug_cmap.h"
 #include "../machineBase.h"
 // NOTE: Lady Bug does NOT use shared tileaddr.h - has custom tilemap scan
 
@@ -44,7 +40,7 @@ class ladybug : public machineBase
 {
 public:
   ladybug() { }
-  ~ladybug() { }
+  ~ladybug();
 
   void reset() override;
   signed char machineType() override { return MCH_LADYBUG; }

@@ -2,6 +2,9 @@
 import sys
 import os
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
+
 # --- Configurazione per Donkey Kong 3 (Japanese) ---
 # Nomi dei file ROM richiesti dal driver MAME (dkong.cpp)
 ROM_FILES = {
@@ -25,18 +28,7 @@ def create_output_file(rom_data, outfile, id_name):
     print(f"Scrittura del file di output: {outfile}...")
     with open(outfile, "w") as of:
         of.write(f"// File generato automaticamente per {id_name}\n")
-        of.write(f"const unsigned char {id_name}[{len(rom_data)}] = {{\n  ")
-        
-        for i, byte in enumerate(rom_data):
-            of.write(f"0x{byte:02X}")
-            if i < len(rom_data) - 1:
-                of.write(",")
-                if (i + 1) % 16 == 0:
-                    of.write("\n  ")
-            else:
-                of.write("\n")
-        
-        of.write("};")
+        emit_compressed(of, id_name, "unsigned char", "", len(rom_data), list(rom_data))
     print("Completato.")
 
 def convert_dkong3j_roms():

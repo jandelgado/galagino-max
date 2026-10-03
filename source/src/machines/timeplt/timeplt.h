@@ -2,11 +2,7 @@
 #define TIMEPLT_H
 
 #include "timeplt_logo.h"
-#include "timeplt_rom.h"
-#include "timeplt_snd_rom.h"
 #include "timeplt_dipswitches.h"
-#include "timeplt_tilemap.h"
-#include "timeplt_spritemap.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
 
@@ -46,7 +42,7 @@ class timeplt : public machineBase
 {
 public:
   timeplt() { }
-  ~timeplt() { }
+  ~timeplt();
 
   signed char machineType() override { return MCH_TIMEPLT; }
   unsigned char rdZ80(unsigned short Addr) override;

@@ -1,4 +1,15 @@
 #include "pooyan.h"
+#include "pooyan_rom.h"
+#include "pooyan_snd_rom.h"
+#include "pooyan_tilemap.h"
+#include "pooyan_spritemap.h"
+
+pooyan::~pooyan() {
+	pooyan_rom.release();
+	pooyan_snd_rom.release();
+	pooyan_tilemap.release();
+	pooyan_spritemap.release();
+}
 
 unsigned char pooyan::opZ80(unsigned short Addr) {
   if(current_cpu == 0) {
@@ -316,7 +327,7 @@ void pooyan::blit_tile(short row, char col) {
   unsigned char flip_x = (cram_val >> 7) & 1;
   unsigned char flip_y = (cram_val >> 6) & 1;
 
-  const unsigned long *tile = pooyan_tilemap[tile_code];
+  const uint32_t *tile = pooyan_tilemap[tile_code];
   const unsigned short *colors = pooyan_char_colormap[color];
 
   unsigned short *ptr = frame_buffer + 8 * col;

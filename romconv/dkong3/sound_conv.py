@@ -2,6 +2,9 @@
 import sys
 import os
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
+
 # --- Configurazione per Donkey Kong 3 (Japanese) ---
 # Lista dei file ROM per le sound CPU e dei nomi per gli array di output.
 SOUND_ROMS = [
@@ -26,22 +29,8 @@ def write_array_to_file(file_handle, rom_data, array_name, input_filename, comme
     """
     file_handle.write(f"// --- {comment} ---\n")
     file_handle.write(f"// Dati dal file: {input_filename}\n")
-    file_handle.write(f"const unsigned char {array_name}[{len(rom_data)}] = {{\n  ")
-    
-    for i, byte in enumerate(rom_data):
-        # Scrive il byte in formato esadecimale (es. 0x4A)
-        file_handle.write(f"0x{byte:02X}")
-        
-        # Aggiunge una virgola se non è l'ultimo byte
-        if i < len(rom_data) - 1:
-            file_handle.write(",")
-            # Va a capo ogni 16 byte per una migliore leggibilità
-            if (i + 1) % 16 == 0:
-                file_handle.write("\n  ")
-        else:
-            file_handle.write("\n") # Nuova riga alla fine dell'array
-    
-    file_handle.write("};\n\n") # Aggiunge due nuove righe per separare gli array
+    emit_compressed(file_handle, array_name, "unsigned char", "", len(rom_data), list(rom_data))
+    file_handle.write("\n") # separa gli array
 
 def convert_dkong3j_sound_roms():
     """

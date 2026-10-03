@@ -1,12 +1,7 @@
 #ifndef DKONGJR_H
 #define DKONGJR_H
 
-#include "dkongjr_rom1.h"
-#include "dkongjr_rom2.h"
 #include "dkongjr_logo.h"
-#include "dkongjr_tilemap.h"
-#include "dkongjr_spritemap.h"
-#include "dkongjr_cmap.h"
 #include "../dkong/dkong.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
@@ -15,7 +10,7 @@ class dkongjr : public dkong
 {
 public:
 	dkongjr() { }
-	~dkongjr() { }
+	~dkongjr();
 
 	signed char machineType() override { return MCH_DKONGJR; } 
 	unsigned char rdZ80(unsigned short Addr) override;

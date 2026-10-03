@@ -1,4 +1,14 @@
 #include "scregg.h"
+#include "scregg_rom.h"
+#include "scregg_chartiles.h"
+#include "scregg_spritetiles.h"
+#include "scregg_colorprom.h"
+
+scregg::~scregg() {
+	scregg_rom.release();
+	scregg_chartiles.release();
+	scregg_spritetiles.release();
+}
 
 unsigned short scregg::xy_swap(unsigned short offset) {
   return 32 * (offset & 31) + (offset >> 5);

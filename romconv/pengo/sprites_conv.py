@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 
+import os
 import sys
 from PIL import Image, ImageDraw, ImageFont
+
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 # -----------------------------------------------------------------------------
 # CONFIGURAZIONE
@@ -65,13 +69,13 @@ def flip_sprite(sprite_data, flip_x, flip_y):
             flipped[y][x] = sprite_data[src_y][src_x]
     return flipped
 
-def dump_sprite_packed(sprite_data):
-    hexs = []; val = 0
+def dump_sprite_values(sprite_data):
+    vals = []
     for y in range(16):
         val = 0
         for x in range(16): val = (val >> 2) | (sprite_data[y][x] << 30)
-        hexs.append(hex(val))
-    return ",".join(hexs)
+        vals.append(val)
+    return vals
 
 def create_preview(gfx_list, width, height, output_filename):
     print(f"Creazione anteprima: {output_filename}...")
@@ -112,20 +116,15 @@ def main():
     final_sprites_unflipped = [rotate_gfx(s, 16, 16) for s in decoded_sprites]
     print(f"Scrittura file C per gli sprite: {OUTPUT_C_FILE}...")
     with open(OUTPUT_C_FILE, "w") as f:
-        f.write("const unsigned long pengo_sprites[2][4][64][16] = {\n")
-        bank_lines = []
+        flat = []
         for bank in range(2):
-            flip_lines = []
             for flip_val in range(4):
                 flip_y = (flip_val & 1) != 0; flip_x = (flip_val & 2) != 0
-                sprite_lines = []
                 for i in range(64):
                     sprite_idx = bank * 64 + i
                     flipped = flip_sprite(final_sprites_unflipped[sprite_idx], flip_x, flip_y)
-                    sprite_lines.append(f"    /* S{i} F{flip_val} */ {{ {dump_sprite_packed(flipped)} }}")
-                flip_lines.append("  {\n" + ",\n".join(sprite_lines) + "\n  }")
-            bank_lines.append(" {\n" + ",\n".join(flip_lines) + "\n }")
-        f.write(",\n".join(bank_lines) + "\n};\n")
+                    flat.extend(dump_sprite_values(flipped))
+        emit_compressed(f, "pengo_sprites", "uint32_t", "[4][64][16]", 2, flat)
     create_preview(final_sprites_unflipped, 16, 16, OUTPUT_PREVIEW)
     print("--- Elaborazione SPRITE completata ---")
 

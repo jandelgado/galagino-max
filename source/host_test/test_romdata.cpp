@@ -6,7 +6,8 @@
 #include <type_traits>
 #include "../src/emulation/romdata.h"
 
-static_assert(std::is_literal_type<RomData<unsigned char>>::value, "RomData<T> must be a literal type");
+static_assert(std::is_literal_type<RomData<unsigned char, COMPRESSED>>::value, "RomData<T, COMPRESSED> must be a literal type");
+static_assert(std::is_literal_type<RomData<unsigned char, PLAIN>>::value, "RomData<T, PLAIN> must be a literal type");
 
 // zlib.compress(bytes(range(64)), 9) — 64 sequential unsigned char values 0..63
 static const unsigned char scalar_packed[] = {
@@ -27,13 +28,13 @@ static const unsigned char rows_packed[] = {
 static const unsigned char plain_data[4] = { 10, 20, 30, 40 };
 
 void test_compressed_scalar() {
-  RomData<unsigned char> rom(scalar_packed, sizeof(scalar_packed), 64);
+  RomData<unsigned char, COMPRESSED> rom(scalar_packed, sizeof(scalar_packed), 64);
   for (unsigned int i = 0; i < 64; i++) assert(rom[i] == i);
   printf("1. compressed unsigned char round-trip via operator[]: OK\n");
 }
 
 void test_compressed_multidim() {
-  RomData<unsigned short[2]> rows(rows_packed, sizeof(rows_packed), 3);
+  RomData<unsigned short[2], COMPRESSED> rows(rows_packed, sizeof(rows_packed), 3);
   assert(rows[0][0] == 0x0102 && rows[0][1] == 0x0304);
   assert(rows[1][0] == 0x0506 && rows[1][1] == 0x0708);
   assert(rows[2][0] == 0x0900 && rows[2][1] == 0x0A0B);
@@ -41,14 +42,14 @@ void test_compressed_multidim() {
 }
 
 void test_plain_zero_alloc_path() {
-  RomData<unsigned char> plain(plain_data, 4);
+  RomData<unsigned char, PLAIN> plain(plain_data, 4);
   assert(plain[0] == 10 && plain[1] == 20 && plain[2] == 30 && plain[3] == 40);
   assert(plain.data() == plain_data);  // no decompression/allocation happened
   printf("3. plain constructor returns the flash pointer directly: OK\n");
 }
 
 void test_release_frees_and_is_idempotent() {
-  RomData<unsigned char> rom(scalar_packed, sizeof(scalar_packed), 64);
+  RomData<unsigned char, COMPRESSED> rom(scalar_packed, sizeof(scalar_packed), 64);
   (void)rom[0];       // force decompression
   rom.release();
   rom.release();      // must not double-free or crash
@@ -57,19 +58,19 @@ void test_release_frees_and_is_idempotent() {
 }
 
 void test_const_romdata() {
-  static const RomData<unsigned char> const_check(plain_data, 4);
+  static const RomData<unsigned char, PLAIN> const_check(plain_data, 4);
   assert(const_check[0] == 10);
   assert(const_check.data()[1] == 20);
   printf("5. const RomData indexing and data() access work: OK\n");
 }
 
 void test_literal_type() {
-  static_assert(std::is_literal_type<RomData<unsigned char>>::value, "literal type check");
+  static_assert(std::is_literal_type<RomData<unsigned char, COMPRESSED>>::value, "literal type check");
   printf("6. RomData<T> is a literal type (trivial destructor): OK\n");
 }
 
 void test_release_on_plain_is_safe() {
-  RomData<unsigned char> plain(plain_data, 4);
+  RomData<unsigned char, PLAIN> plain(plain_data, 4);
   plain.release();  // must not attempt to delete[] the flash pointer
   assert(plain[0] == 10 && plain[1] == 20 && plain[2] == 30 && plain[3] == 40);
   plain.release();  // idempotent
@@ -92,7 +93,7 @@ void test_unpack_prints_timing_and_ratio() {
   dup2(fileno(tmp), fileno(stdout));
 
   {
-    RomData<unsigned char> rom(scalar_packed, sizeof(scalar_packed), 64);
+    RomData<unsigned char, COMPRESSED> rom(scalar_packed, sizeof(scalar_packed), 64);
     (void)rom[0]; // force decompression, triggers the print
   }
 

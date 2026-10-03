@@ -8,6 +8,19 @@
 
 #ifdef ENABLE_ROADFIGHTER
 
+#include "roadfighter_rom_main.h"
+#include "roadfighter_rom_audio.h"
+#include "roadfighter_tiles.h"
+#include "roadfighter_sprites.h"
+
+roadfighter::~roadfighter() {
+	roadfighter_rom_main_raw.release();
+	roadfighter_rom_main_decrypted.release();
+	roadfighter_rom_audio.release();
+	roadfighter_tiles.release();
+	roadfighter_sprites.release();
+}
+
 /*
 // ---- callback bus M6809 (puntatori a funzione globali della destinazione) ----
 static uint8_t roadf_m6809_read(uint16_t addr) {

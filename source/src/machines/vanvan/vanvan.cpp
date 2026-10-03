@@ -1,4 +1,16 @@
 #include "vanvan.h"
+#include "vanvan_rom.h"
+#include "vanvan_rom2.h"
+#include "vanvan_tilemap.h"
+#include "vanvan_spritemap.h"
+#include "vanvan_cmap.h"
+
+vanvan::~vanvan() {
+	vanvan_rom.release();
+	vanvan_rom2.release();
+	vanvan_tilemap.release();
+	vanvan_sprites.release();
+}
 
 void vanvan::reset() {
   machineBase::reset();
@@ -183,7 +195,7 @@ void vanvan::blit_tile(short row, char col) {
 }
 
 void vanvan::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = vanvan_sprites[sprite[s].flags & 3][sprite[s].code];
+  const uint32_t *spr = vanvan_sprites[sprite[s].flags & 3][sprite[s].code];
   const unsigned short *colors = vanvan_colormap[sprite[s].color & 63];
 
   unsigned long mask = 0xffffffff;

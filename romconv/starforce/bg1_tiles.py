@@ -1,9 +1,13 @@
 import os
+import sys
 try:
     from PIL import Image, ImageDraw, ImageFont
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
+
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 # --- CONFIGURAZIONE ---
 # Decommenta il blocco relativo al layer che vuoi generare.
@@ -172,23 +176,18 @@ def write_c_array_packed(tiles_data):
         height = len(tiles_data[0])
         width = len(tiles_data[0][0])
         chunks_per_row = width // 8
-        f_c.write(f"const uint32_t {C_ARRAY_NAME}[{NUM_TILES}][{height}][{chunks_per_row}] = {{\n")
-        for i, tile in enumerate(tiles_data):
-            f_c.write(f"  {{ // Tile {i:03d} (0x{i:03X})\n")
-            for y, row in enumerate(tile):
-                f_c.write("    { ")
-                packed_chunks = []
+        flat = []
+        for tile in tiles_data:
+            for row in tile:
                 for chunk_idx in range(chunks_per_row):
                     packed_int = 0
                     for x_in_chunk in range(8):
                         x = chunk_idx * 8 + x_in_chunk
                         pixel_value = row[x]
                         packed_int |= pixel_value << (BPP * (7 - x_in_chunk))
-                    packed_chunks.append(f"0x{packed_int:06X}")
-                f_c.write(", ".join(packed_chunks))
-                f_c.write(" },\n")
-            f_c.write("  },\n")
-        f_c.write("};\n")
+                    flat.append(packed_int)
+        emit_compressed(f_c, C_ARRAY_NAME, "uint32_t",
+                         "[%d][%d]" % (height, chunks_per_row), NUM_TILES, flat)
     print(f"File '{OUTPUT_C_FILE}' generato con successo!")
 def generate_preview_png(tiles_data):
     if not PIL_AVAILABLE:

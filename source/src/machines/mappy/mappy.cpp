@@ -1,5 +1,19 @@
 #include "mappy.h"
 
+mappy::mappy() : rom_main(mappy_rom_main.data()),
+  rom_sub(mappy_rom_sub.data()),
+  tiles(mappy_tilemap.data()),
+  cmap_tiles(mappy_colormap_tiles),
+  cmap_prio(mappy_colormap_tiles_prio),
+  cmap_sprites(mappy_colormap_sprites) { }
+
+mappy::~mappy() {
+	mappy_rom_main.release();
+	mappy_rom_sub.release();
+	mappy_tilemap.release();
+	mappy_sprites.release();
+}
+
 void mappy::reset() {
   machineBase::reset();
 
@@ -413,7 +427,7 @@ void mappy::prepare_frame(void) {
 // sprite 16x16 4bpp: 2 unsigned long per riga galagino (nibble LSB-first),
 // trasparenza = colormap 0 (lookup 0xF nel converter)
 void mappy::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = mappy_sprites[sprite[s].flags & 3][sprite[s].code];
+  const uint32_t *spr = mappy_sprites[sprite[s].flags & 3][sprite[s].code];
   const unsigned short *colors = cmap_sprites[sprite[s].color & 0x0F];
 
   short y_offset = sprite[s].y - 8 * row;

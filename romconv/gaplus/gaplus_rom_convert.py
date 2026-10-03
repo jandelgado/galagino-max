@@ -23,6 +23,8 @@ import wave
 sys.dont_write_bytecode = True
 
 from helper_functions import load_file
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed, emit_plain
 
 ROM_SET_GAPLUS  = os.path.normpath(os.path.join("..", "..", "romszip", "gaplus.zip"))
 ROM_SET_GALAGA3 = os.path.normpath(os.path.join("..", "..", "romszip", "galaga3.zip"))
@@ -150,26 +152,22 @@ SPR_COUNT = 384    # 0x6000 (meta' regione) / 64 byte
 def write_tiles(tiles):
     with open(os.path.join(OUT_DIR, "gaplus_tilemap.h"), "w") as f:
         print("// Gaplus tiles (gp2-5.8s + driver_init unpack nibble) — 512 tile 8x8 2bpp", file=f)
-        print("const unsigned short gaplus_tilemap[][8] = {", file=f)
-        rows = []
+        flat = []
         for t in tiles:
-            vals = []
             for y in range(8):
                 v = 0
                 for x in range(8):
                     v |= t[y][x] << (2*x)
-                vals.append(hex(v))
-            rows.append(" { " + ",".join(vals) + " }")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+                flat.append(v)
+        emit_compressed(f, "gaplus_tilemap", "unsigned short", "[8]", len(tiles), flat)
 
 def write_sprites(sprites):
     # same as mappy/galaga: [0]=(fx0,fy0) [1]=(fx0,fy1) [2]=(fx1,fy0) [3]=(fx1,fy1)
+    # 192KB decompressed exceeds the Arena; stays PLAIN in flash.
     with open(os.path.join(OUT_DIR, "gaplus_spritemap.h"), "w") as f:
         print("// Gaplus sprites (gp2-11+gp2-10+gp2-12+gp2-9 + driver_init unpack) —", file=f)
-        print("const unsigned long gaplus_sprites[][384][32] = {", file=f)
+        body_parts = []
         for (fx, fy) in [(0,0),(0,1),(1,0),(1,1)]:
-            print(" {", file=f)
             rows = []
             for s in sprites:
                 t = flip_tile(s, fx, fy)
@@ -181,9 +179,9 @@ def write_sprites(sprites):
                     vals.append(hex(v & 0xffffffff))
                     vals.append(hex(v >> 32))
                 rows.append("  { " + ",".join(vals) + " }")
-            print(",\n".join(rows), file=f)
-            print(" }," if not (fx and fy) else " }", file=f)
-        print("};", file=f)
+            body_parts.append(" {\n" + ",\n".join(rows) + "\n }")
+        body = ",\n".join(body_parts)
+        emit_plain(f, "gaplus_sprites", "uint32_t", "[%d][32]" % len(sprites), 4, body)
 
 def rgb565_swapped(r, g, b):
     # r,g,b gia' 0..255 -> RGB565 byte-swapped, identico a cmapconv.py
@@ -246,25 +244,18 @@ def write_colormaps(pal, char_lut, spr_lut_lo, spr_lut_hi):
         print(",\n".join(rows), file=f)
         print("};", file=f)
 
-        print("const unsigned short gaplus_colormap_sprites[][8] = {", file=f)
-        rows = []
+        flat = []
         for g in range(64):
-            vals = []
             for p in range(8):
                 idx = g*8 + p
                 lut = (spr_lut_lo[idx] & 0x0f) | ((spr_lut_hi[idx] & 0x0f) << 4)
-                vals.append(hex(0) if lut == 0xff else hex(nudge(pal[lut])))
-            rows.append("{" + ",".join(vals) + "}")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+                flat.append(0 if lut == 0xff else nudge(pal[lut]))
+        emit_compressed(f, "gaplus_colormap_sprites", "unsigned short", "[8]", 64, flat)
 
 def write_rom(name, sym, data, comment):
     with open(os.path.join(OUT_DIR, name), "w") as f:
         print(f"// {comment}", file=f)
-        print(f"const unsigned char {sym}[] = {{", file=f)
-        for i in range(0, len(data), 16):
-            print("  " + ",".join(f"0x{b:02x}" for b in data[i:i+16]) + ",", file=f)
-        print("};", file=f)
+        emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
 
 def write_wavetable(prom):
     with open(os.path.join(OUT_DIR, "gaplus_wavetable.h"), "w") as f:
@@ -347,11 +338,8 @@ def write_sample_bang():
         print(f"// Explosion samples for \"bang\" (samples/gaplus_bang.wav),", file=f)
         print(f"// resampled @24000 Hz signed 8bit (bit pattern in unsigned char,", file=f)
         print(f"// {len(samples8)} samples ({len(samples8)/target_fr:.3f}s a 24000 Hz)", file=f)
-        print("const unsigned char gaplus_sample_bang[] = {", file=f)
-        vals = [f"0x{(int(v) & 0xFF):02X}" for v in samples8]
-        for i in range(0, len(vals), 16):
-            print("  " + ",".join(vals[i:i+16]) + ",", file=f)
-        print("};", file=f)
+        flat = [int(v) & 0xFF for v in samples8]
+        emit_compressed(f, "gaplus_sample_bang", "unsigned char", "", len(flat), flat)
     print(f"gaplus_sample_bang.h: {len(samples8)} samples @24kHz ({len(samples8)/target_fr:.3f}s)")
 
 # ------------------------------------------------------------

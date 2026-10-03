@@ -10,6 +10,8 @@ import sys
 sys.dont_write_bytecode = True
 
 from helper_functions import load_file
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "mappy.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "mappy"))
@@ -139,18 +141,14 @@ def write_tiles(tiles):
     with open(os.path.join(OUT_DIR, "mappy_tilemap.h"), "w") as f:
         print("// Mappy tiles (mp1_5.3b, ROMREGION_INVERT) — 256 tile 8x8 2bpp", file=f)
         print("// pixel LSB-first come galaga_tilemap (blit: (pix>>2c)&3)", file=f)
-        print("const unsigned short mappy_tilemap[][8] = {", file=f)
-        rows = []
+        flat = []
         for t in tiles:
-            vals = []
             for y in range(8):
                 v = 0
                 for x in range(8):
                     v |= t[y][x] << (2*x)
-                vals.append(hex(v))
-            rows.append(" { " + ",".join(vals) + " }")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+                flat.append(v)
+        emit_compressed(f, "mappy_tilemap", "unsigned short", "[8]", len(tiles), flat)
 
 def write_sprites(sprites):
     # varianti come spriteconv galaga: [0]=(fx0,fy0) [1]=(fx0,fy1) [2]=(fx1,fy0) [3]=(fx1,fy1)
@@ -158,23 +156,17 @@ def write_sprites(sprites):
         print("// Mappy sprites (mp1_6.3m+mp1_7.3n interallacciate) — 128 sprite 16x16 4bpp", file=f)
         print("// [variante flip][codice][riga*2+meta']: nibble LSB-first,", file=f)
         print("// [2r]=pixel 0-7, [2r+1]=pixel 8-15 (stile 1942 4bpp)", file=f)
-        print("const unsigned long mappy_sprites[][128][32] = {", file=f)
+        flat = []
         for (fx, fy) in [(0,0),(0,1),(1,0),(1,1)]:
-            print(" {", file=f)
-            rows = []
             for s in sprites:
                 t = flip_tile(s, fx, fy)
-                vals = []
                 for y in range(16):
                     v = 0
                     for x in range(16):
                         v |= t[y][x] << (4*x)
-                    vals.append(hex(v & 0xffffffff))
-                    vals.append(hex(v >> 32))
-                rows.append("  { " + ",".join(vals) + " }")
-            print(",\n".join(rows), file=f)
-            print(" }," if not (fx and fy) else " }", file=f)
-        print("};", file=f)
+                    flat.append(v & 0xffffffff)
+                    flat.append(v >> 32)
+        emit_compressed(f, "mappy_sprites", "uint32_t", "[%d][32]" % len(sprites), 4, flat)
 
 def rgb565_swapped(c):
     # bbgggrrr -> RGB565 byte-swapped, identico a cmapconv.py (galaga/pacman)
@@ -227,10 +219,7 @@ def write_colormaps(pal_prom, char_lut, spr_lut):
 def write_rom(name, sym, data, comment):
     with open(os.path.join(OUT_DIR, name), "w") as f:
         print(f"// {comment}", file=f)
-        print(f"const unsigned char {sym}[] = {{", file=f)
-        for i in range(0, len(data), 16):
-            print("  " + ",".join(f"0x{b:02x}" for b in data[i:i+16]) + ",", file=f)
-        print("};", file=f)
+        emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
 
 def write_wavetable(prom):
     # 256 byte, 4 bit bassi = 8 forme d'onda x 32 campioni, centrate (-8..7)

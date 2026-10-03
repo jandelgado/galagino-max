@@ -40,13 +40,9 @@
 class mappy : public machineBase
 {
 public:
-    mappy() : rom_main(mappy_rom_main), 
-              rom_sub(mappy_rom_sub),
-              tiles(mappy_tilemap), 
-              cmap_tiles(mappy_colormap_tiles),
-              cmap_prio(mappy_colormap_tiles_prio),
-              cmap_sprites(mappy_colormap_sprites) { }
-    ~mappy() { }
+    // ctor/dtor in .cpp: a header-static RomData is per-TU; data() and release() must hit one copy.
+    mappy();
+    ~mappy();
 
     signed char machineType() override { return MCH_MAPPY; }
     signed char useVideoHalfRate() override { return 1; }

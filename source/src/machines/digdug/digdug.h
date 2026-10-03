@@ -23,7 +23,15 @@ class digdug : public machineBase
 {
 public:
 	digdug() { }
-	~digdug() { }
+	~digdug() {
+		digdug_rom_cpu1.release();
+		digdug_rom_cpu2.release();
+		digdug_rom_cpu3.release();
+		digdug_playfield.release();
+		digdug_tilemap.release();
+		digdug_pftiles.release();
+		digdug_sprites.release();
+	}
 
 	void reset() override;
 	signed char machineType() override { return MCH_DIGDUG; } 

@@ -2,6 +2,9 @@
 import sys
 import os
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
+
 # --- Configurazione Specifica per Bomb Jack (Sprites) ---
 INPUT_ROM_FILES = ["../roms/16_m07b.bin", "../roms/15_l07b.bin", "../roms/14_j07b.bin"]
 OUTPUT_HEADER_FILE = "../../source/src/machines/bombjack/bombjack_sprites.h"
@@ -55,9 +58,9 @@ def decode_sprite(rom_planes, width, height, base_offset):
             
     return sprite_matrix
 
-def dump_sprite_to_long(data):
-    """Converte una matrice 2D di pixel in una stringa di 'unsigned long'."""
-    hexs = []
+def dump_sprite_values(data):
+    """Converte una matrice 2D di pixel in una lista di valori 'uint32_t'."""
+    vals = []
     width = len(data[0])
     for y_row in data:
         # Impacchetta 8 pixel alla volta
@@ -66,28 +69,25 @@ def dump_sprite_to_long(data):
             val = 0
             for pixel in chunk:
                 val = (val << 3) | pixel
-            hexs.append(f"0x{val:06X}")
-    return ",".join(hexs)
+            vals.append(val)
+    return vals
 
 def process_and_write(rom_data, width, height, num_sprites, array_name, f_out):
     """Funzione generica per processare e scrivere un set di sprite."""
     print(f"Processando {num_sprites} sprite {width}x{height}...")
     sprite_byte_size = (width * height) // 8
-    
-    f_out.write(f"const unsigned long {array_name}[{num_sprites}][{width*height//8}] = {{\n")
-    
-    all_sprites_str = []
+
+    flat = []
     for i in range(num_sprites):
         base_offset = i * sprite_byte_size
         sprite_matrix = decode_sprite(rom_data, width, height, base_offset)
-        
+
         if ROTATE_SPRITES:
             sprite_matrix = rotate_matrix_90_cw(sprite_matrix)
-        
-        all_sprites_str.append(f"  {{ {dump_sprite_to_long(sprite_matrix)} }} /* Sprite {i} */")
-        
-    f_out.write(",\n".join(all_sprites_str))
-    f_out.write("\n};\n\n")
+
+        flat.extend(dump_sprite_values(sprite_matrix))
+
+    emit_compressed(f_out, array_name, "uint32_t", "[%d]" % (width * height // 8), num_sprites, flat)
 
 def main():
     print("--- Conversione Sprite per Bomb Jack (Logica Corretta) ---")

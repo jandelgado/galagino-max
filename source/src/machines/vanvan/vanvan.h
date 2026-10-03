@@ -3,11 +3,6 @@
 
 #include "vanvan_dipswitches.h"
 #include "vanvan_logo.h"
-#include "vanvan_rom.h"
-#include "vanvan_rom2.h"
-#include "vanvan_tilemap.h"
-#include "vanvan_spritemap.h"
-#include "vanvan_cmap.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
 
@@ -41,7 +36,7 @@ class vanvan : public machineBase
 {
 public:
   vanvan() {}
-  ~vanvan() {}
+  ~vanvan();
 
   void reset() override;
   signed char machineType() override { return MCH_VANVAN; }

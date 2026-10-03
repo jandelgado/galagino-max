@@ -1,13 +1,8 @@
 #ifndef anteater_H
 #define anteater_H
 
-#include "anteater_rom1.h"
-#include "anteater_rom2.h"
 #include "anteater_dipswitches.h"
 #include "anteater_logo.h"
-#include "anteater_tilemap.h"
-#include "anteater_spritemap.h"
-#include "anteater_cmap.h"
 #include "../tileaddr.h"
 #include "../frogger/frogger.h"
 
@@ -15,7 +10,7 @@ class anteater : public frogger
 {
 public:
   anteater() { }
-  ~anteater() { }
+  ~anteater();
 
  	void reset() override;
 
@@ -44,7 +39,7 @@ protected:
 
   virtual const unsigned short *tileRom(unsigned short addr) override;
   virtual const unsigned short *colorRom(unsigned short addr) override;
-  virtual const unsigned long *spriteRom(unsigned char flags, unsigned char code) override;
+  virtual const uint32_t *spriteRom(unsigned char flags, unsigned char code) override;
 
 private:
   unsigned char showCustomBackground;

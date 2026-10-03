@@ -1,9 +1,13 @@
 import os
+import sys
 try:
     from PIL import Image, ImageDraw, ImageFont
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
+
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 # --- Configurazione ---
 FILE_PLANE0_LSB = "../roms/7.2fh"
@@ -117,24 +121,15 @@ def write_c_array_packed(tiles_data):
         if FLIP_HORIZONTAL:
              f_c.write(f"// I tiles sono stati flippati orizzontalmente.\n")
         f_c.write("#include <stdint.h>\n\n")
-        f_c.write(f"const uint32_t {C_ARRAY_NAME}[{NUM_TILES}][{TILE_HEIGHT}] = {{\n")
 
-        for i, tile in enumerate(tiles_data):
-            f_c.write(f"  {{ // Tile {i:03d} (0x{i:03X})\n")
-            packed_rows = []
-            for y, row in enumerate(tile):
+        flat = []
+        for tile in tiles_data:
+            for row in tile:
                 packed_row_int = 0
                 for x, pixel_value in enumerate(row):
                     packed_row_int |= pixel_value << (BPP * (TILE_WIDTH - 1 - x))
-                packed_rows.append(f"0x{packed_row_int:06X}")
-            
-            f_c.write("    " + ", ".join(packed_rows))
-            f_c.write("\n  }")
-            if i < NUM_TILES - 1:
-                f_c.write(",")
-            f_c.write("\n")
-
-        f_c.write("};\n")
+                flat.append(packed_row_int)
+        emit_compressed(f_c, C_ARRAY_NAME, "uint32_t", "[%d]" % TILE_HEIGHT, NUM_TILES, flat)
     print(f"File '{OUTPUT_C_FILE}' generato con successo!")
 
 def generate_preview_png(tiles_data):

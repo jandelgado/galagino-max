@@ -253,7 +253,7 @@ def write_spritemap(romset_name, filename, array_name, spritemap):
     f.write(f"// spritemap for {romset_name}\n")
     f.write("#pragma once\n")
     f.write("#include <stdint.h>\n\n")
-    f.write(f"const unsigned long {array_name}[2][4][64][16] = {{\n")
+    f.write(f"const uint32_t {array_name}[2][4][64][16] = {{\n")
     bank_lines = []
     for bank in range(2):
       flip_lines = []

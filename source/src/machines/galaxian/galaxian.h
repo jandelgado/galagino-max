@@ -2,11 +2,7 @@
 #define GALAXIAN_H
 
 #include "galaxian_logo.h"
-#include "galaxian_rom.h"
 #include "galaxian_dipswitches.h"
-#include "galaxian_tilemap.h"
-#include "galaxian_spritemap.h"
-#include "galaxian_cmap.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
 
@@ -17,7 +13,7 @@ class galaxian : public machineBase
 {
 public:
   galaxian() { }
-  ~galaxian() { }
+  ~galaxian();
 
   signed char machineType() override { return MCH_GALAXIAN; }
   unsigned char rdZ80(unsigned short Addr) override;

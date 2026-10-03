@@ -2,7 +2,6 @@
 #define SPACEINVADERS_H
 
 #include "spaceinvaders_logo.h"
-#include "spaceinvaders_rom.h"
 #include "spaceinvaders_dipswitches.h"
 #include "spaceinvaders_samples.h"
 #include "../machineBase.h"
@@ -46,7 +45,7 @@ class spaceinvaders : public machineBase
 {
 public:
     spaceinvaders() { }
-    ~spaceinvaders() { }
+    ~spaceinvaders();
 
     signed char machineType() override { return MCH_SPACEINVADERS; }
     unsigned char rdZ80(unsigned short Addr) override;

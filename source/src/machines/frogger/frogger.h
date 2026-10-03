@@ -1,13 +1,7 @@
 #ifndef FROGGER_H
 #define FROGGER_H
 
-#include "frogger_rom1.h"
-#include "frogger_rom2.h"
 #include "frogger_dipswitches.h"
-#include "frogger_logo.h"
-#include "frogger_tilemap.h"
-#include "frogger_spritemap.h"
-#include "frogger_cmap.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
 
@@ -15,7 +9,7 @@ class frogger : public machineBase
 {
 public:
 	frogger() { }
-	~frogger() { }
+	~frogger();
 
 	signed char machineType() override { return MCH_FROGGER; } 
 	unsigned char rdZ80(unsigned short Addr) override;
@@ -40,7 +34,7 @@ protected:
 	void blit_tile_scroll(short row, signed char col, short scroll);
 	virtual const unsigned short *tileRom(unsigned short addr);
 	virtual const unsigned short *colorRom(unsigned short addr);
-	virtual const unsigned long *spriteRom(unsigned char flags, unsigned char code);
+	virtual const uint32_t *spriteRom(unsigned char flags, unsigned char code);
 	
 	unsigned char snd_irq_state = 0;
 	unsigned char snd_command;

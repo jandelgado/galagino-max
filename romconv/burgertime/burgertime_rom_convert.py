@@ -11,6 +11,8 @@ import hashlib
 sys.dont_write_bytecode = True
 
 from helper_functions import load_file
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "btime.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "burgertime"))
@@ -106,10 +108,7 @@ def planes3(region_bits):
 def write_rom(name, sym, data, comment):
   with open(os.path.join(OUT_DIR, name), "w") as f:
     print(f"// {comment}", file=f)
-    print(f"const unsigned char {sym}[] = {{", file=f)
-    for i in range(0, len(data), 16):
-      print("  " + ",".join(f"0x{b:02X}" for b in data[i:i+16]) + ",", file=f)
-    print("};", file=f)
+    emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
 
 def write_char_tiles(tiles):
     with open(os.path.join(OUT_DIR, "burgertime_chartiles.h"), "w") as f:
@@ -117,15 +116,8 @@ def write_char_tiles(tiles):
         print("// 1024 tile 8x8 3bpp (valori pixel 0-7). pen0 = trasparente quando il", file=f)
         print("// tilemap speciale e' attivo (m_bnj_scroll[0]&0x10), opaco altrimenti.", file=f)
         print("// Colore SEMPRE fisso a palette RAM[0..7] (color group 0, vedi btime.cpp).", file=f)
-        print("const unsigned char burgertime_chartiles[][8][8] = {", file=f)
-        rows = []
-        for t in tiles:
-            trows = []
-            for y in range(8):
-                trows.append("{" + ",".join(str(v) for v in t[y]) + "}")
-            rows.append(" {" + ",".join(trows) + "}")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+        flat = [v for t in tiles for y in range(8) for v in t[y]]
+        emit_compressed(f, "burgertime_chartiles", "unsigned char", "[8][8]", len(tiles), flat)
 
 def write_sprite_tiles(tiles):
     with open(os.path.join(OUT_DIR, "burgertime_spritetiles.h"), "w") as f:
@@ -133,15 +125,8 @@ def write_sprite_tiles(tiles):
         print("// 16x16 invece di 8x8 -- tile16layout). 256 sprite 16x16 3bpp.", file=f)
         print("// pen0 = trasparente (transpen ultimo parametro 0 in btime.cpp).", file=f)
         print("// Colore SEMPRE fisso a palette RAM[0..7] (color group 0).", file=f)
-        print("const unsigned char burgertime_spritetiles[][16][16] = {", file=f)
-        rows = []
-        for t in tiles:
-            trows = []
-            for y in range(16):
-                trows.append("{" + ",".join(str(v) for v in t[y]) + "}")
-            rows.append(" {" + ",".join(trows) + "}")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+        flat = [v for t in tiles for y in range(16) for v in t[y]]
+        emit_compressed(f, "burgertime_spritetiles", "unsigned char", "[16][16]", len(tiles), flat)
 
 def write_bg_tiles(tiles):
     with open(os.path.join(OUT_DIR, "burgertime_bgtiles.h"), "w") as f:
@@ -149,15 +134,8 @@ def write_bg_tiles(tiles):
         print("// 64 tile 16x16 3bpp (valori pixel 0-7). Layer OPAQUE (mai trasparente,", file=f)
         print("// vedi gfxdecode->gfx(2)->opaque in draw_background). Colore SEMPRE", file=f)
         print("// fisso a palette RAM[8..15] (color group base 8, vedi GFXDECODE_ENTRY).", file=f)
-        print("const unsigned char burgertime_bgtiles[][16][16] = {", file=f)
-        rows = []
-        for t in tiles:
-            trows = []
-            for y in range(16):
-                trows.append("{" + ",".join(str(v) for v in t[y]) + "}")
-            rows.append(" {" + ",".join(trows) + "}")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+        flat = [v for t in tiles for y in range(16) for v in t[y]]
+        emit_compressed(f, "burgertime_bgtiles", "unsigned char", "[16][16]", len(tiles), flat)
 
 def write_bg_map(data):
     write_rom("burgertime_bgmap.h", "burgertime_bgmap", data,

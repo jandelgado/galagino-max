@@ -6,10 +6,6 @@
 #ifdef ENABLE_ROADFIGHTER
 
 #include "../../cpus/m6809/m6809.h"
-#include "roadfighter_rom_main.h"     // roadfighter_rom_main_raw + _decrypted (KONAMI-1)
-#include "roadfighter_rom_audio.h"    // roadfighter_rom_audio (Z80 sound)
-#include "roadfighter_tiles.h"        // roadfighter_tiles[1536][8] (+ ROADF_NTILES)
-#include "roadfighter_sprites.h"      // roadfighter_sprites[256][32] (+ ROADF_NSPRITES)
 #include "roadfighter_palette.h"      // tile/sprite colormap (palette+clut bakate)
 #include "roadfighter_logo.h"
 
@@ -51,6 +47,7 @@
 class roadfighter : public machineBase {
 public:
   roadfighter() { }
+  ~roadfighter();
 
   void init(Input *input, unsigned short *framebuffer,
             sprite_S *spritebuffer, unsigned char *memorybuffer) override;

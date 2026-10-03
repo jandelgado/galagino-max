@@ -2,11 +2,7 @@
 #define POOYAN_H
 
 #include "pooyan_logo.h"
-#include "pooyan_rom.h"
-#include "pooyan_snd_rom.h"
 #include "pooyan_dipswitches.h"
-#include "pooyan_tilemap.h"
-#include "pooyan_spritemap.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
 
@@ -47,7 +43,7 @@ class pooyan : public machineBase
 {
 public:
 	pooyan() { }
-	~pooyan() { }
+	~pooyan();
 
 	signed char machineType() override { return MCH_POOYAN; }
 

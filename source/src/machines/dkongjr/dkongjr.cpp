@@ -1,4 +1,17 @@
 #include "dkongjr.h"
+#include "dkongjr_rom1.h"
+#include "dkongjr_rom2.h"
+#include "dkongjr_tilemap.h"
+#include "dkongjr_spritemap.h"
+#include "dkongjr_cmap.h"
+
+dkongjr::~dkongjr() {
+	dkongjr_rom1.release();
+	dkongjr_rom2.release();
+	dkongjr_tilemap.release();
+	dkongjr_sprites.release();
+	dkongjr_colormap.release();
+}
 
 unsigned char dkongjr::rdI8048_xdm(struct i8048_state_S *state, unsigned char addr) {
   if(state->p2_state & 0x40)
@@ -231,7 +244,7 @@ void dkongjr::blit_tile(short row, char col) {
 // games, in dkongjr black is not always transparent. Black pixels
 // are instead used for masking
 void dkongjr::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = dkongjr_sprites[sprite[s].flags & 3][sprite[s].code];
+  const uint32_t *spr = dkongjr_sprites[sprite[s].flags & 3][sprite[s].code];
   const unsigned short *colors = dkongjr_colormap_sprite[palette_bank][sprite[s].color];
 
   // create mask for sprites that clip left or right

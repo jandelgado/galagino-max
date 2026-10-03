@@ -2,6 +2,9 @@
 import sys
 import os
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
+
 # --- Configurazione Specifica per Donkey Kong 3 (dkong3j) ---
 
 INPUT_ROM_FILE_1 = "../roms/dk3v.3n"
@@ -39,19 +42,18 @@ def parse_chr_2(data0, data1):
             
     return transformed_char
 
-def dump_chr(data):
+def dump_chr_values(data):
     """
-    Converte una matrice di pixel 8x8 in un array di 8 short (16-bit),
-    impacchettando 8 pixel a 2-bit in ogni short.
-    Questa logica di impacchettamento non cambia.
+    Converte una matrice di pixel 8x8 in una lista di 8 valori (16-bit),
+    impacchettando 8 pixel a 2-bit in ogni valore.
     """
-    hexs = []
+    vals = []
     for y in range(8):
         val = 0
         for x in range(8):
             val = (val << 2) | data[y][x]
-        hexs.append(hex(val))
-    return ",".join(hexs)
+        vals.append(val)
+    return vals
 
 def convert_dk3_tilemap():
     """
@@ -91,14 +93,8 @@ def convert_dk3_tilemap():
         f.write(f"// File generato automaticamente per la tilemap di Donkey Kong 3.\n")
         f.write(f"// I tile sono stati ruotati di 90° antiorario e flippati verticalmente.\n")
         f.write(f"// Dati estratti da: {INPUT_ROM_FILE_1}, {INPUT_ROM_FILE_2}\n\n")
-        f.write(f"const unsigned short {OUTPUT_ARRAY_NAME}[{NUM_TILES}][8] = {{\n")
-        
-        chars_str = []
-        for c in chars:
-            chars_str.append("  { " + dump_chr(c) + " }")
-        
-        f.write(",\n".join(chars_str))
-        f.write("\n};")
+        flat = [v for c in chars for v in dump_chr_values(c)]
+        emit_compressed(f, OUTPUT_ARRAY_NAME, "unsigned short", "[8]", NUM_TILES, flat)
 
     print(f"\nProcesso completato! Il file '{OUTPUT_HEADER_FILE}' è stato creato.")
 

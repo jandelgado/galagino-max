@@ -2,10 +2,6 @@
 #define MOONCRESTA_H
 
 #include "mooncresta_logo.h"
-#include "mooncresta_rom.h"
-#include "mooncresta_tilemap.h"
-#include "mooncresta_spritemap.h"
-#include "mooncresta_cmap.h"
 #include "mooncresta_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
@@ -71,7 +67,7 @@ class mooncresta : public machineBase
 {
 public:
   mooncresta() {}
-  ~mooncresta() {}
+  ~mooncresta();
 
   signed char machineType() override { return MCH_MOONCRESTA; }
   void start() override;

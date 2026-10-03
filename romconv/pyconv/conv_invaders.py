@@ -10,5 +10,6 @@ run("unpack.py", "invaders.zip")
 
 info("Converting Space Invaders")
 run_in_workdir("invaders_rom_convert.py")
+run_in_workdir("samples_convert.py")
 
 info("--- Success ---")

@@ -1,4 +1,15 @@
 #include "timeplt.h"
+#include "timeplt_rom.h"
+#include "timeplt_snd_rom.h"
+#include "timeplt_tilemap.h"
+#include "timeplt_spritemap.h"
+
+timeplt::~timeplt() {
+	timeplt_rom.release();
+	timeplt_snd_rom.release();
+	timeplt_tilemap.release();
+	timeplt_spritemap.release();
+}
 
 unsigned char timeplt::opZ80(unsigned short Addr) {
   if(current_cpu == 0) {
@@ -381,7 +392,7 @@ void timeplt::blit_tile_cat(short row, char col, signed char cat_filter) {
 // This preserves multi-sprite tiling: landscape column edges naturally become
 // adjacent portrait rows, so clouds and other multi-sprite objects tile correctly.
 void timeplt::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr_data = timeplt_spritemap[sprite[s].flags & 3][sprite[s].code];
+  const uint32_t *spr_data = timeplt_spritemap[sprite[s].flags & 3][sprite[s].code];
   const unsigned short *colors = timeplt_sprite_colormap[sprite[s].color];
 
   int spr_x = sprite[s].x;   // screen X start (ROM rows map here)

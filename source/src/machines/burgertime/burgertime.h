@@ -1,13 +1,6 @@
 #ifndef BTIME_H
 #define BTIME_H
 
-#include "burgertime_rom_main.h"
-#include "burgertime_rom_audio.h"
-#include "burgertime_chartiles.h"
-#include "burgertime_spritetiles.h"
-#include "burgertime_bgtiles.h"
-#include "burgertime_bgmap.h"
-#include "burgertime_logo.h"
 #include "burgertime_dipswitches.h"
 #include "../../cpus/m6502/m6502.h"
 #include "../machineBase.h"
@@ -52,7 +45,7 @@ public:
     memset(&cpu_main, 0, sizeof(cpu_main)); 
     memset(&cpu_audio, 0, sizeof(cpu_audio)); 
   }
-  ~burgertime() {}
+  ~burgertime();
 
   signed char machineType() override { return MCH_BURGERTIME; }
   void start() override;

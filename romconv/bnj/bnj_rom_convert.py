@@ -13,6 +13,8 @@ import hashlib
 sys.dont_write_bytecode = True
 
 from helper_functions import load_file
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "bnj.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "bnj"))
@@ -129,35 +131,22 @@ def bnj_bg_layout_decode(gfx2):
 def write_rom(name, sym, data, comment):
   with open(os.path.join(OUT_DIR, name), "w") as f:
     print(f"// {comment}", file=f)
-    print(f"const unsigned char {sym}[] = {{", file=f)
-    for i in range(0, len(data), 16):
-      print("  " + ",".join(f"0x{b:02x}" for b in data[i:i+16]) + ",", file=f)
-    print("};", file=f)
+    emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
 
 def write_char_tiles(tiles):
     with open(os.path.join(OUT_DIR, "bnj_chartiles.h"), "w") as f:
         print("// Bump 'n' Jump char set #1 (gfx1).", file=f)
         print("// 1024 tile 8x8 3bpp (pixel values 0-7). Colors from ", file=f)
         print("// palette RAM[0..7] (color group 0).", file=f)
-        print("const unsigned char bnj_chartiles[][8][8] = {", file=f)
-        rows = []
-        for t in tiles:
-            trows = ["{" + ",".join(str(v) for v in t[y]) + "}" for y in range(8)]
-            rows.append(" {" + ",".join(trows) + "}")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+        flat = [v for t in tiles for y in range(8) for v in t[y]]
+        emit_compressed(f, "bnj_chartiles", "unsigned char", "[8][8]", len(tiles), flat)
 
 def write_sprite_tiles(tiles):
     with open(os.path.join(OUT_DIR, "bnj_spritetiles.h"), "w") as f:
         print("// Bump 'n' Jump sprites", file=f)
         print("// (gfx1 16x16 -- tile16layout). 256 sprite 16x16 3bpp.", file=f)
-        print("const unsigned char bnj_spritetiles[][16][16] = {", file=f)
-        rows = []
-        for t in tiles:
-            trows = ["{" + ",".join(str(v) for v in t[y]) + "}" for y in range(16)]
-            rows.append(" {" + ",".join(trows) + "}")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+        flat = [v for t in tiles for y in range(16) for v in t[y]]
+        emit_compressed(f, "bnj_spritetiles", "unsigned char", "[16][16]", len(tiles), flat)
 
 def write_bg_tiles(tiles):
     with open(os.path.join(OUT_DIR, "bnj_bgtiles.h"), "w") as f:
@@ -165,13 +154,8 @@ def write_bg_tiles(tiles):
         print("// gfx2 bnj_tile16layout -- nibble packing", file=f)
         print("// converter). 16x16 3bpp, layer OPAQUE", file=f)
         print("// colors from palette RAM[8..15]", file=f)
-        print("const unsigned char bnj_bgtiles[][16][16] = {", file=f)
-        rows = []
-        for t in tiles:
-            trows = ["{" + ",".join(str(v) for v in t[y]) + "}" for y in range(16)]
-            rows.append(" {" + ",".join(trows) + "}")
-        print(",\n".join(rows), file=f)
-        print("};", file=f)
+        flat = [v for t in tiles for y in range(16) for v in t[y]]
+        emit_compressed(f, "bnj_bgtiles", "unsigned char", "[16][16]", len(tiles), flat)
 
 def preview(char_tiles, sprite_tiles, bg_tiles, outpng):
     try:

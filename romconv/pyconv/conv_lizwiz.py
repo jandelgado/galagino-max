@@ -6,13 +6,13 @@ info("Lizwiz Unpack roms")
 run("unpack.py", "lizwiz.zip")
 
 info("Lizwiz CPU code")
-run("romconv.py", "lizwiz_rom", "./roms/6e.cpu", "./roms/6f.cpu", "./roms/6h.cpu", "./roms/6j.cpu", "./roms/wiza", "./roms/wizb", "../source/src/machines/lizwiz/lizwiz_rom.h")
+run("romconv.py", "-c", "lizwiz_rom", "./roms/6e.cpu", "./roms/6f.cpu", "./roms/6h.cpu", "./roms/6j.cpu", "./roms/wiza", "./roms/wizb", "../source/src/machines/lizwiz/lizwiz_rom.h")
 
 info("Lizwiz Tiles")
-run("tileconv.py", "lizwiz_tilemap", "./roms/5e.cpu", "../source/src/machines/lizwiz/lizwiz_tilemap.h")
+run("tileconv.py", "-c", "lizwiz_tilemap", "./roms/5e.cpu", "../source/src/machines/lizwiz/lizwiz_tilemap.h")
 
 info("Lizwiz Sprites")
-run("spriteconv.py", "lizwiz_sprites", "lizwiz", "./roms/5f.cpu", "../source/src/machines/lizwiz/lizwiz_spritemap.h")
+run("spriteconv.py", "-c", "lizwiz_sprites", "lizwiz", "./roms/5f.cpu", "../source/src/machines/lizwiz/lizwiz_spritemap.h")
 
 info("Lizwiz Colormaps")
 run("cmapconv.py", "lizwiz_colormap", "./roms/7f.cpu", "0", "./roms/4a.cpu", "../source/src/machines/lizwiz/lizwiz_cmap.h")

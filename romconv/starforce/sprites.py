@@ -1,9 +1,13 @@
 import os
+import sys
 try:
     from PIL import Image, ImageDraw, ImageFont
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
+
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed, emit_plain
 
 # --- Configurazione ---
 ROM_FILES = ["../roms/6.10lm", "../roms/5.9lm", "../roms/4.8lm"]
@@ -73,31 +77,40 @@ def decode_gfx_correct(rom_data, num_sprites, width, height, layout_x, layout_y,
     return decoded_sprites
 
 
-def write_c_array_packed(filename, array_name, sprites, width, height):
+def write_c_array_packed(filename, array_name, sprites, width, height, compress=True):
     print(f"Scrittura dell'array C '{array_name}' in '{filename}'...")
     with open(filename, 'a') as f:
         f.write(f"// Dati per {len(sprites)} sprite {width}x{height}, 3bpp")
         if ROTATE_TILES: f.write(", ruotati di 90 gradi CW")
         f.write(".\n")
-        
-        f.write(f"const uint32_t {array_name}[{len(sprites)}][{height}][{width//8}] = {{\n")
-        
-        for i, sprite in enumerate(sprites):
-            f.write(f"  {{ // Sprite {i:03d} (0x{i:03X})\n")
-            for y, row in enumerate(sprite):
-                f.write("    { ")
-                packed_chunks = []
-                for chunk_idx in range(width // 8):
+
+        chunks_per_row = width // 8
+        flat = []
+        for sprite in sprites:
+            for row in sprite:
+                for chunk_idx in range(chunks_per_row):
                     packed_int = 0
                     for x_in_chunk in range(8):
                         x = chunk_idx * 8 + x_in_chunk
                         pixel_value = row[x]
                         packed_int |= pixel_value << (BPP * (7 - x_in_chunk))
-                    packed_chunks.append(f"0x{packed_int:06X}")
-                f.write(", ".join(packed_chunks))
-                f.write(" },\n")
-            f.write("  },\n")
-        f.write("};\n\n")
+                    flat.append(packed_int)
+
+        if compress:
+            emit_compressed(f, array_name, "uint32_t",
+                             "[%d][%d]" % (height, chunks_per_row), len(sprites), flat)
+        else:
+            body_rows = []
+            for i in range(len(sprites)):
+                row_groups = []
+                for y in range(height):
+                    base = (i * height + y) * chunks_per_row
+                    vals = ["0x{:06X}".format(v) for v in flat[base:base + chunks_per_row]]
+                    row_groups.append("{ " + ", ".join(vals) + " }")
+                body_rows.append("  { " + ",\n    ".join(row_groups) + " }")
+            emit_plain(f, array_name, "uint32_t",
+                       "[%d][%d]" % (height, chunks_per_row), len(sprites), ",\n".join(body_rows))
+        f.write("\n")
     print("Scrittura completata.")
 
 
@@ -158,4 +171,5 @@ if __name__ == "__main__":
         sprites_32 = [rotate_matrix_90_cw(s, SPRITE_WIDTH_32, SPRITE_HEIGHT_32) for s in sprites_32]
     if GENERATE_PREVIEW:
         generate_preview(PREVIEW_PNG_32, sprites_32, SPRITE_HEIGHT_32, SPRITE_WIDTH_32, grid_cols=16)
-    write_c_array_packed(OUTPUT_C_FILE, C_ARRAY_NAME_32, sprites_32, SPRITE_HEIGHT_32, SPRITE_WIDTH_32)
+    write_c_array_packed(OUTPUT_C_FILE, C_ARRAY_NAME_32, sprites_32, SPRITE_HEIGHT_32, SPRITE_WIDTH_32,
+                          compress=False)

@@ -12,23 +12,11 @@ import hashlib
 
 sys.dont_write_bytecode = True
 from helper_functions import load_file
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "phoenix.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "phoenix"))
-
-def emit_byte_array(name, data, comment=""):
-    lines = [
-        "// Auto-generated - DO NOT EDIT",
-        f"// {comment}" if comment else "",
-        f"const unsigned char {name}[{len(data)}] = {{",
-    ]
-    for i in range(0, len(data), 16):
-        chunk = data[i:i + 16]
-        lines.append(" " + ", ".join(f"0x{b:02x}" for b in chunk) +
-                    ("," if i + 16 < len(data) else ""))
-    lines.append("};")
-    lines.append("")
-    return "\n".join(l for l in lines if l is not None)
 
 def emit_word_array(name, words, comment=""):
   lines = [
@@ -137,17 +125,18 @@ def main():
   fg_decoded = decode_tile_pens(fg_p0, fg_p1)
 
   with open(os.path.join(OUT_DIR, "phoenix_rom.h"), "w", encoding="utf-8", newline="\n") as f:
-    f.write(emit_byte_array("phoenix_rom", cpu_rom, "Z80 CPU ROM 16 KB (ic45..ic52)"))
+    f.write("// Auto-generated - DO NOT EDIT\n// Z80 CPU ROM 16 KB (ic45..ic52)\n")
+    emit_compressed(f, "phoenix_rom", "unsigned char", "", len(cpu_rom), list(cpu_rom))
   print(f"[OK] phoenix_rom.h ({len(cpu_rom)} bytes)")
 
   with open(os.path.join(OUT_DIR, "phoenix_bgtiles.h"), "w", encoding="utf-8", newline="\n") as f:
-    #f.write(emit_byte_array("phoenix_bgtiles",      bg_data, "BG tiles 4 KB (256 char × 8x8 × 2bpp), plane0 + plane1"))
-    f.write(emit_byte_array("phoenix_bgtiles", bg_decoded, "BG tiles decoded"))
+    f.write("// Auto-generated - DO NOT EDIT\n// BG tiles decoded\n")
+    emit_compressed(f, "phoenix_bgtiles", "unsigned char", "", len(bg_decoded), list(bg_decoded))
   print(f"[OK] phoenix_bgtiles.h ({len(bg_decoded)} bytes)")
 
   with open(os.path.join(OUT_DIR, "phoenix_fgtiles.h"), "w", encoding="utf-8", newline="\n") as f:
-    #f.write(emit_byte_array("phoenix_fgtiles",      fg_data,    "FG tiles 4 KB (256 char × 8x8 × 2bpp), plane0 + plane1"))
-    f.write(emit_byte_array("phoenix_fgtiles", fg_decoded, "FG tiles decoded"))
+    f.write("// Auto-generated - DO NOT EDIT\n// FG tiles decoded\n")
+    emit_compressed(f, "phoenix_fgtiles", "unsigned char", "", len(fg_decoded), list(fg_decoded))
   print(f"[OK] phoenix_fgtiles.h ({len(fg_decoded)} bytes)")
 
   with open(os.path.join(OUT_DIR, "phoenix_palette.h"), "w", encoding="utf-8", newline="\n") as f:

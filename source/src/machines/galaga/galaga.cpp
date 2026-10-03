@@ -365,7 +365,7 @@ void galaga::blit_tile(short row, char col) {
 // double sized sprites. This renders onto a single 224 x 8 tile row
 // thus will be called multiple times even for single sized sprites
 void galaga::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = galaga_sprites[sprite[s].flags & 3][sprite[s].code];
+  const uint32_t *spr = galaga_sprites[sprite[s].flags & 3][sprite[s].code];
   const unsigned short *colors = galaga_colormap_sprites[sprite[s].color & 63];
   if(colors[0] != 0) return;   // not a valid colormap entry
 

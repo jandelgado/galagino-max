@@ -1,14 +1,8 @@
 #ifndef BOMBJACK_H
 #define BOMBJACK_H
 
-#include "bombjack_rom1.h"
-#include "bombjack_rom2.h"
 #include "bombjack_dipswitches.h"
 #include "bombjack_logo.h"
-#include "bombjack_bg_maps.h"
-#include "bombjack_bg_tiles.h"
-#include "bombjack_fg_tiles.h"
-#include "bombjack_sprites.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
 
@@ -23,7 +17,7 @@ class bombjack : public machineBase
 {
 public:
   bombjack() { }
-  ~bombjack() { }
+  ~bombjack();
 
   void reset() override;
   signed char machineType() override { return MCH_BOMBJACK; } 

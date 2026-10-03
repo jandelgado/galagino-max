@@ -1,4 +1,17 @@
 #include "turtles.h"
+#include "turtles_logo.h"
+#include "turtles_main_rom.h"
+#include "turtles_audio_rom.h"
+#include "turtles_spritemap.h"
+#include "turtles_tilemap.h"
+#include "turtles_cmap.h"
+
+turtles::~turtles() {
+	turtles_main_rom.release();
+	turtles_audio_rom.release();
+	turtles_spritemap.release();
+	turtles_tilemap.release();
+}
 
 void turtles::start() {
   ignoreFireButton = 1;
@@ -211,7 +224,7 @@ void turtles::blit_tile(short row, char col) {
 }
 
 void turtles::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = turtles_spritemap[sprite[s].flags & 3][sprite[s].code];
+  const uint32_t *spr = turtles_spritemap[sprite[s].flags & 3][sprite[s].code];
   const unsigned short *colors = turtles_colormap[sprite[s].color];
 
   unsigned long mask = 0xffffffff;

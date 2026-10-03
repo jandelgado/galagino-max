@@ -2,6 +2,9 @@
 import sys
 import os
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
+
 # --- Configurazione per Donkey Kong 3 (dkong3j) ---
 INPUT_ROM_FILES = [
     "../roms/dk3v.7c",
@@ -83,9 +86,9 @@ def parse_sprite_dkong(data_chunks, sprite_index=None):
         sprite = flip_matrix_y(sprite)
     return sprite
 
-def dump_sprite(data, flip_x, flip_y):
-    """Converte la matrice di pixel in un array C, gestendo il flip per header."""
-    hexs = []
+def dump_sprite_values(data, flip_x, flip_y):
+    """Converte la matrice di pixel in una lista di valori, gestendo il flip."""
+    vals = []
     y_range = reversed(range(16)) if flip_y else range(16)
 
     for y_idx in y_range:
@@ -95,9 +98,9 @@ def dump_sprite(data, flip_x, flip_y):
             pixel_row = pixel_row[::-1]
         for pixel_value in pixel_row:
             val = (val << 2) | pixel_value
-        hexs.append(hex(val))
+        vals.append(val)
 
-    return ",".join(hexs)
+    return vals
 
 def main():
     print("Avvio conversione sprite per DK3j...")
@@ -118,18 +121,14 @@ def main():
         with open(OUTPUT_HEADER_FILE, "w") as f:
             f.write(f"// File generato da sprites_conv.py (modifica: flip/rotazione per sprite)\n")
             f.write(f"// Dati da: {', '.join(INPUT_ROM_FILES)}\n\n")
-            f.write(f"const unsigned long {OUTPUT_ARRAY_NAME}[4][{NUM_SPRITES}][{SPRITE_HEIGHT}] = {{\n")
 
+            flat = []
             for flip_flag in range(4):
                 flip_x = (flip_flag & 1) != 0
                 flip_y = (flip_flag & 2) != 0
-                f.write(f"  // Flip: X={flip_x}, Y={flip_y}\n  {{\n")
-
-                sprite_lines = [f"    {{ {dump_sprite(s, flip_x, flip_y)} }}" for s in sprites]
-                f.write(",\n".join(sprite_lines))
-
-                f.write("\n  }" + ("," if flip_flag < 3 else ""))
-            f.write("\n};\n")
+                for s in sprites:
+                    flat.extend(dump_sprite_values(s, flip_x, flip_y))
+            emit_compressed(f, OUTPUT_ARRAY_NAME, "uint32_t", "[%d][%d]" % (NUM_SPRITES, SPRITE_HEIGHT), 4, flat)
 
         print(f"\nProcesso completato! Creato '{OUTPUT_HEADER_FILE}'.")
     except Exception as e:

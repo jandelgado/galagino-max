@@ -15,17 +15,13 @@
 //     0x0038-0x003F, 0x03B0-0x03B7, 0x1600-0x1607,
 //     0x2120-0x2127, 0x3FF0-0x3FF7, 0x8000-0x8007, 0x97F0-0x97F7
 #include "../pacman/pacman.h"
-#include "mspacman_pacrom.h"
-#include "mspacman_auxrom.h"
-#include "mspacman_tilemap.h"
-#include "mspacman_spritemap.h"
 #include "mspacman_logo.h"
 
 class mspacman : public pacman
 {
 public:
   mspacman() { }
-  ~mspacman() { }
+  ~mspacman();
 
   signed char machineType() override { return MCH_MSPACMAN; }
   void reset() override;
@@ -36,7 +32,7 @@ public:
 
 protected:
   const unsigned short *tileRom(unsigned short addr) override;
-  const unsigned long  *spriteRom(unsigned char flags, unsigned char code) override;
+  const uint32_t  *spriteRom(unsigned char flags, unsigned char code) override;
 
 private:
   bool decode; // true = Ms. Pac-Man mode, false = original Pac-Man mode

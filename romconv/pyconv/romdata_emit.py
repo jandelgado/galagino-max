@@ -3,8 +3,8 @@
 import struct
 import zlib
 
-_WIDTH = {"unsigned char": 1, "unsigned short": 2, "unsigned long": 4}
-_PACK  = {"unsigned char": "B", "unsigned short": "<H", "unsigned long": "<L"}
+_WIDTH = {"unsigned char": 1, "signed char": 1, "unsigned short": 2, "uint32_t": 4}
+_PACK  = {"unsigned char": "B", "signed char": "B", "unsigned short": "<H", "uint32_t": "<L"}
 
 def _hex_block(data, per_line=16):
     hexs = ["0x{:02X}".format(b) for b in data]
@@ -24,7 +24,7 @@ def emit_compressed(f, name, ctype, inner_dims, count, flat_values):
     print('#include "../../emulation/romdata.h"', file=f)
     print(f"// {name}: {len(raw)} -> {len(packed)} bytes ({ratio:.1f}% smaller)", file=f)
     print(f"static const unsigned char {name}_packed[] = {{\n  " + _hex_block(packed) + "\n};", file=f)
-    print(f"static RomData<{ctype}{inner_dims}> {name}({name}_packed, sizeof({name}_packed), {count});", file=f)
+    print(f"static RomData<{ctype}{inner_dims}, COMPRESSED> {name}({name}_packed, sizeof({name}_packed), {count});", file=f)
 
 def emit_plain(f, name, ctype, inner_dims, count, array_body):
     """Write a plain (flash-resident) RomData<ctype inner_dims> definition.
@@ -33,4 +33,4 @@ def emit_plain(f, name, ctype, inner_dims, count, array_body):
     """
     print('#include "../../emulation/romdata.h"', file=f)
     print(f"static const {ctype} {name}_data[]{inner_dims} = {{\n{array_body}\n}};", file=f)
-    print(f"static RomData<{ctype}{inner_dims}> {name}({name}_data, {count});", file=f)
+    print(f"static RomData<{ctype}{inner_dims}, PLAIN> {name}({name}_data, {count});", file=f)

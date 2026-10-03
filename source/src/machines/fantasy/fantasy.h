@@ -1,10 +1,6 @@
 #ifndef FANTASY_H
 #define FANTASY_H
 
-#include "fantasy_rom.h"
-#include "fantasy_gfx.h"
-#include "fantasy_proms.h"
-#include "fantasy_sound_rom.h"
 #include "fantasy_logo.h"
 #include "fantasy_dipswitches.h"
 #include "../../cpus/m6502/m6502.h"
@@ -13,15 +9,14 @@
 class fantasy : public machineBase {
 public:
   fantasy() { memset(&m_cpu, 0, sizeof(m_cpu)); }
+  ~fantasy();
   signed char machineType() override { return MCH_FANTASY; }
   void start() override;
   void reset() override;
   void run_frame() override;
   void render_row(short row) override;
   static const unsigned short *logo() { return fantasy_logo; }
-  unsigned char vanguardSoundRom(unsigned short addr) override {
-    return addr < sizeof(fantasy_sound_rom) ? fantasy_sound_rom[addr] : 0xff;
-  }
+  unsigned char vanguardSoundRom(unsigned short addr) override;
   bool vanguardMusic0Muted() override { return music_muted[0]; }
   bool vanguardMusic1Muted() override { return music_muted[1]; }
   bool vanguardMusic2Muted() override { return music_muted[2]; }

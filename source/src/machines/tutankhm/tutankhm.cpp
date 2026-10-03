@@ -1,4 +1,13 @@
 #include "tutankhm.h"
+#include "tutankhm_rom.h"
+#include "tutankhm_bank_rom.h"
+#include "tutankhm_snd_rom.h"
+
+tutankhm::~tutankhm() {
+	tutankhm_rom.release();
+	tutankhm_bank_rom.release();
+	tutankhm_snd_rom.release();
+}
 
 void tutankhm::reset() {
   machineBase::reset();

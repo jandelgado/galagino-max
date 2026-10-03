@@ -6,12 +6,7 @@
 #ifdef ENABLE_MOTORACE
 
 #include "motorace_logo.h"
-#include "motorace_rom.h"
-#include "motorace_snd_rom.h"
 #include "motorace_dipswitches.h"
-#include "motorace_tilemap.h"
-#include "motorace_spritemap.h"
-#include "motorace_cmap.h"
 #include "../../cpus/m6803/m6803.h"
 
 // MotoRace USA memory layout in `memory[]` buffer (RAMSIZE=9344):
@@ -26,7 +21,7 @@ class motorace : public machineBase
 {
 public:
   motorace() { }
-  ~motorace() { }
+  ~motorace();
 
   signed char machineType()    override { return MCH_MOTORACE; }
   signed char videoFlipY()     override { return 0; }

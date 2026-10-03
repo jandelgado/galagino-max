@@ -1,5 +1,15 @@
 #include "ladybug.h"
+#include "ladybug_rom.h"
+#include "ladybug_tilemap.h"
+#include "ladybug_spritemap.h"
+#include "ladybug_cmap.h"
 #include "../../emulation/input.h"
+
+ladybug::~ladybug() {
+	ladybug_rom_cpu1.release();
+	ladybug_tilemap.release();
+	ladybug_sprites.release();
+}
 
 void ladybug::reset() {
   machineBase::reset();
@@ -311,7 +321,7 @@ void ladybug::blit_tile(short row, char col) {
 // Render a single 16x16 sprite - linear scan (sprites are pre-rotated)
 // ============================================================================
 void ladybug::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = ladybug_sprites[sprite[s].flags & 3][sprite[s].code];
+  const uint32_t *spr = ladybug_sprites[sprite[s].flags & 3][sprite[s].code];
   const unsigned short *colors = ladybug_sprite_colormap[sprite[s].color & 7];
 
   // Horizontal clip mask

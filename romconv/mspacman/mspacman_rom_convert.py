@@ -8,7 +8,10 @@ Convertitore ROM Ms. Pac-Man con applicazione patch lineare
 """
 
 import os
-import re
+import sys
+
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 ROM_SRC = os.path.normpath(os.path.join("..", "roms"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "mspacman"))
@@ -66,49 +69,20 @@ def load_patch_values(patch_filename):
         print(f"  ERRORE caricamento {patch_filename}: {e}")
         return None
 
-def apply_patches_to_file(input_file, output_file, patch_values):
-    """Applica le patch linearmente per posizione, non per valore"""
+def apply_patch_values(values, patch_values, mask):
+    """Applica le patch per posizione direttamente sui valori interi (usato
+    quando l'array e' compresso: non esiste piu' un testo C su cui applicare
+    la patch a regex)."""
     if patch_values is None:
-        with open(input_file, 'r') as f:
-            content = f.read()
-        with open(output_file, 'w') as f:
-            f.write(content)
-        return
-    
-    with open(input_file, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    # Trova tutti i valori esadecimali con le loro posizioni
-    hex_pattern = r'0[xX][0-9a-fA-F]+'
-    matches = list(re.finditer(hex_pattern, content))
-    
-    print(f"  File input: {len(matches)} valori esadecimali trovati")
-    
-    if len(matches) != len(patch_values):
-        print(f"  ATTENZIONE: lunghezze diverse, uso il minimo comune")
-        min_len = min(len(matches), len(patch_values))
-        matches = matches[:min_len]
-        patch_values = patch_values[:min_len]
-    
-    # Applica le patch per posizione (dalla fine all'inizio per non alterare le posizioni)
-    result = content
-    modified = 0
-    for i in range(len(matches) - 1, -1, -1):
-        match = matches[i]
-        old_hex = match.group()
-        original = int(old_hex, 16)
+        return values
+    n = min(len(values), len(patch_values))
+    out = list(values)
+    for i in range(n):
         if patch_values[i] != 0:
-            new_val = (original + patch_values[i]) & 0xFFFFFFFF
-            new_hex = f"0x{new_val:08x}"
-            if new_hex != old_hex:
-                result = result[:match.start()] + new_hex + result[match.end():]
-                modified += 1
-    
-    
-    with open(output_file, 'w', encoding='utf-8') as f:
-        f.write(result)
+            out[i] = (out[i] + patch_values[i]) & mask
+    return out
 
-def generate_temp_spritemap(gfx5e, gfx5f, temp_file):
+def generate_sprite_values(gfx5e, gfx5f):
     sprite_offset = 2048
     max_gfx_size = len(gfx5f)
     SPRITE_COUNT = 64
@@ -141,24 +115,8 @@ def generate_temp_spritemap(gfx5e, gfx5f, temp_file):
                     val = new_val
                 
                 all_values.append(val)
-    
-    # Scrivi il file temporaneo
-    with open(temp_file, 'w', encoding='utf-8') as f:
-        f.write("const unsigned long mspacman_sprites[][64][16] = {\n")
-        
-        idx = 0
-        for flip in range(4):
-            f.write(" {\n")
-            for s in range(SPRITE_COUNT):
-                rows = []
-                for r in range(16):
-                    rows.append(f"0x{all_values[idx]:08x}")
-                    idx += 1
-                f.write(f"  {{ {', '.join(rows)} }},\n")
-            f.write(" },\n")
-        f.write("};\n")
-    
-    return len(all_values)
+
+    return all_values
 
 def main():
     if not os.path.exists(OUT_DIR):
@@ -229,59 +187,33 @@ def main():
                 tile_base[i] = (tile_base[i] + tile_patch[i]) & 0xFFFF
     
     with open(os.path.join(OUT_DIR, "mspacman_tilemap.h"), "w") as f:
-        f.write("const unsigned short mspacman_tilemap[][8] = {\n")
-        idx = 0
-        for t in range(tile_count):
-            row_words = []
-            for row in range(8):
-                row_words.append(f"0x{tile_base[idx]:04x}")
-                idx += 1
-            f.write(f"  {{ {', '.join(row_words)} }},\n")
-        f.write("};\n")
+        emit_compressed(f, "mspacman_tilemap", "unsigned short", "[8]", tile_count, tile_base)
     print(f"  Scritto mspacman_tilemap.h")
 
-    # 3. SPRITEMAP - genera temporaneo, applica patch per posizione, poi finale
+    # 3. SPRITEMAP - genera i valori base, applica la patch per posizione
+    # direttamente sulla lista piatta (non piu' a regex su testo C, ora che
+    # l'array e' compresso), poi scrive il file finale.
     print("\n=== GENERAZIONE SPRITEMAP ===")
-    
-    # File temporaneo nella stessa cartella
-    temp_file = "temp_mspacman_spritemap.h"
+
     final_file = os.path.join(OUT_DIR, "mspacman_spritemap.h")
-    
-    # Genera il file spritemap temporaneo (come il convertitore originale)
-    value_count = generate_temp_spritemap(gfx5e, gfx5f, temp_file)
-    print(f"  Generati {value_count} valori")
-    
-    # Carica le patch
+    sprite_values = generate_sprite_values(gfx5e, gfx5f)
+    print(f"  Generati {len(sprite_values)} valori")
+
     sprite_patch = load_patch_values("spr_patch.table")
-    
-    # Applica le patch al file temporaneo per posizione
-    if sprite_patch:
-        apply_patches_to_file(temp_file, final_file, sprite_patch)
-    else:
-        with open(temp_file, 'r') as f:
-            content = f.read()
-        with open(final_file, 'w') as f:
-            f.write(content)
-    
-    # Elimina il file temporaneo
-    if os.path.exists(temp_file):
-        os.remove(temp_file)
-    
+    sprite_values = apply_patch_values(sprite_values, sprite_patch, 0xFFFFFFFF)
+
+    with open(final_file, 'w', encoding='utf-8') as f:
+        emit_compressed(f, "mspacman_sprites", "uint32_t", "[64][16]", 4, sprite_values)
+
     print(f"  File finale: {final_file}")
 
     # 4. ROM FILES
     print("\nGenerazione ROM files...")
     with open(os.path.join(OUT_DIR, "mspacman_pacrom.h"), "w") as f:
-        f.write("const unsigned char mspacman_pacrom[] = {\n")
-        for i in range(0, 0x4000, 16):
-            f.write("  " + ", ".join(f"0x{b:02X}" for b in drom[i:i+16]) + ",\n")
-        f.write("};\n")
+        emit_compressed(f, "mspacman_pacrom", "unsigned char", "", 0x4000, list(drom[0:0x4000]))
 
     with open(os.path.join(OUT_DIR, "mspacman_auxrom.h"), "w") as f:
-        f.write("const unsigned char mspacman_auxrom[] = {\n")
-        for i in range(0x8000, 0xA000, 16):
-            f.write("  " + ", ".join(f"0x{b:02X}" for b in drom[i:i+16]) + ",\n")
-        f.write("};\n")
+        emit_compressed(f, "mspacman_auxrom", "unsigned char", "", 0x2000, list(drom[0x8000:0xA000]))
 
     print(f"\nCompletato con successo.")
 

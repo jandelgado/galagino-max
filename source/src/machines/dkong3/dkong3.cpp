@@ -1,4 +1,18 @@
 #include "dkong3.h"
+#include "dkong3_rom.h"
+#include "dkong3_sound_roms.h"
+#include "dkong3_tilemap.h"
+#include "dkong3_spritemap.h"
+#include "dkong3_cmap.h"
+#include "dkong3_color_codes.h"
+
+dkong3::~dkong3() {
+	dkong3_rom_cpu.release();
+	dkong3_rom_sound_a.release();
+	dkong3_rom_sound_b.release();
+	dkong3_tilemap.release();
+	dkong3_sprites.release();
+}
 
 // ---------------------------------------------------------------------------
 // NES APU synthesis tables
@@ -508,7 +522,7 @@ void dkong3::blit_tile(short row, char col) {
 }
 
 void dkong3::blit_sprite(short row, unsigned char s) {
-    const unsigned long *spr    = dkong3_sprites[sprite[s].flags & 3][sprite[s].code];
+    const uint32_t *spr    = dkong3_sprites[sprite[s].flags & 3][sprite[s].code];
     const unsigned short *colors = dkong3_colormap_sprite[sprite[s].color];
 
     unsigned long mask = 0xFFFFFFFF;

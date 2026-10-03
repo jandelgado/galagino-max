@@ -1,4 +1,15 @@
 #include "lizwiz.h"
+#include "lizwiz_rom.h"
+#include "lizwiz_tilemap.h"
+#include "lizwiz_spritemap.h"
+#include "lizwiz_cmap.h"
+#include "lizwiz_wavetable.h"
+
+lizwiz::~lizwiz() {
+	lizwiz_rom.release();
+	lizwiz_tilemap.release();
+	lizwiz_sprites.release();
+}
 
 unsigned char lizwiz::opZ80(unsigned short Addr) {
   if(Addr < 16384)
@@ -95,7 +106,7 @@ const unsigned short *lizwiz::colorRom(unsigned short addr) {
   return lizwiz_colormap[addr];
 }
 
-const unsigned long *lizwiz::spriteRom(unsigned char flags, unsigned char code) {
+const uint32_t *lizwiz::spriteRom(unsigned char flags, unsigned char code) {
   return lizwiz_sprites[flags][code];
 }
 

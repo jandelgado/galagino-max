@@ -1,4 +1,17 @@
 #include "scramble.h"
+#include "scramble_logo.h"
+#include "scramble_main_rom.h"
+#include "scramble_audio_rom.h"
+#include "scramble_spritemap.h"
+#include "scramble_tilemap.h"
+#include "scramble_cmap.h"
+
+scramble::~scramble() {
+	scramble_main_rom.release();
+	scramble_audio_rom.release();
+	scramble_spritemap.release();
+	scramble_tilemap.release();
+}
 
 void scramble::start() {
   stars_init();
@@ -387,7 +400,7 @@ void scramble::blit_tile_scroll(short row, signed char col, unsigned char scroll
 }
 
 void scramble::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = scramble_spritemap[sprite[s].flags & 3][sprite[s].code];
+  const uint32_t *spr = scramble_spritemap[sprite[s].flags & 3][sprite[s].code];
   const unsigned short *colors = scramble_colormap[sprite[s].color];
 
   unsigned long mask = 0xffffffff;

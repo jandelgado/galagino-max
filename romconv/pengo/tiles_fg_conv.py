@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 
+import os
 import sys
 from PIL import Image, ImageDraw, ImageFont
+
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 # -----------------------------------------------------------------------------
 # CONFIGURAZIONE
@@ -72,14 +76,14 @@ def rotate_gfx(gfx_data, width, height):
             rotated[x][(height - 1) - y] = gfx_data[y][x]
     return rotated
 
-def dump_tile_packed(data):
-    """Impacchetta un tile 8x8 per il C."""
-    hexs = []; val = 0
+def dump_tile_values(data):
+    """Impacchetta un tile 8x8 in una lista di valori."""
+    vals = []
     for y in range(8):
         val = 0
         for x in range(8): val = (val >> 2) | (data[y][x] << 14)
-        hexs.append(hex(val))
-    return ",".join(hexs)
+        vals.append(val)
+    return vals
 
 def dump_sprite_packed(sprite_data):
     """Impacchetta uno sprite 16x16 per il C."""
@@ -138,9 +142,8 @@ def main():
     decoded_tiles = [decode_tile_8x8(tile_data_raw[i*16:(i+1)*16]) for i in range(512)]
     final_tiles = [rotate_gfx(t, 8, 8) for t in decoded_tiles]
     with open(OUTPUT_TILES_C_FILE, "w") as f:
-        f.write("const unsigned short pengo_tiles[512][8] = {\n")
-        f.write(",\n".join([f"  /* T{i} */ {{ {dump_tile_packed(t)} }}" for i, t in enumerate(final_tiles)]))
-        f.write("\n};\n")
+        flat = [v for t in final_tiles for v in dump_tile_values(t)]
+        emit_compressed(f, "pengo_tiles", "unsigned short", "[8]", len(final_tiles), flat)
     create_preview(final_tiles, 8, 8, OUTPUT_TILES_PREVIEW)
     print("--- Elaborazione TILE completata ---\n")
 

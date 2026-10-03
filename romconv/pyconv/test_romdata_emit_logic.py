@@ -15,7 +15,7 @@ packed_bytes = bytes(int(x, 16) for x in re.findall(r"0x[0-9A-Fa-f]{2}", m.group
 restored = zlib.decompress(packed_bytes)
 expected = bytes(v & 0xFF for v in values)
 assert restored == expected, "compressed round-trip mismatch"
-assert "static RomData<unsigned char> _test_rom(_test_rom_packed, sizeof(_test_rom_packed), 1024);" in out
+assert "static RomData<unsigned char, COMPRESSED> _test_rom(_test_rom_packed, sizeof(_test_rom_packed), 1024);" in out
 print("1. emit_compressed byte round-trip + RomData line: OK")
 
 # 2. compressed nested type (unsigned short rows): width and byte order
@@ -28,15 +28,15 @@ packed_bytes = bytes(int(x, 16) for x in re.findall(r"0x[0-9A-Fa-f]{2}", m.group
 restored = zlib.decompress(packed_bytes)
 expected = b"".join(struct.pack("<H", v) for v in values16)
 assert restored == expected, "16-bit little-endian round-trip mismatch"
-assert "static RomData<unsigned short[2]> _test_rows(_test_rows_packed, sizeof(_test_rows_packed), 2);" in out
+assert "static RomData<unsigned short[2], COMPRESSED> _test_rows(_test_rows_packed, sizeof(_test_rows_packed), 2);" in out
 print("2. emit_compressed 16-bit row round-trip + declaration: OK")
 
 # 3. plain (uncompressed) emitter just wraps the given body text
 f = io.StringIO()
-emit_plain(f, "_test_plain", "unsigned long", "[2]", 3, " { 0x1,0x2 },\n { 0x3,0x4 }")
+emit_plain(f, "_test_plain", "uint32_t", "[2]", 3, " { 0x1,0x2 },\n { 0x3,0x4 }")
 out = f.getvalue()
-assert "static const unsigned long _test_plain_data[][2] = {" in out
-assert "static RomData<unsigned long[2]> _test_plain(_test_plain_data, 3);" in out
+assert "static const uint32_t _test_plain_data[][2] = {" in out
+assert "static RomData<uint32_t[2], PLAIN> _test_plain(_test_plain_data, 3);" in out
 print("3. emit_plain wraps body + RomData line: OK")
 
 # 4. compressed array includes size/ratio comment

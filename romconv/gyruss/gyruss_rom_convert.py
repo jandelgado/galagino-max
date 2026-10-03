@@ -14,7 +14,10 @@ Supports applying patches from spr_patch.txt and tile_patch.txt
 """
 
 import os
-import re
+import sys
+
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
 
 ROM_SRC = os.path.normpath(os.path.join("..", "roms"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "gyruss"))
@@ -60,58 +63,19 @@ def load_patch_values(patch_filename):
         return None
 
 
-def apply_patches_to_file(input_file, output_file, patch_values):
-    """Applica le patch linearmente per posizione, non per valore"""
+def apply_patch_values(values, patch_values, mask):
+    """Applica le patch per posizione direttamente sui valori interi (usato
+    quando l'array e' compresso, quindi non esiste piu' un testo C su cui
+    fare il patch a regex). Stessa logica posizionale di apply_patches_to_file:
+    somma il delta (se non zero) e maschera al numero di bit del tipo."""
     if patch_values is None:
-        with open(input_file, 'r') as f:
-            content = f.read()
-        with open(output_file, 'w') as f:
-            f.write(content)
-        return
-    
-    with open(input_file, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    # Trova tutti i valori esadecimali con le loro posizioni
-    hex_pattern = r'0[xX][0-9a-fA-F]+'
-    matches = list(re.finditer(hex_pattern, content))
-    
-    print(f"  File input: {len(matches)} valori esadecimali trovati")
-    print(f"  Patch: {len(patch_values)} valori")
-    
-    if len(matches) != len(patch_values):
-        print(f"  ATTENZIONE: lunghezze diverse, uso il minimo comune")
-        min_len = min(len(matches), len(patch_values))
-        matches = matches[:min_len]
-        patch_values = patch_values[:min_len]
-    
-    # Applica le patch per posizione (dalla fine all'inizio per non alterare le posizioni)
-    result = content
-    modified = 0
-    for i in range(len(matches) - 1, -1, -1):
-        match = matches[i]
-        old_hex = match.group()
-        original = int(old_hex, 16)
+        return values
+    n = min(len(values), len(patch_values))
+    out = list(values)
+    for i in range(n):
         if patch_values[i] != 0:
-            # Determina la dimensione del valore (16 o 32 bit) in base alla lunghezza della stringa
-            hex_len = len(old_hex) - 2  # rimuovi 0x
-            if hex_len <= 4:
-                mask = 0xFFFF
-                new_val = (original + patch_values[i]) & mask
-                new_hex = f"0x{new_val:04x}"
-            else:
-                mask = 0xFFFFFFFF
-                new_val = (original + patch_values[i]) & mask
-                new_hex = f"0x{new_val:08x}"
-            
-            if new_hex != old_hex:
-                result = result[:match.start()] + new_hex + result[match.end():]
-                modified += 1
-    
-    print(f"  Valori modificati: {modified}")
-    
-    with open(output_file, 'w', encoding='utf-8') as f:
-        f.write(result)
+            out[i] = (out[i] + patch_values[i]) & mask
+    return out
 
 
 # ============================================================
@@ -161,16 +125,7 @@ def write_i8039_rom_h(rom, filepath):
     with open(filepath, "w") as f:
         f.write("// Gyruss i8039 sample MCU ROM (4KB: 0x000-0xFFF)\n")
         f.write("// Generated from gyrussk.3a — drums/percussioni via DAC su P1\n\n")
-        f.write("const unsigned char gyruss_rom_i8039[] = {\n")
-        for i in range(len(rom)):
-            if i % 16 == 0:
-                f.write("  ")
-            f.write("0x{:02X}".format(rom[i]))
-            if i < len(rom) - 1:
-                f.write(",")
-            if i % 16 == 15 or i == len(rom) - 1:
-                f.write("\n")
-        f.write("};\n")
+        emit_compressed(f, "gyruss_rom_i8039", "unsigned char", "", len(rom), list(rom))
 
 # ============================================================
 # Tile decoding (8x8, 2bpp, 512 tiles from gyrussk.4)
@@ -266,7 +221,7 @@ def decode_sprites(gfx_data):
     """Decode 512 sprites (8x16, 4bpp) from combined sprite ROMs.
     gfx_data = gyrussk.6 + gyrussk.5 (region 0) + gyrussk.8 + gyrussk.7 (region 1)
     Returns sprites[4][512][16] (4 flip variants, 512 sprites, 16 rows).
-    Each row packs 8 pixels x 4 bits = 32 bits (unsigned long)."""
+    Each row packs 8 pixels x 4 bits = 32 bits (uint32_t)."""
     data_len = len(gfx_data)
     num_sprites = 512  # 512 sprites total (128 per ROM file, 4 files)
     sprites = [[[0] * 16 for _ in range(num_sprites)] for _ in range(4)]
@@ -395,16 +350,7 @@ def write_main_rom_h(rom, filepath):
     with open(filepath, "w") as f:
         f.write("// Gyruss main Z80 CPU ROM (24KB: 0x0000-0x5FFF)\n")
         f.write("// Generated from gyrussk.1 + gyrussk.2 + gyrussk.3\n\n")
-        f.write("const unsigned char gyruss_rom_main[] = {\n")
-        for i in range(len(rom)):
-            if i % 16 == 0:
-                f.write("  ")
-            f.write("0x{:02X}".format(rom[i]))
-            if i < len(rom) - 1:
-                f.write(",")
-            if i % 16 == 15 or i == len(rom) - 1:
-                f.write("\n")
-        f.write("};\n")
+        emit_compressed(f, "gyruss_rom_main", "unsigned char", "", len(rom), list(rom))
 
 
 def write_sub_rom_h(raw, decrypted, filepath):
@@ -413,29 +359,9 @@ def write_sub_rom_h(raw, decrypted, filepath):
         f.write("// Gyruss M6809 sub-CPU ROM (8KB: mapped at 0xE000-0xFFFF)\n")
         f.write("// Generated from gyrussk.9\n")
         f.write("// Raw data for operand reads, decrypted for opcode fetches (Konami-1)\n\n")
-
-        f.write("const unsigned char gyruss_rom_sub_raw[] = {\n")
-        for i in range(len(raw)):
-            if i % 16 == 0:
-                f.write("  ")
-            f.write("0x{:02X}".format(raw[i]))
-            if i < len(raw) - 1:
-                f.write(",")
-            if i % 16 == 15 or i == len(raw) - 1:
-                f.write("\n")
-        f.write("};\n\n")
-
-        f.write("// Decrypted opcodes (Konami-1 XOR scheme)\n")
-        f.write("const unsigned char gyruss_rom_sub_decrypt[] = {\n")
-        for i in range(len(decrypted)):
-            if i % 16 == 0:
-                f.write("  ")
-            f.write("0x{:02X}".format(decrypted[i]))
-            if i < len(decrypted) - 1:
-                f.write(",")
-            if i % 16 == 15 or i == len(decrypted) - 1:
-                f.write("\n")
-        f.write("};\n")
+        emit_compressed(f, "gyruss_rom_sub_raw", "unsigned char", "", len(raw), list(raw))
+        f.write("\n// Decrypted opcodes (Konami-1 XOR scheme)\n")
+        emit_compressed(f, "gyruss_rom_sub_decrypt", "unsigned char", "", len(decrypted), list(decrypted))
 
 
 def write_audio_rom_h(rom, filepath):
@@ -443,91 +369,35 @@ def write_audio_rom_h(rom, filepath):
     with open(filepath, "w") as f:
         f.write("// Gyruss audio Z80 CPU ROM (16KB: 0x0000-0x3FFF)\n")
         f.write("// Generated from gyrussk.1a + gyrussk.2a\n\n")
-        f.write("const unsigned char gyruss_rom_audio[] = {\n")
-        for i in range(len(rom)):
-            if i % 16 == 0:
-                f.write("  ")
-            f.write("0x{:02X}".format(rom[i]))
-            if i < len(rom) - 1:
-                f.write(",")
-            if i % 16 == 15 or i == len(rom) - 1:
-                f.write("\n")
-        f.write("};\n")
+        emit_compressed(f, "gyruss_rom_audio", "unsigned char", "", len(rom), list(rom))
 
 
-def write_tilemap_h(tiles, filepath):
-    """Write tilemap as C header. Each tile = 8 rows of uint16 (8 pixels x 2bpp)."""
+def write_tilemap_h(tiles, filepath, patch_values):
+    """Write tilemap as C header, patched (if any) and zlib-compressed.
+    Each tile = 8 rows of uint16 (8 pixels x 2bpp). Row-major flat order
+    (tile, then row) matches til_patch.table's per-position layout, so the
+    patch is applied directly to the flat integer list instead of the old
+    regex-over-generated-text approach (which only worked on a plain literal
+    array, not a compressed blob)."""
+    flat = [v for tile in tiles for v in tile]
+    flat = apply_patch_values(flat, patch_values, 0xFFFF)
     with open(filepath, "w") as f:
         f.write("// Gyruss character tiles (512 tiles, 8x8, 2bpp)\n")
         f.write("// Generated from gyrussk.4\n\n")
-        f.write("const unsigned short gyruss_tilemap[][8] = {\n")
-        for t_idx, tile in enumerate(tiles):
-            f.write("  { ")
-            f.write(",".join("0x{:04x}".format(v) for v in tile))
-            f.write(" }")
-            if t_idx < len(tiles) - 1:
-                f.write(",")
-            f.write("\n")
-        f.write("};\n")
+        emit_compressed(f, "gyruss_tilemap", "unsigned short", "[8]", len(tiles), flat)
 
 
-def generate_temp_tilemap(tiles, temp_file):
-    """Genera il file tilemap temporaneo."""
-    with open(temp_file, 'w', encoding='utf-8') as f:
-        f.write("const unsigned short gyruss_tilemap[][8] = {\n")
-        for t_idx, tile in enumerate(tiles):
-            f.write("  { ")
-            f.write(",".join("0x{:04x}".format(v) for v in tile))
-            f.write(" }")
-            if t_idx < len(tiles) - 1:
-                f.write(",")
-            f.write("\n")
-        f.write("};\n")
-    return len(tiles)
-
-
-def write_spritemap_h(sprites, filepath):
-    """Write spritemap as C header."""
+def write_spritemap_h(sprites, filepath, patch_values):
+    """Write spritemap as C header, patched (if any) and zlib-compressed.
+    Flat order (variant, then sprite, then row) matches spr_patch.table's
+    per-position layout -- see write_tilemap_h."""
+    flat = [row for v in range(4) for s in range(512) for row in sprites[v][s]]
+    flat = apply_patch_values(flat, patch_values, 0xFFFFFFFF)
     with open(filepath, "w") as f:
         f.write("// Gyruss sprites (512 sprites, 8x16, 4bpp, 4 flip variants)\n")
         f.write("// Generated from gyrussk.6 + gyrussk.5 + gyrussk.8 + gyrussk.7\n")
         f.write("// Variant 0=normal, 1=Y-flip, 2=X-flip, 3=XY-flip\n\n")
-        f.write("const unsigned long gyruss_sprites[][512][16] = {\n")
-        for v in range(4):
-            f.write("  {\n")
-            for s in range(512):
-                f.write("    { ")
-                f.write(",".join("0x{:08x}".format(row) for row in sprites[v][s]))
-                f.write(" }")
-                if s < 511:
-                    f.write(",")
-                f.write("\n")
-            f.write("  }")
-            if v < 3:
-                f.write(",")
-            f.write("\n")
-        f.write("};\n")
-
-
-def generate_temp_spritemap(sprites, temp_file):
-    """Genera il file spritemap temporaneo."""
-    with open(temp_file, 'w', encoding='utf-8') as f:
-        f.write("const unsigned long gyruss_sprites[][512][16] = {\n")
-        for v in range(4):
-            f.write("  {\n")
-            for s in range(512):
-                f.write("    { ")
-                f.write(",".join("0x{:08x}".format(row) for row in sprites[v][s]))
-                f.write(" }")
-                if s < 511:
-                    f.write(",")
-                f.write("\n")
-            f.write("  }")
-            if v < 3:
-                f.write(",")
-            f.write("\n")
-        f.write("};\n")
-    return 4 * 512 * 16  # numero di valori
+        emit_compressed(f, "gyruss_sprites", "uint32_t", "[512][16]", 4, flat)
 
 
 def write_palette_h(palette_565, sprite_cmap, char_cmap, filepath):
@@ -647,29 +517,11 @@ def main():
         print("ERRORE: Impossibile caricare il file tile gyrussk.4")
         return
     tiles = decode_tiles(tile_data)
-    
-    temp_file = "temp_gyruss_tilemap.h"
+
     final_file = os.path.join(OUT_DIR, "gyruss_tilemap.h")
-    
-    print("Generazione file temporaneo...")
-    generate_temp_tilemap(tiles, temp_file)
-    print(f"  File temporaneo: {temp_file}")
-    
     tile_patch = load_patch_values("til_patch.table")
-    if tile_patch:
-        print("Applicazione patch per posizione...")
-        apply_patches_to_file(temp_file, final_file, tile_patch)
-    else:
-        print("Nessuna patch, copio il file temporaneo...")
-        with open(temp_file, 'r') as f:
-            content = f.read()
-        with open(final_file, 'w') as f:
-            f.write(content)
-    
-    if os.path.exists(temp_file):
-        os.remove(temp_file)
-        print(f"  File temporaneo eliminato: {temp_file}")
-    
+    write_tilemap_h(tiles, final_file, tile_patch)
+
     print(f"  File finale: {final_file} ({len(tiles)} tiles)")
 
     # 5. Sprites from gyrussk.6+5 (region 0) + gyrussk.8+7 (region 1)
@@ -681,29 +533,11 @@ def main():
     sprite_data[0x4000:0x6000] = load_file("gyrussk.8") or bytearray(0x2000)
     sprite_data[0x6000:0x8000] = load_file("gyrussk.7") or bytearray(0x2000)
     sprites = decode_sprites(sprite_data)
-    
-    temp_file = "temp_gyruss_spritemap.h"
+
     final_file = os.path.join(OUT_DIR, "gyruss_spritemap.h")
-    
-    print("Generazione file temporaneo...")
-    generate_temp_spritemap(sprites, temp_file)
-    print(f"  File temporaneo: {temp_file}")
-    
     sprite_patch = load_patch_values("spr_patch.table")
-    if sprite_patch:
-        print("Applicazione patch per posizione...")
-        apply_patches_to_file(temp_file, final_file, sprite_patch)
-    else:
-        print("Nessuna patch, copio il file temporaneo...")
-        with open(temp_file, 'r') as f:
-            content = f.read()
-        with open(final_file, 'w') as f:
-            f.write(content)
-    
-    if os.path.exists(temp_file):
-        os.remove(temp_file)
-        print(f"  File temporaneo eliminato: {temp_file}")
-    
+    write_spritemap_h(sprites, final_file, sprite_patch)
+
     print(f"  File finale: {final_file} (512 sprites x 4 variants)")
 
     # 6. Palette and color maps from PROMs (no patch)

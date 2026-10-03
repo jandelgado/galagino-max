@@ -1,9 +1,18 @@
 #include "nibbler.h"
+#include "nibbler_rom.h"
+#include "nibbler_gfx.h"
+#include "nibbler_proms.h"
+#include "nibbler_sound_rom.h"
 
-static_assert(sizeof(nibbler_rom)==0x9000,"Unexpected Nibbler program ROM size");
-static_assert(sizeof(nibbler_gfx)==0x2000,"Unexpected Nibbler graphics ROM size");
-static_assert(sizeof(nibbler_proms)==0x40,"Unexpected Nibbler palette PROM size");
-static_assert(sizeof(nibbler_sound_rom)==0x1800,"Unexpected Nibbler sound ROM size");
+nibbler::~nibbler() {
+	nibbler_rom.release();
+	nibbler_gfx.release();
+	nibbler_sound_rom.release();
+}
+
+unsigned char nibbler::vanguardSoundRom(unsigned short addr) {
+  return addr < nibbler_sound_rom.size() ? nibbler_sound_rom[addr] : 0xff;
+}
 
 uint16_t nibbler::pen(unsigned char p) const {
   unsigned char r=0x21*(p&1)+0x47*((p>>1)&1)+0x97*((p>>2)&1);

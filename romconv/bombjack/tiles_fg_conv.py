@@ -2,6 +2,9 @@
 import sys
 import os
 
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from romdata_emit import emit_compressed
+
 # --- Configurazione Specifica per Bomb Jack (Foreground) ---
 INPUT_ROM_FILES = ["../roms/03_e08t.bin", "../roms/04_h08t.bin", "../roms/05_k08t.bin"]
 OUTPUT_HEADER_FILE = "../../source/src/machines/bombjack/bombjack_fg_tiles.h"
@@ -49,15 +52,15 @@ def parse_chr_3bpp_corrected(plane_data, tile_index):
             
     return char_matrix
 
-def dump_chr_to_ulong(data):
-    """Converte una matrice 8x8 di pixel in una stringa di 8 'unsigned long'."""
-    hexs = []
+def dump_chr_values(data):
+    """Converte una matrice 8x8 di pixel in una lista di 8 valori."""
+    vals = []
     for y_row in data:
         val = 0
         for pixel in y_row:
             val = (val << 3) | pixel
-        hexs.append(f"0x{val:06X}")
-    return ",".join(hexs)
+        vals.append(val)
+    return vals
 
 def convert_bombjack_fg_tiles():
     print("--- Conversione Tilemap Foreground per Bomb Jack (Logica Colori Corretta) ---")
@@ -81,17 +84,10 @@ def convert_bombjack_fg_tiles():
         chars.append(final_char)
 
     with open(OUTPUT_HEADER_FILE, "w") as f:
-        f.write(f"// File generato automaticamente per Bomb Jack (formato unsigned long).\n")
+        f.write(f"// File generato automaticamente per Bomb Jack (formato uint32_t).\n")
         f.write(f"// Ordine dei bit-plane corretto per i colori.\n\n")
-        f.write(f"const unsigned long {OUTPUT_ARRAY_NAME}[{NUM_TILES}][{TILE_HEIGHT}] = {{\n")
-        
-        chars_str = []
-        for i, c in enumerate(chars):
-            comment = f" /* Tile {i} */"
-            chars_str.append("  { " + dump_chr_to_ulong(c) + " }" + comment)
-        
-        f.write(",\n".join(chars_str))
-        f.write("\n};")
+        flat = [v for c in chars for v in dump_chr_values(c)]
+        emit_compressed(f, OUTPUT_ARRAY_NAME, "uint32_t", "[%d]" % TILE_HEIGHT, NUM_TILES, flat)
 
     print(f"\nProcesso completato! Il file '{OUTPUT_HEADER_FILE}' è stato creato.")
 

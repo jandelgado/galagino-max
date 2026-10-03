@@ -1,6 +1,28 @@
 #include "dkong.h"
+#include "dkong_rom1.h"
+#include "dkong_rom2.h"
+#include "dkong_logo.h"
+#include "dkong_tilemap.h"
+#include "dkong_spritemap.h"
+#include "dkong_cmap.h"
+#include "dkong_sample_walk0.h"
+#include "dkong_sample_walk1.h"
+#include "dkong_sample_walk2.h"
+#include "dkong_sample_jump.h"
+#include "dkong_sample_stomp.h"
+#include "dkong_sample_fall.h"
+#include "dkong_sample_roar.h"
+#include "dkong_sample_snapjaw.h"
 
-void dkong::reset() { 
+dkong::~dkong() {
+	dkong_rom_cpu1.release();
+	dkong_rom_cpu2.release();
+	dkong_tilemap.release();
+	dkong_sprites.release();
+	dkong_colormap.release();
+}
+
+void dkong::reset() {
   machineBase::reset();
   i8048_reset(&cpu_8048);
 	memset(dkong_audio_transfer_buffer, 0, sizeof(dkong_audio_transfer_buffer)); 
@@ -286,7 +308,7 @@ void dkong::blit_tile(short row, char col) {
 // games, in dkong black is not always transparent. Black pixels
 // are instead used for masking
 void dkong::blit_sprite(short row, unsigned char s) {
-  const unsigned long *spr = dkong_sprites[sprite[s].flags & 3][sprite[s].code];
+  const uint32_t *spr = dkong_sprites[sprite[s].flags & 3][sprite[s].code];
   const unsigned short *colors = dkong_colormap_sprite[colortable_select][sprite[s].color];
   
   // create mask for sprites that clip left or right

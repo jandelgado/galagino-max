@@ -3,11 +3,6 @@
 
 #include "eyes_dipswitches.h"
 #include "eyes_logo.h"
-#include "eyes_rom.h"
-#include "eyes_tilemap.h"
-#include "eyes_spritemap.h"
-#include "eyes_cmap.h"
-#include "eyes_wavetable.h"
 #include "../tileaddr.h"
 #include "../pacman/pacman.h"
 
@@ -15,7 +10,7 @@ class eyes : public pacman
 {
 public:
   eyes() { }
-  ~eyes() { }
+  ~eyes();
 
   signed char machineType() override { return MCH_EYES; } 
   unsigned char rdZ80(unsigned short Addr) override;
@@ -35,7 +30,7 @@ public:
 protected:
   const unsigned short *tileRom(unsigned short addr) override;
   const unsigned short *colorRom(unsigned short addr) override;
-  const unsigned long *spriteRom(unsigned char flags, unsigned char code) override;
+  const uint32_t *spriteRom(unsigned char flags, unsigned char code) override;
 
 };
 
