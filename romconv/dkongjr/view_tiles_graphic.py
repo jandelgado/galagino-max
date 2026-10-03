@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 import sys
 import os
+import re
+import struct
+import zlib
 from PIL import Image, ImageDraw, ImageFont
 
 # --- Configurazione ---
@@ -22,39 +25,33 @@ PADDING = 8
 LABEL_HEIGHT = 30
 
 def parse_tile_data_from_header(filename):
-    """Legge il file .h e estrae i dati esadecimali dei tile."""
+    """Legge il file .h e estrae i dati esadecimali dei tile (formato RomData compresso)."""
     print(f"Lettura e analisi del file: {filename}...")
-    all_tiles_data = []
     try:
         with open(filename, 'r') as f:
-            in_array = False
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("//"):
-                    continue
-                if '{' in line:
-                    in_array = True
-                if not in_array:
-                    continue
-                if line.startswith('{'):
-                    parts = line.strip('{}, \n').split(',')
-                    try:
-                        tile_row_data = [int(p, 16) for p in parts]
-                        if len(tile_row_data) == 8:
-                            all_tiles_data.append(tile_row_data)
-                    except ValueError:
-                        continue
+            content = f.read()
     except FileNotFoundError:
         print(f"ERRORE: File non trovato: {filename}")
         sys.exit(1)
+
+    match = re.search(r'_packed\[\]\s*=\s*\{(.*?)\};', content, re.DOTALL)
+    if not match:
+        print("ERRORE: Array compresso non trovato nel file.")
+        sys.exit(1)
+
+    packed = bytes(int(v, 16) for v in re.findall(r'0x[0-9A-Fa-f]{2}', match.group(1)))
+    raw = zlib.decompress(packed)
+    values = [v[0] for v in struct.iter_unpack('<H', raw)]
+
+    all_tiles_data = [values[i:i + 8] for i in range(0, len(values), 8)]
     print(f"Trovati {len(all_tiles_data)} tile nel file.")
     return all_tiles_data
 
 def visualize_tiles_as_image(all_tiles_data):
     """Crea un'immagine PNG con tutti i tile, ingranditi e con etichette leggibili."""
     if not all_tiles_data:
-        print("Nessun dato da visualizzare.")
-        return
+        print("ERRORE: Nessun dato da visualizzare.")
+        sys.exit(1)
 
     num_tiles = len(all_tiles_data)
     num_rows = (num_tiles + TILES_PER_ROW - 1) // TILES_PER_ROW
@@ -132,7 +129,7 @@ def main():
     """Funzione principale"""
     if not os.path.exists(INPUT_TILEMAP_FILE):
         print(f"ERRORE: Il file '{INPUT_TILEMAP_FILE}' non è stato trovato.")
-        return
+        sys.exit(1)
 
     tile_data = parse_tile_data_from_header(INPUT_TILEMAP_FILE)
     visualize_tiles_as_image(tile_data)

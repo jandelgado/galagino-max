@@ -1,7 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 import re
+import sys
+
+sys.path.insert(0, os.path.join("..", "pyconv"))
+from convutil import fatal
 
 # --- CONFIGURAZIONE ---
 SOURCE_C_FILE = "palette_sprite.c"
@@ -27,15 +32,13 @@ def parse_c_palette_array(file_content):
     
     match = re.search(r"static const uint8_t mrdo_palette\[256\]\[3\] = \{(.*?)\};", file_content, re.DOTALL)
     if not match:
-        print("ERRORE: Impossibile trovare l'array 'mrdo_palette' nel file.")
-        return None
+        fatal("Impossibile trovare l'array 'mrdo_palette' nel file.")
         
     palette_data_str = match.group(1)
     numbers = [int(n) for n in re.findall(r"-?\d+", palette_data_str)]
     
     if len(numbers) != 256 * 3:
-        print(f"ERRORE: Trovati {len(numbers)} valori, ma ne erano attesi 768 (256x3).")
-        return None
+        fatal(f"Trovati {len(numbers)} valori, ma ne erano attesi 768 (256x3).")
         
     palette_rgb888 = [tuple(numbers[i:i+3]) for i in range(0, len(numbers), 3)]
     
@@ -72,7 +75,7 @@ def generate_palette_header(palette_rgb888):
             f.write("};\n")
         print("File header della palette Little Endian generato con successo!")
     except Exception as e:
-        print(f"ERRORE durante la scrittura del file di output: {e}")
+        fatal(f"ERRORE durante la scrittura del file di output: {e}")
 
 
 def main():
@@ -81,8 +84,7 @@ def main():
         with open(SOURCE_C_FILE, 'r') as f:
             c_content = f.read()
     except FileNotFoundError:
-        print(f"ERRORE: File sorgente '{SOURCE_C_FILE}' non trovato.")
-        return
+        fatal(f"File sorgente '{SOURCE_C_FILE}' non trovato.")
         
     palette_data = parse_c_palette_array(c_content)
     if palette_data:

@@ -24,8 +24,8 @@ import os
 import sys
 
 sys.dont_write_bytecode = True
-from helper_functions import load_file
 sys.path.insert(0, os.path.join("..", "pyconv"))
+from gfxutil import load_file, rot_galagino
 from romdata_emit import emit_compressed
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "circusc.zip"))
@@ -69,11 +69,6 @@ def decode_packed(data, base, w, h):
             row.append((b >> 4) & 0xF if (x & 1) == 0 else b & 0xF)
         tile.append(row)
     return tile
-
-# rotazione galagino (portrait, ROT90 + 180 display): out[y][x] = mame[N-1-x][y]
-def rot_galagino(tile):
-    n = len(tile)
-    return [[tile[n - 1 - x][y] for x in range(n)] for y in range(n)]
 
 # ------------------------------------------------------------
 # scritture header
@@ -147,11 +142,7 @@ def write_rom(name, sym, data, comment):
 
 # ------------------------------------------------------------
 def preview(tiles_rot, sprites, pal_prom, char_lut, spr_lut, outpng):
-    try:
-        from PIL import Image
-    except ImportError:
-        print("PIL import failed")
-        return
+    from PIL import Image
     def pal_rgb(c):
         return (255*((c>>0)&7)//7, 255*((c>>3)&7)//7, 255*((c>>6)&3)//3)
     pal = [pal_rgb(c) for c in pal_prom]

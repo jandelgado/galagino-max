@@ -11,8 +11,8 @@ import zipfile
 import hashlib
 
 sys.dont_write_bytecode = True
-from helper_functions import load_file
 sys.path.insert(0, os.path.join("..", "pyconv"))
+from gfxutil import load_file
 from romdata_emit import emit_compressed
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "romszip", "phoenix.zip"))

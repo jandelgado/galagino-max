@@ -18,6 +18,7 @@ import sys
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
+from convutil import fatal
 
 ROM_SRC = os.path.normpath(os.path.join("..", "roms"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "source", "src", "machines", "gyruss"))
@@ -33,8 +34,7 @@ def load_file(name):
                 path = alt_path
                 break
     if not os.path.exists(path):
-        print(f"ERRORE: File '{name}' non trovato in {os.path.abspath(ROM_SRC)}")
-        return None
+        fatal(f"File '{name}' non trovato in {os.path.abspath(ROM_SRC)}")
     with open(path, "rb") as f:
         return bytearray(f.read())
 
@@ -448,17 +448,15 @@ def main():
             if not os.path.exists(alt_path):
                 print(f"ERRORE: File '{fname}' non trovato in {os.path.abspath(ROM_SRC)}")
                 files_ok = False
-    
+
     if not files_ok:
-        print("\nERRORE: Non tutti i file ROM sono presenti. Verifica la directory dei ROM.")
-        return
+        fatal("Non tutti i file ROM sono presenti. Verifica la directory dei ROM.")
 
     # 1. Main Z80 CPU ROM (no patch)
     print("Assembling main Z80 ROM (24KB)...")
     main_rom = assemble_main_rom()
     if main_rom is None:
-        print("ERRORE: Impossibile caricare i file per la main ROM")
-        return
+        fatal("Impossibile caricare i file per la main ROM")
     path = os.path.join(OUT_DIR, "gyruss_rom_main.h")
     write_main_rom_h(main_rom, path)
     print(f"  Written: {path} ({len(main_rom)} bytes)")
@@ -467,8 +465,7 @@ def main():
     print("Assembling M6809 sub-CPU ROM (8KB + decrypted)...")
     sub_raw, sub_decrypt = assemble_sub_rom()
     if sub_raw is None:
-        print("ERRORE: Impossibile caricare i file per la sub ROM")
-        return
+        fatal("Impossibile caricare i file per la sub ROM")
     path = os.path.join(OUT_DIR, "gyruss_rom_sub.h")
     write_sub_rom_h(sub_raw, sub_decrypt, path)
     print(f"  Written: {path} ({len(sub_raw)} bytes raw + {len(sub_decrypt)} bytes decrypted)")
@@ -477,8 +474,7 @@ def main():
     print("Assembling audio Z80 ROM (16KB)...")
     audio_rom = assemble_audio_rom()
     if audio_rom is None:
-        print("ERRORE: Impossibile caricare i file per la audio ROM")
-        return
+        fatal("Impossibile caricare i file per la audio ROM")
     path = os.path.join(OUT_DIR, "gyruss_rom_audio.h")
     write_audio_rom_h(audio_rom, path)
     print(f"  Written: {path} ({len(audio_rom)} bytes)")
@@ -494,8 +490,7 @@ def main():
     print("\n=== GENERAZIONE TILEMAP ===")
     tile_data = load_file("gyrussk.4")
     if tile_data is None:
-        print("ERRORE: Impossibile caricare il file tile gyrussk.4")
-        return
+        fatal("Impossibile caricare il file tile gyrussk.4")
     tiles = decode_tiles(tile_data)
 
     final_file = os.path.join(OUT_DIR, "gyruss_tilemap.h")
@@ -527,8 +522,7 @@ def main():
     pr2 = load_file("gyrussk.pr2")  # 256 bytes - char lookup
     
     if pr3 is None or pr1 is None or pr2 is None:
-        print("ERRORE: Impossibile caricare i file PROM")
-        return
+        fatal("Impossibile caricare i file PROM")
         
     palette_565, sprite_cmap, char_cmap = generate_palette_and_colormaps(pr3, pr1, pr2)
     path = os.path.join(OUT_DIR, "gyruss_palette.h")

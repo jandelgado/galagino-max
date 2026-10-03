@@ -1,6 +1,7 @@
 # File: 3_generate_preview.py (versione a prova di errore)
 import os
 import re
+import sys
 from PIL import Image, ImageDraw, ImageFont
 
 # --- CONFIGURAZIONE ---
@@ -111,6 +112,7 @@ def create_preview():
         print(f"ERRORE: {e}")
         import traceback
         traceback.print_exc()
+        sys.exit(1)
 
 if __name__ == "__main__":
     create_preview()

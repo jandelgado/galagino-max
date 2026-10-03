@@ -1,13 +1,10 @@
 import os
 import sys
-try:
-    from PIL import Image, ImageDraw, ImageFont
-    PIL_AVAILABLE = True
-except ImportError:
-    PIL_AVAILABLE = False
+from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
+from convutil import fatal
 
 # --- Configurazione per gli SPRITE ---
 SPRITE_ROM_FILES = ["../roms/h5-05.bin", "../roms/k5-06.bin"]
@@ -44,14 +41,12 @@ def convert_sprites():
     print("Lettura e concatenazione dei file ROM degli sprite...")
     for filename in SPRITE_ROM_FILES:
         if not os.path.exists(filename):
-            print(f"Errore: Il file '{filename}' non è stato trovato.")
-            return None
+            fatal(f"Il file '{filename}' non è stato trovato.")
         with open(filename, 'rb') as f:
             rom_data.extend(f.read())
 
     if len(rom_data) != NUM_SPRITES * BYTES_PER_SPRITE:
-        print(f"Errore: La dimensione totale dei dati ROM ({len(rom_data)} bytes) non corrisponde a quella attesa.")
-        return None
+        fatal(f"La dimensione totale dei dati ROM ({len(rom_data)} bytes) non corrisponde a quella attesa.")
 
     print("Decodifica degli sprite in corso (con la logica corretta)...")
     
@@ -129,11 +124,8 @@ def write_c_array(sprites_data):
 
 def generate_preview_png(sprites_data):
     """Genera un'immagine PNG di anteprima con tutti gli sprite in una griglia."""
-    if not PIL_AVAILABLE:
-        print("\nAVVISO: La libreria Pillow non è installata. Impossibile generare l'anteprima PNG.")
-        print("Installa con: pip install Pillow")
-        return
-    if not sprites_data: return
+    if not sprites_data:
+        fatal("Nessun dato per generare l'anteprima.")
     print(f"Generazione dell'anteprima PNG in '{OUTPUT_PNG_FILE}'...")
     PREVIEW_PALETTE = [(0, 0, 0, 0), (0, 0, 255), (0, 255, 0), (255, 255, 255)]
     GRID_COLS, UPSCALE_FACTOR = 16, 2

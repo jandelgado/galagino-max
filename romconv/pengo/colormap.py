@@ -6,6 +6,8 @@ import sys
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
+from gfxutil import get_bit, rgb888_to_rgb565_le
+from convutil import fatal
 
 # --- CONFIGURAZIONE PER PENGO ---
 PALETTE_PROM_FILE = "../roms/pr1633.78"
@@ -13,25 +15,14 @@ LOOKUP_PROM_FILE = "../roms/pr1634.88"
 OUTPUT_H_FILE = "../../source/src/machines/pengo/pengo_colormap.h"
 C_COLORMAP_ARRAY_NAME = "pengo_colormap"
 
-def get_bit(value, bit):
-    return (value >> bit) & 1
-
-def rgb888_to_rgb565_le(r, g, b):
-    """Converte un colore RGB 888 in formato RGB565 Little Endian."""
-    r, g, b = [max(0, min(255, c)) for c in (r, g, b)]
-    val_be = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
-    return ((val_be & 0x00FF) << 8) | ((val_be & 0xFF00) >> 8)
-
 def process_pengo_colormaps():
     """
     Costruisce la colormap finale per Pengo seguendo la logica hardware corretta.
     """
     if not os.path.exists(PALETTE_PROM_FILE):
-        print(f"ERRORE: File PROM '{PALETTE_PROM_FILE}' non trovato.")
-        return None
+        fatal(f"File PROM '{PALETTE_PROM_FILE}' non trovato.")
     if not os.path.exists(LOOKUP_PROM_FILE):
-        print(f"ERRORE: File PROM '{LOOKUP_PROM_FILE}' non trovato.")
-        return None
+        fatal(f"File PROM '{LOOKUP_PROM_FILE}' non trovato.")
 
     # --- Step 1: Decodifica la palette base di 32 colori (logica di MAME) ---
     print(f"Lettura e decodifica dei 32 colori base da '{PALETTE_PROM_FILE}'...")
@@ -92,8 +83,7 @@ def process_pengo_colormaps():
 
 def write_c_header(colormap):
     if not colormap:
-        print("Dati non validi, scrittura del file C annullata.")
-        return
+        fatal("Dati non validi, scrittura del file C annullata.")
 
     print(f"\nScrittura del file header '{OUTPUT_H_FILE}'...")
     with open(OUTPUT_H_FILE, 'w') as f:
