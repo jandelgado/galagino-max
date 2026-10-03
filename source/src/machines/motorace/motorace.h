@@ -20,16 +20,20 @@
 class motorace : public machineBase
 {
 public:
-  motorace() { }
+  motorace();
   ~motorace();
 
   signed char machineType()    override { return MCH_MOTORACE; }
-  signed char videoFlipY()     override { return 0; }
-  signed char videoFlipX()     override { return 0; }
+  // flipY toggles both MY and MX (video.cpp); flipX undoes MX.
+  signed char videoFlipY()     override { return 1; }
+  signed char videoFlipX()     override { return 1; }
   signed char useVideoHalfRate() override { return 0; }
   //bool hasOpaqueBG()           override { return true;  } // BG scroll opaco (no memset richiesto)
 
-  void start(void) override;
+  // Native raster is portrait 240x256.
+  const int renderWidth()  override { return 240; }
+  const int renderBuffer() override { return 240 * 2 * 8; }
+
   unsigned char rdZ80(unsigned short Addr) override;
   void          wrZ80(unsigned short Addr, unsigned char Value) override;
   unsigned char opZ80(unsigned short Addr) override;
@@ -50,16 +54,11 @@ public:
   uint8_t snd_port_read(uint8_t port);
 
 protected:
-  // Override vuoti: SPINNERINO usa render trasposto via port_buffer + render_row
+  // Unused: render_row() draws strips directly.
   void blit_tile(short row, char col)            override { }
   void blit_sprite(short row, unsigned char s)   override { }
 
 private:
-  // Render trasposto inline per portrait su framebuffer landscape SPINNERINO:
-  //   fb_x = portrait_y - ARCADE_Y_OFFSET    (clip [0..255])
-  //   fb_y = 223 - portrait_x                (reversed)
-  // Scrittura diretta in frame_buffer (256 wide x 8 tall strip), niente
-  // buffer intermedio = molto piu' veloce (no PSRAM access con stride 224).
   void blit_scroll_strip_t(short strip_r);
   void blit_sprite_t(short strip_r, unsigned char s);
 
@@ -77,6 +76,7 @@ private:
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
+  const unsigned char *snd_rom_ptr = nullptr;
 };
 
 // Global pointer per callback M6803
