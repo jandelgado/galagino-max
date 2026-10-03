@@ -286,6 +286,27 @@ void _1942::prepare_frame(void) {
   }
 }
 
+// Mirrors eight 4-bit pixels for hflip.
+static inline uint32_t reverse_nibbles(uint32_t x) {
+  x = ((x & 0xF0F0F0F0u) >> 4) | ((x & 0x0F0F0F0Fu) << 4);
+  x = ((x & 0xFF00FF00u) >> 8) | ((x & 0x00FF00FFu) << 8);
+  return (x >> 16) | (x << 16);
+}
+
+// Tile: 16 rows x 2 words, 4 bpp, low nibble first. Caller handles vflip
+// via row order.
+static inline void tile_row_words(const uint32_t *tile, int my, bool hflip,
+                                   uint32_t &w0, uint32_t &w1) {
+  const uint32_t *row = tile + 2 * my;
+  if (!hflip) {
+    w0 = row[0];
+    w1 = row[1];
+  } else {
+    w0 = reverse_nibbles(row[1]);
+    w1 = reverse_nibbles(row[0]);
+  }
+}
+
 void _1942::blit_bgtile_row(short row) {
   row += 32 - 2;  // adjust for top two unused rows and scrolling to zero
 
@@ -308,14 +329,20 @@ void _1942::blit_bgtile_row(short row) {
     unsigned char attr = memory[addr + col + 16];
     const unsigned short *colors = _1942_colormap_tiles[_1942_palette][attr & 31];
     unsigned short chr = memory[addr + col] + ((attr & 0x80) <<1);
-    const uint32_t *tile = _1942_tilemap[(attr >> 5) &3][chr] + 2 * yoffset;
+    bool xflip = (attr >> 6) & 1;
+    bool yflip = (attr >> 5) & 1;
+    const uint32_t *tile = _1942_tilemap[chr];
+    int my = yflip ? (15 - yoffset) : yoffset;
+    int myStep = yflip ? -1 : 1;
 
     // draw up to 8 pixel rows
     char r;
-    for(r = 0; r < lines2draw; r++, ptr += (224 -16)) {
-      unsigned long pix = *tile++;
+    for(r = 0; r < lines2draw; r++, ptr += (224 -16), my += myStep) {
+      uint32_t w0, w1;
+      tile_row_words(tile, my, xflip, w0, w1);
+      uint32_t pix = w0;
       for(char c = 0; c < 8; c++, pix >>= 4) *ptr++ = colors[pix & 7];
-      pix = *tile++;
+      pix = w1;
       for(char c = 0; c < 8; c++,pix >>= 4) *ptr++ = colors[pix & 7];
     }
 
@@ -325,13 +352,19 @@ void _1942::blit_bgtile_row(short row) {
       unsigned short next_addr = 0x2000 + 32 * (((line - 17) & 511) / 16) + 1;
       attr = memory[next_addr + col + 16];
       colors = _1942_colormap_tiles[_1942_palette][attr & 31];
-      chr = memory[next_addr + col] + ((attr & 0x80) << 1);    
-      tile = _1942_tilemap[(attr >> 5) & 3][chr];
-      
-      for(; r < 8; r++, ptr += (224 - 16)) {
-	      unsigned long pix = *tile++;
+      chr = memory[next_addr + col] + ((attr & 0x80) << 1);
+      xflip = (attr >> 6) & 1;
+      yflip = (attr >> 5) & 1;
+      tile = _1942_tilemap[chr];
+      my = yflip ? 15 : 0;
+      myStep = yflip ? -1 : 1;
+
+      for(; r < 8; r++, ptr += (224 - 16), my += myStep) {
+	      uint32_t w0, w1;
+	      tile_row_words(tile, my, xflip, w0, w1);
+	      uint32_t pix = w0;
 	      for(char c = 0; c < 8; c++, pix >>= 4) *ptr++ = colors[pix & 7];
-	      pix = *tile++;
+	      pix = w1;
       	for(char c = 0; c < 8; c++, pix >>= 4) *ptr++ = colors[pix & 7];
       }
     }
