@@ -27,6 +27,7 @@ it has Moon Cresta, Scramble and Super Cobra and the games from [speckhoiler/gal
 * Many code cleanups for reduced RAM used - with 44 games around 260k free heap ~~(Flash is the limiting factor, you need and ESP32 with 8MiB of flash)~~.
 * mos6502 emulation (WIP)
 * Flash compression allows to include ALL games even in the ESP32 4MB flash versions
+* Optional on-screen FPS display (`DEBUG_TIMING_FPS_HUD`)
 
 ### Hardware Used
 
@@ -78,6 +79,11 @@ Settings in `config.h`:
   left until a game starts. Comment out in `config.h` to hide it.
 * `MASTER_ATTRACT_MENU_COUNTDOWN_BAR_COLOR565`: bar color, byte-swapped RGB565
   (SPI byte order).
+
+### FPS display
+
+Add `-D DEBUG_TIMING_FPS_HUD` to `build_flags` in `platformio.ini` to show
+the emulation frame rate at the bottom of the screen. Off by default.
 
 ### Games
 

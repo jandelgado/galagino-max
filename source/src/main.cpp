@@ -22,6 +22,7 @@
 #include "emulation/input.h"
 #include "emulation/menu.h"
 #include "emulation/emulation.h"
+#include "emulation/hud.h"
 #ifdef LED_PIN
   #include "emulation/led.h"
 #endif
@@ -301,6 +302,11 @@ void renderRow(short row, bool isMenu) {
   else {
     memset(frame_buffer, 0, currentMachine->renderBuffer());
     currentMachine->render_row(row);
+#ifdef DEBUG_TIMING_FPS_HUD
+    uint8_t flip = (currentMachine->videoFlipY() ? HUD_FLIP_Y : HUD_FLIP_NONE)
+                 | (currentMachine->videoFlipX() ? HUD_FLIP_X : HUD_FLIP_NONE);
+    hud_render_fps(frame_buffer, currentMachine->renderWidth(), row, flip);
+#endif
   }
 }
 

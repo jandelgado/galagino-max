@@ -14,8 +14,21 @@ extern Input input;
 TaskHandle_t emulationTaskHandle;
 volatile static char doDeleteEmulationTask;
 
+#if defined(DEBUG_TIMING) || defined(DEBUG_TIMING_FPS_HUD)
+#define EMULATION_MEASURE_FPS
+static uint32_t counter;
+static uint32_t timeTotal = 0;
+static uint32_t cpuStart;
+static uint32_t cpuSum = 0;
+static uint32_t videoSum = 0;
+#endif
+
+#ifdef DEBUG_TIMING_FPS_HUD
+volatile uint16_t emulation_fps;
+#endif
+
 void emulation_start() {
-#ifdef DEBUG_TIMING
+#ifdef EMULATION_MEASURE_FPS
   timeTotal = millis();
 #endif
   currentMachine->reset();
@@ -54,7 +67,7 @@ void emulation_notifyGive() {
 }
 
 void emulation_videoRendered(void) {
-#ifdef DEBUG_TIMING
+#ifdef EMULATION_MEASURE_FPS
   videoSum += millis() - cpuStart;
 #endif
 }
@@ -63,7 +76,7 @@ IRAM_ATTR void emulation_task(void *p) {
   currentMachine->start();
 
   for(;;) {
-#ifdef DEBUG_TIMING
+#ifdef EMULATION_MEASURE_FPS
     cpuStart = millis();
 #endif
 
@@ -76,14 +89,21 @@ IRAM_ATTR void emulation_task(void *p) {
       vTaskDelete(emulationTaskHandle);
     }
 
-#ifdef DEBUG_TIMING
+#ifdef EMULATION_MEASURE_FPS
     cpuSum += millis() - cpuStart;
 
     // The 60hz vblank rate is in turn 16.6 ms.
   if (counter % 10 == 0) {
     // good time total: 160...170ms
-    unsigned long now = millis();
-    printf("10-frames: %3d Hz | Total: %3d ms | Cpu: %3d ms | Video: %3d ms\n", 10000 / (now - timeTotal),  now - timeTotal, cpuSum, videoSum);
+    uint32_t now = millis();
+    uint32_t dt = now - timeTotal;
+    uint32_t hz = dt ? 10000 / dt : 0;
+#ifdef DEBUG_TIMING_FPS_HUD
+    emulation_fps = hz;
+#endif
+#ifdef DEBUG_TIMING
+    printf("10-frames: %3u Hz | Total: %3u ms | Cpu: %3u ms | Video: %3u ms\n", hz, dt, cpuSum, videoSum);
+#endif
     timeTotal = now;
     cpuSum = 0;
     videoSum = 0;
