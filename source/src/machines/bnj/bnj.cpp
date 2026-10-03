@@ -30,7 +30,15 @@ static inline unsigned short xy_swap(unsigned short local_offset) {
   return 32 * y + x;
 }
 
+// Unpack eagerly, largest first: only this order fits Arena's two blocks.
+// In start(), not ctor: burgertime's ctor also runs for bnj.
 void bnj::start() {
+  bnj_chartiles.data();
+  bnj_spritetiles.data();
+  bnj_rom_main.data();
+  bnj_bgtiles.data();
+  bnj_rom_audio.data();
+
   work_ram  = memory + WORK_RAM_OFFSET;
   video_ram = memory + VIDEORAM_OFFSET;
   color_ram = memory + COLORRAM_OFFSET;
