@@ -346,6 +346,6 @@ void alibaba::render_row(short row) {
   blit_clock(row);
 }
 
-const unsigned short *alibaba::logo(void) {
+RomData<unsigned short, COMPRESSED> &alibaba::logo(void) {
   return alibaba_logo;
 }

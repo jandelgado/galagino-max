@@ -111,7 +111,7 @@ const signed char * mrtnt::waveRom(unsigned char value) {
   return mrtnt_wavetable[value]; 
 }
 
-const unsigned short *mrtnt::logo(void) {
+RomData<unsigned short, COMPRESSED> &mrtnt::logo(void) {
   return mrtnt_logo;
 }
 

@@ -421,7 +421,7 @@ void mrdo::render_row(short row) {
   }
 }
 
-const unsigned short *mrdo::logo(void) {
+RomData<unsigned short, COMPRESSED> &mrdo::logo(void) {
   return mrdo_logo;
 }
 

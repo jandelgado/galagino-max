@@ -445,7 +445,7 @@ void _1942::render_row(short row) {
     blit_tile(row, col);
 }
 
-const unsigned short *_1942::logo(void) {
+RomData<unsigned short, COMPRESSED> &_1942::logo(void) {
   return _1942_logo;
 }
 

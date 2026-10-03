@@ -73,19 +73,10 @@ public:
       current = nullptr;
     }
 
-private:
-    void unpack() const {
-#ifdef ARDUINO
-      uint32_t t0 = millis();
-      printf("Free heap: %d\n", ESP.getFreeHeap());
-#endif
-
-      T *buf = new (std::nothrow) T[count];
-      if (!buf) {
-        printf("RomData: allocation failed (%u bytes)\n", (unsigned)(count * sizeof(T)));
-        abort();
-      }
-
+    // Decompress into a caller-owned buffer of size() elements, bypassing
+    // the data() cache. Lets callers reuse fixed buffers; repeated
+    // new[]/delete[] fragments the heap.
+    void decodeInto(T *dst) const {
       // No dict: dest holds the whole output, so back-references read
       // from it. Saves a window buffer.
       struct uzlib_uncomp d;
@@ -96,8 +87,8 @@ private:
 
       // Returns window size on success, not a TINF_* status.
       int hdr = uzlib_zlib_parse_header(&d);
-      d.dest_start = d.dest = (uint8_t *)buf;
-      d.dest_limit = (uint8_t *)buf + count * sizeof(T);
+      d.dest_start = d.dest = (uint8_t *)dst;
+      d.dest_limit = (uint8_t *)dst + count * sizeof(T);
 
       int status = hdr;
       if (hdr >= 0) {
@@ -113,6 +104,22 @@ private:
                status, (unsigned)(d.dest - d.dest_start), (unsigned)(count * sizeof(T)));
         abort();
       }
+    }
+
+private:
+    void unpack() const {
+#ifdef ARDUINO
+      uint32_t t0 = millis();
+      printf("Free heap: %d\n", ESP.getFreeHeap());
+#endif
+
+      T *buf = new (std::nothrow) T[count];
+      if (!buf) {
+        printf("RomData: allocation failed (%u bytes)\n", (unsigned)(count * sizeof(T)));
+        abort();
+      }
+
+      decodeInto(buf);
 
       uint32_t ms = 0;
 #ifdef ARDUINO

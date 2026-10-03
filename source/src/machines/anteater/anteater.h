@@ -25,7 +25,7 @@ public:
   void prepare_frame(void) override;
   void render_row(short row) override;
 
-  static const unsigned short *logo(void);
+  static RomData<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN	
   static void menuLeds(CRGB *leds);

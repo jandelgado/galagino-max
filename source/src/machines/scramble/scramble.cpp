@@ -543,7 +543,7 @@ inline unsigned short scramble::rgb_to_swapped565(unsigned char r, unsigned char
   return (c >> 8) | (c << 8);  // byte-swap
 }
 
-const unsigned short *scramble::logo(void) {
+RomData<unsigned short, COMPRESSED> &scramble::logo(void) {
   return scramble_logo;
 }
 

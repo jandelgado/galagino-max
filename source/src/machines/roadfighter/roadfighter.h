@@ -75,7 +75,7 @@ public:
   void prepare_frame(void)  override;
   void render_row(short row) override;
 
-  static const unsigned short *logo(void) { return roadfighter_logo; }
+  static RomData<unsigned short, COMPRESSED> &logo(void) { return roadfighter_logo; }
 
   int roadf_dac_sample() const { return dac_sample; }
 

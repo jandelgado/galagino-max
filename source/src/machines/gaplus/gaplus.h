@@ -72,7 +72,7 @@ public:
     bool namcoSoundEnabled() override { return wsg_enable != 0; }
     const signed char *waveRom(unsigned char value) override { return gaplus_wavetable[value & 7]; }
 
-    static const unsigned short *logo(void) { return gaplus_logo; }
+    static RomData<unsigned short, COMPRESSED> &logo(void) { return gaplus_logo; }
 
     // campione esplosione "bang" (customio_3, offset9>=0x0F), mixato in
     // Audio::namco_15xx_render_buffer (gated MCH_GAPLUS), stesso schema di

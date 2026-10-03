@@ -362,7 +362,7 @@ void dkong::render_row(short row) {
   }
 }
 
-const unsigned short *dkong::logo(void) {
+RomData<unsigned short, COMPRESSED> &dkong::logo(void) {
   return dkong_logo;
 }
 

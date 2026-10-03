@@ -26,7 +26,7 @@ public:
 	void prepare_frame(void) override;
 	void render_row(short row) override;
 	const signed char *waveRom(unsigned char value) override;
-	static const unsigned short *logo(void);	
+	static RomData<unsigned short, COMPRESSED> &logo(void);	
 
 private:
 	unsigned char sprite_coords[16]; // NUOVO: Array separato per le coordinate

@@ -452,7 +452,7 @@ void timeplt::render_row(short row) {
     blit_tile_cat(row, col, 1);
 }
 
-const unsigned short *timeplt::logo(void) {
+RomData<unsigned short, COMPRESSED> &timeplt::logo(void) {
   return timeplt_logo;
 }
 

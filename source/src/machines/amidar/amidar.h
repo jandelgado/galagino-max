@@ -28,7 +28,7 @@ public:
   unsigned char opZ80(unsigned short Addr) override;
   unsigned char rdZ80(unsigned short Addr) override;
 
-  static const unsigned short *logo(void);
+  static RomData<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

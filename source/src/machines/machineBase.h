@@ -6,6 +6,7 @@
 #include "../cpus/i8048/i8048.h"
 #include "../cpus/mos6502/M6502.h"
 #include "../emulation/input.h"
+#include "../emulation/romdata.h"
 
 #ifdef LED_PIN
 #include <FastLED.h>
@@ -239,7 +240,7 @@ protected:
 // Per-title data for the menu. No instance exists until create().
 struct machineInfo {
   machineBase *(*create)();
-  const unsigned short *(*logo)();
+  RomData<unsigned short, COMPRESSED> &(*logo)();
 #ifdef LED_PIN
   void (*menuLeds)(CRGB *leds);
 #endif

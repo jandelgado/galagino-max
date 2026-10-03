@@ -201,7 +201,7 @@ const signed char * crush::waveRom(unsigned char value) {
   return crush_wavetable[value]; 
 }
 
-const unsigned short *crush::logo(void) {
+RomData<unsigned short, COMPRESSED> &crush::logo(void) {
   return crush_logo;
 }
 

@@ -145,7 +145,7 @@ void amidar::blit_sprite(short row, unsigned char s) {
   }
 }
 
-const unsigned short *amidar::logo(void) {
+RomData<unsigned short, COMPRESSED> &amidar::logo(void) {
   return amidar_logo;
 }
 

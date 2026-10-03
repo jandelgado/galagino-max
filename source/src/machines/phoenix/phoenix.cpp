@@ -41,7 +41,7 @@ void phoenix::reset() {
   vblank_active = false;
 }
 
-const unsigned short *phoenix::logo(void) {
+RomData<unsigned short, COMPRESSED> &phoenix::logo(void) {
   return phoenix_logo;
 }
 

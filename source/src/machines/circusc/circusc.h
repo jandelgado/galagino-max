@@ -90,7 +90,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  static const unsigned short *logo(void) { return circusc_logo; }
+  static RomData<unsigned short, COMPRESSED> &logo(void) { return circusc_logo; }
 
 protected:
   void blit_sprite(short row, unsigned char s) override;

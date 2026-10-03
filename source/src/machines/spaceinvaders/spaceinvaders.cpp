@@ -223,7 +223,7 @@ void spaceinvaders::render_row(short row) {
 }
 
 
-const unsigned short *spaceinvaders::logo(void) {
+RomData<unsigned short, COMPRESSED> &spaceinvaders::logo(void) {
   return spaceinvaders_logo;
 }
 

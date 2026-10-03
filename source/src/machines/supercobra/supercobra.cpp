@@ -489,7 +489,7 @@ void supercobra::render_row(short row) {
 
 }
 
-const unsigned short *supercobra::logo(void) {
+RomData<unsigned short, COMPRESSED> &supercobra::logo(void) {
   return supercobra_logo;
 }
 

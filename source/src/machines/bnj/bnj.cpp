@@ -428,6 +428,6 @@ void bnj::render_row(short row) {
   }
 }
 
-const unsigned short *bnj::logo(void) {
+RomData<unsigned short, COMPRESSED> &bnj::logo(void) {
   return bnj_logo;
 }

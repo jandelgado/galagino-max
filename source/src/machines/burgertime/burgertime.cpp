@@ -465,6 +465,6 @@ void burgertime::render_row(short row) {
   }
 }
 
-const unsigned short *burgertime::logo(void) {
+RomData<unsigned short, COMPRESSED> &burgertime::logo(void) {
   return burgertime_logo;
 }

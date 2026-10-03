@@ -108,6 +108,11 @@ static void taskWrapper(void *param) {
 void gyruss::start_audio_task() {
   if (audio_task_handle) return;
 
+  // Force decompression here, on the caller's (main) stack: the audio Z80
+  // only self-reads gyruss_rom_audio, so its lazy unpack would otherwise
+  // happen inside the 2KB audio task stack and overflow it.
+  (void)gyruss_rom_audio.data();
+
   audio_running = 1;
   emu_core_id = ARDUINO_RUNNING_CORE == 0 ? 1 : 0;
   int audio_core = emu_core_id == 1 ? 0 : 1;
@@ -572,7 +577,7 @@ void gyruss::render_row(short row) {
 // Logo
 // ============================================================
 
-const unsigned short *gyruss::logo(void) {
+RomData<unsigned short, COMPRESSED> &gyruss::logo(void) {
   return gyruss_logo;
 }
 

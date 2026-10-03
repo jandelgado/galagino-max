@@ -258,7 +258,7 @@ const uint32_t *bagman::spriteRom(unsigned char flags, unsigned char code) {
   return bagman_sprites[flags][code];
 }
 
-const unsigned short *bagman::logo(void) {
+RomData<unsigned short, COMPRESSED> &bagman::logo(void) {
   return bagman_logo;
 }
 

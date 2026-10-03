@@ -115,7 +115,7 @@ const signed char * eyes::waveRom(unsigned char value) {
   return eyes_wavetable[value]; 
 }
 
-const unsigned short *eyes::logo(void) {
+RomData<unsigned short, COMPRESSED> &eyes::logo(void) {
   return eyes_logo;
 }
 
