@@ -1,9 +1,7 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 import sys
 
 from pyconv.convutil import info, run
-
-info("--------- Convert all ---------")
 
 GAMES = [
     "z80",
@@ -61,6 +59,8 @@ GAMES = [
 ]
 
 games = GAMES if len(sys.argv[1:]) == 0 else sys.argv[1:]
+info(f"--------- Convert {'all' if games is GAMES else ' '.join(games)} ---------")
+
 for game in games:
     run(f"pyconv/conv_{game}.py")
 

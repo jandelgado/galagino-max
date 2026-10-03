@@ -72,8 +72,21 @@ def dump_sprite_values(data):
             vals.append(val)
     return vals
 
-def process_and_write(rom_data, width, height, num_sprites, array_name, f_out):
-    """Funzione generica per processare e scrivere un set di sprite."""
+def load_rom_planes():
+    for filename in INPUT_ROM_FILES:
+        if not os.path.exists(filename):
+            print(f"ERRORE: File ROM non trovato: '{filename}'")
+            sys.exit(1)
+
+    # L'ordine è importante per la funzione di decodifica: LSB, bit1, MSB
+    return [
+        open(INPUT_ROM_FILES[2], "rb").read(), # 14_j07b.bin (LSB)
+        open(INPUT_ROM_FILES[1], "rb").read(), # 15_l07b.bin (bit 1)
+        open(INPUT_ROM_FILES[0], "rb").read()  # 16_m07b.bin (MSB)
+    ]
+
+def build_sprite_set(rom_data, width, height, num_sprites):
+    """Decodifica un set di sprite in una lista flat di valori 'uint32_t'."""
     print(f"Processando {num_sprites} sprite {width}x{height}...")
     sprite_byte_size = (width * height) // 8
 
@@ -87,22 +100,9 @@ def process_and_write(rom_data, width, height, num_sprites, array_name, f_out):
 
         flat.extend(dump_sprite_values(sprite_matrix))
 
-    emit_compressed(f_out, array_name, "uint32_t", "[%d]" % (width * height // 8), num_sprites, flat)
+    return flat
 
-def main():
-    print("--- Conversione Sprite per Bomb Jack (Logica Corretta) ---")
-    for filename in INPUT_ROM_FILES:
-        if not os.path.exists(filename):
-            print(f"ERRORE: File ROM non trovato: '{filename}'")
-            sys.exit(1)
-
-    # L'ordine è importante per la funzione di decodifica: LSB, bit1, MSB
-    rom_data = [
-        open(INPUT_ROM_FILES[2], "rb").read(), # 14_j07b.bin (LSB)
-        open(INPUT_ROM_FILES[1], "rb").read(), # 15_l07b.bin (bit 1)
-        open(INPUT_ROM_FILES[0], "rb").read()  # 16_m07b.bin (MSB)
-    ]
-
+def write_header(rom_data):
     with open(OUTPUT_HEADER_FILE, "w") as f:
         f.write(f"// File generato automaticamente per gli sprite di Bomb Jack.\n")
         f.write(f"// Logica di decodifica basata sull'emulatore di floooh.\n")
@@ -110,14 +110,20 @@ def main():
             f.write(f"// Gli sprite sono stati ruotati di 90 gradi in senso orario.\n\n")
         else:
             f.write(f"// Gli sprite NON sono stati ruotati. Il blitter deve gestire la rotazione.\n\n")
-        
-        # Processa e scrivi sprite 16x16
-        process_and_write(rom_data, 16, 16, 256, "bombjack_sprites_16x16", f)
-        
-        # Processa e scrivi sprite 32x32
-        process_and_write(rom_data, 32, 32, 64, "bombjack_sprites_32x32", f)
+
+        for width, height, num_sprites, array_name in [
+            (16, 16, 256, "bombjack_sprites_16x16"),
+            (32, 32, 64, "bombjack_sprites_32x32"),
+        ]:
+            flat = build_sprite_set(rom_data, width, height, num_sprites)
+            emit_compressed(f, array_name, "uint32_t", "[%d]" % (width * height // 8), num_sprites, flat)
 
     print(f"\nProcesso completato! Il file '{OUTPUT_HEADER_FILE}' è stato creato.")
+
+def main():
+    print("--- Conversione Sprite per Bomb Jack (Logica Corretta) ---")
+    rom_data = load_rom_planes()
+    write_header(rom_data)
 
 if __name__ == "__main__":
     main()

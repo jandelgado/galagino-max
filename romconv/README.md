@@ -30,41 +30,18 @@ the change the logos.
 
 ## Do-it-all script
 
-A [batch](conv__all.bat) is included that does all the conversion.
-If you prefer to do everything manually, then use the instructions
-below. Otherwise running the script is all you need to do.
+Running `convert.bat` (Windows) or `convert.sh` (Linux/macOS) with no
+arguments converts all games. Both need [uv](https://docs.astral.sh/uv/)
+on `PATH`; it installs the pinned Python and dependencies from
+`pyproject.toml` automatically.
 
 ## Do it step by step
 
-Execute the following batch files:
-conv_z80.bat
+Pass one or more game names to convert only those:
 
-Execute depenend on wanted games:
-conv_1942.bat
-conv_digdug.bat
-conv_dkong.bat
-conv_eyes.bat
-conv_frogger.bat
-conv_galaga.bat
-conv_lizwiz.bat
-conv_mrtnt.bat
-conv_pacman.bat
-conv_theglob.bat
-conv_crush.bat
-conv_anteater.bat
-conv_bombjack.bat
-conv_mrdo.bat
-conv_bagman.bat
-conv_pengo.bat
-conv_gyruss.bat
-conv_ladybug.bat
-conv_dkongjr.bat
-conv_mspacman.bat
-conv_timeplt.bat
-conv_tutankhm.bat
-conv_invaders.bat
-conv_galaxian.bat
-conv_startforce.bat
-conv_mooncresta.bat
-conv_scramble.bat
-conv_supercobra.bat
+```
+convert.bat z80 galaga pacman
+convert.sh z80 galaga pacman
+```
+
+Game names match the `pyconv/conv_<name>.py` scripts.

@@ -14,7 +14,6 @@ run_in_workdir("sound_conv.py")
 
 info("Donkey Kong Junior Tiles")
 run_in_workdir("tilemap_conv.py")
-run_in_workdir("view_tiles_graphic.py")
 
 info("Donkey Kong Junior Colormaps")
 run_in_workdir("cmap_conv.py")

@@ -4,6 +4,7 @@ import os
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed
+from view_tiles_graphic import visualize_tiles_as_image
 
 # --- Configurazione Specifica per Donkey Kong Jr. (dkongjrj) ---
 
@@ -52,11 +53,10 @@ def dump_chr_values(data):
         vals.append(val)
     return vals
 
-def convert_dkjr_tilemap():
+def decode_tiles():
     """
-    Funzione principale che legge le ROM, le processa e scrive il file di output.
+    Legge le ROM e le decodifica in una lista di tile (matrici 8x8 di indici colore).
     """
-    # 1. Controlla che i file ROM necessari esistano
     print("Controllo dei file ROM necessari...")
     for filename in [INPUT_ROM_FILE_1, INPUT_ROM_FILE_2]:
         if not os.path.exists(filename):
@@ -65,7 +65,6 @@ def convert_dkjr_tilemap():
             sys.exit(1)
     print("Tutti i file ROM sono stati trovati.")
 
-    # 2. Legge i dati dai due file ROM
     try:
         with open(INPUT_ROM_FILE_1, "rb") as f:
             charmap_data_0 = f.read()
@@ -75,12 +74,10 @@ def convert_dkjr_tilemap():
         print(f"ERRORE durante la lettura dei file: {e}")
         sys.exit(1)
 
-    # Verifica le dimensioni
     if len(charmap_data_0) != 4096 or len(charmap_data_1) != 4096:
         print("ERRORE: La dimensione di uno o entrambi i file ROM non è 4096 byte.")
         sys.exit(1)
 
-    # 3. Decodifica tutti i tile
     print(f"Decodifica di {NUM_TILES} tile in corso...")
     chars = []
     for i in range(NUM_TILES):
@@ -89,16 +86,21 @@ def convert_dkjr_tilemap():
         chunk1 = charmap_data_1[8 * i : 8 * (i + 1)]
         chars.append(parse_chr_2(chunk0, chunk1))
     print("Decodifica completata.")
+    return chars
 
-    # 4. Scrive il file header C di output
+def write_header(chars):
+    """
+    Scrive i tile decodificati nel file header C compresso.
+    """
     print(f"Scrittura del file di output: '{OUTPUT_HEADER_FILE}'...")
     with open(OUTPUT_HEADER_FILE, "w") as f:
         f.write(f"// File generato automaticamente per la tilemap di Donkey Kong Jr.\n")
         f.write(f"// Dati estratti da: {INPUT_ROM_FILE_1}, {INPUT_ROM_FILE_2}\n\n")
         flat = [v for c in chars for v in dump_chr_values(c)]
         emit_compressed(f, OUTPUT_ARRAY_NAME, "unsigned short", "[8]", NUM_TILES, flat)
-
     print(f"\nProcesso completato! Il file '{OUTPUT_HEADER_FILE}' è stato creato.")
 
 if __name__ == "__main__":
-    convert_dkjr_tilemap()
+    chars = decode_tiles()
+    write_header(chars)
+    visualize_tiles_as_image([dump_chr_values(c) for c in chars])

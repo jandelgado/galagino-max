@@ -1,0 +1,10 @@
+[project]
+name = "galagino-romconv"
+version = "0.1.0"
+description = "ROM conversion tools for galagino"
+requires-python = ">=3.13"
+dependencies = [
+  "numpy==2.5.3",
+  "pillow==12.3.0",
+  "patch-ng==1.19.1",
+]

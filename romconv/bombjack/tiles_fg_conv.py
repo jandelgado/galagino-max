@@ -62,7 +62,7 @@ def dump_chr_values(data):
         vals.append(val)
     return vals
 
-def convert_bombjack_fg_tiles():
+def decode_tiles():
     print("--- Conversione Tilemap Foreground per Bomb Jack (Logica Colori Corretta) ---")
     for filename in INPUT_ROM_FILES:
         if not os.path.exists(filename):
@@ -76,13 +76,16 @@ def convert_bombjack_fg_tiles():
     for i in range(NUM_TILES):
         # Usa la nuova funzione di parsing con la logica corretta
         decoded_char = parse_chr_3bpp_corrected(plane_data, i)
-        
+
         if ROTATE_TILES:
             final_char = rotate_matrix_90_cw(decoded_char)
         else:
             final_char = decoded_char
         chars.append(final_char)
 
+    return chars
+
+def write_header(chars):
     with open(OUTPUT_HEADER_FILE, "w") as f:
         f.write(f"// File generato automaticamente per Bomb Jack (formato uint32_t).\n")
         f.write(f"// Ordine dei bit-plane corretto per i colori.\n\n")
@@ -92,4 +95,5 @@ def convert_bombjack_fg_tiles():
     print(f"\nProcesso completato! Il file '{OUTPUT_HEADER_FILE}' è stato creato.")
 
 if __name__ == "__main__":
-    convert_bombjack_fg_tiles()
+    chars = decode_tiles()
+    write_header(chars)

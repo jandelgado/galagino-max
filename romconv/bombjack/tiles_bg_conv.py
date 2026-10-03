@@ -58,10 +58,10 @@ def dump_row_to_ulong_pair(row_data):
     for x in range(8, 16): val2 = (val2 << 3) | row_data[x]
     return val1, val2
 
-def convert_bombjack_bg_tiles():
+def decode_tiles():
     rotation_status = "abilitata" if ROTATE_TILES else "disabilitata"
     print(f"--- Conversione Tilemap Background (Logica da C, Rotazione {rotation_status}) ---")
-    
+
     for filename in INPUT_ROM_FILES:
         if not os.path.exists(filename):
             print(f"ERRORE: File ROM non trovato: '{filename}'")
@@ -79,18 +79,21 @@ def convert_bombjack_bg_tiles():
         chunk0 = plane_bm0[base_offset : base_offset + tile_byte_size]
         chunk1 = plane_bm1[base_offset : base_offset + tile_byte_size]
         chunk2 = plane_bm2[base_offset : base_offset + tile_byte_size]
-        
+
         decoded_char = parse_chr_3bpp_16x16_from_c_logic(chunk0, chunk1, chunk2)
-        
+
         if ROTATE_TILES:
             # Non dovrebbe essere usato se la logica C già ruota
             print("ATTENZIONE: La rotazione è abilitata, ma potrebbe non essere necessaria.")
             from PIL import Image
             # Esempio di come ruotare se necessario
             # final_char = ...
-        
+
         chars.append(decoded_char)
 
+    return chars
+
+def write_header(chars):
     with open(OUTPUT_HEADER_FILE, "w") as f:
         f.write(f"// File generato automaticamente per il background di Bomb Jack.\n")
         f.write(f"// Dati decodificati seguendo la logica C funzionante.\n")
@@ -110,4 +113,5 @@ def convert_bombjack_bg_tiles():
     print(f"\nProcesso completato! Il file '{OUTPUT_HEADER_FILE}' è stato creato.")
 
 if __name__ == "__main__":
-    convert_bombjack_bg_tiles()
+    chars = decode_tiles()
+    write_header(chars)
