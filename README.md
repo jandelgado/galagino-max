@@ -114,8 +114,6 @@ Like in the original from Till Harbaum's Galaga emulator, download these files:
     * [Super Cobra](https://www.google.com/search?q=scobra.zip+arcade+rom)
     * [Donkey Kong 3](https://www.google.com/search?q=dkong3.zip+arcade+rom)
     * [Pooyan](https://www.google.com/search?q=pooyan.zip+arcade+rom)
-    * [Zaxxon](https://www.google.com/search?q=zaxxon.zip+arcade+mame+rom+rev+d)
-    * [Zaxxon audio](https://www.google.com/search?q=zaxxon+audio+samples+mame) save as zaxxon-audio.zip
 
 Galagino uses code that is not freely available and thus not included in this repository. Preparing the firmware thus consists of a few additional steps:
 
@@ -123,7 +121,7 @@ Galagino uses code that is not freely available and thus not included in this re
 * Then install the Phyton Pillow Imaging Library. For that, run the command: pip install pillow
 * Optional: If you want to run the logoconv.py to recreate the menu logos, you must install NumPy: pip install numpy
 * The ROM ZIP files have to be placed in the [romszip directory](romszip/), together with the ZIP file containing the Z80 emulator.
-* A set of [python scripts](romconv/) is then being used to convert and patch the ROM data and emulator code and to include the resulting code into the galagino machines directory. For all games, just use convert.bat (Windows) or convert.sh (Linux/macOS).
+* A set of [python scripts](romconv/) is then being used to convert and patch the ROM data and emulator code and to include the resulting code into the galagino machines directory. For all games, just use conv__all.bat.
 
 The [ROM conversion](./romconv) create a whole bunch of additional files in the [source directory](./source). Please check the README in the [romconv](./romconv) directory for further instructions.
 Please ensure that the stripts run without errors!
@@ -140,24 +138,6 @@ If you want to use a nunchuck, you need the NintendoExtensionCtrl library - emul
 
 The Galagino code can be configured through the [config.h](./source/src/config.h), [machines.h](./source/src/machines.h) and [platformio.ini](./source/platformio.ini) file. 
 
-Keep personal settings out of `config.h` so it stays close to upstream.
-Put them in `source/src/config_local.h` instead. The file is git-ignored
-and included at the top of `config.h` if present. Precedence:
-`platformio.ini` build flags, then `config_local.h`, then the `config.h`
-defaults. Example:
-
-```c
-#define MASTER_ATTRACT_GAME_TIMEOUT  60000 * 2
-#define LED_PIN           16
-#define SND_RIGHT_CHANNEL         // audio on GPIO 25 instead of 26
-
-// own pins: skip the board block in config.h
-#define USE_PIO_CONFIG
-#define TFT_CS            5
-#define TFT_DC            32
-// ... remaining TFT_* and BTN_* pins
-```
-
 ## Controls
 
 With the current configuration, the buttons have the following additional functions:
@@ -171,15 +151,6 @@ With the current configuration, the buttons have the following additional functi
 ## Attract mode
 
 In Attract mode, the machine cycles through all games if you do not touch the joystick. The games end after 5 minutes.
-
-Attract mode settings in `config.h`:
-
-* `MASTER_ATTRACT_MENU_TIMEOUT`: idle time in the menu before a game starts (ms).
-* `MASTER_ATTRACT_GAME_TIMEOUT`: time until an attract game ends (ms).
-* `MASTER_ATTRACT_MENU_SHOW_COUNTDOWN`: shows a bar in the menu with the time
-  left until a game starts. Comment out in `config.h` to hide it.
-* `MASTER_ATTRACT_MENU_COUNTDOWN_BAR_COLOR565`: bar color, byte-swapped RGB565
-  (SPI byte order).
 
 ## Limitations
 
