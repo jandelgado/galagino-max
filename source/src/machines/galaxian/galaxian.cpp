@@ -127,17 +127,25 @@ void galaxian::run_frame(void) {
     StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]);
   }
 
+  vblank.publish([this](VideoState &v) {
+    memcpy(v.vram, &memory[VRAM_BASE], sizeof(v.vram));
+    memcpy(v.objram, &memory[OBJRAM_BASE], sizeof(v.objram));
+    v.stars_enabled = stars_enabled;
+  });
+
   if(irq_enable[0]) {
     IntZ80(&cpu[0], INT_NMI);
   }
 }
 
 void galaxian::prepare_frame(void) {
+  vblank.read(video);
+
   // Initialize starfield on first frame
   if(!stars_initialized) stars_init();
 
   // Scroll stars: advance 1 pixel per frame (slow upward scroll)
-  if(stars_enabled) {
+  if(video.stars_enabled) {
     star_scroll_offset = (star_scroll_offset + 1) % 288;
   }
 
@@ -148,7 +156,7 @@ void galaxian::prepare_frame(void) {
   for(int idx = 7; idx >= 0 && active_sprites < 92; idx--) {
     struct sprite_S spr;
 
-    unsigned char *base = memory + 0x0C40 + idx * 4;
+    const unsigned char *base = video.objram + SPRITE_OFS + idx * 4;
 
     spr.code = base[1] & 0x3f;
     spr.flags = (base[1] >> 6) & 3;
@@ -171,7 +179,7 @@ void galaxian::prepare_frame(void) {
   // Indices 0-6 = enemy shells (white), index 7 = player missile (yellow)
   bullet_active = 0;
   for(int idx = 0; idx < 8; idx++) {
-    unsigned char *bbase = memory + 0x0C60 + idx * 4;
+    const unsigned char *bbase = video.objram + BULLET_OFS + idx * 4;
     // galagino X = must match tile scroll direction (ship uses scroll registers)
     // The scroll shifts tiles RIGHT with increasing value.
     // bbase[1] encodes the bullet's scanline position in the same direction as scroll.
@@ -190,9 +198,9 @@ void galaxian::blit_tile(short row, char col) {
     return;
 
   unsigned short addr = tileaddr[row][col];
-  const unsigned short *tile = galaxian_tilemap[memory[0x0800 + addr]];
+  const unsigned short *tile = galaxian_tilemap[video.vram[addr]];
 
-  int c = memory[0x0C00 + 2 * (addr & 31) + 1] & 7;
+  int c = video.objram[2 * (addr & 31) + 1] & 7;
   const unsigned short *colors = galaxian_colormap[c];
 
   unsigned short *ptr = frame_buffer + 8 * col;
@@ -231,8 +239,8 @@ void galaxian::blit_tile_scroll(short row, signed char col, unsigned char scroll
     mask = 0xffff << (2 * (8 - sub));
   }
 
-  const unsigned short *tile = galaxian_tilemap[memory[0x0800 + addr]];
-  int c = memory[0x0C00 + 2 * (addr & 31) + 1] & 7;
+  const unsigned short *tile = galaxian_tilemap[video.vram[addr]];
+  int c = video.objram[2 * (addr & 31) + 1] & 7;
   const unsigned short *colors = galaxian_colormap[c];
   unsigned short *ptr = frame_buffer + 8 * col + sub;
 
@@ -329,7 +337,7 @@ void galaxian::render_row(short row) {
   if(row <= 1 || row >= 34) return;
 
   // Draw stars BEFORE tiles (stars are background, tiles overwrite)
-  if(stars_enabled && stars_initialized) {
+  if(video.stars_enabled && stars_initialized) {
     int row_top = 8 * row;
     int row_bot = row_top + 8;
     for(int i = 0; i < star_count; i++) {
@@ -348,8 +356,8 @@ void galaxian::render_row(short row) {
   }
 
   // Read scroll register for this portrait row (per-column scroll in MAME terms)
-  // ObjRAM even bytes at 0x5800+2*col → memory[0x0C00+2*(row-2)]
-  unsigned char scroll = memory[0x0C00 + 2 * (row - 2)];
+  // ObjRAM even bytes at 0x5800+2*col → video.objram[2*(row-2)]
+  unsigned char scroll = video.objram[2 * (row - 2)];
 
   if(scroll == 0) {
     for(char col = 0; col < 28; col++)
