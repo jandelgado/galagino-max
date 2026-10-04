@@ -10,9 +10,9 @@
 #include "baluba_sub_cpu_rom.h"
 
 baluba::baluba() : starforce(Roms{
-  baluba_main_cpu_rom, baluba_sub_cpu_rom, baluba_fg_tilemap,
-  baluba_bg1_tilemap, baluba_bg2_tilemap, baluba_bg3_tilemap,
-  baluba_sprites_16x16, baluba_sprites_32x32,
+  baluba_main_cpu_rom_blob, baluba_sub_cpu_rom_blob, baluba_fg_tilemap_blob,
+  baluba_bg1_tilemap_blob, baluba_bg2_tilemap_blob, baluba_bg3_tilemap_blob,
+  baluba_sprites_16x16_blob, baluba_sprites_32x32_blob,
 }) { }
 
 uint8_t baluba::dsw1() {
@@ -23,7 +23,7 @@ uint8_t baluba::dsw2() {
   return BALUBA_DSW2;
 }
 
-RomData<unsigned short, COMPRESSED> &baluba::logo(void) {
+Asset<unsigned short, COMPRESSED> &baluba::logo(void) {
   return baluba_logo;
 }
 

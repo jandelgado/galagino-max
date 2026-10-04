@@ -13,9 +13,14 @@
 
 class pengo : public pacman
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned short[256][4], COMPRESSED> pengo_colormap;
+  Asset<unsigned char, COMPRESSED> pengo_rom;
+  Asset<uint32_t[4][64][16], COMPRESSED> pengo_sprites;
+  Asset<unsigned short[8], COMPRESSED> pengo_tiles;
 public:
-	pengo() { }
-	~pengo();
+	pengo();
 
 	signed char machineType() override { return MCH_PENGO; }
 	void start(void) override;
@@ -27,7 +32,7 @@ public:
 	void prepare_frame(void) override;
 	void render_row(short row) override;
 	const signed char *waveRom(unsigned char value) override;
-	static RomData<unsigned short, COMPRESSED> &logo(void);	
+	static Asset<unsigned short, COMPRESSED> &logo(void);	
 
 private:
 	unsigned char sprite_coords[16]; // NUOVO: Array separato per le coordinate

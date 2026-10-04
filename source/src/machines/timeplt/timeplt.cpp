@@ -4,12 +4,11 @@
 #include "timeplt_tilemap.h"
 #include "timeplt_spritemap.h"
 
-timeplt::~timeplt() {
-	timeplt_rom.release();
-	timeplt_snd_rom.release();
-	timeplt_tilemap.release();
-	timeplt_spritemap.release();
-}
+timeplt::timeplt()
+  : timeplt_rom(timeplt_rom_blob),
+    timeplt_snd_rom(timeplt_snd_rom_blob),
+    timeplt_spritemap(timeplt_spritemap_blob),
+    timeplt_tilemap(timeplt_tilemap_blob) { }
 
 void timeplt::start(void) {
   rom_ptr = timeplt_rom.data();
@@ -461,7 +460,7 @@ void timeplt::render_row(short row) {
     blit_tile_cat(row, col, 1);
 }
 
-RomData<unsigned short, COMPRESSED> &timeplt::logo(void) {
+Asset<unsigned short, COMPRESSED> &timeplt::logo(void) {
   return timeplt_logo;
 }
 

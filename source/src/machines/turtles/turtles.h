@@ -35,9 +35,14 @@
 
 class turtles : public scramble
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> turtles_audio_rom;
+  Asset<unsigned char, COMPRESSED> turtles_main_rom;
+  Asset<uint32_t[64][16], COMPRESSED> turtles_spritemap;
+  Asset<unsigned short[8], COMPRESSED> turtles_tilemap;
 public:
-  turtles() {}
-  ~turtles();
+  turtles();
 
   signed char machineType() override { return MCH_TURTLES; }
   void start() override;
@@ -49,7 +54,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

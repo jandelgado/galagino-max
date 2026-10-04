@@ -5,12 +5,11 @@
 #include "alibaba_clockmap.h"
 #include "alibaba_cmap.h"
 
-alibaba::~alibaba() {
-	alibaba_rom.release();
-	alibaba_tilemap.release();
-	alibaba_sprites.release();
-	alibaba_clockmap.release();
-}
+alibaba::alibaba()
+  : alibaba_clockmap(alibaba_clockmap_blob),
+    alibaba_rom(alibaba_rom_blob),
+    alibaba_sprites(alibaba_sprites_blob),
+    alibaba_tilemap(alibaba_tilemap_blob) { }
 
 void alibaba::start(void) {
   rom_ptr = alibaba_rom.data();
@@ -309,12 +308,13 @@ const uint32_t *alibaba::spriteRom(unsigned char flags, unsigned char code) {
 // sull'hardware originale.
 #define ALIBABA_SHOW_CLOCK 0
 
-static void blit_clock_tile(unsigned short *frame_buffer, short row, short clock_col,
+static void blit_clock_tile(unsigned short *frame_buffer, const uint32_t (*clockmap)[24],
+                             short row, short clock_col,
                              unsigned char tile_code, const unsigned short *colors) {
   short local_row = row - CLOCK_ROW;
   if(local_row < 0 || local_row >= 3) return;
 
-  const uint32_t *tile = alibaba_clockmap[tile_code & 0x1f];
+  const uint32_t *tile = clockmap[tile_code & 0x1f];
   unsigned short *ptr = frame_buffer + 8 * clock_col;
 
   for(char r = 0; r < 8; r++, ptr += (224 - 16)) {
@@ -337,12 +337,12 @@ void alibaba::blit_clock(short row) {
 
   // inactive half: solo se mystery_clock <= 16, tile fisso, colonna sinistra
   if(mystery_clock <= 16)
-    blit_clock_tile(frame_buffer, row, CLOCK_COL_LEFT, 0x1f, colors);
+    blit_clock_tile(frame_buffer, alibaba_clockmap, row, CLOCK_COL_LEFT, 0x1f, colors);
 
   // active half: sempre disegnata; colonna destra se clock<16, altrimenti
   // si sposta a sinistra (dove la inactive non c'e' piu')
   short active_col = (mystery_clock & 0x10) ? CLOCK_COL_LEFT : CLOCK_COL_RIGHT;
-  blit_clock_tile(frame_buffer, row, active_col, mystery_clock ^ 0x1f, colors);
+  blit_clock_tile(frame_buffer, alibaba_clockmap, row, active_col, mystery_clock ^ 0x1f, colors);
 }
 
 void alibaba::render_row(short row) {
@@ -350,6 +350,6 @@ void alibaba::render_row(short row) {
   blit_clock(row);
 }
 
-RomData<unsigned short, COMPRESSED> &alibaba::logo(void) {
+Asset<unsigned short, COMPRESSED> &alibaba::logo(void) {
   return alibaba_logo;
 }

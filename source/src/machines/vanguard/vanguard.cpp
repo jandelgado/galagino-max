@@ -5,6 +5,12 @@
 #include "vanguard_sound_rom.h"
 #include "vanguard_samples.h"
 
+vanguard::vanguard()
+  : vanguard_gfx(vanguard_gfx_blob),
+    vanguard_rom(vanguard_rom_blob),
+    vanguard_samples(vanguard_samples_blob),
+    vanguard_sound_rom(vanguard_sound_rom_blob) { memset(&m_cpu, 0, sizeof(m_cpu)); }
+
 static_assert(VANGUARD_SAMPLE_COUNT == 18, "Unexpected Vanguard sample count");
 
 static const uint16_t PLANE_SIZE = 0x800; // 2 bitplanes, 256 codes x 8 rows each
@@ -20,13 +26,6 @@ static void set_cols(uint16_t *cols, uint16_t offset, uint8_t value) {
       w[c] &= ~mask;
     }
   }
-}
-
-vanguard::~vanguard() {
-	vanguard_rom.release();
-	vanguard_gfx.release();
-	vanguard_sound_rom.release();
-	vanguard_samples.release();
 }
 
 unsigned char vanguard::vanguardSoundRom(unsigned short addr) {

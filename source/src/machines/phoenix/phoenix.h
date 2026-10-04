@@ -36,9 +36,13 @@
 // ============================================================================
 
 class phoenix : public machineBase {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> phoenix_bgtiles;
+  Asset<unsigned char, COMPRESSED> phoenix_fgtiles;
+  Asset<unsigned char, COMPRESSED> phoenix_rom;
 public:
-  phoenix() {};
-  ~phoenix();
+  phoenix();
 
   void init(Input *input, unsigned short *framebuffer,
             sprite_S *spritebuffer, unsigned char *memorybuffer) override;
@@ -55,7 +59,7 @@ public:
   void prepare_frame()       override;
   void render_row(short row) override;
 
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
 
 private:
   void blit_tile_t(short strip_r, char col_arcade);

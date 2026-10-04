@@ -6,12 +6,11 @@
 #include "turtles_tilemap.h"
 #include "turtles_cmap.h"
 
-turtles::~turtles() {
-	turtles_main_rom.release();
-	turtles_audio_rom.release();
-	turtles_spritemap.release();
-	turtles_tilemap.release();
-}
+turtles::turtles()
+  : turtles_audio_rom(turtles_audio_rom_blob),
+    turtles_main_rom(turtles_main_rom_blob),
+    turtles_spritemap(turtles_spritemap_blob),
+    turtles_tilemap(turtles_tilemap_blob) {}
 
 void turtles::start() {
   ignoreFireButton = 1;
@@ -277,7 +276,7 @@ void turtles::render_row(short row) {
   }
 }
 
-RomData<unsigned short, COMPRESSED> &turtles::logo(void) {
+Asset<unsigned short, COMPRESSED> &turtles::logo(void) {
   return turtles_logo;
 }
 

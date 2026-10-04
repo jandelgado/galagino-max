@@ -1,5 +1,5 @@
-#ifndef ROMDATA_H
-#define ROMDATA_H
+#ifndef ASSET_H
+#define ASSET_H
 
 #ifdef ARDUINO
 #include <Arduino.h>
@@ -11,24 +11,44 @@
 #include "arena.h"
 #include "uzlib.h"
 
-enum eMode { PLAIN, COMPRESSED };
+enum AssetMode { PLAIN, COMPRESSED };
 
 // Plain flash array or zlib blob unpacked to heap on first access. Same
 // interface either way, so converters can switch formats without touching
 // call sites.
 // `mode` picks the variant at compile time, so each carries only the
 // state it needs.
-template<typename T, eMode mode> class RomData;
+template<typename T, AssetMode mode> class Asset;
+
+// Flash-resident (constexpr) description of one converted array, emitted by
+// romconv next to the array itself. A machine holds an Asset member built
+// from it, so the unpack cache lives and dies with the machine instance.
+template<typename T, AssetMode mode> struct FlashAsset;
 
 template<typename T>
-class RomData<T, PLAIN> {
+struct FlashAsset<T, PLAIN> {
+    const T *data;
+    uint32_t count;
+};
+
+template<typename T>
+struct FlashAsset<T, COMPRESSED> {
+    const uint8_t *packed;
+    uint32_t packedLen;
+    uint32_t count;
+};
+
+template<typename T>
+class Asset<T, PLAIN> {
 public:
     // Points into flash, no copy.
-    constexpr RomData(const T *flashData, unsigned int count)
+    constexpr Asset(const T *flashData, unsigned int count)
       : data_(flashData), count_(count) { }
+    constexpr Asset(const FlashAsset<T, PLAIN> &blob)
+      : data_(blob.data), count_(blob.count) { }
 
-    RomData(const RomData &) = delete;
-    RomData &operator=(const RomData &) = delete;
+    Asset(const Asset &) = delete;
+    Asset &operator=(const Asset &) = delete;
 
     const T *data() const { return data_; }
     operator const T* () const {return data_;}
@@ -36,31 +56,28 @@ public:
     // Element count. sizeof(name) only sees the wrapper.
     unsigned int size() const { return count_; }
 
-    // No-op, so teardown treats both modes alike.
-    void release() { }
-
 private:
     const T *data_;
     unsigned int count_;
 };
 
 template<typename T>
-class RomData<T, COMPRESSED> {
+class Asset<T, COMPRESSED> {
 public:
     // uzlib may write one byte past dest_limit, independent of T.
     static constexpr uint32_t OVERRUN_SLACK_BYTES = 1;
 
     // Unpacked on first access and cached.
-    constexpr RomData(const uint8_t *packed, uint32_t packedLen, uint32_t count)
+    constexpr Asset(const uint8_t *packed, uint32_t packedLen, uint32_t count)
       : packed(packed), packedLen(packedLen), count(count), current(nullptr) { }
+    constexpr Asset(const FlashAsset<T, COMPRESSED> &blob)
+      : Asset(blob.packed, blob.packedLen, blob.count) { }
 
-    // Must stay trivial. A non-trivial destructor registers every global
-    // instance for atexit, which keeps its arrays past --gc-sections and
-    // duplicates their flash use. Free with release().
-    ~RomData() = default;
+    // No release(): the cache dies with its machine, Arena::reset() frees
+    // the memory. Menu logos are statics and use decodeInto().
 
-    RomData(const RomData &) = delete;
-    RomData &operator=(const RomData &) = delete;
+    Asset(const Asset &) = delete;
+    Asset &operator=(const Asset &) = delete;
 
     const T *data() const {
       if (!current) { unpack(); }
@@ -70,11 +87,6 @@ public:
 
     // Element count. sizeof(name) only sees the wrapper.
     uint32_t size() const { return count; }
-
-    // Arena::reset() frees the memory on menu/machine switch.
-    void release() {
-      current = nullptr;
-    }
 
     // Decompress into a caller-owned buffer of size() elements, bypassing
     // the data() cache. Lets callers reuse fixed buffers; repeated
@@ -103,7 +115,7 @@ public:
       }
 
       if (status != TINF_DONE || d.dest != d.dest_limit) {
-        printf("RomData: decompress failed (status=%d, got %u/%u bytes)\n",
+        printf("Asset: decompress failed (status=%d, got %u/%u bytes)\n",
                status, (unsigned)(d.dest - d.dest_start), (unsigned)(count * sizeof(T)));
         abort();
       }
@@ -128,7 +140,7 @@ private:
 #endif
       uint32_t decompressedBytes = count * sizeof(T);
       double ratio = 100.0 * (1.0 - (double)packedLen / (double)decompressedBytes);
-      printf("RomData: unpacked %u bytes (packed %u, %.1f%% smaller) in %u ms. Arena used: %u/%u\n",
+      printf("Asset: unpacked %u bytes (packed %u, %.1f%% smaller) in %u ms. Arena used: %u/%u\n",
              decompressedBytes, packedLen, ratio, ms, (unsigned)usedAfterThisAlloc, (unsigned)Arena::CAPACITY);
 
       current = buf;

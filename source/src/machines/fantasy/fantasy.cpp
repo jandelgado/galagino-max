@@ -5,14 +5,13 @@
 #include "fantasy_sound_rom.h"
 #include "fantasy_samples.h"
 
-static_assert(FANTASY_SAMPLE_COUNT == 12, "Unexpected Fantasy sample count");
+fantasy::fantasy()
+  : fantasy_gfx(fantasy_gfx_blob),
+    fantasy_rom(fantasy_rom_blob),
+    fantasy_samples(fantasy_samples_blob),
+    fantasy_sound_rom(fantasy_sound_rom_blob) { memset(&m_cpu, 0, sizeof(m_cpu)); }
 
-fantasy::~fantasy() {
-	fantasy_rom.release();
-	fantasy_gfx.release();
-	fantasy_sound_rom.release();
-	fantasy_samples.release();
-}
+static_assert(FANTASY_SAMPLE_COUNT == 12, "Unexpected Fantasy sample count");
 
 unsigned char fantasy::vanguardSoundRom(unsigned short addr) {
   return addr < fantasy_sound_rom.size() ? fantasy_sound_rom[addr] : 0xff;

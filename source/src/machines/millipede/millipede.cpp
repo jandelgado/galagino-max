@@ -80,18 +80,15 @@ static uint16_t millipede_color(uint8_t d) {
   return (rgb >> 8) | (rgb << 8);
 }
 
-millipede::millipede() {
+millipede::millipede()
+  : millipede_gfx(millipede_gfx_blob),
+    millipede_rom(millipede_rom_blob) {
   memset(&m_cpu, 0, sizeof(m_cpu));
   m_cpu.read = main_read;
   m_cpu.write = main_write;
   m_cpu.user = this;
   rom = millipede_rom.data();
   gfx = millipede_gfx.data();
-}
-
-millipede::~millipede() {
-  millipede_rom.release();
-  millipede_gfx.release();
 }
 
 void millipede::start() {

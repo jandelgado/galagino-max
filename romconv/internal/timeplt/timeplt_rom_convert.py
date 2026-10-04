@@ -16,7 +16,7 @@ ROM set:
 import os, sys
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 from gfxutil import hex8, hex16, hex32
 from convutil import fatal
 

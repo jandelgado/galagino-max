@@ -19,9 +19,14 @@
 
 class amidar : public turtles
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> amidar_audio_rom;
+  Asset<unsigned char, COMPRESSED> amidar_main_rom;
+  Asset<uint32_t[64][16], COMPRESSED> amidar_spritemap;
+  Asset<unsigned short[8], COMPRESSED> amidar_tilemap;
 public:
-  amidar() {}
-  ~amidar();
+  amidar();
 
   signed char machineType() override { return MCH_AMIDAR; }
 
@@ -29,7 +34,7 @@ public:
   unsigned char opZ80(unsigned short Addr) override;
   unsigned char rdZ80(unsigned short Addr) override;
 
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

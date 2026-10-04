@@ -13,7 +13,7 @@ import hashlib
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import load_file
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "..", "romszip", "phoenix.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "..", "source", "src", "machines", "phoenix"))

@@ -16,11 +16,10 @@
 #include "phoenix_fgtiles.h"
 #include "phoenix_palette.h"
 
-phoenix::~phoenix() {
-	phoenix_rom.release();
-	phoenix_bgtiles.release();
-	phoenix_fgtiles.release();
-}
+phoenix::phoenix()
+  : phoenix_bgtiles(phoenix_bgtiles_blob),
+    phoenix_fgtiles(phoenix_fgtiles_blob),
+    phoenix_rom(phoenix_rom_blob) {}
 
 #define FB_W        224     // larghezza framebuffer galagino
 #define PX_OFFSET   8       // (224-208)/2, centratura orizzontale portrait
@@ -41,7 +40,7 @@ void phoenix::reset() {
   vblank_active = false;
 }
 
-RomData<unsigned short, COMPRESSED> &phoenix::logo(void) {
+Asset<unsigned short, COMPRESSED> &phoenix::logo(void) {
   return phoenix_logo;
 }
 

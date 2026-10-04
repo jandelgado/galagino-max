@@ -55,7 +55,15 @@ static bool is_blank(const void *bitmap, uint16_t size) {
   return true;
 }
 
-zaxxon::zaxxon() {
+zaxxon::zaxxon()
+  : zaxxon_bgtiles(zaxxon_bgtiles_blob),
+    zaxxon_chartiles(zaxxon_chartiles_blob),
+    zaxxon_palette(zaxxon_palette_blob),
+    zaxxon_fgcolor_codes(zaxxon_fgcolor_codes_blob),
+    zaxxon_rom_main(zaxxon_rom_main_blob),
+    zaxxon_spritetiles(zaxxon_spritetiles_blob),
+    zaxxon_tilemap_code(zaxxon_tilemap_code_blob),
+    zaxxon_tilemap_color(zaxxon_tilemap_color_blob) {
   // largest first, or Arena's two blocks overflow
   zaxxon_bgtiles.data();
   zaxxon_spritetiles.data();
@@ -70,15 +78,6 @@ zaxxon::zaxxon() {
   for (uint8_t c = 0; c < SPRITE_CODES; c++) {
     sprite_blank[c] = is_blank(zaxxon_spritetiles[c], sizeof(zaxxon_spritetiles[c]));
   }
-}
-
-zaxxon::~zaxxon() {
-  zaxxon_bgtiles.release();
-  zaxxon_spritetiles.release();
-  zaxxon_rom_main.release();
-  zaxxon_chartiles.release();
-  zaxxon_palette.release();
-  zaxxon_fgcolor_codes.release();
 }
 
 // memory is only valid after machineBase::init() runs, which happens after
@@ -407,7 +406,7 @@ void zaxxon::blit_bg_row(uint8_t row) {
   const uint8_t tcol =
       row - 2; // raw tile column (0-31): the band axis is raw X
 
-  // Hoisted out of the per-pixel loop: RomData::data() branch-checks its
+  // Hoisted out of the per-pixel loop: Asset::data() branch-checks its
   // decompression cache on every call: not free to leave inside a loop that
   // runs up to 1792 times per band call.
   const auto *bgtiles = zaxxon_bgtiles.data();

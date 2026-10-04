@@ -21,9 +21,12 @@
 //         x 0      x 1023         +-----------------+ row 287
 //                                 col 0 = x 0, col 239 = x 1023
 class asteroids : public machineBase {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> asteroids_rom;
+  Asset<unsigned char, COMPRESSED> asteroids_vrom;
 public:
   asteroids();
-  ~asteroids();
   signed char machineType() override { return MCH_ASTEROIDS; }
   void start() override;
   void reset() override;
@@ -32,7 +35,7 @@ public:
   void render_row(short row) override;
   const int renderWidth() override { return 240; }
   const int renderBuffer() override { return 240 * 2 * 8; }
-  static RomData<unsigned short, COMPRESSED> &logo() { return asteroids_logo; }
+  static Asset<unsigned short, COMPRESSED> &logo() { return asteroids_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;

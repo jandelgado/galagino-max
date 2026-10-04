@@ -2,7 +2,7 @@
 import sys
 
 sys.path.insert(0, "internal/pyconv")
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 
 def bit_permute_step(x, m, shift):
     t = ((x >> shift) ^ x) & m
@@ -351,7 +351,7 @@ def parse_spritemap(id, fmt, infiles, outfile, compress=False):
         for flip_x, flip_y in [(False, False), (False, True), (True, False), (True, True)]:
             for s in sprites:
                 flat.extend(sprite_row_values(s, flip_x, flip_y))
-        # Variant is the RomData element, so name[variant][sprite][row]
+        # Variant is the Asset element, so name[variant][sprite][row]
         # indexes like the plain array.
         emit_compressed(f, id, "uint32_t", "["+str(len(sprites))+"][16]", 4, flat)
     else:

@@ -4,12 +4,11 @@
 #include "pooyan_tilemap.h"
 #include "pooyan_spritemap.h"
 
-pooyan::~pooyan() {
-	pooyan_rom.release();
-	pooyan_snd_rom.release();
-	pooyan_tilemap.release();
-	pooyan_spritemap.release();
-}
+pooyan::pooyan()
+  : pooyan_rom(pooyan_rom_blob),
+    pooyan_snd_rom(pooyan_snd_rom_blob),
+    pooyan_spritemap(pooyan_spritemap_blob),
+    pooyan_tilemap(pooyan_tilemap_blob) { }
 
 void pooyan::start(void) {
   rom_ptr = pooyan_rom.data();
@@ -405,7 +404,7 @@ void pooyan::render_row(short row) {
   }
 }
 
-RomData<unsigned short, COMPRESSED> &pooyan::logo(void) {
+Asset<unsigned short, COMPRESSED> &pooyan::logo(void) {
   return pooyan_logo;
 }
 

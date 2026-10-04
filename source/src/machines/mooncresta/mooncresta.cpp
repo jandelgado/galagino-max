@@ -5,11 +5,10 @@
 #include "mooncresta_cmap.h"
 #include "../../emulation/input.h"
 
-mooncresta::~mooncresta() {
-	mooncresta_rom.release();
-	mooncresta_tilemap.release();
-	mooncresta_spritemap.release();
-}
+mooncresta::mooncresta()
+  : mooncresta_rom(mooncresta_rom_blob),
+    mooncresta_spritemap(mooncresta_spritemap_blob),
+    mooncresta_tilemap(mooncresta_tilemap_blob) {}
 
 void mooncresta::start() {
   stars_init();
@@ -458,7 +457,7 @@ inline unsigned short mooncresta::rgb_to_swapped565(unsigned char r, unsigned ch
   return (c >> 8) | (c << 8);  // byte-swap
 }
 
-RomData<unsigned short, COMPRESSED> &mooncresta::logo(void) {
+Asset<unsigned short, COMPRESSED> &mooncresta::logo(void) {
   return mooncresta_logo;
 }
 

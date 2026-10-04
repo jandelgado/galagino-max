@@ -6,11 +6,10 @@
 #include "pacman_cmap.h"
 #include "pacman_wavetable.h"
 
-pacman::~pacman() {
-	pacman_rom.release();
-	pacman_tilemap.release();
-	pacman_sprites.release();
-}
+pacman::pacman()
+  : pacman_rom(pacman_rom_blob),
+    pacman_sprites(pacman_sprites_blob),
+    pacman_tilemap(pacman_tilemap_blob) { }
 
 void pacman::start(void) {
   rom_ptr = pacman_rom.data();
@@ -214,7 +213,7 @@ const signed char *pacman::waveRom(unsigned char value) {
   return pacman_wavetable[value]; 
 }
 
-RomData<unsigned short, COMPRESSED> &pacman::logo(void) {
+Asset<unsigned short, COMPRESSED> &pacman::logo(void) {
   return pacman_logo;
 }
 

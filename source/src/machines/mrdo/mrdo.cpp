@@ -6,12 +6,11 @@
 #include "mrdo_sprite_colormap.h"
 #include "mrdo_palette.h"
 
-mrdo::~mrdo() {
-	mrdo_rom1.release();
-	mrdo_bg_tiles.release();
-	mrdo_fg_tiles.release();
-	mrdo_sprites.release();
-}
+mrdo::mrdo()
+  : mrdo_bg_tiles(mrdo_bg_tiles_blob),
+    mrdo_fg_tiles(mrdo_fg_tiles_blob),
+    mrdo_rom1(mrdo_rom1_blob),
+    mrdo_sprites(mrdo_sprites_blob) { }
 
 void mrdo::reset() {
   machineBase::reset();
@@ -425,7 +424,7 @@ void mrdo::render_row(short row) {
   }
 }
 
-RomData<unsigned short, COMPRESSED> &mrdo::logo(void) {
+Asset<unsigned short, COMPRESSED> &mrdo::logo(void) {
   return mrdo_logo;
 }
 

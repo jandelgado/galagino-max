@@ -5,11 +5,10 @@
 #include "theglob_cmap.h"
 #include "theglob_wavetable.h"
 
-theglob::~theglob() {
-	theglob_rom.release();
-	theglob_tilemap.release();
-	theglob_sprites.release();
-}
+theglob::theglob()
+  : theglob_rom(theglob_rom_blob),
+    theglob_sprites(theglob_sprites_blob),
+    theglob_tilemap(theglob_tilemap_blob) { }
 
 void theglob::init(Input *input, unsigned short *framebuffer, sprite_S *spritebuffer, unsigned char *memorybuffer) {
   machineBase::init(input, framebuffer, spritebuffer, memorybuffer);
@@ -170,7 +169,7 @@ const signed char *theglob::waveRom(unsigned char value) {
   return theglob_wavetable[value];
 }
 
-RomData<unsigned short, COMPRESSED> &theglob::logo(void) {
+Asset<unsigned short, COMPRESSED> &theglob::logo(void) {
   return theglob_logo;
 }
 

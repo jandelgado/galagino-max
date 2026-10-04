@@ -7,15 +7,20 @@
 #include "../machineBase.h"
 
 class fantasy : public machineBase {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> fantasy_gfx;
+  Asset<unsigned char, COMPRESSED> fantasy_rom;
+  Asset<unsigned char, COMPRESSED> fantasy_samples;
+  Asset<unsigned char, COMPRESSED> fantasy_sound_rom;
 public:
-  fantasy() { memset(&m_cpu, 0, sizeof(m_cpu)); }
-  ~fantasy();
+  fantasy();
   signed char machineType() override { return MCH_FANTASY; }
   void start() override;
   void reset() override;
   void run_frame() override;
   void render_row(short row) override;
-  static RomData<unsigned short, COMPRESSED> &logo() { return fantasy_logo; }
+  static Asset<unsigned short, COMPRESSED> &logo() { return fantasy_logo; }
   unsigned char vanguardSoundRom(unsigned short addr) override;
   bool vanguardMusic0Muted() override { return music_muted[0]; }
   bool vanguardMusic1Muted() override { return music_muted[1]; }

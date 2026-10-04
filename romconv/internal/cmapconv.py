@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sys
 sys.path.insert(0, "internal/pyconv")
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 
 def parse_palette(name, name2=None):
     # galaga: the palette contains 32 8 bit rgb values. The first 16 are

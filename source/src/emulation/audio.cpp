@@ -1032,6 +1032,10 @@ void Audio::spaceinvaders_render_buffer(void) {
 #ifdef ENABLE_SPACEINVADERS
   // Space Invaders discrete audio (based on MAME mw8080bw_a.cpp)
 
+  spaceinvaders *siMachine = static_cast<spaceinvaders*>(currentMachine);
+  const signed char *sample_shot = siMachine->si_sample_shot.data();
+  const signed char *sample_invhit = siMachine->si_sample_invhit.data();
+
   uint8_t p3 = currentMachine->soundregs[0]; // port 3: UFO(0) Shot(1) Explosion(2) InvaderDie(3) ExtPlay(4)
   uint8_t p5 = currentMachine->soundregs[1]; // port 5: Fleet1(0) Fleet2(1) Fleet3(2) Fleet4(3) UFOhit(4)
 
@@ -1078,7 +1082,7 @@ void Audio::spaceinvaders_render_buffer(void) {
     if(p3 & 0x02) {
       if(!si_shot_playing) { si_shot_playing = 1; si_shot_pos = 0; }
       if((si_shot_pos >> 1) < si_sample_shot_LEN) {
-        value += si_sample_shot[si_shot_pos >> 1] * 3;
+        value += sample_shot[si_shot_pos >> 1] * 3;
         si_shot_pos++;
       }
     }
@@ -1131,7 +1135,7 @@ void Audio::spaceinvaders_render_buffer(void) {
     if(p3 & 0x08) {
       if(!si_invhit_playing) { si_invhit_playing = 1; si_invhit_pos = 0; }
       if((si_invhit_pos >> 1) < si_sample_invhit_LEN) {
-        value += si_sample_invhit[si_invhit_pos >> 1] * 3;
+        value += sample_invhit[si_invhit_pos >> 1] * 3;
         si_invhit_pos++;
       }
     }

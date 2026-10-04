@@ -60,9 +60,14 @@
 
 class circusc : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> circusc_audio_rom;
+  Asset<unsigned char, COMPRESSED> circusc_main_rom;
+  Asset<unsigned char[16][8], COMPRESSED> circusc_spritemap;
+  Asset<unsigned char[8][4], COMPRESSED> circusc_tilemap;
 public:
   circusc();
-  ~circusc();
 
   signed char machineType() override { return MCH_CIRCUSC; }
   void start() override;
@@ -90,7 +95,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void) { return circusc_logo; }
+  static Asset<unsigned short, COMPRESSED> &logo(void) { return circusc_logo; }
 
 protected:
   void blit_sprite(short row, unsigned char s) override;

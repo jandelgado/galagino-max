@@ -12,9 +12,12 @@
 // with a new memory map, two tile banks, RAM palette and two POKEYs.
 // One M6502 at 12.096 MHz / 8, 256x240 screen, ROT270.
 class millipede : public machineBase {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> millipede_gfx;
+  Asset<unsigned char, COMPRESSED> millipede_rom;
 public:
   millipede();
-  ~millipede();
   signed char machineType() override { return MCH_MILLIPEDE; }
   void start() override;
   void reset() override;
@@ -23,7 +26,7 @@ public:
   void render_row(short row) override;
   const int renderWidth() override { return 240; }
   const int renderBuffer() override { return 240 * 2 * 8; }
-  static RomData<unsigned short, COMPRESSED> &logo() { return millipede_logo; }
+  static Asset<unsigned short, COMPRESSED> &logo() { return millipede_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;

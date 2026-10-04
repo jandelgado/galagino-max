@@ -11,9 +11,14 @@
 
 class mrdo : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char[8][8], COMPRESSED> mrdo_bg_tiles;
+  Asset<unsigned char[8][8], COMPRESSED> mrdo_fg_tiles;
+  Asset<unsigned char, COMPRESSED> mrdo_rom1;
+  Asset<unsigned char[16][16], COMPRESSED> mrdo_sprites;
 public:
-  mrdo() { }
-  ~mrdo();
+  mrdo();
 
   void reset() override;
   void start(void) override;
@@ -28,7 +33,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN  
   static void menuLeds(CRGB *leds);

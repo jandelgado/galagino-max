@@ -6,12 +6,11 @@
 #include "scramble_tilemap.h"
 #include "scramble_cmap.h"
 
-scramble::~scramble() {
-	scramble_main_rom.release();
-	scramble_audio_rom.release();
-	scramble_spritemap.release();
-	scramble_tilemap.release();
-}
+scramble::scramble()
+  : scramble_audio_rom(scramble_audio_rom_blob),
+    scramble_main_rom(scramble_main_rom_blob),
+    scramble_spritemap(scramble_spritemap_blob),
+    scramble_tilemap(scramble_tilemap_blob) {}
 
 void scramble::start() {
   stars_init();
@@ -554,7 +553,7 @@ inline unsigned short scramble::rgb_to_swapped565(unsigned char r, unsigned char
   return (c >> 8) | (c << 8);  // byte-swap
 }
 
-RomData<unsigned short, COMPRESSED> &scramble::logo(void) {
+Asset<unsigned short, COMPRESSED> &scramble::logo(void) {
   return scramble_logo;
 }
 

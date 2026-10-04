@@ -7,9 +7,13 @@
 #include "../machineBase.h"
 
 class scregg : public machineBase {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char[8][8], COMPRESSED> scregg_chartiles;
+  Asset<unsigned char, COMPRESSED> scregg_rom;
+  Asset<unsigned char[16][16], COMPRESSED> scregg_spritetiles;
 public:
-  scregg() { memset(&m_cpu, 0, sizeof(m_cpu)); }
-  ~scregg();
+  scregg();
 
   signed char machineType() override { return MCH_SCREGG; }
   void start() override;
@@ -17,7 +21,7 @@ public:
   void run_frame() override;
   void prepare_frame() override;
   void render_row(short row) override;
-  static RomData<unsigned short, COMPRESSED> &logo() { return scregg_logo; }
+  static Asset<unsigned short, COMPRESSED> &logo() { return scregg_logo; }
 
   const int   renderWidth() { return 240; }
   const int   renderBuffer() { return 240 * 2 * 8; }

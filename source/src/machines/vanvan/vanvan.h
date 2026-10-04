@@ -34,9 +34,14 @@
 
 class vanvan : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> vanvan_rom;
+  Asset<unsigned char, COMPRESSED> vanvan_rom2;
+  Asset<uint32_t[64][16], COMPRESSED> vanvan_sprites;
+  Asset<unsigned short[8], COMPRESSED> vanvan_tilemap;
 public:
-  vanvan() {}
-  ~vanvan();
+  vanvan();
 
   void reset() override;
   void start(void) override;
@@ -51,7 +56,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
   bool hasNamcoAudio() override { return false; }
 
 #ifdef LED_PIN

@@ -38,9 +38,13 @@
 
 class ladybug : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> ladybug_rom_cpu1;
+  Asset<uint32_t[128][16], COMPRESSED> ladybug_sprites;
+  Asset<unsigned short[8], COMPRESSED> ladybug_tilemap;
 public:
-  ladybug() { }
-  ~ladybug();
+  ladybug();
 
   void reset() override;
   void start(void) override;
@@ -57,7 +61,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

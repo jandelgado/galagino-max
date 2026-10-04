@@ -5,12 +5,11 @@
 #include "pengo_colormap.h"
 #include "pengo_wavetable.h"
 
-pengo::~pengo() {
-	pengo_rom.release();
-	pengo_tiles.release();
-	pengo_sprites.release();
-	pengo_colormap.release();
-}
+pengo::pengo()
+  : pengo_colormap(pengo_colormap_blob),
+    pengo_rom(pengo_rom_blob),
+    pengo_sprites(pengo_sprites_blob),
+    pengo_tiles(pengo_tiles_blob) { }
 
 void pengo::start(void) {
   rom_ptr = pengo_rom.data();
@@ -301,6 +300,6 @@ const signed char * pengo::waveRom(unsigned char value) {
   return pengo_wavetable[value]; 
 }
 
-RomData<unsigned short, COMPRESSED> &pengo::logo(void) {
+Asset<unsigned short, COMPRESSED> &pengo::logo(void) {
   return pengo_logo;
 }

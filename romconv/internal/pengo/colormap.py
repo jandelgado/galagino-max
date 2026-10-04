@@ -5,7 +5,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 from gfxutil import get_bit, rgb888_to_rgb565_le
 from convutil import fatal
 

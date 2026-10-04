@@ -12,9 +12,13 @@
 
 class galaxian : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> galaxian_rom;
+  Asset<uint32_t[64][16], COMPRESSED> galaxian_spritemap;
+  Asset<unsigned short[8], COMPRESSED> galaxian_tilemap;
 public:
-  galaxian() { }
-  ~galaxian();
+  galaxian();
 
   signed char machineType() override { return MCH_GALAXIAN; }
   void start(void) override;
@@ -25,7 +29,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

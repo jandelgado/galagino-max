@@ -22,7 +22,6 @@ class starforce : public machineBase
 {
 public:
 	starforce();
-	~starforce();
 
 	signed char machineType() override { return MCH_STARFORCE; }
 	signed char useVideoHalfRate() override { return 1; }
@@ -36,7 +35,7 @@ public:
 	void run_frame(void) override;
 	void prepare_frame(void) override;
 	void render_row(short row) override;
-	static RomData<unsigned short, COMPRESSED> &logo(void);
+	static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN
 	static void menuLeds(CRGB *leds);
@@ -46,14 +45,14 @@ public:
 protected:
 	// ROM assets of one game on this board (starforce, baluba)
 	struct Roms {
-		RomData<unsigned char, COMPRESSED> &main_cpu;
-		RomData<unsigned char, COMPRESSED> &sub_cpu;
-		RomData<uint32_t[8], COMPRESSED> &fg;
-		RomData<uint32_t[16][2], COMPRESSED> &bg1;
-		RomData<uint32_t[16][2], COMPRESSED> &bg2;
-		RomData<uint32_t[16][2], COMPRESSED> &bg3;
-		RomData<uint32_t[16][2], PLAIN> &sprites_16x16;
-		RomData<uint32_t[32][4], PLAIN> &sprites_32x32;
+		const FlashAsset<unsigned char, COMPRESSED> &main_cpu;
+		const FlashAsset<unsigned char, COMPRESSED> &sub_cpu;
+		const FlashAsset<uint32_t[8], COMPRESSED> &fg;
+		const FlashAsset<uint32_t[16][2], COMPRESSED> &bg1;
+		const FlashAsset<uint32_t[16][2], COMPRESSED> &bg2;
+		const FlashAsset<uint32_t[16][2], COMPRESSED> &bg3;
+		const FlashAsset<uint32_t[16][2], PLAIN> &sprites_16x16;
+		const FlashAsset<uint32_t[32][4], PLAIN> &sprites_32x32;
 	};
 	explicit starforce(const Roms &roms);
 
@@ -81,7 +80,15 @@ private:
 	unsigned char coinBackup = 0;
 	unsigned char coinFrameCounter = 0;
 
-	const Roms roms;
+	// ROM assets, unpacked into the Arena on first data()
+	Asset<unsigned char, COMPRESSED> main_cpu_rom;
+	Asset<unsigned char, COMPRESSED> sub_cpu_rom;
+	Asset<uint32_t[8], COMPRESSED> fg_tiles;
+	Asset<uint32_t[16][2], COMPRESSED> bg1_tiles;
+	Asset<uint32_t[16][2], COMPRESSED> bg2_tiles;
+	Asset<uint32_t[16][2], COMPRESSED> bg3_tiles;
+	Asset<uint32_t[16][2], PLAIN> sprites_16x16;
+	Asset<uint32_t[32][4], PLAIN> sprites_32x32;
 
 	// Cached: hot path reads these per access; data() checks the cache on every call.
 	const unsigned char *rom_main_ptr;

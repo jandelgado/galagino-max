@@ -29,32 +29,32 @@
 // 4-bit IMA-ADPCM stream (2-byte predictor header + packed nibbles, see
 // romconv/pyconv/adpcm.py), decoded per-sample by Audio::zaxxon_render_buffer.
 static const uint8_t *const zaxxon_sample_ptr[12] = {
-  (const uint8_t *)zaxxon_sample_missile_homing.data(),  // 0
-  (const uint8_t *)zaxxon_sample_missile_base.data(),    // 1
-  (const uint8_t *)zaxxon_sample_laser.data(),           // 2
-  (const uint8_t *)zaxxon_sample_battleship.data(),      // 3
-  (const uint8_t *)zaxxon_sample_explosion_enemy.data(), // 4 (S-Exp)
-  (const uint8_t *)zaxxon_sample_explosion_ship.data(),  // 5 (M-Exp)
-  (const uint8_t *)zaxxon_sample_cannon.data(),          // 6
-  (const uint8_t *)zaxxon_sample_shot.data(),            // 7
-  (const uint8_t *)zaxxon_sample_alarm_lock.data(),      // 8 (Alarm2)
-  (const uint8_t *)zaxxon_sample_alarm_fuel.data(),      // 9 (Alarm3)
-  (const uint8_t *)zaxxon_sample_noise_intro.data(),     // 10
-  (const uint8_t *)zaxxon_sample_noise_asteroid.data(),  // 11
+  zaxxon_sample_missile_homing_blob.data,  // 0
+  zaxxon_sample_missile_base_blob.data,    // 1
+  zaxxon_sample_laser_blob.data,           // 2
+  zaxxon_sample_battleship_blob.data,      // 3
+  zaxxon_sample_explosion_enemy_blob.data, // 4 (S-Exp)
+  zaxxon_sample_explosion_ship_blob.data,  // 5 (M-Exp)
+  zaxxon_sample_cannon_blob.data,          // 6
+  zaxxon_sample_shot_blob.data,            // 7
+  zaxxon_sample_alarm_lock_blob.data,      // 8 (Alarm2)
+  zaxxon_sample_alarm_fuel_blob.data,      // 9 (Alarm3)
+  zaxxon_sample_noise_intro_blob.data,     // 10
+  zaxxon_sample_noise_asteroid_blob.data,  // 11
 };
 static const uint32_t zaxxon_sample_len[12] = {
-  zaxxon_sample_missile_homing.size(),
-  zaxxon_sample_missile_base.size(),
-  zaxxon_sample_laser.size(),
-  zaxxon_sample_battleship.size(),
-  zaxxon_sample_explosion_enemy.size(),
-  zaxxon_sample_explosion_ship.size(),
-  zaxxon_sample_cannon.size(),
-  zaxxon_sample_shot.size(),
-  zaxxon_sample_alarm_lock.size(),
-  zaxxon_sample_alarm_fuel.size(),
-  zaxxon_sample_noise_intro.size(),
-  zaxxon_sample_noise_asteroid.size(),
+  zaxxon_sample_missile_homing_blob.count,
+  zaxxon_sample_missile_base_blob.count,
+  zaxxon_sample_laser_blob.count,
+  zaxxon_sample_battleship_blob.count,
+  zaxxon_sample_explosion_enemy_blob.count,
+  zaxxon_sample_explosion_ship_blob.count,
+  zaxxon_sample_cannon_blob.count,
+  zaxxon_sample_shot_blob.count,
+  zaxxon_sample_alarm_lock_blob.count,
+  zaxxon_sample_alarm_fuel_blob.count,
+  zaxxon_sample_noise_intro_blob.count,
+  zaxxon_sample_noise_asteroid_blob.count,
 };
 
 // The ROM (0x0165) pulses the one-shot bits of ports B/C: writes ~request,
@@ -79,9 +79,18 @@ static const uint8_t ZAXXON_TRIG_BASE = 4;
 
 class zaxxon : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char[8][8], COMPRESSED> zaxxon_bgtiles;
+  Asset<unsigned char[8][8], COMPRESSED> zaxxon_chartiles;
+  Asset<unsigned short, COMPRESSED> zaxxon_palette;
+  Asset<unsigned char, COMPRESSED> zaxxon_fgcolor_codes;
+  Asset<unsigned char, COMPRESSED> zaxxon_rom_main;
+  Asset<unsigned char[32][32], COMPRESSED> zaxxon_spritetiles;
+  Asset<unsigned short, PLAIN> zaxxon_tilemap_code;
+  Asset<unsigned char, PLAIN> zaxxon_tilemap_color;
 public:
   zaxxon();
-  ~zaxxon();
 
   signed char machineType() override { return MCH_ZAXXON; }
 
@@ -91,7 +100,7 @@ public:
   const int renderWidth() override { return 224; }
   const int renderBuffer() override { return 224 * 2 * 8; }
 
-  static RomData<unsigned short, COMPRESSED> &logo() { return zaxxon_logo; }
+  static Asset<unsigned short, COMPRESSED> &logo() { return zaxxon_logo; }
 
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;

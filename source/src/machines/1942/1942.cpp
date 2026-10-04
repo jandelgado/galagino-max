@@ -1,7 +1,16 @@
 #include "1942.h"
 
 // Unpack eagerly, largest first: only this order fits Arena's two blocks.
-_1942::_1942() {
+_1942::_1942()
+  : _1942_charmap(_1942_charmap_blob),
+    _1942_rom_cpu1(_1942_rom_cpu1_blob),
+    _1942_rom_cpu1_b0(_1942_rom_cpu1_b0_blob),
+    _1942_rom_cpu1_b1(_1942_rom_cpu1_b1_blob),
+    _1942_rom_cpu1_b2(_1942_rom_cpu1_b2_blob),
+    _1942_rom_cpu2(_1942_rom_cpu2_blob),
+    _1942_sprites(_1942_sprites_blob),
+    _1942_colormap_tiles(_1942_colormap_tiles_blob),
+    _1942_tilemap(_1942_tilemap_blob) {
   last_coin = 0;
 
   _1942_sprites.data();
@@ -12,18 +21,6 @@ _1942::_1942() {
   _1942_colormap_tiles.data();
   _1942_charmap.data();
   _1942_rom_cpu1_b1.data();
-}
-
-_1942::~_1942() {
-  _1942_rom_cpu1.release();
-  _1942_rom_cpu1_b0.release();
-  _1942_rom_cpu1_b1.release();
-  _1942_rom_cpu1_b2.release();
-  _1942_rom_cpu2.release();
-  _1942_charmap.release();
-  _1942_colormap_tiles.release();
-  _1942_tilemap.release();
-  _1942_sprites.release();
 }
 
 void _1942::start(void) {
@@ -510,7 +507,7 @@ void _1942::render_row(short row) {
     blit_tile(row, col);
 }
 
-RomData<unsigned short, COMPRESSED> &_1942::logo(void) {
+Asset<unsigned short, COMPRESSED> &_1942::logo(void) {
   return _1942_logo;
 }
 

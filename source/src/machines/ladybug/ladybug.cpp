@@ -5,11 +5,10 @@
 #include "ladybug_cmap.h"
 #include "../../emulation/input.h"
 
-ladybug::~ladybug() {
-	ladybug_rom_cpu1.release();
-	ladybug_tilemap.release();
-	ladybug_sprites.release();
-}
+ladybug::ladybug()
+  : ladybug_rom_cpu1(ladybug_rom_cpu1_blob),
+    ladybug_sprites(ladybug_sprites_blob),
+    ladybug_tilemap(ladybug_tilemap_blob) { }
 
 void ladybug::reset() {
   machineBase::reset();
@@ -372,7 +371,7 @@ void ladybug::render_row(short row) {
   }
 }
 
-RomData<unsigned short, COMPRESSED> &ladybug::logo(void) {
+Asset<unsigned short, COMPRESSED> &ladybug::logo(void) {
   return ladybug_logo;
 }
 

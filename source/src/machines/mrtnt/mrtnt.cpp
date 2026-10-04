@@ -5,11 +5,10 @@
 #include "mrtnt_cmap.h"
 #include "mrtnt_wavetable.h"
 
-mrtnt::~mrtnt() {
-	mrtnt_rom.release();
-	mrtnt_tilemap.release();
-	mrtnt_sprites.release();
-}
+mrtnt::mrtnt()
+  : mrtnt_rom(mrtnt_rom_blob),
+    mrtnt_sprites(mrtnt_sprites_blob),
+    mrtnt_tilemap(mrtnt_tilemap_blob) { }
 
 void mrtnt::start(void) {
   rom_ptr = mrtnt_rom.data();
@@ -115,7 +114,7 @@ const signed char * mrtnt::waveRom(unsigned char value) {
   return mrtnt_wavetable[value]; 
 }
 
-RomData<unsigned short, COMPRESSED> &mrtnt::logo(void) {
+Asset<unsigned short, COMPRESSED> &mrtnt::logo(void) {
   return mrtnt_logo;
 }
 

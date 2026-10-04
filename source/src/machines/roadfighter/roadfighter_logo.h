@@ -1,4 +1,4 @@
-#include "../../emulation/romdata.h"
+#include "../../emulation/asset.h"
 // roadfighter_logo: 43008 -> 15139 bytes (64.8% smaller)
 static const unsigned char roadfighter_logo_packed[] = {
   0x78,0xDA,0xED,0xBC,0x6B,0x5C,0x13,0x59,0xBE,0xEF,0x9D,0x00,0x6A,0x10,0xD4,0x60,
@@ -949,4 +949,4 @@ static const unsigned char roadfighter_logo_packed[] = {
   0xD6,0xB6,0xB5,0x6D,0x6D,0x5B,0xDB,0xD6,0xB6,0xB5,0xED,0x2F,0x6F,0xFF,0x1F,0x8C,
   0xB7,0xE1,0xDB
 };
-static RomData<unsigned short, COMPRESSED> roadfighter_logo(roadfighter_logo_packed, sizeof(roadfighter_logo_packed), 21504);
+static Asset<unsigned short, COMPRESSED> roadfighter_logo(roadfighter_logo_packed, sizeof(roadfighter_logo_packed), 21504);

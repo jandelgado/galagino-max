@@ -3,17 +3,14 @@
 #include "tutankhm_bank_rom.h"
 #include "tutankhm_snd_rom.h"
 
-tutankhm::tutankhm() {
+tutankhm::tutankhm()
+  : tutankhm_bank_rom(tutankhm_bank_rom_blob),
+    tutankhm_rom(tutankhm_rom_blob),
+    tutankhm_snd_rom(tutankhm_snd_rom_blob) {
 	// In ctor: m6809_reset() reads the reset vector through these.
 	rom_ptr = tutankhm_rom.data();
 	bank_rom_ptr = tutankhm_bank_rom.data();
 	snd_rom_ptr = tutankhm_snd_rom.data();
-}
-
-tutankhm::~tutankhm() {
-	tutankhm_rom.release();
-	tutankhm_bank_rom.release();
-	tutankhm_snd_rom.release();
 }
 
 void tutankhm::reset() {
@@ -368,7 +365,7 @@ void tutankhm::render_row(short row) {
     }
 }
 
-RomData<unsigned short, COMPRESSED> &tutankhm::logo(void) {
+Asset<unsigned short, COMPRESSED> &tutankhm::logo(void) {
     return tutankhm_logo;
 }
 

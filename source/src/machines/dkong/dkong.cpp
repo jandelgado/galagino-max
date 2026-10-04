@@ -14,13 +14,12 @@
 #include "dkong_sample_roar.h"
 #include "dkong_sample_snapjaw.h"
 
-dkong::~dkong() {
-	dkong_rom_cpu1.release();
-	dkong_rom_cpu2.release();
-	dkong_tilemap.release();
-	dkong_sprites.release();
-	dkong_colormap.release();
-}
+dkong::dkong()
+  : dkong_colormap(dkong_colormap_blob),
+    dkong_rom_cpu1(dkong_rom_cpu1_blob),
+    dkong_rom_cpu2(dkong_rom_cpu2_blob),
+    dkong_sprites(dkong_sprites_blob),
+    dkong_tilemap(dkong_tilemap_blob) { }
 
 void dkong::reset() {
   machineBase::reset();
@@ -363,7 +362,7 @@ void dkong::render_row(short row) {
   }
 }
 
-RomData<unsigned short, COMPRESSED> &dkong::logo(void) {
+Asset<unsigned short, COMPRESSED> &dkong::logo(void) {
   return dkong_logo;
 }
 

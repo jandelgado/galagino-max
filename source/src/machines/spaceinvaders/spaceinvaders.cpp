@@ -1,11 +1,10 @@
 #include "spaceinvaders.h"
 #include "spaceinvaders_rom.h"
 
-spaceinvaders::~spaceinvaders() {
-	spaceinvaders_rom.release();
-	si_sample_shot.release();
-	si_sample_invhit.release();
-}
+spaceinvaders::spaceinvaders()
+  : spaceinvaders_rom(spaceinvaders_rom_blob),
+    si_sample_shot(si_sample_shot_blob),
+    si_sample_invhit(si_sample_invhit_blob) { }
 
 void spaceinvaders::reset() {
   machineBase::reset();
@@ -227,7 +226,7 @@ void spaceinvaders::render_row(short row) {
 }
 
 
-RomData<unsigned short, COMPRESSED> &spaceinvaders::logo(void) {
+Asset<unsigned short, COMPRESSED> &spaceinvaders::logo(void) {
   return spaceinvaders_logo;
 }
 

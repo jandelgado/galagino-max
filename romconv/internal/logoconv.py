@@ -2,7 +2,7 @@
 import sys
 
 sys.path.insert(0, "internal/pyconv")
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 
 from PIL import Image
 
@@ -31,7 +31,7 @@ def parse_logo(inname, outname):
     if c_name[0].isnumeric(): c_name = "_" + c_name
 
     with open(outname, "w") as f:
-        emit_compressed(f, c_name, "unsigned short", "", len(rgb565), rgb565)
+        emit_compressed(f, c_name, "unsigned short", "", len(rgb565), rgb565, static_object=True)
 
 if len(sys.argv) != 3:
     print(f"usage: {sys.argv[0]} <logo-png> <output-header>")

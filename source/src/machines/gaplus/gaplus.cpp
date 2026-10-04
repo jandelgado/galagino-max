@@ -1,21 +1,20 @@
 #include "gaplus.h"
 
-gaplus::gaplus() : rom_main(gaplus_rom_main.data()),
+gaplus::gaplus()
+  : gaplus_colormap_sprites(gaplus_colormap_sprites_blob),
+    gaplus_rom_main(gaplus_rom_main_blob),
+    gaplus_rom_sub(gaplus_rom_sub_blob),
+    gaplus_rom_sub2(gaplus_rom_sub2_blob),
+    gaplus_sample_bang(gaplus_sample_bang_blob),
+    gaplus_sprites(gaplus_sprites_blob),
+    gaplus_tilemap(gaplus_tilemap_blob),
+    rom_main(gaplus_rom_main.data()),
   rom_sub(gaplus_rom_sub.data()),
   rom_sub2(gaplus_rom_sub2.data()),
   tiles(gaplus_tilemap.data()),
   cmap_tiles(gaplus_colormap_tiles),
   cmap_prio(gaplus_colormap_tiles_prio),
   cmap_sprites(gaplus_colormap_sprites.data()) { }
-
-gaplus::~gaplus() {
-	gaplus_rom_main.release();
-	gaplus_rom_sub.release();
-	gaplus_rom_sub2.release();
-	gaplus_tilemap.release();
-	gaplus_colormap_sprites.release();
-	gaplus_sample_bang.release();
-}
 
 void gaplus::reset() {
   machineBase::reset();

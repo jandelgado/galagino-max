@@ -438,7 +438,7 @@ const signed char * galaga::waveRom(unsigned char value) {
   return galaga_wavetable[value]; 
 }
 
-RomData<unsigned short, COMPRESSED> &galaga::logo(void) {
+Asset<unsigned short, COMPRESSED> &galaga::logo(void) {
   return galaga_logo;
 }
 

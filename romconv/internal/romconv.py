@@ -2,7 +2,7 @@
 import sys
 sys.path.insert(0, "internal/pyconv")
 
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 
 PATCHES = {
     "galaga_rom_cpu1":

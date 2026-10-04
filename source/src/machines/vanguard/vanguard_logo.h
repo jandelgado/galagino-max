@@ -1,4 +1,4 @@
-#include "../../emulation/romdata.h"
+#include "../../emulation/asset.h"
 // vanguard_logo: 43008 -> 6850 bytes (84.1% smaller)
 static const unsigned char vanguard_logo_packed[] = {
   0x78,0xDA,0xED,0x5C,0x7B,0x54,0x53,0x57,0xBA,0xDF,0x27,0x41,0xC5,0xD6,0x4E,0xB1,
@@ -431,4 +431,4 @@ static const unsigned char vanguard_logo_packed[] = {
   0x82,0x05,0x0B,0x16,0x2C,0x58,0xB0,0x60,0xC1,0x82,0x45,0x10,0xFF,0x0B,0x45,0x5A,
   0x82,0x21
 };
-static RomData<unsigned short, COMPRESSED> vanguard_logo(vanguard_logo_packed, sizeof(vanguard_logo_packed), 21504);
+static Asset<unsigned short, COMPRESSED> vanguard_logo(vanguard_logo_packed, sizeof(vanguard_logo_packed), 21504);

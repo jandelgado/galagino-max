@@ -83,18 +83,15 @@ static uint16_t centipede_color(uint8_t d) {
   return (rgb >> 8) | (rgb << 8);
 }
 
-centipede::centipede() {
+centipede::centipede()
+  : centipede_gfx(centipede_gfx_blob),
+    centipede_rom(centipede_rom_blob) {
   memset(&m_cpu, 0, sizeof(m_cpu));
   m_cpu.read = main_read;
   m_cpu.write = main_write;
   m_cpu.user = this;
   rom = centipede_rom.data();
   gfx = centipede_gfx.data();
-}
-
-centipede::~centipede() {
-  centipede_rom.release();
-  centipede_gfx.release();
 }
 
 void centipede::start() {

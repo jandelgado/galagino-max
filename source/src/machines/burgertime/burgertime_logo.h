@@ -1,4 +1,4 @@
-#include "../../emulation/romdata.h"
+#include "../../emulation/asset.h"
 // burgertime_logo: 43008 -> 16625 bytes (61.3% smaller)
 static const unsigned char burgertime_logo_packed[] = {
   0x78,0xDA,0xED,0xBD,0x6F,0x54,0x1B,0x67,0x96,0x27,0xFC,0x94,0xC0,0x71,0x09,0xEC,
@@ -1042,4 +1042,4 @@ static const unsigned char burgertime_logo_packed[] = {
   0x1E,0xE9,0xCB,0x47,0xDB,0xA3,0xED,0xD1,0xF6,0x2D,0x6F,0xFF,0x2F,0xDC,0xB1,0xEA,
   0x75
 };
-static RomData<unsigned short, COMPRESSED> burgertime_logo(burgertime_logo_packed, sizeof(burgertime_logo_packed), 21504);
+static Asset<unsigned short, COMPRESSED> burgertime_logo(burgertime_logo_packed, sizeof(burgertime_logo_packed), 21504);

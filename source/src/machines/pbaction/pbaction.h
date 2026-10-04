@@ -45,9 +45,16 @@
 
 class pbaction : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> pbaction_audio_rom;
+  Asset<unsigned char[8][8], PLAIN> pbaction_bg_tiles;
+  Asset<unsigned char[8][8], COMPRESSED> pbaction_fg_tiles;
+  Asset<unsigned char, COMPRESSED> pbaction_main_rom;
+  Asset<unsigned char[16][16], PLAIN> pbaction_sprites16;
+  Asset<unsigned char[32][32], COMPRESSED> pbaction_sprites32;
 public:
   pbaction();
-  ~pbaction();
 
   void reset() override;
   void start(void) override;
@@ -63,7 +70,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

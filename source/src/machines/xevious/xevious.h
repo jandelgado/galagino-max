@@ -68,10 +68,21 @@
 
 class xevious : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned short[8], COMPRESSED> xevious_bgtilemap;
+  Asset<unsigned short[4], COMPRESSED> xevious_colormap_bg;
+  Asset<unsigned short[8], COMPRESSED> xevious_colormap_sprites;
+  Asset<unsigned char[8], COMPRESSED> xevious_fgtilemap;
+  Asset<unsigned char, COMPRESSED> xevious_planetmap;
+  Asset<unsigned char, COMPRESSED> xevious_rom_cpu1;
+  Asset<unsigned char, COMPRESSED> xevious_rom_cpu2;
+  Asset<unsigned char, COMPRESSED> xevious_rom_cpu3;
+  Asset<unsigned char, COMPRESSED> xevious_sample_boom;
+  Asset<unsigned char, COMPRESSED> xevious_sample_boom2;
+  Asset<uint32_t[320][32], PLAIN> xevious_sprites;
 public:
-  // ctor/dtor in .cpp: a header-static RomData is per-TU; data() and release() must hit one copy.
   xevious();
-  ~xevious();
 
   signed char machineType() override { return MCH_XEVIOUS; }
 
@@ -85,7 +96,7 @@ public:
   void render_row(short row) override;
 
   const signed char *waveRom(unsigned char value) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
   bool hasNamcoAudio() override { return true; }
 
   // esplosioni: campioni PCM digitalizzati (stesso schema di

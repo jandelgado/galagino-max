@@ -3,7 +3,7 @@ import sys
 import os
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 
 # --- Configurazione Specifica per Bomb Jack (Foreground) ---
 INPUT_ROM_FILES = ["../../roms/03_e08t.bin", "../../roms/04_h08t.bin", "../../roms/05_k08t.bin"]

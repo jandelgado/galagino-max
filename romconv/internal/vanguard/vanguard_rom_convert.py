@@ -14,7 +14,7 @@ import zlib
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pyconv"))
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 from adpcm import ima_encode
 
 HERE = Path(__file__).resolve().parent

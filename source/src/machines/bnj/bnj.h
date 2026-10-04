@@ -55,9 +55,15 @@
 
 class bnj : public burgertime
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char[16][16], COMPRESSED> bnj_bgtiles;
+  Asset<unsigned char[8][8], COMPRESSED> bnj_chartiles;
+  Asset<unsigned char, COMPRESSED> bnj_rom_audio;
+  Asset<unsigned char, COMPRESSED> bnj_rom_main;
+  Asset<unsigned char[16][16], COMPRESSED> bnj_spritetiles;
 public:
-  bnj() { memset(&cpu_main, 0, sizeof(cpu_main)); memset(&cpu_audio, 0, sizeof(cpu_audio)); }
-  ~bnj();
+  bnj();
 
   signed char machineType() override { return MCH_BNJ; }
   void start() override;
@@ -66,7 +72,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
 
 protected:
   void blit_tile(short row, char col) override;

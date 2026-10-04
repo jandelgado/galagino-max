@@ -5,12 +5,11 @@
 #include "supercobra_tilemap.h"
 #include "supercobra_cmap.h"
 
-supercobra::~supercobra() {
-	supercobra_main_rom.release();
-	supercobra_audio_rom.release();
-	supercobra_spritemap.release();
-	supercobra_tilemap.release();
-}
+supercobra::supercobra()
+  : supercobra_audio_rom(supercobra_audio_rom_blob),
+    supercobra_main_rom(supercobra_main_rom_blob),
+    supercobra_spritemap(supercobra_spritemap_blob),
+    supercobra_tilemap(supercobra_tilemap_blob) {}
 
 // supercobra has its own ROMs; scramble::start() does not cache them.
 void supercobra::start(void) {
@@ -496,7 +495,7 @@ void supercobra::render_row(short row) {
 
 }
 
-RomData<unsigned short, COMPRESSED> &supercobra::logo(void) {
+Asset<unsigned short, COMPRESSED> &supercobra::logo(void) {
   return supercobra_logo;
 }
 

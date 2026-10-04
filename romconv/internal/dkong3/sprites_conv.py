@@ -3,7 +3,7 @@ import sys
 import os
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 
 # --- Configurazione per Donkey Kong 3 (dkong3j) ---
 INPUT_ROM_FILES = [

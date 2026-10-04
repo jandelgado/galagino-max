@@ -3,7 +3,7 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from romdata_emit import emit_compressed, emit_plain
+from asset_emit import emit_compressed, emit_plain
 import senjyo_sets
 
 # --- Configurazione ---

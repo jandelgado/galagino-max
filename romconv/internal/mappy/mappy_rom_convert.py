@@ -11,7 +11,7 @@ sys.dont_write_bytecode = True
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import load_file, mame_decode, rot_galagino
-from romdata_emit import emit_compressed
+from asset_emit import emit_compressed
 from namco_hw import flip_tile, parse_chr_ref, parse_sprite_ref, pal_rgb, rgb565_swapped_packed as rgb565_swapped
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "..", "romszip", "mappy.zip"))

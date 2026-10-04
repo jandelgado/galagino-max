@@ -7,9 +7,14 @@
 
 class frogger : public machineBase
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> frogger_rom_cpu1;
+  Asset<unsigned char, COMPRESSED> frogger_rom_cpu2;
+  Asset<uint32_t[64][16], COMPRESSED> frogger_sprites;
+  Asset<unsigned short[8], COMPRESSED> frogger_tilemap;
 public:
-	frogger() { }
-	~frogger();
+	frogger();
 
 	signed char machineType() override { return MCH_FROGGER; }
 	void start(void) override;
@@ -22,7 +27,7 @@ public:
 	void run_frame(void) override;
 	void prepare_frame(void) override;
 	void render_row(short row) override;
-    static RomData<unsigned short, COMPRESSED> &logo(void);
+    static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN	
 	static void menuLeds(CRGB *leds);

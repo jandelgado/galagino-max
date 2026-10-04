@@ -8,9 +8,13 @@
 
 class crush : public pacman
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> crush_rom;
+  Asset<uint32_t[64][16], COMPRESSED> crush_sprites;
+  Asset<unsigned short[8], COMPRESSED> crush_tilemap;
 public:
-  crush() { }
-  ~crush();
+  crush();
 
   signed char machineType() override { return MCH_CRUSH; }
   void start(void) override;
@@ -21,7 +25,7 @@ public:
 
   void run_frame(void) override;
   const signed char *waveRom(unsigned char value) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

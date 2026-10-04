@@ -6,12 +6,11 @@
 #include "frogger_spritemap.h"
 #include "frogger_cmap.h"
 
-frogger::~frogger() {
-	frogger_rom_cpu1.release();
-	frogger_rom_cpu2.release();
-	frogger_tilemap.release();
-	frogger_sprites.release();
-}
+frogger::frogger()
+  : frogger_rom_cpu1(frogger_rom_cpu1_blob),
+    frogger_rom_cpu2(frogger_rom_cpu2_blob),
+    frogger_sprites(frogger_sprites_blob),
+    frogger_tilemap(frogger_tilemap_blob) { }
 
 void frogger::start(void) {
   rom_cpu1_ptr = frogger_rom_cpu1.data();
@@ -412,7 +411,7 @@ const uint32_t *frogger::spriteRom(unsigned char flags, unsigned char code) {
   return frogger_sprites[flags][code];
 }
 
-RomData<unsigned short, COMPRESSED> &frogger::logo(void) {
+Asset<unsigned short, COMPRESSED> &frogger::logo(void) {
   return frogger_logo;
 }
 

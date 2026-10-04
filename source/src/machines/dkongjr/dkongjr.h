@@ -8,9 +8,15 @@
 
 class dkongjr : public dkong
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned short[256][4], COMPRESSED> dkongjr_colormap;
+  Asset<unsigned char, COMPRESSED> dkongjr_rom1;
+  Asset<unsigned char, COMPRESSED> dkongjr_rom2;
+  Asset<uint32_t[128][16], COMPRESSED> dkongjr_sprites;
+  Asset<unsigned short[8], COMPRESSED> dkongjr_tilemap;
 public:
-	dkongjr() { }
-	~dkongjr();
+	dkongjr();
 
 	signed char machineType() override { return MCH_DKONGJR; }
 	void start(void) override;
@@ -22,7 +28,7 @@ public:
 	unsigned char rdI8048_rom(struct i8048_state_S *state, unsigned short addr) override;
 
 	void prepare_frame(void) override;
-	static RomData<unsigned short, COMPRESSED> &logo(void);
+	static Asset<unsigned short, COMPRESSED> &logo(void);
 
 protected:
  	void blit_tile(short row, char col) override;

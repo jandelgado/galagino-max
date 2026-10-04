@@ -19,9 +19,14 @@
 
 class mspacman : public pacman
 {
+protected:
+  // ROM assets, unpacked into the Arena on first data()
+  Asset<unsigned char, COMPRESSED> mspacman_auxrom;
+  Asset<unsigned char, COMPRESSED> mspacman_pacrom;
+  Asset<uint32_t[64][16], COMPRESSED> mspacman_sprites;
+  Asset<unsigned short[8], COMPRESSED> mspacman_tilemap;
 public:
-  mspacman() { }
-  ~mspacman();
+  mspacman();
 
   signed char machineType() override { return MCH_MSPACMAN; }
   void reset() override;
@@ -29,7 +34,7 @@ public:
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
   unsigned char opZ80(unsigned short Addr) override;
-  static RomData<unsigned short, COMPRESSED> &logo(void);
+  static Asset<unsigned short, COMPRESSED> &logo(void);
 
 protected:
   const unsigned short *tileRom(unsigned short addr) override;

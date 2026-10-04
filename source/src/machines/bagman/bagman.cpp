@@ -4,11 +4,10 @@
 #include "bagman_spritemap.h"
 #include "bagman_cmap.h"
 
-bagman::~bagman() {
-	bagman_rom_cpu.release();
-	bagman_tilemap.release();
-	bagman_sprites.release();
-}
+bagman::bagman()
+  : bagman_rom_cpu(bagman_rom_cpu_blob),
+    bagman_sprites(bagman_sprites_blob),
+    bagman_tilemap(bagman_tilemap_blob) { }
 
 void bagman::start(void) {
   rom_ptr = bagman_rom_cpu.data();
@@ -262,7 +261,7 @@ const uint32_t *bagman::spriteRom(unsigned char flags, unsigned char code) {
   return bagman_sprites[flags][code];
 }
 
-RomData<unsigned short, COMPRESSED> &bagman::logo(void) {
+Asset<unsigned short, COMPRESSED> &bagman::logo(void) {
   return bagman_logo;
 }
 

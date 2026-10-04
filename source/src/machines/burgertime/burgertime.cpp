@@ -7,13 +7,15 @@
 #include "burgertime_bgmap.h"
 #include "burgertime_logo.h"
 
-burgertime::~burgertime() {
-	burgertime_rom_main.release();
-	burgertime_rom_audio.release();
-	burgertime_chartiles.release();
-	burgertime_spritetiles.release();
-	burgertime_bgtiles.release();
-	burgertime_bgmap.release();
+burgertime::burgertime()
+  : burgertime_bgmap(burgertime_bgmap_blob),
+    burgertime_bgtiles(burgertime_bgtiles_blob),
+    burgertime_chartiles(burgertime_chartiles_blob),
+    burgertime_rom_audio(burgertime_rom_audio_blob),
+    burgertime_rom_main(burgertime_rom_main_blob),
+    burgertime_spritetiles(burgertime_spritetiles_blob) {
+  memset(&cpu_main, 0, sizeof(cpu_main));
+  memset(&cpu_audio, 0, sizeof(cpu_audio));
 }
 
 // ---------------------------------------------------------------------------
@@ -477,6 +479,6 @@ void burgertime::render_row(short row) {
   }
 }
 
-RomData<unsigned short, COMPRESSED> &burgertime::logo(void) {
+Asset<unsigned short, COMPRESSED> &burgertime::logo(void) {
   return burgertime_logo;
 }

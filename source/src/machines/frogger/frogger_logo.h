@@ -1,4 +1,4 @@
-#include "../../emulation/romdata.h"
+#include "../../emulation/asset.h"
 // frogger_logo: 43008 -> 6754 bytes (84.3% smaller)
 static const unsigned char frogger_logo_packed[] = {
   0x78,0xDA,0xED,0x5D,0xCF,0x4F,0xDB,0x58,0xD7,0x76,0x02,0x0B,0x57,0xDD,0x64,0x99,
@@ -425,4 +425,4 @@ static const unsigned char frogger_logo_packed[] = {
   0x1B,0xF3,0x0D,0x8F,0xCD,0xAB,0x79,0x35,0xAF,0xE6,0x55,0xF9,0xFA,0x7F,0xBA,0xF9,
   0x3F,0x19
 };
-static RomData<unsigned short, COMPRESSED> frogger_logo(frogger_logo_packed, sizeof(frogger_logo_packed), 21504);
+static Asset<unsigned short, COMPRESSED> frogger_logo(frogger_logo_packed, sizeof(frogger_logo_packed), 21504);
