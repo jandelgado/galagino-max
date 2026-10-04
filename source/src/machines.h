@@ -211,6 +211,9 @@
 #ifdef ENABLE_MILLIPEDE
   #include "machines/millipede/millipede.h"
 #endif
+#ifdef ENABLE_ASTEROIDS
+  #include "machines/asteroids/asteroids.h"
+#endif
 
 // change machine order is possible here...
 machineInfo machines[] = {
@@ -584,6 +587,13 @@ machineInfo machines[] = {
     millipede::menuLeds,
 #endif
     MCH_MILLIPEDE },
+#endif
+#ifdef ENABLE_ASTEROIDS
+  { []() -> machineBase* { return new asteroids(); }, asteroids::logo,
+#ifdef LED_PIN
+    asteroids::menuLeds,
+#endif
+    MCH_ASTEROIDS },
 #endif
 };
 

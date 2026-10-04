@@ -9,6 +9,7 @@ GAMES = [
     "alibaba",
     "amidar",
     "anteater",
+    "asteroids",
     "bagman",
     "bnj",
     "bombjack",

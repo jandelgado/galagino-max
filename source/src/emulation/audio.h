@@ -13,6 +13,7 @@
 #include "../machines/zaxxon/zaxxon.h"
 #include "../config.h"
 #include "pokey.h"
+#include "asteroids_sound.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 4)
 // See https://github.com/espressif/arduino-esp32/issues/8467
@@ -62,6 +63,7 @@ private:
   void vanguard_render_buffer(void);
   void zaxxon_render_buffer(void);
   void pokey_render_buffer(void);
+  void asteroids_render_buffer(void);
   void zaxxonStartChannel(int ch, ZaxxonPlayMode mode);
   void zaxxonStopChannel(int ch);
   void generateSinusWave(int32_t amplitude, short* buffer, uint16_t length);
@@ -250,6 +252,7 @@ private:
   // Atari POKEY (Centipede: 1, Millipede: 2)
   static const int MAX_POKEYS = 2;
   Pokey pokey[MAX_POKEYS];
+  AsteroidsSound asteroids_sound;
 };
 
 #endif

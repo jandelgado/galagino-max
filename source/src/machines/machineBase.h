@@ -93,7 +93,8 @@ enum {
   MCH_VANGUARD,
   MCH_ZAXXON,
   MCH_CENTIPEDE,
-  MCH_MILLIPEDE
+  MCH_MILLIPEDE,
+  MCH_ASTEROIDS
 };
 
 // one inst at 3Mhz ~ 500k inst/sec = 500000/60 inst per frame

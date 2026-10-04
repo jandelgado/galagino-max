@@ -176,6 +176,9 @@ void Audio::start(machineBase *machineBase) {
       pokey[n].reset();
     }
   }
+  if (machineType == MCH_ASTEROIDS) {
+    asteroids_sound.reset();
+  }
 
   for(char ay = 0; ay < NUM_AY_CHIPS; ay++) {
     for (int c = 0; c < 4; c++) {
@@ -338,6 +341,8 @@ void Audio::transmit() {
       zaxxon_render_buffer();
     else if(machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE)
       pokey_render_buffer();
+    else if(machineType == MCH_ASTEROIDS)
+      asteroids_render_buffer();
   } while(bytesOut);
 }
 
@@ -518,6 +523,15 @@ void Audio::pokey_render_buffer(void) {
       v += samples[1][i];
     }
     valueToBuffer(i, v > SAMPLE_MAX ? SAMPLE_MAX : (v < -SAMPLE_MAX ? -SAMPLE_MAX : v));
+  }
+}
+
+// Atari Asteroids discrete sound, registers in asteroids_sound.h
+void Audio::asteroids_render_buffer(void) {
+  int16_t samples[64];
+  asteroids_sound.render(currentMachine->soundregs, samples, 64);
+  for (int i = 0; i < 64; i++) {
+    valueToBuffer(i, samples[i]);
   }
 }
 
