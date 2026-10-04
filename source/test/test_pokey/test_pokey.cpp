@@ -27,9 +27,24 @@ static void build_reference() {
 void setUp(void) {}
 void tearDown(void) {}
 
-static void test_poly17_bits_match_mame(void) {
+static uint32_t ref_bit(uint32_t i) { return state17[i % 0x1ffff] & 1; }
+
+static void test_poly17_window_matches_mame(void) {
+  // two full periods, 63 bits per sample, crossing the wrap
+  uint32_t s = POLY17_START;
+  for (uint32_t p = 0; p < 2 * 0x1ffff * 63; p += 63) {
+    const uint64_t w = window17(s);
+    for (uint32_t t = 0; t < 64; t++) {
+      if (((w >> t) & 1) != ref_bit(p + t)) TEST_FAIL_MESSAGE("window bit mismatch");
+    }
+  }
+}
+
+static void test_poly17_state_at_matches_mame(void) {
   for (uint32_t i = 0; i < 0x1ffff; i++) {
-    TEST_ASSERT_EQUAL_UINT32(state17[i] & 1, (pokey_poly17_bits[i >> 3] >> (i & 7)) & 1);
+    uint32_t want = 0;
+    for (uint32_t k = 0; k < 17; k++) want |= ref_bit(i + k) << k;
+    TEST_ASSERT_EQUAL_HEX32(want, state17_at(i));
   }
 }
 
@@ -186,7 +201,8 @@ static void test_muted_channel_keeps_borrow_timing(void) {
 int main(int, char **) {
   build_reference();
   UNITY_BEGIN();
-  RUN_TEST(test_poly17_bits_match_mame);
+  RUN_TEST(test_poly17_window_matches_mame);
+  RUN_TEST(test_poly17_state_at_matches_mame);
   RUN_TEST(test_random_matches_mame);
   RUN_TEST(test_random_changes_between_instructions);
   RUN_TEST(test_pure_tone_64khz_base);

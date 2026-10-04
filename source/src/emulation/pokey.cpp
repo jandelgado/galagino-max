@@ -35,7 +35,68 @@ static int32_t skip_borrows(int32_t counter, int32_t period, int32_t clocks) {
   }
   return (period - (clocks - counter) % period) % period;
 }
-static inline uint8_t bit17(uint32_t i) { return (pokey_poly17_bits[i >> 3] >> (i & 7)) & 1; }
+
+// poly17 output bits o[n] (MAME poly_init_9_17, bit 0 of each state) follow
+// o[n] = o[n-12] ^ o[n-17], i.e. x^17 = x^5 + 1. A 17 bit window s holds
+// o[p] .. o[p+16] in bits 0..16. Generated on the fly instead of a 16 KB
+// table; the sequence is LFSR noise, deflate does not shrink it.
+static const uint32_t POLY17_START = 0x0007f; // o[0] .. o[16]
+static const uint32_t POLY17_MASK = 0x1ffff;
+
+// window s moved k (1..12) bits forward
+static inline uint32_t advance17(uint32_t s, uint32_t k) {
+  const uint32_t fresh = (s ^ (s >> 5)) & ((1u << k) - 1);
+  return (s >> k) | (fresh << (17 - k));
+}
+
+// o[p] .. o[p+63] of window s at p; moves s to p + CLOCKS_PER_SAMPLE
+static uint64_t window17(uint32_t &s) {
+  uint64_t w = 0;
+  for (int pos = 0; pos < 60; pos += 12) {
+    w |= (uint64_t)s << pos;
+    s = advance17(s, 12);
+  }
+  w |= (uint64_t)s << 60;
+  s = advance17(s, Pokey::CLOCKS_PER_SAMPLE - 60);
+  return w;
+}
+
+// a * b mod x^17 + x^5 + 1 over GF(2)
+static uint32_t mulmod17(uint32_t a, uint32_t b) {
+  uint64_t r = 0;
+  for (int k = 0; k < 17; k++) {
+    if ((b >> k) & 1) {
+      r ^= (uint64_t)a << k;
+    }
+  }
+  for (int k = 32; k >= 17; k--) {
+    if ((r >> k) & 1) {
+      r ^= (uint64_t)0x20021 << (k - 17); // x^k = x^(k-12) + x^(k-17)
+    }
+  }
+  return (uint32_t)r;
+}
+
+// window at position i: with x^i = sum r_k x^k mod the poly,
+// o[i+m] = XOR of o[k+m] over set r_k
+static uint32_t state17_at(uint32_t i) {
+  uint32_t r = 1;
+  for (int k = 16; k >= 0; k--) {
+    r = mulmod17(r, r);
+    if ((i >> k) & 1) {
+      r = mulmod17(r, 2);
+    }
+  }
+  const uint32_t s12 = advance17(POLY17_START, 12);
+  const uint64_t o = POLY17_START | (uint64_t)s12 << 12 | (uint64_t)advance17(s12, 12) << 24; // o[0..40]
+  uint32_t s = 0;
+  for (int k = 0; k < 17; k++) {
+    if ((r >> k) & 1) {
+      s ^= (uint32_t)(o >> k);
+    }
+  }
+  return s & POLY17_MASK;
+}
 
 void Pokey::reset() {
   for (int c = 0; c < 4; c++) {
@@ -43,7 +104,9 @@ void Pokey::reset() {
     ch[c].out = 0;
     ch[c].filter = c < 2 ? 1 : 0; // MAME device_reset
   }
-  i4 = i5 = i9 = i17 = 0;
+  i4 = i5 = i9 = 0;
+  s17 = POLY17_START;
+  w17 = 0;
   dc_q8 = lp = 0;
 }
 
@@ -53,12 +116,7 @@ uint8_t Pokey::random(uint32_t clock, bool poly9) {
   }
   // bits 8..16 of the 17 bit state only shift, so bit k (8..15) of the
   // state at i is output bit i-17+k
-  const uint32_t i = clock % LEN17 + LEN17 - RANDOM17_LAG;
-  uint8_t v = 0;
-  for (int k = 0; k < 8; k++) {
-    v |= bit17(wrap(i + k, LEN17)) << k;
-  }
-  return v;
+  return state17_at(wrap(clock % LEN17 + LEN17 - RANDOM17_LAG, LEN17)) & 0xff;
 }
 
 // borrow of channel c at clock offset t (0..62) into the current sample
@@ -75,7 +133,7 @@ void Pokey::event(int c, uint8_t audc, uint8_t audctl, int32_t t) {
   } else if (audctl & POLY9) {
     h.out = pokey_poly9[wrap(i9 + t, LEN9)] & 1;
   } else {
-    h.out = bit17(wrap(i17 + t, LEN17));
+    h.out = (w17 >> t) & 1;
   }
 }
 
@@ -140,6 +198,9 @@ void Pokey::render(const uint8_t *regs, int16_t *out, int n) {
 
   static const int ORDER[4] = {2, 3, 0, 1}; // MAME step_one_clock order
   for (int s = 0; s < n; s++) {
+    if (running) {
+      w17 = window17(s17);
+    }
     int32_t acc = 0; // sum of volume * clocks high within this sample
     for (int k = 0; k < 4; k++) {
       const int c = ORDER[k];
@@ -177,7 +238,6 @@ void Pokey::render(const uint8_t *regs, int16_t *out, int n) {
       i4 = (i4 + CLOCKS_PER_SAMPLE) % LEN4;
       i5 = (i5 + CLOCKS_PER_SAMPLE) % LEN5;
       i9 = wrap(i9 + CLOCKS_PER_SAMPLE, LEN9);
-      i17 = wrap(i17 + CLOCKS_PER_SAMPLE, LEN17);
     }
 
     // remove DC (POKEY output is unipolar), then low pass
