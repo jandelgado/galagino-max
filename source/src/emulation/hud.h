@@ -2,6 +2,7 @@
 #define HUD_H
 
 #include <stdint.h>
+#include "../config.h"
 #include "emulation.h"
 
 #if defined(DEBUG_TIMING_FPS_HUD) || defined(BOOT_SELFTEST)
