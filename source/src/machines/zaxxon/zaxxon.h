@@ -127,6 +127,13 @@ private:
   // half (offs 0x7c..0x00) when drawing -- see prepare_frame.
   static constexpr uint8_t SPRITE_COUNT = 32;
 
+  // Codes whose bitmap is all pen 0, built once in the ctor: most of the
+  // fg layer is blank, and drawing a blank tile/sprite changes nothing.
+  static constexpr uint16_t CHAR_CODES = 256;
+  static constexpr uint8_t SPRITE_CODES = 64;
+  bool char_blank[CHAR_CODES];
+  bool sprite_blank[SPRITE_CODES];
+
   // --- work RAM layout inside machineBase::memory (RAMSIZE budget) ---
   static constexpr uint16_t WORK_RAM_OFFSET = 0x0000;
   static constexpr uint16_t WORK_RAM_SIZE    = 0x1000; // 6000-6fff
@@ -166,8 +173,15 @@ private:
   // band or the 8 sub_y sub-rows blit_bg_row loops over -- so precompute
   // them once per frame here (in prepare_frame()) instead of redoing the
   // same 224 values 8x/band = 256x/frame inside the per-pixel hot loop.
-  uint16_t bg_tile_row_snapshot[224];
-  uint8_t bg_sub_bg_y_snapshot[224]; // pre-inverted: 7 - sub_bg_y
+  uint16_t bg_cell_base_snapshot[224]; // bg window cell of column j, col 0
+  uint8_t bg_sub_bg_y_snapshot[224];   // pre-inverted: 7 - sub_bg_y
+
+  // Visible slice of the flash tilemap, copied once per frame: the per
+  // pixel loop then reads RAM, not flash (57344 lookups per frame). 224
+  // lines span at most 29 tile rows. bg_pal = color group * 8 + color bank.
+  static const uint16_t BG_WINDOW_ROWS = 29;
+  uint16_t bg_code[BG_WINDOW_ROWS * 32];
+  uint8_t bg_pal[BG_WINDOW_ROWS * 32];
 };
 
 #endif

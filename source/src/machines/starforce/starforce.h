@@ -5,6 +5,7 @@
 #include "starforce_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/seqlock.h"
 
 // Offsets
 #define STARFORCE_GENERAL_RAM   	0x0000	//1000
@@ -51,6 +52,7 @@ private:
 	void blit_sprite(short row, unsigned char s_idx);
 	unsigned short calculate_color_starforce(unsigned char raw_palette_byte);
 	void blit_background_line(short start_screen_row, int layer_num);
+	unsigned char bg_color_group(unsigned char tile_code, int layer_num);
 	void SN76489_Write_3chip(int chip, unsigned char data);
 	int sn_last_register[3];
 
@@ -68,6 +70,24 @@ private:
 	// Cached: hot path reads these per access; data() checks the cache on every call.
 	const unsigned char *rom_main_ptr = nullptr;
 	const unsigned char *rom_sub_ptr = nullptr;
+
+	// Sprite/scroll/bg state as of the main CPU's vblank IRQ (MAME's render
+	// point), handed to the video core via Seqlock (see seqlock.h).
+	// prepare_frame()/render read video.*, never live RAM.
+	// bg tile RAM is included: the half-rate render draws the bottom half
+	// up to two frames later, and live tiles with a snapshot scroll expose
+	// the row the game just streamed in at the bottom edge.
+	static constexpr uint16_t BG_MAP_SIZE = 16 * 32; // tile cols x rows used
+	struct VideoState {
+		unsigned char sprite_ram[0x80];
+		unsigned char bg_vram[3][BG_MAP_SIZE];  // layers 1..3
+		uint16_t bg12_scroll_y; // layers 1+2: hw_control_ram 0x30/0x31
+		uint8_t bg12_scroll_x;  // 0x35
+		uint16_t bg3_scroll_y;  // layer 3: 0x20/0x21
+		uint8_t bg3_scroll_x;   // 0x25
+	};
+	Seqlock<VideoState> vblank;
+	VideoState video = {};
 };
 
 #endif

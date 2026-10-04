@@ -45,6 +45,16 @@
 //
 // Original resolution: 224 x 256 pixel (width x height)
 
+static bool is_blank(const void *bitmap, uint16_t size) {
+  const uint8_t *p = (const uint8_t *)bitmap;
+  for (uint16_t i = 0; i < size; i++) {
+    if (p[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 zaxxon::zaxxon() {
   // largest first, or Arena's two blocks overflow
   zaxxon_bgtiles.data();
@@ -53,6 +63,13 @@ zaxxon::zaxxon() {
   zaxxon_chartiles.data();
   zaxxon_palette.data();
   zaxxon_fgcolor_codes.data();
+
+  for (uint16_t c = 0; c < CHAR_CODES; c++) {
+    char_blank[c] = is_blank(zaxxon_chartiles[c], sizeof(zaxxon_chartiles[c]));
+  }
+  for (uint8_t c = 0; c < SPRITE_CODES; c++) {
+    sprite_blank[c] = is_blank(zaxxon_spritetiles[c], sizeof(zaxxon_spritetiles[c]));
+  }
 }
 
 zaxxon::~zaxxon() {
@@ -279,12 +296,25 @@ void zaxxon::prepare_frame(void) {
 
   // See bg_tile_row_snapshot's declaration: dst_x-axis (column) terms are
   // frame-constant, blit_bg_row must not redo them per band/sub_y.
+  // j = 223 has the lowest bg row: the window's first tile row
+  const uint16_t srcy_base = ((video.bg_position << 1) ^ 0xfff) + 1;
+  const uint16_t first_tile_row = ((239 - 223 + srcy_base) & 0xfff) >> 3;
   for (uint16_t j = 0; j < 224; j++) {
     const uint8_t ry = 239 - j;
-    const uint16_t srcy = ry + (((video.bg_position << 1) ^ 0xfff) + 1);
-    const uint16_t bg_row = srcy & 0xfff;  // 4096-row plane
-    bg_tile_row_snapshot[j] = bg_row >> 3; // 0-511
+    const uint16_t bg_row = (ry + srcy_base) & 0xfff; // 4096-row plane
+    const uint16_t tile_row = bg_row >> 3;            // 0-511
+    bg_cell_base_snapshot[j] = ((tile_row - first_tile_row) & 511) * 32;
     bg_sub_bg_y_snapshot[j] = 7 - (bg_row & 7);
+  }
+
+  const uint16_t *codes = zaxxon_tilemap_code.data();
+  const uint8_t *groups = zaxxon_tilemap_color.data();
+  for (uint16_t r = 0; r < BG_WINDOW_ROWS; r++) {
+    const uint16_t src = ((first_tile_row + r) & 511) * 32;
+    memcpy(bg_code + r * 32, codes + src, 32 * sizeof(uint16_t));
+    for (uint8_t c = 0; c < 32; c++) {
+      bg_pal[r * 32 + c] = groups[src + c] * 8 + video.bg_color_bank;
+    }
   }
 
   active_sprites = 0;
@@ -383,36 +413,43 @@ void zaxxon::blit_bg_row(uint8_t row) {
   const auto *bgtiles = zaxxon_bgtiles.data();
   const auto *palette = zaxxon_palette.data();
 
-  for (uint8_t sub_y = 0; sub_y < 8; sub_y++) {
-    const uint8_t rx = tcol * 8 + sub_y; // raw X, uncropped 0-255
+  if (!video.bg_enable) {
+    memset(ptr, 0, 8 * 224 * sizeof(uint16_t));
+    return;
+  }
 
-    if (!video.bg_enable) {
-      for (uint8_t j = 0; j < 224; j++) {
-        ptr[j] = 0x0000;
-      }
-      ptr += 224;
-      continue;
+  // locals, not members: keeps the per-pixel loop in registers
+  const uint16_t *cell_base = bg_cell_base_snapshot;
+  const uint8_t *sub_bg_y = bg_sub_bg_y_snapshot; // pre-inverted
+  const uint16_t *code = bg_code;
+  const uint8_t *pal = bg_pal;
+  const uint8_t rx0 = tcol * 8; // raw X of the band's first line
+
+  // Column-major: the column terms load once per 8 pixels. The band's 8
+  // lines are 8 consecutive bg_col, spanning at most 2 tiles.
+  for (uint8_t j = 0; j < 224; j++) {
+    const uint8_t bg_col = rx0 + zaxxon_bg_xstage[j]; // 256px plane, wraps
+    const uint8_t tile_col = bg_col >> 3;
+    const uint8_t sub_bg_x = bg_col & 7;
+    const uint8_t y = sub_bg_y[j];
+    uint16_t *dst = ptr + j;
+
+    // bg tiles are pre-rotated 90deg for the portrait framebuffer, same as
+    // fg/sprite tiles (rot_galagino in gfxutil.py): undo it with
+    // transposed+mirrored indices instead of the raw sub-tile offsets.
+    uint16_t cell = cell_base[j] + tile_col;
+    const uint8_t *src = &bgtiles[code[cell]][sub_bg_x][y];
+    const uint16_t *colors = palette + pal[cell];
+    for (uint8_t x = sub_bg_x; x < 8; x++, src += 8, dst += 224) {
+      *dst = colors[*src];
     }
 
-    for (uint8_t j = 0; j < 224; j++) {
-      const uint16_t tile_row = bg_tile_row_snapshot[j];
-      const uint8_t sub_bg_y = bg_sub_bg_y_snapshot[j]; // pre-inverted
-
-      const uint8_t bg_col = (rx + zaxxon_bg_xstage[j]) & 0xff; // 256px plane
-      const uint8_t tile_col = bg_col >> 3;
-      const uint8_t sub_bg_x = bg_col & 7;
-
-      const uint16_t idx = tile_row * 32 + tile_col;
-      const uint16_t code = zaxxon_tilemap_code[idx];
-      const uint8_t group = zaxxon_tilemap_color[idx];
-      // bg tiles are pre-rotated 90deg for the portrait framebuffer, same as
-      // fg/sprite tiles (rot_galagino in gfxutil.py): undo it with
-      // transposed+mirrored indices instead of the raw sub-tile offsets.
-      const uint8_t pix = bgtiles[code][sub_bg_x][sub_bg_y];
-
-      ptr[j] = palette[group * 8 + pix + video.bg_color_bank];
+    cell = cell_base[j] + ((tile_col + 1) & 31);
+    src = &bgtiles[code[cell]][0][y];
+    colors = palette + pal[cell];
+    for (uint8_t x = 0; x < sub_bg_x; x++, src += 8, dst += 224) {
+      *dst = colors[*src];
     }
-    ptr += 224;
   }
 }
 
@@ -423,6 +460,9 @@ void zaxxon::blit_bg_row(uint8_t row) {
 // bitmaps decode upright already (see romconv preview).
 void zaxxon::blit_tile(short row, char col) {
   const uint8_t code = video.video_ram[row * 32 + col];
+  if (char_blank[code]) {
+    return;
+  }
 
   // MAME zaxxon_get_fg_tile_info: color group selected by screen column and
   // row-quadrant, not by tile data; tileinfo color = group * 2, palette
@@ -461,9 +501,15 @@ void zaxxon::blit_sprite(short row, unsigned char s) {
   static const int16_t BAND_WRAP_OFFSETS[2] = {0, -256};
 
   const sprite_S &spr = sprite[s];
+  if (sprite_blank[spr.code]) {
+    return;
+  }
   const int16_t band_start = (row - 2) * 8;
   const uint16_t *colors = zaxxon_palette.data() + spr.color * 8;
   const unsigned char (*tile)[32] = zaxxon_spritetiles[spr.code];
+
+  int16_t dst_x[32];
+  bool dst_x_ready = false;
 
   for (uint8_t w = 0; w < 2; w++) {
     const int16_t y0 = (int16_t)spr.y + BAND_WRAP_OFFSETS[w];
@@ -474,23 +520,29 @@ void zaxxon::blit_sprite(short row, unsigned char s) {
       continue;
     }
 
+    // dst_x axis needs the same {0,-256} wrap MAME's draw_sprites draws
+    // for sy -- see zaxxon_sprite_geom.h. Same for every ox: once per band.
+    if (!dst_x_ready) {
+      for (uint8_t oy = 0; oy < 32; oy++) {
+        dst_x[oy] = zaxxon_resolve_sprite_dst_x(spr.x, oy, 224);
+      }
+      dst_x_ready = true;
+    }
+
     for (int16_t ox = ox0; ox < ox1; ox++) {
       const uint8_t band_local = (y0 + ox) - band_start;
       const uint8_t sub_x = spr.flip_x ? (31 - ox) : ox;
+      const unsigned char *column = tile[sub_x];
       uint16_t *const ptr = frame_buffer + band_local * 224;
 
       for (uint8_t oy = 0; oy < 32; oy++) {
-        // dst_x axis needs the same {0,-256} wrap MAME's draw_sprites draws
-        // for sy -- see zaxxon_sprite_geom.h.
-        const int16_t dst_x = zaxxon_resolve_sprite_dst_x(spr.x, oy, 224);
-        if (dst_x < 0) {
+        if (dst_x[oy] < 0) {
           continue;
         }
 
-        const uint8_t sub_y = spr.flip_y ? (31 - oy) : oy;
-        const uint8_t pix = tile[sub_x][31 - sub_y];
+        const uint8_t pix = column[spr.flip_y ? oy : 31 - oy];
         if (pix) {
-          ptr[dst_x] = colors[pix];
+          ptr[dst_x[oy]] = colors[pix];
         }
       }
     }

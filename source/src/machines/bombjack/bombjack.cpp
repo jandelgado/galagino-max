@@ -7,13 +7,14 @@
 #include "bombjack_sprites.h"
 
 // Unpack eagerly, largest first: only this order fits Arena's two blocks.
+// Also caches the pointers the hot paths read (see bombjack.h).
 bombjack::bombjack() {
-	bombjack_rom_cpu1.data();
+	rom_cpu1_ptr = bombjack_rom_cpu1.data();
 	bombjack_sprites_32x32.data();
 	bombjack_sprites_16x16.data();
 	bombjack_fg_tiles.data();
-	bombjack_rom_cpu2.data();
-	bombjack_bg_maps.data();
+	rom_cpu2_ptr = bombjack_rom_cpu2.data();
+	bg_maps_ptr = bombjack_bg_maps.data();
 }
 
 bombjack::~bombjack() {
@@ -28,11 +29,6 @@ bombjack::~bombjack() {
 
 void bombjack::reset() {
   machineBase::reset();
-}
-
-void bombjack::start(void) {
-  rom_cpu1_ptr = bombjack_rom_cpu1.data();
-  rom_cpu2_ptr = bombjack_rom_cpu2.data();
 }
 
 unsigned char bombjack::opZ80(unsigned short Addr) {
@@ -319,79 +315,46 @@ void bombjack::prepare_frame(void) {
   }
 }
 
+// frame_buffer arrives cleared (renderRow()), so pen 0 and an invisible
+// background need no writes.
 void bombjack::blit_tile_bg(short logical_row) {
-  // 1. Controlla se il background è visibile.
   if ((m_bg_image & 0x10) == 0) {
-    memset(frame_buffer, 0, 224 * 8 * 2);
     return;
   }
 
-  // Calcola l'indirizzo base dell'immagine di background.
-  uint16_t img_base_addr = (m_bg_image & 7) * 0x0200;
+  // ROT90 with a (16, 24) visual offset: screen (x, y) shows source pixel
+  // (y - 24, 239 - x). The strip's 8 lines are 8 consecutive source columns
+  // inside one 8 pixel half of one 16x16 tile column, i.e. one packed
+  // uint32 per screen column, line 0 in the top bits.
+  const int source_x = logical_row * 8 - 24;
+  if (source_x < 0 || source_x >= 224) {
+    return;
+  }
 
-  // Offset visuale
-  const int visual_x_offset = 16;
-  const int visual_y_offset = 24;
+  const uint8_t *map = bg_maps_ptr + (m_bg_image & 7) * 0x0200 + (source_x >> 4);
+  const int half = (source_x >> 3) & 1;
 
-  // Itera su ogni pixel della striscia di destinazione.
-  for (int y_in_strip = 0; y_in_strip < 8; y_in_strip++) {
-    for (int x_in_strip = 0; x_in_strip < 224; x_in_strip++) {
-      int dest_x = x_in_strip;
-      int dest_y = (logical_row * 8) + y_in_strip;
+  // screen x = 0..223 is source y = 239..16, tile rows 14 down to 1
+  unsigned short *fb = frame_buffer;
+  for (int map_row = 14; map_row >= 1; map_row--) {
+    const uint8_t tile_code = map[map_row * 16];
+    const uint8_t attr = map[map_row * 16 + 0x100];
+    const uint16_t *colors = &bombjack_palette[(attr & 0x0F) << 3];
+    const uint32_t *gfx = bombjack_bg_tiles[tile_code] + half;
+    const int flip_y = (attr & 0x80) ? 15 : 0;
 
-      int shifted_dest_x = dest_x - visual_x_offset;
-      int shifted_dest_y = dest_y - visual_y_offset;
-
-      // Rotazione inversa per trovare le coordinate sorgente
-      int source_x = shifted_dest_y;
-      int source_y = 223 - shifted_dest_x;
-
-      if (source_x < 0 || source_x >= 224 || source_y < 0 || source_y >= 288) {
-        frame_buffer[(y_in_strip * 224) + x_in_strip] = 0;
+    for (int pixel_y = 15; pixel_y >= 0; pixel_y--, fb++) {
+      const uint32_t packed = gfx[(pixel_y ^ flip_y) * 2];
+      if (packed == 0) {
         continue;
       }
 
-      // --- CALCOLO DEL TILE E DEL PIXEL ---
-      int map_col = source_x / 16;
-      int map_row = source_y / 16;
-
-      int pixel_x_in_tile = source_x % 16;
-      int pixel_y_in_tile = source_y % 16;
-
-      uint16_t map_addr = img_base_addr + (map_row * 16) + map_col;
-
-      uint8_t tile_code = bombjack_bg_maps[map_addr];
-      uint8_t attr = bombjack_bg_maps[map_addr + 0x100];
-
-      uint8_t color_block = (attr & 0x0F) << 3;
-      bool flip_y = (attr & 0x80) != 0;
-
-      // Applica il flip Y se necessario.
-      int final_pixel_y = flip_y ? (15 - pixel_y_in_tile) : pixel_y_in_tile;
-      int final_pixel_x = pixel_x_in_tile;
-
-      // --- ESTRAZIONE DEL PIXEL DAI DATI NON RUOTATI ---
-      const uint32_t *tile_gfx = bombjack_bg_tiles[tile_code];
-
-      unsigned long packed_data;
-      uint8_t pen;
-
-      // La logica di estrazione rimane la stessa, ma ora opera su dati non ruotati
-      if (final_pixel_x < 8) {
-        packed_data = tile_gfx[final_pixel_y * 2];
-        pen = (packed_data >> (3 * (7 - final_pixel_x))) & 0x07;
-      }
-      else {
-        packed_data = tile_gfx[final_pixel_y * 2 + 1];
-        pen = (packed_data >> (3 * (7 - (final_pixel_x - 8)))) & 0x07;
-      }
-
-      // Scrittura nel framebuffer.
-      if (pen == 0) {
-        frame_buffer[(y_in_strip * 224) + x_in_strip] = 0;
-      }
-      else {
-        frame_buffer[(y_in_strip * 224) + x_in_strip] = bombjack_palette[color_block | pen];
+      unsigned short *p = fb;
+      for (int shift = 21; shift >= 0; shift -= 3, p += 224) {
+        const uint8_t pen = (packed >> shift) & 0x07;
+        if (pen != 0) {
+          *p = colors[pen];
+        }
       }
     }
   }
@@ -412,8 +375,11 @@ void bombjack::blit_tile_fg(short row, char col) {
   const uint32_t *tile_gfx = bombjack_fg_tiles[tile_id];
   unsigned short *ptr = frame_buffer + (col * 8);
 
-  for (char r = 0; r < 8; r++) {
-    unsigned long packed_pixels = *tile_gfx++;
+  for (char r = 0; r < 8; r++, ptr += 224) {
+    uint32_t packed_pixels = *tile_gfx++;
+    if (packed_pixels == 0) {
+      continue;
+    }
 
     for (char c = 0; c < 8; c++) {
       uint8_t pen = (packed_pixels >> (3 * (7 - c))) & 0x07;
@@ -421,7 +387,6 @@ void bombjack::blit_tile_fg(short row, char col) {
       if (pen != 0)
         ptr[c] = bombjack_palette[color_block | pen];
     }
-    ptr += 224;
   }
 }
 
@@ -449,46 +414,35 @@ void bombjack::blit_sprite(short row, unsigned char s_idx) {
     sprite_gfx_data = bombjack_sprites_16x16[s->code];
   }
 
-  int strip_start_y = (row - 2) * 8;
-  int strip_end_y = strip_start_y + 8;
-
-  int sprite_start_y = s->y;
-  int sprite_end_y = sprite_start_y + size;
-
-  if (sprite_end_y <= strip_start_y || sprite_start_y >= strip_end_y)
+  // clip the sprite's box to the strip and the screen width
+  const int strip_start_y = (row - 2) * 8;
+  const int y0 = s->y > strip_start_y ? s->y : strip_start_y;
+  const int y1 = (s->y + size < strip_start_y + 8) ? s->y + size : strip_start_y + 8;
+  if (y0 >= y1) {
     return;
+  }
 
-  // Itera su ogni pixel della bounding box di destinazione sullo schermo
-  for (int y_on_screen = strip_start_y; y_on_screen < strip_end_y; y_on_screen++) {
-    for (int x_on_screen = 0; x_on_screen < 224; x_on_screen++) {
-      // Calcola la posizione del pixel relativo all'angolo dello sprite
-      int px_in_sprite_x = x_on_screen - s->x;
-      int px_in_sprite_y = y_on_screen - s->y;
+  const int x0 = s->x > 0 ? s->x : 0;
+  const int x1 = (s->x + size < 224) ? s->x + size : 224;
 
-      // Se il pixel è fuori dalla bounding box dello sprite, continua
-      if (px_in_sprite_x < 0 || px_in_sprite_x >= size || px_in_sprite_y < 0 || px_in_sprite_y >= size)
-        continue;
+  // ROT90: screen column x is sprite line sy, screen line y is sprite
+  // column sx, 8 pixels (3 bits each) per packed uint32. XOR with
+  // size - 1 mirrors (16/32 are powers of 2); ROT90 itself mirrors sy.
+  const int last = size - 1;
+  const int sx_mirror = s->flip_x ? last : 0;
+  const int sy_mirror = s->flip_y ? 0 : last;
+  const uint16_t *colors = &bombjack_palette[s->color_block];
 
-      int sx = px_in_sprite_y;
-      int sy = (size - 1) - px_in_sprite_x;
+  for (int x = x0; x < x1; x++) {
+    const int sy = (x - s->x) ^ sy_mirror;
+    const uint32_t *line = sprite_gfx_data + ((sy * size) >> 3);
+    unsigned short *fb = frame_buffer + (y0 - strip_start_y) * 224 + x;
 
-      if (s->flip_x)
-        sx = (size - 1) - sx;
- 
-      if (s->flip_y)
-        sy = (size - 1) - sy;
- 
-      int pixel_index = sy * size + sx;
-      int long_index = pixel_index / 8;
-      int bit_offset_in_long = pixel_index % 8;
-
-      unsigned long packed_pixels = sprite_gfx_data[long_index];
-      uint8_t pen = (packed_pixels >> (3 * (7 - bit_offset_in_long))) & 0x07;
-
+    for (int y = y0; y < y1; y++, fb += 224) {
+      const int sx = (y - s->y) ^ sx_mirror;
+      const uint8_t pen = (line[sx >> 3] >> (3 * (7 - (sx & 7)))) & 0x07;
       if (pen != 0) {
-        uint16_t color = bombjack_palette[s->color_block | pen];
-        int y_in_strip = y_on_screen - strip_start_y;
-        frame_buffer[y_in_strip * 224 + x_on_screen] = color;
+        *fb = colors[pen];
       }
     }
   }

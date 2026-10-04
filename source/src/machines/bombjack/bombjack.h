@@ -20,7 +20,6 @@ public:
   ~bombjack();
 
   void reset() override;
-  void start(void) override;
   signed char machineType() override { return MCH_BOMBJACK; }
   signed char useVideoHalfRate() override { return 1; }
 
@@ -61,6 +60,7 @@ private:
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_cpu1_ptr = nullptr;
   const unsigned char *rom_cpu2_ptr = nullptr;
+  const unsigned char *bg_maps_ptr = nullptr;
 };
 
 #endif

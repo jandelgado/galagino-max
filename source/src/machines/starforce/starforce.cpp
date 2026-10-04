@@ -287,6 +287,18 @@ void starforce::run_frame(void) {
   sound_irq_toggle ^= 1;
   IntZ80(&cpu[1], sound_latch_pending ? 0x00 : 0x0A); // 60Hz; Vector 0x0A = daisy chain
 
+  vblank.publish([this](VideoState &v) {
+    const unsigned char *hw = &memory[STARFORCE_HW_CONTROL_RAM];
+    memcpy(v.sprite_ram, &memory[STARFORCE_SPRITE_RAM], sizeof(v.sprite_ram));
+    memcpy(v.bg_vram[0], &memory[STARFORCE_BG1_VIDEO_RAM], BG_MAP_SIZE);
+    memcpy(v.bg_vram[1], &memory[STARFORCE_BG2_VIDEO_RAM], BG_MAP_SIZE);
+    memcpy(v.bg_vram[2], &memory[STARFORCE_BG3_VIDEO_RAM], BG_MAP_SIZE);
+    v.bg12_scroll_y = hw[0x30] + (hw[0x31] << 8);
+    v.bg12_scroll_x = hw[0x35];
+    v.bg3_scroll_y = hw[0x20] + (hw[0x21] << 8);
+    v.bg3_scroll_x = hw[0x25];
+  });
+
   current_cpu = 0;
   IntZ80(&cpu[0], INT_IRQ);
 
@@ -325,11 +337,12 @@ void starforce::SN76489_Write_3chip(int chip, unsigned char data) {
 }
 
 void starforce::prepare_frame(void) {
+  vblank.read(video);
   active_sprites = 0;
 
   // MAME itera al contrario, lo manteniamo per accuratezza.
   for (int i = 31; i >= 0 && active_sprites < 128; i--) {
-    unsigned char *sprite_base_ptr = memory + STARFORCE_SPRITE_RAM + (i * 4);
+    unsigned char *sprite_base_ptr = video.sprite_ram + (i * 4);
 
     unsigned char code_byte = sprite_base_ptr[0];
     unsigned char attr_byte = sprite_base_ptr[1];
@@ -395,89 +408,98 @@ void starforce::blit_background_line(short start_screen_row, int layer_num) {
     return;
 
   const uint32_t *base_tile_ptr;
-  unsigned char *vram_data;
+  const unsigned char *vram_data;
   int scroll_x, scroll_y;
   int num_tiles_in_map = (layer_num == 3) ? 128 : 256;
   int palette_bank_offset;
-  unsigned char *hw_control_ram = &memory[STARFORCE_HW_CONTROL_RAM];
 
   switch (layer_num) {
   case 1:
     base_tile_ptr = (const uint32_t *)starforce_bg1_tilemap.data();
-    vram_data = &memory[STARFORCE_BG1_VIDEO_RAM];
-    scroll_x = hw_control_ram[0x35];
-    scroll_y = hw_control_ram[0x30] + (hw_control_ram[0x31] << 8);
+    vram_data = video.bg_vram[0];
+    scroll_x = video.bg12_scroll_x;
+    scroll_y = video.bg12_scroll_y;
     palette_bank_offset = 64;
     break;
   case 2:
     base_tile_ptr = (const uint32_t *)starforce_bg2_tilemap.data();
-    vram_data = &memory[STARFORCE_BG2_VIDEO_RAM];
-    scroll_x = hw_control_ram[0x35];
-    scroll_y = hw_control_ram[0x30] + (hw_control_ram[0x31] << 8);
+    vram_data = video.bg_vram[1];
+    scroll_x = video.bg12_scroll_x;
+    scroll_y = video.bg12_scroll_y;
     palette_bank_offset = 128;
     break;
   case 3:
     base_tile_ptr = (const uint32_t *)starforce_bg3_tilemap.data();
-    vram_data = &memory[STARFORCE_BG3_VIDEO_RAM];
-    scroll_x = hw_control_ram[0x25];
-    scroll_y = hw_control_ram[0x20] + (hw_control_ram[0x21] << 8);
+    vram_data = video.bg_vram[2];
+    scroll_x = video.bg3_scroll_x;
+    scroll_y = video.bg3_scroll_y;
     palette_bank_offset = 192;
     break;
   }
 
-  int logical_x_start = start_screen_row + scroll_x;
-  int target_fb_col = 223;
+  // The strip's 8 lines are 8 consecutive logical_x pixels, the same for
+  // every column. They span at most two 8-pixel chunks (one packed uint32
+  // each): pixels [shift..7] of chunk0, then [0..shift-1] of chunk1.
+  //   logical_x: |c0 c0 c0 c0 c0 c0 c0 c0|c1 c1 c1 ...
+  //   strip:              |0  1  2  3  4  5  6  7|   (shift = 5)
+  const int logical_x_start = start_screen_row + scroll_x;
+  const int shift = logical_x_start & 7;
+  const int split = 8 - shift; // first strip line taken from chunk1
+  const int chunk0 = logical_x_start >> 3;
+  const int chunk1 = chunk0 + 1;
+  const int tile_col0 = (chunk0 >> 1) & 15;
+  const int tile_col1 = (chunk1 >> 1) & 15;
+  const int half0 = chunk0 & 1;
+  const int half1 = chunk1 & 1;
 
-  for (int x_buffer = 0; x_buffer < 224; x_buffer++, target_fb_col--) {
-    int logical_y = x_buffer + scroll_y;
-    int source_tile_row = (logical_y >> 4) % 32; // / 16 -> >> 4
-    int y_in_tile = logical_y & 15;
-    
-    // VRAM-base address for line
-    unsigned char *vram_row_ptr = vram_data + (source_tile_row << 4); // * 16 -> << 4
-    int y_tile_offset = y_in_tile << 1; // * 2 -> << 1
+  unsigned short *fb_col = &frame_buffer[223];
 
-    // set pointer to start address of framebuffer
-    unsigned short *fb_ptr = &frame_buffer[target_fb_col];
+  for (int x_buffer = 0; x_buffer < 224; x_buffer++, fb_col--) {
+    const int logical_y = x_buffer + scroll_y;
+    const unsigned char *vram_row_ptr = vram_data + (((logical_y >> 4) & 31) << 4);
+    const int y_tile_offset = (logical_y & 15) << 1;
 
-    for (int y_in_buffer = 0; y_in_buffer < 8; y_in_buffer++) {
-      // is pixel already used (not black)?
-      if (*fb_ptr == 0) { 
-        int logical_x = logical_x_start + y_in_buffer;
-        int source_tile_col = (logical_x >> 4) & 15; // / 16 -> >> 4
+    // tile code 0 and codes beyond the layer's tile count are transparent
+    const unsigned char code0 = vram_row_ptr[tile_col0];
+    const unsigned char code1 = vram_row_ptr[tile_col1];
+    const bool valid0 = code0 > 0 && code0 < num_tiles_in_map;
+    const bool valid1 = code1 > 0 && code1 < num_tiles_in_map;
+    const uint32_t w0 = valid0 ? base_tile_ptr[(code0 << 5) + y_tile_offset + half0] : 0;
+    const uint32_t w1 = valid1 ? base_tile_ptr[(code1 << 5) + y_tile_offset + half1] : 0;
+    if ((w0 | w1) == 0) {
+      continue;
+    }
 
-        unsigned char tile_code = vram_row_ptr[source_tile_col];
-        if (tile_code > 0 && tile_code < num_tiles_in_map) {
-          int x_in_tile = logical_x & 15;
-          int tile_offset = (tile_code << 5) + y_tile_offset; // tile_code * 32 -> << 5
-          
-          const uint32_t *tile_gfx_row = base_tile_ptr + tile_offset;
-          uint32_t packed_chunk = tile_gfx_row[x_in_tile >> 3]; // / 8 -> >> 3
-          
-          unsigned char px = (packed_chunk >> (3 * (7 - (x_in_tile & 7)))) & 0x07; 
-          
-          if (px != 0) {
-            unsigned char color_group = 0;
+    // 8 strip pixels, 3 bits each, line 0 in the top bits
+    const uint32_t bits = (w0 << (3 * shift)) | (w1 >> (24 - 3 * shift));
+    const unsigned short *colors0 = &starforce_palette[palette_bank_offset + (bg_color_group(code0, layer_num) << 3)];
+    const unsigned short *colors1 = &starforce_palette[palette_bank_offset + (bg_color_group(code1, layer_num) << 3)];
 
-            if (layer_num == 1) {
-              unsigned char bit0 = (tile_code >> 5) & 1; // Bit 5
-              unsigned char bit2 = (tile_code >> 6) & 1; // Bit 6
-              unsigned char bit1 = (tile_code >> 7) & 1; // Bit 7
-              color_group = bit1 | (bit0 << 1) | (bit2 << 2);
-            } 
-            else {
-              color_group = (tile_code & 0xE0) >> 5;
-            }
-    
-            const unsigned short *colors = &starforce_palette[palette_bank_offset + (color_group << 3)]; // * 8 -> << 3 (8 colors each palette)
-            *fb_ptr = colors[px];
-          }
-        }
+    unsigned short *fb_ptr = fb_col;
+    for (int y_in_buffer = 0; y_in_buffer < 8; y_in_buffer++, fb_ptr += 224) {
+      // pixel already drawn by a higher priority layer?
+      if (*fb_ptr != 0) {
+        continue;
       }
-      // jump to next line in framebuffer (+224)
-      fb_ptr += 224;
+
+      const unsigned char px = (bits >> (21 - 3 * y_in_buffer)) & 0x07;
+      if (px != 0) {
+        *fb_ptr = (y_in_buffer < split ? colors0 : colors1)[px];
+      }
     }
   }
+}
+
+// layer 1 stores the color group bits of the tile code shuffled
+inline unsigned char starforce::bg_color_group(unsigned char tile_code, int layer_num) {
+  if (layer_num != 1) {
+    return tile_code >> 5;
+  }
+
+  const unsigned char bit0 = (tile_code >> 5) & 1;
+  const unsigned char bit2 = (tile_code >> 6) & 1;
+  const unsigned char bit1 = (tile_code >> 7) & 1;
+  return bit1 | (bit0 << 1) | (bit2 << 2);
 }
 
 void starforce::blit_tile_fg(short row, char col) {
