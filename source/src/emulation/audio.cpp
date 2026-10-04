@@ -171,8 +171,10 @@ void Audio::start(machineBase *machineBase) {
   else if (machineType == MCH_MOTORACE)   { AY = 2; AY_INC = 5; AY_VOL = 5;  }
   else if (machineType == MCH_SCREGG)     { AY = 2; AY_INC = 8; AY_VOL = 7;  }
 
-  if (machineType == MCH_CENTIPEDE) {
-    pokey.reset();
+  if (machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE) {
+    for (int n = 0; n < MAX_POKEYS; n++) {
+      pokey[n].reset();
+    }
   }
 
   for(char ay = 0; ay < NUM_AY_CHIPS; ay++) {
@@ -334,7 +336,7 @@ void Audio::transmit() {
       vanguard_render_buffer();
     else if(machineType == MCH_ZAXXON)
       zaxxon_render_buffer();
-    else if(machineType == MCH_CENTIPEDE)
+    else if(machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE)
       pokey_render_buffer();
   } while(bytesOut);
 }
@@ -499,11 +501,24 @@ void Audio::zaxxonStopChannel(int ch) {
   zx_active[ch] = false;
 }
 
-// Atari POKEY (Centipede): registers in soundregs[0..9], see pokey.h
+// Atari POKEY (Centipede, Millipede): chip n registers at
+// soundregs[n * Pokey::REG_COUNT], see pokey.h. MAME routes every POKEY at
+// the same gain, so the chips are summed.
 void Audio::pokey_render_buffer(void) {
-  int16_t samples[64];
-  pokey.render(currentMachine->soundregs, samples, 64);
-  for (int i = 0; i < 64; i++) valueToBuffer(i, samples[i]);
+  static const int32_t SAMPLE_MAX = 511;
+  const int chips = machineType == MCH_MILLIPEDE ? 2 : 1;
+  int16_t samples[MAX_POKEYS][64];
+  for (int n = 0; n < chips; n++) {
+    pokey[n].render(currentMachine->soundregs + n * Pokey::REG_COUNT, samples[n], 64);
+  }
+
+  for (int i = 0; i < 64; i++) {
+    int32_t v = samples[0][i];
+    if (chips > 1) {
+      v += samples[1][i];
+    }
+    valueToBuffer(i, v > SAMPLE_MAX ? SAMPLE_MAX : (v < -SAMPLE_MAX ? -SAMPLE_MAX : v));
+  }
 }
 
 void Audio::zaxxon_render_buffer(void) {
