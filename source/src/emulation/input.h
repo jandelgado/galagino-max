@@ -38,6 +38,9 @@ public:
   bool button_y_pressed(void);
   unsigned int fire_raw(void) { return fire_raw_state; }
   bool demoSoundsOff();
+#ifdef NUNCHUCK_INPUT
+  bool nunchuckConnected() { return nunchuck.connected(); }
+#endif
 
   typedef std::function<void(bool up, bool down)> THandlerVolume;
   Input& onVolumeUpDown(THandlerVolume fn);

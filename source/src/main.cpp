@@ -23,6 +23,7 @@
 #include "emulation/menu.h"
 #include "emulation/emulation.h"
 #include "emulation/hud.h"
+#include "emulation/selftest.h"
 #ifdef LED_PIN
   #include "emulation/led.h"
 #endif
@@ -182,10 +183,46 @@ void setup() {
 #endif
 
   video.begin();
+#ifdef BOOT_SELFTEST
+  selftest_begin(&input, machinesCount);
+#endif
   printf("setup() Heap: Free=%d MaxAlloc=%d MinFree=%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
 }
 
+#ifdef BOOT_SELFTEST
+// one self-test screen, paced to 60 Hz. no machine runs yet
+static void selftestFrame(void) {
+  const uint32_t t0 = millis();
+  const uint32_t frame_ms = 16;
+
+  video.setViewport(SELFTEST_WIDTH);
+  for (uint8_t row = 0; row < 36; row++) {
+    memset(frame_buffer, 0, SELFTEST_WIDTH * 8 * sizeof(uint16_t));
+    selftest_render_row(frame_buffer, row);
+    video.write(frame_buffer, SELFTEST_WIDTH * 8);
+  }
+
+  const uint32_t dt = millis() - t0;
+  vTaskDelay(dt < frame_ms ? frame_ms - dt : 1);
+}
+#endif
+
 void loop(void) {
+#ifdef BOOT_SELFTEST
+  // menu and machine start wait for the self-test
+  static bool selftest_running = true;
+  if (selftest_running) {
+    selftest_running = selftest_tick();
+#ifdef LED_PIN
+    led.fill(selftest_led_color());
+#endif
+    if (selftest_running) {
+      selftestFrame();
+      return;
+    }
+  }
+#endif
+
   // run video in main task. This will send signals to the emulation task in the background to synchronize video
   updateAudioVideo();
 
