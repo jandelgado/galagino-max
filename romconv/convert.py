@@ -12,6 +12,7 @@ GAMES = [
     "bagman",
     "bnj",
     "bombjack",
+    "centipede",
     "btime",
     "circusc",
     "crush",
