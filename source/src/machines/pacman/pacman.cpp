@@ -213,7 +213,7 @@ const signed char *pacman::waveRom(unsigned char value) {
   return pacman_wavetable[value]; 
 }
 
-Asset<unsigned short, COMPRESSED> &pacman::logo(void) {
+const Logo &pacman::logo(void) {
   return pacman_logo;
 }
 

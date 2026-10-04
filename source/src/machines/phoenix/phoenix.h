@@ -59,7 +59,7 @@ public:
   void prepare_frame()       override;
   void render_row(short row) override;
 
-  static Asset<unsigned short, COMPRESSED> &logo(void);
+  static const Logo &logo(void);
 
 private:
   void blit_tile_t(short strip_r, char col_arcade);

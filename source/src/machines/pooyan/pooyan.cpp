@@ -404,7 +404,7 @@ void pooyan::render_row(short row) {
   }
 }
 
-Asset<unsigned short, COMPRESSED> &pooyan::logo(void) {
+const Logo &pooyan::logo(void) {
   return pooyan_logo;
 }
 

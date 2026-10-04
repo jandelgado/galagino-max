@@ -23,7 +23,7 @@ uint8_t baluba::dsw2() {
   return BALUBA_DSW2;
 }
 
-Asset<unsigned short, COMPRESSED> &baluba::logo(void) {
+const Logo &baluba::logo(void) {
   return baluba_logo;
 }
 

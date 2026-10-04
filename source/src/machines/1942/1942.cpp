@@ -507,7 +507,7 @@ void _1942::render_row(short row) {
     blit_tile(row, col);
 }
 
-Asset<unsigned short, COMPRESSED> &_1942::logo(void) {
+const Logo &_1942::logo(void) {
   return _1942_logo;
 }
 

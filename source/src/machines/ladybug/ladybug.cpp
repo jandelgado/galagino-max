@@ -371,7 +371,7 @@ void ladybug::render_row(short row) {
   }
 }
 
-Asset<unsigned short, COMPRESSED> &ladybug::logo(void) {
+const Logo &ladybug::logo(void) {
   return ladybug_logo;
 }
 

@@ -53,7 +53,7 @@ public:
 	void render_row(short row) override;
 	
 	const signed char *waveRom(unsigned char value) override;
-	static Asset<unsigned short, COMPRESSED> &logo(void);
+	static const Logo &logo(void);
 	bool hasNamcoAudio() override { return true; }
 #ifdef LED_PIN
 	static void menuLeds(CRGB *leds);

@@ -50,7 +50,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  static Asset<unsigned short, COMPRESSED> &logo(void);
+  static const Logo &logo(void);
 
   // M6803 sound CPU memory access (chiamati da callback C)
   uint8_t snd_read(uint16_t addr);

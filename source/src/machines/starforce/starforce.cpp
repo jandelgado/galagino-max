@@ -641,7 +641,7 @@ void starforce::render_row(short row) {
   blit_background_line(row * 8, 3); // BG3
 }
 
-Asset<unsigned short, COMPRESSED> &starforce::logo(void) {
+const Logo &starforce::logo(void) {
   return starforce_logo;
 }
 

@@ -59,7 +59,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  static Asset<unsigned short, COMPRESSED> &logo(void);
+  static const Logo &logo(void);
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

@@ -276,7 +276,7 @@ void turtles::render_row(short row) {
   }
 }
 
-Asset<unsigned short, COMPRESSED> &turtles::logo(void) {
+const Logo &turtles::logo(void) {
   return turtles_logo;
 }
 

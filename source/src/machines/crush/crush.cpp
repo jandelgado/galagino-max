@@ -199,7 +199,7 @@ const uint32_t *crush::spriteRom(unsigned char flags, unsigned char code) {
   return crush_sprites[flags][code];
 }
 
-Asset<unsigned short, COMPRESSED> &crush::logo(void) {
+const Logo &crush::logo(void) {
   return crush_logo;
 }
 

@@ -3,8 +3,7 @@
 #
 # Emits the array plus a constexpr FlashAsset `<name>_blob` describing it. The
 # machine owns an Asset member built from the blob, so the unpack cache
-# dies with the machine. Only menu logos (no machine instance) get a
-# program-lifetime static Asset object (static_object=True).
+# dies with the machine. Menu logos wrap the blob in a Logo (logoconv.py).
 import struct
 
 import zopfli.zlib
@@ -21,7 +20,7 @@ def _hex_block(data, per_line=16):
     rows = [",".join(hexs[i:i + per_line]) for i in range(0, len(hexs), per_line)]
     return ",\n  ".join(rows)
 
-def emit_compressed(f, name, ctype, inner_dims, count, flat_values, static_object=False):
+def emit_compressed(f, name, ctype, inner_dims, count, flat_values):
     """Write a zlib-compressed FlashAsset<ctype inner_dims> definition.
 
     flat_values: ints in C initializer (row-major) order.
@@ -35,8 +34,6 @@ def emit_compressed(f, name, ctype, inner_dims, count, flat_values, static_objec
     print(f"// {name}: {len(raw)} -> {len(packed)} bytes ({ratio:.1f}% smaller)", file=f)
     print(f"static const unsigned char {name}_packed[] = {{\n  " + _hex_block(packed) + "\n};", file=f)
     print(f"static constexpr FlashAsset<{ctype}{inner_dims}, COMPRESSED> {name}_blob = {{ {name}_packed, sizeof({name}_packed), {count} }};", file=f)
-    if static_object:
-        print(f"static Asset<{ctype}{inner_dims}, COMPRESSED> {name}({name}_blob);", file=f)
 
 def emit_plain(f, name, ctype, inner_dims, count, array_body):
     """Write a plain (flash-resident) FlashAsset<ctype inner_dims> definition.

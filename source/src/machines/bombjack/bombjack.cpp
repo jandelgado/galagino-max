@@ -458,7 +458,7 @@ void bombjack::render_row(short row) {
   }
 }
 
-Asset<unsigned short, COMPRESSED> &bombjack::logo(void) {
+const Logo &bombjack::logo(void) {
   return bombjack_logo;
 }
 

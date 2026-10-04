@@ -460,7 +460,7 @@ void timeplt::render_row(short row) {
     blit_tile_cat(row, col, 1);
 }
 
-Asset<unsigned short, COMPRESSED> &timeplt::logo(void) {
+const Logo &timeplt::logo(void) {
   return timeplt_logo;
 }
 

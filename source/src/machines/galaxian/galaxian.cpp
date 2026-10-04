@@ -400,7 +400,7 @@ void galaxian::render_row(short row) {
   }
 }
 
-Asset<unsigned short, COMPRESSED> &galaxian::logo(void) {
+const Logo &galaxian::logo(void) {
   return galaxian_logo;
 }
 

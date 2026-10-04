@@ -109,7 +109,7 @@ const uint32_t *mrtnt::spriteRom(unsigned char flags, unsigned char code) {
   return mrtnt_sprites[flags][code];
 }
 
-Asset<unsigned short, COMPRESSED> &mrtnt::logo(void) {
+const Logo &mrtnt::logo(void) {
   return mrtnt_logo;
 }
 

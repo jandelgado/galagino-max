@@ -559,7 +559,7 @@ void dkong3::render_row(short row) {
     }
 }
 
-Asset<unsigned short, COMPRESSED> &dkong3::logo(void) {
+const Logo &dkong3::logo(void) {
     return dkong3_logo;
 }
 

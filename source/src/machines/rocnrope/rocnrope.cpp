@@ -396,7 +396,7 @@ void rocnrope::render_row(short row) {
   }
 }
 
-Asset<unsigned short, COMPRESSED> &rocnrope::logo(void) {
+const Logo &rocnrope::logo(void) {
   return rocnrope_logo;
 }
 

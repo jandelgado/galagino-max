@@ -112,7 +112,7 @@ const uint32_t *lizwiz::spriteRom(unsigned char flags, unsigned char code) {
   return lizwiz_sprites[flags][code];
 }
 
-Asset<unsigned short, COMPRESSED> &lizwiz::logo(void) {
+const Logo &lizwiz::logo(void) {
   return lizwiz_logo;
 }
 

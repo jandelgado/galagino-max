@@ -300,6 +300,6 @@ const signed char * pengo::waveRom(unsigned char value) {
   return pengo_wavetable[value]; 
 }
 
-Asset<unsigned short, COMPRESSED> &pengo::logo(void) {
+const Logo &pengo::logo(void) {
   return pengo_logo;
 }

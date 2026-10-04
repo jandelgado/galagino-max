@@ -35,7 +35,7 @@ public:
   void render_row(short row) override;
   const int renderWidth() override { return 240; }
   const int renderBuffer() override { return 240 * 2 * 8; }
-  static Asset<unsigned short, COMPRESSED> &logo() { return asteroids_logo; }
+  static const Logo &logo() { return asteroids_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;

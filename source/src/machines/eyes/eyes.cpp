@@ -113,7 +113,7 @@ const uint32_t *eyes::spriteRom(unsigned char flags, unsigned char code) {
   return eyes_sprites[flags][code];
 }
 
-Asset<unsigned short, COMPRESSED> &eyes::logo(void) {
+const Logo &eyes::logo(void) {
   return eyes_logo;
 }
 

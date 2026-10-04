@@ -350,6 +350,6 @@ void alibaba::render_row(short row) {
   blit_clock(row);
 }
 
-Asset<unsigned short, COMPRESSED> &alibaba::logo(void) {
+const Logo &alibaba::logo(void) {
   return alibaba_logo;
 }

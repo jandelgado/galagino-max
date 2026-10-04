@@ -28,7 +28,7 @@ public:
 	unsigned char rdI8048_rom(struct i8048_state_S *state, unsigned short addr) override;
 
 	void prepare_frame(void) override;
-	static Asset<unsigned short, COMPRESSED> &logo(void);
+	static const Logo &logo(void);
 
 protected:
  	void blit_tile(short row, char col) override;

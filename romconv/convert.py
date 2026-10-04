@@ -4,6 +4,7 @@ import sys
 from internal.pyconv.convutil import info, run
 
 GAMES = [
+    "logos",
     "z80",
     "1942",
     "alibaba",

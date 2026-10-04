@@ -10,7 +10,7 @@ public:
   baluba();
 
   signed char machineType() override { return MCH_BALUBA; }
-  static Asset<unsigned short, COMPRESSED> &logo(void);
+  static const Logo &logo(void);
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

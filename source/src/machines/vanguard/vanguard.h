@@ -22,7 +22,7 @@ public:
   void run_frame() override;
   void prepare_frame() override;
   void render_row(short row) override;
-  static Asset<unsigned short, COMPRESSED> &logo() { return vanguard_logo; }
+  static const Logo &logo() { return vanguard_logo; }
   unsigned char vanguardSoundRom(unsigned short addr) override;
   bool vanguardMusic0Muted() override { return music0_muted; }
   void vanguardMusic0Ended() override { music0_muted=true; }

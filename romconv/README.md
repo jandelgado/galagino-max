@@ -20,13 +20,8 @@ the machine in question has to be disabled in the file
 The necessary ROM files need be placed in the [romszip
 directory](../romszip) before these scripts can be run.
 
-The logo conversion for the game selection menu might require the
-seperate installation of the ```imageio python module``` which can
-e.g. be done by the following command. This is usually not needed as
-the logos are included pre-converted. This is only needed if you intend
-the change the logos.
-
-```pip3 install imageio```
+The `logos` step generates the menu logos (`*_logo.h`) from
+[logos/](../logos).
 
 ## Do-it-all script
 

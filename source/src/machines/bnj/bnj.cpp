@@ -438,6 +438,6 @@ void bnj::render_row(short row) {
   }
 }
 
-Asset<unsigned short, COMPRESSED> &bnj::logo(void) {
+const Logo &bnj::logo(void) {
   return bnj_logo;
 }
