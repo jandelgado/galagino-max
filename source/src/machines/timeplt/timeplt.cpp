@@ -265,15 +265,20 @@ void timeplt::run_frame(void) {
 
     if (multiplexUsed && !multiplexUsedCopy) {
       multiplexUsedCopy=1;
-      memcpy(multiplexBank0, &memory[MEM_SPRITES0], 0x100);
-      memcpy(multiplexBank1, &memory[MEM_SPRITES1], 0x100);
+      memcpy(multiplex.bank0, &memory[MEM_SPRITES0], SPRITE_BYTES);
+      memcpy(multiplex.bank1, &memory[MEM_SPRITES1], SPRITE_BYTES);
     }
   }
 
-  if (!multiplexUsed) {
-    memset(multiplexBank0, 0, sizeof(multiplexBank0));
-    memset(multiplexBank1, 0, sizeof(multiplexBank1));
-  }
+  vblank.publish([this](VideoState &v) {
+    if (multiplexUsed)
+      v.top = multiplex;
+    else
+      memset(&v.top, 0, sizeof(v.top));
+    memcpy(v.bottom.bank0, &memory[MEM_SPRITES0], SPRITE_BYTES);
+    memcpy(v.bottom.bank1, &memory[MEM_SPRITES1], SPRITE_BYTES);
+    v.video_enable = video_enable;
+  });
 
   // Main CPU: NMI at VBlank
   if(nmi_enable) {
@@ -328,13 +333,12 @@ void timeplt::extract_sprites(const unsigned char *bank0, const unsigned char *b
 
 void timeplt::prepare_frame(void) {
   active_sprites = 0;
+  vblank.read(video);
 
-  if(!video_enable) return;
+  if(!video.video_enable) return;
 
-  // saved sprites
-  extract_sprites(multiplexBank0, multiplexBank1);
-  // current sprites
-  extract_sprites(&memory[MEM_SPRITES0], &memory[MEM_SPRITES1]);
+  extract_sprites(video.top.bank0, video.top.bank1);
+  extract_sprites(video.bottom.bank0, video.bottom.bank1);
 }
 
 void timeplt::blit_tile(short row, char col) {
@@ -437,7 +441,7 @@ void timeplt::blit_sprite(short row, unsigned char s) {
 void timeplt::render_row(short row) {
   if(row <= 1 || row >= 34) return;
 
-  if(!video_enable) return;
+  if(!video.video_enable) return;
 
   // MAME render order: tiles(category 0) → sprites → tiles(category 1)
   // Category 1 tiles are drawn ON TOP of sprites (e.g. "© KONAMI 1982" text)

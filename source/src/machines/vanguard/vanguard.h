@@ -5,6 +5,7 @@
 #include "vanguard_dipswitches.h"
 #include "../../cpus/m6502/m6502.h"
 #include "../machineBase.h"
+#include "../../emulation/seqlock.h"
 
 class vanguard : public machineBase {
 public:
@@ -14,6 +15,7 @@ public:
   void start() override;
   void reset() override;
   void run_frame() override;
+  void prepare_frame() override;
   void render_row(short row) override;
   static RomData<unsigned short, COMPRESSED> &logo() { return vanguard_logo; }
   unsigned char vanguardSoundRom(unsigned short addr) override;
@@ -42,5 +44,14 @@ private:
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
+
+  // Scroll and screen registers as of the vblank IRQ, handed to the video
+  // core via Seqlock (see seqlock.h). render_row() reads video.*, never
+  // the live registers. Tile/char RAM stays live (5 KB, too big to copy).
+  struct VideoState {
+    unsigned char scroll_x, scroll_y, backcolor, flip_screen;
+  };
+  Seqlock<VideoState> vblank;
+  VideoState video = {};
 };
 #endif

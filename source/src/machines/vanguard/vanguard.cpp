@@ -139,8 +139,20 @@ void vanguard::run_frame() {
   else fire_direction=0;
   if(coin&&!coin_down)m_cpu.nmi=1; coin_down=coin;
   m6502_exec(&m_cpu,23520); // 11.289 MHz / 8 / 60 Hz
+
+  vblank.publish([this](VideoState &v) {
+    v.scroll_x = scroll_x;
+    v.scroll_y = scroll_y;
+    v.backcolor = backcolor;
+    v.flip_screen = flip_screen;
+  });
+
   m_cpu.irq=1; m6502_exec(&m_cpu,8); m_cpu.irq=0;
   if(!game_started)game_started=1;
+}
+
+void vanguard::prepare_frame() {
+  vblank.read(video);
 }
 
 void vanguard::render_row(short strip) {
@@ -149,15 +161,15 @@ void vanguard::render_row(short strip) {
   for(int oy=0;oy<8;oy++){
     int py=strip*8+oy-16; if(py<0||py>=256)continue;
     uint16_t *dst=frame_buffer+oy*224;
-    int sx=flip_screen?255-py:py;
-    int bx=(sx+scroll_x)&255;
+    int sx=video.flip_screen?255-py:py;
+    int bx=(sx+video.scroll_x)&255;
     unsigned char fmask=1<<(7-(sx&7)), bmask=1<<(7-(bx&7));
     int last_frow=-1,last_brow=-1;
     unsigned char fcode=0,fcolor=0,bcode=0,bcolor=0;
     for(int ox=0;ox<224;ox++){
       // Vanguard is ROT90 in MAME.  The previous mapping used the opposite
       // cabinet orientation, producing an image rotated by 180 degrees.
-      int sy=flip_screen?ox:223-ox, by=(sy+scroll_y)&255;
+      int sy=video.flip_screen?ox:223-ox, by=(sy+video.scroll_y)&255;
       int brow=by>>3;
       if(brow!=last_brow){
         unsigned short ti=(brow<<5)+(bx>>3);
@@ -165,7 +177,7 @@ void vanguard::render_row(short strip) {
       }
       unsigned short base=(bcode<<3)+(by&7);
       unsigned char bpix=(gfx[base]&bmask?1:0)|(gfx[base+0x800]&bmask?2:0);
-      unsigned char pi=bpix?(32+bcolor*4+bpix):(32+backcolor*4);
+      unsigned char pi=bpix?(32+bcolor*4+bpix):(32+video.backcolor*4);
 
       int frow=sy>>3;
       if(frow!=last_frow){
