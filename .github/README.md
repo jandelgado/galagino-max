@@ -1,9 +1,10 @@
 GalaginoMAX
 ===========
 
-This is my (JD) custom Galagino build with Zaxxon, Centipede, Millipede, Asteroids, Baluba and working Road
-Fighter added. It uses compression and allows to squeeze all games at once into the
-4MB flash of the classic ESP32 module.
+This is my (JD) custom Galagino build with Zaxxon, Centipede, Millipede,
+Asteroids, Baluba and working Road Fighter added. It uses compression and
+allows to squeeze all games at once into the 4MB flash of the classic ESP32
+module.
 
 It is based on [galagino/galagino](https://github.com/galagino/galagino](galagino/galagino) and
 it has Moon Cresta, Scramble and Super Cobra and the games from [speckhoiler/galagino](https://github.com/speckhoiler/galagino), from [SurvivalHacking/galagino3](https://github.com/SurvivalHacking/galagino3), [SurvivalHacking/spinnerino](https://github.com/SurvivalHacking/spinnerino), [VirtualClaudioBoy/GalaginoPlus](https://github.com/VirtualClaudioBoy/GalaginoPlus) and [BaasPierre/GalaginoPlusGoldstar](https://github.com/BaasPierre/GalaginoPlusGoldstar). Original Galagino by Till Harbaum [harbaum/galagino](https://github.com/harbaum/galagino)
@@ -25,10 +26,11 @@ it has Moon Cresta, Scramble and Super Cobra and the games from [speckhoiler/gal
 * File generation without unziping, some roms cause name clashes and is much cleaner. Not all roms yet.
 * Flash and PSRAM SPI configs for maximum speed available on each ESP32 version.
 * Many code cleanups for reduced RAM used - with 44 games around 260k free heap ~~(Flash is the limiting factor, you need and ESP32 with 8MiB of flash)~~.
-* mos6502 emulation (WIP)
+* mos6502 emulation
 * Flash compression allows to include ALL games even in the ESP32 4MB flash versions
 * Optional on-screen FPS display (`DEBUG_TIMING_FPS_HUD`)
 * Optional cylinder menu, logos on a rotating drum (`MENU_CYLINDER`)
+* A nice arcade style startup self-test (`BOOT_SELFTEST`)
 
 ### Hardware Used
 
@@ -91,6 +93,12 @@ the emulation frame rate at the bottom of the screen. Off by default.
 Shows the menu logos on a rotating drum instead of a flat list. Off by
 default. Enable with `#define MENU_CYLINDER` in `config_local.h`, or add
 `-D MENU_CYLINDER` to `build_flags` in `platformio.ini`.
+
+### Boot self-test
+
+Arcade style boot screen: with RAM, ROM etc. infos and LED test. Takes about
+5s.  Enable with `#define BOOT_SELFTEST` in `config_local.h`, or add `-D
+BOOT_SELFTEST` to `build_flags` in `platformio.ini`. 
 
 ### Games
 
