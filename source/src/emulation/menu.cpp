@@ -1,5 +1,45 @@
 #include "menu.h"
 #include "arena.h"
+#ifdef MENU_CYLINDER
+#include <math.h>
+
+// Drum geometry: the middle logo (+-CYL_FLAT lines around the screen
+// centre) is a flat front face, drawn 1:1. Beyond it the surface bends
+// away on an arc of radius CYL_RADIUS up to CYL_ANGLE, so each screen line
+// there skips more logo lines. The arc covers exactly one logo per side,
+// so the visible logo lines stay within the flat 288 line window and the
+// 4 slot logo pool still suffices. Rest of the screen is black.
+// Fake perspective on the arc: lines narrow towards the rim (by up to
+// CYL_NARROW of the width), darken with the surface angle (down to
+// CYL_AMBIENT brightness). Saturation falls linearly with screen distance
+// from the flat part, grey at the rim.
+constexpr float CYL_FLAT = 48.0f;
+constexpr float CYL_ANGLE = 80.0f * (float)M_PI / 180.0f;
+constexpr float CYL_RADIUS = (144.0f - CYL_FLAT) / CYL_ANGLE;
+constexpr float CYL_NARROW = 0.45f;
+constexpr float CYL_AMBIENT = 0.25f;
+
+// byte swapped RGB565 as stored in the logos (see
+// convert_RGB565_to_greyscale()), r and b 5 bit, g 6 bit
+static inline unsigned short pack_RGB565(unsigned short r, unsigned short g, unsigned short b) {
+  return ((g << 13) & 0xe000) | ((b << 8) & 0x1f00) | ((r << 3) & 0x00f8) | ((g >> 3) & 0x0007);
+}
+
+// blend towards luma by sat, then scale by shade; 255 leaves either unchanged
+static inline unsigned short shade_RGB565(unsigned short in, uint8_t shade, uint8_t sat) {
+  const int32_t m = shade + 1;
+  const int32_t k = sat + 1;
+  // 6 bit per channel
+  int32_t r = ((in >> 3) & 31) << 1;
+  int32_t g = ((in << 3) & 0x38) | ((in >> 13) & 0x07);
+  int32_t b = ((in >> 8) & 31) << 1;
+  int32_t y = (77 * r + 150 * g + 29 * b) >> 8;
+  r = (((y << 8) + (r - y) * k) * m) >> 16;
+  g = (((y << 8) + (g - y) * k) * m) >> 16;
+  b = (((y << 8) + (b - y) * k) * m) >> 16;
+  return pack_RGB565(r >> 1, g, b >> 1);
+}
+#endif
 
 void Menu::init(Input *input, const machineInfo *machines,  signed char machinesCount, unsigned short *framebuffer) {
   this->master_attract_timeout = millis();
@@ -62,6 +102,36 @@ void Menu::enterMenu() {
     logo_pool[logo_pool_count] = Arena::alloc<unsigned short>(LOGO_PIXELS + 1);
     slot_logo[logo_pool_count] = nullptr;
   }
+
+#ifdef MENU_CYLINDER
+  // after the pool: each block keeps its 2 logo slots, Arena::ROM_SLACK
+  // has room for this
+  cylinder_lut = Arena::alloc<CylinderLine>(288);
+  for(short y = 0; y < 288; y++) {
+    CylinderLine &l = cylinder_lut[y];
+    float d = y + 0.5f - 144.0f;   // line centre, relative to screen centre
+    float a = fabsf(d);
+    float s = a;
+    float t = 0.0f;                // surface angle towards the viewer
+    float f = 0.0f;                // screen distance from the flat part, 1 = rim
+    if(a > CYL_FLAT) {
+      float u = (a - CYL_FLAT) / CYL_RADIUS;
+      f = u / sinf(CYL_ANGLE);
+      if(u > sinf(CYL_ANGLE)) {
+        l.line = -1;
+        continue;
+      }
+      t = asinf(u);
+      s = CYL_FLAT + CYL_RADIUS * t;
+    }
+    short line = (short)floorf(144.0f + (d < 0 ? -s : s));
+    float c = cosf(t);
+    l.line = line < 0 ? 0 : (line > 287 ? 287 : line);
+    l.width = (unsigned char)lroundf(224.0f * (1.0f - CYL_NARROW * (1.0f - c)));
+    l.shade = (unsigned char)lroundf(255.0f * (CYL_AMBIENT + (1.0f - CYL_AMBIENT) * c));
+    l.sat = (unsigned char)lroundf(255.0f * (1.0f - f));
+  }
+#endif
 }
 
 // Free before the machine's assets claim the arena.
@@ -71,6 +141,9 @@ void Menu::leaveMenu() {
     slot_logo[i] = nullptr;
   }
   logo_pool_count = 0;
+#ifdef MENU_CYLINDER
+  cylinder_lut = nullptr;
+#endif
   Arena::reset();
 }
 
@@ -176,6 +249,9 @@ void Menu::render_row(short row) {
     // scrolling menu for more than 3 machines
     // valid scroll_offset values range from 0 to MACHINE * 96 - 1
 
+#ifdef MENU_CYLINDER
+    render_row_cylinder(row);
+#else
     // check which logo would show up in this row. Actually
     // two may show up in the same character row when scrolling
     int logo_idx = ((row + scroll_offset / 8) / 12) % machinesCount;
@@ -192,6 +268,7 @@ void Menu::render_row(short row) {
       logo_y -= 96;
       menu_logo(logo_y, logoBuffer(machines[logo_idx].logo()), (menu_sel-1) == logo_idx);
     }
+#endif
 
     if(row == 35) {
       // finally scroll_offset is bound to game, something like 96 * game:
@@ -246,6 +323,45 @@ void Menu::menu_logo(short row, const unsigned short *img, char active) {
   while(ipix < pix2draw)
     frame_buffer[ipix++] = active ? *src++ : convert_RGB565_to_greyscale(*src++);
 }
+
+#ifdef MENU_CYLINDER
+// draw 8 screen lines of the drum: each line picks its logo line from the
+// flat menu window via cylinder_lut, scaled to its width around the centre
+void Menu::render_row_cylinder(short row) {
+  const int total = machinesCount * 96;
+  unsigned short *dst = frame_buffer;
+
+  for(short y = row * 8; y < row * 8 + 8; y++, dst += 224) {
+    const CylinderLine &l = cylinder_lut[y];
+    const unsigned short *img = nullptr;
+    if(l.line >= 0) {
+      int v = (scroll_offset + l.line) % total;
+      img = logoBuffer(machines[v / 96].logo());
+      if(img) { img += 224 * (v % 96); }
+    }
+
+    if(!img) {
+      for(short x = 0; x < 224; x++) { dst[x] = 0; }
+      continue;
+    }
+
+    const short left = (224 - l.width) / 2;
+    const short right = left + l.width;
+    for(short x = 0; x < left; x++) { dst[x] = 0; }
+    for(short x = right; x < 224; x++) { dst[x] = 0; }
+
+    // 16.16 source step, sampled at pixel centres
+    const uint32_t step = (224u << 16) / l.width;
+    uint32_t sx = step / 2;
+    if(l.shade == 255 && l.sat == 255) {
+      for(short x = left; x < right; x++, sx += step) { dst[x] = img[sx >> 16]; }
+    }
+    else {
+      for(short x = left; x < right; x++, sx += step) { dst[x] = shade_RGB565(img[sx >> 16], l.shade, l.sat); }
+    }
+  }
+}
+#endif
 
 // Decode only logos visible this frame. Caching all ~50 does not fit in RAM.
 void Menu::refreshLogoCache() {
