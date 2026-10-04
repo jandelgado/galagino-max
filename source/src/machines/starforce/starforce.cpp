@@ -1,4 +1,6 @@
 #include "starforce.h"
+#include "starforce_logo.h"
+#include "starforce_dipswitches.h"
 #include "starforce_bg1_tiles.h"
 #include "starforce_bg2_tiles.h"
 #include "starforce_bg3_tiles.h"
@@ -7,33 +9,43 @@
 #include "starforce_main_cpu_rom.h"
 #include "starforce_sub_cpu_rom.h"
 
-starforce::starforce() {
-	// force largest-first decompress: heap is freshest right after create(),
-	// so the 64K sprite block gets placed before smaller ones fragment it
-	(void)starforce_sprites_16x16.data();
-	(void)starforce_main_cpu_rom.data();
-	(void)starforce_bg1_tilemap.data();
-	(void)starforce_bg2_tilemap.data();
-	(void)starforce_bg3_tilemap.data();
-	(void)starforce_fg_tilemap.data();
-	(void)starforce_sub_cpu_rom.data();
+starforce::starforce() : starforce(Roms{
+	starforce_main_cpu_rom, starforce_sub_cpu_rom, starforce_fg_tilemap,
+	starforce_bg1_tilemap, starforce_bg2_tilemap, starforce_bg3_tilemap,
+	starforce_sprites_16x16, starforce_sprites_32x32,
+}) { }
+
+starforce::starforce(const Roms &r) : roms(r) {
+	// decompress largest first: heap is freshest right after create(), so
+	// big blocks get placed before smaller ones fragment it
+	spr16_ptr = roms.sprites_16x16.data();
+	spr32_ptr = roms.sprites_32x32.data();
+	rom_main_ptr = roms.main_cpu.data();
+	bg_ptr[0] = roms.bg1.data();
+	bg_ptr[1] = roms.bg2.data();
+	bg_ptr[2] = roms.bg3.data();
+	fg_ptr = roms.fg.data();
+	rom_sub_ptr = roms.sub_cpu.data();
 }
 
 starforce::~starforce() {
 	// release in reverse allocation order (LIFO) so freeing never opens a
 	// hole below still-resident blocks
-	starforce_sub_cpu_rom.release();
-	starforce_fg_tilemap.release();
-	starforce_bg3_tilemap.release();
-	starforce_bg2_tilemap.release();
-	starforce_bg1_tilemap.release();
-	starforce_main_cpu_rom.release();
-	starforce_sprites_16x16.release();
+	roms.sub_cpu.release();
+	roms.fg.release();
+	roms.bg3.release();
+	roms.bg2.release();
+	roms.bg1.release();
+	roms.main_cpu.release();
+	roms.sprites_16x16.release();
 }
 
-void starforce::start(void) {
-  rom_main_ptr = starforce_main_cpu_rom.data();
-  rom_sub_ptr = starforce_sub_cpu_rom.data();
+uint8_t starforce::dsw1() {
+  return STARFORCE_DSW1 | (input->demoSoundsOff() ? STARFORCE_DSW2_DEMO_SOUND_OFF : STARFORCE_DSW2_DEMO_SOUND_ON);
+}
+
+uint8_t starforce::dsw2() {
+  return STARFORCE_DSW2;
 }
 
 unsigned char starforce::opZ80(unsigned short Addr) {
@@ -127,9 +139,9 @@ unsigned char starforce::rdZ80(unsigned short Addr) {
         return 0x00; // NOPR in MAME (Not Read)
       case 0xD004:
         game_started = 1;
-        return STARFORCE_DSW1 | (input->demoSoundsOff() ? STARFORCE_DSW2_DEMO_SOUND_OFF : STARFORCE_DSW2_DEMO_SOUND_ON);
+        return dsw1();
       case 0xD005:
-        return STARFORCE_DSW2;
+        return dsw2();
       }
     }
   }
@@ -351,25 +363,22 @@ void starforce::prepare_frame(void) {
 
     struct sprite_S *spr = &sprite[active_sprites];
     spr->is_32x32 = (code_byte & 0xC0) == 0xC0;
+    // 32x32 sprites use the low 7 bits as index
+    spr->code = spr->is_32x32 ? (code_byte & 0x7F) : code_byte;
 
-    if (spr->is_32x32) {
-      // L'indice corretto si ottiene mascherando con 0x7F (127)
-      spr->code = code_byte & 0x7F;
-      spr->x = 224 - y_byte;
-    }
-    else {
-      spr->code = code_byte;
-      spr->x = 240 - y_byte;
-    }
-
-    spr->y = x_byte;
+    // MAME: native sx = x_byte, sy = 240 - y_byte (224 for 32x32). ROT90
+    // onto the 288 row screen: row = sx + 16, left column =
+    // 239 - sy - (size - 1) = y_byte - 16 for both sizes.
+    spr->x = y_byte - 16;
+    spr->y = x_byte + 16;
 
     short size = spr->is_32x32 ? 32 : 16;
     if (spr->x > 224 || (spr->x + size) < 0 || spr->y > 288 || (spr->y + size) < 0)
       continue;
 
     spr->color = attr_byte & 0x07;
-    spr->flags = ((attr_byte & 0x40) ? 1 : 0) | ((attr_byte & 0x80) ? 2 : 0);
+    // native flipy (0x80) mirrors screen columns, native flipx (0x40) rows
+    spr->flags = ((attr_byte & 0x80) ? 1 : 0) | ((attr_byte & 0x40) ? 2 : 0);
     spr->priority = (attr_byte & 0x30) >> 4;
     active_sprites++;
   }
@@ -403,10 +412,6 @@ inline unsigned short starforce::calculate_color_starforce(unsigned char raw_pal
 }
 
 void starforce::blit_background_line(short start_screen_row, int layer_num) {
-  short start_tile_row = start_screen_row >> 3; // / 8 -> >> 3
-  if (start_tile_row < 4 || start_tile_row >= 32)
-    return;
-
   const uint32_t *base_tile_ptr;
   const unsigned char *vram_data;
   int scroll_x, scroll_y;
@@ -415,21 +420,21 @@ void starforce::blit_background_line(short start_screen_row, int layer_num) {
 
   switch (layer_num) {
   case 1:
-    base_tile_ptr = (const uint32_t *)starforce_bg1_tilemap.data();
+    base_tile_ptr = (const uint32_t *)bg_ptr[0];
     vram_data = video.bg_vram[0];
     scroll_x = video.bg12_scroll_x;
     scroll_y = video.bg12_scroll_y;
     palette_bank_offset = 64;
     break;
   case 2:
-    base_tile_ptr = (const uint32_t *)starforce_bg2_tilemap.data();
+    base_tile_ptr = (const uint32_t *)bg_ptr[1];
     vram_data = video.bg_vram[1];
     scroll_x = video.bg12_scroll_x;
     scroll_y = video.bg12_scroll_y;
     palette_bank_offset = 128;
     break;
   case 3:
-    base_tile_ptr = (const uint32_t *)starforce_bg3_tilemap.data();
+    base_tile_ptr = (const uint32_t *)bg_ptr[2];
     vram_data = video.bg_vram[2];
     scroll_x = video.bg3_scroll_x;
     scroll_y = video.bg3_scroll_y;
@@ -442,7 +447,8 @@ void starforce::blit_background_line(short start_screen_row, int layer_num) {
   // each): pixels [shift..7] of chunk0, then [0..shift-1] of chunk1.
   //   logical_x: |c0 c0 c0 c0 c0 c0 c0 c0|c1 c1 c1 ...
   //   strip:              |0  1  2  3  4  5  6  7|   (shift = 5)
-  const int logical_x_start = start_screen_row + scroll_x;
+  // screen row 16 is native x 0; screen column c is native y 239 - c
+  const int logical_x_start = start_screen_row - 16 + scroll_x;
   const int shift = logical_x_start & 7;
   const int split = 8 - shift; // first strip line taken from chunk1
   const int chunk0 = logical_x_start >> 3;
@@ -455,7 +461,7 @@ void starforce::blit_background_line(short start_screen_row, int layer_num) {
   unsigned short *fb_col = &frame_buffer[223];
 
   for (int x_buffer = 0; x_buffer < 224; x_buffer++, fb_col--) {
-    const int logical_y = x_buffer + scroll_y;
+    const int logical_y = x_buffer + 16 + scroll_y;
     const unsigned char *vram_row_ptr = vram_data + (((logical_y >> 4) & 31) << 4);
     const int y_tile_offset = (logical_y & 15) << 1;
 
@@ -507,7 +513,7 @@ void starforce::blit_tile_fg(short row, char col) {
   unsigned char base_tile_code = memory[STARFORCE_FG_VIDEO_RAM + vram_addr];
   unsigned char color_attr = memory[STARFORCE_FG_COLOR_RAM + vram_addr];
   unsigned int final_tile_code = base_tile_code + ((color_attr & 0x10) << 4); // 0x10 << 4 = 256
-  const unsigned int *tile_data = starforce_fg_tilemap[final_tile_code];
+  const unsigned int *tile_data = fg_ptr[final_tile_code];
   const unsigned short *colors = &starforce_palette[(color_attr & 0x07) << 3]; // * 8 -> << 3
 
   // start address for column offset in framebuffer
@@ -586,8 +592,8 @@ void starforce::blit_sprite(short row, unsigned char s_idx) {
 
   // base-pointer 
   const uint32_t *sprite_data_ptr = spr->is_32x32 
-    ? (const uint32_t *)starforce_sprites_32x32[spr->code] 
-    : (const uint32_t *)starforce_sprites_16x16[spr->code];
+    ? (const uint32_t *)spr32_ptr[spr->code]
+    : (const uint32_t *)spr16_ptr[spr->code];
 
   for (int y_in_sprite = min_y_sprite; y_in_sprite < max_y_sprite; y_in_sprite++) {
     int y_in_buffer = (spr_y_start + y_in_sprite) - y_strip_start;
@@ -612,7 +618,7 @@ void starforce::blit_sprite(short row, unsigned char s_idx) {
       if (px != 0) {
         // 2. Calculate the target coordinate on the screen
         int dest_x = spr_x_start + x_in_sprite;
-        fb_row_ptr[223 - dest_x] = colors[px];
+        fb_row_ptr[dest_x] = colors[px];
       }
     }
   }

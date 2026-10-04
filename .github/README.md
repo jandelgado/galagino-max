@@ -1,8 +1,8 @@
 GalaginoMAX
 ===========
 
-This is my (JD) custom Galagino build with Zaxxon, Centipede, Millipede and working Road Fighter
-added. It uses compression and allows to squeeze all games at once into the
+This is my (JD) custom Galagino build with Zaxxon, Centipede, Millipede, Asteroids, Baluba and working Road
+Fighter added. It uses compression and allows to squeeze all games at once into the
 4MB flash of the classic ESP32 module.
 
 It is based on [galagino/galagino](https://github.com/galagino/galagino](galagino/galagino) and
@@ -149,5 +149,7 @@ default. Enable with `#define MENU_CYLINDER` in `config_local.h`, or add
 | Zaxxon (zaxxon.zip)            | ![_](/logos/zaxxon.png)       |                                | US Rev D. Audio samples: zaxxon-audio.zip |
 | Centipede (centiped.zip)            | ![_](/logos/centipede.png)       |                                |  |
 | Millipede (milliped.zip)            | ![_](/logos/milliped.png)        |                                |  |
+| Asteroids (asteroid.zip)       | ![_](/logos/asteroids.png)    |                                | Vector display rasterized |
+| Baluba-louk no Densetsu (baluba.zip) | ![_](/logos/baluba.png) |                          | Star Force board |
 
 ### ...

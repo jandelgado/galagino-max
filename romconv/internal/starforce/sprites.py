@@ -4,24 +4,26 @@ from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from romdata_emit import emit_compressed, emit_plain
+import senjyo_sets
 
 # --- Configurazione ---
-ROM_FILES = ["../../roms/6.10lm", "../../roms/5.9lm", "../../roms/4.8lm"]
+game, rom_set = senjyo_sets.get(sys.argv)
+ROM_FILES = [senjyo_sets.rom(f) for f in rom_set["sprites"]]
 ROM_FILE_SIZE = 16384
-OUTPUT_C_FILE = "../../../source/src/machines/starforce/starforce_sprites.h"
+OUTPUT_C_FILE = senjyo_sets.out_header(game, "sprites")
 ROTATE_TILES = True
 GENERATE_PREVIEW = True
 BPP = 3
 
 # Parametri Sprite 16x16
 NUM_SPRITES_16, SPRITE_WIDTH_16, SPRITE_HEIGHT_16 = 512, 16, 16
-C_ARRAY_NAME_16 = "starforce_sprites_16x16"
-PREVIEW_PNG_16 = "starforce_sprites_16x16_preview.png"
+C_ARRAY_NAME_16 = f"{game}_sprites_16x16"
+PREVIEW_PNG_16 = f"{game}_sprites_16x16_preview.png"
 
 # Parametri Sprite 32x32
 NUM_SPRITES_32, SPRITE_WIDTH_32, SPRITE_HEIGHT_32 = 128, 32, 32
-C_ARRAY_NAME_32 = "starforce_sprites_32x32"
-PREVIEW_PNG_32 = "starforce_sprites_32x32_preview.png"
+C_ARRAY_NAME_32 = f"{game}_sprites_32x32"
+PREVIEW_PNG_32 = f"{game}_sprites_32x32_preview.png"
 
 def rotate_matrix_90_cw(matrix, width, height):
     new_matrix = [[0] * height for _ in range(width)]
@@ -45,26 +47,13 @@ def decode_gfx_correct(rom_data, num_sprites, width, height, layout_x, layout_y,
                 pixel_value = 0
                 bit_offset = layout_y[y] + layout_x[x]
                 
-                # ================================================================
-                # --- INIZIO CORREZIONE LOGICA BITPLANE PER SPRITE ---
-                #
-                # A differenza del foreground, per gli sprite usiamo l'ordine
-                # dei bitplane come definito letteralmente dal driver MAME,
-                # senza scambiare LSB e MSB.
-                
+                # MAME gfx_layout: plane 0 (first ROM of the region) is the MSB
                 for plane_idx in range(BPP):
                     byte_addr = char_base_offset + (bit_offset // 8)
                     bit_pos = 7 - (bit_offset % 8)
                     rom_addr = plane_offsets[plane_idx] + byte_addr
-                    
                     pixel_bit = (rom_data[rom_addr] >> bit_pos) & 1
-                    
-                    # plane_idx 0 (da 6.10lm) è il LSB
-                    # plane_idx 1 (da 5.9lm) è il bit centrale
-                    # plane_idx 2 (da 4.8lm) è il MSB
-                    pixel_value |= (pixel_bit << plane_idx)
-                # --- FINE CORREZIONE LOGICA BITPLANE PER SPRITE ---
-                # ================================================================
+                    pixel_value |= pixel_bit << (BPP - 1 - plane_idx)
 
                 sprite_data[y][x] = pixel_value
         decoded_sprites.append(sprite_data)

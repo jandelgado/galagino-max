@@ -101,6 +101,10 @@
   #include "machines/starforce/starforce.h"
 #endif
 
+#ifdef ENABLE_BALUBA
+  #include "machines/baluba/baluba.h"
+#endif
+
 #ifdef ENABLE_MOONCRESTA
   #include "machines/mooncresta/mooncresta.h"
 #endif
@@ -391,6 +395,13 @@ machineInfo machines[] = {
     starforce::menuLeds,
 #endif
     MCH_STARFORCE },
+#endif
+#ifdef ENABLE_BALUBA
+  { []() -> machineBase* { return new baluba(); }, baluba::logo,
+#ifdef LED_PIN
+    baluba::menuLeds,
+#endif
+    MCH_BALUBA },
 #endif
 #ifdef ENABLE_MOONCRESTA
   { []() -> machineBase* { return new mooncresta(); }, mooncresta::logo,
