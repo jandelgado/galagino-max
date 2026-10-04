@@ -3,7 +3,6 @@
 #include "crush_tilemap.h"
 #include "crush_spritemap.h"
 #include "crush_cmap.h"
-#include "crush_wavetable.h"
 
 crush::crush()
   : crush_rom(crush_rom_blob),
@@ -198,10 +197,6 @@ const unsigned short *crush::colorRom(unsigned short addr) {
 
 const uint32_t *crush::spriteRom(unsigned char flags, unsigned char code) {
   return crush_sprites[flags][code];
-}
-
-const signed char * crush::waveRom(unsigned char value) {
-  return crush_wavetable[value]; 
 }
 
 Asset<unsigned short, COMPRESSED> &crush::logo(void) {

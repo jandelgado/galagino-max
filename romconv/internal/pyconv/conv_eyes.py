@@ -17,7 +17,4 @@ run("internal/spriteconv.py", "-c", "eyes_sprites", "eyes", "./roms/e5", "../sou
 info("Eyes Colormaps")
 run("internal/cmapconv.py", "eyes_colormap", "./roms/82s123.7f", "0", "./roms/82s129.4a", "../source/src/machines/eyes/eyes_cmap.h")
 
-info("Eyes Audio")
-run("internal/audioconv.py", "eyes_wavetable", "./roms/82s126.1m", "../source/src/machines/eyes/eyes_wavetable.h")
-
 info("--- Success ---")

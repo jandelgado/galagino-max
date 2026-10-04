@@ -3,7 +3,6 @@
 #include "mrtnt_tilemap.h"
 #include "mrtnt_spritemap.h"
 #include "mrtnt_cmap.h"
-#include "mrtnt_wavetable.h"
 
 mrtnt::mrtnt()
   : mrtnt_rom(mrtnt_rom_blob),
@@ -108,10 +107,6 @@ const unsigned short *mrtnt::colorRom(unsigned short addr) {
 
 const uint32_t *mrtnt::spriteRom(unsigned char flags, unsigned char code) {
   return mrtnt_sprites[flags][code];
-}
-
-const signed char * mrtnt::waveRom(unsigned char value) {
-  return mrtnt_wavetable[value]; 
 }
 
 Asset<unsigned short, COMPRESSED> &mrtnt::logo(void) {

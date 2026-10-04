@@ -17,7 +17,4 @@ run("internal/spriteconv.py", "-c", "lizwiz_sprites", "lizwiz", "./roms/5f.cpu",
 info("Lizwiz Colormaps")
 run("internal/cmapconv.py", "lizwiz_colormap", "./roms/7f.cpu", "0", "./roms/4a.cpu", "../source/src/machines/lizwiz/lizwiz_cmap.h")
 
-info("Lizwiz Audio")
-run("internal/audioconv.py", "lizwiz_wavetable", "./roms/82s126.1m", "../source/src/machines/lizwiz/lizwiz_wavetable.h")
-
 info("--- Success ---")

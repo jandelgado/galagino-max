@@ -3,7 +3,6 @@
 #include "eyes_tilemap.h"
 #include "eyes_spritemap.h"
 #include "eyes_cmap.h"
-#include "eyes_wavetable.h"
 
 eyes::eyes()
   : eyes_rom(eyes_rom_blob),
@@ -112,10 +111,6 @@ const unsigned short *eyes::colorRom(unsigned short addr) {
 
 const uint32_t *eyes::spriteRom(unsigned char flags, unsigned char code) {
   return eyes_sprites[flags][code];
-}
-
-const signed char * eyes::waveRom(unsigned char value) {
-  return eyes_wavetable[value]; 
 }
 
 Asset<unsigned short, COMPRESSED> &eyes::logo(void) {

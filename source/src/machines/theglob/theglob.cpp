@@ -3,7 +3,6 @@
 #include "theglob_tilemap.h"
 #include "theglob_spritemap.h"
 #include "theglob_cmap.h"
-#include "theglob_wavetable.h"
 
 theglob::theglob()
   : theglob_rom(theglob_rom_blob),
@@ -163,10 +162,6 @@ const unsigned short *theglob::colorRom(unsigned short addr) {
 
 const uint32_t *theglob::spriteRom(unsigned char flags, unsigned char code) {
   return theglob_sprites[flags][code];
-}
-
-const signed char *theglob::waveRom(unsigned char value) {
-  return theglob_wavetable[value];
 }
 
 Asset<unsigned short, COMPRESSED> &theglob::logo(void) {
