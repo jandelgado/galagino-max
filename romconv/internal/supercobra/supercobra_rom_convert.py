@@ -65,13 +65,13 @@ def write_tilemap(filename, tiles):
     emit_compressed(f, "supercobra_tilemap", "unsigned short", "[8]", len(tiles), flat)
   print("Wrote: {} ({} tiles)".format(os.path.abspath(filename), len(tiles)))
 
-def write_spritemap(filename, all_orientations):
-  num_sprites = len(all_orientations[0])
+def write_spritemap(filename, sprites):
+  num_sprites = len(sprites)
   with open(filename, 'w') as f:
-    f.write("// Super Cobra spritemap: {} sprites, 16x16, 2bpp, 4 orientations\n".format(num_sprites))
-    flat = [v for orientation in all_orientations for rows in orientation for v in rows]
-    emit_compressed(f, "supercobra_spritemap", "uint32_t", "[%d][16]" % num_sprites, 4, flat)
-  print("Wrote: {} ({} sprites x 4 orientations)".format(os.path.abspath(filename), num_sprites))
+    f.write("// Super Cobra spritemap: {} sprites, 16x16, 2bpp, unflipped\n".format(num_sprites))
+    flat = [v for rows in sprites for v in rows]
+    emit_compressed(f, "supercobra_spritemap", "uint32_t", "[16]", num_sprites, flat)
+  print("Wrote: {} ({} sprites)".format(os.path.abspath(filename), num_sprites))
 
 def write_colormap(filename, rgb565):
   with open(filename, 'w') as f:

@@ -48,7 +48,7 @@ protected:
   Asset<unsigned short[16], COMPRESSED> todruaga_colormap_sprites;
   Asset<unsigned char, COMPRESSED> todruaga_rom_main;
   Asset<unsigned char, COMPRESSED> todruaga_rom_sub;
-  Asset<uint32_t[128][32], COMPRESSED> todruaga_sprites;
+  Asset<uint32_t[32], COMPRESSED> todruaga_sprites;
   Asset<unsigned short[8], COMPRESSED> todruaga_tilemap;
 public:
     todruaga();

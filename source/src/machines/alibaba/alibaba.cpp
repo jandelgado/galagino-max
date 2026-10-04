@@ -262,8 +262,8 @@ const unsigned short *alibaba::colorRom(unsigned short addr) {
   return alibaba_colormap[addr];
 }
 
-const uint32_t *alibaba::spriteRom(unsigned char flags, unsigned char code) {
-  return alibaba_sprites[flags][code];
+const uint32_t *alibaba::spriteRom(unsigned char code) {
+  return alibaba_sprites[code];
 }
 
 // Grafica "mystery" (lampada/orologio premio): 16x24 (ruotata 90 deg dalla

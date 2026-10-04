@@ -12,7 +12,7 @@ protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> anteater_rom_cpu1;
   Asset<unsigned char, COMPRESSED> anteater_rom_cpu2;
-  Asset<uint32_t[64][16], COMPRESSED> anteater_sprites;
+  Asset<uint32_t[16], COMPRESSED> anteater_sprites;
   Asset<unsigned short[8], COMPRESSED> anteater_tilemap;
 public:
   anteater();
@@ -45,7 +45,7 @@ protected:
 
   virtual const unsigned short *tileRom(unsigned short addr) override;
   virtual const unsigned short *colorRom(unsigned short addr) override;
-  virtual const uint32_t *spriteRom(unsigned char flags, unsigned char code) override;
+  virtual const uint32_t *spriteRom(unsigned char code) override;
 
 private:
   unsigned char showCustomBackground;

@@ -3,6 +3,7 @@
 #include "bagman_tilemap.h"
 #include "bagman_spritemap.h"
 #include "bagman_cmap.h"
+#include "../../emulation/spriteflip.h"
 
 bagman::bagman()
   : bagman_rom_cpu(bagman_rom_cpu_blob),
@@ -194,7 +195,7 @@ void bagman::blit_tile(short row, char col) {
 }
 
 void bagman::blit_sprite(short row, unsigned char s) {
-  const uint32_t *spr = spriteRom(sprite[s].flags, sprite[s].code);
+  SpriteRows2bpp spr(spriteRom(sprite[s].code), sprite[s].flags ? FLIP_PIXELS : FLIP_NONE);
   const unsigned short *colors = colorRom(sprite[s].color);
   
   // create mask for sprites that clip left or right
@@ -217,14 +218,14 @@ void bagman::blit_sprite(short row, unsigned char s) {
 
   // if we are not starting to draw with the first line, then
   // skip into the sprite image
-  if(y_offset < 0) spr -= y_offset;  
+  if(y_offset < 0) spr.skip(-y_offset);  
 
   // calculate pixel lines to paint  
   unsigned short *ptr = frame_buffer + sprite[s].x + 224*startline;
   
   // 16 pixel rows per sprite
   for(char r=0;r<lines2draw;r++,ptr+=(224-16)) {
-    unsigned long pix = *spr++ & mask;
+    unsigned long pix = spr.next() & mask;
     // 16 pixel columns per tile
     for(char c=0;c<16;c++,pix>>=2) {
       unsigned short col = colors[pix&3];
@@ -257,8 +258,8 @@ const unsigned short *bagman::colorRom(unsigned short addr) {
   return bagman_colormap[addr];
 }
 
-const uint32_t *bagman::spriteRom(unsigned char flags, unsigned char code) {
-  return bagman_sprites[flags][code];
+const uint32_t *bagman::spriteRom(unsigned char code) {
+  return bagman_sprites[code];
 }
 
 const Logo &bagman::logo(void) {

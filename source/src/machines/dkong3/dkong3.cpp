@@ -5,6 +5,7 @@
 #include "dkong3_spritemap.h"
 #include "dkong3_cmap.h"
 #include "dkong3_color_codes.h"
+#include "../../emulation/spriteflip.h"
 
 dkong3::dkong3()
   : dkong3_rom_cpu(dkong3_rom_cpu_blob),
@@ -525,7 +526,10 @@ void dkong3::blit_tile(short row, char col) {
 }
 
 void dkong3::blit_sprite(short row, unsigned char s) {
-    const uint32_t *spr    = dkong3_sprites[sprite[s].flags & 3][sprite[s].code];
+    // flags bits are swapped against SpriteFlip: bit 0 pixels, bit 1 rows
+    uint8_t flip = ((sprite[s].flags & 1) ? FLIP_PIXELS : FLIP_NONE) |
+                   ((sprite[s].flags & 2) ? FLIP_ROWS : FLIP_NONE);
+    SpriteRows2bpp spr(dkong3_sprites[sprite[s].code], flip);
     const unsigned short *colors = dkong3_colormap_sprite[sprite[s].color];
 
     unsigned long mask = 0xFFFFFFFF;
@@ -538,11 +542,11 @@ void dkong3::blit_sprite(short row, unsigned char s) {
 
     if (y_off < -8) lines = 16 + y_off;
     if (y_off > 0)  { startline = y_off; lines = 8 - y_off; }
-    if (y_off < 0)  spr += (-y_off);
+    if (y_off < 0)  spr.skip(-y_off);
 
     unsigned short *ptr = frame_buffer + sprite[s].x + 224 * startline;
     for (char r = 0; r < lines; r++, ptr += (224 - 16)) {
-        unsigned long pix = *spr++ & mask;
+        unsigned long pix = spr.next() & mask;
         for (char c = 0; c < 16; c++, pix >>= 2) {
             if (pix & 3) *ptr = colors[pix & 3];
             ptr++;

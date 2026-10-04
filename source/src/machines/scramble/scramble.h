@@ -49,7 +49,7 @@ protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> scramble_audio_rom;
   Asset<unsigned char, COMPRESSED> scramble_main_rom;
-  Asset<uint32_t[64][16], COMPRESSED> scramble_spritemap;
+  Asset<uint32_t[16], COMPRESSED> scramble_spritemap;
   Asset<unsigned short[8], COMPRESSED> scramble_tilemap;
 public:
   scramble();

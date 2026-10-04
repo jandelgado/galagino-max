@@ -3,6 +3,7 @@
 #include "timeplt_snd_rom.h"
 #include "timeplt_tilemap.h"
 #include "timeplt_spritemap.h"
+#include "../../emulation/spriteflip.h"
 
 timeplt::timeplt()
   : timeplt_rom(timeplt_rom_blob),
@@ -400,7 +401,7 @@ void timeplt::blit_tile_cat(short row, char col, signed char cat_filter) {
 // This preserves multi-sprite tiling: landscape column edges naturally become
 // adjacent portrait rows, so clouds and other multi-sprite objects tile correctly.
 void timeplt::blit_sprite(short row, unsigned char s) {
-  const uint32_t *spr_data = timeplt_spritemap[sprite[s].flags & 3][sprite[s].code];
+  SpriteRows2bpp spr(timeplt_spritemap[sprite[s].code], sprite[s].flags & 3);
   const unsigned short *colors = timeplt_sprite_colormap[sprite[s].color];
 
   int spr_x = sprite[s].x;   // screen X start (ROM rows map here)
@@ -423,9 +424,9 @@ void timeplt::blit_sprite(short row, unsigned char s) {
   // ROM col c = screen_y - spr_y              [forward column for correct tiling]
   for(int r = 0; r < 16; r++) {
     int screen_x = spr_x + 15 - r;
+    unsigned long row_data = spr.next();
 
     if(screen_x < 0 || screen_x >= 224) continue;
-    unsigned long row_data = spr_data[r];
 
     for(int screen_y = y_begin; screen_y <= y_end; screen_y++) {
       int c = screen_y - spr_y;   // forward column mapping

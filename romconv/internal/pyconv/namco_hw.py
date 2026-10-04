@@ -3,13 +3,6 @@
 # Tower of Druaga lineage).
 
 
-def flip_tile(tile, fx, fy):
-    out = tile
-    if fy: out = list(reversed(out))
-    if fx: out = [list(reversed(r)) for r in out]
-    return out
-
-
 def nudge(v):
     # 0 is the transparency marker; map true black to near-black.
     return v if v != 0 else 0x2000

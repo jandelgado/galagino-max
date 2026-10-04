@@ -13,7 +13,7 @@ protected:
   Asset<unsigned short[256][4], COMPRESSED> dkongjr_colormap;
   Asset<unsigned char, COMPRESSED> dkongjr_rom1;
   Asset<unsigned char, COMPRESSED> dkongjr_rom2;
-  Asset<uint32_t[128][16], COMPRESSED> dkongjr_sprites;
+  Asset<uint32_t[16], COMPRESSED> dkongjr_sprites;
   Asset<unsigned short[8], COMPRESSED> dkongjr_tilemap;
 public:
 	dkongjr();

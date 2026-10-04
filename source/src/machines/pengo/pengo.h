@@ -17,7 +17,7 @@ protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned short[256][4], COMPRESSED> pengo_colormap;
   Asset<unsigned char, COMPRESSED> pengo_rom;
-  Asset<uint32_t[4][64][16], COMPRESSED> pengo_sprites;
+  Asset<uint32_t[64][16], COMPRESSED> pengo_sprites;
   Asset<unsigned short[8], COMPRESSED> pengo_tiles;
 public:
 	pengo();

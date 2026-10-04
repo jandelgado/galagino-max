@@ -1,4 +1,5 @@
 #include "todruaga.h"
+#include "../../emulation/spriteflip.h"
 
 todruaga::todruaga()
   : todruaga_colormap_sprites(todruaga_colormap_sprites_blob),
@@ -486,7 +487,7 @@ void todruaga::prepare_frame(void) {
 // sprite 16x16 4bpp: 2 unsigned long per riga galagino (nibble LSB-first),
 // trasparenza = colormap 0 (lookup 0xF nel converter)
 void todruaga::blit_sprite(short row, unsigned char s) {
-  const uint32_t *spr = todruaga_sprites[sprite[s].flags & 3][sprite[s].code];
+  SpriteRows4bpp spr(todruaga_sprites[sprite[s].code], sprite[s].flags & 3);
   const unsigned short *colors = cmap_sprites[sprite[s].color & 0x3F];
 
   short y_offset = sprite[s].y - 8 * row;
@@ -501,16 +502,18 @@ void todruaga::blit_sprite(short row, unsigned char s) {
   }
 
   if (y_offset < 0)
-    spr += 2 * (-y_offset);   // salta le righe gia' disegnate nella strip sopra
+    spr.skip(-y_offset);   // salta le righe gia' disegnate nella strip sopra
 
   short x = sprite[s].x;
   unsigned char c0 = (x < 0) ? -x : 0;
   unsigned char c1 = (x > 224 - 16) ? 224 - x : 16;
 
   unsigned short *ptr = frame_buffer + x + 224 * startline;
-  for (unsigned char r = 0; r < lines2draw; r++, ptr += 224, spr += 2) {
+  for (unsigned char r = 0; r < lines2draw; r++, ptr += 224) {
+    uint32_t pix[2];
+    spr.next(pix);
     for (unsigned char c = c0; c < c1; c++) {
-      unsigned short col = colors[(spr[c >> 3] >> (4 * (c & 7))) & 0x0F];
+      unsigned short col = colors[(pix[c >> 3] >> (4 * (c & 7))) & 0x0F];
       if (col) ptr[c] = col;
     }
   }

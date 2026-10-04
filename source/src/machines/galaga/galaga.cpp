@@ -1,4 +1,5 @@
 #include "galaga.h"
+#include "../../emulation/spriteflip.h"
 
 void galaga::start(void) {
   rom_ptr[0] = galaga_rom_cpu1.data();
@@ -364,7 +365,7 @@ void galaga::blit_tile(short row, char col) {
 // double sized sprites. This renders onto a single 224 x 8 tile row
 // thus will be called multiple times even for single sized sprites
 void galaga::blit_sprite(short row, unsigned char s) {
-  const uint32_t *spr = galaga_sprites[sprite[s].flags & 3][sprite[s].code];
+  SpriteRows2bpp spr(galaga_sprites[sprite[s].code], sprite[s].flags & 3);
   const unsigned short *colors = galaga_colormap_sprites[sprite[s].color & 63];
   if(colors[0] != 0) return;   // not a valid colormap entry
 
@@ -389,14 +390,14 @@ void galaga::blit_sprite(short row, unsigned char s) {
   // if we are not starting to draw with the first line, then
   // skip into the sprite image
   if(y_offset < 0)
-    spr -= y_offset;  
+    spr.skip(-y_offset);  
 
   // calculate pixel lines to paint  
   unsigned short *ptr = frame_buffer + sprite[s].x + 224*startline;
   
   // 16 pixel rows per sprite
   for(char r=0;r<lines2draw;r++,ptr+=(224-16)) {
-    unsigned long pix = *spr++ & mask;
+    unsigned long pix = spr.next() & mask;
     // 16 pixel columns per tile
     for(char c=0;c<16;c++,pix>>=2) {
       unsigned short col = colors[pix&3];

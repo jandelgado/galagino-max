@@ -87,34 +87,27 @@ def generate_sprite_values(gfx5e, gfx5f):
     max_gfx_size = len(gfx5f)
     SPRITE_COUNT = 64
     
+    # Unflipped: pacman::blit_sprite flips at draw time.
     all_values = []
     
-    for flip in range(4):
-        for s in range(SPRITE_COUNT):
-            for r in range(16):
-                base = sprite_offset + (s * 64) + r
-                
-                b0l = gfx5f[base] if base < max_gfx_size else 0
-                b0h = gfx5f[base + 16] if (base + 16) < max_gfx_size else 0
-                b1l = gfx5f[base + 32] if (base + 32) < max_gfx_size else 0
-                b1h = gfx5f[base + 48] if (base + 48) < max_gfx_size else 0
-                
-                wl, wh = 0, 0
-                for bit in range(8):
-                    p0l, p1l = (b0l >> (7-bit)) & 1, (b1l >> (7-bit)) & 1
-                    p0h, p1h = (b0h >> (7-bit)) & 1, (b1h >> (7-bit)) & 1
-                    wl |= (((p1l << 1) | p0l) << (bit * 2))
-                    wh |= (((p1h << 1) | p0h) << (bit * 2))
-                val = (wh << 16) | wl
-                
-                if flip & 1:
-                    new_val = 0
-                    for c in range(16):
-                        pixel = (val >> (c * 2)) & 3
-                        new_val |= (pixel << ((15 - c) * 2))
-                    val = new_val
-                
-                all_values.append(val)
+    for s in range(SPRITE_COUNT):
+        for r in range(16):
+            base = sprite_offset + (s * 64) + r
+            
+            b0l = gfx5f[base] if base < max_gfx_size else 0
+            b0h = gfx5f[base + 16] if (base + 16) < max_gfx_size else 0
+            b1l = gfx5f[base + 32] if (base + 32) < max_gfx_size else 0
+            b1h = gfx5f[base + 48] if (base + 48) < max_gfx_size else 0
+            
+            wl, wh = 0, 0
+            for bit in range(8):
+                p0l, p1l = (b0l >> (7-bit)) & 1, (b1l >> (7-bit)) & 1
+                p0h, p1h = (b0h >> (7-bit)) & 1, (b1h >> (7-bit)) & 1
+                wl |= (((p1l << 1) | p0l) << (bit * 2))
+                wh |= (((p1h << 1) | p0h) << (bit * 2))
+            val = (wh << 16) | wl
+            
+            all_values.append(val)
 
     return all_values
 
@@ -203,7 +196,7 @@ def main():
     sprite_values = apply_patch_values(sprite_values, sprite_patch, 0xFFFFFFFF)
 
     with open(final_file, 'w', encoding='utf-8') as f:
-        emit_compressed(f, "mspacman_sprites", "uint32_t", "[64][16]", 4, sprite_values)
+        emit_compressed(f, "mspacman_sprites", "uint32_t", "[16]", 64, sprite_values)
 
     print(f"  File finale: {final_file}")
 

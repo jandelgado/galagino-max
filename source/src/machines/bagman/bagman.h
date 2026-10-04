@@ -12,7 +12,7 @@ class bagman : public machineBase
 protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> bagman_rom_cpu;
-  Asset<uint32_t[128][16], COMPRESSED> bagman_sprites;
+  Asset<uint32_t[16], COMPRESSED> bagman_sprites;
   Asset<unsigned short[8], COMPRESSED> bagman_tilemap;
 public:
   bagman();
@@ -38,7 +38,7 @@ protected:
   void blit_sprite(short row, unsigned char s) override;
   virtual const unsigned short *tileRom(unsigned short addr);
   virtual const unsigned short *colorRom(unsigned short addr);
-  virtual const uint32_t *spriteRom(unsigned char flags, unsigned char code);
+  virtual const uint32_t *spriteRom(unsigned char code);
   
 private:
   void pitch_w(uint8_t data);

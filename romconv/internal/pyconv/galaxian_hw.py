@@ -55,29 +55,22 @@ def parse_sprite_galaxian(data0, data1):
     return sprite
 
 
-def dump_sprite(data, flip_x, flip_y):
+def dump_sprite(data):
     vals = []
-    y_range = range(16) if not flip_y else reversed(range(16))
-    for y in y_range:
+    for y in range(16):
         val = 0
         for x in range(16):
-            if not flip_x:
-                val = (val >> 2) + (data[y][x] << (32 - 2))
-            else:
-                val = (val << 2) + data[y][x]
+            val = (val >> 2) + (data[y][x] << (32 - 2))
         vals.append(val)
     return vals
 
 
 def convert_sprites(plane0, plane1):
+    """Unflipped sprites, 16 row values each. The blitters flip at draw time."""
     num_sprites = len(plane0) // 32
     sprites = []
     for s in range(num_sprites):
         d0 = plane0[32 * s : 32 * (s + 1)]
         d1 = plane1[32 * s : 32 * (s + 1)]
-        sprites.append(parse_sprite_galaxian(d0, d1))
-    all_orientations = []
-    for flip_x, flip_y in [(False, False), (False, True), (True, False), (True, True)]:
-        orientation = [dump_sprite(s, flip_x, flip_y) for s in sprites]
-        all_orientations.append(orientation)
-    return all_orientations
+        sprites.append(dump_sprite(parse_sprite_galaxian(d0, d1)))
+    return sprites

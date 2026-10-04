@@ -100,34 +100,21 @@ def convert_tiles(half1, half2):
 # ---- Sprites 16x16 4bpp: 64 sprite, 64 byte/sprite per meta' ----
 # xoffset {0-3, 64-67, 128-131, 192-195} -> gruppo col*8 byte
 # yoffset {0..56, 256..312} -> righe 8-15 a +32 byte (24+row)
-# Landscape senza rotazione, 4 orientamenti [norm, flipY, flipX, flipXY],
-# riga impacchettata come 8 byte nibble (col pari = nibble basso).
+# Landscape senza rotazione, non flippati (pooyan::blit_sprite applica il
+# flip a runtime), riga impacchettata come 8 byte nibble (col pari = nibble basso).
 def convert_sprites(half1, half2):
-    all_pixels = []
+    sprites = []
     for s in range(64):
         base = s * 64
-        landscape = []
+        rows = []
         for row in range(16):
             row_byte = row if row < 8 else 24 + row
-            landscape.append([pixel4(half1, half2, base + row_byte + (col // 4) * 8, col % 4)
-                              for col in range(16)])
-        all_pixels.append(landscape)
-
-    all_orientations = []
-    for flip_x, flip_y in [(False, False), (False, True), (True, False), (True, True)]:
-        orientation = []
-        for pix in all_pixels:
-            rows = []
-            y_range = range(15, -1, -1) if flip_y else range(16)
-            for y in y_range:
-                row_bytes = [0] * 8
-                for x in range(16):
-                    xx = (15 - x) if flip_x else x
-                    row_bytes[xx >> 1] |= pix[y][x] << ((xx & 1) * 4)
-                rows.append(row_bytes)
-            orientation.append(rows)
-        all_orientations.append(orientation)
-    return all_orientations
+            row_bytes = [0] * 8
+            for col in range(16):
+                row_bytes[col >> 1] |= pixel4(half1, half2, base + row_byte + (col // 4) * 8, col % 4) << ((col & 1) * 4)
+            rows.append(row_bytes)
+        sprites.append(rows)
+    return sprites
 
 # ---- Scrittura header ----
 def write_bytes(filename, comment, name, data):
@@ -152,13 +139,13 @@ def write_tilemap(filename, tiles, char_colors):
         f.write("};\n")
     print("Written: {} ({} tiles, 16 char groups)".format(filename, len(tiles)))
 
-def write_spritemap(filename, all_orientations, sprite_colors, transmask):
-    num = len(all_orientations[0])
+def write_spritemap(filename, sprites, sprite_colors, transmask):
+    num = len(sprites)
     with open(filename, 'w') as f:
-        f.write("// Pooyan spritemap: {} sprite, 16x16, 4bpp, 4 orientamenti, landscape\n".format(num))
+        f.write("// Pooyan spritemap: {} sprite, 16x16, 4bpp, non flippati, landscape\n".format(num))
         f.write("// pixel col c = (riga[c>>1] >> ((c&1)*4)) & 0xF\n")
-        flat = [b for orientation in all_orientations for rows in orientation for rb in rows for b in rb]
-        emit_compressed(f, "pooyan_spritemap", "unsigned char", "[%d][16][8]" % num, 4, flat)
+        flat = [b for rows in sprites for rb in rows for b in rb]
+        emit_compressed(f, "pooyan_spritemap", "unsigned char", "[16][8]", num, flat)
         f.write("\n// Pooyan sprite colormap: 16 gruppi x 16 pen, RGB565 byte-swapped\n")
         f.write("const unsigned short pooyan_sprite_colormap[][16] = {\n")
         for grp in range(16):

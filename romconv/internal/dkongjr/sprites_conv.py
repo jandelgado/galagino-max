@@ -44,21 +44,15 @@ def parse_sprite_dkong(data_chunks):
         sprite.append(row)
     return sprite
 
-def dump_sprite_values(data, flip_x, flip_y):
+def dump_sprite_values(data):
     """
     Converte una matrice di pixel 16x16 in una lista di 16 valori (32-bit),
     impacchettando 16 pixel a 2-bit in ogni valore.
-    Applica il flip orizzontale/verticale se richiesto.
     """
     vals = []
-    y_range = reversed(range(16)) if flip_y else range(16)
-
-    for y_idx in y_range:
-        y = y_idx
+    for y in range(16):
         val = 0
-        x_range = reversed(range(16)) if flip_x else range(16)
-        for x_idx in x_range:
-            x = x_idx
+        for x in range(16):
             # Impacchetta i pixel a 2 bit in un intero a 32 bit
             val = (val << 2) | data[y][x]
         vals.append(val)
@@ -102,17 +96,15 @@ def convert_dkjr_spritemap():
         sprites.append(parse_sprite_dkong(data_chunks))
     print("Decodifica completata.")
 
-    # 4. Scrive il file header C di output con tutte le versioni flippate
+    # 4. Scrive il file header C di output
     print(f"Scrittura del file di output: '{OUTPUT_HEADER_FILE}'...")
     with open(OUTPUT_HEADER_FILE, "w") as f:
         f.write(f"// File generato automaticamente per gli sprite di Donkey Kong Jr.\n")
         f.write(f"// Dati estratti da: {', '.join(INPUT_ROM_FILES)}\n\n")
 
-        flat = []
-        for flip_x, flip_y in [(False, False), (False, True), (True, False), (True, True)]:
-            for s in sprites:
-                flat.extend(dump_sprite_values(s, flip_x, flip_y))
-        emit_compressed(f, OUTPUT_ARRAY_NAME, "uint32_t", "[%d][16]" % NUM_SPRITES, 4, flat)
+        # Non flippati: dkongjr::blit_sprite applica il flip a runtime.
+        flat = [v for s in sprites for v in dump_sprite_values(s)]
+        emit_compressed(f, OUTPUT_ARRAY_NAME, "uint32_t", "[16]", NUM_SPRITES, flat)
         
     print(f"\nProcesso completato! Il file '{OUTPUT_HEADER_FILE}' è stato creato.")
 

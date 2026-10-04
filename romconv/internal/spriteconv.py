@@ -2,7 +2,7 @@
 import sys
 
 sys.path.insert(0, "internal/pyconv")
-from asset_emit import emit_compressed
+from asset_emit import emit_compressed, emit_plain
 
 def bit_permute_step(x, m, shift):
     t = ((x >> shift) ^ x) & m
@@ -40,20 +40,6 @@ def show_sprite_4bpp(data):
             print("  ..--++xx**XX##"[pix], end="")
         print("")
 
-def dump_sprite(data, flip_x, flip_y):
-    hexs = [ ]
-    
-    for y in range(16) if not flip_y else reversed(range(16)):
-        val = 0
-        for x in range(16):
-            if not flip_x:
-                val = (val >> 2) + (data[y][x] << (32-2))
-            else:
-                val = (val << 2) + data[y][x]
-        hexs.append(hex(val))
-
-    return ",".join(hexs)
-    
 def dump_sprite_4bpp_values(data):
     vals = [ ]
     for y in range(16):
@@ -154,27 +140,14 @@ def parse_sprite(data, pacman_fmt, decode):
         sprite = sprite[4:] + sprite[:4]
     return sprite
 
-def dump_c_source(sprites, flip_x, flip_y, f):
-    # write as c source
-    print(" {" ,file=f)
-    sprites_str = []
-    for s in sprites:
-        sprites_str.append("  { " + dump_sprite(s, flip_x, flip_y) + " }")
-    print(",\n".join(sprites_str), file=f)
-    if flip_x and flip_y: print(" }", file=f)
-    else:                 print(" },", file=f)
-
-def sprite_row_values(s, flip_x, flip_y):
+def sprite_row_values(s):
     # 2bpp sprites pack as uint32_t[16], one long per row (differs from
     # 1942's 4bpp dump_sprite_4bpp_values).
     vals = []
-    for y in range(16) if not flip_y else reversed(range(16)):
+    for y in range(16):
         val = 0
         for x in range(16):
-            if not flip_x:
-                val = (val >> 2) + (s[y][x] << (32 - 2))
-            else:
-                val = (val << 2) + s[y][x]
+            val = (val >> 2) + (s[y][x] << (32 - 2))
         vals.append(val & 0xffffffff)
     return vals
 
@@ -328,43 +301,16 @@ def parse_spritemap(id, fmt, infiles, outfile, compress=False):
     if fmt == "1942":
         flat = [v for s in sprites for v in dump_sprite_4bpp_values(s)]
         emit_compressed(f, id, "uint32_t", "[32]", len(sprites), flat)
-    elif fmt == "bagman" and compress:
-        # bagman only precomputes 2 variants (normal, x-flipped), not 4.
-        flat = []
-        for flip_x, flip_y in [(False, False), (True, False)]:
-            for s in sprites:
-                flat.extend(sprite_row_values(s, flip_x, flip_y))
-        emit_compressed(f, id, "uint32_t", "["+str(len(sprites))+"][16]", 2, flat)
-    elif fmt == "bagman":
-        # write 2 bpp
-        print("const uint32_t "+id+"[]["+str(len(sprites))+"][16] = {", file=f)
-        dump_c_source(sprites, False, False, f)
-
-        # we have plenty of flash space, so we simply pre-compute x flipped
-        # versions of all sprites
-        dump_c_source(sprites,  True,  False, f)
-        print("};", file=f)
-    elif compress:
-        # 2bpp sprites pack differently than 1942's 4bpp sprites (dump_sprite, not
-        # dump_sprite_4bpp): each variant is `uint32_t[16]`, one long per row.
-        flat = []
-        for flip_x, flip_y in [(False, False), (False, True), (True, False), (True, True)]:
-            for s in sprites:
-                flat.extend(sprite_row_values(s, flip_x, flip_y))
-        # Variant is the Asset element, so name[variant][sprite][row]
-        # indexes like the plain array.
-        emit_compressed(f, id, "uint32_t", "["+str(len(sprites))+"][16]", 4, flat)
     else:
-        # write 2 bpp
-        print("const uint32_t "+id+"[]["+str(len(sprites))+"][16] = {", file=f)
-        dump_c_source(sprites, False, False, f)
-
-        # we have plenty of flash space, so we simply pre-compute x/y flipped
-        # versions of all sprites
-        dump_c_source(sprites, False,  True, f)
-        dump_c_source(sprites,  True, False, f)
-        dump_c_source(sprites,  True,  True, f)
-        print("};", file=f)
+        # 2bpp, one uint32_t per row. Stored unflipped: the blitters flip
+        # at draw time (source/src/emulation/spriteflip.h).
+        if compress:
+            flat = [v for s in sprites for v in sprite_row_values(s)]
+            emit_compressed(f, id, "uint32_t", "[16]", len(sprites), flat)
+        else:
+            body = ",\n".join("  { " + ",".join(hex(v) for v in sprite_row_values(s)) + " }"
+                              for s in sprites)
+            emit_plain(f, id, "uint32_t", "[16]", len(sprites), body)
 
 args = sys.argv[1:]
 compress = False

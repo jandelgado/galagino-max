@@ -5,6 +5,7 @@
 #include "pacman_spritemap.h"
 #include "pacman_cmap.h"
 #include "pacman_wavetable.h"
+#include "../../emulation/spriteflip.h"
 
 pacman::pacman()
   : pacman_rom(pacman_rom_blob),
@@ -143,7 +144,7 @@ void pacman::blit_tile(short row, char col) {
 }
 
 void pacman::blit_sprite(short row, unsigned char s) {
-  const uint32_t *spr = spriteRom(sprite[s].flags & 3, sprite[s].code);
+  SpriteRows2bpp spr(spriteRom(sprite[s].code), sprite[s].flags & 3);
   const unsigned short *colors = colorRom(sprite[s].color & 63);
 
   // create mask for sprites that clip left or right
@@ -167,14 +168,14 @@ void pacman::blit_sprite(short row, unsigned char s) {
   // if we are not starting to draw with the first line, then
   // skip into the sprite image
   if(y_offset < 0)
-    spr -= y_offset;  
+    spr.skip(-y_offset);  
 
   // calculate pixel lines to paint  
   unsigned short *ptr = frame_buffer + sprite[s].x + 224*startline;
   
   // 16 pixel rows per sprite
   for(char r=0;r<lines2draw;r++,ptr+=(224-16)) {
-    unsigned long pix = *spr++ & mask;
+    unsigned long pix = spr.next() & mask;
     // 16 pixel columns per tile
     for(char c=0;c<16;c++,pix>>=2) {
       unsigned short col = colors[pix&3];
@@ -205,8 +206,8 @@ const unsigned short *pacman::colorRom(unsigned short addr) {
   return pacman_colormap[addr];
 }
 
-const uint32_t *pacman::spriteRom(unsigned char flags, unsigned char code) {
-  return pacman_sprites[flags][code];
+const uint32_t *pacman::spriteRom(unsigned char code) {
+  return pacman_sprites[code];
 }
 
 const signed char *pacman::waveRom(unsigned char value) {

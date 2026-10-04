@@ -4,6 +4,7 @@
 #include "vanvan_tilemap.h"
 #include "vanvan_spritemap.h"
 #include "vanvan_cmap.h"
+#include "../../emulation/spriteflip.h"
 
 vanvan::vanvan()
   : vanvan_rom(vanvan_rom_blob),
@@ -199,7 +200,7 @@ void vanvan::blit_tile(short row, char col) {
 }
 
 void vanvan::blit_sprite(short row, unsigned char s) {
-  const uint32_t *spr = vanvan_sprites[sprite[s].flags & 3][sprite[s].code];
+  SpriteRows2bpp spr(vanvan_sprites[sprite[s].code], sprite[s].flags & 3);
   const unsigned short *colors = vanvan_colormap[sprite[s].color & 63];
 
   unsigned long mask = 0xffffffff;
@@ -218,12 +219,12 @@ void vanvan::blit_sprite(short row, unsigned char s) {
   }
 
   if (y_offset < 0)
-    spr -= y_offset;
+    spr.skip(-y_offset);
 
   unsigned short *ptr = frame_buffer + sprite[s].x + 224 * startline;
 
   for (char r = 0; r < lines2draw; r++, ptr += (224-16)) {
-    unsigned long pix = *spr++ & mask;
+    unsigned long pix = spr.next() & mask;
     for (char c = 0; c < 16; c++, pix >>= 2) {
       // Sprite pen 0 is ALWAYS transparent on Pac-Man hardware, regardless of
       // what the color PROM stores for entry 0. Test the pen index, not the

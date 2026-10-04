@@ -11,7 +11,7 @@ class crush : public pacman
 protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> crush_rom;
-  Asset<uint32_t[64][16], COMPRESSED> crush_sprites;
+  Asset<uint32_t[16], COMPRESSED> crush_sprites;
   Asset<unsigned short[8], COMPRESSED> crush_tilemap;
 public:
   crush();
@@ -34,7 +34,7 @@ public:
 protected:
   const unsigned short *tileRom(unsigned short addr) override;
   const unsigned short *colorRom(unsigned short addr) override;
-  const uint32_t *spriteRom(unsigned char flags, unsigned char code) override;
+  const uint32_t *spriteRom(unsigned char code) override;
 
 private:
   void maketrax_protection_w(uint8_t data);

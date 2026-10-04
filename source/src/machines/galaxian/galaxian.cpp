@@ -4,6 +4,7 @@
 #include "galaxian_spritemap.h"
 #include "galaxian_cmap.h"
 #include "../../emulation/input.h"
+#include "../../emulation/spriteflip.h"
 
 galaxian::galaxian()
   : galaxian_rom(galaxian_rom_blob),
@@ -255,7 +256,7 @@ void galaxian::blit_tile_scroll(short row, signed char col, unsigned char scroll
 }
 
 void galaxian::blit_sprite(short row, unsigned char s) {
-  const uint32_t *spr = galaxian_spritemap[sprite[s].flags & 3][sprite[s].code];
+  SpriteRows2bpp spr(galaxian_spritemap[sprite[s].code], sprite[s].flags & 3);
   const unsigned short *colors = galaxian_colormap[sprite[s].color];
 
   unsigned long mask = 0xffffffff;
@@ -273,12 +274,12 @@ void galaxian::blit_sprite(short row, unsigned char s) {
     lines2draw = 8 - y_offset;
   }
 
-  if(y_offset < 0) spr -= y_offset;
+  if(y_offset < 0) spr.skip(-y_offset);
 
   unsigned short *ptr = frame_buffer + sprite[s].x + 224 * startline;
 
   for(char r = 0; r < lines2draw; r++, ptr += (224 - 16)) {
-    unsigned long pix = *spr++ & mask;
+    unsigned long pix = spr.next() & mask;
     for(char c = 0; c < 16; c++, pix >>= 2) {
       long index = ((pix & 2) >> 1) | ((pix & 1) << 1);
       if(pix & 3) *ptr = colors[index];

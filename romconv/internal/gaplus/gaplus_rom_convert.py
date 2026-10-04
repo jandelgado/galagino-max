@@ -25,7 +25,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import load_file, mame_decode, rot_galagino
 from asset_emit import emit_compressed, emit_plain
-from namco_hw import flip_tile, nudge, rgb565_swapped_rgb as rgb565_swapped
+from namco_hw import nudge, rgb565_swapped_rgb as rgb565_swapped
 from convutil import fatal
 
 ROM_SET_GAPLUS  = os.path.normpath(os.path.join("..", "..", "..", "romszip", "gaplus.zip"))
@@ -131,26 +131,21 @@ def write_tiles(tiles):
         emit_compressed(f, "gaplus_tilemap", "unsigned short", "[8]", len(tiles), flat)
 
 def write_sprites(sprites):
-    # same as mappy/galaga: [0]=(fx0,fy0) [1]=(fx0,fy1) [2]=(fx1,fy0) [3]=(fx1,fy1)
-    # 192KB decompressed exceeds the Arena; stays PLAIN in flash.
+    # Unflipped, gaplus::blit_sprite flips at draw time. Stays PLAIN in flash.
     with open(os.path.join(OUT_DIR, "gaplus_spritemap.h"), "w") as f:
         print("// Gaplus sprites (gp2-11+gp2-10+gp2-12+gp2-9 + driver_init unpack) —", file=f)
-        body_parts = []
-        for (fx, fy) in [(0,0),(0,1),(1,0),(1,1)]:
-            rows = []
-            for s in sprites:
-                t = flip_tile(s, fx, fy)
-                vals = []
-                for y in range(16):
-                    v = 0
-                    for x in range(16):
-                        v |= t[y][x] << (4*x)
-                    vals.append(hex(v & 0xffffffff))
-                    vals.append(hex(v >> 32))
-                rows.append("  { " + ",".join(vals) + " }")
-            body_parts.append(" {\n" + ",\n".join(rows) + "\n }")
-        body = ",\n".join(body_parts)
-        emit_plain(f, "gaplus_sprites", "uint32_t", "[%d][32]" % len(sprites), 4, body)
+        rows = []
+        for t in sprites:
+            vals = []
+            for y in range(16):
+                v = 0
+                for x in range(16):
+                    v |= t[y][x] << (4*x)
+                vals.append(hex(v & 0xffffffff))
+                vals.append(hex(v >> 32))
+            rows.append("  { " + ",".join(vals) + " }")
+        body = ",\n".join(rows)
+        emit_plain(f, "gaplus_sprites", "uint32_t", "[32]", len(sprites), body)
 
 def decode_palette(red_prom, green_prom, blue_prom):
     # gaplus_palette(): resistenze pesate 0x0e/0x1f/0x43/0x8f sui 4 bit

@@ -34,7 +34,7 @@ protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<uint32_t[24], COMPRESSED> alibaba_clockmap;
   Asset<unsigned char, COMPRESSED> alibaba_rom;
-  Asset<uint32_t[64][16], COMPRESSED> alibaba_sprites;
+  Asset<uint32_t[16], COMPRESSED> alibaba_sprites;
   Asset<unsigned short[8], COMPRESSED> alibaba_tilemap;
 public:
 	alibaba();
@@ -54,7 +54,7 @@ public:
 protected:
 	const unsigned short *tileRom(unsigned short addr) override;
 	const unsigned short *colorRom(unsigned short addr) override;
-	const uint32_t *spriteRom(unsigned char flags, unsigned char code) override;
+	const uint32_t *spriteRom(unsigned char code) override;
 
 	void blit_clock(short row);
 

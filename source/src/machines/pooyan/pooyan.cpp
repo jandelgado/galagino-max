@@ -3,6 +3,7 @@
 #include "pooyan_snd_rom.h"
 #include "pooyan_tilemap.h"
 #include "pooyan_spritemap.h"
+#include "../../emulation/spriteflip.h"
 
 pooyan::pooyan()
   : pooyan_rom(pooyan_rom_blob),
@@ -359,7 +360,8 @@ void pooyan::blit_tile(short row, char col) {
 // Trasparenza: MAME transpen_mask — pen trasparente se LUT[group*16+pen]==0
 // (bitmask precalcolata nel converter, NON è il semplice pen==0).
 void pooyan::blit_sprite(short row, unsigned char s) {
-  const unsigned char (*spr_data)[8] = pooyan_spritemap[sprite[s].flags & 3][sprite[s].code];
+  const unsigned char (*spr_data)[8] = pooyan_spritemap[sprite[s].code];
+  uint8_t flip = sprite[s].flags & 3;
   const unsigned short *colors = pooyan_sprite_colormap[sprite[s].color];
   unsigned short transmask = pooyan_sprite_transmask[sprite[s].color];
 
@@ -379,10 +381,13 @@ void pooyan::blit_sprite(short row, unsigned char s) {
     int screen_x = spr_x + 15 - r;
 
     if(screen_x < 0 || screen_x >= 224) continue;
-    const unsigned char *row_data = spr_data[r];
+    const unsigned char *row_data = spr_data[(flip & FLIP_ROWS) ? 15 - r : r];
 
     for(int screen_y = y_begin; screen_y <= y_end; screen_y++) {
       int c = screen_y - spr_y;   // forward column mapping
+      if(flip & FLIP_PIXELS) {
+        c = 15 - c;
+      }
       unsigned char px = (row_data[c >> 1] >> ((c & 1) * 4)) & 0x0F;
       if(!((transmask >> px) & 1)) {
         frame_buffer[(screen_y - row_start) * 224 + screen_x] = colors[px];

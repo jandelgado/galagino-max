@@ -15,7 +15,7 @@ class galaxian : public machineBase
 protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> galaxian_rom;
-  Asset<uint32_t[64][16], COMPRESSED> galaxian_spritemap;
+  Asset<uint32_t[16], COMPRESSED> galaxian_spritemap;
   Asset<unsigned short[8], COMPRESSED> galaxian_tilemap;
 public:
   galaxian();

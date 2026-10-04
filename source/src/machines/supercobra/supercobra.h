@@ -48,7 +48,7 @@ protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> supercobra_audio_rom;
   Asset<unsigned char, COMPRESSED> supercobra_main_rom;
-  Asset<uint32_t[64][16], COMPRESSED> supercobra_spritemap;
+  Asset<uint32_t[16], COMPRESSED> supercobra_spritemap;
   Asset<unsigned short[8], COMPRESSED> supercobra_tilemap;
 public:
   supercobra();

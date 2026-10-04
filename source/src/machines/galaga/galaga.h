@@ -23,7 +23,7 @@ protected:
   Asset<unsigned char, COMPRESSED> galaga_rom_cpu1;
   Asset<unsigned char, COMPRESSED> galaga_rom_cpu2;
   Asset<unsigned char, COMPRESSED> galaga_rom_cpu3;
-  Asset<uint32_t[128][16], COMPRESSED> galaga_sprites;
+  Asset<uint32_t[16], COMPRESSED> galaga_sprites;
   Asset<unsigned short[8], COMPRESSED> galaga_tilemap;
 public:
   galaga()

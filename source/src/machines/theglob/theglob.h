@@ -11,7 +11,7 @@ class theglob : public pacman
 protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> theglob_rom;
-  Asset<uint32_t[64][16], COMPRESSED> theglob_sprites;
+  Asset<uint32_t[16], COMPRESSED> theglob_sprites;
   Asset<unsigned short[8], COMPRESSED> theglob_tilemap;
 public:
   theglob();
@@ -37,7 +37,7 @@ public:
 protected:
   const unsigned short *tileRom(unsigned short addr) override;
   const unsigned short *colorRom(unsigned short addr) override;
-  const uint32_t *spriteRom(unsigned char flags, unsigned char code) override;
+  const uint32_t *spriteRom(unsigned char code) override;
 
 private:
   uint8_t epos_decryption_w(short offset);

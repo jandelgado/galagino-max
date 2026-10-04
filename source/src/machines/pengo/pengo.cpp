@@ -4,6 +4,7 @@
 #include "pengo_spritemap.h"
 #include "pengo_colormap.h"
 #include "pengo_wavetable.h"
+#include "../../emulation/spriteflip.h"
 
 pengo::pengo()
   : pengo_colormap(pengo_colormap_blob),
@@ -250,7 +251,7 @@ void pengo::blit_sprite(short current_strip_row, unsigned char s) {
   }
 
   // --- 3. Seleziona i dati grafici e la palette corretti ---
-  const uint32_t *spr_data = pengo_sprites[gfx_bank][flags][sprite_code];
+  SpriteRows2bpp spr(pengo_sprites[gfx_bank][sprite_code], flags & 3);
     
   // *** LOGICA DEI COLORI CORRETTA ***
   // Combina il banco della tabella colori (1 bit) con l'attributo colore dello sprite (6 bit)
@@ -280,8 +281,9 @@ void pengo::blit_sprite(short current_strip_row, unsigned char s) {
   uint16_t* ptr = frame_buffer + (start_row_in_strip * 224) + sx + start_col;
 
   // --- 7. Loop di disegno principale ---
+  spr.skip(start_row_in_sprite);
   for (int r = 0; r < rows_to_draw; r++) {
-    unsigned long pix_row = spr_data[start_row_in_sprite + r];
+    unsigned long pix_row = spr.next();
     pix_row <<= (start_col * 2);
 
     for (int c = start_col; c < end_col; c++) {
