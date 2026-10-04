@@ -210,6 +210,10 @@ void galaga::run_frame(void) {
     }
   }
     
+  // advance per emulated frame, independent of display rate
+  static const signed char speeds[8] = { -1, -2, -3, 0, 3, 2, 1, 0 };
+  stars_scroll += speeds[starcontrol & 7];
+
   if(irq_enable[0]) {
     current_cpu = 0;
     IntZ80(&cpu[0], INT_RST38);
@@ -294,9 +298,8 @@ void galaga::prepare_frame(void) {
     }
   }
 
-   /* the screen is only updated every second frame, scroll speed is thus doubled */
-  static const signed char speeds[8] = { -1, -2, -3, 0, 3, 2, 1, 0 };
-  stars_scroll_y += 2 * speeds[starcontrol & 7];
+  // latch once per displayed frame so all rows scroll alike
+  stars_scroll_y = stars_scroll;
 }
 
 void galaga::check_galaga_sprite(struct sprite_S *spr) {
