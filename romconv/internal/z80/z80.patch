@@ -1,6 +1,42 @@
 diff -ruN --no-dereference a/z80/Z80.c b/z80/Z80.c
---- a/Z80.c	2026-09-19 13:01:59.105165099 +0200
-+++ b/Z80.c	2026-09-19 13:01:59.111133661 +0200
+--- a/Z80.c	2026-10-05 14:12:00.386571976 +0200
++++ b/Z80.c	2026-10-05 14:12:00.397174634 +0200
+@@ -331,7 +331,7 @@
+ {
+   register byte I;
+ 
+-  I=OpZ80(R->PC.W++);
++  I=OpPrefixZ80_INL(R->PC.W++); /* M1 fetch */
+   R->ICount-=CyclesCB[I];
+   switch(I)
+   {
+@@ -397,7 +397,7 @@
+   register byte I;
+   register pair J;
+ 
+-  I=OpZ80(R->PC.W++);
++  I=OpPrefixZ80_INL(R->PC.W++); /* M1 fetch */
+   R->ICount-=CyclesED[I];
+   switch(I)
+   {
+@@ -420,7 +420,7 @@
+   register pair J;
+ 
+ #define XX IX
+-  I=OpZ80(R->PC.W++);
++  I=OpPrefixZ80_INL(R->PC.W++); /* M1 fetch */
+   R->ICount-=CyclesXX[I];
+   switch(I)
+   {
+@@ -447,7 +447,7 @@
+   register pair J;
+ 
+ #define XX IY
+-  I=OpZ80(R->PC.W++);
++  I=OpPrefixZ80_INL(R->PC.W++); /* M1 fetch */
+   R->ICount-=CyclesXX[I];
+   switch(I)
+   {
 @@ -682,3 +682,23 @@
    return(R->PC.W);
  }
@@ -26,8 +62,8 @@ diff -ruN --no-dereference a/z80/Z80.c b/z80/Z80.c
 +    R->IFF=(R->IFF&~IFF_EI)|IFF_1; /* Done with AfterEI state */
 +}
 diff -ruN --no-dereference a/z80/Z80.h b/z80/Z80.h
---- a/Z80.h	2026-09-19 13:01:59.105021498 +0200
-+++ b/Z80.h	2026-09-19 13:01:59.111074489 +0200
+--- a/Z80.h	2026-10-05 14:12:00.385571975 +0200
++++ b/Z80.h	2026-10-05 14:12:00.397274929 +0200
 @@ -19,7 +19,7 @@
  
                                 /* Compilation options:       */
@@ -48,7 +84,7 @@ diff -ruN --no-dereference a/z80/Z80.h b/z80/Z80.h
  #endif
  typedef signed char offset;
  
-@@ -182,7 +184,14 @@
+@@ -182,7 +184,16 @@
  void JumpZ80(word PC);
  #endif
  
@@ -56,6 +92,8 @@ diff -ruN --no-dereference a/z80/Z80.h b/z80/Z80.h
 +
 +IRAM_ATTR void StepZ80(register Z80 *R);
 +unsigned char OpZ80_INL(unsigned short Addr);
++// opcode byte after a CB/ED/DD/FD prefix (also an M1 fetch)
++unsigned char OpPrefixZ80_INL(unsigned short Addr);
 +
  #ifdef __cplusplus
  }

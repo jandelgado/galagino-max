@@ -27,6 +27,7 @@ extern "C" void WrZ80(unsigned short Addr, unsigned char Value);
 extern "C" unsigned char RdZ80(unsigned short Addr);
 extern "C" void StepZ80(Z80 *R);
 extern "C" unsigned char OpZ80_INL(unsigned short Addr);
+extern "C" unsigned char OpPrefixZ80_INL(unsigned short Addr);
 extern "C" void PatchZ80(Z80 *R);
 #endif
 
