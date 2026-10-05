@@ -290,7 +290,8 @@ void asteroids::prepare_frame() {
     return;
   }
   go_latch.read(video);
-  const uint16_t n = dvg::decode(video.vram, vrom, lines, MAX_LINES);
+  const dvg::Memory mem{video.vram, vrom, 0x800, VROM_SIZE / 2, 0, 0};
+  const uint16_t n = dvg::decode(mem, lines, MAX_LINES);
   raster.begin(lines, map_lines(n));
 }
 

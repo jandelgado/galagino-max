@@ -15,15 +15,14 @@ enum Opcode : uint8_t {
 static const uint16_t COORD_MASK = 0xfff;  // beam counters are 12 bit
 static const uint16_t SIGN = 0x400;        // vector delta sign bit
 static const uint16_t RAM_WORDS = 0x400;
-static const uint16_t ROM_BASE = 0x800;    // DVG word address of vector ROM
 
-static uint16_t fetch(const uint8_t *ram, const uint8_t *rom, uint16_t pc) {
+static uint16_t fetch(const Memory &m, uint16_t pc) {
   pc &= COORD_MASK;
   const uint8_t *p;
   if (pc < RAM_WORDS) {
-    p = ram + pc * 2;
-  } else if ((pc & ~(RAM_WORDS - 1)) == ROM_BASE) {
-    p = rom + (pc - ROM_BASE) * 2;
+    p = m.ram + pc * 2;
+  } else if ((uint16_t)(pc - m.rom_base) < m.rom_words) {
+    p = m.rom + (pc - m.rom_base) * 2;
   } else {
     return 0; // unmapped
   }
@@ -43,20 +42,40 @@ static int16_t sext12(uint16_t v) {
   return (int16_t)((v ^ 0x800) - 0x800);
 }
 
-uint16_t decode(const uint8_t *ram, const uint8_t *rom, vec2d::Line *out, uint16_t max) {
+uint16_t decode(const Memory &mem, vec2d::Line *out, uint16_t max) {
   uint16_t pc = 0, x = 0, y = 0;
   uint16_t stack[4];
   uint8_t sp = 0, gscale = 0;
   uint16_t n = 0;
+  uint8_t glyph_sp = 0; // stack depth inside a glyph routine, 0: outside
+  bool in_run = false;
+  int16_t run_x = 0, run_y = 0;
 
   for (uint16_t step = 0; step < MAX_STEPS; step++) {
-    const uint16_t w0 = fetch(ram, rom, pc);
+    const uint16_t w0 = fetch(mem, pc);
     const uint8_t op = w0 >> 12;
+
+    // text runs: a glyph JSRL at caller level extends the run, anything
+    // else at caller level ends it
+    if (!glyph_sp) {
+      const uint16_t t = w0 & COORD_MASK;
+      if (op == OP_JSRL && t >= mem.glyph_lo && t < mem.glyph_hi) {
+        if (!in_run) {
+          run_x = sext12(x);
+          run_y = sext12(y);
+          in_run = true;
+        }
+        glyph_sp = sp + 1; // depth after the push below
+      } else {
+        in_run = false;
+      }
+    }
+
     int16_t dx, dy;
     uint8_t intensity;
 
     if (op <= OP_VCTR_MAX) {
-      const uint16_t w1 = fetch(ram, rom, pc + 1);
+      const uint16_t w1 = fetch(mem, pc + 1);
       pc += 2;
       const uint8_t scale = (op + gscale) & 0xf;
       dy = delta(w0, scale, 0x3ff);
@@ -75,7 +94,7 @@ uint16_t decode(const uint8_t *ram, const uint8_t *rom, vec2d::Line *out, uint16
     } else {
       switch (op) {
       case OP_LABS: {
-        const uint16_t w1 = fetch(ram, rom, pc + 1);
+        const uint16_t w1 = fetch(mem, pc + 1);
         pc += 2;
         y = w0 & COORD_MASK;
         x = w1 & COORD_MASK;
@@ -90,6 +109,9 @@ uint16_t decode(const uint8_t *ram, const uint8_t *rom, vec2d::Line *out, uint16
         break;
       case OP_RTSL:
         pc = stack[--sp & 3];
+        if (sp < glyph_sp) {
+          glyph_sp = 0; // back at caller level
+        }
         break;
       default: // OP_JMPL
         pc = w0 & COORD_MASK;
@@ -106,6 +128,11 @@ uint16_t decode(const uint8_t *ram, const uint8_t *rom, vec2d::Line *out, uint16
       l.x1 = l.x0 + dx;
       l.y1 = l.y0 + dy;
       l.color = intensity;
+      if (glyph_sp) {
+        l.color |= GLYPH;
+        l.dx = run_x;
+        l.dy = run_y;
+      }
       if (n == max) {
         return n;
       }
