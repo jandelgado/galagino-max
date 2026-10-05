@@ -343,6 +343,8 @@ void Audio::transmit() {
       pokey_render_buffer();
     else if(machineType == MCH_ASTEROIDS)
       asteroids_render_buffer();
+    else if(machineType == MCH_COMMANDO)
+      commando_render_buffer();
   } while(bytesOut);
 }
 
@@ -530,6 +532,15 @@ void Audio::pokey_render_buffer(void) {
 void Audio::asteroids_render_buffer(void) {
   int16_t samples[64];
   asteroids_sound.render(currentMachine->soundregs, samples, 64);
+  for (int i = 0; i < 64; i++) {
+    valueToBuffer(i, samples[i]);
+  }
+}
+
+// Commando test drive: C64 SID music from the machine's SidPlayer
+void Audio::commando_render_buffer(void) {
+  int16_t samples[64];
+  currentMachine->renderSid(samples, 64);
   for (int i = 0; i < 64; i++) {
     valueToBuffer(i, samples[i]);
   }

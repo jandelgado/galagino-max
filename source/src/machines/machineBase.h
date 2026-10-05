@@ -96,7 +96,8 @@ enum {
   MCH_CENTIPEDE,
   MCH_MILLIPEDE,
   MCH_ASTEROIDS,
-  MCH_BALUBA
+  MCH_BALUBA,
+  MCH_COMMANDO
 };
 
 // one inst at 3Mhz ~ 500k inst/sec = 500000/60 inst per frame
@@ -200,6 +201,10 @@ public:
     // the machine header (machines.h/gyruss.h can only live in main.cpp).
     // also used by CircusCharlie
     virtual int renderDrumSample() { return 0; }
+
+    // C64 SID music (commando test drive): n samples, +-480, rendered on
+    // the audio core. Virtual so audio.cpp does not need the machine header.
+    virtual void renderSid(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
 
 #ifdef LED_PIN
     // Static: menu preview runs before any machine instance exists.
