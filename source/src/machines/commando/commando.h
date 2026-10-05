@@ -12,7 +12,7 @@
 class commando : public machineBase {
 protected:
   // the whole .sid file, unpacked into the Arena on first data()
-  Asset<unsigned char, COMPRESSED> commando_sid;
+  Asset<unsigned char, PLAIN> commando_sid;
 public:
   commando();
   signed char machineType() override { return MCH_COMMANDO; }
