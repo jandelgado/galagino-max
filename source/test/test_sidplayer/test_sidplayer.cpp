@@ -85,6 +85,23 @@ static void test_psid_rejects_bad_files(void) {
   TEST_ASSERT_FALSE(psidParse(file, len, &info));
 }
 
+// PSID spec: start song 0 or > songs means 1, init 0 means load
+static void test_start_song_zero_defaults_to_1(void) {
+  const uint32_t len = buildPsid(TUNE_CODE, sizeof(TUNE_CODE), LOAD, PLAY);
+  put16(file + 0x10, 0);
+  TEST_ASSERT_TRUE(psidParse(file, len, &info));
+  TEST_ASSERT_EQUAL(1, info.start_song);
+  put16(file + 0x10, 3); // songs = 2
+  TEST_ASSERT_TRUE(psidParse(file, len, &info));
+  TEST_ASSERT_EQUAL(1, info.start_song);
+}
+
+static void test_init_zero_uses_load(void) {
+  const uint32_t len = buildPsid(TUNE_CODE, sizeof(TUNE_CODE), 0, PLAY);
+  TEST_ASSERT_TRUE(psidParse(file, len, &info));
+  TEST_ASSERT_EQUAL_HEX16(LOAD, info.init);
+}
+
 static void test_load_rejects_small_ram(void) {
   const uint32_t len = buildPsid(TUNE_CODE, sizeof(TUNE_CODE), LOAD, PLAY);
   TEST_ASSERT_TRUE(psidParse(file, len, &info));
@@ -226,6 +243,8 @@ int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_psid_parse_synthetic);
   RUN_TEST(test_psid_rejects_bad_files);
+  RUN_TEST(test_start_song_zero_defaults_to_1);
+  RUN_TEST(test_init_zero_uses_load);
   RUN_TEST(test_load_rejects_small_ram);
   RUN_TEST(test_init_gets_song_index);
   RUN_TEST(test_play_at_50hz);

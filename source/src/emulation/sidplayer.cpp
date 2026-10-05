@@ -40,6 +40,14 @@ bool psidParse(const uint8_t *file, uint32_t len, PsidInfo *info) {
   if (info->play == 0 || info->songs == 0 || be32(file + OFS_SPEED) != 0) {
     return false;
   }
+
+  // PSID defaults: init 0 = load address, start song 0 or out of range = 1
+  if (info->init == 0) {
+    info->init = info->load;
+  }
+  if (info->start_song == 0 || info->start_song > info->songs) {
+    info->start_song = 1;
+  }
   return true;
 }
 
