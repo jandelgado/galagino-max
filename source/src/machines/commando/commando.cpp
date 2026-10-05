@@ -9,7 +9,6 @@
 #include "commando_sid.h"
 #include "commando_sound.h"
 #include "commando_dipswitches.h"
-#include "commando_music.h"
 #include "../../emulation/arena.h"
 #include "../../emulation/spriteflip.h"
 
@@ -40,6 +39,13 @@ static const uint8_t PLAYER_DYING = 0x3f;
 #endif
 
 static const uint8_t SND_DEATH = 0x2b; // sound latch: player death jingle
+static const uint8_t SND_IDLE = 0xff;  // sound latch: no command
+
+// Commando.sid driver entries (jump table at $5000). PSID subtunes 4-19
+// call SID_EFFECT with A = subtune - 4, then SID_STOP.
+static const uint16_t SID_STOP = 0x5003;   // music off, effects play on
+static const uint16_t SID_EFFECT = 0x500f; // A = effect, over the music
+static const uint8_t SID_FIRST_EFFECT = 4;
 
 static const uint8_t PEN_SPRITE_CLEAR = 15;
 static const uint8_t PEN_CHAR_CLEAR = 3;
@@ -105,6 +111,7 @@ void commando::reset() {
   memset(sprite_buffer, 0, sizeof(sprite_buffer));
   music_subtune = 0;
   music_request = 0;
+  effect_request = 0;
   sound_latch = 0;
   sound_reset = false;
   memset(ym_addr, 0, sizeof(ym_addr));
@@ -206,8 +213,8 @@ void commando::wrZ80(unsigned short Addr, unsigned char Value) {
       led_flash = LED_FLASH_FRAMES;
     }
 #endif
-    sound_latch = Value;
-    decodeMusic(Value);
+    // SID effects replace the arcade's SSG effect
+    sound_latch = decodeMusic(Value) == MUSIC_EFFECT ? SND_IDLE : Value;
     return;
   }
   if (Addr == 0xc804) { // also coin counters, flip (upright: unused)
@@ -274,21 +281,33 @@ void commando::runSound() {
   current_cpu = 0;
 }
 
+// next request for the audio core: sequence + 1, subtune
+static uint16_t nextRequest(uint16_t request, uint8_t subtune) {
+  return (uint16_t)(((request >> 8) + 1) << 8) | subtune;
+}
+
 // sound latch: music commands switch the SID tune (the sound CPU plays
-// them on the dropped FM part), effects reach the sound CPU
-void commando::decodeMusic(uint8_t command) {
+// them on the dropped FM part), cued effects start a SID effect, other
+// effects reach the sound CPU
+MusicAction commando::decodeMusic(uint8_t command) {
   const MusicCue cue = commandoMusicCue(command);
   if (cue.action == MUSIC_NONE) {
-    return;
+    return cue.action;
+  }
+
+  if (cue.action == MUSIC_EFFECT) {
+    effect_request = nextRequest(effect_request, cue.subtune);
+    return cue.action;
   }
 
   // a running tune keeps playing (game start sends 20 21 20 21)
   const uint8_t subtune = cue.action == MUSIC_PLAY ? cue.subtune : 0;
   if (subtune == music_subtune) {
-    return;
+    return cue.action;
   }
   music_subtune = subtune;
-  music_request = (uint16_t)(((music_request >> 8) + 1) << 8) | subtune;
+  music_request = nextRequest(music_request, subtune);
+  return cue.action;
 }
 
 void commando::run_frame() {
@@ -472,14 +491,26 @@ void commando::renderSid(int16_t *out, int n) {
   memset(out, 0, n * sizeof(*out));
   return;
 #endif
-  // tune changes run the 6502 init here, on the audio core
+  // tune changes run the 6502 init here, on the audio core. Stop goes
+  // through the driver, so a following effect (death after 2d) plays.
   const uint16_t request = music_request;
   if (tune_ok && request != music_seen) {
     music_seen = request;
     const uint8_t subtune = request & 0xff;
-    sid_on = subtune != 0;
-    if (sid_on) {
+    if (subtune) {
       player.start(subtune);
+      sid_on = true;
+    } else {
+      player.jsr(SID_STOP, 0);
+    }
+  }
+
+  const uint16_t effect = effect_request;
+  if (tune_ok && effect != effect_seen) {
+    effect_seen = effect;
+    const uint8_t subtune = effect & 0xff;
+    if (subtune >= SID_FIRST_EFFECT) { // 0 after reset()
+      player.jsr(SID_EFFECT, subtune - SID_FIRST_EFFECT);
     }
   }
 

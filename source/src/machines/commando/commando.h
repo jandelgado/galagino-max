@@ -2,15 +2,17 @@
 #define COMMANDO_H
 
 #include "commando_logo.h"
+#include "commando_music.h"
 #include "../machineBase.h"
 #include "../../emulation/seqlock.h"
 #include "../../emulation/sidplayer.h"
 
 // Capcom Commando (MAME commando). Main Z80 with encrypted opcodes, 16x16
 // scrolling bg, 96 sprites, 8x8 fg text. Music comes from the C64 SID
-// tune, cued by the sound latch (commando_music.h). Sound effects come
-// from the sound Z80 driving the SSG (AY-3-8910) part of its two YM2203;
-// the FM part plays the arcade music and is dropped.
+// tune, cued by the sound latch (commando_music.h), along with the few
+// effects the tune replaces. Other effects come from the sound Z80
+// driving the SSG (AY-3-8910) part of its two YM2203; the FM part plays
+// the arcade music and is dropped.
 //
 // ROT270 onto the 224 x 288 panel (rows 16..271 visible, like 1942):
 //   native visible x' (0..255) -> panel row  16 + 255 - x'
@@ -97,9 +99,11 @@ private:
   // music: written by the emulation core, read by renderSid() (audio core)
   // high byte: sequence, low byte: subtune, 0 = stopped
   volatile uint16_t music_request = 0;
+  volatile uint16_t effect_request = 0; // same, subtune of the effect
   uint8_t music_subtune = 0;     // emulation core
   uint16_t music_seen = 0;       // audio core
-  bool sid_on = false;           // audio core
+  uint16_t effect_seen = 0;      // audio core
+  bool sid_on = false;           // audio core, a tune was started
 
 #ifdef LED_PIN
   static const uint8_t LED_FLASH_FRAMES = 60;
@@ -120,7 +124,7 @@ private:
   Seqlock<VideoState> vblank;
   VideoState video = {};
 
-  void decodeMusic(uint8_t command);
+  MusicAction decodeMusic(uint8_t command);
   unsigned char rdSound(unsigned short Addr);
   void wrSound(unsigned short Addr, unsigned char Value);
   void runSound();

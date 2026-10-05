@@ -79,6 +79,13 @@ void SidPlayer::start(uint8_t song) {
   playing = call(info.init, song - 1, INIT_MAX_CYCLES);
 }
 
+void SidPlayer::jsr(uint16_t addr, uint8_t a) {
+  if (!playing) {
+    return;
+  }
+  playing = call(addr, a, PLAY_MAX_CYCLES);
+}
+
 void SidPlayer::render(int16_t *out, int n) {
   while (n > 0) {
     if (!playing) {

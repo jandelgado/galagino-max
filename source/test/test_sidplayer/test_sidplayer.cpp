@@ -139,6 +139,26 @@ static void test_restart_reloads_payload(void) {
   TEST_ASSERT_EQUAL(0, ram[PLAY_COUNT]);
 }
 
+// jsr runs on the live tune: no payload reload, A passed through
+static void test_jsr_keeps_state(void) {
+  loadSynthetic();
+  player.start(1);
+  player.render(buf, 24000);
+  const uint8_t plays = ram[PLAY_COUNT];
+  player.jsr(LOAD, 5);
+  TEST_ASSERT_EQUAL(plays, ram[PLAY_COUNT]);
+  TEST_ASSERT_EQUAL(5, ram[SONG_INDEX]);
+}
+
+static void test_jsr_ignored_before_start(void) {
+  SidPlayer fresh;
+  const uint32_t len = buildPsid(TUNE_CODE, sizeof(TUNE_CODE), LOAD, PLAY);
+  TEST_ASSERT_TRUE(psidParse(file, len, &info));
+  TEST_ASSERT_TRUE(fresh.load(info, ram, sizeof(ram)));
+  fresh.jsr(LOAD, 5);
+  TEST_ASSERT_EQUAL(0, ram[SONG_INDEX]);
+}
+
 static void test_runaway_play_stops(void) {
   const uint32_t len = buildPsid(LOOP_CODE, sizeof(LOOP_CODE), LOAD + 3, LOAD);
   file[0x7e + 3] = 0x60; // init at $1003: RTS
@@ -220,6 +240,31 @@ static void test_commando_stays_in_window(void) {
   }
 }
 
+// driver entries: $5003 stops the music, $500F starts an effect over it.
+// $5519 bit 7: music stopped, $5527 bit 7: no effect
+static const uint16_t MUSIC_STATE = 0x519, EFFECT_STATE = 0x527;
+
+static void test_commando_effect_over_music(void) {
+  const uint32_t len = loadCommando();
+  if (!len) {
+    TEST_IGNORE_MESSAGE("romszip/Commando.sid missing");
+  }
+  TEST_ASSERT_TRUE(psidParse(tune_file, len, &info));
+  TEST_ASSERT_TRUE(player.load(info, tune_ram, TUNE_RAM_SIZE));
+  player.start(1);
+  player.render(buf, 24000);
+
+  player.jsr(0x500f, 0);
+  player.render(buf, 2400);
+  TEST_ASSERT_FALSE(tune_ram[MUSIC_STATE] & 0x80);
+  TEST_ASSERT_FALSE(tune_ram[EFFECT_STATE] & 0x80);
+
+  player.jsr(0x5003, 0);
+  player.render(buf, 2400);
+  TEST_ASSERT_TRUE(tune_ram[MUSIC_STATE] & 0x80);
+  TEST_ASSERT_EQUAL(0, player.strays());
+}
+
 // listening material: SID_WAV_DIR=/some/dir writes song_NN.wav, 60 s each
 static void test_commando_wav_dump(void) {
   const char *dir = getenv("SID_WAV_DIR");
@@ -250,9 +295,12 @@ int main(int, char **) {
   RUN_TEST(test_play_at_50hz);
   RUN_TEST(test_strays_counted);
   RUN_TEST(test_restart_reloads_payload);
+  RUN_TEST(test_jsr_keeps_state);
+  RUN_TEST(test_jsr_ignored_before_start);
   RUN_TEST(test_runaway_play_stops);
   RUN_TEST(test_commando_header);
   RUN_TEST(test_commando_stays_in_window);
+  RUN_TEST(test_commando_effect_over_music);
   RUN_TEST(test_commando_wav_dump);
   return UNITY_END();
 }

@@ -34,6 +34,9 @@ public:
   bool load(const PsidInfo &info, uint8_t *ram, uint16_t ram_size);
   // song 1..songs: fresh payload copy, SID reset, JSR init with A = song - 1
   void start(uint8_t song);
+  // JSR addr with A on the running tune, no reload and no SID reset (e.g.
+  // a driver's sound effect entry); ignored before start()
+  void jsr(uint16_t addr, uint8_t a);
   void render(int16_t *out, int n);
   uint32_t strays() const { return stray_count; }
 
