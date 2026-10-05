@@ -33,6 +33,7 @@ GAMES = [
     "invaders",
     "ladybug",
     "lizwiz",
+    "llander",
     "m6502",
     "mappy",
     "mooncresta",
