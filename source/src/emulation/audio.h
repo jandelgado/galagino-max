@@ -14,6 +14,7 @@
 #include "../config.h"
 #include "pokey.h"
 #include "asteroids_sound.h"
+#include "llander_sound.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 4)
 // See https://github.com/espressif/arduino-esp32/issues/8467
@@ -64,6 +65,7 @@ private:
   void zaxxon_render_buffer(void);
   void pokey_render_buffer(void);
   void asteroids_render_buffer(void);
+  void llander_render_buffer(void);
   void commando_render_buffer(void);
   void zaxxonStartChannel(int ch, ZaxxonPlayMode mode);
   void zaxxonStopChannel(int ch);
@@ -254,6 +256,7 @@ private:
   static const int MAX_POKEYS = 2;
   Pokey pokey[MAX_POKEYS];
   AsteroidsSound asteroids_sound;
+  LlanderSound llander_sound;
 };
 
 #endif
