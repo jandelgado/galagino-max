@@ -7,13 +7,22 @@
 #include "commando_sprites2.h"
 #include "commando_cmap.h"
 #include "commando_sid.h"
+#include "commando_sound.h"
 #include "commando_dipswitches.h"
 #include "commando_music.h"
 #include "../../emulation/arena.h"
 #include "../../emulation/spriteflip.h"
 
 static const uint16_t ROM_END = 0xc000;
-static const uint16_t MAIN_STEPS = INST_PER_FRAME * 4; // 3 MHz main Z80
+static const uint16_t MAIN_STEPS = INST_PER_FRAME; // per quarter frame, 3 MHz main Z80
+
+// sound Z80: 3 MHz, IRQ 4 x per frame (MAME 4 * 60 Hz). The IRQ handler
+// returns to an "EI; JR $-1" idle loop at $0073; stepping it is wasted.
+static const uint16_t SOUND_ROM_END = 0x4000;
+static const uint16_t SOUND_IRQS = 4;
+static const uint16_t SOUND_STEPS = 12500 / 4; // 3 MHz / 240 Hz, >= 4 cycles each
+static const uint16_t SOUND_IDLE_PC = 0x0074;
+static const uint8_t SOUND_RESET = 0x10; // $C804
 
 // bg/fg attribute bits (MAME TILE_FLIPYX((attr & 0x30) >> 4))
 static const uint8_t ATTR_FLIPX = 0x10;
@@ -56,7 +65,8 @@ commando::commando()
     commando_cmap_sprites(commando_cmap_sprites_blob),
     commando_cmap_chars(commando_cmap_chars_blob),
     commando_tiles(commando_tiles_blob),
-    commando_sid(commando_sid_blob) {
+    commando_sid(commando_sid_blob),
+    commando_sound(commando_sound_blob) {
   // largest first: block A rom + sprites0, B sprites1 + 2 + chars
   rom = commando_rom.data();
   sprite_banks[0] = commando_sprites0.data();
@@ -67,6 +77,7 @@ commando::commando()
   cmap_sprites = commando_cmap_sprites.data();
   cmap_chars = commando_cmap_chars.data();
   tiles = commando_tiles.data();
+  sound_rom = commando_sound.data();
 
   // skip fully transparent chars (most of the text layer) per tile
   for (uint16_t c = 0; c < commando_chars.size(); c++) {
@@ -91,11 +102,18 @@ commando::commando()
 void commando::reset() {
   machineBase::reset();
   memset(scroll, 0, sizeof(scroll));
+  memset(sprite_buffer, 0, sizeof(sprite_buffer));
   music_subtune = 0;
   music_request = 0;
+  sound_latch = 0;
+  sound_reset = false;
+  memset(ym_addr, 0, sizeof(ym_addr));
 }
 
 unsigned char commando::opZ80(unsigned short Addr) {
+  if (current_cpu) {
+    return rdSound(Addr);
+  }
   if (Addr >= ROM_END) {
     return rdZ80(Addr);
   }
@@ -107,6 +125,9 @@ unsigned char commando::opPrefixZ80(unsigned short Addr) {
 }
 
 unsigned char commando::rdZ80(unsigned short Addr) {
+  if (current_cpu) {
+    return rdSound(Addr);
+  }
   if (Addr < ROM_END) {
     return rom[Addr];
   }
@@ -160,6 +181,10 @@ unsigned char commando::rdZ80(unsigned short Addr) {
 }
 
 void commando::wrZ80(unsigned short Addr, unsigned char Value) {
+  if (current_cpu) {
+    wrSound(Addr, Value);
+    return;
+  }
 #ifdef COMMANDO_INVINCIBLE
   // every death (bullet $AED9, other hits $925E) starts by setting the
   // player state from FF (alive) to 3F; keep the player alive instead
@@ -181,16 +206,76 @@ void commando::wrZ80(unsigned short Addr, unsigned char Value) {
       led_flash = LED_FLASH_FRAMES;
     }
 #endif
+    sound_latch = Value;
     decodeMusic(Value);
+    return;
+  }
+  if (Addr == 0xc804) { // also coin counters, flip (upright: unused)
+    const bool reset = Value & SOUND_RESET;
+    if (reset && !sound_reset) {
+      ResetZ80(&cpu[1]);
+    }
+    sound_reset = reset;
+    return;
+  }
+  if (Addr == 0xc806) { // sprite DMA
+    memcpy(sprite_buffer, memory + SPRITE_RAM, sizeof(sprite_buffer));
     return;
   }
   if (Addr >= 0xc808 && Addr <= 0xc80b) {
     scroll[Addr - 0xc808] = Value;
   }
-  // $C804 coin counters, sound CPU reset, flip (upright: unused), $C806 DMA
 }
 
-// sound latch: music commands switch the SID tune, effects are ignored
+unsigned char commando::rdSound(unsigned short Addr) {
+  if (Addr < SOUND_ROM_END) {
+    return sound_rom[Addr];
+  }
+  if (Addr < 0x4800) {
+    return memory[SOUND_RAM + Addr - 0x4000];
+  }
+  if (Addr == 0x6000) {
+    return sound_latch;
+  }
+  return 0xff;
+}
+
+// $8000/$8001 YM2203 #1, $8002/$8003 #2: even = register select, odd =
+// data. Only the SSG registers 0-15 are kept (AY layout, 16 per chip).
+// The game sets the SSG prescaler to 1/2 (750 kHz AY clock, audio.cpp).
+void commando::wrSound(unsigned short Addr, unsigned char Value) {
+  if (Addr >= 0x4000 && Addr < 0x4800) {
+    memory[SOUND_RAM + Addr - 0x4000] = Value;
+    return;
+  }
+  if (Addr >= 0x8000 && Addr <= 0x8003) {
+    const uint8_t chip = (Addr >> 1) & 1;
+    if (!(Addr & 1)) {
+      ym_addr[chip] = Value;
+    } else if (ym_addr[chip] < 16) {
+      soundregs[16 * chip + ym_addr[chip]] = Value;
+    }
+  }
+}
+
+void commando::runSound() {
+  if (sound_reset) {
+    return;
+  }
+  current_cpu = 1;
+  Z80 *z = &cpu[1];
+  IntZ80(z, INT_RST38);
+  for (int i = 0; i < SOUND_STEPS; i++) {
+    if (z->PC.W == SOUND_IDLE_PC && (z->IFF & IFF_1)) {
+      break;
+    }
+    StepZ80(z);
+  }
+  current_cpu = 0;
+}
+
+// sound latch: music commands switch the SID tune (the sound CPU plays
+// them on the dropped FM part), effects reach the sound CPU
 void commando::decodeMusic(uint8_t command) {
   const MusicCue cue = commandoMusicCue(command);
   if (cue.action == MUSIC_NONE) {
@@ -209,14 +294,16 @@ void commando::decodeMusic(uint8_t command) {
 void commando::run_frame() {
   game_started = 1;
 
-  current_cpu = 0;
-  for (int i = 0; i < MAIN_STEPS; i++) {
-    StepZ80(&cpu[0]);
+  for (int q = 0; q < SOUND_IRQS; q++) {
+    current_cpu = 0;
+    for (int i = 0; i < MAIN_STEPS; i++) {
+      StepZ80(&cpu[0]);
+    }
+    runSound();
   }
 
-  // hardware buffers sprite RAM on vblank, right before the IRQ
   vblank.publish([this](VideoState &v) {
-    memcpy(v.sprites, memory + SPRITE_RAM, sizeof(v.sprites));
+    memcpy(v.sprites, sprite_buffer, sizeof(v.sprites));
     memcpy(v.bg, memory + BG_RAM, sizeof(v.bg));
     v.scroll_x = scroll[0] | (scroll[1] << 8);
     v.scroll_y = scroll[2] | (scroll[3] << 8);
@@ -381,6 +468,10 @@ void commando::render_row(short row) {
 }
 
 void commando::renderSid(int16_t *out, int n) {
+#ifdef COMMANDO_NO_MUSIC
+  memset(out, 0, n * sizeof(*out));
+  return;
+#endif
   // tune changes run the 6502 init here, on the audio core
   const uint16_t request = music_request;
   if (tune_ok && request != music_seen) {

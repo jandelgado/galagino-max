@@ -7,9 +7,10 @@
 #include "../../emulation/sidplayer.h"
 
 // Capcom Commando (MAME commando). Main Z80 with encrypted opcodes, 16x16
-// scrolling bg, 96 sprites, 8x8 fg text. The sound CPU and its two
-// YM2203 are not emulated: music comes from the C64 SID tune, cued by
-// the sound latch (commando_music.h). Sound effects are off.
+// scrolling bg, 96 sprites, 8x8 fg text. Music comes from the C64 SID
+// tune, cued by the sound latch (commando_music.h). Sound effects come
+// from the sound Z80 driving the SSG (AY-3-8910) part of its two YM2203;
+// the FM part plays the arcade music and is dropped.
 //
 // ROT270 onto the 224 x 288 panel (rows 16..271 visible, like 1942):
 //   native visible x' (0..255) -> panel row  16 + 255 - x'
@@ -28,6 +29,7 @@ protected:
   Asset<unsigned short[4], COMPRESSED> commando_cmap_chars;
   Asset<uint32_t[32], PLAIN> commando_tiles;
   Asset<unsigned char, PLAIN> commando_sid;
+  Asset<unsigned char, PLAIN> commando_sound;
 
 public:
   commando();
@@ -59,7 +61,8 @@ private:
   static const uint16_t FG_ATTR = VRAM + 0x400;
   static const uint16_t BG_RAM = VRAM + 0x800; // $D800 code, $DC00 attr
   static const uint16_t SPRITE_RAM = RAM + 0x1e00; // $FE00-$FF7F
-  static const uint16_t RAM_END = VRAM + 0x1000;
+  static const uint16_t SOUND_RAM = VRAM + 0x1000; // sound CPU $4000-$47FF
+  static const uint16_t RAM_END = SOUND_RAM + 0x800;
   static_assert(RAM_END <= RAMSIZE, "commando RAM does not fit memory[]");
 
   static const uint16_t SPRITE_BYTES = 96 * 4;
@@ -72,6 +75,7 @@ private:
 
   // cached Asset::data(), read per pixel/tile
   const unsigned char *rom = nullptr;
+  const unsigned char *sound_rom = nullptr;
   const uint32_t (*sprite_banks[3])[32] = {};
   const uint32_t (*tiles)[32] = nullptr;
   const unsigned short (*chars)[8] = nullptr;
@@ -81,6 +85,14 @@ private:
   uint32_t blank_chars[1024 / 32] = {}; // bit set: every pixel transparent
 
   uint8_t scroll[4] = {}; // $C808-$C80B: x lo, x hi, y lo, y hi
+  // sprite RAM as latched by the $C806 DMA at vblank start, before the
+  // game writes the next frame's sprites (MAME buffered_spriteram8)
+  uint8_t sprite_buffer[SPRITE_BYTES] = {};
+
+  // sound CPU (cpu[1])
+  uint8_t sound_latch = 0;    // $C800
+  bool sound_reset = false;   // $C804 bit 4
+  uint8_t ym_addr[2] = {};    // selected register per YM2203
 
   // music: written by the emulation core, read by renderSid() (audio core)
   // high byte: sequence, low byte: subtune, 0 = stopped
@@ -98,8 +110,8 @@ private:
   PsidInfo tune = {};
   bool tune_ok = false;
 
-  // sprites, bg tile RAM and scroll as of the vblank IRQ (see seqlock.h);
-  // fg text RAM stays live (no scroll)
+  // DMA sprite buffer, bg tile RAM and scroll as of the vblank IRQ (see
+  // seqlock.h). fg text RAM stays live: it does not scroll.
   struct VideoState {
     uint8_t sprites[SPRITE_BYTES];
     uint8_t bg[BG_BYTES];
@@ -109,6 +121,9 @@ private:
   VideoState video = {};
 
   void decodeMusic(uint8_t command);
+  unsigned char rdSound(unsigned short Addr);
+  void wrSound(unsigned short Addr, unsigned char Value);
+  void runSound();
   void blit_bg_line(uint16_t *dst, int tx);
   void blit_bg(short row);
 };

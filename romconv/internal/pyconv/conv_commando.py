@@ -12,6 +12,9 @@ run("internal/unpack.py", "commando.zip")
 info("Commando CPU code (encrypted opcodes, decrypted at run time)")
 run("internal/romconv.py", "-c", "commando_rom", "./roms/cm04.9m", "./roms/cm03.8m", OUT + "commando_rom.h")
 
+info("Commando sound CPU code (plain, runs from flash: Arena is full)")
+run("internal/romconv.py", "commando_sound", "./roms/cm02.9f", OUT + "commando_sound.h")
+
 info("Commando Tiles")
 run("internal/tileconv.py", "commando_chars", "./roms/vt01.5d", OUT + "commando_chars.h")
 # 128 KB, stays in flash (plain), read sparsely per visible tile

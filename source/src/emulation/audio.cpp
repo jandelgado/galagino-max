@@ -53,7 +53,7 @@ void Audio::init() {
   int8_t err = Wire.endTransmission();
 
   printf("es8311: addr=0x%02x err=%d\n", ES8311_I2C_ADDR, err);
-  
+
   if (err != 0) {
     printf("es8311: can't find es8311 in i2c bus at addr=0%02x err=%d\n", ES8311_I2C_ADDR, err);
   }
@@ -135,7 +135,7 @@ void Audio::init() {
 #ifdef SND_DIFF
   i2s_set_dac_mode(I2S_DAC_CHANNEL_BOTH_EN);
 #elif defined(SND_LEFT_CHANNEL) // For devices using the left channel (e.g. CYD)
-  i2s_set_dac_mode(I2S_DAC_CHANNEL_LEFT_EN); 
+  i2s_set_dac_mode(I2S_DAC_CHANNEL_LEFT_EN);
 #else
   i2s_set_dac_mode(I2S_DAC_CHANNEL_RIGHT_EN);
 #endif
@@ -170,6 +170,7 @@ void Audio::start(machineBase *machineBase) {
   else if (machineType == MCH_PBACTION)   { AY = 3; AY_INC = 8; AY_VOL = 4;  }
   else if (machineType == MCH_MOTORACE)   { AY = 2; AY_INC = 5; AY_VOL = 5;  }
   else if (machineType == MCH_SCREGG)     { AY = 2; AY_INC = 8; AY_VOL = 7;  }
+  else if (machineType == MCH_COMMANDO)   { AY = 2; AY_INC = 4; AY_VOL = 5;  } // SSG 750 kHz
 
   if (machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE) {
     for (int n = 0; n < MAX_POKEYS; n++) {
@@ -315,7 +316,9 @@ void Audio::transmit() {
       continue;
 
     // render the next audio chunk if data has actually been sent
-    if (AY > 0)
+    if (machineType == MCH_COMMANDO)
+      commando_render_buffer();
+    else if (AY > 0)
       ay_render_buffer();
     else if (currentMachine->hasNamcoAudio())
       namco_render_buffer();
@@ -343,8 +346,6 @@ void Audio::transmit() {
       pokey_render_buffer();
     else if(machineType == MCH_ASTEROIDS)
       asteroids_render_buffer();
-    else if(machineType == MCH_COMMANDO)
-      commando_render_buffer();
   } while(bytesOut);
 }
 
@@ -537,13 +538,12 @@ void Audio::asteroids_render_buffer(void) {
   }
 }
 
-// Commando: C64 SID music from the machine's SidPlayer
+// Commando: C64 SID music from the machine's SidPlayer plus the SSG
+// sound effects of both YM2203
 void Audio::commando_render_buffer(void) {
   int16_t samples[64];
   currentMachine->renderSid(samples, 64);
-  for (int i = 0; i < 64; i++) {
-    valueToBuffer(i, samples[i]);
-  }
+  ay_render_buffer(samples);
 }
 
 void Audio::zaxxon_render_buffer(void) {
@@ -649,7 +649,8 @@ void Audio::zaxxon_render_buffer(void) {
   }
 }
 
-void Audio::ay_render_buffer(void) {
+// mix: optional 64 samples added to the AY output, result clipped
+void Audio::ay_render_buffer(const int16_t *mix) {
   for(char ay = 0; ay < AY; ay++) {
     int ay_off = 16 * ay;
     // three tone channels
@@ -776,6 +777,11 @@ void Audio::ay_render_buffer(void) {
       value += s - dc;                             // componente AC
     }
 
+    if (mix) {
+      const int v = value + mix[i];
+      value = v > 511 ? 511 : (v < -511 ? -511 : v);
+    }
+
     valueToBuffer(i, value);
   }
 }
@@ -847,7 +853,7 @@ void Audio::sn76489_render_buffer(void) {
         currentMachine->sn_hold[chip][c]--;
         if (currentMachine->sn_hold[chip][c] == 0)
           currentMachine->sn_min_volume[chip][c] = currentMachine->sn_volume[chip][c];
-      } 
+      }
       else {
         vol[chip][c] = currentMachine->sn_volume[chip][c];
         currentMachine->sn_min_volume[chip][c] = currentMachine->sn_volume[chip][c];
@@ -871,7 +877,7 @@ void Audio::sn76489_render_buffer(void) {
               noise_lfsr[chip] = (noise_lfsr[chip] >> 1) | (feedback << 14);
               sn_toggle[chip][c] = (noise_lfsr[chip] & 0x01) ? 1 : -1;
               sn_counter[chip][c] += (period << 3);  // Rallenta noise
-            } 
+            }
             else {  // Tone
               sn_counter[chip][c] += period;
               sn_toggle[chip][c] = -sn_toggle[chip][c];
@@ -1788,11 +1794,11 @@ void Audio::valueToBuffer(int index, short value) {
 #ifdef SND_DIFF
   // generate differential output
   snd_buffer[2 * index]   = 0x8000 + (value / volumeSetting);    // positive signal on GPIO26
-  snd_buffer[2 * index + 1] = 0x8000 - (value / volumeSetting);    // negative signal on GPIO25 
+  snd_buffer[2 * index + 1] = 0x8000 - (value / volumeSetting);    // negative signal on GPIO25
 #else
-  // work-around weird byte order bug, see 
+  // work-around weird byte order bug, see
   // https://github.com/espressif/arduino-esp32/issues/8467#issuecomment-1656616015
-  snd_buffer[index ^ 1]   = 0x8000 + (value / volumeSetting); 
+  snd_buffer[index ^ 1]   = 0x8000 + (value / volumeSetting);
 #endif
 }
 
