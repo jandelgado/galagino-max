@@ -25,6 +25,8 @@ static const uint8_t SPR_FLIPX = 0x04;
 static const uint8_t SPR_FLIPY = 0x08;
 static const uint8_t SPR_BANK_HIDDEN = 3;
 
+static const uint8_t SND_DEATH = 0x2b; // sound latch: player death jingle
+
 static const uint8_t PEN_SPRITE_CLEAR = 15;
 static const uint8_t PEN_CHAR_CLEAR = 3;
 
@@ -162,6 +164,11 @@ void commando::wrZ80(unsigned short Addr, unsigned char Value) {
     return;
   }
   if (Addr == 0xc800) {
+#ifdef LED_PIN
+    if (Value == SND_DEATH) {
+      led_flash = LED_FLASH_FRAMES;
+    }
+#endif
     decodeMusic(Value);
     return;
   }
@@ -381,16 +388,25 @@ void commando::renderSid(int16_t *out, int n) {
 }
 
 #ifdef LED_PIN
-// logo colors
+// logo colors (quantized logos/commando.png)
 static const CRGB SAND = CRGB(0xc8a85a);
-static const CRGB OLIVE = CRGB(0x6b8e23);
+static const CRGB BROWN = CRGB(0x87713d);
+static const CRGB OLIVE = CRGB(0x5c7a1e);
 
 void commando::menuLeds(CRGB *leds) {
-  const CRGB pattern[NUM_LEDS] = {OLIVE, SAND, OLIVE, SAND, OLIVE, SAND, OLIVE};
+  const CRGB pattern[NUM_LEDS] = {OLIVE, BROWN, SAND, SAND, SAND, BROWN, OLIVE};
   memcpy(leds, pattern, sizeof(pattern));
 }
 
+// logo colors, red while the player dies
 void commando::gameLeds(CRGB *leds) {
+  if (led_flash) {
+    led_flash--;
+    for (int i = 0; i < NUM_LEDS; i++) {
+      leds[i] = LED_RED;
+    }
+    return;
+  }
   menuLeds(leds);
 }
 #endif

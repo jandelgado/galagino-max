@@ -89,6 +89,11 @@ private:
   uint16_t music_seen = 0;       // audio core
   bool sid_on = false;           // audio core
 
+#ifdef LED_PIN
+  static const uint8_t LED_FLASH_FRAMES = 60;
+  volatile uint8_t led_flash = 0; // set by the emulation core
+#endif
+
   SidPlayer player;
   PsidInfo tune = {};
   bool tune_ok = false;

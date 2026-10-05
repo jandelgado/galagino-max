@@ -537,7 +537,7 @@ void Audio::asteroids_render_buffer(void) {
   }
 }
 
-// Commando test drive: C64 SID music from the machine's SidPlayer
+// Commando: C64 SID music from the machine's SidPlayer
 void Audio::commando_render_buffer(void) {
   int16_t samples[64];
   currentMachine->renderSid(samples, 64);
