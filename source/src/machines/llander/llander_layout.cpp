@@ -23,6 +23,17 @@ static const int32_t HUD_MUL = 135, HUD_DIV = 256;
 static const int32_t MSG_SCALE = 512, ONE = 256;
 static const int16_t NATIVE_MAX_X = 1023;
 
+// The lander (body intensity 12, flame 15) and its crash wreck are the
+// only plain lines with these intensities, drawn as one run. At panel
+// scale the lander is 3 px wide; draw it 2x, growing up from its lowest
+// body point so it still stands on the ground.
+static const uint8_t LANDER = 12, FLAME = 15;
+static const int32_t LANDER_SCALE = 512;
+
+static bool is_lander(const vec2d::Line &l) {
+  return l.color == LANDER || l.color == FLAME;
+}
+
 static void to_playfield(vec2d::Line &l) {
   l.x0 = (l.x0 * SCALE_MUL) >> SCALE_SHIFT;
   l.x1 = (l.x1 * SCALE_MUL) >> SCALE_SHIFT;
@@ -60,6 +71,39 @@ uint16_t map(vec2d::Line *lines, uint16_t count) {
   uint16_t kept = 0;
   for (uint16_t i = 0; i < count;) {
     const vec2d::Line first = lines[i];
+    if (is_lander(first)) {
+      // pivot: bottom center of the body, flame excluded
+      uint16_t end = i;
+      int16_t xmin = INT16_MAX, xmax = INT16_MIN, ymin = INT16_MAX;
+      for (; end < count && is_lander(lines[end]); end++) {
+        const vec2d::Line &l = lines[end];
+        if (l.color != LANDER) {
+          continue;
+        }
+        xmin = l.x0 < xmin ? l.x0 : xmin;
+        xmin = l.x1 < xmin ? l.x1 : xmin;
+        xmax = l.x0 > xmax ? l.x0 : xmax;
+        xmax = l.x1 > xmax ? l.x1 : xmax;
+        ymin = l.y0 < ymin ? l.y0 : ymin;
+        ymin = l.y1 < ymin ? l.y1 : ymin;
+      }
+      const bool body = ymin != INT16_MAX;
+      const int16_t px = (xmin + xmax) / 2;
+
+      for (; i < end; i++) {
+        vec2d::Line l = lines[i];
+        if (body) {
+          scale_about(l, px, ymin, LANDER_SCALE);
+        }
+        if (!vec2d::clip(l, VISIBLE)) {
+          continue;
+        }
+        to_playfield(l);
+        lines[kept++] = l;
+      }
+      continue;
+    }
+
     if (!(first.color & dvg::GLYPH)) {
       vec2d::Line l = first;
       i++;

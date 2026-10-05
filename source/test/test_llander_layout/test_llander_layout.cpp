@@ -79,6 +79,17 @@ static void test_message_edge(void) {
   TEST_ASSERT_TRUE(l[0].x1 - l[0].x0 > 20 * 15 / 64); // still enlarged
 }
 
+// lander 2x about its body's bottom center (500, 400), flame included
+static void test_lander_doubled(void) {
+  Line l[3] = {line(496, 400, 504, 400, 12), line(504, 400, 504, 408, 12),
+               line(500, 400, 500, 380, 15)};
+  TEST_ASSERT_EQUAL(3, llander_layout::map(l, 3));
+  const int row = 50 + (781 - 400) * 15 / 64;
+  assert_line(l[0], 492 * 15 / 64, row, 508 * 15 / 64, row, 12);
+  assert_line(l[1], 508 * 15 / 64, row, 508 * 15 / 64, 50 + (781 - 416) * 15 / 64, 12);
+  assert_line(l[2], 500 * 15 / 64, row, 500 * 15 / 64, 50 + (781 - 360) * 15 / 64, 15);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_playfield);
@@ -87,5 +98,6 @@ int main(int, char **) {
   RUN_TEST(test_hud_blocks);
   RUN_TEST(test_message_centered);
   RUN_TEST(test_message_edge);
+  RUN_TEST(test_lander_doubled);
   return UNITY_END();
 }

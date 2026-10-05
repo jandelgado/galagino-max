@@ -9,7 +9,7 @@
 // the picture out upright on the 240 x 288 panel and enlarges the text:
 //
 //   row   0  left HUD block (SCORE, TIME, FUEL, mission), 2.25x
-//   row  50  playfield, native y 781..-19 at 15/64; messages 2x
+//   row  50  playfield, native y 781..-19 at 15/64; messages and lander 2x
 //   row 238  right HUD block (ALTITUDE, speeds, arrows), 2.25x
 namespace llander_layout {
 
