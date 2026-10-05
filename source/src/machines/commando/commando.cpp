@@ -25,6 +25,11 @@ static const uint8_t SPR_FLIPX = 0x04;
 static const uint8_t SPR_FLIPY = 0x08;
 static const uint8_t SPR_BANK_HIDDEN = 3;
 
+#ifdef COMMANDO_INVINCIBLE
+static const uint16_t PLAYER_STATE = 0xe100; // FF alive, 3F..00 dying
+static const uint8_t PLAYER_DYING = 0x3f;
+#endif
+
 static const uint8_t SND_DEATH = 0x2b; // sound latch: player death jingle
 
 static const uint8_t PEN_SPRITE_CLEAR = 15;
@@ -155,6 +160,13 @@ unsigned char commando::rdZ80(unsigned short Addr) {
 }
 
 void commando::wrZ80(unsigned short Addr, unsigned char Value) {
+#ifdef COMMANDO_INVINCIBLE
+  // every death (bullet $AED9, other hits $925E) starts by setting the
+  // player state from FF (alive) to 3F; keep the player alive instead
+  if (Addr == PLAYER_STATE && Value == PLAYER_DYING) {
+    return;
+  }
+#endif
   if (Addr >= 0xe000) {
     memory[RAM + Addr - 0xe000] = Value;
     return;

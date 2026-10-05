@@ -23,6 +23,8 @@
 
 //#define MENU_CYLINDER   // scrolling menu: logos on a rotating drum instead of a flat list
 
+//#define COMMANDO_INVINCIBLE // cheat: Commando player never dies
+
 // video config
 //#define TFT_SPICLK  40000000    // 40 Mhz. Some displays cope with 80 Mhz
 //#define TFT_SPICLK  80000000    // 80 Mhz. Some displays cope with 80 Mhz
