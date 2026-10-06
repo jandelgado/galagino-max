@@ -15,9 +15,11 @@ public:
   static const int REG_SKCTL = 9;
   static const int REG_COUNT = 10;
   // POKEY clocks per 24 kHz sample: 1.512 MHz (Centipede, Millipede) and
-  // 1.7898 MHz (Tetris; 74.57 rounded, 0.6% sharp). At most 128.
+  // 1.7898 MHz (Tetris; 74.57 rounded, 0.6% sharp), 1.25 MHz (Crystal
+  // Castles; 52.08 rounded). At most 128.
   static const int32_t CLOCKS_1512KHZ = 63;
   static const int32_t CLOCKS_1789KHZ = 75;
+  static const int32_t CLOCKS_1250KHZ = 52;
 
   void reset(int32_t clocks_per_sample = CLOCKS_1512KHZ);
   // n samples centered on 0, about +-480
