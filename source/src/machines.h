@@ -240,6 +240,9 @@
 #ifdef ENABLE_CCASTLES
   #include "machines/ccastles/ccastles.h"
 #endif
+#ifdef ENABLE_BZONE
+  #include "machines/bzone/bzone.h"
+#endif
 
 // change machine order is possible here...
 machineInfo machines[] = {
@@ -662,6 +665,13 @@ machineInfo machines[] = {
     ccastles::menuLeds,
 #endif
     MCH_CCASTLES },
+#endif
+#ifdef ENABLE_BZONE
+  { []() -> machineBase* { return new bzone(); }, bzone::logo,
+#ifdef LED_PIN
+    bzone::menuLeds,
+#endif
+    MCH_BZONE },
 #endif
 #ifdef ENABLE_COMMANDO
   { []() -> machineBase* { return new commando(); }, commando::logo,
