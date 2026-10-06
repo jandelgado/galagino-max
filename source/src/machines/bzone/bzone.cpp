@@ -45,19 +45,9 @@ static const int32_t XCENTER = 290 << 16, YCENTER = 200 << 16;
 // AVG byte address of the vector ROM
 static const uint16_t AVG_ROM_BASE = BZ_VROM - BZ_VRAM;
 
-// screen x 32..543 (Mathbox clip window 36..543) and y 0..399 scaled by
-// 15/32, see bzone.h
-static const vec2d::Rect VISIBLE = {32, 0, 543, 399};
-static const int SCALE_MUL = 15, SCALE_SHIFT = 5;
-static const int TOP_BORDER = 51;
-// bzone.lay: red overlay above native y 80 -> panel row 88 = strip 11
-static const uint8_t RED_STRIPS = 11;
-
-static_assert(TOP_BORDER + ((80 * SCALE_MUL) >> SCALE_SHIFT) == RED_STRIPS * 8,
-              "overlay boundary on a strip edge");
-
-static int16_t panel_col(int16_t x) { return ((x - VISIBLE.x0) * SCALE_MUL) >> SCALE_SHIFT; }
-static int16_t panel_row(int16_t y) { return TOP_BORDER + ((y * SCALE_MUL) >> SCALE_SHIFT); }
+// AVG addresses of the character subroutines (VROM 0x3282-0x33ef, the
+// glyph JSRL table follows)
+static const uint16_t GLYPH_LO = 0x3282 - BZ_VRAM, GLYPH_HI = 0x33f0 - BZ_VRAM;
 
 static uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
   const uint16_t rgb = ((r & 0xf8) << 8) | ((g & 0xfc) << 3) | (b >> 3);
@@ -189,31 +179,16 @@ void bzone::main_write(m6502_t *cpu, uint16_t a, uint8_t v) {
 }
 
 uint16_t bzone::decode_frame(const uint8_t *vram) {
-  const avg::Memory m = {vram, BZ_VRAM_SIZE, vrom, AVG_ROM_BASE, BZ_VROM_SIZE};
+  const avg::Memory m = {vram, BZ_VRAM_SIZE, vrom, AVG_ROM_BASE, BZ_VROM_SIZE, GLYPH_LO, GLYPH_HI};
   return avg::decode(m, avg_state, lines, MAX_LINES);
 }
 
-// Clips lines to the visible area and turns them into panel coordinates,
-// keeping only visible ones. Returns their count.
 uint16_t bzone::map_lines(uint16_t count) {
-  uint16_t kept = 0;
-  for (uint16_t i = 0; i < count; i++) {
-    vec2d::Line l = lines[i];
-    if (!vec2d::clip(l, VISIBLE)) {
-      continue;
-    }
-    vec2d::Line &o = lines[kept++];
-    o.x0 = panel_col(l.x0);
-    o.y0 = panel_row(l.y0);
-    o.x1 = panel_col(l.x1);
-    o.y1 = panel_row(l.y1);
-    o.color = l.color;
-  }
-  return kept;
+  return bzone_layout::map(lines, count);
 }
 
 const uint16_t *bzone::strip_palette(uint8_t strip) const {
-  return strip < RED_STRIPS ? red : palette;
+  return strip < bzone_layout::RED_STRIPS ? red : palette;
 }
 
 #ifdef LED_PIN

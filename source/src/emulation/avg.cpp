@@ -59,6 +59,9 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
   uint8_t sp = 0;
   uint16_t n = 0;
   vec2d::Rect window = {0, 0, WINDOW_FAR, WINDOW_FAR};
+  uint8_t glyph_sp = 0; // stack depth inside a glyph routine, 0: outside
+  bool in_run = false;
+  int16_t run_x = 0, run_y = 0;
 
   for (uint16_t step = 0; step < MAX_STEPS && n < max; step++) {
     // h1: high byte of word 0; Battle Zone clip latch on the way
@@ -104,6 +107,20 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
       }
     }
 
+    if (!glyph_sp) {
+      const uint16_t t = dvy << 1; // JSRL target
+      if (op == OP_JSRL && t >= mem.glyph_lo && t < mem.glyph_hi) {
+        if (!in_run) {
+          run_x = s.xpos >> 16;
+          run_y = s.ypos >> 16;
+          in_run = true;
+        }
+        glyph_sp = sp + 1; // depth after the push below
+      } else if (op != OP_STAT && op != OP_VCTR && op != OP_SVEC) {
+        in_run = false;
+      }
+    }
+
     switch (op) {
       case OP_VCTR:
       case OP_SVEC: {
@@ -121,6 +138,11 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
           l.y1 = s.ypos >> 16;
           l.color = intensity;
           if (vec2d::clip(l, window)) {
+            if (glyph_sp) {
+              l.color |= GLYPH;
+              l.dx = run_x;
+              l.dy = run_y;
+            }
             out[n++] = l;
           }
         }
@@ -152,6 +174,9 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
       case OP_RTSL:
         sp = (sp - 1) & 0xf;
         pc = stack[sp & 3];
+        if (sp < glyph_sp) {
+          glyph_sp = 0; // back at caller level
+        }
         break;
       case OP_JMPL:
         pc = dvy << 1;

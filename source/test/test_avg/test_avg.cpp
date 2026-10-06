@@ -102,6 +102,35 @@ static void test_loop_terminates(void) {
   TEST_ASSERT_EQUAL(0, avg::decode(mem(), st, out, 64));
 }
 
+// glyph routine at word 0x40 draws 8 units and advances 4 more; 0x50 is
+// not a glyph. A run survives STAT/SCAL and moves at caller level, CNTR
+// and other JSRLs end it.
+static void test_glyph_tagging(void) {
+  at(0x40); vctr(8, 0, 7); vctr(4, 0, 0); put(RTSL);
+  at(0x50); vctr(0, 10, 7); put(RTSL);
+  at(0); put(CNTR); put(scal(0, 0)); vctr(-100, 0, 0);
+  put(0xa040); put(scal(0, 0)); vctr(0, -20, 0); put(0xa040); // one run
+  put(CNTR); put(0xa040);                                      // new run
+  put(0xa050);                                                 // not a glyph
+  put(0xa040);                                                 // new run
+  put(HALT);
+  const avg::Memory m{ram, sizeof(ram), nullptr, 0, 0, 0x80, 0xa0};
+  TEST_ASSERT_EQUAL(5, avg::decode(m, st, out, 64));
+  for (int i = 0; i < 5; i++) {
+    TEST_ASSERT_EQUAL(i == 3 ? 14 : 14 | avg::GLYPH, out[i].color);
+  }
+  TEST_ASSERT_EQUAL(out[0].x0, out[0].dx);
+  TEST_ASSERT_EQUAL(out[0].y0, out[0].dy);
+  TEST_ASSERT_EQUAL(out[0].dx, out[1].dx);
+  TEST_ASSERT_EQUAL(out[0].dy, out[1].dy);
+  TEST_ASSERT_NOT_EQUAL(out[0].y0, out[1].y0);
+  TEST_ASSERT_EQUAL(290, out[2].dx);
+  TEST_ASSERT_EQUAL(200, out[2].dy);
+  TEST_ASSERT_EQUAL(out[4].x0, out[4].dx);
+  TEST_ASSERT_EQUAL(out[4].y0, out[4].dy);
+  TEST_ASSERT_NOT_EQUAL(out[2].dy, out[4].dy);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_vctr_stat);
@@ -112,5 +141,6 @@ int main(int, char **) {
   RUN_TEST(test_clip_window);
   RUN_TEST(test_first_frame_not_clipped);
   RUN_TEST(test_loop_terminates);
+  RUN_TEST(test_glyph_tagging);
   return UNITY_END();
 }

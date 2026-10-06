@@ -20,7 +20,10 @@ struct Memory {
   uint16_t ram_bytes;
   const uint8_t *rom; // AVG bytes [rom_base, rom_base + rom_bytes)
   uint16_t rom_base, rom_bytes;
+  uint16_t glyph_lo, glyph_hi; // JSRL targets in [lo, hi) are text glyphs; lo == hi: none
 };
+
+static const uint8_t GLYPH = 0x80; // Line::color flag
 
 // Registers that survive from one GO to the next (MAME keeps them in the
 // device): beam, scale, STAT intensity, Battle Zone clip latches.
@@ -39,6 +42,11 @@ struct State {
 // (0, 0)-(1280, 1280) until the list sets one). Line::color = intensity
 // 1..15; moves (intensity 0) are skipped. Stops at HALT, after max lines
 // or MAX_STEPS instructions. Returns the line count.
+// Lines drawn inside a glyph subroutine get color | GLYPH, and dx/dy hold
+// the beam position at the first glyph of their run, so callers can lay
+// out text. A run is the glyph JSRLs at one call level; STAT/SCAL and
+// vectors between them (scale changes, column moves) keep it going,
+// anything else ends it. dx/dy of other lines are left alone.
 uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max);
 
 } // namespace avg

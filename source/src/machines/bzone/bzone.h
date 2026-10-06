@@ -5,15 +5,15 @@
 #include "bzone_logo.h"
 #include "bzone_dipswitches.h"
 #include "bzone_treads.h" // after dvgMachine.h: needs input.h
+#include "bzone_layout.h"
 #include "../../emulation/avg.h"
 #include "../../emulation/mathbox.h"
 
 // Atari Battle Zone, MAME bzone (rev 2), atari/bzone.cpp.
 // Asteroids CPU board (M6502 at 12.096 MHz / 8, 246 Hz NMI) with an AVG
 // vector generator, Mathbox, POKEY and discrete sound. ROT0, upright,
-// screen x 32..543 scaled by 15/32 onto 240 columns, y 0..399 onto rows
-// 51..238. The cabinet overlay is red above native y 80 (strips 0-10),
-// green below.
+// panel layout in bzone_layout.h. The cabinet overlay is red above
+// native y 80 (strips 0-10), green below.
 //
 // Controls: stick drives both treads (see bzone_treads.h), FIRE fires,
 // START = coin + start.
