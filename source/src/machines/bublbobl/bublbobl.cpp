@@ -259,26 +259,41 @@ void bublbobl::ic43_b_w(uint8_t offset, uint8_t data) {
   ic43_b = (data >> 4) ^ xorval[offset];
 }
 
+// 4 instructions; true once the CPU sits in its idle loop with
+// interrupts enabled
+bool bublbobl::stepCpu(uint8_t c, uint16_t idle_pc) {
+  current_cpu = c;
+  StepZ80(&cpu[c]); StepZ80(&cpu[c]);
+  StepZ80(&cpu[c]); StepZ80(&cpu[c]);
+  return cpu[c].PC.W == idle_pc && (cpu[c].IFF & IFF_1);
+}
+
 void bublbobl::run_frame(void) {
+  // an idle CPU skips the rest of the frame until its next IRQ
+  bool idle[CPUS] = {};
+
   for (uint16_t i = 0; i < SLICES; i++) {
-    current_cpu = MAIN_CPU;
-    StepZ80(&cpu[MAIN_CPU]); StepZ80(&cpu[MAIN_CPU]);
-    StepZ80(&cpu[MAIN_CPU]); StepZ80(&cpu[MAIN_CPU]);
-
-    // checked per slice: the main CPU can reset the sub CPU mid-frame
-    if (ctrl & CTRL_SUB_RUN) {
-      current_cpu = SUB_CPU;
-      StepZ80(&cpu[SUB_CPU]); StepZ80(&cpu[SUB_CPU]);
-      StepZ80(&cpu[SUB_CPU]); StepZ80(&cpu[SUB_CPU]);
-    }
-
-    // irq0_line_hold: held until the CPU enables interrupts
+    // irq0_line_hold: held until the CPU enables interrupts. First, so
+    // an idle CPU gets its vblank IRQ before the idle check below.
     for (uint8_t c = 0; c < CPUS; c++) {
       if (irq_pending[c] && (cpu[c].IFF & IFF_1)) {
         current_cpu = c;
         IntZ80(&cpu[c], INT_RST38);
         irq_pending[c] = false;
       }
+    }
+
+    if (!idle[MAIN_CPU]) {
+      idle[MAIN_CPU] = stepCpu(MAIN_CPU, MAIN_IDLE_PC);
+    }
+
+    // checked per slice: the main CPU can reset the sub CPU mid-frame
+    if ((ctrl & CTRL_SUB_RUN) && !idle[SUB_CPU]) {
+      idle[SUB_CPU] = stepCpu(SUB_CPU, SUB_IDLE_PC);
+    }
+
+    if (idle[MAIN_CPU] && (idle[SUB_CPU] || !(ctrl & CTRL_SUB_RUN))) {
+      break;
     }
   }
 

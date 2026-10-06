@@ -63,6 +63,11 @@ private:
   // 6 MHz each: ~10000 instructions per frame, interleaved 4 : 4
   static constexpr uint16_t SLICES = 2500;
 
+  // idle loops, left only through the vblank IRQ (MAME trace,
+  // romconv/internal/bublbobl/trace_idle.lua): stepping them is wasted
+  static constexpr uint16_t MAIN_IDLE_PC = 0x01ed; // jr $01ED
+  static constexpr uint16_t SUB_IDLE_PC = 0x000a;  // jp $000A
+
   static constexpr uint16_t BANK_ADDR = 0x8000;
   static constexpr uint16_t BANK_SIZE = 0x4000;
   static constexpr uint8_t BANKS = 4;           // banks 4..7 are empty
@@ -164,6 +169,7 @@ private:
   uint8_t ic43_a_r(uint8_t offset);
   void ic43_a_w(uint8_t offset);
   void ic43_b_w(uint8_t offset, uint8_t data);
+  bool stepCpu(uint8_t c, uint16_t idle_pc);
   void drawObjectRow(const Obj &o, uint8_t yc, uint8_t line0);
   void onSoundCommand(uint8_t) {}
   void onSoundReset() {}
