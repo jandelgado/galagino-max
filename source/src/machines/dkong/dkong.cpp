@@ -202,60 +202,27 @@ void dkong::run_frame(void) {
 }
 
 void dkong::trigger_sound(char snd) {
-  static const struct {
-    const signed char *data;
-    const unsigned short length; 
-  } 
-  samples[] = {
-    { (const signed char *)dkong_sample_walk0, sizeof(dkong_sample_walk0) },
-    { (const signed char *)dkong_sample_walk1, sizeof(dkong_sample_walk1) },
-    { (const signed char *)dkong_sample_walk2, sizeof(dkong_sample_walk2) },
-    { (const signed char *)dkong_sample_jump,  sizeof(dkong_sample_jump)  },
-    { (const signed char *)dkong_sample_stomp, sizeof(dkong_sample_stomp) },
-    { (const signed char *)dkong_sample_roar, sizeof(dkong_sample_roar) },
-    { (const signed char *)dkong_sample_fall, sizeof(dkong_sample_fall) },
-    { (const signed char *)dkong_sample_snapjaw, sizeof(dkong_sample_snapjaw) } 
+  static const FlashAsset<unsigned char, PLAIN> *const samples[] = {
+    &dkong_sample_walk0_blob, &dkong_sample_walk1_blob, &dkong_sample_walk2_blob,
+    &dkong_sample_jump_blob, &dkong_sample_stomp_blob, &dkong_sample_roar_blob,
+    &dkong_sample_fall_blob, &dkong_sample_snapjaw_blob
   };
+  const FlashAsset<unsigned char, PLAIN> *sample;
+  char voice = snd;
 
   switch (snd) {
-    case 0: {
+    case 0:
       // walk0, walk1 and walk2 are variants
-      char rnd = random() % 3;
-      dkong_sample_cnt[snd] = samples[rnd].length;
-      dkong_sample_ptr[snd] = samples[rnd].data;
+      sample = samples[random() % 3];
       break;
-    }
-    case 1: {
-      // jump
-      dkong_sample_cnt[snd] = samples[3].length;
-      dkong_sample_ptr[snd] = samples[3].data;
-      break;
-    }
-    case 2: {
-      // stomp
-      dkong_sample_cnt[snd] = samples[4].length;
-      dkong_sample_ptr[snd] = samples[4].data;
-      break;
-    }
-    case 3: {
-      // roar
-      dkong_sample_cnt[snd] = samples[5].length;
-      dkong_sample_ptr[snd] = samples[5].data;
-      break;
-    }
-    case 4: {
-      // fall
-      dkong_sample_cnt[snd] = samples[6].length;
-      dkong_sample_ptr[snd] = samples[6].data;
-      break;
-    }
-    case 6: {
-      // snapjaw
-      dkong_sample_cnt[5] = samples[7].length;
-      dkong_sample_ptr[5] = samples[7].data;
-      break;
-    }
+    case 1: sample = samples[3]; break;  // jump
+    case 2: sample = samples[4]; break;  // stomp
+    case 3: sample = samples[5]; break;  // roar
+    case 4: sample = samples[6]; break;  // fall
+    case 6: sample = samples[7]; voice = 5; break;  // snapjaw
+    default: return;
   }
+  dkong_sample[voice].start(sample->data, sample->count);
 }
 
 void dkong::prepare_frame(void) {

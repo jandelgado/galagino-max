@@ -35,3 +35,13 @@ def ima_encode(pcm: np.ndarray) -> bytes:
         else: output.append(pending | (code << 4)); pending = None
     if pending is not None: output.append(pending)
     return bytes(output)
+
+def emit_adpcm(f, name, pcm):
+    """Write signed 8-bit pcm as a PLAIN FlashAsset<unsigned char> in the
+    ima_encode format, played by ima_adpcm::Voice. The blob count is the
+    decoded sample count, not the encoded byte count. Returns the encoded
+    byte count."""
+    from asset_emit import emit_plain, _hex_block
+    encoded = ima_encode(np.asarray(pcm, dtype=np.int8))
+    emit_plain(f, name, "unsigned char", "", len(pcm), "  " + _hex_block(encoded))
+    return len(encoded)

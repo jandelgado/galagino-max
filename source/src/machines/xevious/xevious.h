@@ -17,6 +17,7 @@
 #include "xevious_dipswitches.h"
 #include "xevious_logo.h"
 #include "../machineBase.h"
+#include "../../emulation/ima_adpcm.h"
 #include "../../emulation/seqlock.h"
 
 // ============================================================
@@ -78,8 +79,8 @@ protected:
   Asset<unsigned char, COMPRESSED> xevious_rom_cpu1;
   Asset<unsigned char, COMPRESSED> xevious_rom_cpu2;
   Asset<unsigned char, COMPRESSED> xevious_rom_cpu3;
-  Asset<unsigned char, COMPRESSED> xevious_sample_boom;
-  Asset<unsigned char, COMPRESSED> xevious_sample_boom2;
+  Asset<unsigned char, PLAIN> xevious_sample_boom;
+  Asset<unsigned char, PLAIN> xevious_sample_boom2;
   Asset<uint32_t[32], PLAIN> xevious_sprites;
 public:
   xevious();
@@ -99,10 +100,8 @@ public:
   static const Logo &logo(void);
   bool hasNamcoAudio() override { return true; }
 
-  // esplosioni: campioni PCM digitalizzati (stesso schema di
-  // galaga::snd_boom_cnt/ptr — vedi trigger_sound_explosion())
-  unsigned short snd_boom_cnt = 0;
-  const signed char *snd_boom_ptr = NULL;
+  // explosions: IMA-ADPCM samples, see trigger_sound_explosion()
+  ima_adpcm::Voice snd_boom;
   unsigned char snd_boom_ship = 0;   // 1 = sta suonando explo2 (nave/tipo A)
 
 protected:

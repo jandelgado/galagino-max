@@ -809,6 +809,8 @@ void Audio::ay_render_buffer(const int16_t *mix) {
 
 void Audio::i8048_render_buffer(void) {
   dkong *dkongMachine = static_cast<dkong*>(currentMachine);
+  const int voices = sizeof(dkongMachine->dkong_sample) / sizeof(dkongMachine->dkong_sample[0]);
+  int samples = 0;
 
   // render first buffer contents
   for(int i = 0; i < 64; i++) {
@@ -825,20 +827,17 @@ void Audio::i8048_render_buffer(void) {
 #endif
 
     // include sample sounds
-    for(char j = 0; j < sizeof(dkongMachine->dkong_sample_cnt) / 2; j++) {
-      if(dkongMachine->dkong_sample_cnt[j]) {
 #ifdef WORKAROUND_I2S_APLL_PROBLEM
-        value += *dkongMachine->dkong_sample_ptr[j];
-        if(i & 1) { // advance read pointer every second sample
-          dkongMachine->dkong_sample_ptr[j]++;
-          dkongMachine->dkong_sample_cnt[j]--;
-        }
-#else
-        value += *dkongMachine->dkong_sample_ptr[j]++;
-        dkongMachine->dkong_sample_cnt[j]--;
+    if(!(i & 1)) { // output rate doubled: next sample every second output
 #endif
+      samples = 0;
+      for(int j = 0; j < voices; j++) {
+        samples += dkongMachine->dkong_sample[j].next();
       }
+#ifdef WORKAROUND_I2S_APLL_PROBLEM
     }
+#endif
+    value += samples;
 #ifdef WORKAROUND_I2S_APLL_PROBLEM
     if (i == 63) {
       // advance write pointer. The buffer is a ring
@@ -957,24 +956,12 @@ void Audio::namco_render_buffer(void) {
     if(machineType == MCH_GALAGA) {
       galaga *galagaMachine = static_cast<galaga*>(currentMachine);
 
-      if(galagaMachine->snd_boom_cnt) {
-        value += *galagaMachine->snd_boom_ptr * 3;
-
-        if(galagaMachine->snd_boom_cnt & 1)
-          galagaMachine->snd_boom_ptr++;
-
-        galagaMachine->snd_boom_cnt--;
-      }
+      value += galagaMachine->snd_boom.next() * 3;
     }
     else if(machineType == MCH_XEVIOUS) {
       xevious *xeviousMachine = static_cast<xevious*>(currentMachine);
 
-      // Samples already at 24kHz - 1 byte per sample
-      if(xeviousMachine->snd_boom_cnt) {
-        value += *xeviousMachine->snd_boom_ptr * 3;
-        xeviousMachine->snd_boom_ptr++;
-        xeviousMachine->snd_boom_cnt--;
-      }
+      value += xeviousMachine->snd_boom.next() * 3;
     }
 
     valueToBuffer(i, value);
@@ -1009,11 +996,7 @@ void Audio::namco_15xx_render_buffer(void) {
     if (machineType == MCH_GAPLUS) {
       gaplus *gaplusMachine = static_cast<gaplus*>(currentMachine);
 
-      if (gaplusMachine->snd_bang_cnt) {
-        value += *gaplusMachine->snd_bang_ptr * 3;
-        gaplusMachine->snd_bang_ptr++;
-        gaplusMachine->snd_bang_cnt--;
-      }
+      value += gaplusMachine->snd_bang.next() * 3;
     }
 
     valueToBuffer(i, value >> 1);
@@ -1071,8 +1054,8 @@ void Audio::spaceinvaders_render_buffer(void) {
   // Space Invaders discrete audio (based on MAME mw8080bw_a.cpp)
 
   spaceinvaders *siMachine = static_cast<spaceinvaders*>(currentMachine);
-  const signed char *sample_shot = siMachine->si_sample_shot.data();
-  const signed char *sample_invhit = siMachine->si_sample_invhit.data();
+  // 12 kHz samples at 24 kHz output
+  static const uint8_t SI_SAMPLE_HOLD = 2;
 
   uint8_t p3 = currentMachine->soundregs[0]; // port 3: UFO(0) Shot(1) Explosion(2) InvaderDie(3) ExtPlay(4)
   uint8_t p5 = currentMachine->soundregs[1]; // port 5: Fleet1(0) Fleet2(1) Fleet3(2) Fleet4(3) UFOhit(4)
@@ -1118,11 +1101,11 @@ void Audio::spaceinvaders_render_buffer(void) {
 
     // ── SHOT: original sample playback (12kHz samples, play each twice for 24kHz) ──
     if(p3 & 0x02) {
-      if(!si_shot_playing) { si_shot_playing = 1; si_shot_pos = 0; }
-      if((si_shot_pos >> 1) < si_sample_shot_LEN) {
-        value += sample_shot[si_shot_pos >> 1] * 3;
-        si_shot_pos++;
+      if(!si_shot_playing) {
+        si_shot_playing = 1;
+        si_shot.start(siMachine->si_sample_shot.data(), siMachine->si_sample_shot.size(), SI_SAMPLE_HOLD);
       }
+      value += si_shot.next() * 3;
     }
     else {
       si_shot_playing = 0;
@@ -1171,11 +1154,11 @@ void Audio::spaceinvaders_render_buffer(void) {
 
     // ── INVADER DIE: original sample playback (12kHz samples, play each twice for 24kHz) ──
     if(p3 & 0x08) {
-      if(!si_invhit_playing) { si_invhit_playing = 1; si_invhit_pos = 0; }
-      if((si_invhit_pos >> 1) < si_sample_invhit_LEN) {
-        value += sample_invhit[si_invhit_pos >> 1] * 3;
-        si_invhit_pos++;
+      if(!si_invhit_playing) {
+        si_invhit_playing = 1;
+        si_invhit.start(siMachine->si_sample_invhit.data(), siMachine->si_sample_invhit.size(), SI_SAMPLE_HOLD);
       }
+      value += si_invhit.next() * 3;
     }
     else {
       si_invhit_playing = 0;

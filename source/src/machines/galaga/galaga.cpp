@@ -334,8 +334,8 @@ void galaga::check_galaga_sprite(struct sprite_S *spr) {
 }
 
 void galaga::trigger_sound_explosion(void) {
-  snd_boom_cnt = 2 * sizeof(galaga_sample_boom);
-  snd_boom_ptr = (const signed char*)galaga_sample_boom;
+  // 12 kHz sample at 24 kHz output
+  snd_boom.start(galaga_sample_boom_blob.data, galaga_sample_boom_blob.count, 2);
 }
 
 // draw a single 8x8 tile

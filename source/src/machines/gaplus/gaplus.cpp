@@ -28,8 +28,7 @@ void gaplus::reset() {
   io_reset = 1;       // freset_w: namcoio in reset al power-on
   dipmux_sel = 0;
 
-  snd_bang_cnt = 0;
-  snd_bang_ptr = NULL;
+  snd_bang.stop();
 
   memset(starfield_control, 0, sizeof(starfield_control));
   starfield_framecount = 0;
@@ -174,12 +173,7 @@ void IRAM_ATTR gaplus::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if ((addr & 0xFFF0) == 0x6820) {
     unsigned char off = addr & 0x0F;
     if (off == 9 && val >= 0x0F) {
-      // Pointer before count: audio.transmit() runs on the other core and
-      // only checks snd_bang_cnt. data() now decompresses lazily on first
-      // trigger (was an instant flash-address cast), so setting cnt first
-      // left ptr still NULL for the whole decode -- crashing the audio core.
-      snd_bang_ptr = (const signed char *)gaplus_sample_bang.data();
-      snd_bang_cnt = gaplus_sample_bang.size();
+      snd_bang.start(gaplus_sample_bang.data(), gaplus_sample_bang.size());
     }
     customio3_ram[off] = val;
     return;

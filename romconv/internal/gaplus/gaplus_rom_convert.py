@@ -27,6 +27,7 @@ from gfxutil import load_file, mame_decode, rot_galagino
 from asset_emit import emit_compressed, emit_plain
 from namco_hw import nudge, rgb565_swapped_rgb as rgb565_swapped
 from convutil import fatal
+from adpcm import emit_adpcm
 
 ROM_SET_GAPLUS  = os.path.normpath(os.path.join("..", "..", "..", "romszip", "gaplus.zip"))
 ROM_SET_GALAGA3 = os.path.normpath(os.path.join("..", "..", "..", "romszip", "galaga3.zip"))
@@ -287,10 +288,10 @@ def write_sample_bang():
 
     with open(os.path.join(OUT_DIR, "gaplus_sample_bang.h"), "w") as f:
         print(f"// Explosion samples for \"bang\" (samples/gaplus_bang.wav),", file=f)
-        print(f"// resampled @24000 Hz signed 8bit (bit pattern in unsigned char,", file=f)
+        print(f"// resampled @24000 Hz signed 8bit, stored as 4-bit IMA-ADPCM", file=f)
+        print(f"// (ima_adpcm::Voice). PLAIN: ADPCM barely compresses.", file=f)
         print(f"// {len(samples8)} samples ({len(samples8)/target_fr:.3f}s a 24000 Hz)", file=f)
-        flat = [int(v) & 0xFF for v in samples8]
-        emit_compressed(f, "gaplus_sample_bang", "unsigned char", "", len(flat), flat)
+        emit_adpcm(f, "gaplus_sample_bang", samples8)
     print(f"gaplus_sample_bang.h: {len(samples8)} samples @24kHz ({len(samples8)/target_fr:.3f}s)")
 
 # ------------------------------------------------------------
