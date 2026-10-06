@@ -6,6 +6,10 @@
 #include "bublbobl_tile_map.h"
 #include "bublbobl_prom.h"
 #include "bublbobl_logo.h"
+#include "bublbobl_sid.h"
+#include "bublbobl_samples.h"
+#include "bublbobl_sound_map.h"
+#include "../../emulation/arena.h"
 
 using namespace bublbobl_video;
 
@@ -15,7 +19,8 @@ bublbobl::bublbobl() :
     bublbobl_sub_rom(bublbobl_sub_rom_blob),
     bublbobl_tiles(bublbobl_tiles_blob),
     bublbobl_tile_map(bublbobl_tile_map_blob),
-    bublbobl_prom(bublbobl_prom_blob) {
+    bublbobl_prom(bublbobl_prom_blob),
+    bublbobl_sid(bublbobl_sid_blob) {
   // largest first: bank -> Arena block A, main + sub -> block B
   bank_rom = bublbobl_bank_rom.data();
   main_rom = bublbobl_main_rom.data();
@@ -26,6 +31,15 @@ bublbobl::bublbobl() :
 
   for (uint8_t t = 0; t < OBJ_TYPES; t++) {
     first_new[t] = first_new_column(prom, t);
+  }
+
+  // after the ROMs: the tune RAM fits next to the bank ROM in block A
+  tune_ok = psidParse(bublbobl_sid.data(), bublbobl_sid.size(), &tune);
+  if (tune_ok) {
+    tune_ok = player.load(tune, Arena::alloc<uint8_t>(TUNE_RAM_SIZE), TUNE_RAM_SIZE);
+  }
+  if (!tune_ok) {
+    printf("bublbobl: Bubble_Bobble.sid is not a supported PSID\n");
   }
 }
 
@@ -420,6 +434,76 @@ void bublbobl::render_row(short row) {
     for (uint16_t c = 0; c < OUT_WIDTH; c++) {
       out[c] = palette[pens[l][keep_x(c)]];
     }
+  }
+}
+
+// next request for the audio core: sequence + 1, subtune
+static uint16_t nextRequest(uint16_t request, uint8_t subtune) {
+  return (uint16_t)((((request >> 8) + 1) << 8) | subtune);
+}
+
+// emulation core: music commands switch the SID tune, effect commands
+// queue a recorded sample
+void bublbobl::onSoundCommand(uint8_t cmd) {
+  const uint8_t music = bublbobl_music[cmd];
+  if (music) {
+    const uint8_t subtune = music == STOP_MUSIC ? 0 : music;
+    if (subtune != music_subtune) {
+      music_subtune = subtune;
+      music_request = nextRequest(music_request, subtune);
+    }
+  }
+
+  const uint8_t effect = bublbobl_effect[cmd];
+  if (effect != NO_EFFECT) {
+    fx_ring.push(effect);
+  }
+}
+
+// emulation core: sound CPU reset silences music and effects
+void bublbobl::onSoundReset() {
+  music_subtune = 0;
+  music_request = nextRequest(music_request, 0);
+  reset_request.fetch_add(1, std::memory_order_release);
+}
+
+// audio core: SID music plus up to two effect samples, +-512
+void bublbobl::renderSid(int16_t *out, int n) {
+  const uint8_t resets = reset_request.load(std::memory_order_acquire);
+  if (resets != reset_seen) {
+    reset_seen = resets;
+    fx.stopAll();
+    uint8_t dropped;
+    while (fx_ring.pop(dropped)) {
+    }
+  }
+
+  // tune changes run the 6502 init here, on the audio core
+  const uint16_t request = music_request;
+  if (tune_ok && request != music_seen) {
+    music_seen = request;
+    const uint8_t subtune = request & 0xff;
+    sid_on = subtune != 0;
+    if (sid_on) {
+      player.start(subtune);
+    }
+  }
+
+  uint8_t e;
+  while (fx_ring.pop(e)) {
+    const FlashAsset<unsigned char, PLAIN> &b = *bublbobl_fx_blobs[e];
+    fx.start({ b.data, b.count });
+  }
+
+  if (sid_on) {
+    player.render(out, n);
+  } else {
+    memset(out, 0, n * sizeof(*out));
+  }
+
+  for (int i = 0; i < n; i++) {
+    const int32_t v = out[i] + FX_GAIN * fx.next();
+    out[i] = (int16_t)(v > SAMPLE_MAX ? SAMPLE_MAX : (v < -SAMPLE_MAX ? -SAMPLE_MAX : v));
   }
 }
 

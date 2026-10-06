@@ -5,6 +5,8 @@
 #include "bublbobl_video.h"
 #include "../machineBase.h"
 #include "../../emulation/seqlock.h"
+#include "../../emulation/sidplayer.h"
+#include "bublbobl_sound.h"
 
 // ============================================================
 // Bubble Bobble, bootleg "Bobble Bobble" (MAME boblbobl), no MCU.
@@ -33,6 +35,7 @@ class bublbobl : public machineBase
   Asset<uint32_t[8], PLAIN> bublbobl_tiles;
   Asset<unsigned short, PLAIN> bublbobl_tile_map;
   Asset<unsigned char, PLAIN> bublbobl_prom;
+  Asset<unsigned char, PLAIN> bublbobl_sid;
 
 public:
   bublbobl();
@@ -47,6 +50,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
+  void renderSid(int16_t *out, int n) override;
   static const Logo &logo(void);
 
 #ifdef LED_PIN
@@ -171,8 +175,26 @@ private:
   void ic43_b_w(uint8_t offset, uint8_t data);
   bool stepCpu(uint8_t c, uint16_t idle_pc);
   void drawObjectRow(const Obj &o, uint8_t yc, uint8_t line0);
-  void onSoundCommand(uint8_t) {}
-  void onSoundReset() {}
+  void onSoundCommand(uint8_t cmd);
+  void onSoundReset();
+
+  // sound: latch commands -> SID subtune / effect sample (sound_map.py)
+  static constexpr uint8_t STOP_MUSIC = 0xff;
+  static constexpr uint8_t NO_EFFECT = 0xff;
+  static constexpr int32_t FX_GAIN = 3;    // +-127 -> about +-380, SID is +-480
+  static constexpr int32_t SAMPLE_MAX = 511;
+
+  SidPlayer player;
+  PsidInfo tune = {};
+  bool tune_ok = false;
+  bool sid_on = false;                     // audio core
+  volatile uint16_t music_request = 0;     // sequence << 8 | subtune, 0 = stop
+  uint16_t music_seen = 0;                 // audio core
+  uint8_t music_subtune = 0;               // emulation core
+  std::atomic<uint8_t> reset_request{0};   // sound resets, emulation core
+  uint8_t reset_seen = 0;                  // audio core
+  bublbobl_sound::FxRing fx_ring;
+  bublbobl_sound::FxMixer fx;
 };
 
 #endif
