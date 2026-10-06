@@ -102,7 +102,9 @@ struct FxMixer {
     }
   }
 
-  // one 24 kHz sample, sum of the channels on the +-127 scale
+  // one 24 kHz sample, sum of the channels on the +-127 scale. Effects
+  // are stored at 12 kHz: each stored sample is preceded by the midpoint
+  // to the previous one (linear interpolation, half a sample late)
   int32_t next() {
     int32_t mix = 0;
     for (uint8_t i = 0; i < CHANNELS; i++) {
@@ -111,15 +113,21 @@ struct FxMixer {
         continue;
       }
 
-      // sample 0 is the predictor itself, then low nibble first
-      if (c.pos > 0) {
-        const uint32_t n = c.pos - 1;
-        const uint8_t packed = c.data[2 + (n >> 1)];
-        ima_adpcm::ima_adpcm_decode(c.predictor, c.step, (n & 1) ? (packed >> 4) : (packed & 0x0f));
+      if (c.pos & 1) {
+        mix += c.predictor >> 8;
+      } else {
+        // sample 0 is the predictor itself, then low nibble first
+        const int16_t prev = c.predictor;
+        const uint32_t s = c.pos >> 1;
+        if (s > 0) {
+          const uint32_t n = s - 1;
+          const uint8_t packed = c.data[2 + (n >> 1)];
+          ima_adpcm::ima_adpcm_decode(c.predictor, c.step, (n & 1) ? (packed >> 4) : (packed & 0x0f));
+        }
+        mix += (prev + c.predictor) >> 9;
       }
-      mix += c.predictor >> 8;
 
-      if (++c.pos >= c.len) {
+      if (++c.pos >= 2 * c.len) {
         c.data = nullptr;
       }
     }

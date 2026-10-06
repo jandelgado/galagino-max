@@ -27,9 +27,10 @@
 //#define COMMANDO_NO_MUSIC   // test: Commando sound effects only, no SID music
 
 // Bubble Bobble: fit 256 native columns, define one
-#if !defined(BUBLBOBL_SCALE) && !defined(BUBLBOBL_CROP)
+#if !defined(BUBLBOBL_SCALE) && !defined(BUBLBOBL_CROP) && !defined(BUBLBOBL_SCALE_BORDER)
 #define BUBLBOBL_SCALE      // 224 columns, every 8th column dropped
 //#define BUBLBOBL_CROP     // 240 columns, 8 columns dropped left and right
+//#define BUBLBOBL_SCALE_BORDER // 240 columns, every 2nd column of the 16 px side walls dropped
 #endif
 
 // video config

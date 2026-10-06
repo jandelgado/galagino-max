@@ -16,7 +16,7 @@ from asset_emit import emit_compressed, emit_plain
 from convutil import fatal
 from gfxutil import load_file, mame_decode
 from adpcm import ima_encode
-from sound_map import MUSIC, STOP, EFFECTS
+from sound_map import MUSIC, STOP, EFFECTS, STAND_INS
 
 ROMS = os.path.normpath(os.path.join("..", "..", "..", "romszip"))
 BOOTLEG = os.path.join(ROMS, "boblbobl.zip")
@@ -27,6 +27,9 @@ SID_FILE = os.path.join(ROMS, "Bubble_Bobble.sid")
 SID_SHA1 = "d9af85791a8cdd742ab1c4d567b54ac0e8d7b2b7"
 AUDIO_ZIP = os.path.normpath(os.path.join("..", "..", "..", "samples", "bublbobl_samples.zip"))
 AUDIO_RATE = 24000
+FX_RATE = AUDIO_RATE // 2  # bublbobl_sound.h FxMixer interpolates back to 24 kHz
+FX_CUTOFF = 5500           # Hz, anti-alias low-pass below the 6 kHz Nyquist
+FX_TAPS = 63
 NO_MUSIC = 0x00
 STOP_MUSIC = 0xff
 NO_EFFECT = 0xff
@@ -97,19 +100,53 @@ def pack_tile(tile):
 
 TRANSPARENT = tuple([0xffffffff] * 8)
 
+# tile_map entry: unique tile index, plus the flips that turn it into the code's tile
+TILE_INDEX = 0x1fff
+TILE_FLIPX = 0x2000
+TILE_FLIPY = 0x4000
 
-# unique tiles, index 0 = fully transparent; remap code -> unique index
+
+def flip_row(v):
+    return sum(((v >> (4 * x)) & 0xf) << (4 * (7 - x)) for x in range(8))
+
+
+def flip_tile(rows, fx, fy):
+    if fy:
+        rows = rows[::-1]
+    if fx:
+        rows = tuple(flip_row(v) for v in rows)
+    return rows
+
+
+# unique tiles, index 0 = fully transparent; flipped copies share one tile;
+# remap code -> index | flip bits
 def dedupe(tiles):
     unique = [TRANSPARENT]
     index = {TRANSPARENT: 0}
     remap = []
     for t in tiles:
         packed = pack_tile(t)
-        if packed not in index:
-            index[packed] = len(unique)
+        entry = None
+        for fx, fy in ((0, 0), (1, 0), (0, 1), (1, 1)):
+            flipped = flip_tile(packed, fx, fy)
+            if flipped in index:
+                entry = index[flipped] | (TILE_FLIPX if fx else 0) | (TILE_FLIPY if fy else 0)
+                break
+        if entry is None:
+            entry = len(unique)
+            index[packed] = entry
             unique.append(packed)
-        remap.append(index[packed])
+        remap.append(entry)
+    if len(unique) > TILE_INDEX + 1:
+        fatal(f"{len(unique)} unique tiles exceed the tile_map index field")
     return unique, remap
+
+
+def write_tile_map(f, remap):
+    f.write(f"#define BUBLBOBL_TILE_INDEX 0x{TILE_INDEX:04X}\n")
+    f.write(f"#define BUBLBOBL_TILE_FLIPX 0x{TILE_FLIPX:04X}\n")
+    f.write(f"#define BUBLBOBL_TILE_FLIPY 0x{TILE_FLIPY:04X}\n")
+    emit_plain(f, "bublbobl_tile_map", "unsigned short", "", len(remap), body(remap, "%d"))
 
 
 def body(values, fmt, per_line=16):
@@ -137,11 +174,22 @@ def effect_pcm16(cmd):
             return np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float64)
 
 
-# int8 PCM, one common scale for all effects: keeps the arcade's levels
+# AUDIO_RATE -> FX_RATE: windowed-sinc low-pass, then every 2nd sample
+def decimate(pcm):
+    n = np.arange(FX_TAPS) - (FX_TAPS - 1) / 2
+    fc = FX_CUTOFF / AUDIO_RATE
+    h = 2 * fc * np.sinc(2 * fc * n) * np.blackman(FX_TAPS)
+    return np.convolve(pcm, h / h.sum(), mode="same")[::AUDIO_RATE // FX_RATE]
+
+
+# int8 PCM at FX_RATE, one common scale for all effects: keeps the arcade's
+# levels. Silence at both ends dropped: saves flash, starts the effect
+# ~30 ms sooner
 def effects_pcm8():
-    pcm = {cmd: effect_pcm16(cmd) for cmd in sorted(EFFECTS)}
+    pcm = {cmd: decimate(effect_pcm16(cmd)) for cmd in sorted(EFFECTS)}
     peak = max(np.abs(p).max() for p in pcm.values())
-    return {cmd: np.clip(np.round(p * (127.0 / peak)), -128, 127).astype(np.int8) for cmd, p in pcm.items()}
+    return {cmd: np.trim_zeros(np.clip(np.round(p * (127.0 / peak)), -128, 127).astype(np.int8))
+            for cmd, p in pcm.items()}
 
 
 def write_sound(f):
@@ -153,6 +201,10 @@ def write_sound(f):
         music[cmd] = STOP_MUSIC
     for index, cmd in enumerate(sorted(EFFECTS)):
         effect[cmd] = index
+    for cmd, sample in STAND_INS.items():
+        if cmd in EFFECTS or sample not in EFFECTS:
+            fatal(f"stand-in {cmd:02x} -> {sample:02x}: needs a command without sample and an EFFECTS sample")
+        effect[cmd] = effect[sample]
     f.write("// sound latch command -> SID subtune (1..12), 0xff stop music, 0 none\n")
     f.write(f"static const uint8_t bublbobl_music[256] = {{\n{body(music, '0x%02X')}\n}};\n")
     f.write("// sound latch command -> effect index (bublbobl_fx_blobs), 0xff none\n")
@@ -164,7 +216,7 @@ def write_samples(f, pcm8):
     for cmd in sorted(EFFECTS):
         enc = ima_encode(pcm8[cmd])
         total += len(enc)
-        f.write(f"// cmd {cmd:02x} {EFFECTS[cmd]}: {len(pcm8[cmd]) / AUDIO_RATE:.2f} s, IMA-ADPCM: 2-byte LE\n")
+        f.write(f"// cmd {cmd:02x} {EFFECTS[cmd]}: {len(pcm8[cmd]) / FX_RATE:.2f} s, {FX_RATE} Hz IMA-ADPCM: 2-byte LE\n")
         f.write("// predictor, then one nibble per sample (count = decoded samples)\n")
         emit_plain(f, f"bublbobl_fx_{EFFECTS[cmd]}", "unsigned char", "", len(pcm8[cmd]), body(list(enc), "0x%02X"))
     f.write(f"#define BUBLBOBL_EFFECT_COUNT {len(EFFECTS)}\n")
@@ -199,8 +251,7 @@ def main():
         f, "bublbobl_tiles", "uint32_t", "[8]", len(unique),
         "\n".join("{" + ",".join("0x%08X" % v for v in t) + "}," for t in unique)))
     # PLAIN: read once per drawn tile, same access pattern as the tiles
-    write("bublbobl_tile_map.h", lambda f: emit_plain(
-        f, "bublbobl_tile_map", "unsigned short", "", len(remap), body(remap, "%d")))
+    write("bublbobl_tile_map.h", lambda f: write_tile_map(f, remap))
     # PLAIN: 128 bytes, not worth a zlib stream and an Arena allocation
     types = list(prom[0x80:0x100])
     write("bublbobl_prom.h", lambda f: emit_plain(

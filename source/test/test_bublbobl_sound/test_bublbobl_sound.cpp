@@ -68,11 +68,39 @@ void test_sreset_stops_all() {
   TEST_ASSERT_EQUAL_INT32(0, m.next());
 }
 
+// one stored (12 kHz) sample lasts two 24 kHz output samples
 void test_mixer_ends_sample() {
   FxMixer m;
   const FxSample s = { SHORT_FX, 1 };
   m.start(s, 0);
   TEST_ASSERT_EQUAL_INT32(16, m.next());
+  TEST_ASSERT_EQUAL_INT32(16, m.next());
+  TEST_ASSERT_EQUAL_INT32(0, m.next());
+}
+
+// predictor 0, then nibbles 7: the predictor climbs ever faster
+static const uint8_t RISING_FX[] = { 0x00, 0x00, 0x77, 0x77, 0x77, 0x77, 0x77 };
+static const uint8_t RISING_LEN = 11;
+
+// output: s0, s0, (s0 + s1) / 2, s1, (s1 + s2) / 2, s2, ...
+void test_mixer_interpolates_midpoint() {
+  int16_t s[RISING_LEN] = { 0 };
+  int16_t p = s[0];
+  int8_t step = 0;
+  for (uint8_t i = 1; i < RISING_LEN; i++) {
+    ima_adpcm::ima_adpcm_decode(p, step, 7);
+    s[i] = p;
+  }
+
+  FxMixer m;
+  const FxSample fx = { RISING_FX, RISING_LEN };
+  m.start(fx, 0);
+  TEST_ASSERT_EQUAL_INT32(s[0] >> 8, m.next());
+  TEST_ASSERT_EQUAL_INT32(s[0] >> 8, m.next());
+  for (uint8_t i = 1; i < RISING_LEN; i++) {
+    TEST_ASSERT_EQUAL_INT32((s[i - 1] + s[i]) >> 9, m.next());
+    TEST_ASSERT_EQUAL_INT32(s[i] >> 8, m.next());
+  }
   TEST_ASSERT_EQUAL_INT32(0, m.next());
 }
 
@@ -84,5 +112,6 @@ int main() {
   RUN_TEST(test_same_effect_restarts_own_channel);
   RUN_TEST(test_sreset_stops_all);
   RUN_TEST(test_mixer_ends_sample);
+  RUN_TEST(test_mixer_interpolates_midpoint);
   return UNITY_END();
 }

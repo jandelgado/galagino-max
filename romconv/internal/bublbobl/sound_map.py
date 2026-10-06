@@ -43,3 +43,30 @@ EFFECTS = {
     0x31: "fx31",
     0x34: "coin",
 }
+
+# audible effect commands without an own sample: play the closest EFFECTS
+# sample instead of silence (a wrong sound beats a missing one). Picked by
+# similarity of spectrum, pitch track, length and envelope (0..1, best
+# match first); below 0.6 the match is weak.
+STAND_INS = {
+    0x0c: 0x25,  # 0.69
+    0x0e: 0x2c,  # 0.68
+    0x0f: 0x0b,  # 0.78
+    0x12: 0x0b,  # 0.76
+    0x15: 0x20,  # 0.64
+    0x16: 0x1e,  # 0.57
+    0x17: 0x2d,  # 0.56
+    0x19: 0x0b,  # 0.82
+    0x1a: 0x2c,  # 0.69
+    0x1b: 0x25,  # 0.68
+    0x1d: 0x0d,  # 0.51
+    0x21: 0x11,  # 0.76
+    0x22: 0x25,  # 0.64
+    0x23: 0x0b,  # 0.72
+    0x24: 0x20,  # 0.61
+    0x27: 0x26,  # 0.97
+    0x28: 0x2d,  # 0.57
+    0x2a: 0x0b,  # 0.82
+    0x2f: 0x2d,  # 0.65
+    0x33: 0x0b,  # 0.43
+}

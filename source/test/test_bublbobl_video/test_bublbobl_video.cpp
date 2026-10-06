@@ -34,6 +34,18 @@ void test_crop_map() {
   TEST_ASSERT_EQUAL_UINT16(256, CROP_WIDTH + 2 * CROP_LEFT);
 }
 
+void test_border_map() {
+  TEST_ASSERT_EQUAL_UINT8(0, border_x(0));
+  TEST_ASSERT_EQUAL_UINT8(14, border_x(7));
+  TEST_ASSERT_EQUAL_UINT8(16, border_x(8));
+  TEST_ASSERT_EQUAL_UINT8(239, border_x(231));
+  TEST_ASSERT_EQUAL_UINT8(240, border_x(232));
+  TEST_ASSERT_EQUAL_UINT8(254, border_x(BORDER_WIDTH - 1));
+  for (uint16_t c = BORDER / 2; c < BORDER_WIDTH - BORDER / 2; c++) {
+    TEST_ASSERT_EQUAL_UINT8(c + BORDER / 2, border_x(c));
+  }
+}
+
 void test_first_new_column() {
   TEST_ASSERT_EQUAL_UINT8(30, first_new_column(PROM, 0));
   TEST_ASSERT_EQUAL_UINT8(30, first_new_column(PROM, 3));
@@ -78,6 +90,7 @@ int main() {
   UNITY_BEGIN();
   RUN_TEST(test_keep_map);
   RUN_TEST(test_crop_map);
+  RUN_TEST(test_border_map);
   RUN_TEST(test_first_new_column);
   RUN_TEST(test_chain_skips_empty_objects);
   RUN_TEST(test_x_negative);

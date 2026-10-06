@@ -383,10 +383,11 @@ void bublbobl::drawObjectRow(const Obj &o, uint8_t yc, uint8_t line0) {
       continue; // fully transparent
     }
 
-    const uint32_t *rows = tiles[t];
+    // flipped copies share one stored tile: combine its flips with the attribute's
+    const uint32_t *rows = tiles[t & BUBLBOBL_TILE_INDEX];
     const uint8_t color = (uint8_t)((a & 0x3c) << 2);
-    const bool flipx = a & 0x40;
-    const bool flipy = a & 0x80;
+    const bool flipx = (bool)(a & 0x40) != (bool)(t & BUBLBOBL_TILE_FLIPX);
+    const bool flipy = (bool)(a & 0x80) != (bool)(t & BUBLBOBL_TILE_FLIPY);
     const int16_t x = x0 + xc * 8;
 
     for (uint8_t tl = 0; tl < 8; tl++) {

@@ -9,6 +9,8 @@ namespace bublbobl_video {
 constexpr uint16_t SCALE_WIDTH = 224; // 256 native columns, every 8th dropped
 constexpr uint16_t CROP_WIDTH = 240;  // native columns 8..247
 constexpr uint8_t CROP_LEFT = 8;
+constexpr uint16_t BORDER_WIDTH = 240; // 16 px side walls at half width
+constexpr uint8_t BORDER = 16;         // native wall width at each edge
 constexpr uint8_t VIS_TOP = 16;     // first visible native line
 constexpr uint8_t STRIPS = 28;      // 224 visible lines / 8
 
@@ -22,6 +24,14 @@ constexpr uint8_t keep_x(uint16_t col) { return (uint8_t)((col / 7) * 8 + col % 
 
 // output column -> native x, drops CROP_LEFT columns at each edge
 constexpr uint8_t crop_x(uint16_t col) { return (uint8_t)(col + CROP_LEFT); }
+
+// output column -> native x, keeps every 2nd column of the BORDER wide
+// walls, playfield 1:1
+constexpr uint8_t border_x(uint16_t col) {
+  return (uint8_t)(col < BORDER / 2 ? col * 2
+                   : col < BORDER_WIDTH - BORDER / 2 ? col + BORDER / 2
+                   : col * 2 - (BORDER_WIDTH - BORDER));
+}
 
 // x before (chained) and after the object's first "new column" row
 struct ObjPos {

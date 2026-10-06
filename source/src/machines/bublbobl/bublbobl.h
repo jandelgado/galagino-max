@@ -22,8 +22,9 @@
 // C64 SID music or recorded effect samples.
 //
 // Unrotated: native lines 16..239 -> panel strips 4..31, native x
-// 0..255 -> 224 columns, every 8th pixel dropped (BUBLBOBL_SCALE), or
-// 240 columns, 8 pixels dropped at each edge (BUBLBOBL_CROP).
+// 0..255 -> 224 columns, every 8th pixel dropped (BUBLBOBL_SCALE),
+// 240 columns, 8 pixels dropped at each edge (BUBLBOBL_CROP), or
+// 240 columns, 16 pixel side walls at half width (BUBLBOBL_SCALE_BORDER).
 // ============================================================
 
 class bublbobl : public machineBase
@@ -121,12 +122,15 @@ private:
   static constexpr uint8_t IN0_START1 = 0x40;
 
   // 256 native columns -> OUT_WIDTH, see config.h
-#if defined(BUBLBOBL_SCALE) == defined(BUBLBOBL_CROP)
-#error "define exactly one of BUBLBOBL_SCALE, BUBLBOBL_CROP"
+#if defined(BUBLBOBL_SCALE) + defined(BUBLBOBL_CROP) + defined(BUBLBOBL_SCALE_BORDER) != 1
+#error "define exactly one of BUBLBOBL_SCALE, BUBLBOBL_CROP, BUBLBOBL_SCALE_BORDER"
 #endif
-#ifdef BUBLBOBL_CROP
+#if defined(BUBLBOBL_CROP)
   static constexpr uint16_t OUT_WIDTH = bublbobl_video::CROP_WIDTH;
   static constexpr uint8_t native_x(uint16_t col) { return bublbobl_video::crop_x(col); }
+#elif defined(BUBLBOBL_SCALE_BORDER)
+  static constexpr uint16_t OUT_WIDTH = bublbobl_video::BORDER_WIDTH;
+  static constexpr uint8_t native_x(uint16_t col) { return bublbobl_video::border_x(col); }
 #else
   static constexpr uint16_t OUT_WIDTH = bublbobl_video::SCALE_WIDTH;
   static constexpr uint8_t native_x(uint16_t col) { return bublbobl_video::keep_x(col); }
