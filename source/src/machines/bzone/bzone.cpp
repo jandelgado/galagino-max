@@ -217,11 +217,30 @@ const uint16_t *bzone::strip_palette(uint8_t strip) const {
 }
 
 #ifdef LED_PIN
+// logo greens; the cabinet overlay red for explosions
+static const CRGB BZONE_LED_DARK(0x0d640d), BZONE_LED_MID(0x18be18), BZONE_LED_BRIGHT(0x23ff23);
+static const CRGB BZONE_LED_RED(0xff2020);
+static const uint8_t LED_MIDDLE = NUM_LEDS / 2;
+
 void bzone::menuLeds(CRGB *leds) {
-  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  static const CRGB menu_leds[NUM_LEDS] = {
+      BZONE_LED_DARK, BZONE_LED_MID, BZONE_LED_BRIGHT, BZONE_LED_BRIGHT,
+      BZONE_LED_BRIGHT, BZONE_LED_MID, BZONE_LED_DARK};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 
+// Explosions flash red; the start button lamp (blinking in attract)
+// lights the middle LED white.
 void bzone::gameLeds(CRGB *leds) {
+  const uint8_t latch = soundregs[BZ_SND_LATCH];
+  if (latch & BZ_EXPLO) {
+    fill_solid(leds, NUM_LEDS, BZONE_LED_RED);
+    return;
+  }
+
   menuLeds(leds);
+  if (latch & BZ_START_LED) {
+    leds[LED_MIDDLE] = CRGB::White;
+  }
 }
 #endif
