@@ -380,12 +380,31 @@ const Logo &thepit::logo(void) {
 }
 
 #ifdef LED_PIN
-// Task 5 derives the colors from the logo
+// logo colors, most frequent first (logos/thepit.png, quantized to 8)
+static const CRGB THEPIT_LED_1 = CRGB(0x242b4b);   // night sky blue
+static const CRGB THEPIT_LED_2 = CRGB(0xae2c1f);   // title red
+static const CRGB THEPIT_LED_3 = CRGB(0xa3705a);   // title outline tan
+
 void thepit::menuLeds(CRGB *leds) {
-  fill_solid(leds, NUM_LEDS, LED_BLACK);
+  static const CRGB menu_leds[NUM_LEDS] = {
+    THEPIT_LED_3, THEPIT_LED_2, THEPIT_LED_1, THEPIT_LED_1,
+    THEPIT_LED_1, THEPIT_LED_2, THEPIT_LED_3
+  };
+  memcpy(leds, menu_leds, sizeof(menu_leds));
 }
 
+// Logo colors; flash color 2 for a few frames on each sound command.
 void thepit::gameLeds(CRGB *leds) {
-  fill_solid(leds, NUM_LEDS, LED_BLACK);
+  static uint8_t last_latch = 0;
+  if (sound_latch && sound_latch != last_latch) {
+    led_flash = 6;
+  }
+  last_latch = sound_latch;
+
+  menuLeds(leds);
+  if (led_flash) {
+    led_flash--;
+    fill_solid(leds, NUM_LEDS, THEPIT_LED_2);
+  }
 }
 #endif

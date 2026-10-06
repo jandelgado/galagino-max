@@ -140,6 +140,7 @@ private:
   uint8_t ay_addr = 0;
   uint8_t snd_irq_pending = 0;
   uint8_t sound_enabled = 0;
+  uint8_t led_flash = 0;      // gameLeds() frames left
 
   // sprite[] holds low priority sprites first, high from first_high on
   int first_high = 0;
