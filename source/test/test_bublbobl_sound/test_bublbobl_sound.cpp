@@ -36,19 +36,34 @@ void test_fx_ring_full_drops() {
 void test_mixer_replaces_oldest() {
   FxMixer m;
   const FxSample s = { SHORT_FX, 5 };
-  m.start(s);
+  m.start(s, 0);
   m.next();
-  m.start(s);
+  m.start(s, 1);
   m.next();
-  m.start(s); // both busy: replaces the first (oldest)
+  m.start(s, 2); // both busy: replaces the first (oldest)
+  TEST_ASSERT_EQUAL_INT32(2 * 16, m.next());
+}
+
+// rapid fire of one effect restarts its own channel and keeps the
+// other effect playing
+void test_same_effect_restarts_own_channel() {
+  FxMixer m;
+  const FxSample shot = { SHORT_FX, 5 };
+  const FxSample other = { SHORT_FX, 5 };
+  m.start(other, 1);
+  m.start(shot, 2);
+  m.start(shot, 2);
+  m.start(shot, 2);
+  TEST_ASSERT_EQUAL_UINT8(1, m.ch[0].fx);
+  TEST_ASSERT_EQUAL_UINT8(2, m.ch[1].fx);
   TEST_ASSERT_EQUAL_INT32(2 * 16, m.next());
 }
 
 void test_sreset_stops_all() {
   FxMixer m;
   const FxSample s = { SHORT_FX, 5 };
-  m.start(s);
-  m.start(s);
+  m.start(s, 0);
+  m.start(s, 1);
   m.stopAll();
   TEST_ASSERT_EQUAL_INT32(0, m.next());
 }
@@ -56,7 +71,7 @@ void test_sreset_stops_all() {
 void test_mixer_ends_sample() {
   FxMixer m;
   const FxSample s = { SHORT_FX, 1 };
-  m.start(s);
+  m.start(s, 0);
   TEST_ASSERT_EQUAL_INT32(16, m.next());
   TEST_ASSERT_EQUAL_INT32(0, m.next());
 }
@@ -66,6 +81,7 @@ int main() {
   RUN_TEST(test_fx_ring_two_per_frame);
   RUN_TEST(test_fx_ring_full_drops);
   RUN_TEST(test_mixer_replaces_oldest);
+  RUN_TEST(test_same_effect_restarts_own_channel);
   RUN_TEST(test_sreset_stops_all);
   RUN_TEST(test_mixer_ends_sample);
   return UNITY_END();

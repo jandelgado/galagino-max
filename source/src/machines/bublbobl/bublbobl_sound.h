@@ -47,7 +47,8 @@ struct FxSample {
   uint32_t len;        // decoded samples
 };
 
-// a new effect takes a free channel, else the oldest one
+// an effect restarts its own channel if it still plays (rapid fire must
+// not cut other effects), else takes a free channel, else the oldest
 struct FxMixer {
   static const uint8_t CHANNELS = 2;
 
@@ -58,21 +59,13 @@ struct FxMixer {
     uint32_t age = 0;
     int16_t predictor = 0;
     int8_t step = 0;
+    uint8_t fx = 0;
   };
   Channel ch[CHANNELS];
   uint32_t clock = 0;
 
-  void start(const FxSample &s) {
-    uint8_t pick = 0;
-    for (uint8_t i = 0; i < CHANNELS; i++) {
-      if (!ch[i].data) {
-        pick = i;
-        break;
-      }
-      if (ch[i].age < ch[pick].age) {
-        pick = i;
-      }
-    }
+  void start(const FxSample &s, uint8_t fx) {
+    const uint8_t pick = channelFor(fx);
 
     Channel &c = ch[pick];
     c.data = s.data;
@@ -81,6 +74,26 @@ struct FxMixer {
     c.age = ++clock;
     c.predictor = (int16_t)(s.data[0] | (s.data[1] << 8));
     c.step = 0;
+    c.fx = fx;
+  }
+
+  uint8_t channelFor(uint8_t fx) const {
+    for (uint8_t i = 0; i < CHANNELS; i++) {
+      if (ch[i].data && ch[i].fx == fx) {
+        return i;
+      }
+    }
+
+    uint8_t pick = 0;
+    for (uint8_t i = 0; i < CHANNELS; i++) {
+      if (!ch[i].data) {
+        return i;
+      }
+      if (ch[i].age < ch[pick].age) {
+        pick = i;
+      }
+    }
+    return pick;
   }
 
   void stopAll() {

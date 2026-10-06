@@ -273,22 +273,20 @@ void bublbobl::ic43_b_w(uint8_t offset, uint8_t data) {
   ic43_b = (data >> 4) ^ xorval[offset];
 }
 
-// 4 instructions; true once the CPU sits in its idle loop with
-// interrupts enabled
-bool bublbobl::stepCpu(uint8_t c, uint16_t idle_pc) {
+void bublbobl::stepCpu(uint8_t c) {
   current_cpu = c;
   StepZ80(&cpu[c]); StepZ80(&cpu[c]);
   StepZ80(&cpu[c]); StepZ80(&cpu[c]);
+}
+
+// in its idle loop with interrupts enabled: only an IRQ gets it out
+bool bublbobl::isIdle(uint8_t c, uint16_t idle_pc) const {
   return cpu[c].PC.W == idle_pc && (cpu[c].IFF & IFF_1);
 }
 
 void bublbobl::run_frame(void) {
-  // an idle CPU skips the rest of the frame until its next IRQ
-  bool idle[CPUS] = {};
-
   for (uint16_t i = 0; i < SLICES; i++) {
-    // irq0_line_hold: held until the CPU enables interrupts. First, so
-    // an idle CPU gets its vblank IRQ before the idle check below.
+    // irq0_line_hold: held until the CPU enables interrupts
     for (uint8_t c = 0; c < CPUS; c++) {
       if (irq_pending[c] && (cpu[c].IFF & IFF_1)) {
         current_cpu = c;
@@ -297,17 +295,19 @@ void bublbobl::run_frame(void) {
       }
     }
 
-    if (!idle[MAIN_CPU]) {
-      idle[MAIN_CPU] = stepCpu(MAIN_CPU, MAIN_IDLE_PC);
-    }
-
-    // checked per slice: the main CPU can reset the sub CPU mid-frame
-    if ((ctrl & CTRL_SUB_RUN) && !idle[SUB_CPU]) {
-      idle[SUB_CPU] = stepCpu(SUB_CPU, SUB_IDLE_PC);
-    }
-
-    if (idle[MAIN_CPU] && (idle[SUB_CPU] || !(ctrl & CTRL_SUB_RUN))) {
+    // idle decided per slice: a just delivered IRQ (PC $38) or a sub CPU
+    // reset (PC 0), possibly mid-frame, resumes stepping
+    const bool main_idle = isIdle(MAIN_CPU, MAIN_IDLE_PC);
+    const bool sub_idle = !(ctrl & CTRL_SUB_RUN) || isIdle(SUB_CPU, SUB_IDLE_PC);
+    if (main_idle && sub_idle) {
       break;
+    }
+
+    if (!main_idle) {
+      stepCpu(MAIN_CPU);
+    }
+    if (!sub_idle) {
+      stepCpu(SUB_CPU);
     }
   }
 
@@ -492,7 +492,7 @@ void bublbobl::renderSid(int16_t *out, int n) {
   uint8_t e;
   while (fx_ring.pop(e)) {
     const FlashAsset<unsigned char, PLAIN> &b = *bublbobl_fx_blobs[e];
-    fx.start({ b.data, b.count });
+    fx.start({ b.data, b.count }, e);
   }
 
   if (sid_on) {

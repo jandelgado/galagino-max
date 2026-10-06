@@ -173,7 +173,8 @@ private:
   uint8_t ic43_a_r(uint8_t offset);
   void ic43_a_w(uint8_t offset);
   void ic43_b_w(uint8_t offset, uint8_t data);
-  bool stepCpu(uint8_t c, uint16_t idle_pc);
+  void stepCpu(uint8_t c);
+  bool isIdle(uint8_t c, uint16_t idle_pc) const;
   void drawObjectRow(const Obj &o, uint8_t yc, uint8_t line0);
   void onSoundCommand(uint8_t cmd);
   void onSoundReset();
