@@ -269,12 +269,30 @@ void atetris::render_row(short row) {
 }
 
 #ifdef LED_PIN
-// placeholder colors until Task 6 derives them from the logo
+// logo colors: sky, castle red, dark purple
+static const CRGB ATETRIS_LED_A(0x0292ff), ATETRIS_LED_B(0xab0507), ATETRIS_LED_C(0x400319);
+
 void atetris::menuLeds(CRGB *leds) {
-  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  static const CRGB menu_leds[NUM_LEDS] = {
+      ATETRIS_LED_A, ATETRIS_LED_B, ATETRIS_LED_C, ATETRIS_LED_C,
+      ATETRIS_LED_C, ATETRIS_LED_B, ATETRIS_LED_A};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 
+// coin: white flash. Else the menu colors rotating one LED per 8 frames.
 void atetris::gameLeds(CRGB *leds) {
-  menuLeds(leds);
+  if (coin_leds) {
+    coin_leds--;
+    fill_solid(leds, NUM_LEDS, CRGB::White);
+    return;
+  }
+
+  CRGB base[NUM_LEDS];
+  menuLeds(base);
+  led_frame = (led_frame + 1) % (8 * NUM_LEDS);
+  const int shift = led_frame / 8;
+  for (int i = 0; i < NUM_LEDS; i++) {
+    leds[i] = base[(i + shift) % NUM_LEDS];
+  }
 }
 #endif
