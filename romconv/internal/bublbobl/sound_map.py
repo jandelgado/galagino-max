@@ -15,8 +15,12 @@
 # Audible in the sweep, never seen in the log (later rounds?): 09 0a 0c
 # 0e 0f 10 12-1d 21-24 27-2b 2f 30 32 33 f2 f4 f6.
 
-# command: SID subtune 1..12 (Bubble_Bobble.sid), arcade cue
+# command: SID subtune 1..12 (Bubble_Bobble.sid), arcade cue. Subtunes
+# chosen by ear (user); 30 = 07 without the intro (spectrogram match).
 MUSIC = {
+    0x07: 1,   # game start: intro, then main theme ("tune 1")
+    0x08: 9,   # game over, after 02 ("tune 2")
+    0x30: 6,   # main theme ("main tune")
 }
 
 # commands that silence the music
