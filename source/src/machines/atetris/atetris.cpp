@@ -17,6 +17,7 @@ enum : uint16_t {
   IRQ_ACK = 0x3800,       // 0x3800-0x3bff
   COIN_COUNTER = 0x3c00,  // 0x3c00-0x3fff
   BANK_BASE = 0x4000,     // 0x4000-0x7fff slapstic bank
+  BANK_SIZE = 0x4000,     // ROM 0x0000 (banks 0, 2) or 0x4000 (banks 1, 3)
   ROM_FIXED = 0x8000,
   BLOCK_MASK = 0xfc00,
 };
@@ -131,7 +132,7 @@ uint8_t atetris::read(uint16_t a) {
     return rom[a];
   }
   if (a >= BANK_BASE) {
-    return rom[(slapstic.bank() & 1) * 0x4000 + (a - BANK_BASE)];
+    return rom[(slapstic.bank() & 1) * BANK_SIZE + (a - BANK_BASE)];
   }
   if (a < RAM_END) {
     return memory[a];

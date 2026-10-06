@@ -35,7 +35,9 @@ static void check_window(int32_t n) {
   for (uint32_t p = 0; p < 2 * 0x1ffff * (uint32_t)n; p += n) {
     window17(s, n, w);
     for (int32_t t = 0; t < n; t++) {
-      if (((w[t >> 6] >> (t & 63)) & 1) != ref_bit(p + t)) TEST_FAIL_MESSAGE("window bit mismatch");
+      if (((w[t >> 6] >> (t & 63)) & 1) != ref_bit(p + t)) {
+        TEST_FAIL_MESSAGE("window bit mismatch");
+      }
     }
   }
 }
