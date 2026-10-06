@@ -512,6 +512,7 @@ const char *mchName(signed char machineType) {
     case MCH_BALUBA:        return "Baluba-louk";
     case MCH_COMMANDO:      return "Commando";
     case MCH_LLANDER:       return "Lunar Lander";
+    case MCH_THEPIT:        return "The Pit";
   }
 
   return "";
