@@ -233,6 +233,10 @@
   #include "machines/bublbobl/bublbobl.h"
 #endif
 
+#ifdef ENABLE_ATETRIS
+  #include "machines/atetris/atetris.h"
+#endif
+
 // change machine order is possible here...
 machineInfo machines[] = {
 #ifdef ENABLE_PACMAN
@@ -640,6 +644,13 @@ machineInfo machines[] = {
     bublbobl::menuLeds,
 #endif
     MCH_BUBLBOBL },
+#endif
+#ifdef ENABLE_ATETRIS
+  { []() -> machineBase* { return new atetris(); }, atetris::logo,
+#ifdef LED_PIN
+    atetris::menuLeds,
+#endif
+    MCH_ATETRIS },
 #endif
 #ifdef ENABLE_COMMANDO
   { []() -> machineBase* { return new commando(); }, commando::logo,
