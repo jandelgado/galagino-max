@@ -26,6 +26,12 @@
 //#define COMMANDO_INVINCIBLE // cheat: Commando player never dies
 //#define COMMANDO_NO_MUSIC   // test: Commando sound effects only, no SID music
 
+// Bubble Bobble: fit 256 native columns, define one
+#if !defined(BUBLBOBL_SCALE) && !defined(BUBLBOBL_CROP)
+#define BUBLBOBL_SCALE      // 224 columns, every 8th column dropped
+//#define BUBLBOBL_CROP     // 240 columns, 8 columns dropped left and right
+#endif
+
 // video config
 //#define TFT_SPICLK  40000000    // 40 Mhz. Some displays cope with 80 Mhz
 //#define TFT_SPICLK  80000000    // 80 Mhz. Some displays cope with 80 Mhz

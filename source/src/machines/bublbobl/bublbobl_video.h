@@ -6,7 +6,9 @@
 // Pure video geometry of MAME screen_update_bublbobl, host tested.
 namespace bublbobl_video {
 
-constexpr uint16_t OUT_WIDTH = 224; // 256 native columns, every 8th dropped
+constexpr uint16_t SCALE_WIDTH = 224; // 256 native columns, every 8th dropped
+constexpr uint16_t CROP_WIDTH = 240;  // native columns 8..247
+constexpr uint8_t CROP_LEFT = 8;
 constexpr uint8_t VIS_TOP = 16;     // first visible native line
 constexpr uint8_t STRIPS = 28;      // 224 visible lines / 8
 
@@ -17,6 +19,9 @@ constexpr uint8_t PROM_ROW_OFS = 0x03;
 
 // output column -> native x, skips native x with (x & 7) == 7
 constexpr uint8_t keep_x(uint16_t col) { return (uint8_t)((col / 7) * 8 + col % 7); }
+
+// output column -> native x, drops CROP_LEFT columns at each edge
+constexpr uint8_t crop_x(uint16_t col) { return (uint8_t)(col + CROP_LEFT); }
 
 // x before (chained) and after the object's first "new column" row
 struct ObjPos {

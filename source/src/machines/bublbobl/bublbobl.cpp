@@ -428,11 +428,11 @@ void bublbobl::render_row(short row) {
     }
   }
 
-  // 256 native columns -> 224, every 8th dropped
+  // 256 native columns -> OUT_WIDTH
   for (uint8_t l = 0; l < 8; l++) {
     unsigned short *out = frame_buffer + l * OUT_WIDTH;
     for (uint16_t c = 0; c < OUT_WIDTH; c++) {
-      out[c] = palette[pens[l][keep_x(c)]];
+      out[c] = palette[pens[l][native_x(c)]];
     }
   }
 }

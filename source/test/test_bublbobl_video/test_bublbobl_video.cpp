@@ -22,10 +22,16 @@ void test_keep_map() {
   TEST_ASSERT_EQUAL_UINT8(0, keep_x(0));
   TEST_ASSERT_EQUAL_UINT8(6, keep_x(6));
   TEST_ASSERT_EQUAL_UINT8(8, keep_x(7));
-  TEST_ASSERT_EQUAL_UINT8(254, keep_x(OUT_WIDTH - 1));
-  for (uint16_t c = 0; c < OUT_WIDTH; c++) {
+  TEST_ASSERT_EQUAL_UINT8(254, keep_x(SCALE_WIDTH - 1));
+  for (uint16_t c = 0; c < SCALE_WIDTH; c++) {
     TEST_ASSERT_NOT_EQUAL(7, keep_x(c) & 7);
   }
+}
+
+void test_crop_map() {
+  TEST_ASSERT_EQUAL_UINT8(8, crop_x(0));
+  TEST_ASSERT_EQUAL_UINT8(247, crop_x(CROP_WIDTH - 1));
+  TEST_ASSERT_EQUAL_UINT16(256, CROP_WIDTH + 2 * CROP_LEFT);
 }
 
 void test_first_new_column() {
@@ -71,6 +77,7 @@ void test_rows_for_strip_wrap() {
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_keep_map);
+  RUN_TEST(test_crop_map);
   RUN_TEST(test_first_new_column);
   RUN_TEST(test_chain_skips_empty_objects);
   RUN_TEST(test_x_negative);
