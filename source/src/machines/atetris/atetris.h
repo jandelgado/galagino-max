@@ -15,8 +15,8 @@
 // tilemap of 8x8x4 tiles, 256 entry RGB 3-3-2 palette RAM, no sprites.
 //
 // Unrotated (as bublbobl): native lines 0..239 -> strips 3..32. Game layout
-// (castle tile 677 at row 0, column 19): native x 0..239, the player 1
-// side. Other screens: 336 -> 240, columns with x % 7 == 2 or 5 dropped.
+// (castle tile 677 at row 0, column 19): native x 0..223, the player 1
+// side, centered. Other screens: 336 -> 240, columns with x % 7 == 2 or 5 dropped.
 class atetris : public machineBase {
 protected:
   // ROM assets, unpacked into the Arena on first data()

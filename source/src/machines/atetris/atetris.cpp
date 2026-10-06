@@ -235,7 +235,7 @@ void atetris::prepare_frame() {
   }
   const bool crop = isGameLayout(video.vram[0]);
   spans = crop ? crop_spans : scale_spans;
-  span_cols = crop ? OUT_WIDTH / 8 : VIS_COLS;
+  span_cols = crop ? CROP_COLS : VIS_COLS;
 }
 
 void atetris::render_row(short row) {

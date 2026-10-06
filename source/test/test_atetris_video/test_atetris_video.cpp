@@ -21,6 +21,16 @@ static void test_scale_spans(void) {
   TEST_ASSERT_EQUAL_UINT8(6, s[1].out);
 }
 
+// game layout: native x 0..223, centered: 8 black columns each side
+static void test_crop_spans(void) {
+  Span s[VIS_COLS];
+  buildSpans(FIT_CROP, s);
+  TEST_ASSERT_EQUAL_UINT8(8, s[0].out);
+  TEST_ASSERT_EQUAL_HEX8(0xff, s[CROP_COLS - 1].keep);
+  TEST_ASSERT_EQUAL_UINT8(8 + 27 * 8, s[CROP_COLS - 1].out);
+  TEST_ASSERT_EQUAL_HEX8(0x00, s[CROP_COLS].keep);
+}
+
 static void test_rgb332(void) {
   TEST_ASSERT_EQUAL_HEX16(0xffff, rgb332(0xff));
   TEST_ASSERT_EQUAL_HEX16(0x00f8, rgb332(0xe0)); // red 0xff -> 0xf800, swapped
@@ -30,6 +40,7 @@ static void test_rgb332(void) {
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_scale_spans);
+  RUN_TEST(test_crop_spans);
   RUN_TEST(test_rgb332);
   return UNITY_END();
 }
