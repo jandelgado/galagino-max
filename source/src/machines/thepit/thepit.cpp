@@ -175,19 +175,51 @@ void thepit::wrZ80(unsigned short Addr, unsigned char Value) {
 }
 
 unsigned char thepit::inZ80(unsigned short Port) {
-  return 0xff;   // Task 4 adds the AY data port
+  if ((Port & 0xff) != AY_DATA_PORT) {
+    return 0xff;
+  }
+  if (ay_addr == AY_PORT_A) {
+    return sound_latch;
+  }
+  return ay_addr < AY_PORT_A ? soundregs[ay_addr] : 0xff;
 }
 
 void thepit::outZ80(unsigned short Port, unsigned char Value) {
-  // Task 4 adds the AY ports
+  switch (Port & 0xff) {
+    case SND_CLEAR_PORT:
+      sound_latch = 0;
+      return;
+    case AY_ADDR_PORT:
+      ay_addr = Value & 0x0f;
+      return;
+    case AY_DATA_PORT:
+      if (ay_addr >= AY_PORT_A) {
+        return;
+      }
+      // sound disabled: keep the channel volumes silent
+      if (!sound_enabled && ay_addr >= AY_VOLUME_A && ay_addr <= AY_VOLUME_C) {
+        Value = 0;
+      }
+      soundregs[ay_addr] = Value;
+      return;
+  }
 }
 
 void thepit::run_frame(void) {
-  // Main Z80 @ 3.072 MHz; Task 4 adds the sound CPU
+  // Main Z80 @ 3.072 MHz, sound Z80 @ 2.5 MHz: 4 : 3 instructions
   for (int i = 0; i < INST_PER_FRAME; i++) {
     current_cpu = MAIN_CPU;
     StepZ80(&cpu[MAIN_CPU]); StepZ80(&cpu[MAIN_CPU]);
     StepZ80(&cpu[MAIN_CPU]); StepZ80(&cpu[MAIN_CPU]);
+
+    current_cpu = SOUND_CPU;
+    StepZ80(&cpu[SOUND_CPU]); StepZ80(&cpu[SOUND_CPU]); StepZ80(&cpu[SOUND_CPU]);
+
+    // MAME holds the vsync IRQ until acknowledged: deliver once enabled
+    if (snd_irq_pending && (cpu[SOUND_CPU].IFF & IFF_1)) {
+      IntZ80(&cpu[SOUND_CPU], INT_RST38);
+      snd_irq_pending = 0;
+    }
   }
 
   vblank.publish([this](VideoState &v) {
@@ -201,6 +233,7 @@ void thepit::run_frame(void) {
     current_cpu = MAIN_CPU;
     IntZ80(&cpu[MAIN_CPU], INT_NMI);
   }
+  snd_irq_pending = 1;
 }
 
 void thepit::prepare_frame(void) {
