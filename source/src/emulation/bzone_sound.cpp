@@ -5,8 +5,12 @@ using discrete::DT;
 
 static const int32_t SAMPLE_MAX = 511;
 
-// MAME DISCRETE_OUTPUT(NODE_280, 48000): 32768 / 48000 V is full scale
-static const float OUT_GAIN = 48000.0f / 32768.0f * SAMPLE_MAX;
+// MAME DISCRETE_OUTPUT(NODE_280, 48000): 32768 / 48000 V is full scale.
+// MAME's level is quiet (idle engine peaks at a third of full scale);
+// boosted so the engine nearly fills the range and explosions clip, like
+// MAME's BZ_FINAL_GAIN note on real cabinets.
+static const float LOUDNESS = 2.5f;
+static const float OUT_GAIN = 48000.0f / 32768.0f * SAMPLE_MAX * LOUDNESS;
 
 static const float VCC = 5.0f;
 static const float TTL_HIGH = 3.4f;
