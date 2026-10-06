@@ -151,7 +151,7 @@ void Audio::start(machineBase *machineBase) {
   else if (machineType == MCH_THEPIT)     { AY = 1; AY_INC = 8; AY_VOL = 11; } // 1.536 MHz
 
   if (machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
-      machineType == MCH_CCASTLES) {
+      machineType == MCH_CCASTLES || machineType == MCH_BZONE) {
     const int32_t clocks = machineType == MCH_ATETRIS   ? Pokey::CLOCKS_1789KHZ
                          : machineType == MCH_CCASTLES ? Pokey::CLOCKS_1250KHZ
                                                        : Pokey::CLOCKS_1512KHZ;
@@ -164,6 +164,9 @@ void Audio::start(machineBase *machineBase) {
   }
   if (machineType == MCH_LLANDER) {
     llander_sound.reset();
+  }
+  if (machineType == MCH_BZONE) {
+    bzone_sound.reset();
   }
 
   for(char ay = 0; ay < NUM_AY_CHIPS; ay++) {
@@ -338,6 +341,8 @@ void Audio::transmit() {
       asteroids_render_buffer();
     else if(machineType == MCH_LLANDER)
       llander_render_buffer();
+    else if(machineType == MCH_BZONE)
+      bzone_render_buffer();
   } while(bytesOut);
 }
 
@@ -538,6 +543,16 @@ void Audio::llander_render_buffer(void) {
   llander_sound.render(currentMachine->soundregs, samples, 64);
   for (int i = 0; i < 64; i++) {
     valueToBuffer(i, samples[i]);
+  }
+}
+
+// Atari Battle Zone: POKEY into the discrete mixer, see bzone_sound.h
+void Audio::bzone_render_buffer(void) {
+  int16_t samples[64], out[64];
+  pokey[0].render(currentMachine->soundregs, samples, 64);
+  bzone_sound.render(currentMachine->soundregs[BZ_SND_LATCH], samples, out, 64);
+  for (int i = 0; i < 64; i++) {
+    valueToBuffer(i, out[i]);
   }
 }
 
