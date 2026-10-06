@@ -23,8 +23,10 @@ static uint16_t glow565(uint8_t level) {
 }
 
 dvgMachine::dvgMachine(uint8_t (*read)(m6502_t *, uint16_t),
-                       void (*write)(m6502_t *, uint16_t, uint8_t)) {
-  static_assert(VRAM_OFS + VRAM_SIZE <= RAMSIZE, "DVG machine RAM does not fit");
+                       void (*write)(m6502_t *, uint16_t, uint8_t),
+                       uint16_t vram_size)
+  : vram_size(vram_size) {
+  static_assert(VRAM_OFS + MAX_VRAM_SIZE <= RAMSIZE, "vector machine RAM does not fit");
   memset(&m_cpu, 0, sizeof(m_cpu));
   m_cpu.read = read;
   m_cpu.write = write;
@@ -94,15 +96,15 @@ void dvgMachine::prepare_frame() {
 // frame_buffer is cleared by the caller
 void dvgMachine::render_row(short row) {
 #ifdef DVG_GLOW
-  raster.render(row, frame_buffer, renderWidth(), palette, glow);
+  raster.render(row, frame_buffer, renderWidth(), strip_palette(row), glow);
 #else
-  raster.render(row, frame_buffer, renderWidth(), palette);
+  raster.render(row, frame_buffer, renderWidth(), strip_palette(row));
 #endif
 }
 
 void dvgMachine::go() {
   go_latch.publish([this](VideoState &vs) {
-    memcpy(vs.vram, memory + VRAM_OFS, sizeof(vs.vram));
+    memcpy(vs.vram, memory + VRAM_OFS, vram_size);
   });
   game_started = 1;
 }
