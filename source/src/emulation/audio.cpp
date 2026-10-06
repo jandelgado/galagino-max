@@ -237,6 +237,8 @@ void Audio::start(machineBase *machineBase) {
     zx_pos[i] = 0;
     zx_adpcm_predictor[i] = 0;
     zx_adpcm_step[i] = 0;
+    zx_phase[i] = 0;
+    zx_adpcm_prev[i] = 0;
   }
 
 #ifndef WORKAROUND_I2S_APLL_PROBLEM
@@ -488,6 +490,7 @@ void Audio::zaxxonStartChannel(int ch, ZaxxonPlayMode mode) {
   zx_active[ch] = true;
   zx_loop[ch] = (mode == ZAXXON_LOOP);
   zx_pos[ch] = 0;
+  zx_phase[ch] = 0;
 }
 
 void Audio::zaxxonStopChannel(int ch) {
@@ -616,23 +619,38 @@ void Audio::zaxxon_render_buffer(void) {
         continue;
       }
 
-      if (zx_pos[ch] == 0) {
-        const uint8_t *enc = zaxxon_sample_ptr[ch];
-        zx_adpcm_predictor[ch] = (int16_t)(enc[0] | (enc[1] << 8));
-        zx_adpcm_step[ch] = 0;
-      } else {
-        uint32_t nibble = zx_pos[ch] - 1;
-        uint8_t packed = zaxxon_sample_ptr[ch][2 + (nibble >> 1)];
-        uint8_t code = (nibble & 1) ? (packed >> 4) : (packed & 15);
-        ima_adpcm_decode(zx_adpcm_predictor[ch], zx_adpcm_step[ch], code);
+      // decode the next stored sample at the start of its hold
+      if (zx_phase[ch] == 0) {
+        zx_adpcm_prev[ch] = zx_adpcm_predictor[ch];
+        if (zx_pos[ch] == 0) {
+          const uint8_t *enc = zaxxon_sample_ptr[ch];
+          zx_adpcm_predictor[ch] = (int16_t)(enc[0] | (enc[1] << 8));
+          zx_adpcm_step[ch] = 0;
+          zx_adpcm_prev[ch] = zx_adpcm_predictor[ch];
+        } else {
+          uint32_t nibble = zx_pos[ch] - 1;
+          uint8_t packed = zaxxon_sample_ptr[ch][2 + (nibble >> 1)];
+          uint8_t code = (nibble & 1) ? (packed >> 4) : (packed & 15);
+          ima_adpcm_decode(zx_adpcm_predictor[ch], zx_adpcm_step[ch], code);
+        }
       }
-      int32_t s = zx_adpcm_predictor[ch] >> 8;
+
+      // linear from the previous sample, reaching the current one at the
+      // end of the hold (one stored sample late)
+      const int32_t prev = zx_adpcm_prev[ch];
+      const int32_t step = zx_phase[ch] + 1;
+      int32_t s = (prev + (zx_adpcm_predictor[ch] - prev) * step / ZAXXON_SAMPLE_HOLD) >> 8;
       if (ch == 10 || ch == 11) {
         s = (s * engine_gain_q8) >> 8;
       } else {
         s = s * 2;
       }
       value += s;
+
+      if (++zx_phase[ch] < ZAXXON_SAMPLE_HOLD) {
+        continue;
+      }
+      zx_phase[ch] = 0;
 
       if (++zx_pos[ch] >= zaxxon_sample_len[ch]) {
         if (zx_loop[ch]) {

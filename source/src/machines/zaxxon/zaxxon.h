@@ -20,6 +20,7 @@
 #include "zaxxon_sample_alarm_fuel.h"
 #include "zaxxon_sample_noise_intro.h"
 #include "zaxxon_sample_noise_asteroid.h"
+#include "zaxxon_sample_rate.h"
 #include "../machineBase.h"
 #include "../../emulation/seqlock.h"
 

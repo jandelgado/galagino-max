@@ -252,6 +252,10 @@ private:
   uint32_t zx_pos[12] = {0};
   int16_t zx_adpcm_predictor[12] = {0};
   int8_t zx_adpcm_step[12] = {0};
+  // samples stored below 24 kHz: output sample within the hold, and the
+  // previous decoded sample to interpolate from
+  uint8_t zx_phase[12] = {0};
+  int16_t zx_adpcm_prev[12] = {0};
 
   // Atari POKEY (Centipede: 1, Millipede: 2)
   static const int MAX_POKEYS = 2;
