@@ -26,9 +26,12 @@
 #     pbaction_main_rom.h    const unsigned char pbaction_main_rom[0xc000]
 #     pbaction_audio_rom.h   const unsigned char pbaction_audio_rom[0x2000]
 #     pbaction_fg_tiles.h    const unsigned char pbaction_fg_tiles[1024][8][8]   (pen 0-7)
-#     pbaction_bg_tiles.h    const unsigned char pbaction_bg_tiles[2048][8][8]   (pen 0-15)
-#     pbaction_sprites16.h   const unsigned char pbaction_sprites16[256][16][16] (pen 0-7)
-#     pbaction_sprites32.h   const unsigned char pbaction_sprites32[32][32][32]  (pen 0-7)
+#     pbaction_bg_tiles.h    const uint32_t pbaction_bg_tiles[2048][8]       (pen 0-15)
+#     pbaction_sprites16.h   const uint32_t pbaction_sprites16[256][16][2]   (pen 0-7)
+#
+# bg tiles and sprites hold 8 pixels per uint32_t, pixel i in bits 4*i..4*i+3.
+# The 32x32 sprites are not emitted: each is four 16x16 sprites (see
+# check_sprites32), composed by pbaction::blit_sprite.
 #
 # All gfx are rotated 90 degrees clockwise here (ROT90 cabinet), matching the
 # galagino blitter convention used by bnj / bombjack (rot_galagino()).
@@ -283,6 +286,44 @@ def write_tiles_header(path: Path, guard: str, sym: str, tiles: list, dim: int, 
     print(f"  wrote {path} {len(tiles)} tiles ({dim}x{dim})")
 
 
+def write_packed_header(path: Path, guard: str, sym: str, tiles: list, dim: int, note: str,
+                        compress: bool) -> None:
+    """tiles[i][y][x] (pen < 16) as uint32_t[dim][dim/8], 8 pixels per word."""
+    words = dim // 8
+    flat = [sum(t[y][w * 8 + i] << (4 * i) for i in range(8))
+            for t in tiles for y in range(dim) for w in range(words)]
+    inner = "[%d]" % dim if words == 1 else "[%d][%d]" % (dim, words)
+    with open(path, "w") as f:
+        f.write(f"#ifndef {guard}\n#define {guard}\n\n#include <stdint.h>\n\n")
+        f.write(BANNER)
+        f.write(f"// {note}\n")
+        f.write(f"// {len(tiles)} tiles, {dim}x{dim} pixels, rotated 90 deg CW (ROT90), "
+                f"8 pixels per uint32_t, pixel i in bits 4*i.\n\n")
+        if compress:
+            emit_compressed(f, sym, "uint32_t", inner, len(tiles), flat)
+        else:
+            rows = [",".join("0x%08X" % v for v in flat[r * words:(r + 1) * words])
+                    for r in range(len(tiles) * dim)]
+            if words > 1:
+                rows = ["{" + r + "}" for r in rows]
+            body = ",\n".join("  {" + ",".join(rows[i * dim:(i + 1) * dim]) + "}"
+                              for i in range(len(tiles)))
+            emit_plain(f, sym, "uint32_t", inner, len(tiles), body)
+        f.write("\n#endif\n")
+    print(f"  wrote {path} {len(tiles)} tiles ({dim}x{dim}, packed)")
+
+
+def check_sprites32(s16, s32) -> None:
+    """32x32 sprite k (spritelayout2, +0x1000) is 16x16 sprites 128+4k+j,
+    after rotation: j = 2 | 0 over 3 | 1 (first index half 0 | 1)."""
+    for k, t in enumerate(s32):
+        for qa in range(2):
+            for qb in range(2):
+                quad = s16[128 + 4 * k + (0 if qb else 2) + qa]
+                for a in range(16):
+                    assert t[qa * 16 + a][qb * 16:qb * 16 + 16] == quad[a], (k, qa, qb)
+
+
 # --- optional PNG preview ----------------------------------------------
 def preview(fg, bg, s16, s32, outpng: Path) -> None:
     from PIL import Image
@@ -346,23 +387,19 @@ def main() -> None:
                        "pbaction_fg_tiles", fg, 8,
                        "Foreground chars (a-s6/s7/s8), charlayout1, 3bpp (pen 0-7). "
                        "gfx[0]: color = attr&0x0f, transparent pen 0.")
-    write_tiles_header(os.path.join(OUT_DIR, "pbaction_bg_tiles.h"), "PBACTION_BG_TILES_H",
-                       "pbaction_bg_tiles", bg, 8,
-                       "Background chars (a-j5/j6/j7/j8), charlayout2, 4bpp (pen 0-15). "
-                       "gfx[1]: color = attr&0x07, opaque, palette base 128. "
-                       "RAM budget exception: stays PLAIN/flash-resident (128KB).",
-                       compress=False)
-    write_tiles_header(os.path.join(OUT_DIR, "pbaction_sprites16.h"), "PBACTION_SPRITES16_H",
-                       "pbaction_sprites16", s16, 16,
-                       "Normal sprites (b-c7/d7/f7), spritelayout1, 3bpp (pen 0-7). "
-                       "gfx[2]: color = spriteram[offs+1]&0x0f, transparent pen 0. "
-                       "RAM budget exception: stays PLAIN/flash-resident (see Arena's "
-                       "capacity in arena.h).",
-                       compress=False)
-    write_tiles_header(os.path.join(OUT_DIR, "pbaction_sprites32.h"), "PBACTION_SPRITES32_H",
-                       "pbaction_sprites32", s32, 32,
-                       "Large sprites (same ROMs, +0x1000), spritelayout2, 3bpp (pen 0-7). "
-                       "gfx[3]: color = spriteram[offs+1]&0x0f, transparent pen 0.")
+    write_packed_header(os.path.join(OUT_DIR, "pbaction_bg_tiles.h"), "PBACTION_BG_TILES_H",
+                        "pbaction_bg_tiles", bg, 8,
+                        "Background chars (a-j5/j6/j7/j8), charlayout2, 4bpp (pen 0-15). "
+                        "gfx[1]: color = attr&0x07, opaque, palette base 128. "
+                        "RAM budget exception: stays PLAIN/flash-resident (64KB).",
+                        compress=False)
+    write_packed_header(os.path.join(OUT_DIR, "pbaction_sprites16.h"), "PBACTION_SPRITES16_H",
+                        "pbaction_sprites16", s16, 16,
+                        "Normal sprites (b-c7/d7/f7), spritelayout1, 3bpp (pen 0-7). "
+                        "gfx[2]: color = spriteram[offs+1]&0x0f, transparent pen 0. "
+                        "Also holds the 32x32 sprites (gfx[3]), see check_sprites32().",
+                        compress=True)
+    check_sprites32(s16, s32)
 
     #preview(fg, bg, s16, s32, "pbaction_gfx_preview.png")
 

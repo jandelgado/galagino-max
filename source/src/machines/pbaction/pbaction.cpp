@@ -4,7 +4,6 @@
 #include "pbaction_fg_tiles.h"
 #include "pbaction_bg_tiles.h"
 #include "pbaction_sprites16.h"
-#include "pbaction_sprites32.h"
 
 // Unpack eagerly, largest first: only this order fits Arena's two blocks.
 pbaction::pbaction()
@@ -12,11 +11,10 @@ pbaction::pbaction()
     pbaction_bg_tiles(pbaction_bg_tiles_blob),
     pbaction_fg_tiles(pbaction_fg_tiles_blob),
     pbaction_main_rom(pbaction_main_rom_blob),
-    pbaction_sprites16(pbaction_sprites16_blob),
-    pbaction_sprites32(pbaction_sprites32_blob) {
+    pbaction_sprites16(pbaction_sprites16_blob) {
 	pbaction_fg_tiles.data();
 	pbaction_main_rom.data();
-	pbaction_sprites32.data();
+	pbaction_sprites16.data();
 	pbaction_audio_rom.data();
 }
 
@@ -412,6 +410,14 @@ void pbaction::prepare_frame(void) {
 // tile column (x); we reconstruct the fixed (29-col)*32 half from it and add
 // the scrolled MAME-x tile index.
 // ---------------------------------------------------------------------------
+// one bg tile line: 8 pixels, pixel i in bits 4*i
+static inline void blit_bg_line(unsigned short *ptr, const unsigned short *colors, uint32_t g) {
+  ptr[0] = colors[g & 15];          ptr[1] = colors[(g >> 4) & 15];
+  ptr[2] = colors[(g >> 8) & 15];   ptr[3] = colors[(g >> 12) & 15];
+  ptr[4] = colors[(g >> 16) & 15];  ptr[5] = colors[(g >> 20) & 15];
+  ptr[6] = colors[(g >> 24) & 15];  ptr[7] = colors[g >> 28];
+}
+
 void pbaction::blit_tile_bg(short row, char col) {
   int base_idx = tileaddr[row][col];        // (29-col)*32 + (row-2)
   int map_y32  = base_idx & ~31;            // (29-col)*32   (stays constant)
@@ -426,16 +432,11 @@ void pbaction::blit_tile_bg(short row, char col) {
     unsigned char attr = memory[PBACTION_BG_CRAM + idx];
     unsigned int  tile_id = (chr + 0x10 * (attr & 0x70)) & 2047;
     const unsigned short *colors = &pbaction_palette[128 + ((attr & 0x07) << 4)];
-    const unsigned char (*tile)[8] = pbaction_bg_tiles[tile_id];
+    const uint32_t *tile = pbaction_bg_tiles[tile_id];
     const int flipy = (attr & 0x80);
 
-    for (int r = 0; r < 8; r++, ptr += 224) {
-      const unsigned char *g = tile[flipy ? (7 - r) : r];
-      ptr[0] = colors[g[0]];  ptr[1] = colors[g[1]];
-      ptr[2] = colors[g[2]];  ptr[3] = colors[g[3]];
-      ptr[4] = colors[g[4]];  ptr[5] = colors[g[5]];
-      ptr[6] = colors[g[6]];  ptr[7] = colors[g[7]];
-    }
+    for (int r = 0; r < 8; r++, ptr += 224)
+      blit_bg_line(ptr, colors, tile[flipy ? (7 - r) : r]);
     return;
   }
 
@@ -452,12 +453,7 @@ void pbaction::blit_tile_bg(short row, char col) {
     unsigned int  tile_id = (chr + 0x10 * (attr & 0x70)) & 2047;
     const unsigned short *colors = &pbaction_palette[128 + ((attr & 0x07) << 4)];
     int src_line = (attr & 0x80) ? (7 - line) : line;
-    const unsigned char *g = pbaction_bg_tiles[tile_id][src_line];
-
-    ptr[0] = colors[g[0]];  ptr[1] = colors[g[1]];
-    ptr[2] = colors[g[2]];  ptr[3] = colors[g[3]];
-    ptr[4] = colors[g[4]];  ptr[5] = colors[g[5]];
-    ptr[6] = colors[g[6]];  ptr[7] = colors[g[7]];
+    blit_bg_line(ptr, colors, pbaction_bg_tiles[tile_id][src_line]);
   }
 }
 
@@ -558,6 +554,11 @@ void pbaction::blit_sprite(short row, unsigned char s_idx) {
 
   const unsigned short *colors = &pbaction_palette[s->color << 3];
 
+  // 32x32 sprite k is 16x16 sprites 128+4k+j: j = 2 | 0 over 3 | 1
+  // (first index half 0 | 1), see pbaction_rom_convert.py check_sprites32
+  const uint32_t (*gfx)[16][2] = pbaction_sprites16.data();
+  gfx += s->is_32x32 ? 128 + (s->code << 2) : s->code;
+
   int ox0 = (s->y < y_strip) ? (y_strip - s->y) : 0;
   int ox1 = (s->y + size > y_strip + 8) ? (y_strip + 8 - s->y) : size;
 
@@ -565,6 +566,9 @@ void pbaction::blit_sprite(short row, unsigned char s_idx) {
     int fb_line = (s->y + ox) - y_strip;             // 0..7
     int a = s->flip_x ? (m1 - ox) : ox;              // pre-rot first index
     unsigned short *fb = &frame_buffer[fb_line * 224];
+    const int half = s->is_32x32 ? (a >> 4) : 0;
+    const uint32_t *row_lo = gfx[s->is_32x32 ? 2 + half : 0][a & 15];  // b 0..15
+    const uint32_t *row_hi = gfx[half][a & 15];                         // b 16..31
 
     for (int oy = 0; oy < size; oy++) {
       int fb_col = 223 - (s->x + oy);
@@ -573,8 +577,8 @@ void pbaction::blit_sprite(short row, unsigned char s_idx) {
       int oyf = s->flip_y ? (m1 - oy) : oy;
       int b = m1 - oyf;                               // pre-rot second index
 
-      unsigned char pen = s->is_32x32 ? pbaction_sprites32[s->code][a][b]
-                                      : pbaction_sprites16[s->code][a][b];
+      const uint32_t *g = (b < 16) ? row_lo : row_hi;
+      unsigned char pen = (g[(b >> 3) & 1] >> ((b & 7) << 2)) & 15;
       if (pen)
         fb[fb_col] = colors[pen];
     }
