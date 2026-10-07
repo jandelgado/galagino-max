@@ -75,14 +75,15 @@ enum : uint8_t { OUT_LED3 = 2, OUT_LED2 = 3, OUT_BANK = 4, OUT_LED1 = 6 };
 // ADC channels (MAME adc0809 inputs)
 enum : uint8_t { ADC_PITCH = 0, ADC_YAW = 1 };
 
-// RIOT port A inputs; the TMS5220 is absent and reads idle
+// RIOT port A; PA0, PA1 are outputs
 enum : uint8_t {
+  PA_TMS_WSQ = 0x01,
+  PA_TMS_RSQ = 0x02,
   PA_TMS_READYQ = 0x04, // active low: ready
   PA_NO_SELFTEST = 0x10,
   PA_MAIN_PENDING = 0x40,
   PA_SOUND_PENDING = 0x80,
 };
-static const uint8_t TMS_STATUS_IDLE = 0x60; // buffer low and empty, not talking
 
 // POKEY: register offset bits 0-2, chip bits 3-4, control (AUDCTL..) bit 5
 enum : uint8_t { POKEY_AUDCTL = 8, POKEY_SKCTL = 15 };
@@ -90,6 +91,10 @@ enum : uint8_t { POKEY_AUDCTL = 8, POKEY_SKCTL = 15 };
 // 1.512 MHz CPUs
 static const uint32_t CYCLES_PER_FRAME = 25200; // 60 Hz
 static const uint32_t CYCLES_PER_IRQ = 6144;    // 3 kHz / 12 = 246 Hz
+
+// TMS5220 at 12.096 MHz / 2 / 9 = 672 kHz, a sample per 80 clocks
+static const uint32_t SPEECH_HZ = 8400, AUDIO_HZ = 24000;
+static const uint16_t CYCLES_PER_SPEECH_SAMPLE = 180;
 
 // Loops that spin until an IRQ handler changes a RAM flag (MAME speedup
 // hack): only an IRQ ends them, so the CPU clock skips ahead.
@@ -178,6 +183,9 @@ void starwars::reset() {
   avg_state.reset(XCENTER, YCENTER);
 
   main_cycles = sound_cycles = 0;
+  // emulation task not running, the audio core is this core
+  speech.reset(SPEECH_HZ, AUDIO_HZ);
+  tms.reset(&speech, CYCLES_PER_SPEECH_SAMPLE, sound_cycles);
   next_irq = CYCLES_PER_IRQ;
   main_irq = false;
   m6809_reset(&main_cpu);
@@ -222,9 +230,17 @@ uint8_t starwars::in1() const {
   return IN1_IDLE | IN1_VG_HALT; // MATH_RUN (bit 7) low: runs are instant
 }
 
-uint8_t starwars::riot_pa_in() const {
-  return PA_NO_SELFTEST | (main_pending ? PA_MAIN_PENDING : 0) |
-         (sound_pending ? PA_SOUND_PENDING : 0);
+uint8_t starwars::riot_pa_in() {
+  return PA_NO_SELFTEST | (tms.readyq_r(sound_cycles) ? PA_TMS_READYQ : 0) |
+         (main_pending ? PA_MAIN_PENDING : 0) | (sound_pending ? PA_SOUND_PENDING : 0);
+}
+
+// RIOT pins -> TMS5220 (MAME pa_wr/pb_wr callbacks, /WS before /RS)
+void starwars::speech_pins() {
+  const uint8_t pa = riot.pa_output();
+  tms.data_w(riot.pb_output());
+  tms.wsq_w(pa & PA_TMS_WSQ, sound_cycles);
+  tms.rsq_w(pa & PA_TMS_RSQ, sound_cycles);
 }
 
 void starwars::frame_input() {
@@ -379,7 +395,7 @@ uint8_t starwars::sound_read(uint16_t a) {
     return riot.ram_read(a);
   }
   if ((a & 0xffe0) == S_RIOT_IO) {
-    return riot.io_read(a, riot_pa_in(), TMS_STATUS_IDLE, sound_cycles);
+    return riot.io_read(a, riot_pa_in(), tms.status_r(sound_cycles), sound_cycles);
   }
   return 0;
 }
@@ -400,6 +416,7 @@ void starwars::sound_write(uint16_t a, uint8_t v) {
   }
   if ((a & 0xffe0) == S_RIOT_IO) {
     riot.io_write(a, v, riot_pa_in(), sound_cycles);
+    speech_pins();
     return;
   }
   if ((a & 0xffc0) != S_POKEY) {
@@ -517,6 +534,7 @@ void starwars::run_frame() {
 
     run_sound(main_cycles);
   }
+  tms.update(sound_cycles);
 }
 
 uint16_t starwars::map_lines(uint16_t count) {
@@ -555,6 +573,11 @@ void starwars::prepare_frame() {
     }
   });
   raster.begin(lines, count);
+}
+
+// audio core: TMS5220 output, 24 kHz
+void starwars::renderSpeech(int16_t *out, int n) {
+  speech.render(out, n);
 }
 
 // frame_buffer is cleared by the caller

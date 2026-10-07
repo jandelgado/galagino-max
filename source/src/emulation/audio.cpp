@@ -510,15 +510,21 @@ void Audio::zaxxonStopChannel(int ch) {
 // Atari POKEY (Centipede, Millipede, Tetris, Crystal Castles, Star Wars): chip n
 // registers at soundregs[n * Pokey::REG_COUNT], see pokey.h. MAME routes every
 // POKEY at the same gain, so the chips are summed; Star Wars' four at half
-// level.
+// level, plus the TMS5220 at 2.5 times a POKEY (MAME 0.50 vs 0.20).
 void Audio::pokey_render_buffer(void) {
   static const int32_t SAMPLE_MAX = 511;
+  static const int SPEECH_SHIFT = 6; // int16 -> +-512, a POKEY here is +-240
+  const bool speech = machineType == MCH_STARWARS;
   const int chips = machineType == MCH_STARWARS ? 4
       : (machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS || machineType == MCH_CCASTLES) ? 2 : 1;
   const int shift = chips > 2 ? 1 : 0;
   int16_t samples[MAX_POKEYS][64];
   for (int n = 0; n < chips; n++) {
     pokey[n].render(currentMachine->soundregs + n * Pokey::REG_COUNT, samples[n], 64);
+  }
+  int16_t voice[64];
+  if (speech) {
+    currentMachine->renderSpeech(voice, 64);
   }
 
   for (int i = 0; i < 64; i++) {
@@ -527,6 +533,9 @@ void Audio::pokey_render_buffer(void) {
       v += samples[n][i];
     }
     v >>= shift;
+    if (speech) {
+      v += voice[i] >> SPEECH_SHIFT;
+    }
     valueToBuffer(i, v > SAMPLE_MAX ? SAMPLE_MAX : (v < -SAMPLE_MAX ? -SAMPLE_MAX : v));
   }
 }

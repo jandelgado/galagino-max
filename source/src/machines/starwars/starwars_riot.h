@@ -51,8 +51,9 @@ public:
     }
   }
 
-  uint8_t pa_output() const { return pa_out & pa_ddr; }
-  uint8_t pb_output() const { return pb_out & pb_ddr; }
+  // pin levels the devices see: undriven pins float high (MAME update_pa)
+  uint8_t pa_output() const { return (pa_out & pa_ddr) | ~pa_ddr; }
+  uint8_t pb_output() const { return (pb_out & pb_ddr) | ~pb_ddr; }
 
   // port A inputs changed (latch flags): PA7 edge detect
   void edge_detect(uint8_t pa_in) {

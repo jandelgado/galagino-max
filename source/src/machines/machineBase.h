@@ -216,6 +216,10 @@ public:
     // the audio core. Virtual so audio.cpp does not need the machine header.
     virtual void renderSid(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
 
+    // Speech chip output (Star Wars TMS5220): n samples at 24 kHz, full
+    // int16 range, on the audio core. Virtual for the same reason.
+    virtual void renderSpeech(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
+
 #ifdef LED_PIN
     // Static: menu preview runs before any machine instance exists.
     static void defaultMenuLeds(CRGB *leds) {

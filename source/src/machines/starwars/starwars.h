@@ -5,6 +5,8 @@
 #include "../../cpus/m6809/m6809.h"
 #include "../../emulation/avg.h"
 #include "../../emulation/seqlock.h"
+#include "../../emulation/speech_ring.h"
+#include "../../emulation/tms5220.h"
 #include "../../emulation/vector2d.h"
 #include "starwars_logo.h"
 #include "starwars_dipswitches.h"
@@ -15,8 +17,8 @@
 // Atari Star Wars, MAME starwars (set 1), atari/starwars.cpp.
 // Main M6809 and sound M6809 at 12.096 MHz / 8, AVG vector generator
 // (Star Wars variant, color), math board (starwars_math.h), 4 POKEY and
-// a 6532 RIOT on the sound board. The TMS5220 speech is not emulated:
-// it reads idle. ROT0, 250 x 280, scaled onto 240 columns.
+// a 6532 RIOT and a TMS5220 speech chip on the sound board. ROT0,
+// 250 x 280, scaled onto 240 columns.
 //
 //   emulation core                     video core
 //   main CPU writes VRAM, GO:          prepare_frame(): go_list ->
@@ -24,6 +26,8 @@
 //     publishes go_list -------------> render_row() x 36
 //   sound CPU writes POKEY regs
 //     -> soundregs (audio.cpp)
+//   sound CPU drives the TMS5220
+//     via RIOT -> speech ---------> renderSpeech() (audio core)
 //
 // Decoding at GO like the real AVG keeps the vector count off the video
 // core, which has no time left beside SPI and audio.
@@ -46,6 +50,7 @@ public:
   void run_frame() override;
   void prepare_frame() override;
   void render_row(short row) override;
+  void renderSpeech(int16_t *out, int n) override;
   const int renderWidth() override { return 240; }
   const int renderBuffer() override { return 240 * 2 * 8; }
   static const Logo &logo() { return starwars_logo; }
@@ -87,7 +92,8 @@ private:
   void install_rom_direct();
   uint8_t in0() const;
   uint8_t in1() const;
-  uint8_t riot_pa_in() const;
+  uint8_t riot_pa_in();
+  void speech_pins();
   void go();
   bool main_idle() const;
   bool sound_idle(uint32_t until);
@@ -106,6 +112,8 @@ private:
 
   StarWarsMath math;
   Riot6532 riot;
+  Tms5220 tms;        // RIOT PA0 /WS, PA1 /RS, PA2 READYQ, PB data
+  SpeechRing speech;  // tms -> audio core
   uint8_t sound_latch = 0, main_latch = 0;    // main -> sound, sound -> main
   bool sound_pending = false, main_pending = false;
   uint8_t outlatch = 0;                       // LS259 9L/M Q0-Q7
