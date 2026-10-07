@@ -52,7 +52,6 @@ protected:
 		const FlashAsset<uint32_t[16][2], COMPRESSED> &bg2;
 		const FlashAsset<uint32_t[16][2], COMPRESSED> &bg3;
 		const FlashAsset<uint32_t[16][2], PLAIN> &sprites_16x16;
-		const FlashAsset<uint32_t[32][4], PLAIN> &sprites_32x32;
 	};
 	explicit starforce(const Roms &roms);
 
@@ -87,8 +86,7 @@ private:
 	Asset<uint32_t[16][2], COMPRESSED> bg1_tiles;
 	Asset<uint32_t[16][2], COMPRESSED> bg2_tiles;
 	Asset<uint32_t[16][2], COMPRESSED> bg3_tiles;
-	Asset<uint32_t[16][2], PLAIN> sprites_16x16;
-	Asset<uint32_t[32][4], PLAIN> sprites_32x32;
+	Asset<uint32_t[16][2], PLAIN> sprites_16x16;  // 32x32 sprites are 4 of these
 
 	// Cached: hot path reads these per access; data() checks the cache on every call.
 	const unsigned char *rom_main_ptr;
@@ -96,7 +94,6 @@ private:
 	const uint32_t (*fg_ptr)[8];
 	const uint32_t (*bg_ptr[3])[16][2];  // bg1..bg3
 	const uint32_t (*spr16_ptr)[16][2];
-	const uint32_t (*spr32_ptr)[32][4];
 
 	// Sprite/scroll/bg state as of the main CPU's vblank IRQ (MAME's render
 	// point), handed to the video core via Seqlock (see seqlock.h).
