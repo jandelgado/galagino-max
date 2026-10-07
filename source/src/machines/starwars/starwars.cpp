@@ -122,6 +122,13 @@ static const vec2d::Rect VISIBLE = {0, 0, 250, 280};
 static const int SCALE_MUL = 245, SCALE_SHIFT = 8;
 static const int16_t TOP_BORDER = 4;
 
+// NVRAM block 2 (nibbles 0x34-0x8f, ROM table 0xc7b6) starts with the
+// yoke calibration (min, gain per axis) the game self-tunes from yoke
+// extremes. Erased NVRAM loads the defaults, off center by ~48 px until
+// both extremes are held. A zeroed block, like a played cabinet, centers
+// within ~6 px. Checksum: 1 + nibble sum (end-around carry).
+enum : uint8_t { NV_CAL_BLOCK = 0x34, NV_CAL_SIZE = 0x5c, NV_CAL_SUM_LO = 0x8f };
+
 static uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
   const uint16_t rgb = ((r & 0xf8) << 8) | ((g & 0xfc) << 3) | (b >> 3);
   return (rgb >> 8) | (rgb << 8);
@@ -171,6 +178,8 @@ void starwars::reset() {
   machineBase::reset();
   memset(math_ram, 0, StarWarsMath::RAM_SIZE);
   memset(nvram, 0xff, sizeof(nvram)); // X2212 default
+  memset(nvram + NV_CAL_BLOCK, 0, NV_CAL_SIZE);
+  nvram[NV_CAL_SUM_LO] = 1;
   math.reset();
   riot.reset();
   sound_latch = main_latch = 0;
