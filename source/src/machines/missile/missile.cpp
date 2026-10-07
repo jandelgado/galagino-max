@@ -337,3 +337,27 @@ void missile::render_row(short row) {
     }
   }
 }
+
+#ifdef LED_PIN
+// logo colors: red, blue, yellow
+static const CRGB MISSILE_LED_A(0xd91e1e), MISSILE_LED_B(0x2655e0), MISSILE_LED_C(0xe8c800);
+static const uint8_t FIRE_BLINK = 4; // frames per blink phase
+
+void missile::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[NUM_LEDS] = {
+      MISSILE_LED_A, MISSILE_LED_B, MISSILE_LED_C, MISSILE_LED_C,
+      MISSILE_LED_C, MISSILE_LED_B, MISSILE_LED_A};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
+}
+
+// red alarm blink while FIRE is held, else the menu colors
+void missile::gameLeds(CRGB *leds) {
+  if (!(input->buttons_get() & BUTTON_FIRE)) {
+    menuLeds(leds);
+    return;
+  }
+
+  led_frame++;
+  fill_solid(leds, NUM_LEDS, (led_frame & FIRE_BLINK) ? MISSILE_LED_A : CRGB::Black);
+}
+#endif

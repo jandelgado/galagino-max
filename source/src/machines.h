@@ -246,6 +246,9 @@
 #ifdef ENABLE_STARWARS
   #include "machines/starwars/starwars.h"
 #endif
+#ifdef ENABLE_MISSILE
+  #include "machines/missile/missile.h"
+#endif
 
 // change machine order is possible here...
 machineInfo machines[] = {
@@ -682,6 +685,13 @@ machineInfo machines[] = {
     starwars::menuLeds,
 #endif
     MCH_STARWARS },
+#endif
+#ifdef ENABLE_MISSILE
+  { []() -> machineBase* { return new missile(); }, missile::logo,
+#ifdef LED_PIN
+    missile::menuLeds,
+#endif
+    MCH_MISSILE },
 #endif
 #ifdef ENABLE_COMMANDO
   { []() -> machineBase* { return new commando(); }, commando::logo,
