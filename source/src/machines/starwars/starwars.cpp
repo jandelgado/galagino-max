@@ -256,7 +256,11 @@ void starwars::frame_input() {
   const unsigned int k = input->buttons_get();
   yoke_x.step(((k & BUTTON_RIGHT) ? 1 : 0) - ((k & BUTTON_LEFT) ? 1 : 0));
   // MAME IPT_AD_STICK_Y: up lowers the value
-  yoke_y.step(((k & BUTTON_DOWN) ? 1 : 0) - ((k & BUTTON_UP) ? 1 : 0));
+  int8_t dy = ((k & BUTTON_DOWN) ? 1 : 0) - ((k & BUTTON_UP) ? 1 : 0);
+#ifdef STARWARS_INVERT_Y
+  dy = -dy;
+#endif
+  yoke_y.step(dy);
 }
 
 void starwars::outlatch_write(uint8_t bit, bool v) {

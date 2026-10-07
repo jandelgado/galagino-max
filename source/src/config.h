@@ -26,6 +26,8 @@
 //#define COMMANDO_INVINCIBLE // cheat: Commando player never dies
 //#define COMMANDO_NO_MUSIC   // test: Commando sound effects only, no SID music
 
+//#define STARWARS_INVERT_Y   // Star Wars: invert stick Y axis
+
 // Bubble Bobble: fit 256 native columns, define one
 #if !defined(BUBLBOBL_SCALE) && !defined(BUBLBOBL_CROP) && !defined(BUBLBOBL_SCALE_BORDER)
 #define BUBLBOBL_SCALE      // 224 columns, every 8th column dropped
