@@ -243,6 +243,9 @@
 #ifdef ENABLE_BZONE
   #include "machines/bzone/bzone.h"
 #endif
+#ifdef ENABLE_STARWARS
+  #include "machines/starwars/starwars.h"
+#endif
 
 // change machine order is possible here...
 machineInfo machines[] = {
@@ -672,6 +675,13 @@ machineInfo machines[] = {
     bzone::menuLeds,
 #endif
     MCH_BZONE },
+#endif
+#ifdef ENABLE_STARWARS
+  { []() -> machineBase* { return new starwars(); }, starwars::logo,
+#ifdef LED_PIN
+    starwars::menuLeds,
+#endif
+    MCH_STARWARS },
 #endif
 #ifdef ENABLE_COMMANDO
   { []() -> machineBase* { return new commando(); }, commando::logo,

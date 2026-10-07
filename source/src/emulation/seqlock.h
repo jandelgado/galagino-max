@@ -21,7 +21,8 @@
 //
 // Seqlock: seq odd = write in progress. The writer never waits; the reader
 // retries if a publish overlapped its copy. Single writer only.
-// RAM cost: 2 x sizeof(T) (published copy here + caller's render copy).
+// RAM cost: 2 x sizeof(T) (published copy here + caller's render copy),
+// 1 x with visit().
 static_assert(ATOMIC_INT_LOCK_FREE == 2, "Seqlock needs lock-free 32-bit atomics");
 
 template <typename T> class Seqlock {
@@ -44,6 +45,18 @@ public:
     do {
       s = seq.load(std::memory_order_acquire);
       memcpy(&dst, &data, sizeof(T));
+      std::atomic_thread_fence(std::memory_order_acquire);
+    } while ((s & 1) || s != seq.load(std::memory_order_relaxed));
+  }
+
+  // visit(const T &) reads the published copy in place, e.g. converting
+  // it without a full copy; reruns if a publish overlapped. visit sees
+  // torn data then and must stay in bounds.
+  template <typename Visit> void visit(Visit fn) const {
+    uint32_t s;
+    do {
+      s = seq.load(std::memory_order_acquire);
+      fn(data);
       std::atomic_thread_fence(std::memory_order_acquire);
     } while ((s & 1) || s != seq.load(std::memory_order_relaxed));
   }

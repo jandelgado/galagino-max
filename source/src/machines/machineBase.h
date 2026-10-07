@@ -103,7 +103,8 @@ enum {
   MCH_BUBLBOBL,
   MCH_ATETRIS,
   MCH_CCASTLES,
-  MCH_BZONE
+  MCH_BZONE,
+  MCH_STARWARS
 };
 
 // one inst at 3Mhz ~ 500k inst/sec = 500000/60 inst per frame

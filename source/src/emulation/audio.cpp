@@ -151,7 +151,7 @@ void Audio::start(machineBase *machineBase) {
   else if (machineType == MCH_THEPIT)     { AY = 1; AY_INC = 8; AY_VOL = 11; } // 1.536 MHz
 
   if (machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
-      machineType == MCH_CCASTLES || machineType == MCH_BZONE) {
+      machineType == MCH_CCASTLES || machineType == MCH_BZONE || machineType == MCH_STARWARS) {
     const int32_t clocks = machineType == MCH_ATETRIS   ? Pokey::CLOCKS_1789KHZ
                          : machineType == MCH_CCASTLES ? Pokey::CLOCKS_1250KHZ
                                                        : Pokey::CLOCKS_1512KHZ;
@@ -335,7 +335,7 @@ void Audio::transmit() {
     else if(machineType == MCH_ZAXXON)
       zaxxon_render_buffer();
     else if(machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
-            machineType == MCH_CCASTLES)
+            machineType == MCH_CCASTLES || machineType == MCH_STARWARS)
       pokey_render_buffer();
     else if(machineType == MCH_ASTEROIDS)
       asteroids_render_buffer();
@@ -507,23 +507,26 @@ void Audio::zaxxonStopChannel(int ch) {
   zx_active[ch] = false;
 }
 
-// Atari POKEY (Centipede, Millipede, Tetris, Crystal Castles): chip n registers at
-// soundregs[n * Pokey::REG_COUNT], see pokey.h. MAME routes every POKEY at
-// the same gain, so the chips are summed.
+// Atari POKEY (Centipede, Millipede, Tetris, Crystal Castles, Star Wars): chip n
+// registers at soundregs[n * Pokey::REG_COUNT], see pokey.h. MAME routes every
+// POKEY at the same gain, so the chips are summed; Star Wars' four at half
+// level.
 void Audio::pokey_render_buffer(void) {
   static const int32_t SAMPLE_MAX = 511;
-  const int chips =
-      (machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS || machineType == MCH_CCASTLES) ? 2 : 1;
+  const int chips = machineType == MCH_STARWARS ? 4
+      : (machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS || machineType == MCH_CCASTLES) ? 2 : 1;
+  const int shift = chips > 2 ? 1 : 0;
   int16_t samples[MAX_POKEYS][64];
   for (int n = 0; n < chips; n++) {
     pokey[n].render(currentMachine->soundregs + n * Pokey::REG_COUNT, samples[n], 64);
   }
 
   for (int i = 0; i < 64; i++) {
-    int32_t v = samples[0][i];
-    if (chips > 1) {
-      v += samples[1][i];
+    int32_t v = 0;
+    for (int n = 0; n < chips; n++) {
+      v += samples[n][i];
     }
+    v >>= shift;
     valueToBuffer(i, v > SAMPLE_MAX ? SAMPLE_MAX : (v < -SAMPLE_MAX ? -SAMPLE_MAX : v));
   }
 }

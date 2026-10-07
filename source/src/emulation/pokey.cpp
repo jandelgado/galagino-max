@@ -101,13 +101,17 @@ static uint32_t state17_at(uint32_t i) {
 
 void Pokey::reset(int32_t clocks_per_sample) {
   cps = clocks_per_sample;
+  cps4 = cps % LEN4;
+  cps5 = cps % LEN5;
   for (int c = 0; c < 4; c++) {
     ch[c].counter = 0;
     ch[c].out = 0;
     ch[c].filter = c < 2 ? 1 : 0; // MAME device_reset
   }
   i4 = i5 = i9 = 0;
+  p17 = 0;
   s17 = POLY17_START;
+  s17_valid = true;
   w17[0] = w17[1] = 0;
   dc_q8 = lp = 0;
 }
@@ -198,9 +202,26 @@ void Pokey::render(const uint8_t *regs, int16_t *out, int n) {
     }
   }
 
+  // Poly17 windows only for a live channel clocking poly17 noise, else
+  // just its position moves on; the window is rebuilt when needed again.
+  bool poly17 = false;
+  for (int c = 0; c < 4; c++) {
+    const uint8_t audc = regs[2 * c + 1];
+    poly17 = poly17 || (live[c] && period[c] && !(audc & (PURE | POLY4)) && !(audctl & POLY9));
+  }
+  poly17 = poly17 && running;
+  if (poly17 && !s17_valid) {
+    s17 = state17_at(p17);
+    s17_valid = true;
+  }
+  if (running) {
+    p17 = (p17 + (uint32_t)(n * cps)) % LEN17;
+    s17_valid = s17_valid && poly17;
+  }
+
   static const int ORDER[4] = {2, 3, 0, 1}; // MAME step_one_clock order
   for (int s = 0; s < n; s++) {
-    if (running) {
+    if (poly17) {
       window17(s17, cps, w17);
     }
     int32_t acc = 0; // sum of volume * clocks high within this sample
@@ -237,8 +258,8 @@ void Pokey::render(const uint8_t *regs, int16_t *out, int n) {
       acc += (audc & VOLUME_MASK) * high;
     }
     if (running) {
-      i4 = (i4 + cps) % LEN4;
-      i5 = (i5 + cps) % LEN5;
+      i4 = wrap(i4 + cps4, LEN4);
+      i5 = wrap(i5 + cps5, LEN5);
       i9 = wrap(i9 + cps, LEN9);
     }
 
