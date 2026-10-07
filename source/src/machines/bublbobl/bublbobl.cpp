@@ -21,7 +21,8 @@ bublbobl::bublbobl() :
     bublbobl_tile_map(bublbobl_tile_map_blob),
     bublbobl_prom(bublbobl_prom_blob),
     bublbobl_sid(bublbobl_sid_blob) {
-  // largest first: bank -> Arena block A, main + sub -> block B
+  // largest first: bank -> Arena block A, main + sub -> block B,
+  // tile_map -> rest of block A
   bank_rom = bublbobl_bank_rom.data();
   main_rom = bublbobl_main_rom.data();
   sub_rom = bublbobl_sub_rom.data();
@@ -33,7 +34,7 @@ bublbobl::bublbobl() :
     first_new[t] = first_new_column(prom, t);
   }
 
-  // after the ROMs: the tune RAM fits next to the bank ROM in block A
+  // after the ROMs: the tune RAM fits next to main + sub in block B
   tune_ok = psidParse(bublbobl_sid.data(), bublbobl_sid.size(), &tune);
   if (tune_ok) {
     tune_ok = player.load(tune, Arena::alloc<uint8_t>(TUNE_RAM_SIZE), TUNE_RAM_SIZE);

@@ -117,24 +117,20 @@ def write_bg_tiles(tiles):
         emit_compressed(f, "xevious_bgtilemap", "unsigned short", "[8]", len(tiles), flat)
 
 def write_sprites(sprites):
-    # Non flippati, xevious::blit_sprite applica il flip a runtime. Stays
-    # PLAIN in flash.
+    # Non flippati, xevious::blit_sprite applica il flip a runtime.
     with open(os.path.join(OUT_DIR, "xevious_spritemap.h"), "w") as f:
         print("// Xevious sprites (xvi_15.4m+xvi_17.4p+xvi_16.4n+xvi_18.4r, dopo", file=f)
         print("// init_xevious() unpack) — 320 sprite 16x16 3bpp (valori pixel 0-7),", file=f)
         print("// impacchettati a nibble (4 bit) come mappy/gaplus_spritemap.h.", file=f)
-        rows = []
+        flat = []
         for t in sprites:
-            vals = []
             for y in range(16):
                 v = 0
                 for x in range(16):
                     v |= t[y][x] << (4*x)
-                vals.append(hex(v & 0xffffffff))
-                vals.append(hex(v >> 32))
-            rows.append("  { " + ",".join(vals) + " }")
-        body = ",\n".join(rows)
-        emit_plain(f, "xevious_sprites", "uint32_t", "[32]", len(sprites), body)
+                flat.append(v & 0xffffffff)
+                flat.append(v >> 32)
+        emit_compressed(f, "xevious_sprites", "uint32_t", "[32]", len(sprites), flat)
 
 def decode_palette(red_prom, green_prom, blue_prom):
     # xevious_palette() (xevious.cpp): resistenze pesate 0x0e/0x1f/0x43/0x8f
