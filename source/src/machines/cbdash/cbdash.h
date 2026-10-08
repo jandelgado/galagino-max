@@ -3,6 +3,8 @@
 
 #include "../machineBase.h"
 #include "../../cpus/m6502/m6502.h"
+#include "../../emulation/seqlock.h"
+#include "cbdash_video.h"
 #include "cbdash_dipswitches.h"
 
 // Boulder Dash (Data East 1985), DECO Cassette, BIOS B, dongle type 5.
@@ -56,6 +58,15 @@ private:
   bool dongle_latch = false;
   bool coin_prev = false;
   uint8_t led_flash = 0;
+
+  // Render input latched at vblank so one screen never mixes two emulated
+  // frames: fg codes (incl. sprite list), color banks, palette, ccb, 2 KB.
+  // charram (24 KB, the gfx) stays live, like tutankhm's bitmap.
+  Seqlock<cbdash_video::VideoState> vblank_state;
+  cbdash_video::VideoState video = {};
+  uint16_t pens[cbdash_video::PENS];
+  cbdash_video::Sprite sprites[cbdash_video::SPRITES];
+  uint8_t sprite_count = 0;
 
   void boot();
   uint8_t in0();

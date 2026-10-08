@@ -13,6 +13,7 @@ static constexpr uint16_t SOUND_IMAGE_ADDR = 0x0200;
 static constexpr uint16_t MAIN_ENTRY = 0x0503;
 static constexpr uint8_t MAIN_SP = 0xff;
 static constexpr uint16_t SOUND_ENTRY = 0x0203;   // JMP $0223, sets its own SP
+static constexpr uint16_t CHARRAM_ADDR = 0x6000;
 static constexpr uint8_t BIOS_GAME_LOADED = 0xf8; // ram[0]: BIOS NMI (coin) handler enters the game
 
 static constexpr uint8_t DONGLE_ANSWER = 0x55;    // type 5: fixed value once latched
@@ -258,6 +259,13 @@ void cbdash::run_frame(void) {
   // the game busy-waits on DSW1 b7, so it must see VBLANK once per frame
   vblank = false;
   m6502_exec(&cpu_main, MAIN_CYCLES_ACTIVE);
+
+  vblank_state.publish([this](cbdash_video::VideoState &v) {
+    memcpy(v.fg, memory + FG_RAM_OFFSET, sizeof(v.fg));
+    memcpy(v.color, memory + COLOR_RAM_OFFSET, sizeof(v.color));
+    memcpy(v.palette, palette_ram, sizeof(v.palette));
+    v.ccb = ccb;
+  });
   vblank = true;
   m6502_exec(&cpu_main, MAIN_CYCLES_VBLANK);
 
@@ -277,9 +285,18 @@ void cbdash::run_frame(void) {
 }
 
 void cbdash::prepare_frame(void) {
+  using namespace cbdash_video;
+  vblank_state.read(video);
+
+  // pen p shows palette RAM entry p ^ 16 (inverted A4)
+  for (int p = 0; p < PENS; p++) {
+    pens[p] = color565(video.palette[p ^ 16]);
+  }
+  sprite_count = collectSprites(video, sprites);
 }
 
 void cbdash::render_row(short row) {
+  cbdash_video::renderStrip(frame_buffer, row, main_ram + CHARRAM_ADDR, video, pens, sprites, sprite_count);
 }
 
 const Logo &cbdash::logo(void) {
