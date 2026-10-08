@@ -31,6 +31,11 @@ local total = tonumber(os.getenv("H_FRAMES") or "600")
 local snaps = {}
 for s in (os.getenv("H_SNAP") or ""):gmatch("%d+") do snaps[tonumber(s)] = true end
 local ramf = os.getenv("H_RAM") == "1" and io.open("ram.bin", "wb") or nil
+-- H_RAM_TAP=1: dump RAM when the game increments its frame counter ($81 at
+-- $D700), a fixed point of its loop (frame logic done, overscan not), instead
+-- of at MAME's frame end, which drifts against the game loop.
+local tapf = os.getenv("H_RAM_TAP") == "1" and io.open("ram.bin", "wb") or nil
+if tapf then ramf = nil end
 local rfrom, rto = (os.getenv("H_READS") or "0,-1"):match("(%-?%d+),(%-?%d+)")
 rfrom, rto = tonumber(rfrom), tonumber(rto)
 local bank = 1
@@ -48,6 +53,15 @@ TAPW = mem:install_write_tap(0x1000, 0x1fff, "romw", function(off, data, mask)
   local a = off & 0xfff
   if a == 0xff8 then bank = 0 elseif a == 0xff9 then bank = 1 end
 end)
+if tapf then
+  TAPF = mem:install_write_tap(0x81, 0x81, "frame", function(off, data, mask)
+    -- INC is read-modify-write: the 6502 first writes the old value back
+    if data == mem:read_u8(0x81) then return end
+    local t = {}
+    for a = 0x80, 0xff do t[#t + 1] = string.char(a == 0x81 and data or mem:read_u8(a)) end
+    tapf:write(table.concat(t))
+  end)
+end
 local si = 1
 local cur = "-"
 SUB = emu.add_machine_frame_notifier(function()
@@ -65,6 +79,7 @@ SUB = emu.add_machine_frame_notifier(function()
   if snaps[frame] then screen:snapshot(string.format("snap_%05d.png", frame)) end
   if frame >= total then
     if ramf then ramf:close() end
+    if tapf then tapf:close() end
     local f = io.open("reads.txt", "w")
     for k, n in pairs(reads) do f:write(string.format("%d %04x %d\n", k // 4096, k % 4096, n)) end
     f:close()

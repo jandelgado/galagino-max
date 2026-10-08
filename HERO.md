@@ -100,10 +100,16 @@ room  F7 F8 F9 FA FB FC FD FE
 - `$FE` bit 0 clears CTRLPF reflect for the middle band: its right half
   repeats the left instead of mirroring it **(verified)**.
 - Ball (TIA BL, PF colour, 8 px, enabled for the whole band area, hidden
-  behind playfield): x = `$A0` - 1. `$A0` = `($FE & $FC) | 1` if that is `$09`
-  (x 8) or `$99` (x 152), else 0 (off screen), set on screen change
-  (`$F6A7`). Level start (`$D9F1`) loads `$A0` = `$3D`: screen 0 always has
-  a wall at x 60..67 next to the start position **(verified)**.
+  behind playfield, P1 vs BL only pushes the hero sideways): the thin
+  destructible wall, x = `$A0` - 1. Set on screen change (`$F66F-$F6CB`):
+  - back to the previous screen (`$9D`): `$A0-$A4` swapped with the saved
+    copy `$ED-$F1` (wall, critter states, hue/darkness kept)
+  - frontier screen (first visit, `$9E` = `$9C`): `$A0` = `($FE & $FC) | 1`
+    if `$FE & $FC` != 0, else 0; critters alive (`$A1-$A3` = 0)
+  - any other older screen: only edge walls stay (`$A0` = `$09` x 8 or `$99`
+    x 152, else 0), critters gone (`$A1-$A3` = `$32`)
+  - level start (`$D9F1`): `$A0` = `$3D`, wall at x 60 on screen 0
+  **(verified: MAME render of all 256 rooms with the first-visit `$A0`)**.
 - Band colour: `$FFAE[band] | $A4` (`$FFAE = 06 04 02`), `$A4 = $FF6A[level & 3]`
   (`20 c0 90 00`). Lava rooms flash between `$42`/`$44`.
 - Moving wall: on levels >= 14, when middle band PF1 is `$FF` and PF2 is `$7F`,

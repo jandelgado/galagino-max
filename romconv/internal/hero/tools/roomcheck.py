@@ -41,7 +41,7 @@ def decode(level, screen):
     bands = [(0xFF,) + top + (0,),
              (be, b1(0xFA00 + r), b1(0xFC00 + r), fe & 1),
              (0xFF, b1(0xFB00 + r), b1(0xFD00 + r), 0)]
-    ball = a0 - 1 if a0 in (0x09, 0x99) else (0x3C if screen == 0 else None)
+    ball = 0x3C if screen == 0 else (a0 - 1 if a0 else None)
     moving = level >= 13 and b1(0xFA00 + r) == 0xFF and b1(0xFC00 + r) == 0x7F
     return bands, ball, moving
 

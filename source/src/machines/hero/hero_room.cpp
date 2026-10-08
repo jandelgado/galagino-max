@@ -7,7 +7,8 @@ using namespace hero_data;
 
 namespace hero_room {
 
-// $F29D (bands), $F6A7 ($A0 ball), $F334 ($BE PF0), $D9F1 (level start ball)
+// $F29D (bands), $F6A7 ($A0 ball, first visit), $F334 ($BE PF0), $D9F1
+// (level start ball)
 Room decode(uint8_t level, uint8_t screen) {
   static const uint8_t START_BALL = 0x3d; // $DA04 init block -> $A0 at level start
   const uint8_t r = firstRoom(level) + screen;
@@ -44,7 +45,9 @@ Room decode(uint8_t level, uint8_t screen) {
   bottom.pf2 = b1(ROOM_FD + r);
   bottom.repeat = 0;
 
-  room.ball_x = edge_ball ? a0 - 1 : (screen == 0 ? START_BALL - 1 : NO_BALL);
+  // first visit ($F6A7 on the frontier screen); a revisit keeps edge walls
+  // only, see hero_game
+  room.ball_x = screen == 0 ? START_BALL - 1 : (a0 ? a0 - 1 : NO_BALL);
   room.water = screen >= 10 || minerScreen(level) == screen;
   room.lava = (fe >> 1) & 1;
   room.moving_wall = level >= 13 && mid.pf1 == 0xff && mid.pf2 == 0x7f;

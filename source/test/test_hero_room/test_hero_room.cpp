@@ -58,11 +58,12 @@ static void test_cells_mirror_and_repeat(void) {
   TEST_ASSERT_EQUAL_HEX64(1ull | (1ull << 20), cells(repeat));
 }
 
-// screen 0: start shaft wall at x 60..67 ($A0 = $3D); FE $08..$0B / $98..$9B: edge wall
+// screen 0: start wall at x 60..67 ($A0 = $3D); others: $A0 = (FE & $FC) | 1
 static void test_ball(void) {
   TEST_ASSERT_EQUAL_UINT8(60, decode(0, 0).ball_x);
   TEST_ASSERT_EQUAL_UINT8(8, decode(0, 1).ball_x);       // room 1, FE $08 (miner)
-  TEST_ASSERT_EQUAL_UINT8(NO_BALL, decode(1, 1).ball_x); // room 3, FE $34
+  TEST_ASSERT_EQUAL_UINT8(52, decode(1, 1).ball_x);      // room 3, FE $34, mid-screen wall
+  TEST_ASSERT_EQUAL_UINT8(NO_BALL, decode(1, 2).ball_x); // room 4, FE $01
   TEST_ASSERT_EQUAL_UINT8(8, decode(14, 15).ball_x);    // room 175, FE $08
   TEST_ASSERT_EQUAL_UINT8(152, decode(15, 2).ball_x);   // room 178, FE $9A
 }

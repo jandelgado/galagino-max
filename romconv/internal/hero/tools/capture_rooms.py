@@ -2,8 +2,9 @@
 """Snapshot all 256 H.E.R.O. rooms in MAME (reference for roomcheck.py).
 
 usage: capture_rooms.py <rom.a26> <outdir>
-Starts game 1, then pokes level $F5, screen $9C and ball x $A0 (only reset
-by a real screen change, see HERO.md) and snapshots 3 frames later.
+Starts game 1, then pokes level $F5, screen $9C and ball x $A0 as on a first
+visit (only set by a real screen change, see HERO.md) and snapshots 3 frames
+later.
 """
 import os
 import subprocess
@@ -21,10 +22,10 @@ snaps = []
 f = 200
 for level in range(20):
     for screen in range(sizes[level]):
+        # $F6A7 on the frontier screen (first visit): $A0 = ($FE & $FC) | 1,
+        # level start ($D9F1): $3D
         fe = b1(0xFE00 + first[level] + screen) & 0xFC
-        a0 = (fe | 1) if fe else 0
-        if a0 not in (0x09, 0x99):
-            a0 = 0x3D if screen == 0 else 0
+        a0 = 0x3D if screen == 0 else ((fe | 1) if fe else 0)
         for k in (0, 1):
             lines += [f"P {f + k} f5 {level:x}", f"P {f + k} 9c {screen:x}", f"P {f + k} a0 {a0:x}"]
         snaps.append(f + 3)

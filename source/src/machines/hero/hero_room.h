@@ -15,7 +15,8 @@ struct Band {
 
 struct Room {
   Band band[BANDS];
-  uint8_t ball_x;      // ball: 8 px wall at x..x+7 over the bands, NO_BALL = none
+  uint8_t ball_x;      // ball: destructible 8 px wall at x..x+7 over the bands
+                       // as on the first visit, NO_BALL = none
   uint8_t water;       // floor background is water, floor waves animate
   uint8_t lava;        // middle band colour flashes ($FF3C)
   uint8_t moving_wall; // middle band PF2 animates ($FFB8), level >= 14
