@@ -112,7 +112,8 @@ enum {
   MCH_UPNDOWN,
   MCH_CBDASH,
   MCH_PHOZON,
-  MCH_GBERET
+  MCH_GBERET,
+  MCH_HERO
 };
 
 // one inst at 3Mhz ~ 500k inst/sec = 500000/60 inst per frame
