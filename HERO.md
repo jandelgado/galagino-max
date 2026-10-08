@@ -149,6 +149,52 @@ Hero x `$9B` < `$0C` (left) or >= `$93` (right). If the exit direction matches
 `$F900[room] bit 0` the screen index decreases, otherwise it increases. The
 hero reappears at x `$FFAC[dir]` (`93`, `0f`). `$9E` tracks the furthest screen.
 
+## Hero movement (from code, partly verified)
+
+- Position: x `$9B` (playfield pixel of the sprite's left edge, range
+  `$0C`..`$92`), y `$9F` (larger = higher). The sprite's top (sensor) row is
+  MAME snapshot row 145 - `$9F` (source line 119 - `$9F`, +-1 for the frame
+  the snapshot shows) **(verified)**.
+- Sprite (P1, `$F573`): 26 rows from ROM address `$DE00 + X + $19` (top) down
+  to `$DE00 + X` (bottom), colours `$DD8D` down to `$DD74`. Bit 0 of a colour
+  byte enables the row (GRP1), bit 1 enables M1 (laser). Frames are 25 bytes
+  apart: `X` = `$81`, `$9A`, `$B3`, `$CC`, `$E5`; flying `$FFA2[$E7]`
+  (`$E7` 0..2), walking `$FF9D[$E8]` (`$E8` 0..4, page `$DC` when standing).
+  Each frame's top and bottom row is an 8 px bar in colour `$01` (black, row
+  enabled): invisible, but the TIA counts collisions on black pixels, so they
+  are the head and feet sensors. Pointers: `$91` = X - (`$9F` - `$17`),
+  `$95` = `$74` - (`$9F` - `$17`), kernel line counter Y = 147 - snapshot row
+  **(verified at y `$6A`)**.
+- Vertical (`$F184`): thrust `$E9` 0..`$3F`: +1 per frame while UP is held,
+  -1 otherwise (floor 0, cap `$3F`). Speed index `i = $E9 >> 3` (on screens
+  >= 11 `i` is at least 1); `i < 4` sinks by `$FFB0[i]`, `i >= 4` rises by
+  `$FFB0[i]`, `$FFB0` = `02 01 00 00 00 00 01 02`. Rising is blocked while
+  `$E6` bit 7 is set (ceiling), sinking while bit 6 is set (standing).
+- Screen change up (`$F1C0`): y >= `$8A` -> previous screen, y = 4 (screen 0:
+  clamp y `$8A`). Down (`$F1F4`): y < 0 -> next screen, y = `$89`. On screens
+  >= 10, sinking below y `$16` is death by water (`$AD` = `$FF`).
+- Horizontal (`$F20E`): a step starts only when `x & 3 == 0`, then continues
+  to the next multiple of 4, 1 px per frame. Facing `$B0` (0 right, 8 left,
+  also REFP1). Turning around costs a 3 frame pause (`$FC`) unless standing.
+  Left of `$0C` / right of `$93` changes screen (see "Horizontal screen
+  change").
+- Collision (`$D817`, overscan, bank 0) from the TIA latch P1 vs playfield
+  per band (`$E2-$E4`, bit 7; bit 6 = P1 vs ball):
+  - y equals `$D9E9[band]` (or 1 above): land, y snapped, `$E6` = `$40`,
+    `$AC` = `$80` (standing)
+  - y equals `$D9EC[band]` (or 1 below): ceiling, y snapped, `$E6` = `$80`
+  - else: side hit, x pushed back 1 px against the facing, once per frame
+  - band index 0 bottom, 1 middle, 2 top; `$D9E9` = `3c 63 ef` (floor y),
+    `$D9EC` = `ef 24 4b` (ceiling y; `$EF` = never). So the hero only stands
+    on and bumps into band boundaries; walls fill whole band heights.
+  - latches: `$E2` = band 0, read after the kernel (`$D335`); `$E3`/`$E4` =
+    bands 1/2, read at the start of the band below (`$D1A0`, `sta $E3,x`) and
+    cleared there (CXCLR). Exact latch windows still to verify with traces.
+- Respawn glide targets `$DAFC[x]` = `22 49 70 1c`.
+- Respawn / level start (`$AD` != 0, `$D7B6`): the hero glides down 1 px per
+  frame to y `$DAFC[x]`, then waits; the first joystick move with `$AF` set
+  clears `$AD` and sets `$E9` = `$1F` (hover).
+
 ## Game rules (from code)
 
 - Game number `$80` (bits 6-0), start level `$FF6D[game]` = 0, 4, 8, 12, 16
