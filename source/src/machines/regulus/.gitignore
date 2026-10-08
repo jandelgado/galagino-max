@@ -1,0 +1,5 @@
+regulus_main_rom.h
+regulus_sound_rom.h
+regulus_tiles.h
+regulus_sprites.h
+regulus_lookup_prom.h
