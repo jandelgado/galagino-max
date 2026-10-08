@@ -91,17 +91,41 @@ room  F7 F8 F9 FA FB FC FD FE
 
 ### Playfield
 
-- Reflected playfield (CTRLPF bit 0 always set, bit 2 priority), so wall
-  shapes are symmetric: 20 bits per half (PF0 4, PF1 8, PF2 8), each bit
+- Reflected playfield (CTRLPF bit 0 set, bit 2 priority), so wall shapes
+  are mostly symmetric: 20 bits per half (PF0 4, PF1 8, PF2 8), each bit
   4 colour clocks. Asymmetric details (thin destructible walls) are P0 objects.
-- PF0 per band: `$BE | $D9E2[band]` with `$D9E2 = ff 00 ff`; `$BE` is `$FF`
-  normally and `$00` on screens >= 10 and in some miner/raft rooms.
+- PF0: top and bottom band `$FF`. Middle band `$BE | $D9E3` (`$D9E3` = 0):
+  `$BE` = `$00` on screens >= 10 and in non-miner rooms whose `$FE` gives an
+  edge ball (`$09`/`$99`), else `$FF` **(verified)**.
+- `$FE` bit 0 clears CTRLPF reflect for the middle band: its right half
+  repeats the left instead of mirroring it **(verified)**.
+- Ball (TIA BL, PF colour, 8 px, enabled for the whole band area, hidden
+  behind playfield): x = `$A0` - 1. `$A0` = `($FE & $FC) | 1` if that is `$09`
+  (x 8) or `$99` (x 152), else 0 (off screen), set on screen change
+  (`$F6A7`). Level start (`$D9F1`) loads `$A0` = `$3D`: screen 0 always has
+  a wall at x 60..67 next to the start position **(verified)**.
 - Band colour: `$FFAE[band] | $A4` (`$FFAE = 06 04 02`), `$A4 = $FF6A[level & 3]`
   (`20 c0 90 00`). Lava rooms flash between `$42`/`$44`.
 - Moving wall: on levels >= 14, when middle band PF1 is `$FF` and PF2 is `$7F`,
   PF2 cycles through `$FFB8` (`0f 1f 3f 7f ff 7f 3f 1f`).
-- Top cap: 5 lines, PF from `$DC61`/`$DC66` masked with the top band PF1/PF2,
-  colours from `$DD09`.
+- Line layout (line 0 = MAME a2600 snapshot row 26) **(verified)**:
+  - 2-6: top cap, kernel x = 4..0: PF0 `$DC66[x]`, PF1/PF2 = top band &
+    `$DC61[x]`, colour `$DD09[x] | hue`
+  - 7-46: top band, last line dark (bare hue)
+  - 47-85: middle band, first and last line dark
+  - 86-124: bottom band, first line dark
+  - 125-128: floor: PF0/PF1/PF2 = bottom band & wave byte, wave = page `$DC`
+    at `$DA1D[n]` (n = `($81 >> 2) & 7` on the miner screen and screens
+    >= 10, else 0), colour `$DD0A[y] | hue`, background water `$DD01[level &
+    3]` on those screens, else `$E1`
+  - 129-175: HUD on grey playfield (colour `$04`)
+- Hue: `$FF6A[level & 3]` (copy at `$DD13`), set at level start and screen
+  change; band colour `$FFAE[band] | hue` (`06` bottom, `04` middle, `02` top).
+- Palette: MAME `tia_ntsc_video_device::init_palette()` (phase shift 26.2)
+  reproduces every snapshot colour exactly.
+- Room check: `romconv/internal/hero/tools/roomcheck.py` matches 768 of 768
+  bands (256 rooms x 3) with MAME, the animated middle band of moving-wall
+  rooms excluded.
 - 2600 playfield is 160 pixels wide; H.E.R.O. blanks the left 8 (HMOVE bar).
 
 ### Band objects
@@ -243,12 +267,14 @@ Two TIA channels, about 60 lines of code (`$D58C-$D636`), no music:
 
 ## Tools used
 
-Temporary, not yet in the repository:
+In `romconv/internal/hero/tools/`:
 
-- Recursive 6502 disassembler for F8 carts (follows bank switches through
-  hotspot accesses, separate origins `$D000`/`$F000`).
-- MAME `a2600` Lua harness (headless, `SDL_VIDEODRIVER=dummy`): scripted
-  joystick/console input, RAM pokes per frame, RAM dumps, bank aware ROM read
-  log via read/write taps on `$1000-$1FFF`, snapshots. Poking `$F5` (level) and
-  `$9C` (screen) shows any room, since the room is decoded every frame; this
-  produced reference screenshots of all 256 rooms.
+- `dis6502.py`: recursive 6502 disassembler for F8 carts (follows bank
+  switches through hotspot accesses, origins `$D000`/`$F000`).
+- `harness.lua`, `run_mame.sh`: headless MAME `a2600` with scripted input,
+  RAM pokes, RAM dumps, bank aware ROM read log, snapshots.
+- `capture_rooms.py`: snapshots of all 256 rooms (pokes `$F5`, `$9C`, `$A0`).
+- `roomcheck.py`: decode check against the snapshots, writes the host test
+  fixture `source/test/test_hero_room/hero_mame_bands.h`.
+- `gfxdump.py`: ROM bytes as bitmap columns, to find sprites.
+- `make_logo.sh`: `logos/hero.png` from a level 1 snapshot.
