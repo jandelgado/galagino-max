@@ -241,6 +241,13 @@ void phozon::run_frame(void) {
     }
   }
 
+  // latch the sprite tables before the vblank IRQ handlers rewrite them
+  vblank.publish([this](VideoState &v) {
+    memcpy(v.s1, &memory[0x0F80], sizeof(v.s1));
+    memcpy(v.s2, &memory[0x1780], sizeof(v.s2));
+    memcpy(v.s3, &memory[0x1F80], sizeof(v.s3));
+  });
+
   // vblank: IRQ to every CPU whose mask is set, then the namcoio run the
   // command left in nibble 8 (MAME: 50us after vblank)
   if (main_irq_mask) {
@@ -317,7 +324,34 @@ uint8_t phozon::io_in(uint8_t chip, uint8_t port) {
 // Video
 // ============================================================================
 
+// MAME phozon_draw_sprites, converted to galagino coordinates once per frame
 void phozon::prepare_frame(void) {
+  static const uint8_t SIZE[4] = { 1, 0, 3, 0 };   // 16, 8, 32, unused
+
+  vblank.read(video);
+
+  n_blocks = 0;
+  for (uint8_t offs = 0; offs < SPRITE_TABLE; offs += 2) {
+    if (video.s3[offs + 1] & 2) {   // disabled
+      continue;
+    }
+
+    uint8_t flags = video.s3[offs];
+    Block *b = &blocks[n_blocks++];
+    b->code = (video.s1[offs] << 2) | (flags >> 6);
+    b->color = video.s1[offs + 1] & 0x3F;
+    b->flipx = flags & 1;
+    b->flipy = (flags >> 1) & 1;
+    b->sizex = SIZE[(flags >> 2) & 3];
+    b->sizey = SIZE[(flags >> 4) & 3];
+
+    int16_t sx = video.s2[offs + 1] + 0x100 * (video.s3[offs + 1] & 1) - 69;
+    int16_t sy = 256 - video.s2[offs] - 8 * b->sizey;
+    sy = (sy & 0xFF) - 32;   // wraparound
+
+    b->x = 216 - sy;   // ROT90: column = 223 - MAME y, cell is 8 wide
+    b->y = sx;
+  }
 }
 
 // tilemap 36x28, no scroll. Pass TILES_ALL is opaque; TILES_PRIO redraws
@@ -345,6 +379,61 @@ void phozon::blit_tile(short row, char col, TilePass pass) {
   }
 }
 
+// one 8x8 cell, clipped to this strip and to the 224 columns
+void phozon::blit_cell(short row, uint16_t code, uint8_t color, short x, short y) {
+  const unsigned short *cell = sprites[code];
+  const unsigned short *colors = phozon_colormap_sprites[color];
+
+  short top = 8 * row;
+  short first = (y < top) ? top : y;
+  short last = (y + 8 > top + 8) ? top + 8 : y + 8;
+  uint8_t c0 = (x < 0) ? -x : 0;
+  uint8_t c1 = (x > 224 - 8) ? 224 - x : 8;
+
+  unsigned short *ptr = frame_buffer + 224 * (first - top) + x;
+  for (short line = first; line < last; line++, ptr += 224) {
+    unsigned short pix = cell[line - y] >> (2 * c0);
+    for (uint8_t c = c0; c < c1; c++, pix >>= 2) {
+      unsigned short col = colors[pix & 3];
+      if (col) {
+        ptr[c] = col;
+      }
+    }
+  }
+}
+
+// blocks in table order, later entries on top (MAME draw order)
+void phozon::render_sprites(short row) {
+  static const uint8_t GFX_OFFS[4][4] = {
+    { 0, 1, 4, 5 }, { 2, 3, 6, 7 }, { 8, 9, 12, 13 }, { 10, 11, 14, 15 }
+  };
+  short top = 8 * row;
+
+  for (uint8_t i = 0; i < n_blocks; i++) {
+    const Block *b = &blocks[i];
+    if (b->y >= top + 8 || b->y + 8 * (b->sizex + 1) <= top) {
+      continue;
+    }
+
+    uint8_t variant = (b->flipy << 1) | b->flipx;
+    for (uint8_t cx = 0; cx <= b->sizex; cx++) {
+      short y = b->y + 8 * cx;
+      if (y >= top + 8 || y + 8 <= top) {
+        continue;
+      }
+
+      for (uint8_t cy = 0; cy <= b->sizey; cy++) {
+        short x = b->x - 8 * cy;
+        if (x >= 224 || x + 8 <= 0) {
+          continue;
+        }
+        uint16_t code = (b->code + GFX_OFFS[cy ^ (b->sizey * b->flipy)][cx ^ (b->sizex * b->flipx)]) & 0x1FF;
+        blit_cell(row, 4 * code + variant, b->color, x, y);
+      }
+    }
+  }
+}
+
 void phozon::render_tiles(short row, TilePass pass) {
   for (char col = 0; col < 28; col++) {
     blit_tile(row, col, pass);
@@ -353,6 +442,7 @@ void phozon::render_tiles(short row, TilePass pass) {
 
 void phozon::render_row(short row) {
   render_tiles(row, TILES_ALL);
+  render_sprites(row);
   render_tiles(row, TILES_PRIO);
 }
 

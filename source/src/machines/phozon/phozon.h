@@ -15,6 +15,7 @@
 // ============================================================================
 
 #include "../machineBase.h"
+#include "../../emulation/seqlock.h"
 #include "../namcoio.h"
 #include "../tileaddr.h"
 #include "../../cpus/m6809/m6809.h"
@@ -83,6 +84,8 @@ private:
 
   void render_tiles(short row, TilePass pass);
   void blit_tile(short row, char col, TilePass pass);
+  void render_sprites(short row);
+  void blit_cell(short row, uint16_t code, uint8_t color, short x, short y);
 
   uint8_t shared_r(uint16_t off);
   void shared_w(uint16_t off, uint8_t val);
@@ -113,6 +116,31 @@ private:
   uint8_t main_irq_mask, sound_irq_mask, sub_irq_mask;
   uint8_t wsg_enable;
   uint8_t io_reset, sound_reset, sub_reset;
+
+  // Sprite tables latched at vblank (Seqlock), so one rendered frame never
+  // mixes two emulated ones. The tilemap has no scroll and is read live,
+  // like gaplus. 3 x 128 B, the three sprite RAM banks MAME reads.
+  static const uint16_t SPRITE_TABLE = 0x80;
+  struct VideoState {
+    uint8_t s1[SPRITE_TABLE];   // 0x0f80: code, color
+    uint8_t s2[SPRITE_TABLE];   // 0x1780: y, x
+    uint8_t s3[SPRITE_TABLE];   // 0x1f80: flags, enable/x msb
+  };
+  Seqlock<VideoState> vblank;
+  VideoState video = {};
+
+  // one MAME sprite entry of 1-4 x 1-4 cells, galagino coordinates:
+  // cell (cx, cy) top-left at row y + 8*cx, column x - 8*cy
+  struct Block {
+    int16_t x, y;
+    uint16_t code;
+    uint8_t color;
+    uint8_t flipx, flipy;
+    uint8_t sizex, sizey;       // cells - 1 along MAME x / y
+  };
+  static const uint8_t MAX_BLOCKS = SPRITE_TABLE / 2;
+  Block blocks[MAX_BLOCKS];
+  uint8_t n_blocks;
 };
 
 #endif
