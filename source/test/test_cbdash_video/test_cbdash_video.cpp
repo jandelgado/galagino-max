@@ -131,6 +131,25 @@ static void test_sprite_flip_x(void) {
   TEST_ASSERT_EQUAL_HEX16(pal[1], px(0, 16 - VIS_Y0));
 }
 
+// flip y mirrors within the 16 lines: pixel y 0 lands on native y + 15
+static void test_sprite_flip_y(void) {
+  const int row = 20;
+  const int base = 8 * (33 - row);
+  const int s = 0;
+  vs.fg[s] = 0x01 | 0x02;
+  vs.fg[s + SPRITE_CODE] = 2;
+  vs.fg[s + SPRITE_Y] = SPRITE_ORIGIN - 16;
+  vs.fg[s + SPRITE_X] = SPRITE_ORIGIN - base;
+  charram[2 * 32 + 16] = 0x80;             // y 0, x 0
+
+  Sprite spr[SPRITES];
+  uint8_t n = collectSprites(vs, spr);
+  renderStrip(fb, row, charram, vs, pal, spr, n);
+
+  TEST_ASSERT_EQUAL_HEX16(pal[1], px(7, 16 + 15 - VIS_Y0));
+  TEST_ASSERT_EQUAL_HEX16(pal[BG_PEN], px(7, 16 - VIS_Y0));
+}
+
 int main(int argc, char **argv) {
   UNITY_BEGIN();
   RUN_TEST(test_color565);
@@ -141,5 +160,6 @@ int main(int argc, char **argv) {
   RUN_TEST(test_sprite);
   RUN_TEST(test_sprite_wrap);
   RUN_TEST(test_sprite_flip_x);
+  RUN_TEST(test_sprite_flip_y);
   return UNITY_END();
 }

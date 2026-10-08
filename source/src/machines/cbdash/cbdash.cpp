@@ -15,6 +15,7 @@ static constexpr uint8_t MAIN_SP = 0xff;
 static constexpr uint16_t SOUND_ENTRY = 0x0203;   // JMP $0223, sets its own SP
 static constexpr uint16_t CHARRAM_ADDR = 0x6000;
 static constexpr uint8_t BIOS_GAME_LOADED = 0xf8; // ram[0]: BIOS NMI (coin) handler enters the game
+static constexpr uint8_t SOUND_GAME_LOADED = 0xff; // sound ram[0]: ROM IRQ handler passes commands to the game
 
 static constexpr uint8_t DONGLE_ANSWER = 0x55;    // type 5: fixed value once latched
 static constexpr uint8_t SOUND_CMD_MAIN_R = 0xc0; // e414 read, as MAME
@@ -23,12 +24,14 @@ static constexpr uint8_t SOUND_ACK_DATA = 0x40;   // data pending for the main C
 static constexpr uint8_t AY_REGS = 14;
 static constexpr uint8_t LED_FLASH_FRAMES = 8;
 
-// 750 kHz / 60 Hz = 12500 cycles; VBLANK is 32 of 272 scanlines
-static constexpr int MAIN_CYCLES_ACTIVE = 11030;
-static constexpr int MAIN_CYCLES_VBLANK = 1470;
-// 500 kHz, sound NMI on every 16th scanline: 17 per frame
-static constexpr int AUDIO_NMI_SLICES = 17;
-static constexpr int AUDIO_CYCLES_PER_SLICE = 490;
+// One frame = 17 slices of 16 scanlines (57.44 Hz, 272 lines), one sound
+// NMI each. Cycles per frame as on real hardware: 750 kHz main = 13057,
+// 500 kHz sound = 8705. Both CPUs interleaved, so back-to-back sound
+// commands within a frame reach the sound CPU. VBLANK = last 32 lines.
+static constexpr int SLICES = 17;
+static constexpr int VBLANK_SLICES = 2;
+static constexpr int MAIN_CYCLES_PER_SLICE = 768;
+static constexpr int AUDIO_CYCLES_PER_SLICE = 512;
 
 // DECO 222: bits 5 and 6 of every opcode fetch are swapped
 static inline uint8_t deco222(uint8_t v) {
@@ -59,22 +62,22 @@ void cbdash::start() {
   boot();
 }
 
-void cbdash::reset() {
-  machineBase::reset();
-
-  // the first reset() runs before start() allocated the RAM
-  if (main_ram) {
-    boot();
-  }
+// Inflates straight into RAM: the images are needed once per start, no
+// Arena copy. decodeInto() may write one byte past the end, restore it.
+static void unpack(const Asset<unsigned char, COMPRESSED> &image, uint8_t *dst) {
+  uint8_t after = dst[image.size()];
+  image.decodeInto(dst);
+  dst[image.size()] = after;
 }
 
 // Replaces the tape load with the RAM and CPU state the BIOS leaves behind
 void cbdash::boot() {
   memset(main_ram, 0, MAIN_RAM_SIZE);
   memset(memory, 0, MEM_END);
-  memcpy(main_ram + MAIN_IMAGE_ADDR, cbdash_rom_main.data(), cbdash_rom_main.size());
-  memcpy(memory + SOUND_RAM_OFFSET + SOUND_IMAGE_ADDR, cbdash_rom_sound.data(), cbdash_rom_sound.size());
+  unpack(cbdash_rom_main, main_ram + MAIN_IMAGE_ADDR);
+  unpack(cbdash_rom_sound, memory + SOUND_RAM_OFFSET + SOUND_IMAGE_ADDR);
   main_ram[0x0000] = BIOS_GAME_LOADED;
+  memory[SOUND_RAM_OFFSET + 0x0000] = SOUND_GAME_LOADED;
 
   memset(palette_ram, 0, sizeof(palette_ram));
   ccb = sound_latch = sound_latch2 = sound_ack = 0;
@@ -98,24 +101,33 @@ void cbdash::boot() {
   cpu_audio.pc = SOUND_ENTRY;
 }
 
-// IN0: b0 right, b1 left, b2 up, b3 down, b4 button 1 (active high)
+// IN0, active high
+static constexpr uint8_t IN0_RIGHT = 0x01;
+static constexpr uint8_t IN0_LEFT = 0x02;
+static constexpr uint8_t IN0_UP = 0x04;
+static constexpr uint8_t IN0_DOWN = 0x08;
+static constexpr uint8_t IN0_BUTTON1 = 0x10;
+// IN2: start active high, coins active low
+static constexpr uint8_t IN2_IDLE = 0xc0;
+static constexpr uint8_t IN2_START1 = 0x08;
+static constexpr uint8_t IN2_COIN1 = 0x80;
+
 uint8_t cbdash::in0() {
-  unsigned int keys = input->buttons_get();
+  uint32_t keys = input->buttons_get();
   uint8_t v = 0;
-  if (keys & BUTTON_RIGHT) { v |= 0x01; }
-  if (keys & BUTTON_LEFT)  { v |= 0x02; }
-  if (keys & BUTTON_UP)    { v |= 0x04; }
-  if (keys & BUTTON_DOWN)  { v |= 0x08; }
-  if (keys & BUTTON_FIRE)  { v |= 0x10; }
+  if (keys & BUTTON_RIGHT) { v |= IN0_RIGHT; }
+  if (keys & BUTTON_LEFT)  { v |= IN0_LEFT; }
+  if (keys & BUTTON_UP)    { v |= IN0_UP; }
+  if (keys & BUTTON_DOWN)  { v |= IN0_DOWN; }
+  if (keys & BUTTON_FIRE)  { v |= IN0_BUTTON1; }
   return v;
 }
 
-// IN2: b3 start 1 (active high), b7 coin 1 (active low)
 uint8_t cbdash::in2() {
-  unsigned int keys = input->buttons_get();
-  uint8_t v = 0xc0;
-  if (keys & BUTTON_START) { v |= 0x08; }
-  if (keys & BUTTON_COIN)  { v &= ~0x80; }
+  uint32_t keys = input->buttons_get();
+  uint8_t v = IN2_IDLE;
+  if (keys & BUTTON_START) { v |= IN2_START1; }
+  if (keys & BUTTON_COIN)  { v &= ~IN2_COIN1; }
   return v;
 }
 
@@ -258,18 +270,16 @@ void cbdash::run_frame(void) {
 
   // the game busy-waits on DSW1 b7, so it must see VBLANK once per frame
   vblank = false;
-  m6502_exec(&cpu_main, MAIN_CYCLES_ACTIVE);
+  for (int i = 0; i < SLICES; i++) {
+    if (i == SLICES - VBLANK_SLICES) {
+      publishVideo();
+      vblank = true;
+    }
+    m6502_exec(&cpu_main, MAIN_CYCLES_PER_SLICE);
 
-  vblank_state.publish([this](cbdash_video::VideoState &v) {
-    memcpy(v.fg, memory + FG_RAM_OFFSET, sizeof(v.fg));
-    memcpy(v.color, memory + COLOR_RAM_OFFSET, sizeof(v.color));
-    memcpy(v.palette, palette_ram, sizeof(v.palette));
-    v.ccb = ccb;
-  });
-  vblank = true;
-  m6502_exec(&cpu_main, MAIN_CYCLES_VBLANK);
-
-  for (int i = 0; i < AUDIO_NMI_SLICES && !audio_reset; i++) {
+    if (audio_reset) {
+      continue;
+    }
     m6502_exec(&cpu_audio, AUDIO_CYCLES_PER_SLICE);
     if (audio_nmi_enable) {
       cpu_audio.nmi = 1;
@@ -282,6 +292,16 @@ void cbdash::run_frame(void) {
   if (!game_started) {
     game_started = 1;
   }
+}
+
+// latch render input at vblank start, as the hardware scans it out
+void cbdash::publishVideo() {
+  vblank_state.publish([this](cbdash_video::VideoState &v) {
+    memcpy(v.fg, memory + FG_RAM_OFFSET, sizeof(v.fg));
+    memcpy(v.color, memory + COLOR_RAM_OFFSET, sizeof(v.color));
+    memcpy(v.palette, palette_ram, sizeof(v.palette));
+    v.ccb = ccb;
+  });
 }
 
 void cbdash::prepare_frame(void) {
