@@ -194,9 +194,9 @@ hero reappears at x `$FFAC[dir]` (`93`, `0f`). `$9E` tracks the furthest screen.
   change").
 - Collision (`$D817`, overscan, bank 0) from the TIA latch P1 vs playfield
   per band (`$E2-$E4`, bit 7; bit 6 = P1 vs ball):
-  - y equals `$D9E9[band]` (or 1 above): land, y snapped, `$E6` = `$40`,
+  - y equals `$D9E9[band]` (or 1 below): land, y snapped, `$E6` = `$40`,
     `$AC` = `$80` (standing)
-  - y equals `$D9EC[band]` (or 1 below): ceiling, y snapped, `$E6` = `$80`
+  - y equals `$D9EC[band]` (or 1 above): ceiling, y snapped, `$E6` = `$80`
   - else: side hit, x pushed back 1 px against the facing, once per frame
   - band index 0 bottom, 1 middle, 2 top; `$D9E9` = `3c 63 ef` (floor y),
     `$D9EC` = `ef 24 4b` (ceiling y; `$EF` = never). So the hero only stands
@@ -249,8 +249,9 @@ Matches MAME frame by frame on the recorded traces
 - Rescue (`$D912`): on the miner screen (`$D065[level]`), hero x within 15 px
   of `$A9` - 7: 1000 points, `$F2` = `$FF` (level done, bonus count).
 - Power `$AB`: refilled at level start to `$51` (81 units, `$D9C7`), then
-  `$AF` = `$FF` starts the drain: 1 unit per 64 frames (`$81 & $3F`); empty
-  -> death (`$D93C`).
+  `$AF` = `$FF` starts the drain: 1 unit per 64 frames (`$81 & $3F`), not
+  while `$AD` != 0 (the respawn path jumps past it); empty -> death
+  (`$D93C`).
 - Collision bytes per band (`$D88B`, latch addresses to verify with
   traces): `$D4,x` bit 7 set and no hit timer: band 2 -> `$A4` = 1 (lamp
   out, darkness), else critter killed, 50 points, `$F7,x` = `$13`. `$D1,x`

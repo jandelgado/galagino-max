@@ -214,7 +214,8 @@ static void respawn(Game &g, const Input &in) {
 
 static void power(Game &g) {
   if (g.power_full) {
-    if ((g.frame & 0x3f) == 0 && g.power && --g.power == 0) { g.dead = 1; } // $D93C
+    // $D932, skipped while respawning ($D7B6 jumps to $D949)
+    if (!g.respawn && (g.frame & 0x3f) == 0 && g.power && --g.power == 0) { g.dead = 1; } // $D93C
   } else if (g.respawn && g.respawn < POWER_FILL_BELOW) {
     if (++g.power >= POWER_MAX) {
       g.power = POWER_MAX;

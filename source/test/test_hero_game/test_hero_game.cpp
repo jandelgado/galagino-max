@@ -128,6 +128,17 @@ static void test_power_out(void) {
   TEST_ASSERT_EQUAL_UINT8(1, g.dead);
 }
 
+// $D7B6 jumps past the drain ($D932) while $AD != 0: waiting at the respawn
+// point keeps the power full
+static void test_no_drain_while_waiting(void) {
+  Game g;
+  startLevel(g, 0);
+  Input in = {};
+  for (int i = 0; i < 400; i++) { tick(g, in); }
+  TEST_ASSERT_NOT_EQUAL(0, g.respawn);
+  TEST_ASSERT_EQUAL_UINT8(0x51, g.power);
+}
+
 // $F569: flying, idle and walking frames
 static void test_hero_sprite(void) {
   Game g = flying(0, 1, 0x40, 0x63);
@@ -154,6 +165,7 @@ int main(int, char **) {
   RUN_TEST(test_top_clamp);
   RUN_TEST(test_wall_state_on_screen_change);
   RUN_TEST(test_power_out);
+  RUN_TEST(test_no_drain_while_waiting);
   RUN_TEST(test_hero_sprite);
   return UNITY_END();
 }
