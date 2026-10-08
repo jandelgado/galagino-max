@@ -23,7 +23,6 @@ public:
   const int renderWidth() override { return 240; }
   const int renderBuffer() override { return 240 * 2 * 8; }
   void start() override;
-  void reset() override;
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
@@ -69,6 +68,7 @@ private:
   uint8_t sprite_count = 0;
 
   void boot();
+  void publishVideo();
   uint8_t in0();
   uint8_t in2();
   static uint8_t main_read(m6502_t *cpu, uint16_t addr);

@@ -34,6 +34,7 @@ constexpr uint16_t SPRITE_STRIDE = 0x80;
 constexpr uint16_t SPRITE_CODE = 0x20;
 constexpr uint16_t SPRITE_Y = 0x40;
 constexpr uint16_t SPRITE_X = 0x60;
+constexpr int SPRITE_ORIGIN = 240;   // native position = 240 - register
 
 // what render reads from the emulated machine, latched at vblank
 struct VideoState {
@@ -74,8 +75,8 @@ inline uint8_t collectSprites(const VideoState &v, Sprite out[SPRITES]) {
     }
 
     Sprite &o = out[n++];
-    o.x = 240 - s[SPRITE_X];
-    o.y = 240 - s[SPRITE_Y];
+    o.x = SPRITE_ORIGIN - s[SPRITE_X];
+    o.y = SPRITE_ORIGIN - s[SPRITE_Y];
     o.code = s[SPRITE_CODE];
     o.flip_x = (s[0] & 0x04) != 0;
     o.flip_y = (s[0] & 0x02) != 0;
