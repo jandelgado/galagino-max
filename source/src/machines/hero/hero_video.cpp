@@ -27,8 +27,8 @@ static uint8_t bandColor(const VideoState &v, int band) {
 void prepare(Frame &f) {
   for (int b = 0; b < BANDS; b++) {
     f.cells[b] = cells(f.v.room.band[b]);
-    // the ball is 8 px wide at x = 8, 60 or 152, two whole cells
-    if (f.v.room.ball_x != NO_BALL) { f.cells[b] |= 3ull << (f.v.room.ball_x / 4); }
+    // the ball is 8 px wide and 4 px aligned ($A0 - 1, $A0 = $FE | 1)
+    if (f.v.ball_x != NO_BALL) { f.cells[b] |= 3ull << (f.v.ball_x / 4); }
   }
 }
 
@@ -81,8 +81,25 @@ static void hudLine(const VideoState &v, int y, uint8_t *dst) {
   digit(v.screen % 10, 96, row, DIGIT_COLOR, dst);
 }
 
+// $D17A: GRP1 rows enabled by colour bit 0, drawn before the playfield
+// (CTRLPF priority), so the black sensor bars vanish behind walls
+static void heroLine(const VideoState &v, int line, uint8_t *dst) {
+  if (v.hero_page == NO_HERO) { return; }
+  const int k = line - (HERO_TOP_LINE - v.hero_y);
+  if (k < 0 || k >= HERO_ROWS) { return; }
+  const uint8_t color = b0(0xdd8d - k);
+  if (!(color & 1)) { return; }
+  const uint8_t bits = b0((v.hero_page << 8 | v.hero_frame) + 0x19 - k);
+  for (int i = 0; i < 8; i++) {
+    const int x = v.hero_x + i;
+    const uint8_t bit = v.hero_mirror ? (bits >> i) & 1 : (bits >> (7 - i)) & 1;
+    if (bit && x < SRC_W) { dst[x] = idx(color); }
+  }
+}
+
 void composeLine(const Frame &f, int line, uint8_t *dst) {
   memset(dst, idx(BLACK), SRC_W);
+  if (line >= TOP_Y && line < FLOOR_Y) { heroLine(f.v, line, dst); }
   if (line >= CAP_Y && line < TOP_Y) {
     capLine(f.v, line - CAP_Y, dst);
   } else if (line >= TOP_Y && line < MID_Y) {

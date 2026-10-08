@@ -69,7 +69,7 @@ static const Band &band(const Game &g, int i) { return g.room.band[BANDS - 1 - i
 
 static bool overlapsBand(const Hero &h, int i) {
   const int lo = BAND_BOTTOM_Y + BAND_H * i;
-  return h.y - 1 < lo + BAND_H && h.y + HERO_H >= lo;
+  return h.y - 1 < lo + BAND_H && h.y + HERO_HEIGHT >= lo;
 }
 
 static bool overlapsX(const Hero &h, int x0, int width) { return h.x < x0 + width && h.x + 8 > x0; }

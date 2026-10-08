@@ -19,6 +19,8 @@ static Frame frameFor(uint8_t level, uint8_t screen) {
   f.v.room = decode(level, screen);
   f.v.level = level;
   f.v.screen = screen;
+  f.v.ball_x = f.v.room.ball_x;
+  f.v.hero_page = hero_video::NO_HERO;
   hero_video::prepare(f);
   return f;
 }
@@ -105,6 +107,37 @@ static void test_step_wraps_levels(void) {
   TEST_ASSERT_EQUAL_UINT8(0, screen);
 }
 
+// MAME level 1 at y $6A, x $20, frame $DEB3: snapshot row 49 (source line
+// 23, sprite row 10) is .######. in colour $99 (66a4e9)
+static void test_hero_sprite_row(void) {
+  Frame f = frameFor(0, 0);
+  f.v.hero_x = 0x20;
+  f.v.hero_y = 0x6a;
+  f.v.hero_page = 0xde;
+  f.v.hero_frame = 0xb3;
+  uint8_t line[hero_video::SRC_W];
+  hero_video::composeLine(f, 23, line);
+  TEST_ASSERT_EQUAL_HEX8(0, line[0x20]);
+  for (int x = 0x21; x <= 0x26; x++) { TEST_ASSERT_EQUAL_HEX8(0x98 >> 1, line[x]); }
+  TEST_ASSERT_EQUAL_HEX8(0, line[0x27]);
+  f.v.hero_mirror = 1; // REFP1
+  hero_video::composeLine(f, 23 + 1, line); // row 11: .###.##. -> .##.###.
+  TEST_ASSERT_EQUAL_HEX8(0, line[0x23]);
+  TEST_ASSERT_EQUAL_HEX8(0x98 >> 1, line[0x24]);
+}
+
+// CTRLPF priority: walls cover the hero
+static void test_hero_behind_playfield(void) {
+  Frame f = frameFor(0, 0);
+  f.v.hero_x = 0x10; // top band wall covers x 0..23
+  f.v.hero_y = 0x6a;
+  f.v.hero_page = 0xde;
+  f.v.hero_frame = 0xb3;
+  uint8_t line[hero_video::SRC_W];
+  hero_video::composeLine(f, 23, line);
+  TEST_ASSERT_EQUAL_HEX8(0x22 >> 1, line[0x12]);
+}
+
 static void test_palette(void) {
   for (int i = 0; i < HERO_CMAP_CHECKS; i++) {
     TEST_ASSERT_EQUAL_HEX16(hero_cmap_check[i][1], hero_palette[hero_cmap_check[i][0] >> 1]);
@@ -131,6 +164,8 @@ int main(int, char **) {
   RUN_TEST(test_ball);
   RUN_TEST(test_line_colors);
   RUN_TEST(test_step_wraps_levels);
+  RUN_TEST(test_hero_sprite_row);
+  RUN_TEST(test_hero_behind_playfield);
   RUN_TEST(test_palette);
   RUN_TEST(test_scale);
   return UNITY_END();

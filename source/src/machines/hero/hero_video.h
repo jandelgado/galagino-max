@@ -26,11 +26,20 @@ static const int HUD_END = 176;
 static const uint8_t HUD_COLOR = 0x04;
 static const uint8_t BLACK = 0x00;
 
+// hero sprite (P1, HERO.md "Hero movement"): 26 rows, row k at source line
+// HERO_TOP_LINE - y + k, graphics page:X + $19 - k, colour $DD8D - k
+static const int HERO_TOP_LINE = 119;
+static const int HERO_ROWS = 26;
+static const uint8_t NO_HERO = 0xff; // hero_page: not drawn
+
 // render input, published once per frame by run_frame()
 struct VideoState {
   hero_room::Room room;
   uint8_t level, screen; // shown in the HUD
   uint8_t frame;         // frame counter ($81) for lava and wave animation
+  uint8_t ball_x;        // destructible wall, hero_room::NO_BALL = none
+  uint8_t hero_x, hero_y, hero_mirror;
+  uint8_t hero_page, hero_frame; // graphics at hero_page:hero_frame ($91/$92)
 };
 
 // render copy: the published state plus what prepare() derives from it

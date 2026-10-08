@@ -45,7 +45,7 @@ struct Game {
 
 static const uint8_t BAND_BOTTOM_Y = 21; // y of band 0's lower edge, band i spans
 static const uint8_t BAND_H = 39;        // [21 + 39 i, 60 + 39 i)
-static const uint8_t HERO_H = 24;
+static const uint8_t HERO_HEIGHT = 24;
 
 void startLevel(Game &g, uint8_t level);
 // $F569: hero graphics page:frame for the renderer

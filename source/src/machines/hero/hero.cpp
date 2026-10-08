@@ -8,9 +8,7 @@ using namespace hero_video;
 
 void hero::reset() {
   machineBase::reset();
-  level = 0;
-  screen = 0;
-  frame = 0;
+  hero_game::startLevel(game, 0);
   prev_keys = 0;
   game_started = 1; // no boot phase: wait for the display's 60 Hz from the start
   publish();
@@ -18,17 +16,25 @@ void hero::reset() {
 
 void hero::publish() {
   vblank.publish([this](VideoState &s) {
-    s.room = hero_room::decode(level, screen);
-    s.level = level;
-    s.screen = screen;
-    s.frame = frame;
+    s.room = game.room;
+    s.level = game.level;
+    s.screen = game.screen;
+    s.frame = game.frame;
+    s.ball_x = game.ball_x;
+#ifdef HERO_ROOM_VIEWER
+    s.hero_page = NO_HERO;
+#else
+    s.hero_x = game.hero.x;
+    s.hero_y = game.hero.y;
+    s.hero_mirror = game.hero.facing != 0;
+    hero_game::heroSprite(game, s.hero_page, s.hero_frame);
+#endif
   });
 }
 
-void hero::run_frame(void) {
-  const uint32_t keys = input->buttons_get();
-  const uint32_t pressed = keys & ~prev_keys;
-  prev_keys = keys;
+// LEFT/RIGHT previous/next screen, UP/DOWN next/previous level
+void hero::runViewer(uint32_t pressed) {
+  uint8_t level = game.level, screen = game.screen;
   if (pressed & BUTTON_RIGHT) { hero_room::step(level, screen, 1); }
   if (pressed & BUTTON_LEFT)  { hero_room::step(level, screen, -1); }
   if (pressed & BUTTON_UP) {
@@ -39,7 +45,29 @@ void hero::run_frame(void) {
     level = (level + hero_data::LEVELS - 1) % hero_data::LEVELS;
     screen = 0;
   }
-  frame++;
+  game.level = level;
+  game.screen = screen;
+  game.room = hero_room::decode(level, screen);
+  game.ball_x = game.room.ball_x;
+  game.frame++;
+}
+
+void hero::run_frame(void) {
+  uint32_t keys = input->buttons_get();
+  if (keys & BUTTON_EXTRA) { keys &= ~(BUTTON_UP | BUTTON_DOWN | BUTTON_LEFT | BUTTON_RIGHT); } // volume
+#ifdef HERO_ROOM_VIEWER
+  runViewer(keys & ~prev_keys);
+#else
+  hero_game::Input in;
+  in.up = (keys & BUTTON_UP) != 0;
+  in.down = (keys & BUTTON_DOWN) != 0;
+  in.left = (keys & BUTTON_LEFT) != 0;
+  in.right = (keys & BUTTON_RIGHT) != 0;
+  in.fire = (keys & BUTTON_FIRE) != 0;
+  hero_game::tick(game, in);
+  if (game.dead) { hero_game::startLevel(game, game.level); } // until the death sequence exists
+#endif
+  prev_keys = keys;
   publish();
 }
 
@@ -51,14 +79,8 @@ void hero::prepare_frame(void) {
 void hero::render_row(short row) {
   uint8_t line[SRC_W];
   for (int sr = 0; sr < 8; sr++) {
-    unsigned short *dst = frame_buffer + sr * OUT_W;
-    const int out = row * 8 + sr;
-    if (out >= OUT_H) {
-      memset(dst, 0, OUT_W * sizeof(unsigned short));
-      continue;
-    }
-    composeLine(video, sourceLine(out), line);
-    scaleLine(line, dst);
+    composeLine(video, sourceLine(row * 8 + sr), line);
+    scaleLine(line, frame_buffer + sr * OUT_W);
   }
 }
 
