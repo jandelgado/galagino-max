@@ -201,6 +201,28 @@ hero reappears at x `$FFAC[dir]` (`93`, `0f`). `$9E` tracks the furthest screen.
   frame to y `$DAFC[x]`, then waits; the first joystick move with `$AF` set
   clears `$AD` and sets `$E9` = `$1F` (hover).
 
+## Remake movement model (source/src/machines/hero/hero_game.cpp)
+
+Matches MAME frame by frame on the recorded traces
+(`romconv/internal/hero/tools/traces/`, fixture `source/test/test_hero_game/hero_traces.h`).
+
+- Frame order: the original runs the frame logic in bank 1 (input, thrust,
+  vertical and horizontal movement, screen changes), then the kernel (TIA
+  collision latches) and the overscan in bank 0 (collision response,
+  respawn, power, dynamite). `tick()` runs the previous frame's overscan
+  first, then this frame's logic: the state after `tick()` equals a MAME RAM
+  dump taken when the game increments `$81` (`$D700`, harness `H_RAM_TAP`).
+  MAME's own frame boundary drifts against the game loop and is unusable
+  for frame-exact comparisons.
+- Collision latches, in y units: band i (0 bottom) spans [21 + 39 i,
+  60 + 39 i), the hero y - 1 (feet bar) .. y + 24, x .. x + 7. A band hits
+  when the hero overlaps it vertically and its playfield cells (or the ball,
+  for the side push only) horizontally. This reproduces the floor (`$3C`,
+  `$63`) and ceiling (`$24`, `$4B`) thresholds, the top exit `$8A` and the
+  water line `$16`.
+- Animation: `$E7` (propeller, 2..0) steps on frames with `$81` bit 1 set,
+  `$E8` (walk, 4..0) every 4 frames (`$D56C`); both hold while `$F2` is set.
+
 ## Overscan rules (bank 0 `$D7B6-$D9DF`, from code)
 
 - Death (`$DE6B`): `$AE` = band, `$AD` = `$FF`, counted down by the death
