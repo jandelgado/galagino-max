@@ -146,6 +146,7 @@ void Audio::start(machineBase *machineBase) {
   else if (machineType == MCH_ROCNROPE)   { AY = 2; AY_INC = 8; AY_VOL = 7;  }
   else if (machineType == MCH_PBACTION)   { AY = 3; AY_INC = 8; AY_VOL = 4;  }
   else if (machineType == MCH_MOTORACE)   { AY = 2; AY_INC = 5; AY_VOL = 5;  }
+  else if (machineType == MCH_MPATROL)    { AY = 2; AY_INC = 5; AY_VOL = 5;  } // 894 kHz, as motorace
   else if (machineType == MCH_SCREGG)     { AY = 2; AY_INC = 8; AY_VOL = 7;  }
   else if (machineType == MCH_COMMANDO)   { AY = 2; AY_INC = 4; AY_VOL = 5;  } // SSG 750 kHz
   else if (machineType == MCH_THEPIT)     { AY = 1; AY_INC = 8; AY_VOL = 11; } // 1.536 MHz

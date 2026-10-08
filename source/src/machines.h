@@ -249,6 +249,9 @@
 #ifdef ENABLE_MISSILE
   #include "machines/missile/missile.h"
 #endif
+#ifdef ENABLE_MPATROL
+  #include "machines/mpatrol/mpatrol.h"
+#endif
 
 // change machine order is possible here...
 machineInfo machines[] = {
@@ -692,6 +695,13 @@ machineInfo machines[] = {
     missile::menuLeds,
 #endif
     MCH_MISSILE },
+#endif
+#ifdef ENABLE_MPATROL
+  { []() -> machineBase* { return new mpatrol(); }, mpatrol::logo,
+#ifdef LED_PIN
+    mpatrol::menuLeds,
+#endif
+    MCH_MPATROL },
 #endif
 #ifdef ENABLE_COMMANDO
   { []() -> machineBase* { return new commando(); }, commando::logo,
