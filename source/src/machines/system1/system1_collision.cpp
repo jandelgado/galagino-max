@@ -31,8 +31,10 @@ void Collision::scan(const Frame &f) {
 
 // Line buffer as the hardware: a pixel over an opaque one collides.
 void Collision::drawLine(const Frame &f, const Sprite *list, int count, int y) {
-  lineLo = LINE_X1 + 1;
-  lineHi = LINE_X0 - 1;
+  const int lineX0 = 2 * f.vis.x0;
+  const int lineX1 = 2 * f.vis.x1 + 1;
+  lineLo = lineX1 + 1;
+  lineHi = lineX0 - 1;
 
   for (int n = 0; n < count; n++) {
     const Sprite &s = list[n];
@@ -47,7 +49,7 @@ void Collision::drawLine(const Frame &f, const Sprite *list, int count, int y) {
       }
 
       for (int x = s.x + 2 * i; x <= s.x + 2 * i + 1; x++) {
-        if (x < LINE_X0 || x > LINE_X1) {
+        if (x < lineX0 || x > lineX1) {
           continue;
         }
 

@@ -58,15 +58,13 @@ constexpr uint16_t FG_PENS = 0x200;
 constexpr uint16_t BG_PENS = 0x400;
 
 constexpr int STRIP_LINES = 8;
-constexpr int FIRST_STRIP = FIRST_ROW / STRIP_LINES;
-constexpr int LAST_STRIP = (FIRST_ROW + VIS_X1 - VIS_X0) / STRIP_LINES;
 constexpr int TILE_SIZE = 8;
 
 } // namespace
 
-system1::system1(const Roms &r)
+system1::system1(const Roms &r, const Config &c)
     : tile_rom(r.tiles), main_rom(r.main_cpu), sprite_rom(r.sprites),
-      sound_rom(r.sound_cpu), lookup_prom(r.lookup) {
+      sound_rom(r.sound_cpu), lookup_prom(r.lookup), config(c) {
   // decompress largest first: Arena bin packing
   tiles = tile_rom.data();
   mainRom = main_rom.data();
@@ -78,6 +76,8 @@ system1::system1(const Roms &r)
   soundRomSize = sound_rom.size();
   tileMask = tile_rom.size() - 1;  // romconv asserts a power of two
   spriteBanks = sprite_rom.size() / SPRITE_BANK;
+  firstStrip = rowOfX(config.vis.x1) / STRIP_LINES;
+  lastStrip = rowOfX(config.vis.x0) / STRIP_LINES;
 }
 
 void system1::reset() {
@@ -213,13 +213,13 @@ void system1::outZ80(unsigned short Port, unsigned char Value) {
   ppi.write(p - PORT_PPI, Value);
 }
 
-// FIRE drives BUTTON1 (Star Jacker: laser), galagino controller B BUTTON2
-// (Star Jacker: slow short-range shot)
+// FIRE drives BUTTON1 (Star Jacker: laser), or both buttons for two weapon
+// games (Regulus); galagino controller B drives BUTTON2
 uint8_t system1::readP1() {
   const unsigned int k = input->buttons_get();
   uint8_t v = 0xff;
   if (k & BUTTON_FIRE) {
-    v &= ~IN_BUTTON1;
+    v &= config.fireBoth ? ~(IN_BUTTON1 | IN_BUTTON2) : ~IN_BUTTON1;
   }
   if (k & BUTTON_B) {
     v &= ~IN_BUTTON2;
@@ -323,7 +323,7 @@ void system1::startVblank() {
   const uint8_t *vram = &memory[VIDEO_RAM];
 
   const Collision::Frame f = {&memory[SPRITE_RAM], spriteRom, spriteBanks, vram,
-                              tiles, tileMask, prom, ppi.portB()};
+                              tiles, tileMask, prom, ppi.portB(), config.vis};
   collision.scan(f);
 
   vblank.publish([this, vram](VideoState &v) {
@@ -379,7 +379,7 @@ void system1::prepare_frame(void) {
     }
 
     const int x0 = spriteX(s.x);
-    if (width == 0 || x0 > VIS_X1 || x0 + width <= VIS_X0) {
+    if (width == 0 || x0 > config.vis.x1 || x0 + width <= config.vis.x0) {
       continue;
     }
 
@@ -392,7 +392,7 @@ void system1::prepare_frame(void) {
 }
 
 void system1::render_row(short strip) {
-  if (strip < FIRST_STRIP || strip > LAST_STRIP || (video.mode & VIDEO_BLANK)) {
+  if (strip < firstStrip || strip > lastStrip || (video.mode & VIDEO_BLANK)) {
     return;
   }
   drawSprites(strip);
