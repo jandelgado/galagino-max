@@ -20,6 +20,7 @@ public:
     uint16_t tileMask;
     const uint8_t *prom;
     uint8_t videoMode;
+    system1_video::Visarea vis;
   };
 
   void reset();

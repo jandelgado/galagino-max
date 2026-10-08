@@ -27,8 +27,8 @@ static void sprite(int n, uint8_t top, uint8_t lines, uint16_t x512) {
   e[7] = ROW_DATA >> 8;
 }
 
-static Collision::Frame frame(uint8_t mode = 0) {
-  Collision::Frame f = {spriteRam, spriteRom, 1, vram, tiles, 1, prom, mode};
+static Collision::Frame frame(uint8_t mode = 0, Visarea vis = VISAREA_SCROLL) {
+  Collision::Frame f = {spriteRam, spriteRom, 1, vram, tiles, 1, prom, mode, vis};
   return f;
 }
 
@@ -102,6 +102,17 @@ static void test_offscreen_ignored(void) {
   TEST_ASSERT_FALSE(col.hit());
 }
 
+// two sprites overlapping at 512 units 4..9: hidden by sys1ppis, visible on sys1ppi
+static void test_collision_respects_visarea(void) {
+  sprite(0, 10, 2, 2);
+  sprite(1, 10, 2, 4);
+  col.scan(frame(0, VISAREA_SCROLL));
+  TEST_ASSERT_EQUAL_HEX8(0x7e, col.sprRead(0 + 32 * 1));
+  col.reset();
+  col.scan(frame(0, VISAREA_FULL));
+  TEST_ASSERT_EQUAL_HEX8(0xff, col.sprRead(0 + 32 * 1));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_sprite_pair);
@@ -109,5 +120,6 @@ int main(int, char **) {
   RUN_TEST(test_list_end_marker);
   RUN_TEST(test_blank_no_hits);
   RUN_TEST(test_offscreen_ignored);
+  RUN_TEST(test_collision_respects_visarea);
   return UNITY_END();
 }

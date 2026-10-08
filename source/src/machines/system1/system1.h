@@ -48,7 +48,11 @@ protected:
     const FlashAsset<unsigned char, COMPRESSED> &sprites;
     const FlashAsset<unsigned char, COMPRESSED> &lookup;
   };
-  explicit system1(const Roms &roms);
+  struct Config {
+    system1_video::Visarea vis;
+    bool fireBoth;  // FIRE presses BUTTON1 + BUTTON2 (two weapon games)
+  };
+  system1(const Roms &roms, const Config &config);
 
   virtual uint8_t dswA() = 0;  // port 0x0c: coinage
   virtual uint8_t dswB() = 0;  // ports 0x0d, 0x10: game options
@@ -117,6 +121,9 @@ private:
   uint16_t soundRomSize;
   uint16_t tileMask;
   uint8_t spriteBanks;
+  const Config config;
+  int firstStrip;
+  int lastStrip;
 
   Ppi8255 ppi;
   bool mainIrq;              // HOLD_LINE: pending until the CPU enables interrupts

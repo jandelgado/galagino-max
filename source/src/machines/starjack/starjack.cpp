@@ -11,7 +11,7 @@
 starjack::starjack() : system1(Roms{
     starjack_main_rom_blob, starjack_sound_rom_blob, starjack_tiles_blob,
     starjack_sprites_blob, starjack_lookup_prom_blob,
-}) { }
+}, Config{system1_video::VISAREA_SCROLL, false}) { }
 
 const Logo &starjack::logo(void) {
   return starjack_logo;

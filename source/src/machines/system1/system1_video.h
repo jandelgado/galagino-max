@@ -9,12 +9,8 @@
 // y = native line. ROT270 onto galagino: row = 271 - x, column = y.
 namespace system1_video {
 
-constexpr int VIS_X0 = 8;        // visarea 16..495 in 512 units
-constexpr int VIS_X1 = 247;
 constexpr int VIS_LINES = 224;
-constexpr int FIRST_ROW = 24;    // 240 visible rows centered in 288
-constexpr int LINE_X0 = 16;
-constexpr int LINE_X1 = 495;
+constexpr int ROW_OF_X0 = 271;   // ROT270: half-res x 0 -> galagino row 271
 constexpr int SPRITES = 32;
 constexpr int SPRITE_BYTES = 16;
 constexpr int SPRITE_BANK = 0x8000;
@@ -33,8 +29,16 @@ constexpr uint8_t MIX_SOURCE = 0x03;      // lookup PROM: 0 sprite, 1 fg, 2/3 bg
 constexpr uint8_t MIX_NO_COLLIDE = 0x04;
 constexpr uint8_t MIX_BANK = 0x08;
 
-inline int rowOfX(int x) { return VIS_X1 + FIRST_ROW - x; }
-inline int xOfRow(int row) { return VIS_X1 + FIRST_ROW - row; }
+// visible half-res x range, 512 units 2 * x0 .. 2 * x1 + 1
+struct Visarea {
+  int16_t x0;
+  int16_t x1;
+};
+constexpr Visarea VISAREA_SCROLL = {8, 247};  // sys1ppis: 16..495, rows 24..263
+constexpr Visarea VISAREA_FULL = {0, 255};    // sys1ppi: 0..511, rows 16..271
+
+inline int rowOfX(int x) { return ROW_OF_X0 - x; }
+inline int xOfRow(int row) { return ROW_OF_X0 - row; }
 
 inline int bgScroll(uint8_t lo, uint8_t hi) {
   return (int16_t)(lo | (hi << 8)) + SCROLL_X_BIAS;

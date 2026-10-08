@@ -9,10 +9,12 @@ static uint8_t bank[SPRITE_BANK];
 void setUp(void) { memset(bank, 0, sizeof(bank)); }
 void tearDown(void) {}
 
-// visible native x 8..247 fills rows 24..263; x 8 is the bottom row (ROT270)
-static void test_row_mapping(void) {
-  TEST_ASSERT_EQUAL(263, rowOfX(VIS_X0));
-  TEST_ASSERT_EQUAL(24, rowOfX(VIS_X1));
+// ROT270: row = 271 - x for both visareas, x0 is the bottom row
+static void test_visarea_rows(void) {
+  TEST_ASSERT_EQUAL(263, rowOfX(VISAREA_SCROLL.x0));
+  TEST_ASSERT_EQUAL(24, rowOfX(VISAREA_SCROLL.x1));
+  TEST_ASSERT_EQUAL(271, rowOfX(VISAREA_FULL.x0));
+  TEST_ASSERT_EQUAL(16, rowOfX(VISAREA_FULL.x1));
   TEST_ASSERT_EQUAL(100, xOfRow(rowOfX(100)));
 }
 
@@ -100,7 +102,7 @@ static void test_walk_row_unterminated(void) {
 
 int main(int, char **) {
   UNITY_BEGIN();
-  RUN_TEST(test_row_mapping);
+  RUN_TEST(test_visarea_rows);
   RUN_TEST(test_scroll_regs);
   RUN_TEST(test_bg_col_negative);
   RUN_TEST(test_tile_decode);
