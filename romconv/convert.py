@@ -74,6 +74,7 @@ GAMES = [
     "mpatrol",
     "starjack",
     "regulus",
+    "upndown",
     "cbdash",
 ]
 

@@ -258,6 +258,9 @@
 #ifdef ENABLE_REGULUS
   #include "machines/regulus/regulus.h"
 #endif
+#ifdef ENABLE_UPNDOWN
+  #include "machines/upndown/upndown.h"
+#endif
 #ifdef ENABLE_CBDASH
   #include "machines/cbdash/cbdash.h"
 #endif
@@ -725,6 +728,13 @@ machineInfo machines[] = {
     regulus::menuLeds,
 #endif
     MCH_REGULUS },
+#endif
+#ifdef ENABLE_UPNDOWN
+  { []() -> machineBase* { return new upndown(); }, upndown::logo,
+#ifdef LED_PIN
+    upndown::menuLeds,
+#endif
+    MCH_UPNDOWN },
 #endif
 #ifdef ENABLE_CBDASH
   { []() -> machineBase* { return new cbdash(); }, cbdash::logo,

@@ -55,6 +55,25 @@ GAMES = {
                     ("epr-5639.93", "033bf46d2625f99544a784fe3fa299cc1b1b48e1")],
         "lookup": [("pr-5317.106", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
     },
+    # upndownu: unencrypted set, files in subdir upndownu/ of upndown.zip
+    "upndown": {
+        "main": [("upndownu/epr-5679.129", "7904ffb46a2c3ef69b9784f343ff37d81bbee11d"),
+                 ("upndownu/epr-5680.130", "14cc846f03b71e0922689388a6757955cfd88bd8"),
+                 ("upndownu/epr-5681.131", "440dc8c18183612c32486c617f5d7f38fd804f0e"),
+                 ("upndownu/epr-5682.132", "71f06d1c4a580fed07ad32c6d1f2d37d47ed95b1"),
+                 ("epr-5520.133", "eff0c91ce6c2c1f6e191bcbf9ae83dd377cbb408"),
+                 ("upndownu/epr-5684.133", "ebe87d28dde6b8356d40572e9f2cd35ec240075f")],
+        "sound": [("upndownu/epr-5528.3", "7f5385aa0773681329a4759b0fa6f975e3de6755")],
+        "tiles": [("epr-5527.82", "c079136a5d73e1d55ddbad6efb5e7067d0ff412b"),
+                  ("epr-5526.65", "db796d5c4ab3f749287133eaf05818f89dc2afb7"),
+                  ("epr-5525.81", "2022cbd42ff0177cdd661bb00b1004459b6af83a"),
+                  ("epr-5524.64", "6a9c909d10ccb03a8af6fa9d8067946d60b91592"),
+                  ("epr-5523.80", "6c47fa433e16ccc3fff9347a4fe8f0165d20a3d2"),
+                  ("epr-5522.63", "4f18274f5dc349b99b3daec517ccf5ccbb932d1c")],
+        "sprites": [("epr-5514.86", "ca7db3df10deb6720096e6c50eddd9b74c47f0a0"),
+                    ("epr-5515.93", "aedff8ce07ab16942037e5aff212652e51c19e71")],
+        "lookup": [("pr-5317.106", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
+    },
 }
 
 
