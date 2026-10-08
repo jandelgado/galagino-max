@@ -39,7 +39,7 @@ private:
   uint8_t level = 0;
   uint8_t screen = 0;
   uint8_t frame = 0;       // $81
-  unsigned int prev_keys = 0;
+  uint32_t prev_keys = 0;
 };
 
 #endif // ENABLE_HERO

@@ -26,8 +26,8 @@ void hero::publish() {
 }
 
 void hero::run_frame(void) {
-  const unsigned int keys = input->buttons_get();
-  const unsigned int pressed = keys & ~prev_keys;
+  const uint32_t keys = input->buttons_get();
+  const uint32_t pressed = keys & ~prev_keys;
   prev_keys = keys;
   if (pressed & BUTTON_RIGHT) { hero_room::step(level, screen, 1); }
   if (pressed & BUTTON_LEFT)  { hero_room::step(level, screen, -1); }
