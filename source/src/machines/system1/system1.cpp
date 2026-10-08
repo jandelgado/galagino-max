@@ -44,6 +44,14 @@ constexpr uint8_t IN_LEFT = 0x80;
 constexpr uint8_t IN_COIN1 = 0x01;
 constexpr uint8_t IN_START1 = 0x10;
 
+// START button: BUTTON_START with a COIN pin (EXTRA is then COIN) or the
+// galagino controller, else START itself reports as BUTTON_EXTRA
+#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+constexpr unsigned int START_KEY = BUTTON_START;
+#else
+constexpr unsigned int START_KEY = BUTTON_EXTRA;
+#endif
+
 // SN76489
 constexpr uint8_t SN_LATCH = 0x80;
 constexpr int SN_NOISE = 3;
@@ -213,7 +221,7 @@ void system1::outZ80(unsigned short Port, unsigned char Value) {
   ppi.write(p - PORT_PPI, Value);
 }
 
-// FIRE drives BUTTON1; galagino controller B, or EXTRA in two weapon games
+// FIRE drives BUTTON1; galagino controller B, or START in two weapon games
 // (Regulus bomb), drives BUTTON2
 uint8_t system1::readP1() {
   const unsigned int k = input->buttons_get();
@@ -221,7 +229,7 @@ uint8_t system1::readP1() {
   if (k & BUTTON_FIRE) {
     v &= ~IN_BUTTON1;
   }
-  if ((k & BUTTON_B) || (config.extraButton2 && (k & BUTTON_EXTRA))) {
+  if ((k & BUTTON_B) || (config.startButton2 && (k & START_KEY))) {
     v &= ~IN_BUTTON2;
   }
   if (k & BUTTON_DOWN) {

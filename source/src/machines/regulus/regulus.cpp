@@ -9,7 +9,7 @@
 #include "regulus_lookup_prom.h"
 
 // full 256 px visarea (sys1ppi, HUD at both ends); FIRE fires laser, START
-// (EXTRA) drops bomb
+// drops bomb
 regulus::regulus() : system1(Roms{
     regulus_main_rom_blob, regulus_sound_rom_blob, regulus_tiles_blob,
     regulus_sprites_blob, regulus_lookup_prom_blob,
