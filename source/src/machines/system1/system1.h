@@ -5,6 +5,7 @@
 #include "../../emulation/seqlock.h"
 #include "system1_video.h"
 #include "system1_collision.h"
+#include "system1_ppi.h"
 
 // Sega System 1 board, 8255 variant (MAME sega/system1.cpp sys1ppi):
 //
@@ -74,7 +75,7 @@ private:
   static constexpr int FRAME_LINES = 260;
   static constexpr int VBLANK_LINE = 224;
   static constexpr int MAIN_STEPS_PER_LINE = 22;   // M1 + VRAM waits: ~3.6 MHz
-  static constexpr int SOUND_STEPS_PER_LINE = 24;
+  static constexpr int SOUND_STEPS_PER_LINE = 11;  // MAME trace: ~2830 per frame
   static constexpr int SOUND_IRQ_FIRST = 32;       // lines 32, 96, 160, 224
   static constexpr int SOUND_IRQ_PERIOD = 64;
 
@@ -98,9 +99,7 @@ private:
   void mainWrite(uint16_t addr, uint8_t value);
   uint8_t soundRead(uint16_t addr);
   void soundWrite(uint16_t addr, uint8_t value);
-  uint8_t ppiRead(uint8_t port);
-  void ppiWrite(uint8_t port, uint8_t value);
-  void ppiPortC(uint8_t value);
+  void irqLines();
   void snWrite(int chip, uint8_t data);
   void snNoise(int chip);
   uint8_t readP1();
@@ -119,8 +118,9 @@ private:
   uint16_t tileMask;
   uint8_t spriteBanks;
 
-  uint8_t ppiLatch[3];       // A sound latch, B video mode, C sound control
-  bool soundNmiPending;
+  Ppi8255 ppi;
+  bool mainIrq;              // HOLD_LINE: pending until the CPU enables interrupts
+  bool soundIrq;
   uint8_t snLatch[2];        // last latched register per chip
   uint8_t snNoiseReg[2];
   uint16_t palette[PALETTE_USED];

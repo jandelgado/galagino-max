@@ -34,14 +34,6 @@ constexpr uint8_t PORT_DSWB = 0x10;
 constexpr uint8_t PORT_PPI = 0x14;
 constexpr uint8_t PORT_END = 0x18;
 
-// 8255 ports
-constexpr uint8_t PPI_A = 0;                 // sound latch
-constexpr uint8_t PPI_B = 1;                 // video mode
-constexpr uint8_t PPI_C = 2;                 // sound control
-constexpr uint8_t PPI_CONTROL = 3;
-constexpr uint8_t PPI_MODE_SET = 0x80;
-constexpr uint8_t SOUND_NMI = 0x80;          // port C bit 7, active low
-
 // inputs, active low
 constexpr uint8_t IN_BUTTON2 = 0x02;
 constexpr uint8_t IN_BUTTON1 = 0x04;
@@ -91,11 +83,9 @@ system1::system1(const Roms &r)
 void system1::reset() {
   machineBase::reset();
 
-  // 8255 reset: all ports input, MAME tri-state values
-  ppiLatch[PPI_A] = 0x00;
-  ppiLatch[PPI_B] = 0x40;
-  ppiLatch[PPI_C] = 0x80;
-  soundNmiPending = false;
+  ppi.reset();
+  mainIrq = false;
+  soundIrq = false;
 
   snLatch[0] = snLatch[1] = 0;
   snNoiseReg[0] = snNoiseReg[1] = 0;
@@ -171,7 +161,7 @@ uint8_t system1::soundRead(uint16_t a) {
     return memory[SOUND_RAM + (a & SOUND_RAM_MASK)];
   }
   if (a >= SOUND_LATCH_BASE) {
-    return ppiLatch[PPI_A];
+    return ppi.ackA();
   }
   return 0xff;
 }
@@ -212,7 +202,7 @@ unsigned char system1::inZ80(unsigned short Port) {
   if (p < PORT_PPI) {
     return dswB();
   }
-  return ppiRead(p - PORT_PPI);
+  return ppi.read(p - PORT_PPI);
 }
 
 void system1::outZ80(unsigned short Port, unsigned char Value) {
@@ -220,53 +210,19 @@ void system1::outZ80(unsigned short Port, unsigned char Value) {
   if (current_cpu != MAIN_CPU || p < PORT_PPI || p >= PORT_END) {
     return;
   }
-  ppiWrite(p - PORT_PPI, Value);
+  ppi.write(p - PORT_PPI, Value);
 }
 
-// mode 0 outputs read back their latch; the game read-modify-writes port B
-uint8_t system1::ppiRead(uint8_t port) {
-  return port < PPI_CONTROL ? ppiLatch[port] : 0xff;
-}
-
-void system1::ppiWrite(uint8_t port, uint8_t v) {
-  if (port == PPI_A || port == PPI_B) {
-    ppiLatch[port] = v;
-    return;
-  }
-  if (port == PPI_C) {
-    ppiPortC(v);
-    return;
-  }
-
-  // control: mode set clears all output latches, else port C bit set/reset
-  if (v & PPI_MODE_SET) {
-    ppiLatch[PPI_A] = ppiLatch[PPI_B] = 0;
-    ppiPortC(0);
-    return;
-  }
-
-  const uint8_t mask = 1 << ((v >> 1) & 7);
-  ppiPortC((v & 1) ? (ppiLatch[PPI_C] | mask) : (ppiLatch[PPI_C] & ~mask));
-}
-
-// b7 falling edge raises the sound CPU NMI. Delivered in run_frame():
-// IntZ80 pushes PC through wrZ80, which must see current_cpu = SOUND_CPU.
-void system1::ppiPortC(uint8_t v) {
-  if ((ppiLatch[PPI_C] & SOUND_NMI) && !(v & SOUND_NMI)) {
-    soundNmiPending = true;
-  }
-  ppiLatch[PPI_C] = v;
-}
-
-// FIRE drives BUTTON2 (user choice), galagino controller B drives BUTTON1
+// FIRE drives BUTTON1 (Star Jacker: laser), galagino controller B BUTTON2
+// (Star Jacker: slow short-range shot)
 uint8_t system1::readP1() {
   const unsigned int k = input->buttons_get();
   uint8_t v = 0xff;
   if (k & BUTTON_FIRE) {
-    v &= ~IN_BUTTON2;
+    v &= ~IN_BUTTON1;
   }
   if (k & BUTTON_B) {
-    v &= ~IN_BUTTON1;
+    v &= ~IN_BUTTON2;
   }
   if (k & BUTTON_DOWN) {
     v &= ~IN_DOWN;
@@ -327,27 +283,30 @@ void system1::snWrite(int chip, uint8_t d) {
   }
 }
 
-// noise rate N/512, N/1024, N/2048 or tone 2 (white/periodic not modeled)
+// noise rate N/512, N/1024, N/2048 or tone 2 output (shifts every 2 tone
+// periods, MAME sn76496); white/periodic not modeled
 void system1::snNoise(int chip) {
   const int rate = snNoiseReg[chip] & 0x03;
-  const int p = rate == SN_FOLLOW_TONE2 ? (sn_period[chip][SN_TONE2] >> 3) : (SN_NOISE_BASE << rate);
+  const int p = rate == SN_FOLLOW_TONE2 ? (sn_period[chip][SN_TONE2] >> 2) : (SN_NOISE_BASE << rate);
   sn_period[chip][SN_NOISE] = p > 0 ? p : 1;
 }
 
 void system1::run_frame(void) {
   for (int line = 0; line < FRAME_LINES; line++) {
+    if (line % SOUND_IRQ_PERIOD == SOUND_IRQ_FIRST) {
+      soundIrq = true;
+    }
+    irqLines();
+
     current_cpu = MAIN_CPU;
     for (int i = 0; i < MAIN_STEPS_PER_LINE; i++) {
       StepZ80(&cpu[MAIN_CPU]);
     }
 
+    // sound command written by the main CPU in this slice
     current_cpu = SOUND_CPU;
-    if (soundNmiPending) {
-      soundNmiPending = false;
+    if (ppi.takeNmi()) {
       IntZ80(&cpu[SOUND_CPU], INT_NMI);
-    }
-    if (line % SOUND_IRQ_PERIOD == SOUND_IRQ_FIRST) {
-      IntZ80(&cpu[SOUND_CPU], INT_IRQ);
     }
     for (int i = 0; i < SOUND_STEPS_PER_LINE; i++) {
       StepZ80(&cpu[SOUND_CPU]);
@@ -364,7 +323,7 @@ void system1::startVblank() {
   const uint8_t *vram = &memory[VIDEO_RAM];
 
   const Collision::Frame f = {&memory[SPRITE_RAM], spriteRom, spriteBanks, vram,
-                              tiles, tileMask, prom, ppiLatch[PPI_B]};
+                              tiles, tileMask, prom, ppi.portB()};
   collision.scan(f);
 
   vblank.publish([this, vram](VideoState &v) {
@@ -373,12 +332,25 @@ void system1::startVblank() {
     v.scroll_x_lo = vram[SCROLL_X_LO];
     v.scroll_x_hi = vram[SCROLL_X_HI];
     v.scroll_y = vram[SCROLL_Y];
-    v.mode = ppiLatch[PPI_B];
+    v.mode = ppi.portB();
   });
 
-  current_cpu = MAIN_CPU;
-  IntZ80(&cpu[MAIN_CPU], INT_IRQ);
-  current_cpu = SOUND_CPU;
+  mainIrq = true;
+}
+
+// IRQs are HOLD_LINE in MAME: kept until the CPU accepts them, so one that
+// lands in a DI section (e.g. the sound NMI handler) is delayed, not lost.
+void system1::irqLines() {
+  if (mainIrq && (cpu[MAIN_CPU].IFF & IFF_1)) {
+    mainIrq = false;
+    current_cpu = MAIN_CPU;
+    IntZ80(&cpu[MAIN_CPU], INT_IRQ);
+  }
+  if (soundIrq && (cpu[SOUND_CPU].IFF & IFF_1)) {
+    soundIrq = false;
+    current_cpu = SOUND_CPU;
+    IntZ80(&cpu[SOUND_CPU], INT_IRQ);
+  }
 }
 
 // Visible sprites with their widest row, so strips can skip them cheaply.
