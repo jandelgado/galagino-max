@@ -258,6 +258,9 @@
 #ifdef ENABLE_REGULUS
   #include "machines/regulus/regulus.h"
 #endif
+#ifdef ENABLE_CBDASH
+  #include "machines/cbdash/cbdash.h"
+#endif
 
 // change machine order is possible here...
 machineInfo machines[] = {
@@ -722,6 +725,13 @@ machineInfo machines[] = {
     regulus::menuLeds,
 #endif
     MCH_REGULUS },
+#endif
+#ifdef ENABLE_CBDASH
+  { []() -> machineBase* { return new cbdash(); }, cbdash::logo,
+#ifdef LED_PIN
+    cbdash::menuLeds,
+#endif
+    MCH_CBDASH },
 #endif
 #ifdef ENABLE_COMMANDO
   { []() -> machineBase* { return new commando(); }, commando::logo,

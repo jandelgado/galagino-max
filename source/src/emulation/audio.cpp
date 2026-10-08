@@ -141,6 +141,7 @@ void Audio::start(machineBase *machineBase) {
   else if (machineType == MCH_POOYAN)     { AY = 2; AY_INC = 9; AY_VOL = 5;  }
   else if (machineType == MCH_BURGERTIME) { AY = 2; AY_INC = 8; AY_VOL = 7;  }
   else if (machineType == MCH_BNJ)        { AY = 2; AY_INC = 8; AY_VOL = 7;  }
+  else if (machineType == MCH_CBDASH)     { AY = 2; AY_INC = 8; AY_VOL = 7;  } // 1.5 MHz, as bnj
   else if (machineType == MCH_TURTLES)    { AY = 2; AY_INC = 8; AY_VOL = 7;  }
   else if (machineType == MCH_AMIDAR)     { AY = 2; AY_INC = 8; AY_VOL = 7;  }
   else if (machineType == MCH_ROCNROPE)   { AY = 2; AY_INC = 8; AY_VOL = 7;  }
