@@ -57,18 +57,25 @@ private:
   bool dongle_latch = false;
   bool coin_prev = false;
   uint8_t led_flash = 0;
+  uint8_t draw_cam_x = 0, draw_cam_y = 0, draws = 0; // latched at playfield redraw start
+  uint8_t publish_skips = 0;
+  uint8_t frame = 0;  // emulated frames, glide clock
 
   // Render input latched at vblank so one screen never mixes two emulated
   // frames: fg codes (incl. sprite list), color banks, palette, ccb, 2 KB.
   // charram (24 KB, the gfx) stays live, like tutankhm's bitmap.
   Seqlock<cbdash_video::VideoState> vblank_state;
   cbdash_video::VideoState video = {};
+  cbdash_video::VideoState old = {};  // view before the last scroll step
+  cbdash_video::Scroll scroll = {0, 0, 0, 0, 0, 0, cbdash_video::DEFAULT_PERIOD, 0xff};
+  cbdash_video::ScrollView view = {};
   uint16_t pens[cbdash_video::PENS];
   cbdash_video::Sprite sprites[cbdash_video::SPRITES];
   uint8_t sprite_count = 0;
 
   void boot();
   void publishVideo();
+  void drawRows(uint8_t rows);
   uint8_t in0();
   uint8_t in2();
   static uint8_t main_read(m6502_t *cpu, uint16_t addr);

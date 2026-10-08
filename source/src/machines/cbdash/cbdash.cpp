@@ -24,6 +24,13 @@ static constexpr uint8_t SOUND_ACK_DATA = 0x40;   // data pending for the main C
 static constexpr uint8_t AY_REGS = 14;
 static constexpr uint8_t LED_FLASH_FRAMES = 8;
 
+// Playfield redraw (PC 1bb4..1c41): writes the camera, then counts the
+// cell rows left in ZP_DRAW_ROWS from 12 to 0, spread over ~1.5 frames.
+static constexpr uint16_t ZP_CAM_Y = 0x45;
+static constexpr uint16_t ZP_CAM_X = 0x46;
+static constexpr uint16_t ZP_DRAW_ROWS = 0x5a;
+static constexpr uint8_t MAX_PUBLISH_SKIPS = 3; // never freeze if the game reuses ZP_DRAW_ROWS
+
 // One frame = 17 slices of 16 scanlines (57.44 Hz, 272 lines), one sound
 // NMI each. Cycles per frame as on real hardware: 750 kHz main = 13057,
 // 500 kHz sound = 8705. Both CPUs interleaved, so back-to-back sound
@@ -84,6 +91,7 @@ void cbdash::boot() {
   ay_addr[0] = ay_addr[1] = 0;
   audio_nmi_enable = audio_reset = dongle_latch = coin_prev = false;
   led_flash = 0;
+  publish_skips = 0;
 
   cpu_main.read = main_read;
   cpu_main.write = main_write;
@@ -167,7 +175,13 @@ uint8_t cbdash::main_read(m6502_t *cpu, uint16_t addr) {
 void cbdash::main_write(m6502_t *cpu, uint16_t addr, uint8_t val) {
   cbdash *s = (cbdash *)cpu->user;
 
-  if (addr < 0xc000) { s->main_ram[addr] = val; return; }
+  if (addr < 0xc000) {
+    if (addr == ZP_DRAW_ROWS) {
+      s->drawRows(val);
+    }
+    s->main_ram[addr] = val;
+    return;
+  }
   if (addr < 0xc400) { s->memory[FG_RAM_OFFSET + (addr & 0x3ff)] = val; return; }
   if (addr < 0xc800) { s->memory[COLOR_RAM_OFFSET + (addr & 0x3ff)] = val; return; }
   if (addr < 0xcc00) { s->memory[FG_RAM_OFFSET + mirror(addr & 0x3ff)] = val; return; }
@@ -206,6 +220,16 @@ void cbdash::main_write(m6502_t *cpu, uint16_t addr, uint8_t val) {
       return;
   }
   // watchdog, video mode/scroll/center registers, coin counter: unused by cbdash
+}
+
+// redraw start: latch the camera the playfield is drawn for
+void cbdash::drawRows(uint8_t rows) {
+  if (!rows || main_ram[ZP_DRAW_ROWS]) {
+    return;
+  }
+  draw_cam_x = main_ram[ZP_CAM_X];
+  draw_cam_y = main_ram[ZP_CAM_Y];
+  draws++;
 }
 
 // ---------------------------------------------------------------------------
@@ -296,17 +320,47 @@ void cbdash::run_frame(void) {
 
 // latch render input at vblank start, as the hardware scans it out
 void cbdash::publishVideo() {
+  // a half drawn playfield tears: keep the last complete one
+  frame++;
+  if (main_ram[ZP_DRAW_ROWS] && publish_skips < MAX_PUBLISH_SKIPS) {
+    publish_skips++;
+    vblank_state.publish([this](cbdash_video::VideoState &v) {
+      v.frame = frame;
+    });
+    return;
+  }
+  publish_skips = 0;
+
   vblank_state.publish([this](cbdash_video::VideoState &v) {
+    v.frame = frame;
+    if (v.draws != draws) {
+      v.draw_frame = frame;
+    }
     memcpy(v.fg, memory + FG_RAM_OFFSET, sizeof(v.fg));
     memcpy(v.color, memory + COLOR_RAM_OFFSET, sizeof(v.color));
     memcpy(v.palette, palette_ram, sizeof(v.palette));
     v.ccb = ccb;
+    v.cam_x = draw_cam_x;
+    v.cam_y = draw_cam_y;
+    v.draws = draws;
   });
 }
 
 void cbdash::prepare_frame(void) {
   using namespace cbdash_video;
+
+  // camera moves: keep the current view as the glide source
+  bool moved = false;
+  vblank_state.visit([&](const VideoState &v) {
+    moved = v.cam_x != video.cam_x || v.cam_y != video.cam_y;
+  });
+  if (moved) {
+    memcpy(&old, &video, sizeof(old));
+  }
+
   vblank_state.read(video);
+  scrollUpdate(scroll, video, moved);
+  view = scrollView(scroll);
 
   // pen p shows palette RAM entry p ^ 16 (inverted A4)
   for (int p = 0; p < PENS; p++) {
@@ -316,6 +370,11 @@ void cbdash::prepare_frame(void) {
 }
 
 void cbdash::render_row(short row) {
+  using namespace cbdash_video;
+  if ((view.ox || view.oy) && row >= PF_FIRST_STRIP && row <= PF_LAST_STRIP) {
+    renderShifted(frame_buffer, row, main_ram + CHARRAM_ADDR, video, old, view, pens);
+    return;
+  }
   cbdash_video::renderStrip(frame_buffer, row, main_ram + CHARRAM_ADDR, video, pens, sprites, sprite_count);
 }
 
