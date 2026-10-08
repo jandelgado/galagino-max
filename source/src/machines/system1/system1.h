@@ -50,7 +50,7 @@ protected:
   };
   struct Config {
     system1_video::Visarea vis;
-    bool fireBoth;  // FIRE presses BUTTON1 + BUTTON2 (two weapon games)
+    bool extraButton2;  // START/COIN (EXTRA) presses BUTTON2 (Regulus: bomb)
   };
   system1(const Roms &roms, const Config &config);
 
