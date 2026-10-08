@@ -4,17 +4,20 @@
 #include "../machineBase.h"
 #include "../../cpus/m6502/m6502.h"
 #include "../../emulation/seqlock.h"
+#include "../../emulation/sidplayer.h"
 #include "cbdash_video.h"
 #include "cbdash_dipswitches.h"
 
 // Boulder Dash (Data East 1985), DECO Cassette, BIOS B, dongle type 5.
 // The tape boot (BIOS + i8041 + 150 s load) is replaced by RAM images cut
-// out of the cassette at romconv time.
+// out of the cassette at romconv time. Music is the C64 original
+// (cbdash_sid.h) instead of the AY arrangement, effects stay on the AYs.
 class cbdash : public machineBase {
   Asset<unsigned char, COMPRESSED> cbdash_rom_main;
   Asset<unsigned char, COMPRESSED> cbdash_rom_sound;
   Asset<unsigned char, COMPRESSED> cbdash_rom_bios;
   Asset<unsigned char, COMPRESSED> cbdash_rom_audio;
+  Asset<unsigned char, PLAIN> cbdash_sid;
 
 public:
   cbdash();
@@ -26,6 +29,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
+  void renderSid(int16_t *out, int n) override;
   static const Logo &logo(void);
 
 #ifdef LED_PIN
@@ -73,7 +77,18 @@ private:
   cbdash_video::Sprite sprites[cbdash_video::SPRITES];
   uint8_t sprite_count = 0;
 
+  // music: written by the emulation core, read by renderSid() (audio core)
+  // high byte: sequence, low byte: SID song, 0 = stopped
+  volatile uint16_t music_request = 0;
+  uint16_t music_seen = 0;  // audio core
+  bool sid_on = false;      // audio core
+  SidPlayer player;
+  PsidInfo tune = {};
+  bool tune_ok = false;
+
   void boot();
+  bool cueMusic(uint8_t cmd);
+  void stopMusic();
   void publishVideo();
   void drawRows(uint8_t rows);
   uint8_t in0();

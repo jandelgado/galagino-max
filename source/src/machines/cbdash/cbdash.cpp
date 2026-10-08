@@ -6,6 +6,7 @@
 #include "cbdash_rom_sound.h"
 #include "cbdash_rom_bios.h"
 #include "cbdash_rom_audio.h"
+#include "cbdash_sid.h"
 
 // HLE boot: CPU state at the BIOS jump into the game, measured in MAME
 static constexpr uint16_t MAIN_IMAGE_ADDR = 0x0500;
@@ -22,10 +23,47 @@ static constexpr uint8_t SOUND_CMD_MAIN_R = 0xc0; // e414 read, as MAME
 static constexpr uint8_t SOUND_ACK_CMD = 0x80;    // command pending for the sound CPU
 static constexpr uint8_t SOUND_ACK_DATA = 0x40;   // data pending for the main CPU
 static constexpr uint8_t AY_REGS = 14;
+
+// Sound commands (driver table at sound RAM $0881, MAME trace): 01 is the
+// only music the game plays (the C64 melody, from coin to game start),
+// cmd | 80 stops a sound (81 at game start), 00 is ignored by the driver.
+static constexpr uint8_t SND_MUSIC = 0x01;
+static constexpr uint8_t SND_STOP = 0x80;
+static constexpr uint8_t SND_NONE = 0x00;
+static constexpr uint8_t SID_SONG = 1;
+// the tune peaks at 300 of Sid::SAMPLE_MAX (2 of 3 voices): x 2, 0.1%
+// of the samples clip. Too quiet on the 8 bit DAC and speaker otherwise.
+static constexpr int32_t MUSIC_GAIN = 2;
+
 static constexpr uint8_t LED_FLASH_FRAMES = 8;
 
 // Playfield redraw (PC 1bb4..1c41): writes the camera, then counts the
 // cell rows left in ZP_DRAW_ROWS from 12 to 0, spread over ~1.5 frames.
+//
+// Smooth scroll. The game redraws the playfield once per tick (~11
+// frames) and scrolls in 16 px cell steps. We glide instead:
+//
+// 1. main_write -> drawRows(): ZP_DRAW_ROWS going 0 -> nonzero starts a
+//    redraw. Latch the camera, count draws.
+// 2. publishVideo(): while a redraw is in progress, publish only the
+//    frame counter, so a half drawn playfield never tears (max
+//    MAX_PUBLISH_SKIPS in a row).
+// 3. prepare_frame(): if the published camera moved, copy the render
+//    copy to old (+2 KB) before reading the new one. old supplies the
+//    band that scrolls out of the window.
+// 4. scrollUpdate(): measure the tick period in emulated frames (display
+//    frames jitter 5/6 at half rate). Glide only on a steady +-1 cell
+//    step, snap on cave change, first draw or jumps.
+// 5. scrollView(): offset runs 16 px -> 0 over one period, so the view
+//    starts at the old position and trails the camera by up to one tick:
+//
+//      tick:     cam 9 ------------- cam 10 ------------- cam 11
+//      display:  9 -- glide 16 px --> 10 -- glide 16 px --> 11
+//
+// 6. render_row(): playfield strips with a nonzero offset go through
+//    renderShifted(). Each tile comes from the current view, else from
+//    old shifted back one step, else background. HUD renders as usual.
+//    ROT270: cam_x moves along output columns, cam_y along strips.
 static constexpr uint16_t ZP_CAM_Y = 0x45;
 static constexpr uint16_t ZP_CAM_X = 0x46;
 static constexpr uint16_t ZP_DRAW_ROWS = 0x5a;
@@ -54,11 +92,20 @@ cbdash::cbdash()
   : cbdash_rom_main(cbdash_rom_main_blob),
     cbdash_rom_sound(cbdash_rom_sound_blob),
     cbdash_rom_bios(cbdash_rom_bios_blob),
-    cbdash_rom_audio(cbdash_rom_audio_blob) {
+    cbdash_rom_audio(cbdash_rom_audio_blob),
+    cbdash_sid(cbdash_sid_blob) {
   memset(&cpu_main, 0, sizeof(cpu_main));
   memset(&cpu_audio, 0, sizeof(cpu_audio));
   rom_bios = cbdash_rom_bios.data();
   rom_audio = cbdash_rom_audio.data();
+
+  tune_ok = psidParse(cbdash_sid.data(), cbdash_sid.size(), &tune);
+  if (tune_ok) {
+    tune_ok = player.load(tune, Arena::alloc<uint8_t>(tune.payload_len), tune.payload_len);
+  }
+  if (!tune_ok) {
+    printf("cbdash: cbdash_sid.h is not a supported PSID\n");
+  }
 }
 
 void cbdash::start() {
@@ -92,6 +139,7 @@ void cbdash::boot() {
   audio_nmi_enable = audio_reset = dongle_latch = coin_prev = false;
   led_flash = 0;
   publish_skips = 0;
+  stopMusic();
 
   cpu_main.read = main_read;
   cpu_main.write = main_write;
@@ -193,6 +241,7 @@ void cbdash::main_write(m6502_t *cpu, uint16_t addr, uint8_t val) {
     case 0xe400: // b0: sound CPU reset, active high
       s->audio_reset = (val & 0x01) != 0;
       if (s->audio_reset) {
+        s->stopMusic();
         s->audio_nmi_enable = false;
         m6502_reset(&s->cpu_audio);
       }
@@ -203,7 +252,7 @@ void cbdash::main_write(m6502_t *cpu, uint16_t addr, uint8_t val) {
       return;
 
     case 0xe414: // sound command: latch + IRQ to the sound CPU
-      s->sound_latch = val;
+      s->sound_latch = s->cueMusic(val) ? SND_NONE : val;
       s->sound_ack = (s->sound_ack | SOUND_ACK_CMD) & ~SOUND_ACK_DATA;
       s->cpu_audio.irq = 1;
       s->led_flash = LED_FLASH_FRAMES;
@@ -230,6 +279,50 @@ void cbdash::drawRows(uint8_t rows) {
   draw_cam_x = main_ram[ZP_CAM_X];
   draw_cam_y = main_ram[ZP_CAM_Y];
   draws++;
+}
+
+// next request for the audio core: sequence + 1, song
+static uint16_t nextRequest(uint16_t request, uint8_t song) {
+  return (uint16_t)(((request >> 8) + 1) << 8) | song;
+}
+
+// emulation core: music commands switch the SID tune, the sound CPU gets
+// SND_NONE instead so the AY arrangement never starts
+bool cbdash::cueMusic(uint8_t cmd) {
+  if ((cmd & ~SND_STOP) != SND_MUSIC) {
+    return false;
+  }
+  music_request = nextRequest(music_request, (cmd & SND_STOP) ? 0 : SID_SONG);
+  return true;
+}
+
+// emulation core: boot and sound CPU reset silence the music, as on the AY
+void cbdash::stopMusic() {
+  music_request = nextRequest(music_request, 0);
+}
+
+// audio core: tune starts run the 6502 init here
+void cbdash::renderSid(int16_t *out, int n) {
+  const uint16_t request = music_request;
+  if (tune_ok && request != music_seen) {
+    music_seen = request;
+    const uint8_t song = request & 0xff;
+    sid_on = song != 0;
+    if (sid_on) {
+      player.start(song);
+    }
+  }
+
+  if (!sid_on) {
+    memset(out, 0, n * sizeof(*out));
+    return;
+  }
+
+  player.render(out, n);
+  for (int i = 0; i < n; i++) {
+    const int32_t v = out[i] * MUSIC_GAIN;
+    out[i] = (int16_t)(v > Sid::SAMPLE_MAX ? Sid::SAMPLE_MAX : (v < -Sid::SAMPLE_MAX ? -Sid::SAMPLE_MAX : v));
+  }
 }
 
 // ---------------------------------------------------------------------------
