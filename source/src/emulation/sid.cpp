@@ -14,9 +14,10 @@ static const int32_t RELEASES[16] = {
   2320, 931, 465, 290, 232, 77, 46, 29};
 
 // 28 bit phase step per frequency register unit and sample:
-// 2^28 * 985248 Hz (PAL) / 2^24 / 24000 = 656.8. TinySID's 15872000 /
-// rate is 0.7% sharp.
-static const uint32_t FREQ_MUL = 657;
+// 2^28 * 985248 Hz (PAL) / 2^24 / 24000 = 656.8, NTSC 1022727 Hz: 681.8.
+// TinySID's 15872000 / rate is 0.7% sharp.
+static const uint32_t FREQ_MUL_PAL = 657;
+static const uint32_t FREQ_MUL_NTSC = 682;
 static const uint32_t PHASE_MASK = 0xfffffff;
 static const uint32_t PHASE_MSB = 0x8000000;
 
@@ -50,7 +51,8 @@ static inline uint32_t bit(uint32_t v, uint8_t b) { return (v >> b) & 1; }
 // 16.16 multiply, both operands pre-shifted to keep 32 bits
 static inline int32_t fmul(int32_t a, int32_t b) { return (a >> 8) * (b >> 8); }
 
-void Sid::reset() {
+void Sid::reset(SidClock clock) {
+  freq_mul = clock == SID_NTSC ? FREQ_MUL_NTSC : FREQ_MUL_PAL;
   memset(voice, 0, sizeof(voice));
   memset(osc, 0, sizeof(osc));
   for (int v = 0; v < 3; v++) {
@@ -99,7 +101,7 @@ void Sid::render(int16_t *out, int n) {
   uint32_t freq[3], pulse[3];
   int32_t attack[3], decay[3], sustain[3], release[3];
   for (int v = 0; v < 3; v++) {
-    freq[v] = voice[v].freq * FREQ_MUL;
+    freq[v] = voice[v].freq * freq_mul;
     pulse[v] = (uint32_t)(voice[v].pulse & 0xfff) << 16;
     attack[v] = ATTACKS[voice[v].ad >> 4];
     decay[v] = RELEASES[voice[v].ad & 0xf];

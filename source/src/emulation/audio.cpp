@@ -309,8 +309,8 @@ void Audio::transmit() {
       continue;
 
     // render the next audio chunk if data has actually been sent
-    if (machineType == MCH_COMMANDO)
-      commando_render_buffer();
+    if (machineType == MCH_COMMANDO || machineType == MCH_CBDASH)
+      sid_ay_render_buffer();
     else if (machineType == MCH_BUBLBOBL)
       sid_render_buffer();
     else if (AY > 0)
@@ -573,9 +573,9 @@ void Audio::bzone_render_buffer(void) {
   }
 }
 
-// Commando: C64 SID music from the machine's SidPlayer plus the SSG
-// sound effects of both YM2203
-void Audio::commando_render_buffer(void) {
+// C64 SID music from the machine's SidPlayer plus AY sound effects:
+// commando (SSG part of both YM2203), cbdash
+void Audio::sid_ay_render_buffer(void) {
   int16_t samples[64];
   currentMachine->renderSid(samples, 64);
   ay_render_buffer(samples);

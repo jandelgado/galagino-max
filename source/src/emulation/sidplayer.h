@@ -9,6 +9,7 @@
 struct PsidInfo {
   uint16_t load, init, play;
   uint8_t songs, start_song;
+  SidClock clock; // PSID v2+ flags, NTSC only if marked NTSC-only
   const uint8_t *payload; // C64 bytes from `load` on, points into the file
   uint16_t payload_len;
 };
@@ -18,7 +19,8 @@ struct PsidInfo {
 bool psidParse(const uint8_t *file, uint32_t len, PsidInfo *info);
 
 // Plays a PSID tune on Sid: the tune's own 6502 code runs on m6502, play
-// is called every 480 samples (50 Hz PAL VBI), independent of video.
+// is called every 480 samples (50 Hz PAL VBI) or 400 (60 Hz NTSC),
+// independent of video.
 // C64 memory is only $0000-$01FF (internal) and [load, load + ram_size)
 // (caller owned, e.g. Arena). Other accesses count as strays().
 //
@@ -28,7 +30,8 @@ bool psidParse(const uint8_t *file, uint32_t len, PsidInfo *info);
 //                       --> elsewhere    strays()
 class SidPlayer {
 public:
-  static const uint32_t PLAY_HZ = 50;
+  static const uint32_t PAL_PLAY_HZ = 50;
+  static const uint32_t NTSC_PLAY_HZ = 60;
 
   // false if the payload does not fit ram
   bool load(const PsidInfo &info, uint8_t *ram, uint16_t ram_size);
@@ -41,9 +44,8 @@ public:
   uint32_t strays() const { return stray_count; }
 
 private:
-  static const uint32_t SAMPLES_PER_PLAY = Sid::SAMPLE_RATE / PLAY_HZ;
   static const uint32_t INIT_MAX_CYCLES = 1000000;
-  static const uint32_t PLAY_MAX_CYCLES = 20000; // PAL frame: 19656
+  static const uint32_t PLAY_MAX_CYCLES = 20000; // PAL frame: 19656, NTSC 17045
   static const uint16_t LOW_SIZE = 0x200;        // zero page + stack
   static const uint16_t STACK = 0x100;
   static const uint16_t RETURN_PC = 0xffff;      // fake JSR return address
@@ -60,6 +62,7 @@ private:
   uint8_t *ram = nullptr;
   uint16_t ram_size = 0;
   uint8_t low[LOW_SIZE];
+  uint32_t samples_per_play = 0;
   uint32_t samples_to_play = 0;
   uint32_t stray_count = 0;
   bool playing = false;

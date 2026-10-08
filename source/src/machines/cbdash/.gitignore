@@ -2,3 +2,4 @@ cbdash_rom_main.h
 cbdash_rom_sound.h
 cbdash_rom_bios.h
 cbdash_rom_audio.h
+cbdash_sid.h
