@@ -110,7 +110,8 @@ enum {
   MCH_STARJACK,
   MCH_REGULUS,
   MCH_UPNDOWN,
-  MCH_CBDASH
+  MCH_CBDASH,
+  MCH_PHOZON
 };
 
 // one inst at 3Mhz ~ 500k inst/sec = 500000/60 inst per frame

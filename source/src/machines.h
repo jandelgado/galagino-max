@@ -176,6 +176,10 @@
   #include "machines/todruaga/todruaga.h"
 #endif
 
+#ifdef ENABLE_PHOZON
+  #include "machines/phozon/phozon.h"
+#endif
+
 #ifdef ENABLE_VANVAN
   #include "machines/vanvan/vanvan.h"
 #endif
@@ -742,6 +746,13 @@ machineInfo machines[] = {
     cbdash::menuLeds,
 #endif
     MCH_CBDASH },
+#endif
+#ifdef ENABLE_PHOZON
+  { []() -> machineBase* { return new phozon(); }, phozon::logo,
+#ifdef LED_PIN
+    phozon::menuLeds,
+#endif
+    MCH_PHOZON },
 #endif
 #ifdef ENABLE_COMMANDO
   { []() -> machineBase* { return new commando(); }, commando::logo,
