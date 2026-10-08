@@ -13,6 +13,21 @@ static const uint16_t SPRITE_BANK1 = 0x0F80;      // code, color
 static const uint16_t SPRITE_BANK2 = 0x1780;      // y, x
 static const uint16_t SPRITE_BANK3 = 0x1F80;      // flags, enable / x msb
 
+// idle loops, left only through the CPU's own vblank IRQ, which sets the
+// polled flag (MAME trace + write taps): stepping them is wasted
+static const uint16_t MAIN_IDLE_PC = 0x8029;      // LDA $0827 / BEQ $8029
+static const uint16_t MAIN_VBLANK_FLAG = 0x0827;
+static const uint16_t SUB_IDLE_PC = 0xE171;       // LDA $0828 / BEQ $E171
+static const uint16_t SUB_VBLANK_FLAG = 0x0828;
+static const uint16_t SOUND_IDLE_PC = 0xE0B5;     // BRA $E0B5
+static const uint16_t IDLE_BEQ_OFS = 3;           // BEQ after the 3 byte LDA
+
+// slices of 4 instructions over a 2 instruction loop: a slice can end on
+// either instruction, depending on where the loop was entered
+static inline bool in_poll_loop(uint16_t pc, uint16_t loop) {
+  return (uint16_t)(pc - loop) <= IDLE_BEQ_OFS;
+}
+
 static const short WIDTH = 224;                   // frame_buffer row stride
 static const int16_t SPRITE_X_OFFSET = 69;        // MAME: sx = x - 69
 
@@ -242,11 +257,23 @@ unsigned char IRAM_ATTR phozon::m6809_read_opcode(m6809_state *s, uint16_t addr)
 
 void phozon::run_frame(void) {
   for (int i = 0; i < PHOZON_SLICES; i++) {
-    m6809_step(&main_cpu, 4);
-    if (!sound_reset) {
+    // idle decided per slice: the main CPU can release the others from
+    // reset mid-frame. Flag checked too: an RTI can land on the idle PC
+    // with the flag already set.
+    bool main_idle = in_poll_loop(main_cpu.PC, MAIN_IDLE_PC) && !memory[MAIN_VBLANK_FLAG];
+    bool sound_idle = sound_reset || sound_cpu.PC == SOUND_IDLE_PC;
+    bool sub_idle = sub_reset || (in_poll_loop(sub_cpu.PC, SUB_IDLE_PC) && !memory[SUB_VBLANK_FLAG]);
+    if (main_idle && sound_idle && sub_idle) {
+      break;
+    }
+
+    if (!main_idle) {
+      m6809_step(&main_cpu, 4);
+    }
+    if (!sound_idle) {
       m6809_step(&sound_cpu, 4);
     }
-    if (!sub_reset) {
+    if (!sub_idle) {
       m6809_step(&sub_cpu, 4);
     }
   }
