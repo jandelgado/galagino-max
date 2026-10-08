@@ -83,7 +83,7 @@ private:
   enum TilePass { TILES_ALL, TILES_PRIO };
 
   void render_tiles(short row, TilePass pass);
-  void blit_tile(short row, char col, TilePass pass);
+  void blit_tile(short row, uint8_t col, TilePass pass);
   void render_sprites(short row);
   void blit_cell(short row, uint16_t code, uint8_t color, short x, short y);
 

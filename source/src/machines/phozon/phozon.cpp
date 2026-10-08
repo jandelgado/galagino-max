@@ -4,8 +4,17 @@
 
 static_assert(PHOZON_SUB_RAM_OFF + PHOZON_SUB_RAM_SIZE <= RAMSIZE, "phozon RAM exceeds memory[]");
 
-static const uint16_t VIDEORAM_END = 0x2000;      // main/sub shared RAM
+static const uint16_t SHARED_RAM_END = 0x2000;    // main/sub video + work RAM
 static const uint16_t WSG_REGS = 0x40;            // 15XX registers at shared RAM start
+static const uint16_t ATTR_OFF = 0x400;           // tile attributes after tile codes
+
+// sprite RAM banks MAME phozon_draw_sprites reads (main CPU addresses)
+static const uint16_t SPRITE_BANK1 = 0x0F80;      // code, color
+static const uint16_t SPRITE_BANK2 = 0x1780;      // y, x
+static const uint16_t SPRITE_BANK3 = 0x1F80;      // flags, enable / x msb
+
+static const short WIDTH = 224;                   // frame_buffer row stride
+static const int16_t SPRITE_X_OFFSET = 69;        // MAME: sx = x - 69
 
 phozon::phozon()
   : phozon_rom_main(phozon_rom_main_blob),
@@ -17,7 +26,8 @@ phozon::phozon()
     rom_sound(phozon_rom_sound.data()),
     rom_sub(phozon_rom_sub.data()),
     tiles(phozon_tilemap.data()),
-    sprites(phozon_sprites.data()) { }
+    sprites(phozon_sprites.data()),
+    n_blocks(0) { }
 
 void phozon::reset() {
   machineBase::reset();
@@ -123,7 +133,7 @@ void IRAM_ATTR phozon::shared_w(uint16_t off, uint8_t val) {
 }
 
 uint8_t IRAM_ATTR phozon::main_r(uint16_t addr) {
-  if (addr < VIDEORAM_END) {
+  if (addr < SHARED_RAM_END) {
     return memory[addr];
   }
   if ((addr & 0xFC00) == 0x4000) {
@@ -139,7 +149,7 @@ uint8_t IRAM_ATTR phozon::main_r(uint16_t addr) {
 }
 
 void IRAM_ATTR phozon::main_w(uint16_t addr, uint8_t val) {
-  if (addr < VIDEORAM_END) {
+  if (addr < SHARED_RAM_END) {
     memory[addr] = val;
     if (!game_started && addr < 0x0800 && val != 0) {
       game_started = 1;
@@ -161,7 +171,7 @@ void IRAM_ATTR phozon::main_w(uint16_t addr, uint8_t val) {
 }
 
 uint8_t IRAM_ATTR phozon::sub_r(uint16_t addr) {
-  if (addr < VIDEORAM_END) {
+  if (addr < SHARED_RAM_END) {
     return memory[addr];
   }
   if ((addr & 0xFC00) == 0x4000) {
@@ -177,7 +187,7 @@ uint8_t IRAM_ATTR phozon::sub_r(uint16_t addr) {
 }
 
 void IRAM_ATTR phozon::sub_w(uint16_t addr, uint8_t val) {
-  if (addr < VIDEORAM_END) {
+  if (addr < SHARED_RAM_END) {
     memory[addr] = val;
     return;
   }
@@ -243,9 +253,9 @@ void phozon::run_frame(void) {
 
   // latch the sprite tables before the vblank IRQ handlers rewrite them
   vblank.publish([this](VideoState &v) {
-    memcpy(v.s1, &memory[0x0F80], sizeof(v.s1));
-    memcpy(v.s2, &memory[0x1780], sizeof(v.s2));
-    memcpy(v.s3, &memory[0x1F80], sizeof(v.s3));
+    memcpy(v.s1, &memory[SPRITE_BANK1], sizeof(v.s1));
+    memcpy(v.s2, &memory[SPRITE_BANK2], sizeof(v.s2));
+    memcpy(v.s3, &memory[SPRITE_BANK3], sizeof(v.s3));
   });
 
   // vblank: IRQ to every CPU whose mask is set, then the namcoio run the
@@ -345,20 +355,20 @@ void phozon::prepare_frame(void) {
     b->sizex = SIZE[(flags >> 2) & 3];
     b->sizey = SIZE[(flags >> 4) & 3];
 
-    int16_t sx = video.s2[offs + 1] + 0x100 * (video.s3[offs + 1] & 1) - 69;
+    int16_t sx = video.s2[offs + 1] + 0x100 * (video.s3[offs + 1] & 1) - SPRITE_X_OFFSET;
     int16_t sy = 256 - video.s2[offs] - 8 * b->sizey;
     sy = (sy & 0xFF) - 32;   // wraparound
 
-    b->x = 216 - sy;   // ROT90: column = 223 - MAME y, cell is 8 wide
+    b->x = (WIDTH - 8) - sy;   // ROT90: column = 223 - MAME y, cell is 8 wide
     b->y = sx;
   }
 }
 
 // tilemap 36x28, no scroll. Pass TILES_ALL is opaque; TILES_PRIO redraws
 // attr bit6 tiles over the sprites with lookup 15 transparent (cmap 0)
-void phozon::blit_tile(short row, char col, TilePass pass) {
+void phozon::blit_tile(short row, uint8_t col, TilePass pass) {
   uint16_t addr = tileaddr[row][col];
-  uint8_t attr = memory[0x400 + addr];
+  uint8_t attr = memory[ATTR_OFF + addr];
   if (pass == TILES_PRIO && !(attr & 0x40)) {
     return;
   }
@@ -368,7 +378,7 @@ void phozon::blit_tile(short row, char col, TilePass pass) {
                                                       : phozon_colormap_tiles[attr & 0x3F];
 
   unsigned short *ptr = frame_buffer + 8 * col;
-  for (uint8_t r = 0; r < 8; r++, ptr += 224) {
+  for (uint8_t r = 0; r < 8; r++, ptr += WIDTH) {
     unsigned short pix = tile[r];
     for (uint8_t c = 0; c < 8; c++, pix >>= 2) {
       unsigned short color = colors[pix & 3];
@@ -388,15 +398,16 @@ void phozon::blit_cell(short row, uint16_t code, uint8_t color, short x, short y
   short first = (y < top) ? top : y;
   short last = (y + 8 > top + 8) ? top + 8 : y + 8;
   uint8_t c0 = (x < 0) ? -x : 0;
-  uint8_t c1 = (x > 224 - 8) ? 224 - x : 8;
+  uint8_t c1 = (x > WIDTH - 8) ? WIDTH - x : 8;
 
-  unsigned short *ptr = frame_buffer + 224 * (first - top) + x;
-  for (short line = first; line < last; line++, ptr += 224) {
+  // ptr points at the first visible column, never before frame_buffer
+  unsigned short *ptr = frame_buffer + WIDTH * (first - top) + x + c0;
+  for (short line = first; line < last; line++, ptr += WIDTH) {
     unsigned short pix = cell[line - y] >> (2 * c0);
     for (uint8_t c = c0; c < c1; c++, pix >>= 2) {
       unsigned short col = colors[pix & 3];
       if (col) {
-        ptr[c] = col;
+        ptr[c - c0] = col;
       }
     }
   }
@@ -424,7 +435,7 @@ void phozon::render_sprites(short row) {
 
       for (uint8_t cy = 0; cy <= b->sizey; cy++) {
         short x = b->x - 8 * cy;
-        if (x >= 224 || x + 8 <= 0) {
+        if (x >= WIDTH || x + 8 <= 0) {
           continue;
         }
         uint16_t code = (b->code + GFX_OFFS[cy ^ (b->sizey * b->flipy)][cx ^ (b->sizex * b->flipx)]) & 0x1FF;
@@ -435,7 +446,7 @@ void phozon::render_sprites(short row) {
 }
 
 void phozon::render_tiles(short row, TilePass pass) {
-  for (char col = 0; col < 28; col++) {
+  for (uint8_t col = 0; col < 28; col++) {
     blit_tile(row, col, pass);
   }
 }

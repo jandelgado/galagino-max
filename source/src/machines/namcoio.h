@@ -105,13 +105,15 @@ private:
     }
   }
 
-  int coin_inserted(uint8_t slot) {
+  // credit_add changes only when this coin completes a credit
+  void coin_inserted(uint8_t slot, int &credit_add) {
     coins[slot]++;
     if (coins[slot] >= (coins_per_cred[slot] & 7)) {
+      credit_add = creds_per_coin[slot] - (coins_per_cred[slot] >> 3);
       coins[slot] -= coins_per_cred[slot] & 7;
-      return creds_per_coin[slot] - (coins_per_cred[slot] >> 3);
+    } else if (coins_per_cred[slot] & 8) {
+      credit_add = 1;
     }
-    return (coins_per_cred[slot] & 8) ? 1 : 0;
   }
 
   // the chip counts coins and starts itself, reports credits in BCD;
@@ -124,10 +126,10 @@ private:
     lastcoins = val;
 
     if (val & toggled & 0x01) {
-      credit_add = coin_inserted(0);
+      coin_inserted(0, credit_add);
     }
     if (val & toggled & 0x02) {
-      credit_add = coin_inserted(1);
+      coin_inserted(1, credit_add);
     }
     if (val & toggled & 0x08) {   // service coin
       credit_add = 1;
