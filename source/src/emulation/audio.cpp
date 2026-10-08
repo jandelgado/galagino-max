@@ -318,7 +318,8 @@ void Audio::transmit() {
       namco_render_buffer();
     else if (currentMachine->hasNamco15xxAudio())
       namco_15xx_render_buffer();
-    else if (machineType == MCH_MRDO || machineType == MCH_LADYBUG || machineType == MCH_STARFORCE || machineType == MCH_BALUBA || machineType == MCH_VANVAN || machineType == MCH_CIRCUSC || machineType == MCH_ROADFIGHTER)
+    else if (machineType == MCH_MRDO || machineType == MCH_LADYBUG || machineType == MCH_STARFORCE || machineType == MCH_BALUBA || machineType == MCH_VANVAN || machineType == MCH_CIRCUSC || machineType == MCH_ROADFIGHTER ||
+             machineType == MCH_STARJACK)
       sn76489_render_buffer();
     else if (machineType == MCH_DKONG || machineType == MCH_DKONGJR)
       i8048_render_buffer();
@@ -894,11 +895,13 @@ void Audio::i8048_render_buffer(void) {
 }
 
 void Audio::sn76489_render_buffer(void) {
-  int sn_inc = 11;  // SN_CLOCK / SAMPLE_RATE
+  int sn_inc[NUM_SN_CHIPS] = {11, 11, 11};  // SN_CLOCK / 16 / SAMPLE_RATE per chip
   #ifdef ENABLE_ROADFIGHTER
   // roadf: SN76489A @ 1.79 MHz (XTAL 14.318/8) -> note molto piu' basse di gigas.
-  if (machineType == MCH_ROADFIGHTER) sn_inc = 5;
+  if (machineType == MCH_ROADFIGHTER) sn_inc[0] = sn_inc[1] = sn_inc[2] = 5;
   #endif
+  // System 1: sn1 2 MHz, sn2 4 MHz
+  if (machineType == MCH_STARJACK) sn_inc[0] = 5;
 
   // Volumi con hold
   int vol[NUM_SN_CHIPS][4];
@@ -925,7 +928,7 @@ void Audio::sn76489_render_buffer(void) {
         int period = currentMachine->sn_period[chip][c];
 
         if (vol[chip][c] < 15 && period > 0) {
-          sn_counter[chip][c] -= sn_inc;
+          sn_counter[chip][c] -= sn_inc[chip];
 
           while (sn_counter[chip][c] <= 0) {
             if (c == 3) {  // Noise channel
