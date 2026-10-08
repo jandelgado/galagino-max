@@ -36,6 +36,25 @@ GAMES = {
                     ("epr-5319.93", "bb331be270dc1da63699533d9f02d73ce28f1bc5")],
         "lookup": [("pr-5317.106", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
     },
+    # regulusu: unencrypted set, files in subdir regulusu/ of regulus.zip
+    "regulus": {
+        "main": [("regulusu/epr-5950.129", "0164cb919a50013f23568f59caff19ff2d0bf11f"),
+                 ("regulusu/epr-5951.130", "9e339c716c646bd02bedbe27096b75f633554e7c"),
+                 ("regulusu/epr-5952.131", "9b6d8b2e0a0bec45bfbb9f8ccc728e18e909685f"),
+                 ("regulusu/epr-5953.132", "1e051595aff34db06186542bcfc3849bc88eb5d4"),
+                 ("epr-5644.133", "6fe471548d227d834c012d5d148b1ea1c12dfd00"),
+                 ("regulusu/epr-5955.134", "4f94eaac900da5ca512289e2339776b1139e03e1")],
+        "sound": [("epr-5652.3", "bc181c73a6009ca723e715650adb920b77bd311c")],
+        "tiles": [("epr-5651.82", "f86acf2de639ac89f80cdf627d1d6b5f5e4f1557"),
+                  ("epr-5650.65", "27ba8e2bb820913e58cb029da9c18d35e67728b8"),
+                  ("epr-5649.81", "28f74bcf1e6bc06db0984dcf86dd527e301b0c01"),
+                  ("epr-5648.64", "1ee18562250468f8f09a3062705422c28c740674"),
+                  ("epr-5647.80", "2c1be04de6ec652ea8a566eb0eb1a9bcb4c90e66"),
+                  ("epr-5646.63", "e34d1e1aaf3ae7a138e75df5dedebfb4acd79340")],
+        "sprites": [("epr-5638.86", "c8024f541086a8a940e21219fa4522646aeb365a"),
+                    ("epr-5639.93", "033bf46d2625f99544a784fe3fa299cc1b1b48e1")],
+        "lookup": [("pr-5317.106", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
+    },
 }
 
 
