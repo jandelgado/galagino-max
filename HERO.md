@@ -136,6 +136,14 @@ room  F7 F8 F9 FA FB FC FD FE
 
 ### Band objects
 
+- Top band (`$F9`): the lamp (fixed sprite pointers `$CD` = `$64`, `$D0` =
+  `$8E`, `$F400`). Shooting it (laser M1 vs P0 in band 2) sets `$A4` bit 0:
+  darkness. Middle/bottom bands (`$F8`/`$F7`): critters, type = bits 1-0
+  (all four types occur in both bands; 0: 57/68 rooms, 1: 37/49, 2: 54/81,
+  3: 20/14). `$FE` bit 1 (lava middle band) is set in 177 rooms, from room 21.
+- MAME captures need `$A1-$A3` = 0 (alive) poked as well, else critters stay
+  hidden (`$32` = dead).
+
 - Object x positions `$A5-$A7`, per band state `$A1-$A3`
   (`$32` = destroyed/inactive), "being lasered" timers `$F7-$F9`.
 - Type (`$F700`/`$F800` bits 1-0) selects the sprite pointer `$85+type` and
