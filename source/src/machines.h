@@ -179,6 +179,9 @@
 #ifdef ENABLE_PHOZON
   #include "machines/phozon/phozon.h"
 #endif
+#ifdef ENABLE_GBERET
+  #include "machines/gberet/gberet.h"
+#endif
 
 #ifdef ENABLE_VANVAN
   #include "machines/vanvan/vanvan.h"
@@ -753,6 +756,13 @@ machineInfo machines[] = {
     phozon::menuLeds,
 #endif
     MCH_PHOZON },
+#endif
+#ifdef ENABLE_GBERET
+  { []() -> machineBase* { return new gberet(); }, gberet::logo,
+#ifdef LED_PIN
+    gberet::menuLeds,
+#endif
+    MCH_GBERET },
 #endif
 #ifdef ENABLE_COMMANDO
   { []() -> machineBase* { return new commando(); }, commando::logo,
