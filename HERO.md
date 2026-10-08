@@ -195,6 +195,33 @@ hero reappears at x `$FFAC[dir]` (`93`, `0f`). `$9E` tracks the furthest screen.
   frame to y `$DAFC[x]`, then waits; the first joystick move with `$AF` set
   clears `$AD` and sets `$E9` = `$1F` (hover).
 
+## Overscan rules (bank 0 `$D7B6-$D9DF`, from code)
+
+- Death (`$DE6B`): `$AE` = band, `$AD` = `$FF`, counted down by the death
+  and respawn sequence (`$D7B6`).
+- Dynamite (`$D8E3`): while standing (`$AC`), with dynamite left (`$B2`),
+  joystick exactly DOWN (`$84` = `$D0`), x a multiple of 4 and x >= `$0D`:
+  placed in band 2 (y >= `$62`) or band 1 at the hero's x (`$A8,x`), fuse
+  `$DE,x` = `$40`, counted down per frame (`$F454`).
+- Explosion at fuse `$1F` (`$D94B`): one dynamite used (`$B2`). Band object
+  (critter, `$A1,x` != `$32`) with x in [`$A5,x` - `$13`, `$A5,x` + `$10`):
+  killed, `$F7,x` = `$13`, 50 points. Ball wall with `$A0` < `$99` and the
+  dynamite x in [`$A0` - `$0E`, `$A0` + `$0D`]: destroyed (`$A0` = 0), 75
+  points, `$FA` = `$75` (right edge walls, `$A0` = `$99`, are not). So the destructible walls are the ball walls (start wall x 60 on
+  screen 0, edge walls). Hero within 17 px horizontally and y in
+  [`$DBFC,x`, `$DAFF,x`): pushed and killed.
+- Rescue (`$D912`): on the miner screen (`$D065[level]`), hero x within 15 px
+  of `$A9` - 7: 1000 points, `$F2` = `$FF` (level done, bonus count).
+- Power `$AB`: refilled at level start to `$51` (81 units, `$D9C7`), then
+  `$AF` = `$FF` starts the drain: 1 unit per 64 frames (`$81 & $3F`); empty
+  -> death (`$D93C`).
+- Collision bytes per band (`$D88B`, latch addresses to verify with
+  traces): `$D4,x` bit 7 set and no hit timer: band 2 -> `$A4` = 1 (lamp
+  out, darkness), else critter killed, 50 points, `$F7,x` = `$13`. `$D1,x`
+  bit 7 -> band 2: lamp, else death (`$DE6B`, critter touched). Hero vs
+  playfield (`$E2,x` bits 7-6) in a band whose colour is `$4x` (lava): death
+  in that band (or the neighbour, by y).
+
 ## Game rules (from code)
 
 - Game number `$80` (bits 6-0), start level `$FF6D[game]` = 0, 4, 8, 12, 16
