@@ -107,7 +107,8 @@ enum {
   MCH_STARWARS,
   MCH_MISSILE,
   MCH_MPATROL,
-  MCH_STARJACK
+  MCH_STARJACK,
+  MCH_REGULUS
 };
 
 // one inst at 3Mhz ~ 500k inst/sec = 500000/60 inst per frame
