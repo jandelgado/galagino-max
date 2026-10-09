@@ -180,8 +180,10 @@ static void bandLine(const Frame &f, int line, uint8_t *dst) {
   playfield(f.cells[band], dark ? v.hue : v.band_color[band], dst);
 }
 
-// $D12C: rounded top edge, no ball yet
+// $D12C: rounded top edge; ENABL turns the ball on during its last line,
+// about pixel 44 ($D14F)
 static void capLine(const VideoState &v, int y, uint8_t *dst) {
+  static const int BALL_ON_X = 44;
   const int x = 4 - y;
   memset(dst, idx(v.background), SRC_W);
   Band b = v.band[BAND_TOP];
@@ -189,7 +191,10 @@ static void capLine(const VideoState &v, int y, uint8_t *dst) {
   b.pf0 = b0(CAP_PF0 + x);
   b.pf1 &= mask;
   b.pf2 &= mask;
-  playfield(cells(b), b0(CAP_LUM + x) | v.hue, dst);
+  uint64_t c = cells(b);
+  const int ball = v.ball - 1;
+  if (x == 0 && v.ball && ball >= BALL_ON_X) { c |= (v.ball_w == 8 ? 3ull : 1ull) << (ball / 4); }
+  playfield(c, b0(CAP_LUM + x) | v.hue, dst);
 }
 
 // $D30C: floor waves, water shows through on deep and miner screens
@@ -230,8 +235,10 @@ static void hudLine(const VideoState &v, int y, uint8_t *dst) {
     const int x = 4 - (y - POWER_Y);
     const uint8_t text[3] = {b0(0xde72 + x), b0(0xde77 + x), b0(0xde7c + x)};
     for (int i = 0; i < 3; i++) { sprite(POWER_TEXT_X + 8 * i, Row{text[i], LABEL_COLOR}, dst); }
-    const int end = POWER_BAR_X - 2 + v.power;
-    for (int p = POWER_BAR_X; p < POWER_BAR_END; p++) { dst[p] = idx(p < end ? POWER_COLOR : POWER_USED); }
+    // full power reaches into the grey: the bar ends at 127
+    const int end = POWER_BAR_X + v.power;
+    const int used_end = end < POWER_BAR_END - 1 ? POWER_BAR_END : POWER_BAR_END - 1;
+    for (int p = POWER_BAR_X; p < used_end; p++) { dst[p] = idx(p < end ? POWER_COLOR : POWER_USED); }
   } else if (y >= LIVES_Y && y < LIVES_Y + 13) {
     if (v.lives > 1) { icons(v.lives - 1 > 6 ? 6 : v.lives - 1, 0xdda9, 0xddb7, 12 - (y - LIVES_Y), dst); }
   } else if (y >= DYNAMITE_Y && y < DYNAMITE_Y + 11) {
@@ -240,6 +247,27 @@ static void hudLine(const VideoState &v, int y, uint8_t *dst) {
     const int row = 7 - (y - TEXT_Y);
     for (int i = 0; i < 6; i++) { sprite(TEXT_X + 8 * i, Row{b0(0xdf00 + v.text[i] + row), v.text_color}, dst); }
   }
+}
+
+// $D4BD: the copyright text's bottom rows, then the logo's top rows; the
+// attract mode flips between the two
+static void logoLine(const VideoState &v, int line, uint8_t *dst) {
+  static const int LOGO_X = 64;  // 5 graphics bytes
+  static const int RAINBOW_X = 56;
+  static const int RAINBOW_W = 12; // PF2 $1C
+  const int k = v.copyright - (line - LOGO_Y);
+  if (k >= 0) { // copyright rows k..0
+    for (int i = 0; i < 6; i++) { sprite(TEXT_X + 8 * i, Row{b0(0xdfa8 + 8 * i + k), LABEL_COLOR}, dst); }
+    return;
+  }
+  const int r = 7 - (line - LOGO_Y - v.copyright - 1); // logo rows 7..copyright
+  if (r < 0) { return; }
+  const uint8_t rainbow = idx(b0(0xddec + r));
+  memset(dst + RAINBOW_X, rainbow, RAINBOW_W);
+  // the ball, moved 1 px left per line, tapers the rainbow
+  const int ball = RAINBOW_X + RAINBOW_W - (7 - r);
+  memset(dst + ball - 1, rainbow, 8);
+  for (int i = 0; i < 5; i++) { sprite(LOGO_X + 8 * i, Row{b0(0xdf80 + 8 * i + r), LABEL_COLOR}, dst); }
 }
 
 void composeLine(const Frame &f, int line, uint8_t *dst) {
@@ -253,6 +281,9 @@ void composeLine(const Frame &f, int line, uint8_t *dst) {
     floorLine(f.v, line - FLOOR_Y, dst);
   } else if (line >= HUD_Y && line < HUD_END) {
     hudLine(f.v, line - HUD_Y, dst);
+  } else if (line >= LOGO_Y) {
+    logoLine(f.v, line, dst);
+    return;
   } else {
     return;
   }

@@ -24,6 +24,7 @@ static const int BOTTOM_Y = 86; // 39 lines, first dark
 static const int FLOOR_Y = 125; // 4 lines of waves ($D351)
 static const int HUD_Y = 129;   // 47 lines, grey ($D373)
 static const int HUD_END = 176;
+static const int LOGO_Y = 179;  // copyright text and Activision logo, 9 lines
 
 static const uint8_t HUD_COLOR = 0x04;
 static const uint8_t BLACK = 0x00;
@@ -68,6 +69,7 @@ struct VideoState {
   uint8_t text[6];                        // glyph pointers into page $DF
   uint8_t text_color;
   uint8_t blank;                          // VBLANK on: screen saver
+  uint8_t copyright;                      // $D47F: 0 logo .. 7 copyright text
 };
 
 // TIA collision latches of one kernel pass (bit 7 set = hit), as the

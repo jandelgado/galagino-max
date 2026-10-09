@@ -757,6 +757,8 @@ static void hudText(const Game &g, VideoState &v) {
     v.text[5] = 0xe0;
   }
   v.text_color = v.text[0] == 0x60 ? 0x1c : 0x0c;
+  const uint8_t t = g.demo & 0x1f; // $D47F
+  v.copyright = t >= 0x14 ? 7 : (t < 0x0c ? 0 : t - 0x0c);
   v.power = g.power;
   v.lives = g.lives;
   v.dynamite = g.dynamite;
