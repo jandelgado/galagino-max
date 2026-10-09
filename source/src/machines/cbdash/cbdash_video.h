@@ -172,6 +172,36 @@ inline uint8_t collectSprites(const VideoState &v, Sprite out[SPRITES]) {
   return n;
 }
 
+// bit i of a plane byte to bit 4i: one nibble per pixel
+constexpr uint32_t spread(uint32_t b) {
+  return (b & 1) | (b & 2) << 3 | (b & 4) << 6 | (b & 8) << 9 | (b & 16) << 12 | (b & 32) << 15 |
+         (b & 64) << 18 | (b & 128) << 21;
+}
+
+#define CBDASH_SPREAD4(b) spread(b), spread(b + 1), spread(b + 2), spread(b + 3)
+#define CBDASH_SPREAD16(b) CBDASH_SPREAD4(b), CBDASH_SPREAD4(b + 4), CBDASH_SPREAD4(b + 8), CBDASH_SPREAD4(b + 12)
+#define CBDASH_SPREAD64(b) CBDASH_SPREAD16(b), CBDASH_SPREAD16(b + 16), CBDASH_SPREAD16(b + 32), CBDASH_SPREAD16(b + 48)
+constexpr uint32_t SPREAD[256] = {CBDASH_SPREAD64(0), CBDASH_SPREAD64(64), CBDASH_SPREAD64(128),
+                                  CBDASH_SPREAD64(192)};
+#undef CBDASH_SPREAD4
+#undef CBDASH_SPREAD16
+#undef CBDASH_SPREAD64
+
+// 8 pens of char line y, pen of pixel k (plane bit k) in nibble k: three
+// lookups instead of 24 bit extractions per line
+inline uint32_t linePens(const uint8_t *p, int y) {
+  return SPREAD[p[y]] | SPREAD[p[PLANE_SIZE + y]] << 1 | SPREAD[p[2 * PLANE_SIZE + y]] << 2;
+}
+
+// char pen -> color, pen 0 shows the background pen
+inline void charLut(uint16_t *lut, const uint16_t *pal, uint8_t ccb) {
+  const uint16_t *cpal = pal + (ccb & 1) * 8;
+  lut[0] = pal[BG_PEN];
+  for (int i = 1; i < 8; i++) {
+    lut[i] = cpal[i];
+  }
+}
+
 inline uint8_t planePen(const uint8_t *p, int bit) {
   return ((p[0] >> bit) & 1) | (((p[PLANE_SIZE] >> bit) & 1) << 1) | (((p[2 * PLANE_SIZE] >> bit) & 1) << 2);
 }
@@ -209,8 +239,8 @@ inline void renderStrip(uint16_t *fb, int row, const uint8_t *charram, const Vid
   const uint8_t tile_col = LAST_STRIP - row;
   const uint8_t *codes = v.fg + fgOffset(tile_col, 0);
   const uint8_t *banks = v.color + fgOffset(tile_col, 0);
-  const uint16_t *cpal = pal + (v.ccb & 1) * 8;
-  const uint16_t bg = pal[BG_PEN];
+  uint16_t lut[8];
+  charLut(lut, pal, v.ccb);
 
   for (int tr = FIRST_TILE_ROW; tr <= LAST_TILE_ROW; tr++) {
     uint16_t code = codes[tr] | ((banks[tr] & 3) << 8);
@@ -218,10 +248,9 @@ inline void renderStrip(uint16_t *fb, int row, const uint8_t *charram, const Vid
     uint16_t *out = fb + tr * 8 - VIS_Y0;
 
     for (int y = 0; y < 8; y++) {
-      uint8_t b0 = p[y], b1 = p[PLANE_SIZE + y], b2 = p[2 * PLANE_SIZE + y];
-      for (int k = 0; k < 8; k++) {
-        uint8_t pen = ((b0 >> k) & 1) | (((b1 >> k) & 1) << 1) | (((b2 >> k) & 1) << 2);
-        out[k * OUT_WIDTH + y] = pen ? cpal[pen] : bg;
+      uint32_t pens = linePens(p, y);
+      for (int k = 0; k < 8; k++, pens >>= 4) {
+        out[k * OUT_WIDTH + y] = lut[pens & 7];
       }
     }
   }
@@ -267,31 +296,21 @@ inline int tileOf(int x) {
 // strip lines k0..k1-1, all in window tile column col, line k0 at plane bit bit0
 inline void shiftedLines(uint16_t *fb, int k0, int k1, int bit0, int col, const uint8_t *charram,
                          const VideoState &v, const VideoState &old, const ScrollView &s,
-                         const uint16_t *cpal, uint16_t bg) {
+                         const uint16_t *lut) {
   const int row0 = tileOf(VIS_Y0 + s.ox);
   const int row1 = tileOf(VIS_Y1 - 1 + s.ox);
 
   for (int tr = row0; tr <= row1; tr++) {
     const uint8_t *p = windowTile(charram, v, old, s, col, tr);
     const int out0 = tr * 8 - VIS_Y0 - s.ox;
+    const int y0 = out0 < 0 ? -out0 : 0;  // clip the partial tiles at both ends
+    const int y1 = out0 + 8 > OUT_WIDTH ? OUT_WIDTH - out0 : 8;
 
-    for (int y = 0; y < 8; y++) {
-      const int out = out0 + y;
-      if (out < 0 || out >= OUT_WIDTH) {
-        continue;
-      }
-
-      if (!p) {
-        for (int k = k0; k < k1; k++) {
-          fb[k * OUT_WIDTH + out] = bg;
-        }
-        continue;
-      }
-
-      const uint8_t b0 = p[y], b1 = p[PLANE_SIZE + y], b2 = p[2 * PLANE_SIZE + y];
-      for (int k = k0, bit = bit0; k < k1; k++, bit++) {
-        uint8_t pen = ((b0 >> bit) & 1) | (((b1 >> bit) & 1) << 1) | (((b2 >> bit) & 1) << 2);
-        fb[k * OUT_WIDTH + out] = pen ? cpal[pen] : bg;
+    for (int y = y0; y < y1; y++) {
+      uint16_t *out = fb + k0 * OUT_WIDTH + out0 + y;
+      uint32_t pens = p ? linePens(p, y) >> (4 * bit0) : 0;  // no tile: pen 0, background
+      for (int k = k0; k < k1; k++, pens >>= 4, out += OUT_WIDTH) {
+        *out = lut[pens & 7];
       }
     }
   }
@@ -301,14 +320,14 @@ inline void shiftedLines(uint16_t *fb, int k0, int k1, int bit0, int col, const 
 // strip spans up to two window tile columns. No sprites (unused in play).
 inline void renderShifted(uint16_t *fb, int row, const uint8_t *charram, const VideoState &v,
                           const VideoState &old, const ScrollView &s, const uint16_t *pal) {
-  const uint16_t *cpal = pal + (v.ccb & 1) * 8;
-  const uint16_t bg = pal[BG_PEN];
+  uint16_t lut[8];
+  charLut(lut, pal, v.ccb);
   const int x_top = 8 * (LAST_STRIP - row) + 7 + s.oy; // window x of line 0
 
   for (int k = 0; k < 8;) {
     const int x = x_top - k;
     const int k1 = k + (x & 7) + 1 < 8 ? k + (x & 7) + 1 : 8;
-    shiftedLines(fb, k, k1, 7 - (x & 7), tileOf(x), charram, v, old, s, cpal, bg);
+    shiftedLines(fb, k, k1, 7 - (x & 7), tileOf(x), charram, v, old, s, lut);
     k = k1;
   }
 }
