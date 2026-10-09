@@ -3,7 +3,8 @@
 
 usage: trace.py <rom.a26> <script.txt> <frames> <out.csv> [vars]
 script: harness.lua format ("<frame> <keys>", "P <frame> <addr> <val>").
-vars: comma separated RAM addresses (hex), default the hero movement set.
+vars: comma separated RAM addresses (hex), default the hero movement set;
+100 = last SWCHA read, 101 = last INPT4 read.
 CSV: frame (game frame, counted at its $81 increment, see harness.lua
 H_RAM_TAP), then one hex column per variable at that point of the loop.
 """
@@ -12,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 
+REC = 130  # harness.lua H_RAM_TAP record: RAM $80-$FF, SWCHA, INPT4
 DEFAULT = "81,84,9b,9c,9f,e9,b0,ac,ad,e6,fc,e7,e8,e2,e3,e4,f5,a0,b2,ab,af"
 
 rom, script, frames, out = sys.argv[1:5]
@@ -24,7 +26,7 @@ with tempfile.TemporaryDirectory() as work:
     ram = open(os.path.join(work, "ram.bin"), "rb").read()
 with open(out, "w") as f:
     print("frame," + ",".join(names), file=f)
-    for i in range(len(ram) // 128):
-        row = ram[i * 128:(i + 1) * 128]
+    for i in range(len(ram) // REC):
+        row = ram[i * REC:(i + 1) * REC]
         print(f"{i + 1}," + ",".join(f"{row[int(n, 16) - 0x80]:02x}" for n in names), file=f)
-print(f"{len(ram) // 128} frames -> {out}")
+print(f"{len(ram) // REC} frames -> {out}")

@@ -33,7 +33,8 @@ for s in (os.getenv("H_SNAP") or ""):gmatch("%d+") do snaps[tonumber(s)] = true 
 local ramf = os.getenv("H_RAM") == "1" and io.open("ram.bin", "wb") or nil
 -- H_RAM_TAP=1: dump RAM when the game increments its frame counter ($81 at
 -- $D700), a fixed point of its loop (frame logic done, overscan not), instead
--- of at MAME's frame end, which drifts against the game loop.
+-- of at MAME's frame end, which drifts against the game loop. Records are
+-- 130 bytes: RAM $80-$FF, the last SWCHA and INPT4 read.
 local tapf = os.getenv("H_RAM_TAP") == "1" and io.open("ram.bin", "wb") or nil
 if tapf then ramf = nil end
 local rfrom, rto = (os.getenv("H_READS") or "0,-1"):match("(%-?%d+),(%-?%d+)")
@@ -53,12 +54,18 @@ TAPW = mem:install_write_tap(0x1000, 0x1fff, "romw", function(off, data, mask)
   local a = off & 0xfff
   if a == 0xff8 then bank = 0 elseif a == 0xff9 then bank = 1 end
 end)
+-- each tap record: RAM $80-$FF, then the last SWCHA and INPT4 values the game read
+local swcha, inpt4 = 0xff, 0xff
 if tapf then
+  TAPS = mem:install_read_tap(0x280, 0x280, "swcha", function(off, data, mask) swcha = data end)
+  TAPI = mem:install_read_tap(0x0c, 0x0c, "inpt4", function(off, data, mask) inpt4 = data end)
   TAPF = mem:install_write_tap(0x81, 0x81, "frame", function(off, data, mask)
     -- INC is read-modify-write: the 6502 first writes the old value back
     if data == mem:read_u8(0x81) then return end
     local t = {}
     for a = 0x80, 0xff do t[#t + 1] = string.char(a == 0x81 and data or mem:read_u8(a)) end
+    t[#t + 1] = string.char(swcha)
+    t[#t + 1] = string.char(inpt4)
     tapf:write(table.concat(t))
   end)
 end

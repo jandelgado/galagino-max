@@ -8,28 +8,18 @@ using namespace hero_video;
 
 void hero::reset() {
   machineBase::reset();
-  hero_game::startLevel(game, 0);
+  hero_game::newGame(game, 0);
+#ifdef HERO_ROOM_VIEWER
+  hero_game::viewRoom(game, 0, 0);
+  game.view.hero_page = NO_HERO;
+#endif
   prev_keys = 0;
   game_started = 1; // no boot phase: wait for the display's 60 Hz from the start
   publish();
 }
 
 void hero::publish() {
-  vblank.publish([this](VideoState &s) {
-    s.room = game.room;
-    s.level = game.level;
-    s.screen = game.screen;
-    s.frame = game.frame;
-    s.ball_x = game.ball_x;
-#ifdef HERO_ROOM_VIEWER
-    s.hero_page = NO_HERO;
-#else
-    s.hero_x = game.hero.x;
-    s.hero_y = game.hero.y;
-    s.hero_mirror = game.hero.facing != 0;
-    hero_game::heroSprite(game, s.hero_page, s.hero_frame);
-#endif
-  });
+  vblank.publish([this](VideoState &s) { s = game.view; });
 }
 
 // LEFT/RIGHT previous/next screen, UP/DOWN next/previous level
@@ -45,11 +35,8 @@ void hero::runViewer(uint32_t pressed) {
     level = (level + hero_data::LEVELS - 1) % hero_data::LEVELS;
     screen = 0;
   }
-  game.level = level;
-  game.screen = screen;
-  game.room = hero_room::decode(level, screen);
-  game.ball_x = game.room.ball_x;
-  game.frame++;
+  hero_game::viewRoom(game, level, screen);
+  game.view.hero_page = NO_HERO;
 }
 
 void hero::run_frame(void) {
@@ -65,7 +52,8 @@ void hero::run_frame(void) {
   in.right = (keys & BUTTON_RIGHT) != 0;
   in.fire = (keys & BUTTON_FIRE) != 0;
   hero_game::tick(game, in);
-  if (game.dead) { hero_game::startLevel(game, game.level); } // until the death sequence exists
+  // until the attract mode exists: FIRE after the game over starts game 1
+  if (game.over && in.fire && !(prev_keys & BUTTON_FIRE)) { hero_game::newGame(game, 0); }
 #endif
   prev_keys = keys;
   publish();

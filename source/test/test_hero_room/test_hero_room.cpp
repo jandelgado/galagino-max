@@ -5,6 +5,7 @@
 #include "../../src/machines/hero/hero_data.cpp"
 #include "../../src/machines/hero/hero_room.cpp"
 #include "../../src/machines/hero/hero_video.cpp"
+#include "../../src/machines/hero/hero_game.cpp"
 #include "hero_cmap_check.h"
 #include "hero_mame_bands.h"
 
@@ -15,12 +16,12 @@ void setUp(void) {}
 void tearDown(void) {}
 
 static Frame frameFor(uint8_t level, uint8_t screen) {
+  static hero_game::Game g;
+  hero_game::viewRoom(g, level, screen);
   Frame f = {};
-  f.v.room = decode(level, screen);
-  f.v.level = level;
-  f.v.screen = screen;
-  f.v.ball_x = f.v.room.ball_x;
+  f.v = g.view;
   f.v.hero_page = hero_video::NO_HERO;
+  for (int i = 0; i < 3; i++) { f.v.obj[i].x = f.v.obj2[i].x = hero_game::NONE; }
   hero_video::prepare(f);
   return f;
 }
@@ -107,8 +108,8 @@ static void test_step_wraps_levels(void) {
   TEST_ASSERT_EQUAL_UINT8(0, screen);
 }
 
-// MAME level 1 at y $6A, x $20, frame $DEB3: snapshot row 49 (source line
-// 23, sprite row 10) is .######. in colour $99 (66a4e9)
+// level 1 at y $6A, x $20, frame $DEB3: source line 25 (sprite row 10) is
+// .######. in colour $99 (66a4e9)
 static void test_hero_sprite_row(void) {
   Frame f = frameFor(0, 0);
   f.v.hero_x = 0x20;
@@ -116,12 +117,12 @@ static void test_hero_sprite_row(void) {
   f.v.hero_page = 0xde;
   f.v.hero_frame = 0xb3;
   uint8_t line[hero_video::SRC_W];
-  hero_video::composeLine(f, 23, line);
+  hero_video::composeLine(f, 25, line);
   TEST_ASSERT_EQUAL_HEX8(0, line[0x20]);
   for (int x = 0x21; x <= 0x26; x++) { TEST_ASSERT_EQUAL_HEX8(0x98 >> 1, line[x]); }
   TEST_ASSERT_EQUAL_HEX8(0, line[0x27]);
   f.v.hero_mirror = 1; // REFP1
-  hero_video::composeLine(f, 23 + 1, line); // row 11: .###.##. -> .##.###.
+  hero_video::composeLine(f, 25 + 1, line); // row 11: .###.##. -> .##.###.
   TEST_ASSERT_EQUAL_HEX8(0, line[0x23]);
   TEST_ASSERT_EQUAL_HEX8(0x98 >> 1, line[0x24]);
 }
@@ -134,7 +135,7 @@ static void test_hero_behind_playfield(void) {
   f.v.hero_page = 0xde;
   f.v.hero_frame = 0xb3;
   uint8_t line[hero_video::SRC_W];
-  hero_video::composeLine(f, 23, line);
+  hero_video::composeLine(f, 25, line);
   TEST_ASSERT_EQUAL_HEX8(0x22 >> 1, line[0x12]);
 }
 
