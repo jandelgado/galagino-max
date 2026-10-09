@@ -38,10 +38,24 @@ static constexpr int32_t MUSIC_GAIN = 2;
 static constexpr uint8_t LED_FLASH_FRAMES = 8;
 
 // Playfield redraw (PC 1bb4..1c41): writes the camera, then counts the
-// cell rows left in ZP_DRAW_ROWS from 12 to 0, spread over ~1.5 frames.
+// cell rows left in ZP_DRAW_ROWS from 12 to 0, spread over ~1.5 frames
+// at 750 kHz.
 //
-// Smooth scroll. The game redraws the playfield once per tick (~11
-// frames) and scrolls in 16 px cell steps. We glide instead:
+// Tick pacing. One game tick (PC 09f0, play) = $3B idle frames (3 -
+// level) + the work (redraw, cave scan), which ends in the vblank wait at
+// PC 0cfb. The work takes ~8 frames and varies with the cave contents, so
+// the tick jitters 10..12 frames and the glide below stalls or jumps.
+// Fixed tick instead: the main CPU runs at 2x (work ~4 frames), the idle
+// frames are patched out, and E300 shows VBLANK only from the
+// TICK_FRAMES'th frame after the redraw start. Every tick is TICK_FRAMES,
+// the game runs up to 37% faster (level 1). States without a redraw see
+// VBLANK every frame as before.
+//
+//   frame:   0      1      2      3      4      5      6      7    | 0
+//   CPU:     [redraw, cave scan .......]  wait 0cfb ..........vbl | redraw
+//
+// Smooth scroll. The game redraws the playfield once per tick and
+// scrolls in 16 px cell steps. We glide instead:
 //
 // 1. main_write -> drawRows(): ZP_DRAW_ROWS going 0 -> nonzero starts a
 //    redraw. Latch the camera, count draws.
@@ -51,8 +65,9 @@ static constexpr uint8_t LED_FLASH_FRAMES = 8;
 // 3. prepare_frame(): if the published camera moved, copy the render
 //    copy to old (+2 KB) before reading the new one. old supplies the
 //    band that scrolls out of the window.
-// 4. scrollUpdate(): measure the tick period in emulated frames (display
-//    frames jitter 5/6 at half rate). Glide only on a steady +-1 cell
+// 4. scrollUpdate(): measure the tick period in emulated frames from the
+//    redraw start (display frames jitter at half rate, the publish of a
+//    redraw by up to a frame). Glide only on a steady +-1 cell
 //    step, snap on cave change, first draw or jumps.
 // 5. scrollView(): offset runs 16 px -> 0 over one period, so the view
 //    starts at the old position and trails the camera by up to one tick:
@@ -68,14 +83,18 @@ static constexpr uint16_t ZP_CAM_Y = 0x45;
 static constexpr uint16_t ZP_CAM_X = 0x46;
 static constexpr uint16_t ZP_DRAW_ROWS = 0x5a;
 static constexpr uint8_t MAX_PUBLISH_SKIPS = 3; // never freeze if the game reuses ZP_DRAW_ROWS
+static constexpr uint16_t SPEED_DELAY_LOAD = 0x09f4; // LDA $3B, idle frames per tick
+static constexpr uint8_t OP_LDA_IMM = 0xa9;
 
 // One frame = 17 slices of 16 scanlines (57.44 Hz, 272 lines), one sound
-// NMI each. Cycles per frame as on real hardware: 750 kHz main = 13057,
-// 500 kHz sound = 8705. Both CPUs interleaved, so back-to-back sound
-// commands within a frame reach the sound CPU. VBLANK = last 32 lines.
+// NMI each. Cycles per frame as on real hardware: 750 kHz main = 13057
+// (overclocked 2x, see tick pacing), 500 kHz sound = 8705. Both CPUs
+// interleaved, so back-to-back sound commands within a frame reach the
+// sound CPU. VBLANK = last 32 lines.
 static constexpr int SLICES = 17;
 static constexpr int VBLANK_SLICES = 2;
-static constexpr int MAIN_CYCLES_PER_SLICE = 768;
+static constexpr int MAIN_OVERCLOCK = 2;
+static constexpr int MAIN_CYCLES_PER_SLICE = 768 * MAIN_OVERCLOCK;
 static constexpr int AUDIO_CYCLES_PER_SLICE = 512;
 
 // DECO 222: bits 5 and 6 of every opcode fetch are swapped
@@ -133,12 +152,17 @@ void cbdash::boot() {
   main_ram[0x0000] = BIOS_GAME_LOADED;
   memory[SOUND_RAM_OFFSET + 0x0000] = SOUND_GAME_LOADED;
 
+  // no idle frames per tick, pacing alone sets the tick (LDA $3B -> LDA #0)
+  main_ram[SPEED_DELAY_LOAD] = deco222(OP_LDA_IMM);
+  main_ram[SPEED_DELAY_LOAD + 1] = 0x00;
+
   memset(palette_ram, 0, sizeof(palette_ram));
   ccb = sound_latch = sound_latch2 = sound_ack = 0;
   ay_addr[0] = ay_addr[1] = 0;
   audio_nmi_enable = audio_reset = dongle_latch = coin_prev = false;
   led_flash = 0;
   publish_skips = 0;
+  tick_frames = 0xff;
   stopMusic();
 
   cpu_main.read = main_read;
@@ -279,6 +303,8 @@ void cbdash::drawRows(uint8_t rows) {
   draw_cam_x = main_ram[ZP_CAM_X];
   draw_cam_y = main_ram[ZP_CAM_Y];
   draws++;
+  draw_frame = frame;
+  tick_frames = 0;
 }
 
 // next request for the audio core: sequence + 1, song
@@ -385,12 +411,14 @@ void cbdash::run_frame(void) {
   }
   coin_prev = coin_now;
 
-  // the game busy-waits on DSW1 b7, so it must see VBLANK once per frame
+  // the game busy-waits on DSW1 b7, so it must see VBLANK once per frame,
+  // during a tick only once it is due
+  const bool tick_due = tick_frames >= cbdash_video::TICK_FRAMES - 1;
   vblank = false;
   for (int i = 0; i < SLICES; i++) {
     if (i == SLICES - VBLANK_SLICES) {
       publishVideo();
-      vblank = true;
+      vblank = tick_due;
     }
     m6502_exec(&cpu_main, MAIN_CYCLES_PER_SLICE);
 
@@ -403,6 +431,7 @@ void cbdash::run_frame(void) {
     }
   }
 
+  tick_frames = cbdash_video::addSat(tick_frames, 1);
   if (led_flash) {
     led_flash--;
   }
@@ -426,9 +455,7 @@ void cbdash::publishVideo() {
 
   vblank_state.publish([this](cbdash_video::VideoState &v) {
     v.frame = frame;
-    if (v.draws != draws) {
-      v.draw_frame = frame;
-    }
+    v.draw_frame = draw_frame;
     memcpy(v.fg, memory + FG_RAM_OFFSET, sizeof(v.fg));
     memcpy(v.color, memory + COLOR_RAM_OFFSET, sizeof(v.color));
     memcpy(v.palette, palette_ram, sizeof(v.palette));
