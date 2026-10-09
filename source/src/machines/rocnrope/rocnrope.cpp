@@ -29,6 +29,13 @@ void rocnrope::reset() {
   // S=0 after reset causes early JSR to push to ROM space (write ignored),
   // then RTS reads reset vector → infinite restart. Set S to top of work RAM.
   main_cpu.S = 0x5FFF;
+
+  // instruction fetches straight from ROM, decrypted by the core, skipping
+  // the per-byte callback chain; must follow m6809_reset(), which clears it
+  main_cpu.rom_direct = main_rom_ptr;
+  main_cpu.rom_base = 0x6000;
+  main_cpu.rom_size = 0xA000;
+  main_cpu.konami1 = 1;
 }
 
 void rocnrope::start() {
