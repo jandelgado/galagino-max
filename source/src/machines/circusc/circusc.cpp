@@ -339,14 +339,16 @@ void circusc::blit_sprite(short row, unsigned char s) {
 
 // ============================================================
 // Tile: 8x8 4bpp pre-ruotati, blit con offset x arbitrario (per lo
-// scroll) e clipping. pass 0 = tutti i tile OPACHI (copertura completa
-// della strip), pass 1 = ridisegno OPACO dei soli tile con attr bit4=0
-// (in MAME sono la categoria disegnata SOPRA gli sprite).
+// scroll) e clipping. pass 0 = tile con attr bit4=1 (categoria 1, sotto
+// gli sprite), pass 1 = tile con attr bit4=0 (categoria 0, OPACHI sopra
+// gli sprite). Ogni tile una sola volta.
 // ============================================================
 void circusc::blit_tile_x(unsigned short addr, short x, unsigned char pass) {
   uint8_t attr = memory[CC_COLORRAM + addr];
-  if (pass && (attr & 0x10))
-    return;   // pass 1: solo categoria 0 (sopra gli sprite)
+  const uint8_t category = (attr & 0x10) ? 1 : 0;
+  if (category == pass) {
+    return;   // pass 0: categoria 1, pass 1: categoria 0
+  }
 
   unsigned short code = memory[CC_VIDEORAM + addr] + ((attr & 0x20) << 3);
   const uint8_t (*tile)[4] = circusc_tilemap[code];
@@ -363,6 +365,17 @@ void circusc::blit_tile_x(unsigned short addr, short x, unsigned char pass) {
   unsigned short *ptr = frame_buffer + x;
   for (uint8_t r = 0; r < 8; r++, ptr += 224) {
     const uint8_t *trow = tile[flip_y ? 7 - r : r];
+
+    // unclipped: 2 pixels per byte, low nibble first
+    if (c0 == 0 && c1 == 8) {
+      for (uint8_t i = 0; i < 4; i++) {
+        const uint8_t b = trow[flip_x ? 3 - i : i];
+        ptr[2 * i]     = pal[flip_x ? b >> 4 : b & 0x0F];
+        ptr[2 * i + 1] = pal[flip_x ? b & 0x0F : b >> 4];
+      }
+      continue;
+    }
+
     for (uint8_t c = c0; c < c1; c++) {
       uint8_t sc = flip_x ? 7 - c : c;
       ptr[c] = pal[(trow[sc >> 1] >> ((sc & 1) << 2)) & 0x0F];
@@ -390,8 +403,8 @@ void circusc::render_row(short row) {
   if (!game_started) return;
 
   // MAME: fill(0) + tile categoria 1 -> sprite -> tile categoria 0 opachi.
-  // Qui: pass 0 = tutti i tile (copre l'intera strip), sprite, pass 1 =
-  // ridisegno dei tile categoria 0: il risultato finale e' identico.
+  // frame_buffer arriva azzerato (fill(0)); i tile categoria 0 sono opachi,
+  // quindi coprono comunque tutto cio' che sta sotto.
   render_tiles(row, 0);
 
   for (unsigned char s = 0; s < active_sprites; s++)
