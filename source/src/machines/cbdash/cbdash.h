@@ -62,6 +62,8 @@ private:
   bool coin_prev = false;
   uint8_t led_flash = 0;
   uint8_t draw_cam_x = 0, draw_cam_y = 0, draws = 0; // latched at playfield redraw start
+  uint8_t draw_frame = 0;
+  uint8_t tick_frames = 0xff;  // frames since the redraw started, saturating
   uint8_t publish_skips = 0;
   uint8_t frame = 0;  // emulated frames, glide clock
 

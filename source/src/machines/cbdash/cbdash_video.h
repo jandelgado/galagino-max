@@ -45,7 +45,8 @@ constexpr int PF_LAST_STRIP = LAST_STRIP - PF_COL0;
 constexpr int PF_ROW0 = 1;
 constexpr int PF_ROW1 = 30;
 constexpr int CELL = 16;            // px, the game's scroll step
-constexpr uint8_t DEFAULT_PERIOD = 11;
+constexpr uint8_t TICK_FRAMES = 8;  // paced game tick, 16 px glide at 2 px per frame
+constexpr uint8_t DEFAULT_PERIOD = TICK_FRAMES;
 constexpr uint8_t MAX_PERIOD = 32;  // longer draw gaps = cave change, no glide
 
 // what render reads from the emulated machine, latched at vblank

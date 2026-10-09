@@ -150,7 +150,7 @@ static void test_sprite_flip_y(void) {
   TEST_ASSERT_EQUAL_HEX16(pal[BG_PEN], px(7, 16 - VIS_Y0));
 }
 
-// one emulated frame, published as cbdash::publishVideo does
+// one emulated frame, a redraw published in the frame it started
 static void publish(void) {
   static uint8_t draws = 0;
   vs.frame++;
@@ -229,6 +229,32 @@ static void test_scroll_glide_half_rate(void) {
       TEST_ASSERT_TRUE_MESSAGE(pos - prev == 2 || pos - prev == 3, "uneven step");
     }
     prev = pos;
+  }
+}
+
+// paced ticks of TICK_FRAMES: 2 px every frame, 4 px every display frame
+// at VIDEO_HALF_RATE
+static void test_scroll_paced_even(void) {
+  for (int rate = 1; rate <= 2; rate++) {
+    Scroll s = steadyScroll();
+    int prev = vs.cam_x * CELL;
+    for (int f = 1; f <= 6 * TICK_FRAMES; f++) {
+      if (f % TICK_FRAMES == 0) {
+        vs.draws++;
+        vs.cam_x++;
+      }
+      publish();
+      if (f % rate) {
+        continue;
+      }
+
+      scrollUpdate(s, vs, true);
+      const int pos = vs.cam_x * CELL + scrollView(s).ox;
+      if (f > 2 * TICK_FRAMES) {  // period measured
+        TEST_ASSERT_EQUAL_INT_MESSAGE(2 * rate, pos - prev, "uneven step");
+      }
+      prev = pos;
+    }
   }
 }
 
@@ -333,6 +359,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_scroll_glide);
   RUN_TEST(test_scroll_glide_y);
   RUN_TEST(test_scroll_glide_half_rate);
+  RUN_TEST(test_scroll_paced_even);
   RUN_TEST(test_scroll_snap);
   RUN_TEST(test_shifted_band_x);
   RUN_TEST(test_shifted_split_y);
