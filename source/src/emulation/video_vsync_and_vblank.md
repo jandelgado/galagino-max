@@ -376,22 +376,18 @@ strip.
   `config.h` connects TE. Hardware change, so only for custom builds.
 - Same pacing rules as technique 2 (panel is the clock, drop the pad).
 
-## Frame rate: 62.5 Hz instead of 60 Hz
+## Frame rate: 60.0 Hz deadline pacing
 
-The full-rate loop pads each frame to 16 ms with a 1 ms tick: 1000 / 16 =
-62.5 Hz. The emulation runs one frame per loop, so games run about 4% fast.
-Half rate pads two frames to 33 ms: 60.6 Hz.
+The full-rate loop used to pad each frame to 16 ms with a 1 ms tick: 1000 /
+16 = 62.5 Hz. The emulation runs one frame per loop, so games ran about 4%
+fast, and the frames beat against the ~60 Hz panel: one skipped frame every
+1 / (62.5 - panel Hz) s, a visible scroll jerk about every second (cbdash,
+gberet, zaxxon on the ST7789 CYD). Half rate pads two frames to 33 ms: 60.6
+Hz (unchanged).
 
-Possible fix, deadline pacing in `updateAudioVideo()`: delays alternate
-16/17/17 ms, 60.0 Hz on average. Replaces the pad:
-
-```c++
-static uint32_t next_us = micros();
-next_us += 16667;                                   // 60 Hz
-const int32_t wait_ms = (int32_t)(next_us - micros()) / 1000;
-if(wait_ms > 0) { vTaskDelay(wait_ms); last_yield_ms = millis(); }
-else if(wait_ms < -50) next_us = micros();          // stall: resync, no catch-up burst
-```
+Applied: deadline pacing in `updateAudioVideo()` (`FRAME_US`), delays
+alternate 16/17/17 ms, 60.0 Hz on average. Remaining beat is 1 / |60 - panel
+Hz|, set by the panel oscillator tolerance.
 
 - Tearing unchanged: the timing model gives 1.7% torn refreshes at 60 Hz vs
   1.8% at 62.5 Hz (ST7789, 80 MHz, technique 1). Slower drift against the
