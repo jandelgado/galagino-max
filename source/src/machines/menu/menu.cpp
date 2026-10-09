@@ -39,6 +39,16 @@ static inline unsigned short shade_RGB565(unsigned short in, uint8_t shade, uint
   b = (((y << 8) + (b - y) * k) * m) >> 16;
   return pack_RGB565(r >> 1, g, b >> 1);
 }
+
+// Per line memo of shade_RGB565(): a logo line has at most 16 colours, but
+// shading every pixel (~80 instructions) made the drum render slower than
+// SPI (51 Hz). Direct mapped, entry = colour << 16 | shaded colour.
+constexpr uint8_t SHADE_CACHE_SIZE = 64;
+constexpr unsigned short WHITE_RGB565 = 0xffff;
+
+static inline uint8_t shade_slot(unsigned short c) {
+  return (c ^ (c >> 6) ^ (c >> 11)) & (SHADE_CACHE_SIZE - 1);
+}
 #endif
 
 Menu::Menu(const machineInfo *machines, int8_t machinesCount, int8_t shown, int8_t preselect)
@@ -282,7 +292,17 @@ void Menu::render_row_cylinder(short row) {
       for(short x = left; x < right; x++, sx += step) { dst[x] = img[sx >> 16]; }
     }
     else {
-      for(short x = left; x < right; x++, sx += step) { dst[x] = shade_RGB565(img[sx >> 16], l.shade, l.sat); }
+      // every slot starts as white's entry, so no valid flag is needed
+      uint32_t cache[SHADE_CACHE_SIZE];
+      const uint32_t white = ((uint32_t)WHITE_RGB565 << 16) | shade_RGB565(WHITE_RGB565, l.shade, l.sat);
+      for(uint8_t i = 0; i < SHADE_CACHE_SIZE; i++) { cache[i] = white; }
+
+      for(short x = left; x < right; x++, sx += step) {
+        const unsigned short c = img[sx >> 16];
+        uint32_t &e = cache[shade_slot(c)];
+        if((e >> 16) != c) { e = ((uint32_t)c << 16) | shade_RGB565(c, l.shade, l.sat); }
+        dst[x] = (unsigned short)e;
+      }
     }
   }
 }
