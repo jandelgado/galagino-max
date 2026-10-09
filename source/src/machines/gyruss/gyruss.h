@@ -2,6 +2,7 @@
 #define GYRUSS_H
 
 #include "../machineBase.h"
+#include "../../emulation/seqlock.h"
 #include "gyruss_palette.h"
 #include "gyruss_dipswitches.h"
 #include "gyruss_logo.h"
@@ -138,7 +139,6 @@ private:
     m6809_state sub_cpu;
     unsigned char sub_ram[0x800];     // Sub-CPU local RAM (0x4000-0x47FF)
     unsigned char shared_ram[0x800];  // Shared RAM (Z80: 0xA000-0xA7FF, M6809: 0x6000-0x67FF)
-    unsigned char multiplexPart1[0xff];
 
     // Audio
     volatile unsigned char sound_latch;
@@ -175,6 +175,21 @@ private:
     const unsigned char *main_rom_ptr = nullptr;
     const unsigned char *audio_rom_ptr = nullptr;
     const unsigned char *sub_raw_ptr = nullptr;
+
+    // Sprite RAM as of the vblank IRQ, handed to the video core via Seqlock
+    // (see seqlock.h). The sub CPU multiplexes sprites: first set captured at
+    // its first scanline read (0x0000), second set left in sprite RAM at
+    // vblank. Reading either live from prepare_frame() races run_frame().
+    static const uint8_t SPRITE_OFFS = 0x40;   // sprite RAM 0x4040-0x40FF
+    static const uint8_t SPRITE_BYTES = 0xC0;  // 48 sprites x 4 bytes
+    struct VideoState {
+        unsigned char first[SPRITE_BYTES];
+        unsigned char second[SPRITE_BYTES];
+        unsigned char multiplexed;  // first set captured this frame
+    };
+    unsigned char multiplex[SPRITE_BYTES];  // first set, emulation core only
+    Seqlock<VideoState> vblank;
+    VideoState video = {};
 };
 
 #endif

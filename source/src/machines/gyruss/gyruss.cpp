@@ -176,7 +176,7 @@ void gyruss::reset() {
 
   machineBase::reset();
   memset(sub_ram, 0, sizeof(sub_ram));
-  memset(multiplexPart1, 0, sizeof(multiplexPart1));
+  memset(multiplex, 0, sizeof(multiplex));
   memset(shared_ram, 0, sizeof(shared_ram));
 
   // i8039 sample MCU (drums)
@@ -422,9 +422,17 @@ void gyruss::run_frame(void) {
 
     if (multiplexUsed && !multiplexUsedPart1) {
       multiplexUsedPart1 = 1;
-      memcpy(multiplexPart1, sub_ram, sizeof(multiplexPart1));
+      memcpy(multiplex, &sub_ram[SPRITE_OFFS], SPRITE_BYTES);
     }
   }
+
+  vblank.publish([this](VideoState &v) {
+    v.multiplexed = multiplexUsedPart1;
+    if (multiplexUsedPart1) {
+      memcpy(v.first, multiplex, SPRITE_BYTES);
+    }
+    memcpy(v.second, &sub_ram[SPRITE_OFFS], SPRITE_BYTES);
+  });
 
   m6809_irq(&sub_cpu);
 
@@ -441,14 +449,13 @@ void gyruss::run_frame(void) {
 
 void gyruss::prepare_frame(void) {
   active_sprites = 0;
+  vblank.read(video);
 
-  // Sprite RAM at sub CPU address 0x4040-0x40FF (confirmed from MAME)
-  unsigned char *sr = &sub_ram[0x40];
-  prepare_sprites(sr);
-
-  // Has the effect, that not anymore used sprites will appear. But better than missing sprites...
-  sr = &multiplexPart1[0x40];
-  prepare_sprites(sr);
+  // both multiplexed sets of one frame; no first set without multiplexing
+  prepare_sprites(video.second);
+  if (video.multiplexed) {
+    prepare_sprites(video.first);
+  }
 }
 
 void gyruss::prepare_sprites(unsigned char *sr) {
