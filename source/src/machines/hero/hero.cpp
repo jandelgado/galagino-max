@@ -3,8 +3,34 @@
 #ifdef ENABLE_HERO
 
 #include "hero_data.h"
+#include "../../emulation/pokey.h"
 
 using namespace hero_video;
+
+// TIA channel -> POKEY channel at the 64 kHz clock. TIA tones divide
+// 31.4 kHz by AUDF + 1 and by 2 (AUDC 4) or 6 (AUDC $C); its 9 bit poly
+// steps at that rate. POKEY divides 63.9 kHz by AUDF + 1, by 2 for tones.
+static void tiaToPokey(const hero_game::Sound &s, uint8_t *regs) {
+  static const uint8_t PURE = 0xa0;    // AUDC distortion: pure tone
+  static const uint8_t POLY = 0x80;    // 17 bit poly, 9 bit with AUDCTL bit 7
+  static const uint8_t AUDCTL_POLY9 = 0x80;
+  static const uint8_t SKCTL_RUN = 3;
+  for (int ch = 0; ch < 2; ch++) {
+    const uint8_t f = (s.audf[ch] & 31) + 1;
+    uint8_t dist = PURE;
+    int32_t k = 0; // POKEY divider per TIA divider, x 100
+    switch (s.audc[ch] & 15) {
+    case 0x4: case 0x5: k = 204; break;
+    case 0xc: case 0xd: k = 611; break;
+    case 0x8: dist = POLY; k = 204; break;
+    default: break; // AUDC 0: constant level, silent
+    }
+    regs[2 * ch] = k ? (f * k + 50) / 100 - 1 : 0;
+    regs[2 * ch + 1] = k ? dist | (s.audv[ch] & 15) : 0;
+  }
+  regs[Pokey::REG_AUDCTL] = AUDCTL_POLY9;
+  regs[Pokey::REG_SKCTL] = SKCTL_RUN;
+}
 
 void hero::reset() {
   machineBase::reset();
@@ -56,6 +82,7 @@ void hero::run_frame(void) {
   in.start = start;
   in.select = game.over && (in.up || in.down);
   hero_game::tick(game, in);
+  tiaToPokey(game.sound, soundregs);
 #endif
   prev_keys = keys;
   publish();

@@ -28,6 +28,11 @@ struct Hero {
   uint8_t walk;       // $E8 walk animation, 4..0
 };
 
+// TIA audio registers, channel 0 and 1 ($D58C)
+struct Sound {
+  uint8_t audc[2], audf[2], audv[2];
+};
+
 struct Game {
   uint8_t game;          // $80: game number 0..4, bit 7 = past level 20
   uint8_t frame;         // $81
@@ -68,6 +73,7 @@ struct Game {
   uint8_t blast;         // $FA: wall blown up by this explosion
   uint8_t wall_phase;    // $FD: moving wall, bit 7 = stopped
   uint8_t laser_pos;     // M1 position for the next kernel ($D6E8)
+  Sound sound;
   Hero hero;
   hero_video::Latches latch;  // collisions of the last kernel pass
   hero_video::VideoState view; // display registers ($BE-$DD, $91-$9A)

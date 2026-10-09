@@ -217,6 +217,21 @@ static void test_hero_sprite(void) {
   TEST_ASSERT_EQUAL_HEX8(0xe5, g.view.hero_frame);
 }
 
+// $D5D8: FIRE plays the laser on channel 0, the propeller whirrs on 1
+static void test_laser_sound(void) {
+  Game g = flying(0, 1, 0x40, 0x63);
+  g.laser = 0;
+  g.frame = 2;
+  Input in = {};
+  in.fire = 1;
+  tick(g, in);
+  TEST_ASSERT_EQUAL_HEX8(0x04, g.sound.audc[0]); // $DB9F[2]
+  TEST_ASSERT_EQUAL_HEX8(0x1c, g.sound.audf[0]); // $DBA3[2]
+  TEST_ASSERT_EQUAL_HEX8(5, g.sound.audv[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x08, g.sound.audc[1]);
+  TEST_ASSERT_EQUAL_HEX8(g.hero.prop + 1, g.sound.audv[1]);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_traces_match_mame);
@@ -229,5 +244,6 @@ int main(int, char **) {
   RUN_TEST(test_death_sequence);
   RUN_TEST(test_score);
   RUN_TEST(test_hero_sprite);
+  RUN_TEST(test_laser_sound);
   return UNITY_END();
 }

@@ -981,6 +981,56 @@ static void animate(Game &g) {
   if ((g.frame & 3) == 0) { h.walk = h.walk ? h.walk - 1 : 4; }
 }
 
+// $D58C: channel 0 laser, death and bonus tones, channel 1 noise for the
+// propeller, power fill, fuse and explosion; silent in the demo
+static void sound(Game &g, const Input &in) {
+  Sound &s = g.sound;
+  memset(&s, 0, sizeof(s));
+  if (g.demo) { return; }
+
+  s.audv[0] = 5;
+  uint8_t c = 0, f = 0;
+  if (g.respawn) {
+    if (g.respawn >= DYING) {
+      s.audv[0] = (g.respawn - 0x60) >> 4;
+      c = b0(0xdba0 + ((g.frame >> 1) & 1));
+      f = 0x0f;
+    }
+  } else if (g.rescued) {
+    if (g.power) {
+      const uint8_t i = (g.frame >> 1) & 3;
+      c = b0(0xdba7 + i);
+      f = b0(0xdbab + i);
+    }
+  } else if (in.fire && !(g.laser & 0x80)) {
+    const uint8_t i = g.frame & 3;
+    c = b0(0xdb9f + i);
+    f = b0(0xdba3 + i);
+  }
+  s.audc[0] = c;
+  s.audf[0] = f;
+
+  s.audc[1] = 8; // 9 bit poly noise
+  if (g.fuse[1] | g.fuse[2]) {
+    const uint8_t fuse = g.fuse[1] ? g.fuse[1] : g.fuse[2];
+    if (fuse >= 0x20) { // burning
+      s.audf[1] = s.audv[1] = g.random & 3;
+    } else {            // explosion
+      s.audv[1] = fuse >> 1;
+      s.audf[1] = 0x10;
+    }
+    return;
+  }
+  if (g.power && !(g.power_full & 0x80)) { // filling
+    s.audf[1] = ~(g.power >> 2);
+    s.audv[1] = 4;
+    return;
+  }
+  if (g.hero.standing | g.respawn | g.rescued) { return; }
+  s.audf[1] = b0(0xdbaf + g.hero.prop); // propeller
+  s.audv[1] = g.hero.prop + 1;
+}
+
 // $D638: moving wall phase, stopped by a death
 static void wallPhase(Game &g) {
   if (g.respawn >= 0xe0) { return; }
@@ -1048,6 +1098,7 @@ void tick(Game &g, const Input &in) {
   kernel(g);
   oscillate(g);
   animate(g);
+  sound(g, in);
   wallPhase(g);
   g.laser_pos = position(laser(g, in));
   g.frame++; // $D700
