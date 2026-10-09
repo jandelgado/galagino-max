@@ -255,7 +255,7 @@ static void respawn(Game &g) {
   }
   if (g.respawn == DYING) {
     h.y = RESPAWN_TOP_Y;
-    g.obj_state[g.respawn_band] = GONE; // the killer goes too
+    *ram(g, 0xa1 + g.respawn_band) = GONE; // the killer goes too ($A1,x)
     h.standing = 0;
     if (!g.demo && --g.lives == 0) { g.over = g.demo = 0xff; }
   }
@@ -922,7 +922,7 @@ void viewRoom(Game &g, uint8_t level, uint8_t screen) {
 
 // P1 vs playfield/ball latches $E2-$E4 of the hero's rows: row k (0 top)
 // counts for band i when y + 24 - k is in [21 + 39 i, 60 + 39 i) (HERO.md
-// "Remake movement model"), the other latches from the kernel's lines
+// "Remake"), the other latches from the kernel's lines
 static void kernel(Game &g) {
   const VideoState &v = g.view;
   uint64_t c[3];
