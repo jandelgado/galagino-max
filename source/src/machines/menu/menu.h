@@ -2,9 +2,9 @@
 #define MENU_H
 
 #include <Arduino.h>
-#include "input.h"
-#include "../config.h"
-#include "../machines/machineBase.h"
+#include "../../emulation/input.h"
+#include "../../config.h"
+#include "../machineBase.h"
 
 class Menu {
 public:

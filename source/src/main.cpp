@@ -20,7 +20,7 @@
 #include "emulation/audio.h"
 #include "emulation/video.h"
 #include "emulation/input.h"
-#include "emulation/menu.h"
+#include "machines/menu/menu.h"
 #include "emulation/emulation.h"
 #include "emulation/hud.h"
 #include "emulation/selftest.h"

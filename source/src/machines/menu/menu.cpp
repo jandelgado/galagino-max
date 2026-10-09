@@ -1,5 +1,5 @@
 #include "menu.h"
-#include "arena.h"
+#include "../../emulation/arena.h"
 #ifdef MENU_CYLINDER
 #include <math.h>
 
