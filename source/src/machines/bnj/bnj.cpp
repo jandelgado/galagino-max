@@ -313,11 +313,16 @@ void bnj::prepare_frame(void) {
 void bnj::blit_sprite(short row, unsigned char s) {
   const bnj_sprite_s &sp = spr_list[s];
   short band_y0 = row * 8;
+  const unsigned char (*tile)[16] = bnj_spritetiles[sp.code];
 
-  for (int ly = 0; ly < 16; ly++) {
-    short py = sp.y + ly;
-    if (py < band_y0 || py >= band_y0 + 8) continue;
-    int local_row = py - band_y0;
+  // clip to band and screen once, not per pixel
+  const int ly0 = sp.y < band_y0 ? band_y0 - sp.y : 0;
+  const int ly1 = sp.y + 16 > band_y0 + 8 ? band_y0 + 8 - sp.y : 16;
+  const int lx0 = sp.x < 0 ? -sp.x : 0;
+  const int lx1 = sp.x + 16 > 224 ? 224 - sp.x : 16;
+
+  for (int ly = ly0; ly < ly1; ly++) {
+    int local_row = sp.y + ly - band_y0;
 
     // 180 gradi + scambio flip_x<->asse verticale/flip_y<->asse orizzontale
     // (conseguenza diretta della trasformazione ROT270, STESSA regola
@@ -325,13 +330,13 @@ void bnj::blit_sprite(short row, unsigned char s) {
     // memoria progetto, "da applicare DA SUBITO per ogni futuro gioco
     // ROT270 con sprite flippabili").
     int sy = sp.flip_x ? ly : (15 - ly);
-    unsigned short *ptr = frame_buffer + local_row * 224;
-    for (int lx = 0; lx < 16; lx++) {
-      short px = sp.x + lx;
-      if (px < 0 || px >= 224) continue;
+    unsigned short *ptr = frame_buffer + local_row * 224 + sp.x;
+    for (int lx = lx0; lx < lx1; lx++) {
       int sx = sp.flip_y ? lx : (15 - lx);
-      unsigned char pixel = bnj_spritetiles[sp.code][sy][sx];
-      if (pixel) ptr[px] = palette[pixel];
+      unsigned char pixel = tile[sy][sx];
+      if (pixel) {
+        ptr[lx] = palette[pixel];
+      }
     }
   }
 }
@@ -339,20 +344,22 @@ void bnj::blit_sprite(short row, unsigned char s) {
 void bnj::blit_bg_tile(short row, int idx) {
   const bnj_bgtile_s &bt = bg_list[idx];
   short band_y0 = row * 8;
+  const unsigned char (*tile)[16] = bnj_bgtiles[bt.code];
+  const unsigned short *pal = palette + 8; // opaco, colore base 8 (come btime)
 
-  for (int ly = 0; ly < 16; ly++) {
-    short py = bt.y + ly;
-    if (py < band_y0 || py >= band_y0 + 8) continue;
-    int local_row = py - band_y0;
-    int sy = 15 - ly; // stessa correzione 180 gradi
+  // clip to band and screen once, not per pixel
+  const int ly0 = bt.y < band_y0 ? band_y0 - bt.y : 0;
+  const int ly1 = bt.y + 16 > band_y0 + 8 ? band_y0 + 8 - bt.y : 16;
+  const int lx0 = bt.x < 0 ? -bt.x : 0;
+  const int lx1 = bt.x + 16 > 224 ? 224 - bt.x : 16;
 
-    unsigned short *ptr = frame_buffer + local_row * 224;
-    for (int lx = 0; lx < 16; lx++) {
-      short px = bt.x + lx;
-      if (px < 0 || px >= 224) continue;
-      int sx = 15 - lx;
-      unsigned char pixel = bnj_bgtiles[bt.code][sy][sx];
-      ptr[px] = palette[8 + pixel]; // opaco, colore base 8 (come btime)
+  for (int ly = ly0; ly < ly1; ly++) {
+    int local_row = bt.y + ly - band_y0;
+    const unsigned char *src = tile[15 - ly] + 15; // stessa correzione 180 gradi
+
+    unsigned short *ptr = frame_buffer + local_row * 224 + bt.x;
+    for (int lx = lx0; lx < lx1; lx++) {
+      ptr[lx] = pal[src[-lx]];
     }
   }
 }
@@ -375,13 +382,21 @@ void bnj::blit_tile(short row, char col) {
   const unsigned char (*tile)[8] = bnj_chartiles[code];
   unsigned short *ptr = frame_buffer + 8 * col;
   for (char r = 0; r < 8; r++, ptr += 224) {
+    const unsigned char *src = tile[7 - r] + 7; // 180 gradi
+    // pen0: trasparente quando lo sfondo e' attivo (transparency=true in
+    // ENTRAMBE le draw_chars di screen_update_bnj quando bnj_scroll[0]
+    // != 0), opaco altrimenti (transparency=false, priority=-1).
+    if (!bg_enabled) {
+      for (char c = 0; c < 8; c++) {
+        ptr[c] = palette[src[-c]];
+      }
+      continue;
+    }
     for (char c = 0; c < 8; c++) {
-      unsigned char pixel = tile[7 - r][7 - c]; // 180 gradi
-      if (pixel) ptr[c] = palette[pixel];
-      // pen0: trasparente quando lo sfondo e' attivo (transparency=true in
-      // ENTRAMBE le draw_chars di screen_update_bnj quando bnj_scroll[0]
-      // != 0), opaco altrimenti (transparency=false, priority=-1).
-      else if (!bg_enabled) ptr[c] = palette[0];
+      unsigned char pixel = src[-c];
+      if (pixel) {
+        ptr[c] = palette[pixel];
+      }
     }
   }
 }
