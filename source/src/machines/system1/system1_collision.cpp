@@ -30,7 +30,7 @@ void Collision::scan(const Frame &f) {
 }
 
 // Line buffer as the hardware: a pixel over an opaque one collides.
-void Collision::drawLine(const Frame &f, const Sprite *list, int count, int y) {
+__attribute__((flatten)) void Collision::drawLine(const Frame &f, const Sprite *list, int count, int y) {
   const int lineX0 = 2 * f.vis.x0;
   const int lineX1 = 2 * f.vis.x1 + 1;
   lineLo = lineX1 + 1;
@@ -66,7 +66,7 @@ void Collision::drawLine(const Frame &f, const Sprite *list, int count, int y) {
 }
 
 // Mixer PROM under each opaque sprite pixel; clears the line buffer behind it.
-void Collision::mixLine(const Frame &f, int y, int scroll, uint8_t yscroll) {
+__attribute__((flatten)) void Collision::mixLine(const Frame &f, int y, int scroll, uint8_t yscroll) {
   const uint8_t *bgPage = f.vram;
   const uint8_t *fgPage = f.vram + PAGE_BYTES;
 

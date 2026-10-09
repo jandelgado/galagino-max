@@ -100,6 +100,80 @@ static void test_walk_row_unterminated(void) {
   TEST_ASSERT_EQUAL(2 * MAX_ROW_BYTES, walkRow(bank, 0x0000, [](int, uint8_t) {}));
 }
 
+static uint32_t rnd(void) {
+  static uint32_t s = 12345;
+  s = s * 1103515245u + 12345u;
+  return s >> 8;
+}
+
+// MAME video_update_common for one output line: per pixel fg, bg and
+// sprite pens through the lookup PROM
+static void referenceLine(const LineSrc &f, const uint8_t *prom, int x, uint16_t *out) {
+  for (int y = 0; y < VIS_LINES; y++) {
+    uint8_t fgColor, bgColor;
+    const uint8_t fp = tilePixel(f.fgPage, f.tiles, f.tileMask, x, y, fgColor);
+    const uint8_t bp = tilePixel(f.bgPage, f.tiles, f.tileMask, bgCol(2 * x, f.scroll),
+                                 bgY(y, f.scrollY), bgColor);
+    const uint16_t spr = out[y];
+    const uint8_t source = prom[mixIndex(spr != 0, fp, fgColor, bp, bgColor)] & MIX_SOURCE;
+    if (source == 0) {
+      out[y] = f.pal[spr];
+    } else if (source == 1) {
+      out[y] = f.pal[FG_PENS | tilePen(fgColor, fp)];
+    } else {
+      out[y] = f.pal[BG_PENS | tilePen(bgColor, bp)];
+    }
+  }
+}
+
+// random PROM, pages, scroll and sprite pens; half the tiles transparent so
+// fg-free tiles take the fast path
+static void test_render_line(void) {
+  static uint32_t tiles[64][8];
+  static uint8_t fgPage[PAGE_BYTES], bgPage[PAGE_BYTES], prom[256];
+  static uint16_t pal[0x600];
+  uint16_t sel[16];
+
+  for (int round = 0; round < 200; round++) {
+    for (int t = 0; t < 64; t++) {
+      for (int c = 0; c < 8; c++) {
+        tiles[t][c] = t < 32 ? 0 : rnd() & rnd() & 0xffffff;
+      }
+    }
+    for (int i = 0; i < PAGE_BYTES; i++) {
+      fgPage[i] = rnd();
+      bgPage[i] = rnd();
+    }
+    // odd rounds: fg transparent, no sprite always shows bg, as in pr-5317
+    for (int i = 0; i < 256; i++) {
+      prom[i] = rnd();
+      if ((round & 1) && (i & 3) == 3) {
+        prom[i] = (prom[i] & ~MIX_SOURCE) | 2;
+      }
+    }
+    for (int i = 0; i < 0x600; i++) {
+      pal[i] = rnd();
+    }
+    const bool clearShowsBg = buildMixSel(prom, sel);
+    TEST_ASSERT_TRUE(clearShowsBg || !(round & 1));
+
+    const LineSrc f = {fgPage, bgPage, tiles, 63, pal, sel, clearShowsBg,
+                       (int)(rnd() % 1024) - 512, (uint8_t)rnd()};
+    const int x = rnd() % 256;
+    const uint32_t sprTiles = rnd() & rnd() & rnd();
+
+    uint16_t want[VIS_LINES] = {}, got[VIS_LINES] = {};
+    for (int y = 0; y < VIS_LINES; y++) {
+      if ((sprTiles >> (y / TILE_SIZE)) & 1) {
+        want[y] = got[y] = (rnd() & 1) ? rnd() % 0x200 : 0;
+      }
+    }
+    referenceLine(f, prom, x, want);
+    renderLine(f, x, sprTiles, got);
+    TEST_ASSERT_EQUAL_HEX16_ARRAY(want, got, VIS_LINES);
+  }
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_visarea_rows);
@@ -112,5 +186,6 @@ int main(int, char **) {
   RUN_TEST(test_walk_row_forward);
   RUN_TEST(test_walk_row_mirrored);
   RUN_TEST(test_walk_row_unterminated);
+  RUN_TEST(test_render_line);
   return UNITY_END();
 }

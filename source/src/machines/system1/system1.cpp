@@ -59,15 +59,6 @@ constexpr int SN_TONE2 = 2;
 constexpr int SN_NOISE_BASE = 4;             // N/512 in renderer noise units
 constexpr int SN_FOLLOW_TONE2 = 3;
 
-// mixer sources and palette blocks
-constexpr uint8_t SOURCE_SPRITE = 0;
-constexpr uint8_t SOURCE_FG = 1;
-constexpr uint16_t FG_PENS = 0x200;
-constexpr uint16_t BG_PENS = 0x400;
-
-constexpr int STRIP_LINES = 8;
-constexpr int TILE_SIZE = 8;
-
 } // namespace
 
 system1::system1(const Roms &r, const Config &c)
@@ -79,6 +70,7 @@ system1::system1(const Roms &r, const Config &c)
   spriteRom = sprite_rom.data();
   soundRom = sound_rom.data();
   prom = lookup_prom.data();
+  clearShowsBg = buildMixSel(prom, mixSel);
 
   mainRomSize = main_rom.size();
   soundRomSize = sound_rom.size();
@@ -408,10 +400,11 @@ void system1::render_row(short strip) {
 }
 
 // Sprite pens (sprite * 16 + nibble, never 0) into frame_buffer, later wins.
-void system1::drawSprites(int strip) {
+__attribute__((flatten)) void system1::drawSprites(int strip) {
   const int firstRow = strip * STRIP_LINES;
   const int xHi = xOfRow(firstRow);
   const int xLo = xOfRow(firstRow + STRIP_LINES - 1);
+  memset(sprTiles, 0, sizeof(sprTiles));
 
   for (int a = 0; a < activeCount; a++) {
     const ActiveSprite &as = active[a];
@@ -423,6 +416,19 @@ void system1::drawSprites(int strip) {
     const uint16_t penBase = as.number * PENS_PER_SPRITE;
     const int y0 = as.s.top > 0 ? as.s.top : 0;
     const int y1 = as.s.bottom < VIS_LINES ? as.s.bottom : VIS_LINES;
+    if (y0 >= y1) {
+      continue;
+    }
+
+    // tile rows this sprite may touch: mixStrip skips sprite checks elsewhere
+    const uint32_t rows = (2u << ((y1 - 1) / TILE_SIZE)) - (1u << (y0 / TILE_SIZE));
+    for (int l = 0; l < STRIP_LINES; l++) {
+      const int x = xHi - l;
+      if (x >= as.x0 && x < as.x0 + as.width) {
+        sprTiles[l] |= rows;
+      }
+    }
+
     for (int y = y0; y < y1; y++) {
       walkRow(bank, rowAddr(as.s, y), [&](int i, uint8_t c) {
         const int x = as.x0 + i;
@@ -435,64 +441,20 @@ void system1::drawSprites(int strip) {
   }
 }
 
-// Per pixel: fg + bg tile pixels, the lookup PROM picks the layer (MAME
-// video_update_common). One tile word covers 8 output columns of a row.
-// Hot loop: per tile constants hoisted, tile words shifted 3 bits per pixel.
+// fg + bg tiles and the sprite pens mixed line by line (renderLine)
 void system1::mixStrip(int strip) {
-  const uint8_t *fgPage = &memory[VIDEO_RAM + PAGE_BYTES];  // fixed layer, read live
-  const uint8_t *bgPage = video.bg_page;
-  const uint32_t (*const tw)[8] = tiles;
-  const uint16_t mask = tileMask;
-  const uint8_t *const mix = prom;
-  const uint16_t *const pal = palette;
-  const int scroll = bgScroll(video.scroll_x_lo, video.scroll_x_hi);
-  const uint8_t scrollY = video.scroll_y;
+  const LineSrc f = {&memory[VIDEO_RAM + PAGE_BYTES],  // fixed layer, read live
+                     video.bg_page,
+                     tiles,
+                     tileMask,
+                     palette,
+                     mixSel,
+                     clearShowsBg,
+                     bgScroll(video.scroll_x_lo, video.scroll_x_hi),
+                     video.scroll_y};
 
   for (int l = 0; l < STRIP_LINES; l++) {
-    const int x = xOfRow(strip * STRIP_LINES + l);
-    const uint8_t bx = bgCol(2 * x, scroll);
-    uint16_t *out = &frame_buffer[l * VIS_LINES];
-
-    // bg tile entered mid-tile at y 0 when scroll_y is not a multiple of 8
-    uint8_t by = scrollY;
-    int bgLeft = 0;
-    uint32_t bw = 0;
-    uint8_t bgMix = 0;
-    const uint16_t *bgPal = pal;
-
-    for (int ty = 0; ty < VIS_LINES / TILE_SIZE; ty++) {
-      const Tile ft = tileAt(fgPage, ty * PAGE_COLS + (x >> 3));
-      uint32_t fw = tw[ft.code & mask][x & 7];
-      const uint8_t fgMix = mixIndex(true, 1, ft.color, 1, 0);
-      const uint16_t *fgPal = &pal[FG_PENS | tilePen(ft.color, 0)];
-
-      for (int r = 0; r < TILE_SIZE; r++, out++, by++) {
-        if (bgLeft == 0) {
-          const Tile bt = tileAt(bgPage, (by >> 3) * PAGE_COLS + (bx >> 3));
-          bw = tw[bt.code & mask][bx & 7] << (3 * (by & 7));
-          bgMix = mixIndex(true, 1, 0, 1, bt.color);
-          bgPal = &pal[BG_PENS | tilePen(bt.color, 0)];
-          bgLeft = TILE_SIZE - (by & 7);
-        }
-        bgLeft--;
-
-        const uint8_t fp = (fw >> 21) & 7;
-        const uint8_t bp = (bw >> 21) & 7;
-        fw <<= 3;
-        bw <<= 3;
-
-        const uint16_t spr = *out;
-        const uint8_t idx = fgMix | bgMix | (spr ? 0 : 0x01) | (fp ? 0 : 0x02) | (bp ? 0 : 0x10);
-        const uint8_t source = mix[idx] & MIX_SOURCE;
-        if (source == SOURCE_SPRITE) {
-          *out = pal[spr];
-        } else if (source == SOURCE_FG) {
-          *out = fgPal[fp];
-        } else {
-          *out = bgPal[bp];
-        }
-      }
-    }
+    renderLine(f, xOfRow(strip * STRIP_LINES + l), sprTiles[l], &frame_buffer[l * VIS_LINES]);
   }
 }
 

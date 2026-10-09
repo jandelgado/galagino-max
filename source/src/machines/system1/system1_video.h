@@ -26,8 +26,14 @@ constexpr uint16_t SCROLL_X_HI = 0xffd;
 constexpr uint16_t SCROLL_Y = 0xfbd;
 constexpr int SCROLL_X_BIAS = 28;
 constexpr uint8_t MIX_SOURCE = 0x03;      // lookup PROM: 0 sprite, 1 fg, 2/3 bg
+constexpr uint8_t SOURCE_SPRITE = 0;
+constexpr uint8_t SOURCE_FG = 1;
 constexpr uint8_t MIX_NO_COLLIDE = 0x04;
 constexpr uint8_t MIX_BANK = 0x08;
+constexpr uint16_t FG_PENS = 0x200;       // palette RAM blocks: sprite, fg, bg
+constexpr uint16_t BG_PENS = 0x400;
+constexpr int TILE_SIZE = 8;
+constexpr int MIX_PRIORITIES = 16;        // fg x bg tile priority (color bits 6-7)
 
 // visible half-res x range, 512 units 2 * x0 .. 2 * x1 + 1
 struct Visarea {
@@ -53,7 +59,7 @@ struct Tile {
   uint8_t color;  // bits 6-7 = mixer priority
 };
 
-inline Tile tileAt(const uint8_t *page, int index) {
+inline __attribute__((always_inline)) Tile tileAt(const uint8_t *page, int index) {
   const uint16_t d = page[2 * index] | (page[2 * index + 1] << 8);
   Tile t;
   t.code = ((d >> 4) & 0x800) | (d & 0x7ff);
@@ -76,6 +82,135 @@ inline uint8_t tilePixel(const uint8_t *page, const uint32_t (*tiles)[8], uint16
   const Tile t = tileAt(page, (y >> 3) * PAGE_COLS + (x >> 3));
   color = t.color;
   return (tiles[t.code & tileMask][x & 7] >> (3 * (7 - (y & 7)))) & 7;
+}
+
+// Lookup PROM source (0 sprite, 1 fg, 2/3 bg) per tile priority pair p =
+// fgPri | bgPri << 2, 2 bits for each opacity case o: bit 0 sprite
+// transparent, bit 1 fg transparent, bit 2 bg transparent. Returns true if
+// a pixel without fg and sprite always shows bg (o = 3 and 7), as in pr-5317:
+// renderLine then skips tiles without fg and sprite pixels.
+inline bool buildMixSel(const uint8_t *prom, uint16_t *sel) {
+  bool clearShowsBg = true;
+  for (int p = 0; p < MIX_PRIORITIES; p++) {
+    sel[p] = 0;
+    for (int o = 0; o < 8; o++) {
+      const uint8_t idx = (o & 3) | ((o & 4) << 2) | ((p & 3) << 2) | ((p >> 2) << 5);
+      sel[p] |= (prom[idx] & MIX_SOURCE) << (2 * o);
+    }
+    clearShowsBg = clearShowsBg && ((sel[p] >> 6) & (sel[p] >> 14) & 2);
+  }
+  return clearShowsBg;
+}
+
+// Per frame inputs of renderLine
+struct LineSrc {
+  const uint8_t *fgPage;
+  const uint8_t *bgPage;
+  const uint32_t (*tiles)[8];
+  uint16_t tileMask;
+  const uint16_t *pal;
+  const uint16_t *mixSel;  // buildMixSel
+  bool clearShowsBg;       // buildMixSel
+  int scroll;              // bgScroll
+  uint8_t scrollY;
+};
+
+// pixels with fixed fg and bg tile, tile words aligned to bit 21
+struct Run {
+  uint32_t fw;
+  uint32_t bw;
+  const uint16_t *fgPal;
+  const uint16_t *bgPal;
+  uint16_t sel;
+};
+
+// bg tile under line pixel y: palette, priority and word aligned to y
+inline __attribute__((always_inline)) const uint16_t *bgTile(const LineSrc &f, uint8_t bx,
+                                                              uint8_t by, uint32_t &bw,
+                                                              int &pri) {
+  const Tile t = tileAt(f.bgPage, (by >> 3) * PAGE_COLS + (bx >> 3));
+  bw = f.tiles[t.code & f.tileMask][bx & 7] << (3 * (by & 7));
+  pri = t.color >> 6;
+  return &f.pal[BG_PENS | tilePen(t.color, 0)];
+}
+
+__attribute__((noinline)) inline void mixRun(uint16_t *out, const uint16_t *pens, int n,
+                                             const Run &r, const uint16_t *sprPal) {
+  uint32_t fw = r.fw;
+  uint32_t bw = r.bw;
+  for (int i = 0; i < n; i++, fw <<= 3, bw <<= 3) {
+    const uint8_t fp = (fw >> 21) & 7;
+    const uint8_t bp = (bw >> 21) & 7;
+    const uint16_t spr = pens[i];
+    const int o = (spr ? 0 : 1) | (fp ? 0 : 2) | (bp ? 0 : 4);
+    const uint8_t source = (r.sel >> (2 * o)) & MIX_SOURCE;
+    if (source == SOURCE_SPRITE) {
+      out[i] = sprPal[spr];
+    } else if (source == SOURCE_FG) {
+      out[i] = r.fgPal[fp];
+    } else {
+      out[i] = r.bgPal[bp];
+    }
+  }
+}
+
+// One output line at half-res x: fg + bg tiles and the sprite pens already in
+// out through the lookup PROM (MAME video_update_common). sprTiles bit ty
+// marks fg tile rows ty that may hold sprite pens, all others are 0. Pass 1
+// paints bg, pass 2 mixes only the fg tiles with fg or sprite pixels, few in
+// practice.
+inline void renderLine(const LineSrc &f, int x, uint32_t sprTiles, uint16_t *out) {
+  static const uint16_t NO_PENS[TILE_SIZE] = {};
+  const uint8_t bx = bgCol(2 * x, f.scroll);
+
+  // pass 1 overwrites the sprite pens: keep the tiles holding them
+  uint16_t pens[VIS_LINES];
+  if (sprTiles) {
+    const int lo = __builtin_ctz(sprTiles) * TILE_SIZE;
+    const int hi = (32 - __builtin_clz(sprTiles)) * TILE_SIZE;
+    memcpy(&pens[lo], &out[lo], (hi - lo) * sizeof(uint16_t));
+  }
+
+  uint8_t by = f.scrollY;
+  for (int y = 0; y < VIS_LINES;) {
+    uint32_t bw;
+    int pri;
+    const uint16_t *bgPal = bgTile(f, bx, by, bw, pri);
+    int n = TILE_SIZE - (by & 7);
+    n = y + n > VIS_LINES ? VIS_LINES - y : n;
+    for (int i = 0; i < n; i++, bw <<= 3) {
+      out[y + i] = bgPal[(bw >> 21) & 7];
+    }
+    y += n;
+    by += n;
+  }
+
+  for (int ty = 0; ty < VIS_LINES / TILE_SIZE; ty++) {
+    const int y = ty * TILE_SIZE;
+    const Tile t = tileAt(f.fgPage, ty * PAGE_COLS + (x >> 3));
+    Run r;
+    r.fw = f.tiles[t.code & f.tileMask][x & 7];
+    const bool sprite = (sprTiles >> ty) & 1;
+    if (r.fw == 0 && !sprite && f.clearShowsBg) {
+      continue;
+    }
+
+    // up to two bg tiles under this fg tile
+    r.fgPal = &f.pal[FG_PENS | tilePen(t.color, 0)];
+    const int fgPri = t.color >> 6;
+    const uint16_t *tilePens = sprite ? &pens[y] : NO_PENS;
+    for (int i = 0; i < TILE_SIZE;) {
+      const uint8_t by = f.scrollY + y + i;
+      int bgPri;
+      r.bgPal = bgTile(f, bx, by, r.bw, bgPri);
+      r.sel = f.mixSel[fgPri | (bgPri << 2)];
+      int n = TILE_SIZE - (by & 7);
+      n = i + n > TILE_SIZE ? TILE_SIZE - i : n;
+      mixRun(&out[y + i], &tilePens[i], n, r, f.pal);
+      r.fw <<= 3 * n;
+      i += n;
+    }
+  }
 }
 
 struct Sprite {
