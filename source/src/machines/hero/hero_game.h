@@ -13,6 +13,8 @@ namespace hero_game {
 
 struct Input {
   uint8_t up, down, left, right, fire;
+  uint8_t start;  // console RESET switch
+  uint8_t select; // console SELECT switch: next game
 };
 
 struct Hero {
@@ -30,6 +32,7 @@ struct Game {
   uint8_t game;          // $80: game number 0..4, bit 7 = past level 20
   uint8_t frame;         // $81
   uint8_t random;        // $82
+  uint8_t select_delay;  // $83: frames until SELECT steps again
   uint8_t joy;           // $84: SWCHA high nibble, active low
   uint8_t level, screen; // $F5, $9C
   uint8_t prev_screen;   // $9D
@@ -46,8 +49,11 @@ struct Game {
   uint8_t wear;          // $B1: laser wear of the wall
   uint8_t dynamite;      // $B2
   uint8_t lives;         // $B3
+  uint8_t idle;          // $B4: no input for $B4 * 2048 frames, bit 7 = blank
+  uint8_t timer;         // $B5: bit 7 = no demo restart, bits 2-0 count to $B4
+  uint8_t demo;          // $B6: attract demo, counts down every 8 frames
   uint8_t score[3];      // $B7-$B9 BCD, high byte first
-  uint8_t over;          // $BA: game over
+  uint8_t over;          // $BA: no game running (game over, game select)
   uint8_t raft_ride;     // $BD (frame logic)
   uint8_t fuse[3];       // $DE-$E0
   uint8_t flash;         // $E1: background colour of the explosion flash
@@ -74,8 +80,10 @@ static const uint8_t BAND_BOTTOM_Y = 21; // y of band 0's lower edge, band i spa
 static const uint8_t BAND_H = 39;        // [21 + 39 i, 60 + 39 i)
 static const uint8_t HERO_HEIGHT = 24;
 
-// $F000: game 0..4 (Game 1-5), lives and score reset
-void newGame(Game &g, uint8_t game);
+// $F000: power on, the game select screen for Game 1; RESET starts it
+void powerOn(Game &g);
+// RAM byte at address $80-$FF, nullptr where the remake keeps no state
+uint8_t *ram(Game &g, uint8_t addr);
 // One frame: the previous overscan's second half (bank 0, collisions,
 // respawn, dynamite, power), the frame logic (bank 1: input, movement,
 // objects, display registers), the kernel's collisions and the overscan's

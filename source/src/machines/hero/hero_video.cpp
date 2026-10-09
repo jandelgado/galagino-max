@@ -244,6 +244,7 @@ static void hudLine(const VideoState &v, int y, uint8_t *dst) {
 
 void composeLine(const Frame &f, int line, uint8_t *dst) {
   memset(dst, idx(BLACK), SRC_W);
+  if (f.v.blank) { return; }
   if (line >= CAP_Y && line < TOP_Y) {
     capLine(f.v, line - CAP_Y, dst);
   } else if (line >= TOP_Y && line < FLOOR_Y) {

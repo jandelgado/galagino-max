@@ -83,6 +83,7 @@ enum Digits { HUNDREDS = 1, UNITS = 2 };
 // $DBB2/$DBBA: BCD points at the hundreds or units byte, extra life every
 // 20,000, the game stops at 1,000,000
 static void addScore(Game &g, uint8_t bcd, Digits at) {
+  if (g.demo) { return; }
   const uint8_t old = g.score[0];
   uint8_t carry = bcd >= 0x99;
   for (int i = at; i >= 0; i--) {
@@ -90,7 +91,7 @@ static void addScore(Game &g, uint8_t bcd, Digits at) {
     bcd = 0;
   }
   if (carry) {
-    g.over = 0xff;
+    g.over = g.demo = 0xff;
     memset(g.score, 0xbb, sizeof(g.score));
   }
   if (((old ^ g.score[0]) & 0x12) && g.lives != MAX_LIVES) { g.lives++; }
@@ -126,15 +127,74 @@ static void startLevel(Game &g) {
   g.hue = b0(0xdd13 + (g.level & 3));
 }
 
-void newGame(Game &g, uint8_t game) {
-  memset(&g, 0, sizeof(g));
-  g.game = game;
-  g.level = b1(0xff6d + game);
-  g.random = 1;
-  startLevel(g);
-  g.lives = START_LIVES;
-  g.laser = 0xfd;
-  g.laser_pos = 1;
+// the original's RAM map
+uint8_t *ram(Game &g, uint8_t a) {
+  VideoState &v = g.view;
+  switch (a) {
+  case 0x80: return &g.game;
+  case 0x81: return &g.frame;
+  case 0x82: return &g.random;
+  case 0x83: return &g.select_delay;
+  case 0x84: return &g.joy;
+  case 0x9b: return &g.hero.x;
+  case 0x9c: return &g.screen;
+  case 0x9d: return &g.prev_screen;
+  case 0x9e: return &g.furthest;
+  case 0x9f: return &g.hero.y;
+  case 0xa0: return &g.wall;
+  case 0xa1: case 0xa2: case 0xa3: return &g.obj_state[a - 0xa1];
+  case 0xa4: return &g.hue;
+  case 0xa5: case 0xa6: case 0xa7: return &g.obj_x[a - 0xa5];
+  case 0xa8: case 0xa9: case 0xaa: return &g.obj2_x[a - 0xa8];
+  case 0xab: return &g.power;
+  case 0xac: return &g.hero.standing;
+  case 0xad: return &g.respawn;
+  case 0xae: return &g.respawn_band;
+  case 0xaf: return &g.power_full;
+  case 0xb0: return &g.hero.facing;
+  case 0xb1: return &g.wear;
+  case 0xb2: return &g.dynamite;
+  case 0xb3: return &g.lives;
+  case 0xb4: return &g.idle;
+  case 0xb5: return &g.timer;
+  case 0xb6: return &g.demo;
+  case 0xb7: case 0xb8: case 0xb9: return &g.score[a - 0xb7];
+  case 0xba: return &g.over;
+  case 0xbd: return &g.raft_ride;
+  case 0xbf: return &v.band[BAND_BOTTOM].pf1;
+  case 0xc0: return &v.band[BAND_MID].pf1;
+  case 0xc1: return &v.band[BAND_TOP].pf1;
+  case 0xc2: return &v.band[BAND_BOTTOM].pf2;
+  case 0xc3: return &v.band[BAND_MID].pf2;
+  case 0xc4: return &v.band[BAND_TOP].pf2;
+  case 0xc5: case 0xc6: case 0xc7: return &v.band_color[2 - (a - 0xc5)];
+  case 0xcb: case 0xcc: case 0xcd: return &v.obj[a - 0xcb].gfx;
+  case 0xce: case 0xcf: case 0xd0: return &v.obj[a - 0xce].color;
+  case 0xd1: case 0xd2: case 0xd3: return &g.latch.hero_obj[a - 0xd1];
+  case 0xd4: case 0xd5: case 0xd6: return &g.latch.laser_obj[a - 0xd4];
+  case 0xd8: case 0xd9: case 0xda: return &v.obj2[a - 0xd8].gfx;
+  case 0xdb: case 0xdc: case 0xdd: return &v.obj2[a - 0xdb].color;
+  case 0xde: case 0xdf: case 0xe0: return &g.fuse[a - 0xde];
+  case 0xe1: return &g.flash;
+  case 0xe2: case 0xe3: case 0xe4: return &g.hero_pf[a - 0xe2];
+  case 0xe6: return &g.hero.blocked;
+  case 0xe7: return &g.hero.prop;
+  case 0xe8: return &g.hero.walk;
+  case 0xe9: return &g.hero.thrust;
+  case 0xea: case 0xeb: case 0xec: return &g.osc[a - 0xea];
+  case 0xed: case 0xee: case 0xef: case 0xf0: case 0xf1: return &g.saved[a - 0xed];
+  case 0xf2: return &g.rescued;
+  case 0xf3: return &g.laser;
+  case 0xf4: return &g.laser_hit;
+  case 0xf5: return &g.level;
+  case 0xf6: return &g.anim;
+  case 0xf7: case 0xf8: case 0xf9: return &g.hit[a - 0xf7];
+  case 0xfa: return &g.blast;
+  case 0xfb: return &v.wave;
+  case 0xfc: return &g.hero.turn_delay;
+  case 0xfd: return &g.wall_phase;
+  default: return nullptr;
+  }
 }
 
 // ------------------------------------------------------ screen change
@@ -197,7 +257,7 @@ static void respawn(Game &g) {
     h.y = RESPAWN_TOP_Y;
     g.obj_state[g.respawn_band] = GONE; // the killer goes too
     h.standing = 0;
-    if (--g.lives == 0) { g.over = 0xff; }
+    if (!g.demo && --g.lives == 0) { g.over = g.demo = 0xff; }
   }
   if (h.y != RESPAWN_Y[g.respawn_band]) {
     h.y--;
@@ -349,18 +409,22 @@ static void levelDone(Game &g) {
   }
 
   g.rescued = 0;
-  if ((g.game & 0x7f) == 4) { // game 5: random level
+  if (!g.demo && (g.game & 0x7f) == 4) { // game 5: random level
     const uint8_t r = g.random & 0x1f;
     g.level = r < 20 ? r : r - 12;
-  } else if (++g.level > 19) {
-    g.game |= 0x80;
-    g.level = LEVEL_LOOP;
+  } else {
+    g.level++;
+    if (g.demo) { g.level &= 3; }
+    if (g.level > 19) {
+      g.game |= 0x80;
+      g.level = LEVEL_LOOP;
+    }
   }
   startLevel(g);
 }
 
-static void overscanB(Game &g) {
-  if (g.over) { return; }
+static void overscanB(Game &g, const Input &in) {
+  if (in.start || (g.idle & 0x80) || g.over) { return; }
   if (g.rescued) {
     levelDone(g);
     return;
@@ -669,7 +733,15 @@ static void miner(Game &g, VideoState &v) {
 // $D079: score, or "LEVEL: n" until the power is full
 static void hudText(const Game &g, VideoState &v) {
   uint8_t b[3] = {g.score[0], g.score[1], g.score[2]};
-  const bool level = !g.over && !g.power_full && (g.game & 0x7f) != 4;
+  bool level;
+  if (g.timer & 0x80) {
+    level = false;
+  } else if (g.over) { // game over: the score blinks with the level
+    level = !g.lives && g.score[0] != 0xaa && (g.demo & 0x1f) >= 0x14;
+  } else {
+    level = !g.power_full;
+  }
+  if ((g.game & 0x7f) == 4) { level = false; }
   if (level) {
     b[0] = 0xcd;
     b[1] = 0xef;
@@ -692,16 +764,118 @@ static void hudText(const Game &g, VideoState &v) {
 
 static void display(Game &g);
 
+// $F093: SELECT shows the game number as the score and starts the attract timer
+static void selectScreen(Game &g) {
+  uint8_t n = g.game & 0x7f;
+  if (n >= 5) {
+    g.game &= 0x80;
+    n = 0;
+  }
+  g.idle = g.timer = n;
+  g.score[0] = g.score[1] = 0xaa; // blank digits
+  g.score[2] = (n | 0xa0) + 1;
+  g.demo = 0x1f;
+  g.select_delay = 0x1e;
+}
+
+// $F007: clears RAM from `from` up, then game $80 (level 1 for the demo)
+static void restart(Game &g, uint8_t from) {
+  for (int a = from; a <= 0xff; a++) {
+    uint8_t *p = ram(g, a);
+    if (p) { *p = 0; }
+  }
+  uint8_t game = 0;
+  if (!g.demo) {
+    g.game &= 0x7f;
+    game = g.game;
+  }
+  g.level = b1(0xff6d + game);
+  startLevel(g);
+  g.lives = START_LIVES;
+  if (g.random) { return; }
+  g.random = 1; // power on
+  g.over = 0xff;
+  selectScreen(g);
+}
+
+void powerOn(Game &g) {
+  memset(&g, 0, sizeof(g));
+  g.laser_pos = 1;
+  restart(g, 0x80);
+}
+
+// $F042: joystick and console switches; the attract demo ignores the
+// joystick and restarts every 2048 frames
+static void consoleInput(Game &g, const Input &in) {
+  uint8_t swcha = 0xff;
+  if (in.right) { swcha &= ~JOY_RIGHT; }
+  if (in.left) { swcha &= ~JOY_LEFT; }
+  if (in.down) { swcha &= ~JOY_DOWN; }
+  if (in.up) { swcha &= ~JOY_UP; }
+  if (!(g.frame & 7) && g.demo) {
+    swcha = 0xff;
+    if (!--g.demo) {
+      g.demo--;
+      if (!(g.timer & 0x80)) {
+        g.timer |= 0x80;
+        restart(g, 0xba);
+        return;
+      }
+    }
+  }
+
+  g.joy = swcha & 0xf0;
+  if (swcha != 0xff) { g.idle = 0; }
+  if (in.start) {
+    g.over = 0;
+    restart(g, 0xb4);
+    return;
+  }
+  if (!in.select) {
+    g.select_delay = 0;
+    return;
+  }
+  g.over = g.respawn = 0xff;
+  if (g.select_delay) {
+    g.select_delay--;
+    return;
+  }
+  g.game++;
+  selectScreen(g);
+}
+
+// $F0DB: the demo's joystick per room, dynamite at walls, away from its fuse
+static uint8_t demoJoy(uint16_t table, uint8_t room) {
+  const uint16_t a = table + room;
+  return a <= 0xffeb ? b1(a) : JOY_NONE; // past the ROM: open bus in the original
+}
+
+static void demoInput(Game &g) {
+  const uint8_t room = roomIndex(g);
+  uint8_t joy = demoJoy(0xff42, room);
+  if (g.hero.standing) {
+    if (g.fuse[1]) {
+      if (g.fuse[1] >= 0x2c) { joy = demoJoy(0xff56, room); }
+    } else {
+      const uint8_t a = g.wall - 0x0f;
+      if (a < g.hero.x && (uint8_t)(a + 0x17) >= g.hero.x) { joy = JOY_ONLY_DOWN; }
+    }
+  }
+  g.joy = joy;
+}
+
 // bank 1, $F042-$F62D
 static void frameLogic(Game &g, const Input &in) {
-  g.joy = JOY_NONE;
-  if (in.right) { g.joy &= ~JOY_RIGHT; }
-  if (in.left) { g.joy &= ~JOY_LEFT; }
-  if (in.down) { g.joy &= ~JOY_DOWN; }
-  if (in.up) { g.joy &= ~JOY_UP; }
-
+  consoleInput(g, in);
   if (!(g.respawn | g.rescued | g.hit[0] | g.hit[1])) { g.anim++; }
   g.random = (uint8_t)(g.random << 1) | (((g.random << 3) ^ g.random) >> 7 & 1);
+  if (g.demo) {
+    if (g.idle & 0x80) { // blank screen saver
+      display(g);
+      return;
+    }
+    demoInput(g);
+  }
 
   rideRaft(g);
   tentaclePull(g);
@@ -724,10 +898,12 @@ static void display(Game &g) {
   for (int i = 0; i < 3; i++) { v.obj2[i].x = g.obj2_x[i]; }
   v.laser_x = g.laser_pos;
   hudText(g, v);
+  v.blank = g.idle & 0x80; // $D104
 }
 
 void viewRoom(Game &g, uint8_t level, uint8_t screen) {
-  newGame(g, 0);
+  powerOn(g);
+  g.over = g.demo = 0;
   g.level = level;
   g.screen = g.prev_screen = g.furthest = screen;
   const Room room = decode(level, screen);
@@ -817,7 +993,7 @@ static void wallPhase(Game &g) {
 
 // $D65C: the laser while FIRE is held; it wears down a hit wall
 static uint8_t laser(Game &g, const Input &in) {
-  if (g.over | g.respawn | g.rescued || !in.fire) {
+  if (g.over | g.respawn | g.rescued || (!g.demo && !in.fire)) {
     g.laser = 0xfd;
     return 0;
   }
@@ -852,18 +1028,27 @@ static uint8_t laser(Game &g, const Input &in) {
   return x < 0x9f ? x : 0;
 }
 
+// $D704, after the $81 wrap: $B4 counts idle time in 2048 frames
+static void idleTimer(Game &g) {
+  if (g.frame) { return; }
+  g.timer = (g.timer + 1) & 0xc7;
+  if (g.timer & 7) { return; }
+  if (++g.idle == 0) { g.idle = 0x80; }
+}
+
 // $D00C positions an object at A, A = 0 as 1
 static uint8_t position(uint8_t a) { return a ? a : 1; }
 
 void tick(Game &g, const Input &in) {
-  overscanB(g);
+  idleTimer(g);
+  overscanB(g, in);
   frameLogic(g, in);
   kernel(g);
   oscillate(g);
   animate(g);
   wallPhase(g);
   g.laser_pos = position(laser(g, in));
-  g.frame++;
+  g.frame++; // $D700
 }
 
 } // namespace hero_game

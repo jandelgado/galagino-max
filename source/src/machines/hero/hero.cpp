@@ -8,7 +8,7 @@ using namespace hero_video;
 
 void hero::reset() {
   machineBase::reset();
-  hero_game::newGame(game, 0);
+  hero_game::powerOn(game);
 #ifdef HERO_ROOM_VIEWER
   hero_game::viewRoom(game, 0, 0);
   game.view.hero_page = NO_HERO;
@@ -41,7 +41,8 @@ void hero::runViewer(uint32_t pressed) {
 
 void hero::run_frame(void) {
   uint32_t keys = input->buttons_get();
-  if (keys & BUTTON_EXTRA) { keys &= ~(BUTTON_UP | BUTTON_DOWN | BUTTON_LEFT | BUTTON_RIGHT); } // volume
+  const bool start = (keys & BUTTON_EXTRA) != 0;
+  if (start) { keys &= ~(BUTTON_UP | BUTTON_DOWN | BUTTON_LEFT | BUTTON_RIGHT); } // volume
 #ifdef HERO_ROOM_VIEWER
   runViewer(keys & ~prev_keys);
 #else
@@ -51,9 +52,10 @@ void hero::run_frame(void) {
   in.left = (keys & BUTTON_LEFT) != 0;
   in.right = (keys & BUTTON_RIGHT) != 0;
   in.fire = (keys & BUTTON_FIRE) != 0;
+  // console switches: START is RESET, UP/DOWN outside a game is SELECT
+  in.start = start;
+  in.select = game.over && (in.up || in.down);
   hero_game::tick(game, in);
-  // until the attract mode exists: FIRE after the game over starts game 1
-  if (game.over && in.fire && !(prev_keys & BUTTON_FIRE)) { hero_game::newGame(game, 0); }
 #endif
   prev_keys = keys;
   publish();

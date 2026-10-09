@@ -67,6 +67,7 @@ struct VideoState {
   uint8_t dynamite;                       // $B2
   uint8_t text[6];                        // glyph pointers into page $DF
   uint8_t text_color;
+  uint8_t blank;                          // VBLANK on: screen saver
 };
 
 // TIA collision latches of one kernel pass (bit 7 set = hit), as the
