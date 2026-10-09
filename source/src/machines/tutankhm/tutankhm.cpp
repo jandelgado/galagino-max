@@ -17,6 +17,12 @@ void tutankhm::reset() {
   machineBase::reset();
   m6809_reset(&main_cpu);
 
+  // instruction fetches straight from the fixed ROM, skipping the per-byte
+  // callback chain; must follow m6809_reset(), which clears the window
+  main_cpu.rom_direct = rom_ptr;
+  main_cpu.rom_base = 0xA000;
+  main_cpu.rom_size = 0x6000;
+
   videoram = nullptr;  // arena memory, reclaimed by Arena::reset()
 }
 
