@@ -32,7 +32,9 @@ public:
 #endif
 
 private:
+#ifdef HERO_ROOM_VIEWER
   void runViewer(uint32_t pressed);
+#endif
   void publish();
 
   Seqlock<hero_video::VideoState> vblank;

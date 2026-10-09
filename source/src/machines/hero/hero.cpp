@@ -48,6 +48,7 @@ void hero::publish() {
   vblank.publish([this](VideoState &s) { s = game.view; });
 }
 
+#ifdef HERO_ROOM_VIEWER
 // LEFT/RIGHT previous/next screen, UP/DOWN next/previous level
 void hero::runViewer(uint32_t pressed) {
   uint8_t level = game.level, screen = game.screen;
@@ -64,6 +65,7 @@ void hero::runViewer(uint32_t pressed) {
   hero_game::viewRoom(game, level, screen);
   game.view.hero_page = NO_HERO;
 }
+#endif
 
 void hero::run_frame(void) {
   uint32_t keys = input->buttons_get();
