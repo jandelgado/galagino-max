@@ -35,6 +35,9 @@
 //#define BUBLBOBL_SCALE_BORDER // 240 columns, every 2nd column of the 16 px side walls dropped
 #endif
 
+//#define HERO_SCALE_Y // H.E.R.O.: scale 192 lines to 288 (fills the screen, distorts the aspect)
+//#define HERO_NTSC_COLORS // H.E.R.O.: NTSC cart colours, default PAL cart colours (Stella palette)
+
 // video config
 //#define TFT_SPICLK  40000000    // 40 Mhz. Some displays cope with 80 Mhz
 //#define TFT_SPICLK  80000000    // 80 Mhz. Some displays cope with 80 Mhz

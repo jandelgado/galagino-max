@@ -8,7 +8,8 @@
 // colour >> 1) from the registers the game logic prepares each frame, and
 // detects the TIA collisions of those lines in software. Source window:
 // 160 x 192 lines, line 0 = MAME a2600 snapshot row 26. Output 240 x 288:
-// x and y scaled by 1.5.
+// x scaled by 1.5, y 1:1 and centred (2600 pixels are about 1.6 times
+// wider than tall), or y scaled by 1.5 too with HERO_SCALE_Y.
 namespace hero_video {
 
 static const int SRC_W = 160;
@@ -93,7 +94,12 @@ void prepare(Frame &f);
 void composeLine(const Frame &f, int line, uint8_t *dst);
 // SRC_W indices -> OUT_W display pixels
 void scaleLine(const uint8_t *src, uint16_t *dst);
+// source line of an output row, outside 0..SRC_H - 1 = border
+#ifdef HERO_SCALE_Y
 inline int sourceLine(int out_row) { return out_row * 2 / 3; }
+#else
+inline int sourceLine(int out_row) { return out_row - (OUT_H - SRC_H) / 2; }
+#endif
 // P0 vs P1, M1 vs P0/PF/BL latches of the bands, hero_pf excluded
 void collide(const VideoState &v, Latches &l);
 

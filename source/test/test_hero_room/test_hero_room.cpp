@@ -140,9 +140,21 @@ static void test_hero_behind_playfield(void) {
 }
 
 static void test_palette(void) {
+#ifdef HERO_NTSC_COLORS
   for (int i = 0; i < HERO_CMAP_CHECKS; i++) {
     TEST_ASSERT_EQUAL_HEX16(hero_cmap_check[i][1], hero_palette[hero_cmap_check[i][0] >> 1]);
   }
+#else
+  // NTSC colour -> its PAL cart colour (hue remapped) in Stella's PAL palette
+  static const uint16_t pal_check[][2] = {
+    {0x20, 0x0058}, // PAL 0x40, 590000
+    {0x44, 0xe9a1}, // PAL 0x64, a73d4d
+    {0x84, 0x372b}, // PAL 0xb4, 2d65bf
+    {0xc4, 0x8214}, // PAL 0x54, 169216
+    {0x04, 0xcb5a}, // grey, 595959
+  };
+  for (const auto &c : pal_check) { TEST_ASSERT_EQUAL_HEX16(c[1], hero_palette[c[0] >> 1]); }
+#endif
 }
 
 static void test_scale(void) {
@@ -154,7 +166,14 @@ static void test_scale(void) {
   TEST_ASSERT_EQUAL_HEX16(hero_palette[0], dst[1]);
   TEST_ASSERT_EQUAL_HEX16(hero_palette[1], dst[2]);
   TEST_ASSERT_EQUAL_HEX16(hero_palette[159 & 0x7f], dst[239]);
+#ifdef HERO_SCALE_Y
   TEST_ASSERT_EQUAL(191, hero_video::sourceLine(287));
+#else
+  TEST_ASSERT_EQUAL(-1, hero_video::sourceLine(47));
+  TEST_ASSERT_EQUAL(0, hero_video::sourceLine(48));
+  TEST_ASSERT_EQUAL(191, hero_video::sourceLine(239));
+  TEST_ASSERT_EQUAL(192, hero_video::sourceLine(240));
+#endif
 }
 
 int main(int, char **) {

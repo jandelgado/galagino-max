@@ -272,7 +272,7 @@ static void logoLine(const VideoState &v, int line, uint8_t *dst) {
 
 void composeLine(const Frame &f, int line, uint8_t *dst) {
   memset(dst, idx(BLACK), SRC_W);
-  if (f.v.blank) { return; }
+  if (f.v.blank || line < 0 || line >= SRC_H) { return; }
   if (line >= CAP_Y && line < TOP_Y) {
     capLine(f.v, line - CAP_Y, dst);
   } else if (line >= TOP_Y && line < FLOOR_Y) {
