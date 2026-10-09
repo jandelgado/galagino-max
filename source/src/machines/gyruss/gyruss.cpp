@@ -171,6 +171,14 @@ void gyruss::reset() {
     printf("gyrus: reset\n");
   stop_audio_task();
   m6809_reset(&sub_cpu);
+
+  // instruction fetches straight from ROM, decrypted by the core, skipping
+  // the per-byte callback chain; must follow m6809_reset(), which clears it
+  sub_cpu.rom_direct = sub_raw_ptr;
+  sub_cpu.rom_base = 0xE000;
+  sub_cpu.rom_size = 0x2000;
+  sub_cpu.konami1 = 1;
+
   machineBase::reset();
   memset(sub_ram, 0, sizeof(sub_ram));
   memset(multiplexPart1, 0, sizeof(multiplexPart1));
