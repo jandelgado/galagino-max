@@ -39,6 +39,13 @@ void circusc::reset() {
       sn_min_volume[chip][c] = 15;
     }
   m6809_reset(&main_cpu);   // vettore reset da 0xFFFE (ROM, KONAMI-1)
+
+  // instruction fetches straight from ROM, decrypted by the core, skipping
+  // the per-byte callback chain; must follow m6809_reset(), which clears it
+  main_cpu.rom_direct = main_rom_ptr;
+  main_cpu.rom_base = 0x6000;
+  main_cpu.rom_size = 0xA000;
+  main_cpu.konami1 = 1;
 }
 
 void circusc::start() {
@@ -49,7 +56,7 @@ void circusc::start() {
 // ============================================================
 // KONAMI-1: XOR degli opcode dipendente dall'indirizzo (identico a
 // rocnrope: mask = (a&0x02 ? 0x80:0x20) | (a&0x08 ? 0x08:0x02), solo
-// per fetch dalla ROM >= 0x6000). MAI usare rom_direct qui.
+// per fetch dalla ROM >= 0x6000).
 // ============================================================
 unsigned char IRAM_ATTR circusc::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   if (addr >= 0x6000) {
