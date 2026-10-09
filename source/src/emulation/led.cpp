@@ -6,12 +6,8 @@ void Led::init() {
   FastLED.setBrightness(LED_BRIGHTNESS);
 }
 
-void Led::update(const machineInfo *machines, machineBase *currentMachine, signed char machineIndexPreselection, signed char machineSelected) {
-  // machineSelected is set a frame before currentMachine exists.
-  if (!currentMachine)
-    machines[machineIndexPreselection].menuLeds(leds);
-  else
-    currentMachine->gameLeds(leds);
+void Led::update(machineBase *machine) {
+  machine->gameLeds(leds);
   show();
 }
 
