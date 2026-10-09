@@ -18,6 +18,7 @@ public:
   void start() override;
   void reset() override;
   void run_frame() override;
+  void prepare_frame() override;
   void render_row(short row) override;
   static const Logo &logo() { return nibbler_logo; }
   unsigned char vanguardSoundRom(unsigned short addr) override;
@@ -37,6 +38,11 @@ private:
   unsigned char scroll_x=0,scroll_y=0,backcolor=0,charbank=0,flip_screen=0;
   volatile bool music_muted[3]={true,true,true};
   bool coin_down=false;
+
+  // pre-rotated 2 bpp tiles in the Arena, 8 words each (see decode_tile())
+  uint16_t *bg_tiles = nullptr;  // 512 ROM tiles
+  uint16_t *fg_tiles = nullptr;  // 256 RAM chars, CPU writes char_ram
+  volatile unsigned char fg_dirty[256] = {};  // char written, decode pending
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
