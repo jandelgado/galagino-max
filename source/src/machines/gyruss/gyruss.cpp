@@ -11,14 +11,12 @@ gyruss::gyruss()
     gyruss_rom_i8039(gyruss_rom_i8039_blob),
     gyruss_rom_main(gyruss_rom_main_blob),
     gyruss_rom_sub_raw(gyruss_rom_sub_raw_blob),
-    gyruss_rom_sub_decrypt(gyruss_rom_sub_decrypt_blob),
     gyruss_sprites(gyruss_sprites_blob),
     gyruss_tilemap(gyruss_tilemap_blob) {
   // Before start_audio_task(): the audio task reads these.
   main_rom_ptr = gyruss_rom_main.data();
   audio_rom_ptr = gyruss_rom_audio.data();
   sub_raw_ptr = gyruss_rom_sub_raw.data();
-  sub_decrypt_ptr = gyruss_rom_sub_decrypt.data();
 }
 
 // ============================================================
@@ -60,10 +58,7 @@ void gyruss::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
 }
 
 unsigned char gyruss::m6809_read_opcode(m6809_state *s, uint16_t addr) {
-  // Konami-1 decrypted opcodes at 0xE000-0xFFFF only (no mirror)
-  if (addr >= 0xE000) {
-    return sub_decrypt_ptr[addr - 0xE000];
-  }
+  // ROM opcodes come from rom_direct, Konami-1 decrypted by the core
   return m6809_read(s, addr);
 }
 

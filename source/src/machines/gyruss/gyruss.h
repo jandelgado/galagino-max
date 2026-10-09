@@ -53,7 +53,6 @@ protected:
   Asset<unsigned char, COMPRESSED> gyruss_rom_i8039;
   Asset<unsigned char, COMPRESSED> gyruss_rom_main;
   Asset<unsigned char, COMPRESSED> gyruss_rom_sub_raw;
-  Asset<unsigned char, COMPRESSED> gyruss_rom_sub_decrypt;
   Asset<uint32_t[16], COMPRESSED> gyruss_sprites;
   Asset<unsigned short[8], COMPRESSED> gyruss_tilemap;
 public:
@@ -176,7 +175,6 @@ private:
     const unsigned char *main_rom_ptr = nullptr;
     const unsigned char *audio_rom_ptr = nullptr;
     const unsigned char *sub_raw_ptr = nullptr;
-    const unsigned char *sub_decrypt_ptr = nullptr;
 };
 
 #endif
