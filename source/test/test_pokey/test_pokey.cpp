@@ -62,6 +62,17 @@ static void test_random_matches_mame(void) {
   }
 }
 
+// Tempest 0xae1c: LDA RANDOM; LDY RANDOM (4 clocks apart) per POKEY, then
+// $011f = (((r1 >> 4) ^ r2) & 0x0f) | ((r3 ^ (r4 << 4)) & 0xf0) must be 0:
+// poly17 moves 4 bits in 4 clocks
+static void test_random_tempest_check(void) {
+  for (uint32_t c = 0; c < 5000; c++) {
+    const uint8_t r1 = Pokey::random(c, false), r2 = Pokey::random(c + 4, false);
+    TEST_ASSERT_EQUAL_HEX8(0, ((r1 >> 4) ^ r2) & 0x0f);
+    TEST_ASSERT_EQUAL_HEX8(0, (r1 ^ (r2 << 4)) & 0xf0);
+  }
+}
+
 static void test_random_changes_between_instructions(void) {
   // LDA $100A; EOR $100A: 4 clocks apart must not cancel out every time
   int same = 0;
@@ -229,6 +240,7 @@ int main(int, char **) {
   RUN_TEST(test_poly17_state_at_matches_mame);
   RUN_TEST(test_random_matches_mame);
   RUN_TEST(test_random_changes_between_instructions);
+  RUN_TEST(test_random_tempest_check);
   RUN_TEST(test_pure_tone_64khz_base);
   RUN_TEST(test_pure_tone_1789khz);
   RUN_TEST(test_ch3_high_clock);
