@@ -8,6 +8,7 @@
 #include "gng_sid.h"
 #include "gng_dipswitches.h"
 #include "gng_music.h"
+#include "gng_hud.h"
 #include "../../emulation/arena.h"
 #include "../../emulation/spriteflip.h"
 
@@ -428,7 +429,8 @@ void gng::blit_front(short row) {
 }
 
 void gng::blit_tile(short row, char col) {
-  const uint16_t idx = (row - FIRST_ROW + FG_ROW_OFFSET) * 32 + col + CROP / 8; // SCAN_ROWS
+  static_assert(CROP == 8, "gngFgColumn() crops one fg column");
+  const uint16_t idx = (row - FIRST_ROW + FG_ROW_OFFSET) * 32 + gngFgColumn(col, fg_lead); // SCAN_ROWS
   const uint8_t attr = memory[FG_ATTR + idx];
   const uint16_t code = memory[FG_CODE + idx] + ((attr & 0xc0) << 2);
   if (blank_chars[code >> 5] & (1u << (code & 31))) {
@@ -518,6 +520,8 @@ void gng::render_row(short row) {
     blit_front(row);
   }
 
+  const uint16_t fg_row = (row - FIRST_ROW + FG_ROW_OFFSET) * 32;
+  fg_lead = gngLeadRun(memory + FG_CODE + fg_row, memory + FG_ATTR + fg_row, blank_chars);
   for (char col = 0; col < WIDTH / 8; col++) {
     blit_tile(row, col);
   }
@@ -544,13 +548,12 @@ void gng::renderSid(int16_t *out, int n) {
 
 #ifdef LED_PIN
 // logo colors (quantized logos/gng.png)
-static const CRGB DARK = CRGB(0x581805);
-static const CRGB RUST = CRGB(0x862905);
-static const CRGB BROWN = CRGB(0x8a4307);
-static const CRGB ORANGE = CRGB(0xb96507);
+static const CRGB RED = CRGB(0xcc0000);
+static const CRGB BLUE = CRGB(0x0055aa);
+static const CRGB GREY = CRGB(0xcccccc);
 
 void gng::menuLeds(CRGB *leds) {
-  const CRGB pattern[NUM_LEDS] = {DARK, RUST, BROWN, ORANGE, BROWN, RUST, DARK};
+  const CRGB pattern[NUM_LEDS] = {RED, BLUE, GREY, GREY, GREY, BLUE, RED};
   memcpy(leds, pattern, sizeof(pattern));
 }
 

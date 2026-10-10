@@ -88,6 +88,7 @@ private:
   const unsigned short *tile_map = nullptr;
   const unsigned short (*chars)[8] = nullptr;
   uint32_t blank_chars[1024 / 32] = {}; // bit set: every pixel transparent
+  uint8_t fg_lead = 0; // fg columns drawn 8 px right in this strip (gng_hud.h)
 
   m6809_state main_cpu;
   uint8_t bank = 0;           // $3E00

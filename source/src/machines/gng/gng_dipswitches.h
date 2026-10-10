@@ -14,13 +14,13 @@
                    GNG_DIP_NO_SERVICE | GNG_DIP_NO_FLIP)
 
 // DSW2 ($3004)
-#define GNG_DIP_LIVES_3        0b00000011
+#define GNG_DIP_LIVES_5        0b00000001
 #define GNG_DIP_UPRIGHT        0b00000000
 #define GNG_DIP_BONUS_20K_70K  0b00011000 // 20K 70K every 70K
 #define GNG_DIP_NORMAL         0b01100000 // difficulty
 #define GNG_DIP_UNUSED         0b10000000
 
-#define GNG_DIP_B (GNG_DIP_LIVES_3 | GNG_DIP_UPRIGHT | GNG_DIP_BONUS_20K_70K | \
+#define GNG_DIP_B (GNG_DIP_LIVES_5 | GNG_DIP_UPRIGHT | GNG_DIP_BONUS_20K_70K | \
                    GNG_DIP_NORMAL | GNG_DIP_UNUSED)
 
 #endif
