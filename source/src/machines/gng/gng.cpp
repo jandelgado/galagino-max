@@ -236,6 +236,10 @@ void gng::wrLatch(uint8_t value) {
   // effects play. Music changes go to the SID player on the audio core.
   sound_latch = value;
 
+  // first command (00, sound init) follows the boot RAM/ROM test: until
+  // then frames run unthrottled (MAME: frame 310 of ~5 s)
+  game_started = 1;
+
   const GngCue cue = gngMusicCue(value);
   if (cue.action == GNG_NONE) {
     return;
@@ -306,8 +310,6 @@ void gng::runSound() {
 }
 
 void gng::run_frame() {
-  game_started = 1;
-
   for (int q = 0; q < SOUND_IRQS; q++) {
     runMain(MAIN_CYCLES / SOUND_IRQS);
     runSound();
