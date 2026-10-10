@@ -60,6 +60,15 @@ static const uint8_t SYS_START1 = 0x01, SYS_COIN1 = 0x40;
 static const uint8_t P1_RIGHT = 0x01, P1_LEFT = 0x02, P1_DOWN = 0x04, P1_UP = 0x08;
 static const uint8_t P1_FIRE = 0x10, P1_JUMP = 0x20;
 
+// jump on the START button: BUTTON_START with a COIN pin (EXTRA is then
+// COIN) or the galagino controller, else START itself reports as
+// BUTTON_EXTRA (BUTTON_START only follows a virtual coin, 600 ms late)
+#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+static const unsigned int JUMP_KEY = BUTTON_START;
+#else
+static const unsigned int JUMP_KEY = BUTTON_EXTRA;
+#endif
+
 gng::gng()
   : gng_rom(gng_rom_blob),
     gng_sprites0(gng_sprites0_blob),
@@ -173,7 +182,7 @@ unsigned char gng::m6809_read(m6809_state *s, uint16_t addr) {
       if (keys & (BUTTON_FIRE | BUTTON_A | BUTTON_L1)) {
         v &= ~P1_FIRE;
       }
-      if (keys & (BUTTON_START | BUTTON_B | BUTTON_R1)) {
+      if (keys & (JUMP_KEY | BUTTON_B | BUTTON_R1)) {
         v &= ~P1_JUMP;
       }
       return v;
@@ -274,8 +283,7 @@ void gng::wrZ80(unsigned short Addr, unsigned char Value) {
   }
 }
 
-// cycles counted per call: m6809_step() overwrites its return value
-// per instruction, total_cycles adds them up
+// main CPU for a number of E clock cycles (up to 3 instructions over)
 void gng::runMain(int cycles) {
   main_cpu.total_cycles = 0;
   while (main_cpu.total_cycles < cycles) {
