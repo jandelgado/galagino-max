@@ -8,9 +8,9 @@
 #include "../emulation/dvg.h"
 
 // Shared base of the Atari vector machines on the Asteroids CPU board
-// (Asteroids, Lunar Lander: DVG; Battle Zone: AVG): one M6502 at
-// 12.096 MHz / 8 with a 3 kHz / 12 NMI, display list decoded at GO and
-// rasterized strip by strip.
+// (Asteroids, Lunar Lander: DVG; Battle Zone: AVG) and Tempest: one M6502
+// at 12.096 MHz / 8 with a 3 kHz / 12 NMI (Tempest: IRQ, held until
+// acknowledged), display list decoded at GO and rasterized strip by strip.
 //
 //   emulation core                   video core
 //   CPU writes VRAM, GO: go()        prepare_frame(): go_list ->
@@ -38,8 +38,12 @@ protected:
   static const uint16_t VRAM_OFS = 0x0400; // VRAM inside machineBase::memory
   static const uint16_t MAX_VRAM_SIZE = 0x1000; // largest VRAM (Battle Zone)
 
+  // 3 kHz / 12 interrupt line
+  enum Interrupt : uint8_t { NMI, IRQ };
+
   dvgMachine(uint8_t (*read)(m6502_t *, uint16_t),
-             void (*write)(m6502_t *, uint16_t, uint8_t));
+             void (*write)(m6502_t *, uint16_t, uint8_t),
+             Interrupt interrupt = NMI);
 
   // emulation core, at GO: decodes vram into work, returns the count
   virtual uint16_t decode_frame(const uint8_t *vram);
@@ -52,6 +56,7 @@ protected:
   virtual const uint16_t *strip_palette(uint8_t strip) const { return palette; }
 
   void go(); // DVG GO write: decode VRAM, publish for the video core
+  void irq_ack() { m_cpu.irq = 0; }
   bool clock_3k() const;
   static uint8_t input_bit(bool set);
   static uint8_t dsw_read(uint8_t dsw, uint16_t a);
@@ -63,12 +68,13 @@ protected:
 
 private:
   static const uint32_t CYCLES_PER_FRAME = 25200; // 1.512 MHz / 60 Hz
-  static const uint32_t CYCLES_PER_NMI = 6144;    // 3 kHz / 12 = 246 Hz
+  static const uint32_t CYCLES_PER_INT = 6144;    // 3 kHz / 12 = 246 Hz
   static const uint8_t STRIPS = 36;
 
   m6502_t m_cpu;
+  const Interrupt interrupt;
   uint32_t cycles = 0;   // CPU clock since reset
-  uint32_t next_nmi = 0; // cycles value of the next NMI
+  uint32_t next_int = 0; // cycles value of the next interrupt
 
   // mapped line, half a vec2d::Line
   struct PackedLine {
