@@ -45,7 +45,7 @@ public:
 	unsigned char dkong_obuf_toggle = 0;
 	unsigned char dkong_audio_transfer_buffer[DKONG_AUDIO_QUEUE_LEN][64];
 	unsigned char dkong_audio_rptr = 0, dkong_audio_wptr = 0;
-	ima_adpcm::Voice dkong_sample[6];
+	ima_adpcm::Voice dkong_sample[5]; // walk, jump, stomp, (unused), fall
 
 protected:
  	void blit_tile(short row, char col) override;

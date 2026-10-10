@@ -13,6 +13,22 @@ dkongjr::dkongjr()
     dkongjr_sprites(dkongjr_sprites_blob),
     dkongjr_tilemap(dkongjr_tilemap_blob) { }
 
+void dkongjr::reset() {
+  dkong::reset();
+  p2_in = P2_INPUTS;
+}
+
+// inputs replace the latch bits, like MAME's latch8 read callbacks
+unsigned char dkongjr::rdI8048_port(struct i8048_state_S *state, unsigned char port) {
+  if (port != 2) return 0;
+  return (state->p2_state & ~P2_INPUTS) | p2_in;
+}
+
+// main board latch bit -> active low sound CPU input
+static unsigned char p2_line(unsigned char in, unsigned char bit, unsigned char value) {
+  return (value & 1) ? (in & ~bit) : (in | bit);
+}
+
 unsigned char dkongjr::rdI8048_xdm(struct i8048_state_S *state, unsigned char addr) {
   if(state->p2_state & 0x40)
     return dkong_sfx_index;
@@ -106,10 +122,15 @@ void dkongjr::wrZ80(unsigned short Addr, unsigned char Value) {
   // { 0x7d00, 0x7d00, dkongjr_sh_climb_w },
   // { 0x7d01, 0x7d01, dkongjr_sh_jump_w  },
   // { 0x7d02, 0x7d02, dkongjr_sh_land_w  },
-  // { 0x7d03, 0x7d03, dkongjr_sh_roar_w  },
   // use Dkong sounds here to save flash memory, so the original DkongJr sounds are different...
-  if ((Addr >= 0x7d00) && (Addr <= 0x7d03) && Value) {
+  if ((Addr >= 0x7d00) && (Addr <= 0x7d02) && Value) {
     trigger_sound(Addr & 7);
+    return;
+  }
+
+  // { 0x7d03, 0x7d03, dkongjr_sh_roar_w  },
+  if (Addr == 0x7d03) {
+    p2_in = p2_line(p2_in, P2_ROAR, Value);
     return;
   }
 
@@ -126,8 +147,8 @@ void dkongjr::wrZ80(unsigned short Addr, unsigned char Value) {
   }
   	
   // { 0x7d06, 0x7d06, dkongjr_sh_snapjaw_w },
-  if ((Addr == 0x7d06) && Value) {
-    trigger_sound(Addr & 7);
+  if (Addr == 0x7d06) {
+    p2_in = p2_line(p2_in, P2_SNAPJAW, Value);
     return;
   }
 

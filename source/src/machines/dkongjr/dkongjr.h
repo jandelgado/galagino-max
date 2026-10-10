@@ -19,11 +19,13 @@ public:
 	dkongjr();
 
 	signed char machineType() override { return MCH_DKONGJR; }
+	void reset() override;
 	void start(void) override;
 	unsigned char rdZ80(unsigned short Addr) override;
 	void wrZ80(unsigned short Addr, unsigned char Value) override;
 	unsigned char opZ80(unsigned short Addr) override;
 
+	unsigned char rdI8048_port(struct i8048_state_S *state, unsigned char port) override;
 	unsigned char rdI8048_xdm(struct i8048_state_S *state, unsigned char addr) override;
 	unsigned char rdI8048_rom(struct i8048_state_S *state, unsigned short addr) override;
 
@@ -41,6 +43,13 @@ private:
 
 	// Cached: hot path reads these per access; data() checks the cache on every call.
 	const unsigned char *rom_ptr = nullptr;
+
+	// Sound CPU P2 inputs from the main board, active low (MAME
+	// dkongjr_audio, vp2 xor 0x70). The sound ROM plays roar and snapjaw.
+	static const unsigned char P2_SNAPJAW = 0x10; // 7d06
+	static const unsigned char P2_ROAR = 0x20;    // 7d03
+	static const unsigned char P2_INPUTS = P2_SNAPJAW | P2_ROAR;
+	unsigned char p2_in = P2_INPUTS;
 };
 
 #endif
