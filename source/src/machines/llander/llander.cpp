@@ -208,11 +208,11 @@ uint16_t llander::decode_frame(const uint8_t *vram) {
   }
   dvg::Memory m = dvg_mem;
   m.ram = list;
-  return n + dvg::decode(m, lines + n, MAX_LINES - n);
+  return n + dvg::decode(m, work + n, MAX_LINES - n);
 }
 
 uint16_t llander::map_lines(uint16_t count) {
-  return llander_layout::map(lines, count);
+  return llander_layout::map(work, count);
 }
 
 #ifdef LED_PIN

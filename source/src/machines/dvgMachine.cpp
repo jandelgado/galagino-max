@@ -1,5 +1,6 @@
 #include "dvgMachine.h"
 #include "../emulation/arena.h"
+#include <new>
 
 // Experimental: dim halo around each line, like a vector monitor's beam
 // bloom. Costs 480 bytes of Arena and some render time.
@@ -23,9 +24,7 @@ static uint16_t glow565(uint8_t level) {
 }
 
 dvgMachine::dvgMachine(uint8_t (*read)(m6502_t *, uint16_t),
-                       void (*write)(m6502_t *, uint16_t, uint8_t),
-                       uint16_t vram_size)
-  : vram_size(vram_size) {
+                       void (*write)(m6502_t *, uint16_t, uint8_t)) {
   static_assert(VRAM_OFS + MAX_VRAM_SIZE <= RAMSIZE, "vector machine RAM does not fit");
   memset(&m_cpu, 0, sizeof(m_cpu));
   m_cpu.read = read;
@@ -46,6 +45,9 @@ void dvgMachine::start() {
     return; // start() runs twice
   }
 
+  work = Arena::alloc<vec2d::Line>(MAX_LINES);
+  void *list = Arena::alloc(sizeof(Seqlock<GoList>), alignof(Seqlock<GoList>));
+  go_list = new (list) Seqlock<GoList>();
   lines = Arena::alloc<vec2d::Line>(MAX_LINES);
   line_next = Arena::alloc<uint16_t>(MAX_LINES);
   line_active = Arena::alloc<uint16_t>(MAX_LINES);
@@ -81,16 +83,25 @@ void dvgMachine::run_frame() {
 uint16_t dvgMachine::decode_frame(const uint8_t *vram) {
   dvg::Memory m = dvg_mem;
   m.ram = vram;
-  return dvg::decode(m, lines, MAX_LINES);
+  return dvg::decode(m, work, MAX_LINES);
 }
 
+// empty list before the first GO
 void dvgMachine::prepare_frame() {
-  if (!game_started) {
-    raster.begin(lines, 0); // no display list before the first GO
-    return;
-  }
-  go_latch.read(video);
-  raster.begin(lines, map_lines(decode_frame(video.vram)));
+  uint16_t count = 0;
+  go_list->visit([this, &count](const GoList &g) {
+    count = g.count < MAX_LINES ? g.count : uint16_t(MAX_LINES); // torn read
+    for (uint16_t i = 0; i < count; i++) {
+      const PackedLine &p = g.lines[i];
+      vec2d::Line &l = lines[i];
+      l.x0 = p.x0;
+      l.y0 = p.y0;
+      l.x1 = p.x1;
+      l.y1 = p.y1;
+      l.color = p.color;
+    }
+  });
+  raster.begin(lines, count);
 }
 
 // frame_buffer is cleared by the caller
@@ -102,9 +113,18 @@ void dvgMachine::render_row(short row) {
 #endif
 }
 
+// The DVG draws the list right away; the CPU builds the next one meanwhile.
+// Several GOs per frame: the last complete list wins.
 void dvgMachine::go() {
-  go_latch.publish([this](VideoState &vs) {
-    memcpy(vs.vram, memory + VRAM_OFS, vram_size);
+  const uint16_t count = map_lines(decode_frame(memory + VRAM_OFS));
+
+  // packed after mapping: the video core spins while a publish runs
+  go_list->publish([this, count](GoList &g) {
+    g.count = count;
+    for (uint16_t i = 0; i < count; i++) {
+      const vec2d::Line &l = work[i];
+      g.lines[i] = {(uint16_t)l.y0, (uint16_t)l.y1, (uint8_t)l.x0, (uint8_t)l.x1, l.color};
+    }
   });
   game_started = 1;
 }

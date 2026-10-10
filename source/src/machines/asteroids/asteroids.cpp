@@ -190,12 +190,12 @@ void asteroids::main_write(m6502_t *cpu, uint16_t a, uint8_t v) {
 uint16_t asteroids::map_lines(uint16_t count) {
   uint16_t kept = 0;
   for (uint16_t i = 0; i < count; i++) {
-    vec2d::Line l = lines[i];
+    vec2d::Line l = work[i];
     if (!vec2d::clip(l, VISIBLE)) {
       continue;
     }
 
-    vec2d::Line &o = lines[kept++];
+    vec2d::Line &o = work[kept++];
     o.x0 = panel_col(l.x0);
     o.y0 = panel_row(l.y0);
     o.x1 = panel_col(l.x1);
