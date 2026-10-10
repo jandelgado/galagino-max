@@ -554,17 +554,20 @@ int m6809_step(m6809_state *s, char count) {
   uint8_t op, val8, postbyte;
   uint16_t ea, val16;
   int16_t offset;
-  s->cycles = 0;
+  int sum = 0;
 
   for (int i=0; i < count; i++) {
+    /* cycles of this instruction only: indexed modes add to it */
+    s->cycles = 0;
+
     /* CWAI (halted==2): CPU is stopped with its state already pushed, waiting
        for an interrupt — do not fetch. check_interrupts() clears halted and
        vectors when the IRQ arrives. Executing past CWAI re-pushes 12 bytes per
        loop pass and makes the eventual RTI pop a misaligned frame (wild PC).
        SYNC (halted==1) deliberately keeps falling through as before. */
     if (s->halted == 2) {
-        s->cycles += 1;
         s->total_cycles += 1;
+        sum += 1;
         continue;
     }
 
@@ -1069,6 +1072,7 @@ int m6809_step(m6809_state *s, char count) {
     }
 
     s->total_cycles += s->cycles;
+    sum += s->cycles;
   }
-  return s->cycles;
+  return sum;
 }
