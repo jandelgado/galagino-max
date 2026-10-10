@@ -349,9 +349,72 @@ static void test_commando_wav_dump(void) {
   }
 }
 
-// --- Boulder Dash, rebuilt by romconv/internal/cbdash/cbdash_rom_convert.py ---
-
 static int16_t long_buf[60 * 24000];
+
+// --- real tune, romszip/Ghosts_n_Goblins.sid (user supplied) ---
+
+static const uint16_t GNG_RAM_SIZE = 0x1540; // gng.h TUNE_RAM_SIZE
+
+static uint32_t loadGng(void) {
+  const char *paths[] = {"../romszip/Ghosts_n_Goblins.sid", "romszip/Ghosts_n_Goblins.sid"};
+  for (const char *p : paths) {
+    FILE *f = fopen(p, "rb");
+    if (!f) {
+      continue;
+    }
+    const uint32_t len = fread(tune_file, 1, sizeof(tune_file), f);
+    fclose(f);
+    return len;
+  }
+  return 0;
+}
+
+// the init copies $4000-$4CFF to $C000 and plays from there: with the
+// alias gng.cpp sets, both songs stay inside the RAM window and play
+static void test_gng_stays_in_window(void) {
+  const uint32_t len = loadGng();
+  if (!len) {
+    TEST_IGNORE_MESSAGE("romszip/Ghosts_n_Goblins.sid missing");
+  }
+  static uint8_t gng_ram[GNG_RAM_SIZE];
+  TEST_ASSERT_TRUE(psidParse(tune_file, len, &info));
+  TEST_ASSERT_EQUAL_HEX16(0x3800, info.load);
+  TEST_ASSERT_EQUAL(2, info.songs);
+  TEST_ASSERT_TRUE(player.load(info, gng_ram, GNG_RAM_SIZE));
+  player.alias(0xc000, 0x4000, 0x0d00);
+  for (uint8_t song = 1; song <= info.songs; song++) {
+    player.start(song);
+    player.render(long_buf, 30 * 24000);
+    TEST_ASSERT_EQUAL_MESSAGE(0, player.strays(), "stray access outside window/alias");
+    int16_t peak = 0;
+    for (int i = 0; i < 30 * 24000; i++) {
+      peak = long_buf[i] > peak ? long_buf[i] : peak;
+    }
+    TEST_ASSERT_GREATER_THAN(100, peak);
+  }
+}
+
+// listening material: SID_WAV_DIR=/some/dir writes gng_NN.wav, 60 s each
+static void test_gng_wav_dump(void) {
+  const char *dir = getenv("SID_WAV_DIR");
+  const uint32_t len = loadGng();
+  if (!dir || !len) {
+    TEST_IGNORE_MESSAGE("set SID_WAV_DIR and supply romszip/Ghosts_n_Goblins.sid");
+  }
+  static uint8_t gng_ram[GNG_RAM_SIZE];
+  TEST_ASSERT_TRUE(psidParse(tune_file, len, &info));
+  TEST_ASSERT_TRUE(player.load(info, gng_ram, GNG_RAM_SIZE));
+  player.alias(0xc000, 0x4000, 0x0d00);
+  for (uint8_t song = 1; song <= info.songs; song++) {
+    player.start(song);
+    player.render(long_buf, 60 * 24000);
+    char path[512];
+    snprintf(path, sizeof(path), "%s/gng_%02u.wav", dir, song);
+    writeWav(path, long_buf, 60 * 24000);
+  }
+}
+
+// --- Boulder Dash, rebuilt by romconv/internal/cbdash/cbdash_rom_convert.py ---
 
 #ifdef HAVE_CBDASH_SID
 static bool loadCbdash(void) {
@@ -427,6 +490,8 @@ int main(int, char **) {
   RUN_TEST(test_commando_stays_in_window);
   RUN_TEST(test_commando_effect_over_music);
   RUN_TEST(test_commando_wav_dump);
+  RUN_TEST(test_gng_stays_in_window);
+  RUN_TEST(test_gng_wav_dump);
   RUN_TEST(test_cbdash_header);
   RUN_TEST(test_cbdash_stays_in_window);
   RUN_TEST(test_cbdash_wav_dump);

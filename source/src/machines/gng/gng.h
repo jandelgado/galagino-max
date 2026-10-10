@@ -102,9 +102,9 @@ private:
   uint8_t ym_addr[2] = {};    // selected register per YM2203
 
   // music: written by the emulation core, read by renderSid() (audio core)
-  // high byte: sequence, low byte: subtune, 0 = stopped
+  // high byte: sequence, low byte: C64 song, 0 = stopped
   volatile uint16_t music_request = 0;
-  uint8_t music_subtune = 0;  // emulation core
+  uint8_t music_song = 0;     // emulation core
   uint16_t music_seen = 0;    // audio core
   bool sid_on = false;        // audio core, a tune was started
 

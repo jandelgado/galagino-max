@@ -7,6 +7,7 @@
 #include "gng_sprites.h"
 #include "gng_sid.h"
 #include "gng_dipswitches.h"
+#include "gng_music.h"
 #include "../../emulation/arena.h"
 #include "../../emulation/spriteflip.h"
 
@@ -52,9 +53,7 @@ static const uint8_t PEN_SPRITE_CLEAR = 15;
 static const uint8_t PEN_CHAR_CLEAR = 3;
 static const uint8_t PEN_BG_BACK0 = 0, PEN_BG_BACK6 = 6; // group 1 behind sprites
 
-// sound latch: the driver uses bits 0-5 (MAME sweep 2026-10-10)
-static const uint8_t SND_MASK = 0x3f;
-static const uint8_t SND_DEATH = 0x31; // death jingle, after 3f 00
+static const uint8_t SND_DEATH = 0x31; // sound latch: death jingle, after 3f 00
 
 // main CPU inputs (active low)
 static const uint8_t SYS_START1 = 0x01, SYS_COIN1 = 0x40;
@@ -114,7 +113,7 @@ void gng::reset() {
   sound_latch = 0;
   sound_reset = true;
   memset(ym_addr, 0, sizeof(ym_addr));
-  music_subtune = 0;
+  music_song = 0;
   music_request = 0;
 
   m6809_reset(&main_cpu); // reset vector from $FFFE, read through m6809_read
@@ -220,11 +219,24 @@ void gng::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
 
 void gng::wrLatch(uint8_t value) {
 #ifdef LED_PIN
-  if ((value & SND_MASK) == SND_DEATH) {
+  if ((value & GNG_CMD_MASK) == SND_DEATH) {
     led_flash = LED_FLASH_FRAMES;
   }
 #endif
+  // the sound CPU gets every command: FM music is dropped at the YM, SSG
+  // effects play. Music changes go to the SID player on the audio core.
   sound_latch = value;
+
+  const GngCue cue = gngMusicCue(value);
+  if (cue.action == GNG_NONE) {
+    return;
+  }
+  const uint8_t song = cue.action == GNG_PLAY ? cue.song : 0;
+  if (song == music_song) {
+    return; // a running tune keeps playing
+  }
+  music_song = song;
+  music_request = (uint16_t)((((music_request >> 8) + 1) << 8) | song);
 }
 
 unsigned char gng::opZ80(unsigned short Addr) {
@@ -501,8 +513,23 @@ void gng::render_row(short row) {
   }
 }
 
+// tune changes run the 6502 init here, on the audio core
 void gng::renderSid(int16_t *out, int n) {
-  memset(out, 0, n * sizeof(*out));
+  const uint16_t request = music_request;
+  if (tune_ok && request != music_seen) {
+    music_seen = request;
+    const uint8_t song = request & 0xff;
+    sid_on = song != 0;
+    if (sid_on) {
+      player.start(song);
+    }
+  }
+
+  if (!sid_on) {
+    memset(out, 0, n * sizeof(*out));
+    return;
+  }
+  player.render(out, n);
 }
 
 #ifdef LED_PIN
