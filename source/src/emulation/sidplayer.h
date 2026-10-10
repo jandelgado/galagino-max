@@ -40,6 +40,10 @@ public:
   // JSR addr with A on the running tune, no reload and no SID reset (e.g.
   // a driver's sound effect entry); ignored before start()
   void jsr(uint16_t addr, uint8_t a);
+  // C64 [from, from + size) mirrors [to, to + size) in the RAM window, for
+  // tunes that copy their player elsewhere (GnG: $4000-$4CFF to $C000).
+  // Call after load(), which clears it.
+  void alias(uint16_t from, uint16_t to, uint16_t size);
   void render(int16_t *out, int n);
   uint32_t strays() const { return stray_count; }
 
@@ -55,12 +59,14 @@ private:
   static uint8_t read(m6502_t *cpu, uint16_t addr);
   static void write(m6502_t *cpu, uint16_t addr, uint8_t val);
   bool call(uint16_t addr, uint8_t a, uint32_t max_cycles);
+  uint8_t *aliased(uint16_t addr);
 
   m6502_t cpu;
   Sid sid;
   PsidInfo info = {};
   uint8_t *ram = nullptr;
   uint16_t ram_size = 0;
+  uint16_t alias_from = 0, alias_to = 0, alias_size = 0;
   uint8_t low[LOW_SIZE];
   uint32_t samples_per_play = 0;
   uint32_t samples_to_play = 0;

@@ -203,6 +203,37 @@ static void test_runaway_play_stops(void) {
   TEST_PASS();
 }
 
+// a tune that copies its player to $C000 runs on the copy it loaded
+static void test_alias_maps_into_ram(void) {
+  static const uint8_t code[] = {
+    0x60,             // $1000 init: RTS
+    0xee, 0x20, 0xc0, // $1001 play: INC $C020 -> ram[0x20] via alias
+    0x60,
+  };
+  const uint32_t len = buildPsid(code, sizeof(code), LOAD, LOAD + 1);
+  TEST_ASSERT_TRUE(psidParse(file, len, &info));
+  TEST_ASSERT_TRUE(player.load(info, ram, sizeof(ram)));
+  player.alias(0xc000, LOAD, sizeof(ram));
+  player.start(1);
+  player.render(buf, 1);
+  TEST_ASSERT_EQUAL_UINT8(1, ram[0x20]);
+  TEST_ASSERT_EQUAL_UINT32(0, player.strays());
+}
+
+// load() drops the alias of the previous tune
+static void test_load_clears_alias(void) {
+  static const uint8_t code[] = {0x60, 0xee, 0x20, 0xc0, 0x60};
+  const uint32_t len = buildPsid(code, sizeof(code), LOAD, LOAD + 1);
+  TEST_ASSERT_TRUE(psidParse(file, len, &info));
+  TEST_ASSERT_TRUE(player.load(info, ram, sizeof(ram)));
+  player.alias(0xc000, LOAD, sizeof(ram));
+  TEST_ASSERT_TRUE(player.load(info, ram, sizeof(ram)));
+  player.start(1);
+  player.render(buf, 1);
+  TEST_ASSERT_EQUAL_UINT8(0, ram[0x20]);
+  TEST_ASSERT_EQUAL_UINT32(2, player.strays()); // INC: read + write
+}
+
 // --- real tune, romszip/Commando.sid (user supplied, not in the repo) ---
 
 static const uint16_t TUNE_RAM_SIZE = 0x1000;
@@ -390,6 +421,8 @@ int main(int, char **) {
   RUN_TEST(test_jsr_keeps_state);
   RUN_TEST(test_jsr_ignored_before_start);
   RUN_TEST(test_runaway_play_stops);
+  RUN_TEST(test_alias_maps_into_ram);
+  RUN_TEST(test_load_clears_alias);
   RUN_TEST(test_commando_header);
   RUN_TEST(test_commando_stays_in_window);
   RUN_TEST(test_commando_effect_over_music);
