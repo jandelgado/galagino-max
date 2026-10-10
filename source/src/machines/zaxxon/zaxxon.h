@@ -20,7 +20,6 @@
 #include "zaxxon_sample_alarm_fuel.h"
 #include "zaxxon_sample_noise_intro.h"
 #include "zaxxon_sample_noise_asteroid.h"
-#include "zaxxon_sample_rate.h"
 #include "../machineBase.h"
 #include "../../emulation/seqlock.h"
 
@@ -56,6 +55,21 @@ static const uint32_t zaxxon_sample_len[12] = {
   zaxxon_sample_alarm_fuel_blob.count,
   zaxxon_sample_noise_intro_blob.count,
   zaxxon_sample_noise_asteroid_blob.count,
+};
+// output samples per stored sample, per channel (stored at 8-24 kHz)
+static const uint8_t zaxxon_sample_hold[12] = {
+  zaxxon_sample_missile_homing_hold,
+  zaxxon_sample_missile_base_hold,
+  zaxxon_sample_laser_hold,
+  zaxxon_sample_battleship_hold,
+  zaxxon_sample_explosion_enemy_hold,
+  zaxxon_sample_explosion_ship_hold,
+  zaxxon_sample_cannon_hold,
+  zaxxon_sample_shot_hold,
+  zaxxon_sample_alarm_lock_hold,
+  zaxxon_sample_alarm_fuel_hold,
+  zaxxon_sample_noise_intro_hold,
+  zaxxon_sample_noise_asteroid_hold,
 };
 
 // The ROM (0x0165) pulses the one-shot bits of ports B/C: writes ~request,

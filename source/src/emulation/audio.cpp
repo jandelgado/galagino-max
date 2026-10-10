@@ -678,7 +678,8 @@ void Audio::zaxxon_render_buffer(void) {
       // end of the hold (one stored sample late)
       const int32_t prev = zx_adpcm_prev[ch];
       const int32_t step = zx_phase[ch] + 1;
-      int32_t s = (prev + (zx_adpcm_predictor[ch] - prev) * step / ZAXXON_SAMPLE_HOLD) >> 8;
+      const uint8_t hold = zaxxon_sample_hold[ch];
+      int32_t s = (prev + (zx_adpcm_predictor[ch] - prev) * step / hold) >> 8;
       if (ch == 10 || ch == 11) {
         s = (s * engine_gain_q8) >> 8;
       } else {
@@ -686,7 +687,7 @@ void Audio::zaxxon_render_buffer(void) {
       }
       value += s;
 
-      if (++zx_phase[ch] < ZAXXON_SAMPLE_HOLD) {
+      if (++zx_phase[ch] < hold) {
         continue;
       }
       zx_phase[ch] = 0;
