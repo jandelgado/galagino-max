@@ -69,7 +69,7 @@ void Audio::init() {
     .channel_format =       I2S_CHANNEL_FMT_ONLY_LEFT,
     .communication_format = I2S_COMM_FORMAT_STAND_MSB,
     .intr_alloc_flags = 0,
-    .dma_buf_count = 4,
+    .dma_buf_count = DMA_BUF_COUNT,
     .dma_buf_len = 64,
     .use_apll = false,
     .fixed_mclk = 0
@@ -97,7 +97,7 @@ void Audio::init() {
     .channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT,
 #endif
     .intr_alloc_flags = 0,
-    .dma_buf_count = 4,
+    .dma_buf_count = DMA_BUF_COUNT,
     .dma_buf_len = 64,   // 64 samples
     // APLL usage is broken in ESP-IDF 4.4.5
 #ifdef WORKAROUND_I2S_APLL_PROBLEM
@@ -121,7 +121,47 @@ void Audio::init() {
 // ESP32-S3 doesn't have an internal DAC, so...
 #endif
 
+  rampToSilence();
   generateSinusWave(256, sinusWaveBuffer, sizeof(sinusWaveBuffer)  / 2 );
+}
+
+// Fill all DMA buffers with silence. Without transmit() calls (self-test,
+// machine load) the DMA replays them in a loop: old content hums.
+void Audio::flushSilence(void) {
+  for (uint16_t i = 0; i < sizeof(snd_buffer) / sizeof(snd_buffer[0]); i++) {
+    snd_buffer[i] = SILENCE;
+  }
+
+  for (int i = 0; i < DMA_BUF_COUNT; i++) {
+    writeBlocking();
+  }
+}
+
+// Queue snd_buffer once, waiting for a free DMA buffer.
+void Audio::writeBlocking(void) {
+  size_t bytesOut = 0;
+  i2s_write(I2S_NUM_0, snd_buffer, sizeof(snd_buffer), &bytesOut, portMAX_DELAY);
+}
+
+// Output sits at 0 after boot. Move it to SILENCE slowly: a jump clicks.
+void Audio::rampToSilence(void) {
+  const uint32_t entries = sizeof(snd_buffer) / sizeof(snd_buffer[0]);
+  const uint32_t steps = RAMP_CHUNKS * entries;
+
+  for (uint32_t chunk = 0; chunk < RAMP_CHUNKS; chunk++) {
+    for (uint32_t i = 0; i < entries; i++) {
+      const uint32_t level = SILENCE * (chunk * entries + i) / steps;
+#ifdef ES8311_AUDIO
+      // signed codec: SILENCE is -32768, ramp 0 down to it
+      snd_buffer[i] = (uint16_t)(0x10000 - level);
+#else
+      snd_buffer[i] = (uint16_t)level;
+#endif
+    }
+    writeBlocking();
+  }
+
+  flushSilence();
 }
 
 void Audio::start(machineBase *machineBase) {
@@ -290,7 +330,7 @@ void Audio::mute(int m) {
 // Machine is deleted after this; stop reading its registers.
 void Audio::stop() {
   currentMachine = nullptr;
-  memset(snd_buffer, 0, sizeof(snd_buffer));
+  flushSilence();
 }
 
 void Audio::transmit() {
@@ -1864,12 +1904,12 @@ void Audio::valueToBuffer(int index, short value) {
 
 #ifdef SND_DIFF
   // generate differential output
-  snd_buffer[2 * index]   = 0x8000 + (value / volumeSetting);    // positive signal on GPIO26
-  snd_buffer[2 * index + 1] = 0x8000 - (value / volumeSetting);    // negative signal on GPIO25
+  snd_buffer[2 * index]   = SILENCE + (value / volumeSetting);    // positive signal on GPIO26
+  snd_buffer[2 * index + 1] = SILENCE - (value / volumeSetting);    // negative signal on GPIO25
 #else
   // work-around weird byte order bug, see
   // https://github.com/espressif/arduino-esp32/issues/8467#issuecomment-1656616015
-  snd_buffer[index ^ 1]   = 0x8000 + (value / volumeSetting);
+  snd_buffer[index ^ 1]   = SILENCE + (value / volumeSetting);
 #endif
 }
 
