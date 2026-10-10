@@ -69,6 +69,7 @@ GAMES = [
     "atetris",
     "ccastles",
     "bzone",
+    "tempest",
     "starwars",
     "missile",
     "mpatrol",
