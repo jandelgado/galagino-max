@@ -70,7 +70,7 @@ private:
 
   static const uint16_t SPRITE_BYTES = 0x200;
   static const uint16_t BG_BYTES = 0x800;      // code + attr
-  static const uint16_t PALETTE_BYTES = 0x200; // ext (B) + RG
+  static const uint16_t PALETTE_BYTES = 0x200; // RG + B
   static const uint16_t TUNE_RAM_SIZE = 0x1540; // C64 $3800-$4D3F
 
   static const int WIDTH = 240;
@@ -92,7 +92,8 @@ private:
   m6809_state main_cpu;
   uint8_t bank = 0;           // $3E00
   uint8_t scroll[4] = {};     // $3B08-$3B0B: x lo, x hi, y lo, y hi
-  // sprite RAM as latched by the $3C00 DMA (MAME buffered_spriteram8)
+  // sprite RAM latched at the previous vblank: MAME buffered_spriteram8
+  // copies after screen_update, so sprites trail scroll by one frame
   uint8_t sprite_buffer[SPRITE_BYTES] = {};
 
   // sound CPU (cpu[0])
@@ -116,8 +117,8 @@ private:
   PsidInfo tune = {};
   bool tune_ok = false;
 
-  // DMA sprite buffer, bg RAM, palette and scroll as of the vblank IRQ
-  // (see seqlock.h); fg text RAM stays live (no scroll)
+  // sprite buffer, bg RAM, palette and scroll as of the vblank IRQ (see
+  // seqlock.h); fg text RAM stays live (no scroll)
   struct VideoState {
     uint8_t sprites[SPRITE_BYTES];
     uint8_t bg[BG_BYTES];
@@ -128,11 +129,13 @@ private:
   VideoState video = {};
   uint16_t colors[256] = {};  // video.palette as RGB565, per frame
 
-  // bg tile pixels in front of sprites (group 1) of the current strip
+  // one bg tile row of a group 1 tile in the current strip: pens 1-5
+  // and 7 go in front of sprites
   struct FrontRun {
-    uint8_t line, attr;
+    uint32_t w[2];            // tile row, flips applied
     int16_t x;                // panel column of the tile's first pixel
-    const uint32_t *tile;
+    uint8_t line;
+    uint8_t pal;              // palette base
   };
   FrontRun front[8 * MAX_FRONT];
   uint8_t front_count = 0;
@@ -140,8 +143,8 @@ private:
   void wrLatch(uint8_t value);
   void runMain(int cycles);
   void runSound();
-  void blit_bg_line(uint16_t *dst, uint8_t line, int y);
-  void blit_front();
+  void blit_bg_line(uint8_t line, int y);
+  void blit_front(short row);
 };
 
 #endif
