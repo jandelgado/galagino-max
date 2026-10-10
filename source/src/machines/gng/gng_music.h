@@ -9,7 +9,8 @@
 // CPU), 25-3e only FM (music and jingles, dropped). Game flow: 35 credit,
 // 36 game start, 3c 3d 3a intro, 30 player ready, 2b stage 1, 3f 00 31
 // death, 3f 00 2f game over. Other long FM tunes (later stages, untraced)
-// play the main theme. C64 song 1: main theme, song 2: other tune.
+// play the main theme. C64 song 2 (PSID default, init $3B14) is the main
+// theme (checked on the device), song 1 the other tune.
 enum GngMusic : uint8_t { GNG_NONE, GNG_PLAY, GNG_STOP };
 
 struct GngCue {
@@ -20,8 +21,8 @@ struct GngCue {
 static const uint8_t GNG_CMD_MASK = 0x3f;
 static const uint8_t GNG_CMD_IDLE = 0xff;
 static const uint8_t GNG_FIRST_FM = 0x25;
-static const uint8_t GNG_SONG_THEME = 1;
-static const uint8_t GNG_SONG_START = 2;
+static const uint8_t GNG_SONG_THEME = 2;
+static const uint8_t GNG_SONG_START = 1;
 
 // FM tunes that loop (MAME: still keyed on after 10 s)
 static const uint8_t GNG_LOOPS[] = {

@@ -11,12 +11,13 @@ static void assertCue(uint8_t command, GngMusic action, uint8_t song) {
   TEST_ASSERT_EQUAL(song, cue.song);
 }
 
-// MAME trace 2026-10-10: 35 credit, 36 game start, 2b stage 1 loop
+// MAME trace 2026-10-10: 35 credit, 36 game start, 2b stage 1 loop.
+// C64 song 2 is the main theme (checked on the device), song 1 the other
 static void test_loops_play(void) {
-  assertCue(0x2b, GNG_PLAY, 1);
-  assertCue(0x26, GNG_PLAY, 1); // other stage loops: main theme too
-  assertCue(0x35, GNG_PLAY, 2);
-  assertCue(0x36, GNG_PLAY, 2);
+  assertCue(0x2b, GNG_PLAY, 2);
+  assertCue(0x26, GNG_PLAY, 2); // other stage loops: main theme too
+  assertCue(0x35, GNG_PLAY, 1);
+  assertCue(0x36, GNG_PLAY, 1);
 }
 
 // death 3f 00 31, game over 3f 00 2f, player ready 30, intro 3c 3d 3a
@@ -39,7 +40,7 @@ static void test_effects_ignored(void) {
 
 // the sound driver only decodes bits 0-5
 static void test_upper_bits_ignored(void) {
-  assertCue(0x6b, GNG_PLAY, 1);
+  assertCue(0x6b, GNG_PLAY, 2);
   assertCue(0xb1, GNG_STOP, 0);
 }
 
