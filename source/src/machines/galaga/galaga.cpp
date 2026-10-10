@@ -111,9 +111,11 @@ void galaga::wrZ80(unsigned short Addr, unsigned char Value) {
       cs_ctrl = Value;
       namco_busy = 5000;   // this delay is important for proper startup 
       
-      if(Value == 0xa8) trigger_sound_explosion();
-      
     } else {            // 7000
+      if(cs_ctrl & 8) {   // bit[3] -> 54xx selected
+        n54.write(Value, cs_ctrl);
+      }
+
       if(cs_ctrl & 1) {
         if(coincredMode) {
           coincredMode--;
@@ -154,6 +156,7 @@ void galaga::wrZ80(unsigned short Addr, unsigned char Value) {
     else {
       sub_cpu_reset = !Value;
       credit_mode = 0;   // this also resets the 51xx
+      n54.hold(sub_cpu_reset);
       
       if(sub_cpu_reset) {
         ResetZ80(&cpu[1]);
@@ -331,11 +334,6 @@ void galaga::check_galaga_sprite(struct sprite_S *spr) {
     // if(spr->code >= 0x34 && spr->code <= 0x3a)
     //   printf("SCORE %d @ %d/%d\n", spr->code-0x34, spr->x, spr->y);
   }
-}
-
-void galaga::trigger_sound_explosion(void) {
-  // 12 kHz sample at 24 kHz output
-  snd_boom.start(galaga_sample_boom_blob.data, galaga_sample_boom_blob.count, 2);
 }
 
 // draw a single 8x8 tile

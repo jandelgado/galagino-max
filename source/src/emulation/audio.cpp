@@ -999,12 +999,12 @@ void Audio::namco_render_buffer(void) {
     if(machineType == MCH_GALAGA) {
       galaga *galagaMachine = static_cast<galaga*>(currentMachine);
 
-      value += galagaMachine->snd_boom.next() * 3;
+      value += galagaMachine->n54.render();
     }
     else if(machineType == MCH_XEVIOUS) {
       xevious *xeviousMachine = static_cast<xevious*>(currentMachine);
 
-      value += xeviousMachine->snd_boom.next() * 3;
+      value += xeviousMachine->n54.render();
     }
 
     valueToBuffer(i, value);

@@ -5,15 +5,10 @@ sounds. Emulating this hardware may be tricky and the flash memory
 size of the ESP32 allows to store some of these as digital sound
 samples.
 
-This directory contains one sample needed for the explosion sound
-in Galaga and three more samples for Donkey Kong.
+This directory contains samples for Donkey Kong.
 
 These have to be converted into C source code using the
 [romconv.py](../romconv/romconv.py) tool.
-
-```
-../romconv/romconv.py galaga_sample_boom ./galaga_boom.s8 ../galagino/galaga_sample_boom.h
-```
 
 Donkey Kong does most audio via its MB8884/I8048 audio CPU. But three
 sounds are generated via discrete logic including three variants of

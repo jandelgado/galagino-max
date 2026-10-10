@@ -14,7 +14,6 @@
 
 import os
 import sys
-import wave
 import zipfile
 import hashlib
 
@@ -24,7 +23,6 @@ from gfxutil import load_file, mame_decode, rot_galagino
 from asset_emit import emit_compressed, emit_plain
 from namco_hw import nudge, rgb565_swapped_rgb as rgb565_swapped
 from convutil import fatal
-from adpcm import emit_adpcm
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "..", "romszip", "xevious.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "..", "source", "src", "machines", "xevious"))
@@ -212,49 +210,6 @@ def write_wavetable(prom):
         print(",\n".join(rows), file=f)
         print("};", file=f)
 
-def write_sample_boom():
-    # Campioni esplosione (forniti dall'utente, romconv/xevious/explo*.wav:
-    # gli stessi WAV che MAME usa per il bootleg Battles, privo del 54xx —
-    # battles_sample_names in galaga.cpp: explo1 = bersaglio a terra,
-    # explo2 = esplosione Solvalou). Mappa sui suoni del 54xx reale
-    # (namco54.cpp): "suono tipo B" (pacchetto 40..20, dal loop oggetti a
-    # terra 0x1a00) -> explo1; "suono tipo A" (pacchetti 30..10) -> explo2.
-    # Il chip reale piloterebbe un filtro discreto i cui parametri non sono
-    # noti. Ricampionati a 24000 Hz 8 bit CON SEGNO (stesso trucco di
-    # galaga_sample_boom.h/gaplus_sample_bang.h: bit pattern in unsigned
-    # char, letto a runtime con un cast a signed char*).
-    import numpy as np
-    for wav, name in (("xevious_explo1", "xevious_sample_boom"),
-                      ("xevious_explo2", "xevious_sample_boom2")):
-        path = os.path.join("..", "..", "..", "samples", wav + ".wav")
-        if not os.path.exists(path):
-            fatal(f"{wav}.wav not found, {name}.h not generated")
-        w = wave.open(path, "rb")
-        nch, sw, fr, nframes = w.getnchannels(), w.getsampwidth(), w.getframerate(), w.getnframes()
-        frames = w.readframes(nframes)
-        dtype = {1: np.int8, 2: "<i2", 4: "<i4"}[sw]
-        data = np.frombuffer(frames, dtype=dtype).astype(np.float64)
-        if nch > 1:
-            data = data.reshape(-1, nch).mean(axis=1)
-
-        target_fr = 24000
-        n_out = int(len(data) * target_fr / fr)
-        x_old = np.linspace(0, 1, len(data), endpoint=False)
-        x_new = np.linspace(0, 1, n_out, endpoint=False)
-        resampled = np.interp(x_new, x_old, data)
-
-        peak = np.abs(resampled).max()
-        scale = 127.0 / peak if peak > 0 else 1.0
-        samples8 = np.clip(np.round(resampled * scale), -128, 127).astype(np.int8)
-
-        with open(os.path.join(OUT_DIR,name + ".h"), "w") as f:
-            print(f"// Explosion samples (samples/xevious_{wav}.wav),", file=f)
-            print(f"// resampled at 24000 Hz signed 8bit, stored as 4-bit IMA-ADPCM", file=f)
-            print(f"// (ima_adpcm::Voice). PLAIN: ADPCM barely compresses.", file=f)
-            print(f"// {len(samples8)} samples ({len(samples8)/target_fr:.3f}s at 24000 Hz)", file=f)
-            emit_adpcm(f, name, samples8)
-        print(f"{name}.h: {len(samples8)} samples @24kHz ({len(samples8)/target_fr:.3f}s)")
-
 def write_planetmap(rom2a, rom2b, rom2c):
     # Le 3 ROM del "planet map" (schematic 9B) sono lette a runtime via
     # xevious_bb_r()/xevious_bs_w() (0xf000-0xffff) -- dati flash grezzi,
@@ -379,7 +334,6 @@ def main():
                      roms["xvi-4.3l"], roms["xvi-5.3m"])
     write_wavetable(roms["xvi-2.7n"])
     write_planetmap(roms["xvi_9.2a"], roms["xvi_10.2b"], roms["xvi_11.2c"])
-    write_sample_boom()
 
     cpu1_rom = roms["xvi_1.3p"] + roms["xvi_2.3m"] + roms["xvi_3.2m"] + roms["xvi_4.2l"]
     write_rom("xevious_rom_cpu1.h", "xevious_rom_cpu1", cpu1_rom,

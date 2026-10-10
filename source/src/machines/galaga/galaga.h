@@ -11,11 +11,10 @@
 #include "galaga_cmap_tiles.h"
 #include "galaga_cmap_sprites.h"
 #include "galaga_wavetable.h"
-#include "galaga_sample_boom.h"
 #include "galaga_starseed.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
-#include "../../emulation/ima_adpcm.h"
+#include "../../emulation/namco54.h"
 
 class galaga : public machineBase
 {
@@ -49,10 +48,10 @@ public:
   static const Logo &logo(void);
   bool hasNamcoAudio() override { return true; }
 
-  // the ship explosion sound is stored as a digi sample.
+  // explosions: emulated 54xx, read by the audio core.
   // All other sounds are generated on the fly via the
   // original wave tables
-  ima_adpcm::Voice snd_boom;
+  Namco54 n54;
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;
@@ -63,7 +62,6 @@ protected:
   void blit_sprite(short row, unsigned char s) override;
 private:
   void render_stars_set(short row, const struct galaga_star *set);
-  void trigger_sound_explosion(void);
   void check_galaga_sprite(struct sprite_S *spr);
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
