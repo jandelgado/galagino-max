@@ -39,6 +39,10 @@ public:
 
 private:
   static const uint8_t POKEYS = 2;
+  // placement in dvgMachine::memory: VRAM (4 KB) at VRAM_OFS, color RAM,
+  // program RAM (2 KB)
+  static const uint16_t COLOR_OFS = VRAM_OFS + 0x1000, COLOR_SIZE = 0x10;
+  static const uint16_t RAM_OFS = COLOR_OFS + COLOR_SIZE;
 
   static uint8_t main_read(m6502_t *, uint16_t);
   static void main_write(m6502_t *, uint16_t, uint8_t);

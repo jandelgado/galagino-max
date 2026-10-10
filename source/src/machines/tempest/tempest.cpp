@@ -34,13 +34,6 @@ enum : uint16_t {
   ROM_MIRRORED = 0xd000,
 };
 
-// placement in dvgMachine::memory
-enum : uint16_t {
-  COLOR_OFS = VRAM_OFS + TP_VRAM_SIZE,
-  COLOR_SIZE = 0x10,
-  RAM_OFS = COLOR_OFS + COLOR_SIZE,
-};
-
 // IN0, active low unless noted
 enum : uint8_t {
   IN0_COIN1 = 0x04, // left coin
@@ -276,3 +269,25 @@ uint16_t tempest::decode_frame(const uint8_t *vram) {
 uint16_t tempest::map_lines(uint16_t count) {
   return tempest_layout::map(work, count, flip);
 }
+
+#ifdef LED_PIN
+// logo colors: dark red, red, orange, yellow
+static const CRGB TEMPEST_LED_DARK(0xae241f), TEMPEST_LED_RED(0xc61219);
+static const CRGB TEMPEST_LED_ORANGE(0xe6521f), TEMPEST_LED_YELLOW(0xf59c12);
+static const uint8_t LED_MIDDLE = NUM_LEDS / 2;
+
+void tempest::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[NUM_LEDS] = {
+      TEMPEST_LED_DARK, TEMPEST_LED_RED, TEMPEST_LED_ORANGE, TEMPEST_LED_YELLOW,
+      TEMPEST_LED_ORANGE, TEMPEST_LED_RED, TEMPEST_LED_DARK};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
+}
+
+// the start button lamp (blinking in attract) lights the middle LED white
+void tempest::gameLeds(CRGB *leds) {
+  menuLeds(leds);
+  if (!(lamps & LAMP_START1)) {
+    leds[LED_MIDDLE] = CRGB::White;
+  }
+}
+#endif
