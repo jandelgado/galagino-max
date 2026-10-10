@@ -1,0 +1,147 @@
+#ifndef GNG_H
+#define GNG_H
+
+#include "gng_logo.h"
+#include "../machineBase.h"
+#include "../../emulation/seqlock.h"
+#include "../../emulation/sidplayer.h"
+
+// Capcom Ghosts'n Goblins (MAME gng, ROM set mm_c_0x). Main 6809 with
+// banked ROM, 16x16 scrolling bg with split priority, 128 sprites, 8x8 fg
+// text, palette RAM. Music comes from the C64 SID tune, cued by the sound
+// latch; effects come from the sound Z80 driving the SSG part of its two
+// YM2203 (the FM part plays the arcade music and is dropped).
+//
+// ROT0 shown upright, 256 x 224 native onto 240 x 224 panel pixels:
+//   native x' (8..247)  -> panel column x' - 8 (8 px cropped per side)
+//   native y' (0..223)  -> panel line 32 + y'
+class gng : public machineBase {
+protected:
+  // ROM assets: Arena residents unpacked in the ctor (largest first, to
+  // fit Arena's two blocks), bank/sound ROM and bg tiles stay in flash
+  Asset<unsigned char, COMPRESSED> gng_rom;
+  Asset<uint32_t[32], COMPRESSED> gng_sprites0;
+  Asset<uint32_t[32], COMPRESSED> gng_sprites1;
+  Asset<uint32_t[32], COMPRESSED> gng_sprites2;
+  Asset<unsigned short[8], COMPRESSED> gng_chars;
+  Asset<unsigned short, COMPRESSED> gng_tile_map;
+  Asset<uint32_t[32], PLAIN> gng_tiles;
+  Asset<unsigned char, PLAIN> gng_bank;
+  Asset<unsigned char, PLAIN> gng_sound;
+  Asset<unsigned char, PLAIN> gng_sid;
+
+public:
+  gng();
+  signed char machineType() override { return MCH_GNG; }
+  const int renderWidth() override { return WIDTH; }
+  const int renderBuffer() override { return WIDTH * 2 * 8; }
+  void reset() override;
+  unsigned char m6809_read(m6809_state *s, uint16_t addr) override;
+  void m6809_write(m6809_state *s, uint16_t addr, uint8_t val) override;
+  unsigned char m6809_read_opcode(m6809_state *s, uint16_t addr) override;
+  unsigned char opZ80(unsigned short Addr) override;
+  unsigned char rdZ80(unsigned short Addr) override;
+  void wrZ80(unsigned short Addr, unsigned char Value) override;
+  void run_frame() override;
+  void prepare_frame() override;
+  void render_row(short row) override;
+  void renderSid(int16_t *out, int n) override;
+  static const Logo &logo() { return gng_logo; }
+#ifdef LED_PIN
+  static void menuLeds(CRGB *leds);
+  void gameLeds(CRGB *leds) override;
+#endif
+
+protected:
+  void blit_tile(short row, char col) override;
+  void blit_sprite(short row, unsigned char s) override;
+
+private:
+  // memory[] layout
+  static const uint16_t MAIN_RAM = 0x0000;     // $0000-$2FFF 1:1
+  static const uint16_t SPRITE_RAM = 0x1e00;   // 128 x 4 bytes
+  static const uint16_t FG_CODE = 0x2000;      // 32 x 32 rows first
+  static const uint16_t FG_ATTR = 0x2400;
+  static const uint16_t BG_RAM = 0x2800;       // code $2800, attr $2C00, columns first
+  static const uint16_t PALETTE_RAM = 0x3000;  // $3800-$39FF
+  static const uint16_t SOUND_RAM = 0x3200;    // sound CPU $C000-$C7FF
+  static const uint16_t RAM_END = SOUND_RAM + 0x800;
+  static_assert(RAM_END <= RAMSIZE, "gng RAM does not fit memory[]");
+
+  static const uint16_t SPRITE_BYTES = 0x200;
+  static const uint16_t BG_BYTES = 0x800;      // code + attr
+  static const uint16_t PALETTE_BYTES = 0x200; // ext (B) + RG
+  static const uint16_t TUNE_RAM_SIZE = 0x1540; // C64 $3800-$4D3F
+
+  static const int WIDTH = 240;
+  static const int CROP = 8;          // native columns cropped per side
+  static const short FIRST_ROW = 4;   // panel rows 4..31 show the game
+  static const short LAST_ROW = 32;
+  static const int MAX_FRONT = 16;    // priority tile runs per line
+
+  // cached Asset::data(), read per pixel/tile
+  const unsigned char *rom = nullptr;  // CPU $4000-$FFFF
+  const unsigned char *bank_rom = nullptr;
+  const unsigned char *sound_rom = nullptr;
+  const uint32_t (*sprite_banks[3])[32] = {};
+  const uint32_t (*tiles)[32] = nullptr;
+  const unsigned short *tile_map = nullptr;
+  const unsigned short (*chars)[8] = nullptr;
+  uint32_t blank_chars[1024 / 32] = {}; // bit set: every pixel transparent
+
+  m6809_state main_cpu;
+  uint8_t bank = 0;           // $3E00
+  uint8_t scroll[4] = {};     // $3B08-$3B0B: x lo, x hi, y lo, y hi
+  // sprite RAM as latched by the $3C00 DMA (MAME buffered_spriteram8)
+  uint8_t sprite_buffer[SPRITE_BYTES] = {};
+
+  // sound CPU (cpu[0])
+  uint8_t sound_latch = 0;    // $3A00
+  bool sound_reset = true;    // $3D01 low
+  uint8_t ym_addr[2] = {};    // selected register per YM2203
+
+  // music: written by the emulation core, read by renderSid() (audio core)
+  // high byte: sequence, low byte: subtune, 0 = stopped
+  volatile uint16_t music_request = 0;
+  uint8_t music_subtune = 0;  // emulation core
+  uint16_t music_seen = 0;    // audio core
+  bool sid_on = false;        // audio core, a tune was started
+
+#ifdef LED_PIN
+  static const uint8_t LED_FLASH_FRAMES = 60;
+  volatile uint8_t led_flash = 0; // set by the emulation core
+#endif
+
+  SidPlayer player;
+  PsidInfo tune = {};
+  bool tune_ok = false;
+
+  // DMA sprite buffer, bg RAM, palette and scroll as of the vblank IRQ
+  // (see seqlock.h); fg text RAM stays live (no scroll)
+  struct VideoState {
+    uint8_t sprites[SPRITE_BYTES];
+    uint8_t bg[BG_BYTES];
+    uint8_t palette[PALETTE_BYTES];
+    uint16_t scroll_x, scroll_y;
+  };
+  Seqlock<VideoState> vblank;
+  VideoState video = {};
+  uint16_t colors[256] = {};  // video.palette as RGB565, per frame
+
+  // bg tile pixels in front of sprites (group 1) of the current strip
+  struct FrontRun {
+    uint8_t line, attr;
+    int16_t x;                // panel column of the tile's first pixel
+    const uint32_t *tile;
+  };
+  FrontRun front[8 * MAX_FRONT];
+  uint8_t front_count = 0;
+
+  void wrLatch(uint8_t value);
+  void runMain(int cycles);
+  void runSound();
+  void blit_bg_line(uint16_t *dst, uint8_t line, int y);
+  void blit_front();
+};
+
+#endif
