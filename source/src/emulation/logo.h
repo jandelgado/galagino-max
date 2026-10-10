@@ -4,7 +4,7 @@
 #include <cstdint>
 #include "asset.h"
 
-// Menu logo, 224x96 pixels with a 16 color palette, zlib packed in flash.
+// Menu logo, 224x96 pixels with a 16 color palette, LZMA packed in flash.
 // Packed layout (romconv/internal/logoconv.py):
 //   16 x uint16_t  palette, byte swapped RGB565 as the display expects
 //   10752 bytes    pixels, 2 per byte, high nibble first
@@ -22,7 +22,7 @@ public:
     Logo(const Logo &) = delete;
     Logo &operator=(const Logo &) = delete;
 
-    // dst: PIXELS + 1 elements, the extra one takes uzlib's overrun byte.
+    // dst: PIXELS elements.
     void decodeInto(uint16_t *dst) const;
 
 private:

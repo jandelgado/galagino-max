@@ -7,5 +7,4 @@ dependencies = [
   "numpy==2.5.3",
   "pillow==12.3.0",
   "patch-ng==1.19.1",
-  "zopfli==0.4.3",
 ]

@@ -9,11 +9,11 @@
 #endif
 #include <cstdint>
 #include "arena.h"
-#include "uzlib.h"
+#include "lzma/LzmaDec.h"
 
 enum AssetMode { PLAIN, COMPRESSED };
 
-// Plain flash array or zlib blob unpacked to heap on first access. Same
+// Plain flash array or LZMA blob unpacked to the Arena on first access. Same
 // interface either way, so converters can switch formats without touching
 // call sites.
 // `mode` picks the variant at compile time, so each carries only the
@@ -64,9 +64,6 @@ private:
 template<typename T>
 class Asset<T, COMPRESSED> {
 public:
-    // uzlib may write one byte past dest_limit, independent of T.
-    static constexpr uint32_t OVERRUN_SLACK_BYTES = 1;
-
     // Unpacked on first access and cached.
     constexpr Asset(const uint8_t *packed, uint32_t packedLen, uint32_t count)
       : packed(packed), packedLen(packedLen), count(count), current(nullptr) { }
@@ -91,32 +88,28 @@ public:
     // Decompress into a caller-owned buffer of size() elements, bypassing
     // the data() cache. Lets callers reuse fixed buffers; repeated
     // new[]/delete[] fragments the heap.
+    //
+    // Packed layout (romconv asset_emit.py): 1 LZMA properties byte
+    // (lc/lp/pb), then a raw LZMA1 stream with end marker.
     void decodeInto(T *dst) const {
-      // No dict: dest holds the whole output, so back-references read
-      // from it. Saves a window buffer.
-      struct uzlib_uncomp d;
-      uzlib_uncompress_init(&d, nullptr, 0);
-      d.source = packed;
-      d.source_limit = packed + packedLen;
-      d.source_read_cb = nullptr;
+      const SizeT outLen = count * sizeof(T);
 
-      // Returns window size on success, not a TINF_* status.
-      int hdr = uzlib_zlib_parse_header(&d);
-      d.dest_start = d.dest = (uint8_t *)dst;
-      d.dest_limit = (uint8_t *)dst + count * sizeof(T);
+      // dst holds the whole output, so back-references read from it: no
+      // dictionary buffer. Dictionary size only bounds match distances.
+      Byte props[LZMA_PROPS_SIZE] = {
+        packed[0], (Byte)outLen, (Byte)(outLen >> 8), (Byte)(outLen >> 16), (Byte)(outLen >> 24)
+      };
 
-      int status = hdr;
-      if (hdr >= 0) {
-        // With dest full, TINF_OK repeats until the end-of-block marker
-        // and checksum are consumed.
-        do {
-          status = uzlib_uncompress_chksum(&d);
-        } while (status == TINF_OK);
-      }
+      SizeT destLen = outLen;
+      SizeT srcLen = packedLen - 1;
+      ELzmaStatus status;
+      // probability table only, 5.5 KB at lc=lp=0, freed before return
+      SRes res = LzmaDecode((Byte *)dst, &destLen, packed + 1, &srcLen,
+                            props, LZMA_PROPS_SIZE, LZMA_FINISH_END, &status, &heapAlloc);
 
-      if (status != TINF_DONE || d.dest != d.dest_limit) {
-        printf("Asset: decompress failed (status=%d, got %u/%u bytes)\n",
-               status, (unsigned)(d.dest - d.dest_start), (unsigned)(count * sizeof(T)));
+      if (res != SZ_OK || destLen != outLen) {
+        printf("Asset: decompress failed (res=%d, status=%d, got %u/%u bytes)\n",
+               (int)res, (int)status, (unsigned)destLen, (unsigned)outLen);
         abort();
       }
     }
@@ -126,9 +119,7 @@ private:
 #ifdef ARDUINO
       uint32_t t0 = millis();
 #endif
-      // uzlib writes literals without a bounds check and can write one byte
-      // past dest_limit. Pad so that byte does not corrupt the arena.
-      T *buf = (T *)Arena::alloc(count * sizeof(T) + OVERRUN_SLACK_BYTES, alignof(T));
+      T *buf = (T *)Arena::alloc(count * sizeof(T), alignof(T));
       // read now: the other core may allocate during decodeInto()
       uint32_t usedAfterThisAlloc = Arena::bytesUsed();
 
@@ -146,10 +137,17 @@ private:
       current = buf;
     }
 
+    static void *heapAllocFn(ISzAllocPtr, size_t size) { return malloc(size); }
+    static void heapFreeFn(ISzAllocPtr, void *address) { free(address); }
+    static constexpr ISzAlloc heapAlloc = { heapAllocFn, heapFreeFn };
+
     const uint8_t *packed;
     uint32_t packedLen;
     uint32_t count;
     mutable const T *current;
 };
+
+template<typename T>
+constexpr ISzAlloc Asset<T, COMPRESSED>::heapAlloc;
 
 #endif

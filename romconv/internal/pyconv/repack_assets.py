@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # Recompresses the *_packed[] arrays of already generated headers with the
-# current asset_emit compressor, without the original ROMs.
+# current asset_emit compressor (LZMA), without the original ROMs.
 #
-# Each array is inflated and packed again; the uncompressed bytes must stay
-# identical, so the firmware sees the same data. Arrays only shrink: if the
-# new stream is not smaller, the old one is kept.
+# Each array is unpacked (zlib from older headers, or LZMA) and packed again;
+# the uncompressed bytes must stay identical, so the firmware sees the same
+# data. Every array is rewritten: the firmware only decodes LZMA.
 #
 # usage: repack_assets.py <header.h>...
 import re
@@ -12,21 +12,23 @@ import sys
 import zlib
 from concurrent.futures import ProcessPoolExecutor
 
-import zopfli.zlib
-
-from asset_emit import ZOPFLI_ITERATIONS, _hex_block
+from asset_emit import _hex_block, lzma_compress, lzma_decompress
 
 ARRAY_RE = re.compile(
     r"// (\w+): \d+ -> \d+ bytes \([\d.-]+% smaller\)\n"
     r"static const unsigned char (\w+)_packed\[\] = \{\n(.*?)\n\};",
     re.S)
 
+def unpack(old):
+    # zlib header: CMF 0x78 (deflate, 32 KB window). An LZMA properties
+    # byte at lc=lp=0 is pb * 45, never 0x78.
+    if old[0] == 0x78:
+        return zlib.decompress(old)
+    return lzma_decompress(old)
+
 def repack(old):
-    raw = zlib.decompress(old)
-    new = zopfli.zlib.compress(raw, numiterations=ZOPFLI_ITERATIONS)
-    if zlib.decompress(new) != raw:
-        raise RuntimeError("round-trip mismatch")
-    return raw, new if len(new) < len(old) else old
+    raw = unpack(old)
+    return raw, lzma_compress(raw)
 
 def parse(text):
     """Yield (match, packed bytes) for each array in the header."""

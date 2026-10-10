@@ -7,8 +7,8 @@
 #include "../../src/machines/pacman/pacman_logo.h"
 #include "../../src/machines/roadfighter/roadfighter_logo.h"
 
-static uint16_t slot[Logo::PIXELS + 1];
-static uint8_t packed[Logo::PACKED_BYTES + Asset<uint8_t, COMPRESSED>::OVERRUN_SLACK_BYTES];
+static uint16_t slot[Logo::PIXELS];
+static uint8_t packed[Logo::PACKED_BYTES];
 static uint16_t expected[Logo::PIXELS];
 
 void setUp(void) {}
