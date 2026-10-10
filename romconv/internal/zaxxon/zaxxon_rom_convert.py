@@ -181,7 +181,7 @@ def resample_to_8bit(wav_file, rate):
 
 def write_samples(audio_set):
     # PLAIN/flash-resident, not Asset<COMPRESSED>: the existing gfx assets
-    # already fill Arena to ~13KB spare (see ARENA BUDGET note in
+    # already fill Arena to ~17KB spare (see ARENA BUDGET note in
     # zaxxon_rom_main.h), and up to 12 of these can play concurrently, so
     # heap-decompressing even one (let alone several at once) doesn't fit --
     # same tradeoff as zaxxon_tilemap.h. Encoded as 4-bit IMA-ADPCM (see
@@ -219,7 +219,7 @@ def write_rom(name, sym, data, comment):
   with open(os.path.join(OUT_DIR, name), "w") as f:
     for line in comment.splitlines():
       print(f"// {line}" if line else "//", file=f)
-    emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
+    emit_plain(f, sym, "unsigned char", "", len(data), _plain_hex_block(data))
 
 def write_char_tiles(tiles):
     with open(os.path.join(OUT_DIR, "zaxxon_chartiles.h"), "w") as f:
@@ -257,16 +257,12 @@ def write_tilemap(tile_code, tile_color):
         print("// tilemap (16384 cells, row-major, TILEMAP_SCAN_ROWS order).", file=f)
         print("// tile_code indexes zaxxon_bgtiles (0-1023); tile_color is", file=f)
         print("// the 4-bit bg color group (0-15).", file=f)
-        print("// PLAIN/flash-resident, like 1942's level tilemap: this is", file=f)
-        print("// static level-layout data, not artwork, and at 32768+16384", file=f)
-        print("// bytes decompressed it's the piece that has to give for the", file=f)
-        print("// rest (both 65536-byte tile sets + program ROM + cmaps) to", file=f)
-        print("// bin-pack into Arena's two blocks. See ARENA BUDGET note in", file=f)
-        print("// zaxxon_rom_main.h.", file=f)
+        print("// tile_code is PLAIN/flash-resident (32768 bytes do not fit the", file=f)
+        print("// Arena next to both 65536-byte tile sets), tile_color is", file=f)
+        print("// COMPRESSED. See ARENA BUDGET note in zaxxon_rom_main.h.", file=f)
         code_body = _plain_hex_block(tile_code, per_line=16)
-        color_body = _plain_hex_block(tile_color, per_line=32)
         emit_plain(f, "zaxxon_tilemap_code", "unsigned short", "", len(tile_code), code_body)
-        emit_plain(f, "zaxxon_tilemap_color", "unsigned char", "", len(tile_color), color_body)
+        emit_compressed(f, "zaxxon_tilemap_color", "unsigned char", "", len(tile_color), list(tile_color))
 
 # ---- Palette PROM (mro16/u76, 256 colors) -> RGB565 byte-swapped ----
 # zaxxon_state::zaxxon_palette: R = bit0-2 (1k/470/220), G = bit3-5
@@ -332,29 +328,22 @@ def convert_zaxxon(romset, files):
             "Zaxxon main CPU ROM 0x0000-0x4fff (20KB), not encrypted (US rev D).\n"
             "\n"
             "ARENA BUDGET (see arena.h): every COMPRESSED asset this machine\n"
-            "uses stays resident for the machine's whole lifetime (rendering\n"
-            "reads all of them every frame, nothing is releasable early), so\n"
-            "they all have to bin-pack into Arena's two ~91000-byte blocks\n"
-            "at once -- decompressed sizes: rom_main 20480, chartiles 16384,\n"
-            "bgtiles 65536, spritetiles 65536, palette 512, fgcolor_codes 256\n"
-            "= 168704 total, fits with ~13KB spare. zaxxon_tilemap.h (49152\n"
-            "decompressed) is PLAIN instead: it's level-layout data, not\n"
-            "artwork, same role as 1942's PLAIN tilemap, and it's the piece\n"
-            "that has to give since both 65536-byte tile sets can't share a\n"
-            "block with much else.\n"
+            "uses stays resident for the machine's whole lifetime, so they all\n"
+            "have to bin-pack into Arena's two 91000-byte blocks at once.\n"
+            "This ROM is PLAIN (flash): it compresses worst (20480 -> ~14000),\n"
+            "so the Arena holds zaxxon_tilemap_color (16384 -> ~280) instead.\n"
+            "zaxxon_tilemap_code (32768) stays PLAIN: it does not fit next to\n"
+            "both 65536-byte tile sets.\n"
             "\n"
             "zaxxon::zaxxon() unpacks every COMPRESSED asset eagerly, largest\n"
             "first: Arena fills block A before B, so access order is\n"
             "placement order:\n"
-            "  zaxxon_bgtiles      (65536) -> A (A: 65536)\n"
-            "  zaxxon_spritetiles  (65536) -> B (B: 65536)\n"
-            "  zaxxon_rom_main     (20480) -> A (A: 86016)\n"
-            "  zaxxon_chartiles    (16384) -> B (B: 81920)\n"
-            "  zaxxon_palette        (512) -> A (A: 86528)\n"
-            "  zaxxon_fgcolor_codes  (256) -> A (A: 86784)\n"
-            "Any other order risks a block overflow (e.g. rom_main before\n"
-            "spritetiles would push spritetiles past A's remaining space and\n"
-            "into a B that then can't fit chartiles).")
+            "  zaxxon_bgtiles        (65536) -> A (A: 65536)\n"
+            "  zaxxon_spritetiles    (65536) -> B (B: 65536)\n"
+            "  zaxxon_chartiles      (16384) -> A (A: 81920)\n"
+            "  zaxxon_tilemap_color  (16384) -> B (B: 81920)\n"
+            "  zaxxon_palette          (512) -> A (A: 82432)\n"
+            "  zaxxon_fgcolor_codes    (256) -> A (A: 82688)")
 
   # ---- gfx_tx: chars, 2bpp planar 8x8 ----
   char_tiles = decode_char_tiles(tx1 + tx2)

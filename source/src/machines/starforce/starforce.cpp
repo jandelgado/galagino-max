@@ -19,15 +19,15 @@ starforce::starforce(const Roms &r)
 	: main_cpu_rom(r.main_cpu), sub_cpu_rom(r.sub_cpu), fg_tiles(r.fg),
 	  bg1_tiles(r.bg1), bg2_tiles(r.bg2), bg3_tiles(r.bg3),
 	  sprites_16x16(r.sprites_16x16) {
-	// decompress largest first: heap is freshest right after create(), so
-	// big blocks get placed before smaller ones fragment it
+	// largest first, this order only: block A sprites + bg3 + sub ROM,
+	// B bg1 + bg2 + fg
 	spr16_ptr = sprites_16x16.data();
-	rom_main_ptr = main_cpu_rom.data();
 	bg_ptr[0] = bg1_tiles.data();
 	bg_ptr[1] = bg2_tiles.data();
 	bg_ptr[2] = bg3_tiles.data();
 	fg_ptr = fg_tiles.data();
 	rom_sub_ptr = sub_cpu_rom.data();
+	rom_main_ptr = main_cpu_rom.data();
 }
 
 uint8_t starforce::dsw1() {
