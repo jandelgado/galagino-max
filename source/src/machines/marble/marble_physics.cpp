@@ -55,6 +55,8 @@ static const uint32_t VERTS = 0x401c28;                      // 4 vertices x 4 h
 
 // program ROM tables
 static const uint32_t DYN_INTERMEDIATE = 0x1d370;  // 66 dynamic codes (0x11ac2)
+// first animation frame of the dynamic codes (0x13628): word slot, word count, words
+static const uint32_t DYN_PRACTICE = 0x1699c, DYN_BEGINNER = 0x1b908, DYN_ULTIMATE = 0x24e4e;
 static const uint32_t ZONE_LISTS = 0x1eb16;        // zone line list per race
 static const uint32_t GOAL_VX = 0x1eb2e, GOAL_VY = 0x1eb34;
 static const uint32_t CHECKPOINTS = 0x1ef1a;       // list per race: cx, cy, zone, pad; 0xff end
@@ -65,10 +67,12 @@ static const uint32_t PUSH = 0x23d40;
 static const uint32_t STEPS = 0x24b3a;             // vertex walk of 0x1caba
 
 static const uint32_t FALL_VZ = 0xffffa000;        // -0x6000: vz when a fall starts
-static const uint8_t RACE_PRACTICE = 0, RACE_INTERMEDIATE = 2, RACE_AERIAL = 3, RACE_SILLY = 4;
-static const uint8_t DYN_PRACTICE = 9, DYN_INTERMEDIATE_N = 0x42;
+static const uint8_t RACE_PRACTICE = 0, RACE_BEGINNER = 1, RACE_INTERMEDIATE = 2;
+static const uint8_t RACE_AERIAL = 3, RACE_SILLY = 4, RACE_ULTIMATE = 5;
+static const uint8_t DYN_INTERMEDIATE_N = 0x42;
 static const uint16_t SPAWN_RANGE = 0x300;         // max checkpoint distance (max + 3/8 min) * 16
 static const uint8_t NO_ZONE = 0xff;
+static const uint8_t STATE_ENEMY = 0xb;  // set by enemy update 0x19d94 (0x19e14), Phase 4
 
 inline int8_t s8(int32_t v) { return (int8_t)v; }
 inline int16_t s16(int32_t v) { return (int16_t)v; }
@@ -406,6 +410,9 @@ void edge_160f6(Mem &m, uint32_t a2, int32_t h) {
   uint16_t bestv = 0;
   const uint16_t TX = m.rw(FRAC_X), TY = m.rw(FRAC_Y);
   const uint16_t NTX = 7 - TX, NTY = 7 - TY;
+
+  // D5/D6 == 0xffff below never holds (abs: neg.l at 0x1645a; compare with -1 at 0x16524).
+  // Dead in the original too, kept for fidelity.
   for (uint8_t bit = 0; bit < 8; bit++) {
     const uint16_t iso = ((uint16_t)(int16_t)s8(mask)) & (1 << bit);
     uint16_t D1w = 5, D2w = 5, cur;
@@ -692,7 +699,7 @@ void physics_121b8(Mem &m, uint32_t a2) {
 
   // 0x1bc88 object pair collision and enemy updates: not ported
   zones_1365c(m, a2);
-  if (m.rb(a2 + STATE) == 0xb) { return; }
+  if (m.rb(a2 + STATE) == STATE_ENEMY) { return; }
 
   const int32_t h = height_1cc62(m);
   edge_160f6(m, a2, h);
@@ -778,16 +785,26 @@ void ground_253bc(Mem &m, uint32_t a) {
 }
 
 // Dynamic terrain codes at race start. Intermediate: level init 0x105be calls 0x11ac2,
-// 66 words from 0x1d370. Practice: a level object animation (0x1344c, Phase 4) writes its
-// 9 codes; held at the first frame, flat 0xf040.
+// 66 words from 0x1d370. Practice, beginner, ultimate: a level object animation (Phase 4)
+// writes them, held at its first frame (the arcade writes beginner and ultimate only once
+// the objects spawn). Aerial, silly: none.
 void dyn_init(Mem &m, uint8_t race) {
   if (race == RACE_INTERMEDIATE) {
     for (uint8_t k = 0; k < DYN_INTERMEDIATE_N; k++) {
       m.ww(DYN + 2 * k, m.romw(DYN_INTERMEDIATE + 2 * k));
     }
-  } else if (race == RACE_PRACTICE) {
-    for (uint8_t k = 0; k < DYN_PRACTICE; k++) { m.ww(DYN + 2 * k, 0xf040); }
+    return;
   }
+
+  uint32_t a;
+  switch (race) {
+    case RACE_PRACTICE: a = DYN_PRACTICE; break;
+    case RACE_BEGINNER: a = DYN_BEGINNER; break;
+    case RACE_ULTIMATE: a = DYN_ULTIMATE; break;
+    default: return;
+  }
+  const uint16_t slot = m.romw(a), n = m.romw(a + 2);
+  for (uint16_t k = 0; k < n; k++) { m.ww(DYN + 2 * (slot + k), m.romw(a + 4 + 2 * k)); }
 }
 
 // 0x259b4: race start of player 1, physics fields only (sprite setup skipped)

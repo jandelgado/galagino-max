@@ -215,6 +215,9 @@ race by 0x1a444 at level init (0x16f6c), read by 0x1caba.
   - 0x0001-0x07ff: offset of a 4 byte record at descriptor +0x00; byte per quadrant,
     0 = no floor, else base - 0x80 + byte.
   - 0x0800-0x0fff: dynamic, word at RAM 0x40076e + (code & 0x7fe) (moving parts, Phase 4).
+    Slots and diagonals per race: practice 0-8 (diagonals 11-16), beginner 0-11 (96-103),
+    intermediate 0-65 (137-162), ultimate 0-111 (144-189); aerial, silly none. Level
+    object animations (0x13628, Phase 4) rewrite them while the race runs.
   - 0x1000-0xefff: v = base + (code & 0x7f) - 0x40; quadrant q has v if bit 12 + q is set,
     else v - table 0x1ed62[(code >> 7) & 0x1f] (0x1000 = no floor).
   - 0xf000-0xffff: flat v.
@@ -270,14 +273,15 @@ race by 0x1a444 at level init (0x16f6c), read by 0x1caba.
   word 3 link (MAME atarisy1_v.cpp). MO x = sx + 16, MO y = sy + 16 (traces).
 - The player marble is 7 MOs (traces): codes 0x0005 and 0x0003 (8 x 16 halves), four
   8 x 8 surface dots (codes 0x10-0x2c by angle, positions from 0x1c014 rotating 4 points
-  by the velocity; angle table 0x24ade per Marble Love, unverified), code 0x0007 5 lines
-  lower (shadow or highlight, unverified). Code to tile/colour via the PROM lookup (ROM).
+  by the velocity; angle table 0x24ade per Marble Love, unverified), code 0x0007 at MO y
+  + 5 (shadow or highlight, unverified). Code to tile/colour via the PROM lookup (ROM).
 - Screen position (MAME atarimo, MO yscroll 256, no MO x scroll; playfield x scroll 0
   from the vblank IRQ 0x287cc, y scroll = 0x400000): MO screen x = MO x, MO top line =
   (-(MO y) - 256 - height * 8) & 0x1ff. Playfield: screen line L shows race pixel row
   camera - descriptor +0x10 + L, screen x X shows race x X - 24 (playfield column 3).
   So in race pixels the 0x05 half has its top left at (sx - 8, camera - +0x10 + 224 - sy),
-  0x03 at x + 8, 0x07 3 lines lower (screen top 227 - sy). Link order 0x05, 0x03, dots,
+  0x03 at x + 8, 0x07 at MO y + 5: MO y counts up the screen, the top line also moves by
+  the height (1 tile vs 2), so its top is 3 screen lines below the 0x05 top (227 - sy). Link order 0x05, 0x03, dots,
   0x07; MAME draws in link order, later on top. Calibrated with MAME snapshots of
   practice (frames 900, 1300, 1700, camera 0 and 40 px down): playfield matches the
   decoded race at that offset exactly, marble pixels inside the predicted 16 x 16 box; the
@@ -325,7 +329,7 @@ race by 0x1a444 at level init (0x16f6c), read by 0x1caba.
 `./convert.sh marble` (romconv/internal/marble/marble_rom_convert.py) appends the physics
 data to `source/src/machines/marble/marble_rom.h` (generated, untracked). Terrain comes from
 `Terrain` in tools/marble_sim.py, so the bytes equal the MAME video RAM image (`marble_sim.py
-terrain`). Flash: 45635 B (terrain 38870, program ROM blocks 3935, marble sprites 2830).
+terrain`). Flash: 45937 B (terrain 38870, program ROM blocks 4237, marble sprites 2830).
 
 Terrain, `marble_terrain[race]` (`MarbleTerrainInfo`):
 
@@ -357,7 +361,8 @@ sorted): every byte below 0x30000 that `marble_sim.py` reads in `tick()` and `st
 0x24b3a vertex steps, 0x1ed62 drop, 0x23d40 edge push, 0x2398c teeter, 0x1eef8 friction,
 0x1eb16 zone line pointers + lists 0x239b8-0x23c03, 0x1eb2e/0x1eb34 goal velocity,
 0x1ef1a checkpoint pointers + lists 0x1f1d8-0x1fbcf (respawn), 0x1f1ca camera, 0x2be00
-and the 6 descriptors (0x2e bytes), 0x1d370 intermediate dynamic codes. The converter
+and the 6 descriptors (0x2e bytes), 0x1d370 intermediate dynamic codes, first dynamic code
+frames 0x1699c, 0x1b908, 0x24e4e. The converter
 fails when the sim reads ROM outside these, and replays starts and fixture on the emitted
 blocks only. Slapstic reads (0x80000+) are terrain records, served by `records`. A port's
 ROM accessor should fail on an address outside the blocks.
@@ -366,9 +371,15 @@ Race start (`start_259b4`, validated for all 6 races: `marble_sim.py start TRACE
 equals the run from the first race snapshot): cell from descriptor `+0x14 + 2 * player`,
 `x/y = cell * 8 + 4`, z from 0x1bab2 + 0x1cc62, physics fields 0, +0x18 = 1, aerial
 +0x58 = 0x17. Needs the dynamic terrain codes first (`dyn_init`): intermediate copies 66 words
-from 0x1d370 (0x11ac2, level init 0x105be); practice starts on dynamic vertices, written by
-a level object animation (0x1344c, Phase 4), held at their first frame 0xf040 (placeholder,
-the original animates them).
+from 0x1d370 (0x11ac2, level init 0x105be). Practice, beginner and ultimate get theirs from
+level object animations (Phase 4); `dyn_init` holds them at the first animation frame, read
+from ROM like the copy loop 0x13628 (word slot, word count, words): practice 0x1699c (9
+words, all 0xf040), beginner 0x1b908 (12), ultimate 0x24e4e (112). MAME write tap on
+0x40076e (all writes from PC 0x13638): practice writes that frame at level init, beginner
+and ultimate are 0 (no floor) at the first controllable tick and get the frame when the
+objects spawn (camera driven forward: frames 817 and 905), then animate (beginner 16-23,
+ultimate 8-13 values per slot up to frame 1600). The converter fails if a dynamic slot the
+terrain uses is not set or points outside the records.
 
 Marble sprite: `marble_mo_tiles[k][64]` (pens 0-7, 0 transparent) for MO codes 0x03-0x2d,
 tile t of an MO of code c and height h at `marble_mo_code_first[c] + t` (t < h, 0xff = not
@@ -376,7 +387,7 @@ emitted). Lookup PROM entry 256 + (code >> 8): 136033.118 = 0xd8 (bank 2, tile o
 graphics tile 0x800 | code), 136033.119 = 0x0f (4 bpp, palette set 0). `marble_mo_palette`
 = palette RAM 0x100-0x10f (RGB565 byte-swapped, same in every race; pens 8-15 unused).
 Player MOs in the traces: 0x05 (h 2, left half), 0x03 (h 2, right half, x + 8), 0x07 (h 1,
-5 lines lower), dots 0x0d-0x21 (h 1, hflip used); 0x22-0x2c (h 2) and higher codes appear
+MO y + 5, top 3 screen lines lower), dots 0x0d-0x21 (h 1, hflip used); 0x22-0x2c (h 2) and higher codes appear
 around deaths.
 
 Host test fixture `source/test/test_marble_physics/marble_trace.h` (committed, derived
@@ -413,4 +424,8 @@ python3 romconv/internal/marble/tools/marble_sim.py fixture \
 - Enemy collision 0x1bc88 and enemy updates of the shared scratch words. Phase 4.
 - Death/respawn timing and animation (states 2/4, 0x13ade, 0x25fc2), sprite dots 0x1c014
   and MO emission 0x264aa (not ported, formats above). Remake placeholder: 60 frames.
+- Goal (state 6), Phase 3: the remake keeps calling `marble_physics::tick` (physics runs,
+  input off: 0x253bc/0x17f66 only in states 0/1), the camera ignores the marble (sy only
+  from states 0/1/3/4/5), and a later landing (0x25c74) sets state 1, so the marble becomes
+  controllable again.
 - Object/enemy scripts, Phase 4. Sound command protocol, Phase 5.

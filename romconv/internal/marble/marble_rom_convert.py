@@ -85,6 +85,9 @@ PROG_TABLES = (
     (0x1f1ca, 0x0e),  # camera 0x13ee6 thresholds and speeds
     (0x2be00, 0x18),  # level descriptor per race
     (0x1d370, 0x84),  # intermediate dynamic terrain codes at race start (0x11ac2)
+    (0x1699c, 0x16),  # practice, beginner, ultimate dynamic codes: first animation frame
+    (0x1b908, 0x1c),  # (0x13628: slot, count, words)
+    (0x24e4e, 0xe4),
 )
 DESC_BYTES = 0x2e  # descriptor fields +0x00..+0x2d
 MO_CODES = range(0x03, 0x2e)  # marble body 0x03-0x06, 0x07, surface dots 0x0d-0x2d
@@ -109,7 +112,23 @@ def terrain_race(rom_terrain):
     for c in used:
         if 0 < c < 0x800 and c + 4 > len(records):
             fatal(f"marble: race {t.race} record code {c:04x} beyond its records")
+    check_dynamic(t, used, len(records))
     return bytes(index), t.codes, records, recs, t.bases
+
+
+def check_dynamic(t, used, nrecords):
+    """Dynamic codes 0x0800-0x0fff the terrain uses: slot set by dyn_init, value a record
+    code within the records or a non-dynamic code (0 = not initialised: no floor)."""
+    m = ms.Mem(t, bytes(0x2000))
+    ms.dyn_init(m, t.race)
+    for c in sorted(c for c in used if 0x800 <= c < 0x1000):
+        v = m.rw(ms.DYN + (c & 0x7FE))
+        if v == 0:
+            fatal(f"marble: race {t.race} dynamic code {c:04x} not initialised by dyn_init")
+        if 0x800 <= v < 0x1000:
+            fatal(f"marble: race {t.race} dynamic code {c:04x} maps to dynamic code {v:04x}")
+        if v < 0x800 and v + 4 > nrecords:
+            fatal(f"marble: race {t.race} dynamic code {c:04x} -> record {v:04x} beyond records")
 
 
 class RecMem(ms.Mem):
@@ -293,11 +312,11 @@ def emit_physics(f, rom):
     print(f"static const uint8_t MARBLE_MO_CODES = 0x{MO_CODES.stop:02x};", file=f)
     print("static const uint8_t marble_mo_code_first[MARBLE_MO_CODES] = {\n"
           + c_bytes(first) + "\n};", file=f)
-    print(f"static const unsigned char marble_mo_tiles[{len(tiles)}][64] = {{", file=f)
+    print(f"static const uint8_t marble_mo_tiles[{len(tiles)}][64] = {{", file=f)
     for t in tiles:
         print("  {" + ",".join(str(p) for p in t) + "},", file=f)
     print("};", file=f)
-    print("static const unsigned short marble_mo_palette[16] = {\n" + c_words(pal) + "\n};",
+    print("static const uint16_t marble_mo_palette[16] = {\n" + c_words(pal) + "\n};",
           file=f)
     size["mo tiles"] = 64 * len(tiles) + len(first)
     size["mo palette"] = 32

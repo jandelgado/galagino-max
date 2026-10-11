@@ -853,17 +853,24 @@ def tick(m, c6=None, c7=None, a2=P):
 
 
 DYN = 0x40076e          # dynamic terrain codes 0x0800-0x0fff, word per code
-DYN_PRACTICE = 9        # practice codes 0x800-0x810
+# First frame of the level object animation that writes the dynamic codes (0x13628: word
+# slot, word count, count words to 0x40076e + 2 * slot): practice 9 slots, beginner 12,
+# ultimate 112 (MAME write tap, all from PC 0x13638).
+DYN_FRAMES = {0: 0x1699c, 1: 0x1b908, 5: 0x24e4e}
 
 
 def dyn_init(m, race):
     """Dynamic terrain codes at race start. Intermediate: level init 0x105be calls 0x11ac2,
-    66 words from 0x1d370. Practice: a level object animation (0x1344c, Phase 4) writes its
-    9 codes; the first frame is flat (0xf040, all traces). Other races: none used at start."""
+    66 words from 0x1d370. Practice, beginner, ultimate: a level object animation (Phase 4)
+    writes them, held at its first frame. The arcade writes beginner and ultimate only when
+    the objects spawn (camera near), 0 = no floor before. Aerial, silly: none."""
     if race == 2:
         for k in range(0x42): m.ww(DYN + 2 * k, m.rw(0x1d370 + 2 * k))
-    elif race == 0:
-        for k in range(DYN_PRACTICE): m.ww(DYN + 2 * k, 0xf040)
+        return
+    if race not in DYN_FRAMES: return
+    a = DYN_FRAMES[race]
+    slot, n = m.rw(a), m.rw(a + 2)
+    for k in range(n): m.ww(DYN + 2 * (slot + k), m.rw(a + 4 + 2 * k))
 
 
 def start_259b4(m, race, a2=P, player=0):

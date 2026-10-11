@@ -8,6 +8,7 @@
 namespace marble_camera {
 
 using marble_physics::Mem;
+using marble_physics::FRAMES;
 
 namespace {
 
@@ -18,7 +19,6 @@ static const uint32_t ROW_DUE = 0x400006;    // a playfield row must be decoded
 static const uint32_t SCROLLING = 0x400008;
 static const uint32_t SPEED = 0x40000a;      // px per call
 static const uint32_t GHOST_SY = 0x40000c;   // sy that keeps a scroll going without a player
-static const uint32_t FRAMES = 0x400010;     // 60 Hz counter (vblank 0x287a6)
 static const uint32_t CAMERA_L = 0x40097c;   // long, low word = marble_physics::CAMERA
 static const uint32_t RACE = 0x400394;
 

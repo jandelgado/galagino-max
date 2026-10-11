@@ -7,12 +7,12 @@
 
 using namespace marble_video;
 using marble_physics::Mem;
+using marble_physics::FRAMES;
 
 // Stick as trackball (MARBLE.md "Logic tick"): counter delta per tick, k = 9 is about MAME's
 // keyboard trackball speed. Screen right: c7 = c6 = -k; down: c7 = +k, c6 = -k.
 #define MARBLE_STICK_K 9
 
-static const uint32_t FRAMES = 0x400010;  // 60 Hz counter, as vblank 0x287a6
 static const uint8_t DEATH_TICKS = 30;    // 60 frames after state 2/4 (placeholder)
 static const int16_t BODY_X = 8;          // MO 0x05 left of the marble centre sx
 static const int16_t BODY_Y = 224;        // MO 0x05 top = screen line 224 - sy

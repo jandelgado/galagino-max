@@ -39,7 +39,7 @@ static void test_replay_trace(void) {
 
       const int32_t x = marble_physics::x(m), y = marble_physics::y(m), z = marble_physics::z(m);
       const uint8_t st = marble_physics::state(m);
-      if (x == t.x && y == t.y && z == t.z && st == t.state) continue;
+      if (x == t.x && y == t.y && z == t.z && st == t.state) { continue; }
 
       char msg[200];
       snprintf(msg, sizeof(msg),
@@ -51,12 +51,35 @@ static void test_replay_trace(void) {
     }
   }
 }
+
+// Every dynamic terrain code (0x0800-0x0fff) of a race has its slot set at race start;
+// 0 would be no floor.
+static void test_dyn_init(void) {
+  for (uint8_t race = 0; race < 6; race++) {
+    memset(ram, 0, sizeof(ram));
+    marble_physics::Mem m(ram, race);
+    marble_physics::startRace(m, race);
+
+    for (int16_t d = 0; d < m.maxd(); d += 2) {
+      for (int16_t f = 0; f < 44; f++) {
+        const uint16_t c = m.vertexCode(d, f);
+        if (c < 0x800 || c >= 0x1000) { continue; }
+        if (m.rw(marble_physics::DYN + (c & 0x7fe))) { continue; }
+
+        char msg[80];
+        snprintf(msg, sizeof(msg), "race %d diagonal %d: dynamic code %04x not set", race, d, c);
+        TEST_FAIL_MESSAGE(msg);
+      }
+    }
+  }
+}
 #endif
 
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   RUN_TEST(test_replay_trace);
+  RUN_TEST(test_dyn_init);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif

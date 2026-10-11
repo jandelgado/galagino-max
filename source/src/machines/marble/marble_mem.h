@@ -16,6 +16,7 @@ namespace marble_physics {
 
 static const uint32_t RAM_BASE = 0x400000;
 static const uint16_t RAM_SIZE = 0x2000;
+static const uint32_t FRAMES = 0x400010;  // long, 60 Hz counter (vblank 0x287a6)
 
 [[noreturn]] void fail(const char *what, uint32_t addr);
 
