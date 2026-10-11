@@ -28,31 +28,34 @@ TypeScript port named by ROM address. Facts below were read from the disassembly
 - Descriptor +0x04: row offset table (slapstic, word per row), +0x10: camera y at the top
   of the race, +0x12: camera range in px (360, 920, 840, 784, 896, 624), +0x2a: attribute
   index table (slapstic, byte per row). Race height = range + one 240 px screen: 75, 145,
-  135, 128, 142, 108 rows (Task 1 decoded only range / 8 rows, missing the goal area).
+  135, 128, 142, 108 rows (range / 8 alone misses the goal area).
 - Row decode 0x1a668 (Marble Love decode-bitstream-1a668.ts): 36 words per row from a
   bitstream at 0x800e4 + signed row offset; codes 14 bit literal, 7 bit runs (+1 run,
   table 0x249da run, 0x4d/0x4e alternation), 9 bit table 0x2499a; attribute high bytes from
   run-length pairs (count, high byte) at 0x2be18 + index byte. Word = tile low bits + high
   byte << 8: bit 15 hflip, bits 8-14 lookup PROM index (bits 12-13 pick the colour set).
+  No race uses the hflip bit (bit 15) and bit 14 is always 0 in decoded races; runtime
+  patches (0x1344c, Phase 4) may still use flip.
 - Row n uses offset word +0x04[n] and attribute byte +0x2a[n], no other input. Callers:
   level init 0x16f6c (32 rows from row 0 into 0xa00006, race 4 from the bottom) and
   scroll redraw 0x13ee6 (one row per 8 px of camera, row (camera - +0x10) / 8 - 1, +0x20
   when scrolling down). decode_level() matches MAME playfield RAM for every row of all 6
-  races (tools/pf_check.py). Task 1 read the attribute table at +0x2a + 0x4e: wrong
+  races (tools/pf_check.py). Reading the attribute table at +0x2a + 0x4e gives wrong
   colour sets (practice row 9 grey band).
 - Camera: 0x40097c (long, +0x10 .. +0x10 + +0x12), playfield y scroll 0x400000. Race
   index: 0x400394 (word, 0-5).
 - 0x13ee6 has a second path for objects of type 0x19: it decodes a row of ultimate
   (descriptor 0x2be14) with attribute byte +0x2a + 0x4e + row into an object buffer.
-  Probable source of Task 1's + 0x4e (open, Phase 4).
+  Probable source of the +0x4e offset (open, Phase 4).
 - 0x1a444 (Marble Love tilemap-row-build-1a444.ts) does not touch colours: it packs
   terrain data into off-screen playfield RAM columns 39-63 (row offsets 0x1eb3a,
-  0x4e + 0x80 * row).
+  0x4e + 0x80 * row) (Marble Love source, not verified).
 - Scroll draws rows past a race's last row: they come from the next descriptor's tables
   in the same bank (aerial shows silly rows 0-1 off screen).
 - Slapstic bank per level (found by decoding all banks): 1, 2, 2, 3, 3, 0. Switching
   sequence not traced (Marble Love slapstic-103.ts).
-- Unique playfield tiles per level: 551, 673, 514, 591, 818, 395; 3009 over all levels.
+- Unique playfield tiles per level (decode_level + pf_lookup codes): 760, 896, 729, 683,
+  866, 595; 3726 over all levels.
 - Palette sets: 6 x 195 words at 0x1fc10, written to the addresses listed at 0x20534 by
   0x26b2a; set n belongs to level n (verified visually).
 - Animated level pieces are blitted by 0x1344c from a list at RAM 0x400970 (open).
@@ -69,17 +72,23 @@ by the game. `tools/pf_check.py PFSEQ.BIN` matches RAM rows to decode_level() an
 on any difference.
 
 ```sh
-MARBLE_OUT=$PWD MARBLE_LEVEL=2 MARBLE_FRAMES=2200 mame marble -video none -sound none \
-  -nothrottle -noautosave -skip_gameinfo -autoboot_script /abs/path/mame_pf.lua
+MARBLE_OUT=$PWD MARBLE_LEVEL=2 MARBLE_FRAMES=2200 SDL_VIDEODRIVER=dummy \
+  SDL_AUDIODRIVER=dummy mame marble -rompath romszip -video none -sound none -nothrottle \
+  -noautosave -skip_gameinfo -snapshot_directory "$PWD" -cfg_directory "$PWD/cfg" \
+  -nvram_directory "$PWD/nv" -autoboot_script /abs/path/mame_pf.lua
 python3 romconv/internal/marble/tools/pf_check.py pfseq.bin
 ```
 
 Seen rows per race (2200 frames): 70/75, 140/145, 129/135, 122/128, 142/142, 107/108,
 0 mismatches. Unseen rows have tile words shared with other rows (blank rows, repeated
-bottom rows), so pf_check cannot identify them; their full words do occur in RAM.
+bottom rows), so pf_check cannot identify them.
 
 ## Open questions
 
+- Phase 2 trap: the surface lookup at 0x177f8 indexes by the original playfield word (ROM
+  tile code / PROM index). The converted map keeps only local tile index, colour set and
+  flip, and is written on the video core. Phase 2 needs the original words or a per-local-tile
+  surface table on the emulation core.
 - Terrain/height data format (descriptor +0x00, +0x08, +0x1c), Phase 2.
 - Motion object format and playfield/MO priority (atarisy1_v.cpp), Phase 2.
 - Object/enemy scripts, Phase 4. Sound command protocol, Phase 5.

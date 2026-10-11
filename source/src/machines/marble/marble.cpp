@@ -40,7 +40,13 @@ void marble::run_frame(void) {
 void marble::prepare_frame(void) {
   vblank.read(video);
   if (video.level != loaded) {  // video core owns the level buffers
+#ifdef ARDUINO
+    uint32_t t0 = millis();
+#endif
     level = &store.load(video.level);
+#ifdef ARDUINO
+    printf("marble: level %u loaded in %u ms\n", (unsigned)video.level, (unsigned)(millis() - t0));
+#endif
     loaded = video.level;
   }
   clamp(video, *level);

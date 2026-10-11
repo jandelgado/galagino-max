@@ -36,6 +36,10 @@ def convert_level(rom, n):
             if code not in local:
                 local[code] = len(tiles)
                 tiles.append(md.pf_tile(rom, code))
+                if len(tiles) > 1024:
+                    fatal("marble: more than 1024 tiles in a level (map word has 10 tile bits)")
+            if cs > 3:
+                fatal(f"marble: colour set {cs} > 3 (map word has 2 colour bits)")
             mapw.append(local[code] | cs << 10 | (0x8000 if flip else 0))
     rgb = md.palette(rom, n)[md.PF_PALETTE:md.PF_PALETTE + 128]
     pal = [rgb888_to_rgb565_le(*c) for c in rgb]
