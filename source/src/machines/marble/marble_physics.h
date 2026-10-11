@@ -11,7 +11,8 @@
 //   startRace(m, race)        race start of player 1 on a cleared work RAM, level objects
 //   tick(m, c6, c7) per 30 Hz logic tick:
 //     physics 0x121b8 -> dizzy countdown -> new trackball deltas -> 0x253bc, input 0x17f66
-//   project(m)                screen position 0x1b9cc to +0x1e/+0x20 (camera reads +0x20)
+//   project(m)                screen position 0x1b9cc (the physics tail calls it; call it
+//                             where the physics does not run)
 //   respawn(m)                after state 2/4: checkpoint search 0x262b2, reset 0x2591a
 //
 // Level object slots (marble_objects.h): 0x29cce runs inside the physics, startRace spawns
@@ -51,10 +52,10 @@ inline int16_t sy(const Mem &m) {
   const int32_t xy = (int32_t)m.sw(PLAYER + 0x0c) + m.sw(PLAYER + 0x10);
   return (int16_t)(m.rw(CAMERA) + z + 0x54 - (uint16_t)(xy >> 1));
 }
-inline void project(Mem &m) {
-  m.ww(PLAYER + 0x1e, (uint16_t)sx(m));
-  m.ww(PLAYER + 0x20, (uint16_t)sy(m));
-}
+
+// 0x1b9cc: +0x1e/+0x20 (camera reads +0x20), older pairs +0x22, +0x26. A position equal to
+// one of the stored pairs is not written.
+void project(Mem &m, uint32_t obj = PLAYER);
 
 }  // namespace marble_physics
 

@@ -652,18 +652,6 @@ void zones_1365c(Mem &m, uint32_t a2) {
   }
 }
 
-// 0x1b9cc: screen position +0x1e/+0x20 (older pairs +0x22, +0x26). A position equal to
-// one of the two stored ones is not written (the sprite keeps the other).
-void proj_1b9cc(Mem &m, uint32_t a2) {
-  posupd_1bab2(m, a2);
-  const uint32_t packed = (uint32_t)(uint16_t)sx(m) << 16 | (uint16_t)sy(m);
-  if (packed == m.rl(a2 + SCREEN) || packed == m.rl(a2 + SCREEN_OLD)) { return; }
-
-  m.wl(a2 + SCREEN_OLD2, m.rl(a2 + SCREEN_OLD));
-  m.wl(a2 + SCREEN_OLD, m.rl(a2 + SCREEN));
-  m.wl(a2 + SCREEN, packed);
-}
-
 // 0x121b8: object physics update (player object only)
 void physics_121b8(Mem &m, uint32_t a2) {
   m.wl(OLD_X, m.rl(a2 + PX));
@@ -737,7 +725,7 @@ void physics_121b8(Mem &m, uint32_t a2) {
   }
 
   // 0x1b9cc projection, 0x1281c occlusion (0x1c014 surface dots: not ported)
-  proj_1b9cc(m, a2);
+  project(m, a2);
   marble_occlusion::enter(m, a2);
   edgepush_1706c(m, a2);
   if (m.rb(a2 + AIR)) { return; }
@@ -967,6 +955,17 @@ void tick(Mem &m, int8_t c6, int8_t c7) {
   // 0x25fc2 animation script step (state 1) does not touch the motion
   ground_253bc(m, a2);
   input_17f66(m, a2);
+}
+
+// 0x1b9cc (see marble_physics.h)
+void project(Mem &m, uint32_t a2) {
+  posupd_1bab2(m, a2);
+  const uint32_t packed = (uint32_t)(uint16_t)sx(m) << 16 | (uint16_t)sy(m);
+  if (packed == m.rl(a2 + SCREEN) || packed == m.rl(a2 + SCREEN_OLD)) { return; }
+
+  m.wl(a2 + SCREEN_OLD2, m.rl(a2 + SCREEN_OLD));
+  m.wl(a2 + SCREEN_OLD, m.rl(a2 + SCREEN));
+  m.wl(a2 + SCREEN, packed);
 }
 
 }  // namespace marble_physics

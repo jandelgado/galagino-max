@@ -79,9 +79,11 @@ void marble::logicTick(uint32_t keys) {
   } else if (++dead_ticks >= DEATH_TICKS) {
     dead_ticks = 0;
     marble_physics::respawn(m);
+    marble_physics::project(m);
+  } else {
+    marble_physics::project(m);
   }
   marble_objects::update(m);
-  marble_physics::project(m);
 }
 
 // view and marble sprite from the work RAM image

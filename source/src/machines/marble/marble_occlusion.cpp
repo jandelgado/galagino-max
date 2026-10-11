@@ -28,7 +28,7 @@ enum : uint8_t { ST_DIZZY = 1, ST_BROKEN = 2, ST_LOST = 4, ST_GOAL = 6, ST_5 = 5
 static const uint32_t PLAYER2 = 0x4000fa;
 static const uint32_t CAMERA = 0x40097e;
 static const uint32_t FLAG = 0x400988;      // long: quadrant parity of the vertex pair
-static const uint32_t FLAG_COL = 0x40098a;  // word: column bias of the vertex field
+static const uint32_t FLAG_LO = 0x40098a;   // low word of FLAG: column bias of the vertex field
 static const uint32_t ULT_COL = 0x40045c;
 static const uint32_t DYN = 0x40076e;
 static const uint32_t RACE = 0x400394;
@@ -62,7 +62,7 @@ uint16_t vertexHeight_177f8(const Mem &m, int32_t d, int32_t col, int16_t k) {
   if (s16(d) >= s16(m.romw(desc + DESC_END))) { return 0; }
 
   const int32_t d3 = k + m.sl(FLAG);
-  int32_t f = (s16(col + m.rw(FLAG_COL)) >> 1) + 2;
+  int32_t f = (s16(col + m.rw(FLAG_LO)) >> 1) + 2;
   if (d & 1) { f += 22; }
 
   uint16_t code = m.vertexCode((int16_t)d, (int16_t)f);
@@ -258,6 +258,7 @@ void occlusion_264aa(Mem &m, uint32_t a2, uint8_t d3) {
     }
   }
 
+  if (ncol < 0) { ncol = 0; }  // c0 above 0x24: no columns
   const uint32_t all = (1u << ncol) - 1;
   if ((covered & all) == all || (d3 == 0 && ncol == COLS && (covered & 0xe) == 0xe)) {
     m.wb(a2 + VISIBLE, 0);
