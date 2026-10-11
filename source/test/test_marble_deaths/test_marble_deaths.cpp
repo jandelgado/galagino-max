@@ -138,6 +138,155 @@ static void test_replay_deaths(void) {
   }
 }
 
+// ---------------------------------------------------------------- player objects
+
+// One player MO as the published state draws it: race pixel top left, height, MO code (0 for a
+// frame column: tile only), death set tile, palette set, hflip, priority (mask)
+struct DrawnMo {
+  int16_t x, top;
+  uint8_t h;
+  uint16_t code, tile;
+  uint8_t set;
+  bool flip, mask;
+};
+
+static const uint16_t NO_TILE = 0xffff;
+static const uint8_t PAL_SHARDS = 2;  // palette set of the overlay (code | 0x1000)
+
+static uint8_t addMasks(const marble_video::VideoState &v, uint8_t first, uint8_t n, int16_t ox,
+                        int16_t oy, DrawnMo *out, uint8_t k) {
+  for (uint8_t i = first; i < first + n; i++) {
+    const marble_video::Mask &e = v.masks[i];
+    const uint8_t h = ((e.code >> 11) & 7) + 1;
+    out[k++] = {(int16_t)(ox + e.dx), (int16_t)(oy + e.dy), h, (uint16_t)(e.code & 0x7ff),
+                NO_TILE, 0, (e.code & 0x8000) != 0, true};
+  }
+  return k;
+}
+
+// Player MOs of v in link order: marble masks, or per death object its columns (stars: one
+// tile) then its masks. Marble halves, dots and 0x07 are not listed (the marble flag is).
+static uint8_t playerMos(const marble_video::VideoState &v, int16_t sx, int16_t sy, int16_t top,
+                         DrawnMo *out) {
+  using namespace marble_video;
+  uint8_t k = 0;
+  if (v.marble == SHOWN) {
+    const int16_t mx = sx + MARBLE_X, my = top + ARCADE_H + MARBLE_Y - sy;  // marble.cpp
+    return addMasks(v, v.mask, v.nmask, mx, my, out, k);
+  }
+  const MarbleSpriteSet &s = marble_physics::deathSet();
+  for (uint8_t i = 0; i < v.n && i < OBJS; i++) {
+    const Obj &o = v.objs[i];
+    if (!(o.set & SET_DEATH)) { continue; }
+    const uint8_t pal = (o.set & SET_SHARDS) ? PAL_SHARDS : 0;
+    if (o.set & SET_STAR) {
+      out[k++] = {o.x, o.y, 1, (uint16_t)(MARBLE_STAR_CODE + o.frame),
+                  (uint16_t)(MARBLE_STAR_TILE + o.frame), pal, false, false};
+    } else {
+      const MarbleSpriteFrame &f = s.frames[o.frame];
+      for (uint8_t c = 0; c < f.ncols; c++) {
+        const MarbleSpriteCol &col = s.cols[f.first + c];
+        out[k++] = {(int16_t)(o.x + col.x), (int16_t)(o.y + col.y), (uint8_t)(col.h & 0x7f), 0,
+                    col.tile, pal, (col.h & 0x80) != 0, false};
+      }
+    }
+    k = addMasks(v, o.mask, o.nmask, o.x, o.y, out, k);
+  }
+  return k;
+}
+
+// MO RAM words of d (MO x = race x + 24, MO y counts up: top line = 256 - MO y - 8 h)
+static MarbleDeathMo moWords(const DrawnMo &d, int16_t top) {
+  const uint16_t y = (uint16_t)(top + 256 - d.top - 8 * d.h);
+  const uint16_t x = (uint16_t)(d.x + 24);
+  return {(uint16_t)(((y << 5) & 0x3fe0) | (d.flip ? 0x8000 : 0) | (d.h - 1)),
+          (uint16_t)(d.code | d.set << 11), (uint16_t)(((x << 5) & 0x3fe0) | (d.mask ? 0x8000 : 0))};
+}
+
+// Published player (build) against the player MOs MAME emitted in every death fixture tick:
+// death frames (header, columns: position, height, flip, palette set), sparkle stars, masks;
+// the marble shown exactly when MAME draws its 0x05 half. Frame column codes are not in the
+// remake: one code must map to one tile, in code order (sorted death set).
+static void test_player_objects(void) {
+  static const uint16_t HALF = 0x05, CODES = 0x800;
+  static uint16_t tileOf[CODES];
+  for (uint16_t &t : tileOf) { t = NO_TILE; }
+  const MarbleSpriteSet &s = marble_physics::deathSet();
+  uint16_t frames = 0, stars = 0, masks = 0;
+
+  for (uint8_t sg = 0; sg < MARBLE_DEATHS_SEGMENTS; sg++) {
+    const MarbleDeathSegment &seg = marble_deaths_segments[sg];
+    loadRam(seg);
+    Mem m(ram, seg.race);
+    marble_drawlist::init(m);
+    const int16_t descTop = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+
+    for (uint16_t k = 0; k < seg.nticks; k++) {
+      const MarbleDeathTick &t = seg.ticks[k];
+      replayTick(m, t);
+      marble_drawlist::sort(m);
+      marble_video::VideoState v = {};
+      marble_drawlist::build(m, (int16_t)t.camera, 24, v);
+      const int16_t top = (int16_t)((int16_t)t.camera - descTop);
+
+      char msg[160];
+      snprintf(msg, sizeof(msg), "segment %d tick %d (state %d)", sg, k, t.state);
+      bool half = false;
+      for (uint16_t i = 0; i < t.n; i++) { half |= seg.mos[t.first + i].code == HALF; }
+      TEST_ASSERT_EQUAL_MESSAGE(half, v.marble == marble_video::SHOWN, msg);
+
+      DrawnMo got[40];
+      const uint8_t n = playerMos(v, t.sx, t.sy, top, got);
+      uint8_t j = 0;  // fixture MO
+      for (uint16_t i = 0; i < t.n; i++) {
+        const MarbleDeathMo &e = seg.mos[t.first + i];
+        const bool mask = (e.w2 & 0x8000) != 0;
+        if (half && !mask) { continue; }  // marble halves, dots, 0x07
+        TEST_ASSERT_TRUE_MESSAGE(j < n, msg);
+        const MarbleDeathMo w = moWords(got[j], top);
+        TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.w0, w.w0, msg);
+        TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.w2, w.w2, msg);
+        if (got[j].code) {
+          TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.code, w.code, msg);
+        } else {
+          TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.code >> 11, got[j].set, msg);
+        }
+        const uint16_t c = e.code & 0x7ff;
+        if (got[j].tile != NO_TILE) {
+          TEST_ASSERT_TRUE_MESSAGE(tileOf[c] == NO_TILE || tileOf[c] == got[j].tile, msg);
+          tileOf[c] = got[j].tile;
+        }
+        masks += mask;
+        stars += got[j].code && !mask;
+        frames += !got[j].code;
+        j++;
+      }
+      TEST_ASSERT_EQUAL_UINT8_MESSAGE(j, n, msg);
+
+      // the frame drawn is the fixture's header
+      for (uint8_t i = 0; i < v.n; i++) {
+        const marble_video::Obj &o = v.objs[i];
+        if (!(o.set & marble_video::SET_DEATH) || (o.set & marble_video::SET_STAR)) { continue; }
+        const uint32_t hdr = FRAMES_BASE + 2 * (uint32_t)s.addr[o.frame];
+        TEST_ASSERT_EQUAL_HEX32_MESSAGE((o.set & marble_video::SET_SHARDS) ? t.shard_hdr
+                                                                           : t.frame_hdr,
+                                        hdr, msg);
+      }
+    }
+  }
+
+  uint16_t last = 0;
+  bool first = true;
+  for (uint16_t c = 0; c < CODES; c++) {
+    if (tileOf[c] == NO_TILE) { continue; }
+    TEST_ASSERT_TRUE_MESSAGE(first || tileOf[c] > last, "death tiles not in code order");
+    last = tileOf[c];
+    first = false;
+  }
+  printf("player MOs compared: %d frame columns, %d stars, %d masks\n", frames, stars, masks);
+  TEST_ASSERT_TRUE(frames > 0 && stars > 0 && masks > 0);
+}
+
 // ---------------------------------------------------------------- race start sweep
 
 static const uint8_t RACES = 6;
@@ -171,9 +320,8 @@ static void logicTick(Mem &m) {
   marble_rng::rng(m, RNG_TICK);
   marble_drawlist::sort(m);
 
-  marble_video::Obj objs[marble_video::OBJS];
-  uint8_t at, lift;
-  marble_drawlist::build(m, m.sw(marble_physics::CAMERA), 24, objs, marble_video::OBJS, at, lift);
+  marble_video::VideoState v = {};
+  marble_drawlist::build(m, m.sw(marble_physics::CAMERA), 24, v);
 }
 
 // the marble dz pixels above (below) its z; above: airborne, fall height from there
@@ -389,6 +537,12 @@ static void test_race_switch_dead(void) {
       }
       logicTick(n);
       TEST_ASSERT_EQUAL_UINT8(marble_physics::ROLL, marble_physics::state(n));
+      marble_video::VideoState v = {};  // no death object left
+      marble_drawlist::build(n, n.sw(marble_physics::CAMERA), 24, v);
+      TEST_ASSERT_EQUAL_UINT8(marble_video::SHOWN, v.marble);
+      for (uint8_t i = 0; i < v.n; i++) {
+        TEST_ASSERT_FALSE(v.objs[i].set & marble_video::SET_DEATH);
+      }
     }
   }
 }
@@ -398,6 +552,7 @@ int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   RUN_TEST(test_replay_deaths);
+  RUN_TEST(test_player_objects);
   RUN_TEST(test_race_start_rng);
   RUN_TEST(test_start_and_goal);
   RUN_TEST(test_race_start_sweep);

@@ -2,14 +2,16 @@
 
 #ifdef ENABLE_MARBLE
 
+#include "../../emulation/asset.h"
 #include "marble_physics.h"
+#include "marble_rom.h"
 
 namespace marble_drawlist {
 
 using marble_physics::Mem;
 using marble_physics::s8;
 using marble_physics::s16;
-using marble_video::Obj;
+using namespace marble_video;
 
 namespace {
 
@@ -178,13 +180,21 @@ void putBox(Mem &m, uint32_t e, const Box &b) {
   for (uint8_t i = 0; i < 6; i++) { m.ww(e + 2 + 2 * i, (uint16_t)b.v[i]); }
 }
 
-// object list under construction; n counts past max, the caller truncates
+// object list and mask pool under construction; n counts past OBJS, the caller truncates
 struct Out {
-  Obj *p;
-  uint8_t n, max;
+  VideoState &v;
+  uint8_t n, nm;  // objects, pool entries
   void add(uint8_t frame, uint8_t set, int16_t x, int16_t y) {
-    if (n < max) { p[n] = {frame, set, x, y}; }
+    if (n < OBJS) { v.objs[n] = {frame, set, x, y, nm, 0}; }
     n++;
+  }
+  // the last object's nmask, nullptr if it was dropped
+  uint8_t *last() { return n && n <= OBJS ? &v.objs[n - 1].nmask : nullptr; }
+  // mask of the owner with mask count *count; dropped when the pool is full
+  void mask(uint8_t *count, uint16_t code, int16_t dx, int16_t dy) {
+    if (!count || nm >= MASKS) { return; }
+    v.masks[nm++] = {code, dx, dy};
+    (*count)++;
   }
 };
 
@@ -236,6 +246,78 @@ void slotObjs(const Mem &m, Out &o, uint8_t type, uint8_t idx, int32_t top, int1
   const int16_t i = s16((uint32_t)((int32_t)(p42 - p46) >> 2) & 0xffff);
   const int16_t f = m.stripFrame(i);
   if (f >= 0) { o.add((uint8_t)f, SET_SHADE, x, y); }
+}
+
+// player 1 fields
+enum : uint8_t { P_STATE = 0x1a, P_VISIBLE = 0x1c, P_SX = 0x1e, P_SY = 0x20, P_MASKS = 0x38,
+                 P_ANIM = 0x5a, P_SHARDS = 0x62, P_SHARDS_ON = 0x67, P_STARS = 0xa4 };
+static const uint8_t ENTRY = 6, MASK_N = 5, STAR_N = 4;  // {code, x, y} entries
+static const uint16_t MASK_BIT = 0x4000;                 // mask entry, else sparkle star
+static const uint8_t ST_DISSOLVE = 9, ST_0A = 0xa, ST_0B = 0xb;
+
+// player state drawn from the animation frame +0x5a
+inline bool frameState(uint8_t st) {
+  return st == marble_physics::DIZZY || st == marble_physics::BROKEN ||
+         st == marble_physics::EATEN || st == ST_DISSOLVE;
+}
+
+// sparkle star entry (0x13ade: code 0x10b + k, screen x, y) as a one tile object
+void star(Out &o, uint16_t code, int16_t x, int16_t y, int32_t top) {
+  const uint16_t k = (code & 0x7ff) - MARBLE_STAR_CODE;
+  if (k >= MARBLE_STARS) { return; }
+  o.add((uint8_t)k, SET_DEATH | SET_STAR, x, (int16_t)(top + ARCADE_H - y - 8));
+}
+
+// 0x2724c (type 1) of player 1 at origin (sx, top + ARCADE_H - sy): the marble with its masks,
+// or the death frame with its masks, sparkle stars (+0xa4, star entries of +0x38) and the
+// shatter overlay as objects. Dots 0x1c014 are not ported.
+void player(const Mem &m, Out &o, int32_t top) {
+  static const uint32_t A = marble_physics::PLAYER;
+  VideoState &v = o.v;
+  v.marble = HIDDEN;
+  v.mask = o.nm;
+  v.nmask = 0;
+  if (!m.rb(A + P_VISIBLE)) { return; }
+
+  const uint8_t st = m.rb(A + P_STATE);
+  const int16_t sx = m.sw(A + P_SX), sy = m.sw(A + P_SY);
+  const int16_t y = (int16_t)(top + ARCADE_H - sy);
+  uint8_t *owner = nullptr;  // mask count of the masks' owner
+  int16_t ox = 0, oy = 0;    // its origin relative to the player origin
+  if (frameState(st)) {
+    const uint32_t hdr = hdrOf(m, A + P_ANIM);
+    if (hdr != NONE32) {
+      o.add(marble_physics::deathFrame(hdr), SET_DEATH, sx, y);
+      owner = o.last();
+    }
+  } else if (st == marble_physics::LOST) {
+    for (uint8_t i = 0; i < STAR_N && m.rw(A + P_STARS + ENTRY * i); i++) {
+      const uint32_t e = A + P_STARS + ENTRY * i;
+      star(o, m.rw(e), m.sw(e + 2), m.sw(e + 4), top);
+    }
+  } else if (st != ST_0A && st != ST_0B) {
+    v.marble = SHOWN;
+    owner = &v.nmask;
+    ox = MARBLE_X;
+    oy = MARBLE_Y;
+  }
+
+  // masks follow the drawn part (MO top = ARCADE_H - y - 8 h, MARBLE.md "Occlusion")
+  for (uint8_t i = 0; i < MASK_N && m.rw(A + P_MASKS + ENTRY * i); i++) {
+    const uint32_t e = A + P_MASKS + ENTRY * i;
+    const uint16_t code = m.rw(e);
+    const int16_t ex = m.sw(e + 2), ey = m.sw(e + 4);
+    if (!(code & MASK_BIT)) {
+      star(o, code, ex, ey, top);
+      continue;
+    }
+    const int16_t h = (((code >> 11) & 7) + 1) * 8;
+    o.mask(owner, code, (int16_t)(ex - sx - ox), (int16_t)(sy - ey - h - oy));
+  }
+
+  if (!m.rb(A + P_SHARDS_ON)) { return; }
+  const uint32_t hdr = hdrOf(m, A + P_SHARDS);
+  if (hdr != NONE32) { o.add(marble_physics::deathFrame(hdr), SET_DEATH | SET_SHARDS, sx, y); }
 }
 
 }  // namespace
@@ -303,25 +385,30 @@ void sort(Mem &m) {
   for (uint8_t stride = 1; stride <= 3; stride++) { pass_1a7a8(m, stride); }
 }
 
-uint8_t build(const Mem &m, int16_t cam, int16_t cullMargin, Obj *out, uint8_t max,
-              uint8_t &marbleAt, uint8_t &lift) {
+uint8_t build(const Mem &m, int16_t cam, int16_t cullMargin, VideoState &v) {
+  static const uint8_t NOT_SEEN = 0xff;
   const int32_t top = (int32_t)cam - (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
-  Out o = {out, 0, max};
-  lift = LIFT_NONE;
-  marbleAt = 0xff;
+  Out o = {v, 0, 0};
+  v.lift = LIFT_NONE;
+  v.marbleAt = NOT_SEEN;
+  v.marble = HIDDEN;
+  v.nmask = 0;
 
   const uint8_t n = listLen(m);
   for (uint8_t i = 0; i < n; i++) {
     const uint32_t e = entry(m.rb(LIST + i));
     const uint8_t type = m.rb(e), idx = m.rb(e + 1);
-    if (type == T_PLAYER && idx == 0 && marbleAt == 0xff) { marbleAt = o.n < max ? o.n : max; }
+    if (type == T_PLAYER && idx == 0 && v.marbleAt == NOT_SEEN) {
+      v.marbleAt = o.n < OBJS ? o.n : OBJS;
+      player(m, o, top);
+    }
     if (type == T_TAG3 || type == T_TAG5 || type == T_TAG6) {
-      slotObjs(m, o, type, idx, top, cullMargin, lift);
+      slotObjs(m, o, type, idx, top, cullMargin, v.lift);
     }
   }
-  const uint8_t cnt = o.n < max ? o.n : max;
-  if (marbleAt == 0xff || marbleAt > cnt) { marbleAt = cnt; }
-  return cnt;
+  v.n = o.n < OBJS ? o.n : OBJS;
+  if (v.marbleAt > v.n) { v.marbleAt = v.n; }
+  return o.n;
 }
 
 }  // namespace marble_drawlist

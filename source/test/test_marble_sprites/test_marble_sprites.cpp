@@ -132,6 +132,7 @@ static void test_published_objects(void) {
 
 using marble_physics::Mem;
 using marble_video::Obj;
+using marble_video::VideoState;
 
 static uint8_t ram[marble_physics::RAM_SIZE];
 
@@ -159,8 +160,8 @@ static void playerTick(Mem &m, const MarbleSprTick *prev) {
 // One tick as the fixture model: player update, slot update, queued frame, the camera long (an
 // input) with the band spawns; then box refresh and sort, and the objects built with the
 // camera word the slot update saw.
-static void replayTick(Mem &m, const MarbleSprTick *prev, const MarbleSprTick &t, Obj *out,
-                       uint8_t &n, uint8_t &at, uint8_t &lift) {
+static void replayTick(Mem &m, const MarbleSprTick *prev, const MarbleSprTick &t,
+                       VideoState &v) {
   playerTick(m, prev);
   marble_objects::update(m);
   marble_objects::applyQueued(m);
@@ -172,7 +173,8 @@ static void replayTick(Mem &m, const MarbleSprTick *prev, const MarbleSprTick &t
   }
 
   marble_drawlist::sort(m);
-  n = marble_drawlist::build(m, seen, 0, out, MAX_OBJS, at, lift);
+  v = {};
+  marble_drawlist::build(m, seen, 0, v);
 }
 
 // replayTick with a cull margin (the remake draws 24 lines more above and below)
@@ -187,9 +189,8 @@ static uint8_t replayCount(Mem &m, const MarbleSprTick *prev, const MarbleSprTic
     marble_objects::cameraBands(m, seen, (int16_t)t.camera);
   }
   marble_drawlist::sort(m);
-  Obj out[64];
-  uint8_t at, lift;
-  return marble_drawlist::build(m, seen, margin, out, 64, at, lift);  // buffer well past OBJS
+  VideoState v = {};
+  return marble_drawlist::build(m, seen, margin, v);  // count also past OBJS
 }
 
 static void test_margin_fits_objs(void) {
@@ -248,15 +249,17 @@ static void test_draw_list(void) {
 
     for (uint16_t k = 0; k < seg.nticks; k++) {
       const MarbleSprTick &t = seg.ticks[k];
-      Obj got[MAX_OBJS];
-      uint8_t n, at, lift;
-      replayTick(m, k ? &seg.ticks[k - 1] : nullptr, t, got, n, at, lift);
+      VideoState v;
+      replayTick(m, k ? &seg.ticks[k - 1] : nullptr, t, v);
+      const uint8_t n = v.n, at = v.marbleAt, lift = v.lift;
 
-      bool same = n == t.n && at == t.marble_at && lift == t.variant;
+      // level objects have no masks; the marble's masks are the only pool entries
+      bool same = n == t.n && at == t.marble_at && lift == t.variant && v.mask == 0 &&
+                  v.nmask <= 5;
       for (uint8_t i = 0; same && i < n; i++) {
         const MarbleSprObj &o = seg.objs[t.first + i];
-        same = got[i].frame == o.frame && got[i].set == o.set && got[i].x == o.x &&
-               got[i].y == o.y;
+        const Obj &g = v.objs[i];
+        same = g.frame == o.frame && g.set == o.set && g.x == o.x && g.y == o.y && !g.nmask;
       }
       if (same) { continue; }
 

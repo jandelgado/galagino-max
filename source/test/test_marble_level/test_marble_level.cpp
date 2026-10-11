@@ -34,6 +34,8 @@ static uint32_t crc32(const uint8_t *p, size_t n, uint32_t crc = 0) {
 }
 
 #ifdef HAVE_ROM
+// render CRCs of the edge tests (the reference composite is the check, these catch changes)
+static const uint32_t OBJECT_MASKS_CRC = 0x710D10BC, DEATH_EDGES_CRC = 0x2DB1610B;
 static marble_level::Store store;
 
 static void test_levels_match_decoder(void) {
@@ -130,10 +132,12 @@ static void test_masks_hide_marble(void) {
   v.my = 20;
   const uint32_t shown = frameCrc(l, v);
   // two full 8x16 masks over the marble == marble not drawn
-  v.masks[0] = {0x4000 | (1 << 11) | 0x4e0, 0, 0};
-  v.masks[1] = {0x4000 | (1 << 11) | 0x4e0, 8, 0};
+  v.masks[3] = {0x4000 | (1 << 11) | 0x4e0, 0, 0};
+  v.masks[4] = {0x4000 | (1 << 11) | 0x4e0, 8, 0};
+  v.mask = 3;
+  v.nmask = 2;
   const uint32_t masked = frameCrc(l, v);
-  v.masks[0] = v.masks[1] = {};
+  v.nmask = 0;
   v.marble = marble_video::HIDDEN;
   const uint32_t gone = frameCrc(l, v);
   TEST_ASSERT_NOT_EQUAL(shown, gone);
@@ -214,6 +218,212 @@ static void test_object_sprites(void) {
   none.sprites = nullptr;
   v.objs[0] = {0, 3, 100, 100};
   TEST_ASSERT_EQUAL_HEX32(frameCrc(l, marble_video::VideoState{}), frameCrc(none, v));
+}
+
+// ---------------------------------------------------------------- object masks, death set
+
+static const uint16_t FULL_MASK = 0x4000 | (1 << 11) | 0x4e0;  // 8 x 16, every pixel
+static const uint16_t SLOPE_MASK = 0x4000 | 0x4df;             // 8 x 8, part of the pixels
+static const uint16_t HFLIP = 0x8000;
+
+// pixel (x, y) of o under one of its masks (naive: every mask, every pixel)
+static bool masked(const marble_video::VideoState &v, const marble_video::Obj &o, int x, int y) {
+  for (int i = o.mask; i < o.mask + o.nmask && i < marble_video::MASKS; i++) {
+    const marble_video::Mask &e = v.masks[i];
+    const int c = x - (o.x + e.dx), r = y - (o.y + e.dy);
+    if (c < 0 || c >= 8 || r < 0 || r >= (((e.code >> 11) & 7) + 1) * 8) continue;
+    const uint16_t t = marble_mask_index((e.code & 0x7ff) + r / 8);
+    if (t == 0xffff) continue;
+    const uint8_t b = marble_mask_tiles[t][r % 8];
+    if ((e.code & HFLIP) ? (b >> c) & 1 : (b >> (7 - c)) & 1) return true;
+  }
+  return false;
+}
+
+// naive composite of object o (race set palette set 3, death set, star) onto a full frame
+static void refObj(const marble_level::Level &l, const marble_video::VideoState &v,
+                   const marble_video::Obj &o, uint16_t *img) {
+  using namespace marble_video;
+  const bool death = (o.set & SET_DEATH) != 0;
+  const MarbleSpriteSet &s = death ? marble_death_set : marble_sprites[marble_sprite_race[v.level]];
+  const uint16_t *pal = death ? marble_death_pal[o.set & SET_SHARDS] : marble_sprite_pal[v.level][0];
+  const MarbleSpriteCol star = {0, 0, 1, (uint16_t)(MARBLE_STAR_TILE + o.frame)};
+  const bool isStar = death && (o.set & SET_STAR);
+  const uint8_t ncols = isStar ? 1 : s.frames[o.frame].ncols;
+  for (uint8_t c = 0; c < ncols; c++) {
+    const MarbleSpriteCol &col = isStar ? star : s.cols[s.frames[o.frame].first + c];
+    for (int t = 0; t < (col.h & 0x7f); t++) {
+      for (int ty = 0; ty < 8; ty++) {
+        for (int k = 0; k < 8; k++) {
+          const int rx = o.x + col.x + k, ry = o.y + col.y + t * 8 + ty;
+          const int x = rx - v.sx, y = ry - v.sy;
+          if (x < 0 || x >= OUT_W || y < 0 || y >= OUT_H || masked(v, o, rx, ry)) continue;
+          const int tx = (col.h & 0x80) ? 7 - k : k;
+          const uint8_t b = l.sprites[col.tile + t][ty * 4 + tx / 2];
+          const uint8_t pen = (tx & 1) ? b & 15 : b >> 4;
+          if (pen) img[y * OUT_W + x] = pal[pen];
+        }
+      }
+    }
+  }
+}
+
+static uint16_t refImg[marble_video::OUT_W * marble_video::OUT_H];
+static uint16_t gotImg[marble_video::OUT_W * marble_video::OUT_H];
+
+static void renderAll(const marble_level::Level &l, const marble_video::VideoState &v,
+                      uint16_t *img) {
+  for (int row = 0; row < marble_video::OUT_H / 8; row++) {
+    marble_video::renderRow(l, v, row, img + row * marble_video::OUT_W * 8);
+  }
+}
+
+// v rendered equals the playfield with refObj of every object in order; returns its crc
+static uint32_t checkRef(const marble_level::Level &l, const marble_video::VideoState &v) {
+  marble_video::VideoState none = v;
+  none.n = 0;
+  renderAll(l, none, refImg);
+  for (uint8_t i = 0; i < v.n; i++) refObj(l, v, v.objs[i], refImg);
+  renderAll(l, v, gotImg);
+  TEST_ASSERT_EQUAL_MEMORY(refImg, gotImg, sizeof(gotImg));
+  return crc32((const uint8_t *)gotImg, sizeof(gotImg));
+}
+
+// level with a sprite buffer of exactly `tiles` tiles, guard bytes after it
+static marble_level::Level guardedLevel(const marble_level::Level &l, uint16_t tiles) {
+  static uint8_t guarded[32 * MARBLE_SPRITE_MAX_TILES + 64];
+  memset(guarded, 0xff, sizeof(guarded));
+  memcpy(guarded, l.sprites, 32u * tiles);
+  marble_level::Level g = l;
+  g.sprites = (const uint8_t (*)[32])guarded;
+  return g;
+}
+
+static const int16_t EDGE_X[] = {-20, 100, 232};  // left edge, inside, right edge
+static const int16_t EDGE_Y[] = {-12, 80, 280};   // top, inside, bottom line of the view
+
+// Two overlapping race 0 objects, each with its own masks (full, slope, hflipped slope),
+// straddling every view edge: a mask hides only its owner's pixels
+static void test_object_masks(void) {
+  using namespace marble_video;
+  const marble_level::Level l =
+      guardedLevel(store.load(0), marble_sprites[marble_sprite_race[0]].ntiles);
+  const MarbleSpriteSet &set = marble_sprites[marble_sprite_race[0]];
+  const MarbleSpriteCol &c0 = set.cols[set.frames[0].first];
+  uint32_t crc = 0;
+  for (int16_t x : EDGE_X) {
+    for (int16_t y : EDGE_Y) {
+      VideoState v = {};
+      v.sx = 20;
+      v.sy = 40;
+      v.n = 2;
+      v.marbleAt = 2;
+      const int16_t ox = x + v.sx, oy = y + v.sy;
+      v.objs[0] = {0, 3, ox, oy, 0, 2};
+      v.objs[1] = {0, 3, (int16_t)(ox + 4), (int16_t)(oy + 6), 2, 1};
+      v.masks[0] = {FULL_MASK, c0.x, c0.y};
+      v.masks[1] = {SLOPE_MASK, (int16_t)(c0.x + 8), (int16_t)(c0.y + 3)};
+      v.masks[2] = {(uint16_t)(SLOPE_MASK | HFLIP), (int16_t)(c0.x + 3), (int16_t)(c0.y + 2)};
+      crc = crc32((const uint8_t *)&crc, sizeof(crc), checkRef(l, v));
+      if (x != 100 || y != 80) continue;
+      // the masks hide something, and only their owner
+      renderAll(l, v, refImg);
+      v.objs[0].nmask = 0;
+      renderAll(l, v, gotImg);
+      TEST_ASSERT_TRUE(memcmp(refImg, gotImg, sizeof(gotImg)) != 0);
+    }
+  }
+  printf("object masks crc %08x\n", (unsigned)crc);
+  TEST_ASSERT_EQUAL_HEX32(OBJECT_MASKS_CRC, crc);
+}
+
+// 17 masks for one object: the pool holds 16, the 17th is never read. masks[MASKS] would be
+// objs[0]; it is laid out as a full mask over object 1, so a read past the pool shows.
+static void test_mask_pool(void) {
+  using namespace marble_video;
+  const marble_level::Level &l = store.load(0);
+  const MarbleSpriteSet &set = marble_sprites[marble_sprite_race[0]];
+  const MarbleSpriteCol &c0 = set.cols[set.frames[0].first];
+  TEST_ASSERT_EQUAL_PTR((const void *)&((VideoState *)nullptr)->objs[0],
+                        (const void *)&((VideoState *)nullptr)->masks[MASKS]);
+
+  VideoState v = {};
+  v.n = 2;
+  v.marbleAt = 2;
+  const uint8_t trap[2] = {FULL_MASK & 0xff, FULL_MASK >> 8};  // host byte order of code
+  uint16_t code;
+  memcpy(&code, trap, 2);
+  TEST_ASSERT_EQUAL_HEX16(FULL_MASK, code);
+  TEST_ASSERT_TRUE(trap[0] >= set.nframes && !(trap[1] & SET_DEATH));
+  v.objs[0] = {trap[0], trap[1], c0.x, c0.y, 0, 0};  // frame past the set: not drawn
+  v.objs[1] = {0, 3, 100, 100, 0, MASKS + 1};
+  for (uint8_t i = 0; i < MASKS; i++) v.masks[i] = {FULL_MASK, 40, 0};  // beside object 1
+  VideoState pool = v;
+  pool.objs[1].nmask = MASKS;
+  renderAll(l, pool, refImg);
+  renderAll(l, v, gotImg);
+  TEST_ASSERT_EQUAL_MEMORY(refImg, gotImg, sizeof(gotImg));
+
+  // the trap mask would hide pixels of object 1
+  VideoState hit = pool;
+  hit.masks[MASKS - 1] = {FULL_MASK, c0.x, c0.y};
+  renderAll(l, hit, gotImg);
+  TEST_ASSERT_TRUE(memcmp(refImg, gotImg, sizeof(gotImg)) != 0);
+
+  // a range that starts inside and ends past the pool is cut at the pool end
+  v.objs[1].mask = MASKS - 4;
+  v.objs[1].nmask = 10;
+  pool.objs[1].mask = MASKS - 4;
+  pool.objs[1].nmask = 4;
+  renderAll(l, pool, refImg);
+  renderAll(l, v, gotImg);
+  TEST_ASSERT_EQUAL_MEMORY(refImg, gotImg, sizeof(gotImg));
+  v.objs[1].mask = 0xff;  // starts past the pool: no masks
+  pool.objs[1].nmask = 0;
+  renderAll(l, pool, refImg);
+  renderAll(l, v, gotImg);
+  TEST_ASSERT_EQUAL_MEMORY(refImg, gotImg, sizeof(gotImg));
+}
+
+// Death set frames (largest shatter frame, overlay palette) and stars straddling every view
+// edge, with a mask; the tile buffer ends after the death tiles (guard bytes)
+static void test_death_edges(void) {
+  using namespace marble_video;
+  const marble_level::Level l = guardedLevel(store.load(1), MARBLE_DEATH_TILES);
+  const MarbleSpriteSet &s = marble_death_set;
+  uint8_t big = 0;  // frame with the most columns
+  for (uint8_t f = 0; f < s.nframes; f++) {
+    if (s.frames[f].ncols > s.frames[big].ncols) big = f;
+  }
+  const MarbleSpriteCol &c0 = s.cols[s.frames[big].first];
+  uint32_t crc = 0;
+  for (int16_t x : EDGE_X) {
+    for (int16_t y : EDGE_Y) {
+      VideoState v = {};
+      v.level = 1;
+      v.sx = 20;
+      v.sy = 40;
+      v.n = 4;
+      v.marbleAt = 0;
+      const int16_t ox = x + v.sx, oy = y + v.sy;
+      v.objs[0] = {big, SET_DEATH, ox, oy, 0, 1};
+      v.objs[1] = {(uint8_t)(s.nframes - 1), SET_DEATH | SET_SHARDS, ox, oy, 0, 0};
+      v.objs[2] = {0, SET_DEATH | SET_STAR, (int16_t)(ox - 6), (int16_t)(oy + 4), 0, 0};
+      v.objs[3] = {MARBLE_STARS - 1, SET_DEATH | SET_STAR, (int16_t)(ox + 30), oy, 0, 0};
+      v.masks[0] = {FULL_MASK, c0.x, c0.y};
+      crc = crc32((const uint8_t *)&crc, sizeof(crc), checkRef(l, v));
+    }
+  }
+  printf("death edges crc %08x\n", (unsigned)crc);
+  TEST_ASSERT_EQUAL_HEX32(DEATH_EDGES_CRC, crc);
+
+  // star or frame ids past the death set draw nothing
+  VideoState v = {};
+  v.level = 1;
+  v.n = 2;
+  v.objs[0] = {MARBLE_STARS, SET_DEATH | SET_STAR, 100, 100, 0, 0};
+  v.objs[1] = {s.nframes, SET_DEATH, 100, 100, 0, 0};
+  TEST_ASSERT_EQUAL_HEX32(frameCrc(l, VideoState{0, 0, 1}), frameCrc(l, v));
 }
 
 // one object of `frame` (race `race`, palette set `set`) over a playfield whose pixel in column
@@ -346,6 +556,9 @@ int main(int, char **) {
   RUN_TEST(test_object_sprites);
   RUN_TEST(test_shade_colour);
   RUN_TEST(test_lift_palette);
+  RUN_TEST(test_object_masks);
+  RUN_TEST(test_mask_pool);
+  RUN_TEST(test_death_edges);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif

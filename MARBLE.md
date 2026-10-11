@@ -574,13 +574,17 @@ from the logic entries): intermediate start, 46 live frames: both equal the MAME
 pixel for pixel in a box around the marble; without masks 9 frames differ (up to 156 px).
 Not rendered: alpha layer (HUD, opaque columns right of 288).
 
-Remake renderer (`marble_video.cpp` `hideMask`): `publish()` takes the marble position from the
-stored projection +0x1e/+0x20 (same tick as the masks) and converts each entry to
-`dx = x - mx`, `dy = (sy - y) + 16 - 8 * height` relative to the marble sprite top left
-(MO top = 240 - y - 8h vs marble 224 - sy, camera cancels). Per marble line (16 lines only)
-a 32 bit hide mask is built from the mask tile rows (bit reverse for hflip, height h rows =
-codes c .. c + h - 1, top first); a set bit skips the marble pixel. +0x1c == 0 skips the
-marble. Entries without bit 14 (respawn sparkle) are dropped. VideoState grew 10 -> 48 B.
+Remake renderer (`marble_video.cpp` `hide8`): `marble_drawlist::build` converts each entry
+of the stored projection +0x1e/+0x20 (same tick as the masks) relative to its owner's origin
+(MO top = 240 - y - 8h, camera cancels): marble sprite top left `dx = x - mx`, `dy = (sy - y)
++ 16 - 8 * height`; death frame (sx, 240 - sy) `dx = x - sx`, `dy = sy - y - 8 * height`.
+Masks live in a pool of 16 (`VideoState::masks`), each owner holds a range (marble `mask`,
+`nmask`; `Obj::mask`, `nmask`); rule A per owner: a mask hides only its owner's pixels (the
+arcade merge also hides earlier MOs of other objects, not seen in the traces). Per owner line
+and 8 px column an 8 bit hide mask comes from the mask tile rows (bit reverse for hflip,
+height h rows = codes c .. c + h - 1, top first); a set bit skips the pixel. Ranges are cut at
+the pool end, a full pool drops further masks. +0x1c == 0 skips the player. Entries without
+bit 14 (sparkle stars) are drawn as stars. VideoState 10 -> 48 -> 92 -> 304 B (Phase 4b-0).
 Playfield patches: the video core writes the block of `lastPatch()` into the map (practice
 only) whenever the published value changes to a non-zero record, clipped to the map; a level
 load resets the applied value.
@@ -993,8 +997,8 @@ columns 2370, header ids 118, palettes 452, set table 54). `emit_sprites`; model
   n x columns per strip (at most about 8 x 10), the pixel loop only runs for overlapping
   columns, at most 15 per strip.
 - Culls at margin 24 (remake view, 24 lines more above and below), most objects in the fixture
-  segments: beginner 4, intermediate 6, ultimate 5, practice 2; `OBJS` 8 holds
-  (`test_margin_fits_objs`).
+  segments: beginner 4, intermediate 6, ultimate 5, practice 2; 8 hold
+  (`test_margin_fits_objs`). `OBJS` 24 since Phase 4b-0 (player death objects, enemies).
 
 Sprite fixture `source/test/test_marble_sprites/marble_sprites_trace.h` (committed, derived numbers
 only), `make_fixture.py swrite`: segments of the research runs between `MARBLE_PLACE`
@@ -1059,6 +1063,17 @@ Same converter run; flash 3772 B (converter prints it: prog blocks 900, tiles 18
   their end, overlay entries 0-43, sine 0x1eda2 (0x66 words), 1/sqrt 0x1ee6e (0x35 words),
   dot codes 0x24ade (39 words) and y bias 0x24b2c (13), sparkle offsets 0x1ef32, dot rest
   pose 0x1d3f4 (16), time out limits 0x24a94 and zone lists 0x24aae.
+
+- Remake renderer: `marble_drawlist::build` publishes the player at its list position as
+  `marble_mo.type1` draws it: states 1/2/5/9 (frame rl(+0x5a)), 4 (stars) and 0xa/0xb hide the
+  marble. Objects: frame (`Obj::set` `SET_DEATH`, palette set 0) at the player origin (sx,
+  camera top + 240 - sy) with the +0x38 masks; stars (`SET_DEATH | SET_STAR`, frame = k, one
+  tile at the star's top left) of +0xa4 and of +0x38 entries without bit 14; overlay
+  rl(+0x62) while +0x67 (`SET_SHARDS`, set 2). `drawObj` takes the death set and
+  `marble_death_pal` for `SET_DEATH`. Host tests: `test_player_objects` (every death fixture
+  tick: columns, stars and masks as MO words, frame headers, marble shown iff MAME draws 0x05;
+  one tile per code in code order), `test_object_masks`, `test_mask_pool` (17 masks),
+  `test_death_edges` (reference composite at every view edge, guarded tile buffer).
 
 Death fixture `source/test/test_marble_deaths/marble_deaths_trace.h` (committed, derived
 numbers only), `make_fixture.py dwrite`: segments of the tick start traces pd1/bd2 (section

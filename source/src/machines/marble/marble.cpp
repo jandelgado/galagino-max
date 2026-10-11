@@ -19,8 +19,6 @@ using marble_physics::PLAYER;
 #define MARBLE_STICK_K 9
 
 static const uint16_t RNG_TICK = 0x100;   // main loop rng(0x100) 0x118a4
-static const int16_t BODY_X = 8;          // MO 0x05 left of the marble centre sx
-static const int16_t BODY_Y = 224;        // MO 0x05 top = screen line 224 - sy
 // Remake view is 24 lines taller above and below the arcade screen: object culls move out
 static const int16_t MARBLE_CULL_MARGIN = 24;
 
@@ -92,19 +90,17 @@ void marble::logicTick(uint32_t keys) {
   buildObjs(m);
 }
 
-// level object sprites of the tick, with the camera the slot update saw
+// object sprites, the marble and the masks of the tick, with the camera the slot update saw
 void marble::buildObjs(Mem &m) {
-  view.n = marble_drawlist::build(m, m.sw(marble_physics::CAMERA), MARBLE_CULL_MARGIN, view.objs,
-                                  OBJS, view.marbleAt, view.lift);
+  marble_drawlist::build(m, m.sw(marble_physics::CAMERA), MARBLE_CULL_MARGIN, view);
 }
 
-// view and marble sprite from the work RAM image
+// view and marble sprite position from the work RAM image
 void marble::publish(void) {
   Mem m(memory, race);
   // projection of the last tick (+0x1e/+0x20), as the arcade MO list and the masks use it
   const int16_t sx = m.sw(PLAYER + 0x1e), sy = m.sw(PLAYER + 0x20);
   const int16_t top = marble_camera::top(m);
-  const uint8_t st = marble_physics::state(m);
 
   // arcade screen centred in the taller view; race height = range + ARCADE_H
   const int16_t maxy = marble_camera::range(m) + ARCADE_H - OUT_H;
@@ -113,28 +109,13 @@ void marble::publish(void) {
   if (view.sy > maxy) { view.sy = maxy; }
   if (view.sy < 0) { view.sy = 0; }
   view.level = race;
-  // hidden when dead or every column is covered (+0x1c = 0)
-  view.marble = (st == marble_physics::BROKEN || st == marble_physics::LOST ||
-                 !m.rb(PLAYER + 0x1c)) ? HIDDEN : SHOWN;
-  view.mx = sx - BODY_X;
-  view.my = top + BODY_Y - sy;
+  view.mx = sx + MARBLE_X;
+  view.my = top + ARCADE_H + MARBLE_Y - sy;
   const uint32_t rec = marble_objects::lastPatch(m);
   if (rec != patchRec) {  // map record -> table index, only on change
     patchRec = rec;
     view.patch = marble_level::patchIndex(rec);
   }
-  uint8_t n = 0;
-  for (uint8_t i = 0; i < MASKS; i++) {
-    const uint32_t e = PLAYER + 0x38 + 6 * i;
-    const uint16_t code = m.rw(e);
-    if (!code) { break; }
-    // state 4 sparkle stars (0x13ade) are not masks; every 0x264aa code has bit 14
-    if (!(code & 0x4000)) { n = 0; break; }
-    const int16_t h = ((code >> 11) & 7) + 1;
-    view.masks[n++] = {code, (int16_t)(m.sw(e + 2) - view.mx),
-                       (int16_t)(sy - m.sw(e + 4) + 16 - 8 * h)};
-  }
-  for (; n < MASKS; n++) { view.masks[n] = {}; }
   vblank.publish([this](VideoState &s) { s = view; });
 }
 

@@ -23,7 +23,6 @@ struct Mo {
 };
 static const Mo MARBLE_MOS[] = {{0x05, 0, 0, 2}, {0x03, 8, 0, 2}, {0x07, 0, 3, 1}};
 static const int16_t MARBLE_H = 16;
-static const int16_t MARBLE_W = 16;
 static const uint8_t MO_TILES = sizeof(marble_mo_tiles) / sizeof(marble_mo_tiles[0]);
 
 inline uint8_t reverse8(uint8_t b) {
@@ -32,22 +31,22 @@ inline uint8_t reverse8(uint8_t b) {
   return (uint8_t)(((b & 0xaa) >> 1) | ((b & 0x55) << 1));
 }
 
-// Hide mask of marble line ly (0..15): bit 31 - k set = marble pixel k is covered by a
-// priority mask MO (pen 1 clears the marble pixel).
-uint32_t hideMask(const VideoState &v, int ly) {
-  uint32_t hide = 0;
-  for (const Mask &e : v.masks) {
-    if (!e.code) { break; }
+// Hide bits of owner line ly, owner columns lx .. lx + 7 (bit 7 = lx): pixels covered by one
+// of the owner's masks first .. first + n - 1 (pen 1 clears the owner's pixel). Pool entries
+// past MASKS are never read.
+uint8_t hide8(const VideoState &v, uint8_t first, uint8_t n, int ly, int lx) {
+  const int end = first + n < MASKS ? first + n : MASKS;
+  uint8_t hide = 0;
+  for (int i = first; i < end; i++) {
+    const Mask &e = v.masks[i];
     const int r = ly - e.dy;
-    if (r < 0 || r >= (((e.code >> 11) & 7) + 1) * 8 || e.dx <= -8 || e.dx >= MARBLE_W) {
-      continue;
-    }
+    const int s = e.dx - lx;
+    if (r < 0 || r >= (((e.code >> 11) & 7) + 1) * 8 || s <= -8 || s >= 8) { continue; }
     const uint16_t t = marble_mask_index((e.code & 0x7ff) + (r >> 3));
     if (t == 0xffff) { continue; }
     uint8_t b = marble_mask_tiles[t][r & 7];
     if (e.code & 0x8000) { b = reverse8(b); }
-    const uint32_t w = (uint32_t)b << 24;
-    hide |= e.dx >= 0 ? w >> e.dx : w << -e.dx;
+    hide |= s >= 0 ? b >> s : (uint8_t)(b << -s);
   }
   return hide;
 }
@@ -55,7 +54,6 @@ uint32_t hideMask(const VideoState &v, int ly) {
 // marble pixels of playfield line y, pen 0 transparent, clipped at the view edges
 void drawMarble(const VideoState &v, int y, uint16_t *dst) {
   if (v.marble == HIDDEN || y < v.my || y >= v.my + MARBLE_H) { return; }
-  const uint32_t hide = hideMask(v, y - v.my);
 
   for (const Mo &o : MARBLE_MOS) {
     const int ty = y - v.my - o.dy;
@@ -63,11 +61,12 @@ void drawMarble(const VideoState &v, int y, uint16_t *dst) {
     const uint8_t first = marble_mo_code_first[o.code];
     if (first == 0xff || first + o.h > MO_TILES) { continue; }
 
+    const uint8_t hide = hide8(v, v.mask, v.nmask, y - v.my, o.dx);
     const uint8_t *px = marble_mo_tiles[first + (ty >> 3)] + (ty & 7) * 8;
     const int x0 = v.mx + o.dx - v.sx;
     for (int k = 0; k < 8; k++) {
       const int x = x0 + k;
-      if (px[k] && x >= 0 && x < OUT_W && !(hide & (0x80000000u >> (o.dx + k)))) {
+      if (px[k] && x >= 0 && x < OUT_W && !(hide & (0x80 >> k))) {
         dst[x] = marble_mo_palette[px[k]];
       }
     }
@@ -84,54 +83,74 @@ inline uint8_t pfPixel(const Level &l, int x, int y) {
   return l.pixels[tileOf(w)][(y & 7) * 8 + ((x & 7) ^ (flipOf(w) ? 7 : 0))];
 }
 
-// Level object sprite o on the 8 playfield lines from y0, into dst (8 lines of OUT_W). Columns
-// off the strip or the view are skipped, tiles past the set are never read.
-void drawObj(const Level &l, const VideoState &v, const Obj &o, int y0, uint16_t *dst) {
-  const MarbleSpriteSet &s = marble_physics::spriteSet(v.level);
-  if (o.frame >= s.nframes) { return; }
-  const MarbleSpriteFrame &f = s.frames[o.frame];
-  const bool shade = o.set == SET_SHADE;
-  const uint16_t *pal = nullptr;
-  if (!shade) {
-    const uint8_t k = o.set == 3 ? 0 : o.set == 5 ? 1 : o.set == 6 ? 2 : 3;
-    pal = marble_sprite_pal[v.level][k];
-  }
-  const uint16_t *lift = (o.set == 6 && v.lift < 4) ? marble_lift_pal[v.lift] : nullptr;
-  const uint16_t *shades = marble_sprite_shade[v.level];
+// Colours of an object: palette of pens 0-7, lift substitution for pens 1-4, wave strip shade
+struct Paint {
+  const uint16_t *pal, *lift;
+  bool shade;
+};
 
-  for (uint8_t c = 0; c < f.ncols; c++) {
-    const MarbleSpriteCol &col = s.cols[f.first + c];
-    const int h = col.h & 0x7f;
-    const int top = o.y + col.y;
-    const int x0 = o.x + col.x - v.sx;
-    if (top >= y0 + 8 || top + h * 8 <= y0 || x0 <= -8 || x0 >= OUT_W ||
-        col.tile + h > s.ntiles) {
-      continue;
-    }
-    const bool flip = (col.h & 0x80) != 0;
-    const int a = top > y0 ? top : y0;
-    const int b = top + h * 8 < y0 + 8 ? top + h * 8 : y0 + 8;
-    for (int y = a; y < b; y++) {
-      const int ty = y - top;
-      const uint8_t *row = l.sprites[col.tile + (ty >> 3)] + (ty & 7) * 4;
-      uint16_t *out = dst + (y - y0) * OUT_W;
-      for (int k = 0; k < 8; k++) {
-        const int x = x0 + k;
-        if (x < 0 || x >= OUT_W) { continue; }
-        const int tx = flip ? 7 - k : k;
-        const uint8_t pen = (tx & 1) ? row[tx >> 1] & 15 : row[tx >> 1] >> 4;
-        if (!pen) { continue; }
-        if (shade) {  // pen 1 shows the playfield; 2 and 3 darken it, three colours survive
-          if (pen == 1) { continue; }
-          const uint8_t pf = pfPixel(l, x + v.sx, y) & 15;  // colour 0x300 + (pf << 4) + pen
-          out[x] = (pf == 4 && pen == 3) ? shades[0]
-                   : (pf == 15 && pen == 2) ? shades[1]
-                   : (pf == 15 && pen == 3) ? shades[2] : 0;
-        } else {
-          out[x] = (lift && pen >= 1 && pen <= 4) ? lift[pen - 1] : pal[pen];
-        }
+// Frame column col of object o on the 8 playfield lines from y0, into dst (8 lines of OUT_W).
+// Off the strip or the view: skipped; tiles past ntiles are never read.
+void drawCol(const Level &l, const VideoState &v, const Obj &o, const MarbleSpriteCol &col,
+             uint16_t ntiles, const Paint &p, int y0, uint16_t *dst) {
+  const int h = col.h & 0x7f;
+  const int top = o.y + col.y;
+  const int x0 = o.x + col.x - v.sx;
+  if (top >= y0 + 8 || top + h * 8 <= y0 || x0 <= -8 || x0 >= OUT_W || col.tile + h > ntiles) {
+    return;
+  }
+  const uint16_t *shades = marble_sprite_shade[v.level];
+  const bool flip = (col.h & 0x80) != 0;
+  const int a = top > y0 ? top : y0;
+  const int b = top + h * 8 < y0 + 8 ? top + h * 8 : y0 + 8;
+  for (int y = a; y < b; y++) {
+    const int ty = y - top;
+    const uint8_t *row = l.sprites[col.tile + (ty >> 3)] + (ty & 7) * 4;
+    const uint8_t hide = o.nmask ? hide8(v, o.mask, o.nmask, y - o.y, col.x) : 0;
+    uint16_t *out = dst + (y - y0) * OUT_W;
+    for (int k = 0; k < 8; k++) {
+      const int x = x0 + k;
+      if (x < 0 || x >= OUT_W || (hide & (0x80 >> k))) { continue; }
+      const int tx = flip ? 7 - k : k;
+      const uint8_t pen = (tx & 1) ? row[tx >> 1] & 15 : row[tx >> 1] >> 4;
+      if (!pen) { continue; }
+      if (p.shade) {  // pen 1 shows the playfield; 2 and 3 darken it, three colours survive
+        if (pen == 1) { continue; }
+        const uint8_t pf = pfPixel(l, x + v.sx, y) & 15;  // colour 0x300 + (pf << 4) + pen
+        out[x] = (pf == 4 && pen == 3) ? shades[0]
+                 : (pf == 15 && pen == 2) ? shades[1]
+                 : (pf == 15 && pen == 3) ? shades[2] : 0;
+      } else {
+        out[x] = (p.lift && pen >= 1 && pen <= 4) ? p.lift[pen - 1] : p.pal[pen];
       }
     }
+  }
+}
+
+// Object sprite o (level object, death frame or sparkle star) on the 8 playfield lines from y0
+void drawObj(const Level &l, const VideoState &v, const Obj &o, int y0, uint16_t *dst) {
+  const bool death = (o.set & SET_DEATH) != 0;
+  const MarbleSpriteSet &s =
+      death ? marble_physics::deathSet() : marble_physics::spriteSet(v.level);
+  Paint p = {nullptr, nullptr, o.set == SET_SHADE};
+  if (death) {
+    p.pal = marble_death_pal[o.set & SET_SHARDS];
+  } else if (!p.shade) {
+    const uint8_t k = o.set == 3 ? 0 : o.set == 5 ? 1 : o.set == 6 ? 2 : 3;
+    p.pal = marble_sprite_pal[v.level][k];
+    p.lift = (o.set == 6 && v.lift < 4) ? marble_lift_pal[v.lift] : nullptr;
+  }
+
+  if (death && (o.set & SET_STAR)) {  // one tile
+    if (o.frame >= MARBLE_STARS) { return; }
+    const MarbleSpriteCol star = {0, 0, 1, (uint16_t)(MARBLE_STAR_TILE + o.frame)};
+    drawCol(l, v, o, star, s.ntiles, p, y0, dst);
+    return;
+  }
+  if (o.frame >= s.nframes) { return; }
+  const MarbleSpriteFrame &f = s.frames[o.frame];
+  for (uint8_t c = 0; c < f.ncols; c++) {
+    drawCol(l, v, o, s.cols[f.first + c], s.ntiles, p, y0, dst);
   }
 }
 
@@ -174,7 +193,7 @@ void renderRow(const Level &l, const VideoState &v, int row, uint16_t *dst) {
     }
   }
 
-  // level objects behind the marble, the marble, objects in front (link order)
+  // objects behind the marble, the marble, objects in front (link order)
   const int y0 = v.sy + row * 8;
   const bool objs = l.sprites && v.level < LEVELS;
   const uint8_t n = v.n < OBJS ? v.n : OBJS;
