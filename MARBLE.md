@@ -322,6 +322,7 @@ Slot (0x400a9c + 0x56 * i, i = 0-24, allocated in index order via table 0x1f016)
 | +0x00/+0x04 | long | vx, vy (op 14: word << 8) |
 | +0x0c/+0x10/+0x14 | long | x, y (cell << 19), z (word << 16) |
 | +0x18 | byte | 1 active |
+| +0x19 | byte | slot number i: draw list index (0x18e6c/0x18f46). Set once at boot by the slot array init (Marble Love slot-array-init.ts); the remake writes it at race start in `marble_objects::init` |
 | +0x1a | byte | state: 0 wait, 1/2 animate, 3 start script, 4 wait for zone |
 | +0x1b | byte | zone (op 17) |
 | +0x1c | word | wait ticks / animation repeat count (0 = forever) |
@@ -838,9 +839,14 @@ columns 2370, header ids 118, palettes 452, set table 54). `emit_sprites`; model
   `marble_sprite_shade[race][3]` entries 0x343, 0x3f2, 0x3f3 (all other 0x3xx black, checked),
   `marble_lift_pal[4][4]` tag 3 variants (set 6 pens 1-4).
 - Program ROM blocks: the draw list code reads, besides the Phase 3 tables, bytes 4-7 of every
-  frame header (box, 0x1b12a), 0x3-0x6 and 0x20c14 (empty animation), the tag 3 palette command
-  bytes 0x1df18 (14), and what the fixture runs read of enemy boxes (0x1eff6, 0x1effe, 0x1f00a,
-  0x20c18..0x21bee, 80 B). The sprite fixture is replayed on the blocks only like the others.
+  frame header of every mode 0/2 animation list of every race, drawn tag or not (box, 0x1b12a;
+  tags 0x0a-0x0d sit in the list too), with the list entries, 0x3-0x6 and 0x20c14 (empty
+  animation), the tag 3 palette command bytes 0x1df18 (14), and what the runs read of enemy boxes
+  (0x1eff6, 0x1effe, 0x1f00a and others). The sprite fixture and a draw list sweep per race
+  (`marble_mo.race_sweep`: race start incl. draw list, camera over the whole race down, up, down
+  in 4 line steps, update, sort, publish at margin 24) are replayed on the blocks only like the
+  others. Largest published counts of the sweep: practice 2, beginner 4, intermediate 2, aerial
+  2, silly 2, ultimate 5 (host test `test_race_sweep`).
 - The draw list in work RAM is the arcade one: `DrawList.insert` 0x18e6c at op 0, `remove` 0x18f46
   (`Mem.drawlist` hooks in marble_sim.py), `refresh_sort` 0x26f3e head (boxes, three passes).
   Entry k is at 0x4001dc + 14 k (the table 0x1f0e2 is not needed).

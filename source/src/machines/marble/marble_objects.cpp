@@ -38,6 +38,7 @@ enum : uint8_t {
   VX = 0x00, VY = 0x04,              // velocity, 16.16
   PX = 0x0c, PY = 0x10, PZ = 0x14,   // position
   ACTIVE = 0x18,                     // 1 in use
+  IDX = 0x19,                        // slot number (draw list index)
   STATE = 0x1a,                      // 0 wait, 1/2 animate, 3 start, 4 zone wait
   ZONE = 0x1b,
   COUNT = 0x1c,                      // word: ticks / animation loops
@@ -709,6 +710,9 @@ uint32_t lastPatch(const Mem &m) { return m.rl(PATCHED); }
 // bands the camera enters from 0x19 px outside (0x144e4), one slot update (0x12fd0), then
 // 0x1344c
 void init(Mem &m, uint8_t race) {
+  // +0x19 = slot number: the arcade sets it once at boot (slot array init, 0x400a9c), the
+  // work RAM is cleared at race start here
+  for (uint8_t i = 0; i < SLOT_N; i++) { m.wb(slotAddr(i) + IDX, i); }
   m.ww(RACE, race);
   m.ww(PLAYERS, 1);
   m.ww(DYN_PAUSE, 0xffff);

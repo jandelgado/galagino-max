@@ -95,7 +95,6 @@ def frame_crc(rows, tiles, mapw, pal, sx, sy):
 
 FLASH_BUDGET = 50 * 1024
 PHASE3_BUDGET = 25 * 1024
-PHASE3_BEFORE = 22777  # flash B of the Phase 3 data with edge bitmaps and the mask map
 EDGE_TABLES = None
 PAIR_BYTES = 54   # two diagonals, 44 x 10 bit fields MSB first, last 8 bits not stored
 # Program ROM tables the physics, start, respawn and camera read (address, length). Read
@@ -254,6 +253,7 @@ def object_runs(mem, terrains):
 
 
 SPRITES = []   # marble_mo.Sprites per race, built from the full ROM before it is replaced
+SWEEP_MAX = [0] * md.LEVELS   # largest published object count of the race sweep, per race
 
 
 def sprite_runs(mem, terrains):
@@ -268,17 +268,30 @@ def sprite_runs(mem, terrains):
         if bad is not None:
             fatal("marble: sprite fixture replay differs, run marble_mo.py spritefixture")
         out.append(zlib.crc32(repr(got).encode()))
+    # race start and a camera sweep over the whole race with the draw list: every frame header
+    # the sort reads, and the object counts the host test expects
+    for n in range(md.LEVELS):
+        m = mem(terrains[n], bytes(0x2000))
+        m.objects = m.sprites = True
+        m.drawlist = mo.DrawList()
+        ms.start_race(m, n)
+        SWEEP_MAX[n], got = mo.race_sweep(m, n, SPRITES[n])
+        out.append(zlib.crc32(repr(got).encode()))
     return out
 
 
 def sprite_bytes():
     """Phase 4a tables (whole) as a byte address set: frame header box bytes +4..+7 of every
-    frame a slot can draw (0x1b12a), the empty animation (0x20c14, its header read at
+    frame of every mode 0/2 animation list (0x1b12a boxes of the draw list entries, tags
+    drawn or not), the empty animation (0x20c14, its header read at
     0xffffffff + 4 = ROM 0x3-0x6), the tag 3 palette command bytes 0x1df18."""
     out = set(range(3, 7)) | set(range(ms.ANIM_NONE, ms.ANIM_NONE + 4))
     out |= set(range(mo.TAG3_PAL, mo.TAG3_PAL + mo.TAG3_FRAMES))
-    for sp in SPRITES:
-        for h in sp.hdrs:
+    for race in range(md.LEVELS):
+        for e, h in mo.box_headers(race):
+            out |= set(range(e, e + 4))
+            if h != 0xffffffff: out |= set(range(h + 4, h + 8))
+        for h in SPRITES[race].hdrs:
             out |= set(range(h + 4, h + 8))
     return out
 
@@ -464,6 +477,13 @@ def emit_physics(f, rom, size3, size4):
         offs.setdefault(race, []).append(row)
     if len(pool) > 0xffff:
         fatal("marble: edge lists too long for 16 bit offsets")
+    k = {}   # read back what is emitted: every list at its offset, ending in the pool
+    for race, cols in EDGE_TABLES:
+        row = offs[race][k.setdefault(race, 0)]
+        k[race] += 1
+        for lst, o in zip(cols, row):
+            if bytes(pool[o:o + len(lst)]) != bytes(lst):
+                fatal(f"marble: race {race} emitted edge list differs at pool offset {o}")
     print("// Terrain edge diagonals (0x264aa): column c of scroll frame k (the ultimate race has 4,",
           file=f)
     print("// others 1) of a race: ascending diagonals < maxd from marble_edge_lists[edges[36 * k +",
@@ -824,7 +844,7 @@ def main():
         fatal(f"marble: phase 2 data {total} B over the {FLASH_BUDGET} B budget")
     total3 = sum(size3.values())
     print("phase 3 flash: " + ", ".join(f"{k} {v}" for k, v in size3.items())
-          + f", total {total3} B (before {PHASE3_BEFORE} B, {PHASE3_BEFORE - total3} B less)")
+          + f", total {total3} B")
     if total3 > PHASE3_BUDGET:
         fatal(f"marble: phase 3 data {total3} B over the {PHASE3_BUDGET} B budget")
     total4 = sum(size4.values())
@@ -841,6 +861,10 @@ def main():
         crcs = [zlib.crc32(struct.pack(f"<{len(l[2])}H", *l[2])) for l in levels]
         print("static const uint32_t MARBLE_FIX_MAP_CRC[6] = { "
               + ", ".join(f"0x{c:08x}u" for c in crcs) + " };", file=f)
+        print(f"// largest published object count of the draw list sweep (marble_mo.race_sweep: step "
+              f"{mo.SWEEP_STEP}, margin {mo.SWEEP_MARGIN}), per race", file=f)
+        print("static const uint8_t MARBLE_FIX_SWEEP_MAX[6] = { "
+              + ", ".join(str(v) for v in SWEEP_MAX) + " };", file=f)
         print("static const uint32_t MARBLE_FIX_FRAME_CRC[6][3] = {", file=f)
         for rows, tiles, mapw, pal in levels:
             c = [frame_crc(rows, tiles, mapw, pal, sx, 0) for sx in (0, PAN // 2, PAN)]

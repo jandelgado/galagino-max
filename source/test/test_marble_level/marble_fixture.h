@@ -3,6 +3,8 @@
 static const uint16_t MARBLE_FIX_ROWS[6] = { 75, 145, 135, 128, 142, 108 };
 static const uint16_t MARBLE_FIX_TILES[6] = { 863, 896, 729, 683, 866, 595 };
 static const uint32_t MARBLE_FIX_MAP_CRC[6] = { 0xd6a8e2e9u, 0x6b24033cu, 0xad74d64fu, 0x987d1b44u, 0x16a6b08fu, 0x62dbb0d4u };
+// largest published object count of the draw list sweep (marble_mo.race_sweep: step 4, margin 24), per race
+static const uint8_t MARBLE_FIX_SWEEP_MAX[6] = { 2, 4, 2, 2, 2, 5 };
 static const uint32_t MARBLE_FIX_FRAME_CRC[6][3] = {
   { 0x125b4b8fu, 0xbc5e3704u, 0xc903cf34u },
   { 0x34a83727u, 0xdb9cd12du, 0x87333803u },

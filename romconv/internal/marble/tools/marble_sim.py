@@ -1344,6 +1344,14 @@ def anim_apply_1344c(m):
     m.wl(ANIM_REQ, 0)
 
 
+def start_race(m, race):
+    """Race start as the remake runs it (marble_physics::startRace): player start, the draw
+    list with the player when m.drawlist is on, then the level init of the slots."""
+    start_259b4(m, race)
+    if m.drawlist: m.drawlist.init(m)
+    objects_init(m, race)
+
+
 def objects_init(m, race):
     """Level init 0x105a0-0x10614 (slot part): 0x400768 = 0xffff, 0x40076a = 0, intermediate
     dynamic codes (0x11ac2), camera at the race top (silly: bottom), spawn the bands the
@@ -1351,6 +1359,8 @@ def objects_init(m, race):
     desc = m.t.desc
     m.ww(0x400394, race); m.ww(0x400396, 1)
     m.ww(0x400768, 0xffff); m.wb(0x40076a, 0)
+    # slot number +0x19: set once at boot by the slot array init (state of a cleared RAM here)
+    for i in range(SLOT_N): m.wb(SLOTS + i * SLOT_SIZE + 0x19, i)
     cam = rom_w(desc + 0x10) + (rom_w(desc + 0x12) if race == 4 else 0)
     m.wl(0x40097c, cam)
     if race == 2:

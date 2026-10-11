@@ -13,6 +13,7 @@
 
 // the draw list is not under test here: no-op hooks
 namespace marble_drawlist {
+void init(marble_physics::Mem &) {}
 void insert(marble_physics::Mem &, uint32_t, uint8_t) {}
 void remove(marble_physics::Mem &, uint32_t) {}
 }  // namespace marble_drawlist

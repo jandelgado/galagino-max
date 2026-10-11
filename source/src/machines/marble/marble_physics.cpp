@@ -1,4 +1,5 @@
 #include "marble_physics.h"
+#include "marble_drawlist.h"
 #include "marble_objects.h"
 #include "marble_occlusion.h"
 
@@ -920,6 +921,7 @@ void respawn(Mem &m) {
 void startRace(Mem &m, uint8_t race) {
   m.setRace(race);
   start_259b4(m, race, PLAYER);
+  marble_drawlist::init(m);  // 0x28ca6: before the slot inserts of the level init
   marble_objects::init(m, race);
 }
 

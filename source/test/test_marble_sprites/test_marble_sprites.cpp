@@ -20,6 +20,7 @@
 #include "../../src/machines/marble/marble_drawlist.cpp"
 #endif
 #include "marble_sprites_trace.h"
+#include "../test_marble_level/marble_fixture.h"  // MARBLE_FIX_SWEEP_MAX
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -35,7 +36,7 @@ static const MarbleSpriteSet &setOf(uint8_t race) {
 }
 
 static void test_tiles_decode(void) {
-  static uint8_t buf[32 * 531];
+  static uint8_t buf[32 * MARBLE_SPRITE_MAX_TILES];
   for (uint8_t k = 0; k < sizeof(marble_sprite_tiles) / sizeof(marble_sprite_tiles[0]); k++) {
     const MarbleSpriteSet &s = marble_sprites[k];
     TEST_ASSERT_TRUE(s.ntiles <= MARBLE_SPRITE_MAX_TILES);
@@ -150,6 +151,36 @@ static void test_margin_fits_objs(void) {
   }
 }
 
+// Race start as the machine runs it (startRace incl. the draw list), then the camera sweeps the
+// race (marble_mo.race_sweep: step 4, down, up, down, silly bottom first) with the slot update,
+// sort and build at the remake margin. No abort (every ROM read is in the emitted blocks, the
+// sort reads the frame boxes of every list), and the largest object count per race is the
+// model's (MARBLE_FIX_SWEEP_MAX, printed by the converter).
+static void test_race_sweep(void) {
+  static const uint16_t STEP = 4;
+  for (uint8_t race = 0; race < 6; race++) {
+    memset(ram, 0, sizeof(ram));
+    Mem m(ram, race);
+    marble_physics::startRace(m, race);
+    const uint16_t top = m.romw(m.desc() + marble_physics::DESC_TOP);
+    const uint16_t n = m.romw(m.desc() + marble_physics::DESC_RANGE) / STEP + 1;
+
+    uint8_t most = 0;
+    for (uint8_t pass = 0; pass < 3; pass++) {
+      for (uint16_t i = 0; i < n; i++) {
+        const bool rev = ((pass & 1) != 0) != (race == 4);  // silly starts at the bottom
+        MarbleSprTick t = {};
+        t.camera = top + STEP * (rev ? n - 1 - i : i);
+        const uint8_t count = replayCount(m, t, 24);
+        if (count > most) { most = count; }
+      }
+    }
+    char msg[60];
+    snprintf(msg, sizeof(msg), "race %d: most objects", race);
+    TEST_ASSERT_EQUAL_UINT8_MESSAGE(MARBLE_FIX_SWEEP_MAX[race], most, msg);
+  }
+}
+
 static void test_draw_list(void) {
   for (uint8_t s = 0; s < MARBLE_SPRITES_SEGMENTS; s++) {
     const MarbleSprSegment &seg = marble_sprites_segments[s];
@@ -189,6 +220,7 @@ int main(int, char **) {
   RUN_TEST(test_published_objects);
   RUN_TEST(test_draw_list);
   RUN_TEST(test_margin_fits_objs);
+  RUN_TEST(test_race_sweep);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif

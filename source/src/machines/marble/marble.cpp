@@ -61,7 +61,6 @@ void marble::beginRace(uint8_t n) {
   view.patch = marble_level::NO_PATCH;
   Mem m(memory, race);
   marble_physics::startRace(m, race);
-  marble_drawlist::init(m);
   marble_camera::start(m, race);
   marble_physics::project(m);
   marble_occlusion::enter(m, marble_physics::PLAYER);  // first tick comes 2 frames later

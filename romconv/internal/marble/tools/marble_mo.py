@@ -27,7 +27,7 @@ usage:
                                      convention for the published y and the view scroll
   marble_mo.py data                  per race: drawn tags, frames, MO tiles, palette sets
   marble_mo.py spritefixture HEADER  replay the sprite host test fixture (make_fixture.py
-                                     sprites): draw list, sort, published objects, no trace
+                                     swrite): draw list, sort, published objects, no trace
 """
 import os
 import struct
@@ -709,11 +709,10 @@ def cmd_camcheck(argv):
         cam_word = m.rw(0x40097e)
         cams = {slot_camera(m, rom_l(0x1f016 + 4 * idx)) for _, typ, idx, mos in lst
                 if typ in SLOT_TYPES and mos for idx in (idx,)}
-        cam_mar = None
         if len(cams) > 1:
             print("shot %d: slots used different cameras %s" % (n, sorted(cams)))
             continue
-        cam_upd = cams.pop() if cams else cam_mar if cam_mar is not None else cam_word
+        cam_upd = cams.pop() if cams else cam_word
         cam_rel[s16(cam_upd - cam_word)] = cam_rel.get(s16(cam_upd - cam_word), 0) + 1
         top_mame = s16(cam_shot) - dt + yoff        # race row of the playfield line MAME shows
         pl_entity = next((mos for _, typ, _, mos in lst if typ == 1), [])
@@ -804,6 +803,22 @@ def race_frames(race):
     return out
 
 
+def box_headers(race):
+    """Header pointers (list entry address, frame header) of every mode 0/2 animation list of
+    every tag the race walk reaches: 0x1b12a reads the header bytes +4..+7 for the draw list
+    box of any slot in the list."""
+    import objects_data as od
+    _, roots = od.scripts_of(race)
+    _, anims, _ = od.walk(roots)
+    out = set()
+    for lst, stride, tag, mode in anims:
+        if mode == 1: continue
+        k = 0
+        while rom_l(lst + stride * k) != 0xffffffff:
+            out.add((lst + stride * k, rom_l(lst + stride * k))); k += 1
+    return out
+
+
 def cmd_data():
     """Per race: drawn tags, frame headers, frame bytes, MO tiles, palette sets."""
     allt = set()
@@ -839,6 +854,12 @@ def cmd_data():
 class DrawList:
     """Slot hooks of marble_sim (Mem.drawlist): 0x18e6c insert and 0x18f46 remove on the work
     RAM list 0x4003bc and its 31 entries at 0x4001dc."""
+    def init(self, m):
+        """0x28ca6 list part: entries free, list empty, then the player (type 1, index 0)."""
+        for k in range(NENTRIES): m.wb(ENTRIES + ENTRY_SIZE * k, 0)
+        for k in range(NENTRIES): m.wb(LIST + k, 0xff)
+        self.insert(m, 1, 0)
+
     def insert(self, m, typ, idx):
         """Sorted insert (0x18e6c): before the first entry that 0x1a80a puts after the new
         box (op 0 time, animation still empty), else at the end; only type and index of the
@@ -953,6 +974,7 @@ class Sprites:
 
     def objs_cols(self, frame):
         """Columns of a frame as the remake stores them: (x, y, h | hflip << 7, tile)."""
+        assert all(c[2] <= 127 for c in self.cols[frame])  # h shares the byte with hflip
         return [(c[0], self.col_y(c), c[2] | c[3] << 7, self.tile_of[c[4]])
                 for c in self.cols[frame]]
 
@@ -1044,6 +1066,30 @@ def check_publish(ram, sp, objs, top):
     """Published objects expand to the MO words of the validated model (Ram of the same
     state)."""
     return expand(sp, objs, top) == mo_cols(mo_list_26f3e(ram))
+
+
+SWEEP_STEP = 4                  # camera step of the race sweep, lines
+SWEEP_MARGIN = 24               # remake cull margin
+
+
+def race_sweep(m, race, sp):
+    """Draw list sweep of one race on m after ms.start_race (objects, sprites and DrawList on): the
+    camera visits the race in SWEEP_STEP lines (top to bottom, silly bottom to top), then
+    back, then again, the marble idle. Per tick: slot update, camera and band
+    spawns (ms.tick), box refresh and sort, publish at the remake margin. Returns (largest
+    published object count, the published lists per tick)."""
+    top, rng = ms.rom_w(m.t.desc + 0x10), ms.rom_w(m.t.desc + 0x12)
+    cams = list(range(top, top + rng + 1, SWEEP_STEP))
+    if race == 4: cams.reverse()
+    cams = cams + cams[::-1] + cams
+    most, got = 0, []
+    for cam in cams:
+        before = m.rw(0x40097e)
+        ms.tick(m, 0, 0, camera=cam)
+        refresh_sort(m)
+        got.append(publish(m, sp, before, SWEEP_MARGIN))
+        most = max(most, len(got[-1][0]))
+    return most, got
 
 
 def refresh_sort(m):
