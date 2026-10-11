@@ -809,6 +809,82 @@ python3 romconv/internal/marble/tools/marble_sim.py objfixture \
   source/test/test_marble_objects/marble_objects_trace.h   # replay, no trace needed
 ```
 
+### Phase 4a data (level object sprites)
+
+Same converter run; flash 9215 B (converter prints it: prog blocks 762, tiles 5131, frames 328,
+columns 2370, header ids 118, palettes 452, set table 54). `emit_sprites`; model and ids in
+`tools/marble_mo.py` (`Sprites`, `DrawList`, `publish`).
+
+- Sprite sets (`marble_sprites[]`, `MarbleSpriteSet {frames, cols, addr, nhdr, nframes,
+  ntiles}`, `marble_sprite_race[6]` race -> set): races with equal frames and tiles share a set
+  (practice/silly/ultimate 21 tiles, beginner 168, intermediate/aerial 531; aerial gets the wave
+  data too because the walker reaches the wave script there). Tiles
+  `marble_sprite_tiles[set]` (`FlashAsset<unsigned char[32], COMPRESSED>`, 4 bpp, left pixel in
+  the high nibble, pens 0-7, sorted MO code order): raw / LZMA 672 / 271 B, 5376 / 1203 B,
+  16992 / 3609 B; `MARBLE_SPRITE_MAX_TILES` = 531 (16992 B Arena buffer, largest set).
+  Identical tiles are not merged: columns read consecutive tiles, merging would need an index
+  per tile, and LZMA folds the duplicates (merged 412 tiles / 3750 B vs 3609 B unmerged for
+  intermediate, 146 vs 168 tiles and 1370 vs 1203 B for beginner; hflip merging saves 1 more
+  tile in 2 sets). Column `hflip` stays the frame's.
+- Frame ids per race: header frames in ascending header address order (4 / 20 / 35), then the 23
+  wave strip entries (list 0x2227a; `strip = nhdr`; `ncols` 0: no entry): 4, 20, 58 ids.
+  `addr[k] = (header - 0x20000) >> 1` ascending, id = index (binary search of the header
+  rl(rl(+0x42)) of a slot). `MarbleSpriteFrame {ncols, first}`, `MarbleSpriteCol {x, y, h | hflip
+  << 7, tile}`: x = xb + dx + 8 k (-8 k flipped), y = -(MO y offset + 8 h) with MO y offset
+  yb + dy (strip: 0x20f92 s8 - 0x40 + 4 k, x = 8 + 8 k, one tile code per entry, height from the
+  word), `tile` = index of the first of h consecutive tiles. Identical column lists share
+  columns (327 columns for 331).
+- Palettes: `marble_sprite_pal[race][4][8]` sets 3, 5, 6, 7 pens 0-7 (RGB565 byte swapped),
+  `marble_sprite_shade[race][3]` entries 0x343, 0x3f2, 0x3f3 (all other 0x3xx black, checked),
+  `marble_lift_pal[4][4]` tag 3 variants (set 6 pens 1-4).
+- Program ROM blocks: the draw list code reads, besides the Phase 3 tables, bytes 4-7 of every
+  frame header (box, 0x1b12a), 0x3-0x6 and 0x20c14 (empty animation), the tag 3 palette command
+  bytes 0x1df18 (14), and what the fixture runs read of enemy boxes (0x1eff6, 0x1effe, 0x1f00a,
+  0x20c18..0x21bee, 80 B). The sprite fixture is replayed on the blocks only like the others.
+- The draw list in work RAM is the arcade one: `DrawList.insert` 0x18e6c at op 0, `remove` 0x18f46
+  (`Mem.drawlist` hooks in marble_sim.py), `refresh_sort` 0x26f3e head (boxes, three passes).
+  Entry k is at 0x4001dc + 14 k (the table 0x1f0e2 is not needed).
+- Publish (`marble_mo.publish`, draw list order, back to front): per slot the arcade cull
+  (tag 5 `sy + 0x10` outside -0x40..0x100, tag 3 -0x40..0x160, tag 6 -0x40..0x140), widened by
+  `CULL_MARGIN` (0 in the fixture, remake 24). Objects `(frame id, set, x, y)`: x = sx (tag 5:
+  sx - 1), y = camera word 0x40097e (as the slot update saw it) - descriptor +0x10 + 240 - sy;
+  set 3 flags, tag 3 parts 7 (three globals, then the own frame set 6), tag 6 5 or 7
+  (header >= 0x220ee) and 8 for a strip entry (priority shade MOs). At most 8 objects (fixture
+  max 6). `marble_at` = objects before the marble, `variant` = 0x1df18[(+0x42 - +0x46) >> 3, +7
+  for list 0x21192] of the drawn lift frame, 0xff otherwise. Expanded to MO columns the objects
+  equal `mo_list_26f3e` in every fixture tick (checked when writing).
+
+Sprite fixture `source/test/test_marble_sprites/marble_sprites_trace.h` (committed, derived numbers
+only), `make_fixture.py swrite`: segments of the research runs between `MARBLE_PLACE`
+teleports, initial work RAM blocks (player, slots, dynamic codes, draw list entries 0x4001dc-
+0x4003e3, tag 3 globals, first reads), per tick `{c6, c7, camera, n, marble_at, variant,
+first}` and `MarbleSprObj {frame, set, x, y}[]`. The model (sim with the draw list hooks, sort,
+publish) reproduces every published list from these alone (`marble_mo.py spritefixture`) and
+equals the MAME draw list bytes in each tick. A segment ends before the first tick where the
+list differs: enemies are not ported, their entries move in MAME. A 3 frame logic tick (lag) is
+accepted for sprites. Host test `test_marble_sprites` checks the emitted tables against the
+fixture.
+
+| segment | ticks | events |
+| --- | --- | --- |
+| beginner b1 853 | 35 | lift inserted (0x18e6c), lift drawn over the marble 6 |
+| beginner b1 933 | 200 | lift over the marble all ticks, 31 dynamic code changes |
+| beginner b2 933 | 198 | lift over the marble 109, marble over the lift 89, 1 reorder |
+| beginner b2 1601 | 120 | marble over the lift all ticks, 4 mask ticks |
+| intermediate i1 1212 | 260 | 2 waves + strips (114 ticks with a strip), flags, 6 inserts, 6 removals, 6 reorders, max 6 objects |
+| ultimate u1 1094 | 150 | 5 flags, max 5 objects |
+| practice p1 800 | 100 | flags 43 ticks, 1 insert |
+
+```sh
+python3 romconv/internal/marble/tools/make_fixture.py ssearch TRACE RACE [MIN]
+python3 romconv/internal/marble/tools/make_fixture.py swrite \
+  source/test/test_marble_sprites/marble_sprites_trace.h 1:mo/b1/trace.bin:853:35 \
+  1:mo/b1/trace.bin:933:200 1:mo/b2/trace.bin:933:198 1:mo/b2/trace.bin:1601:120 \
+  2:mo/i1/trace.bin:1212:260 5:mo/u1/trace.bin:1094:150 0:mo/p1/trace.bin:800:100
+python3 romconv/internal/marble/tools/marble_mo.py spritefixture \
+  source/test/test_marble_sprites/marble_sprites_trace.h   # replay, no trace needed
+```
+
 ## Open questions
 
 - Level objects: unported tags (0x0a-0x0d, tubes 0x12-0x16, 0x20-0x27), zone triggered

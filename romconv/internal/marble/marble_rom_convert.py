@@ -19,12 +19,13 @@ import struct
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pyconv"))
 import marble_data as md
-from asset_emit import emit_compressed
+from asset_emit import emit_compressed, lzma_compress
 from gfxutil import rgb888_to_rgb565_le
 from convutil import fatal
 
 sys.path.insert(0, os.path.join(md.HERE, "tools"))
 import marble_sim as ms
+import marble_mo as mo
 import objects_data as od
 
 ROOT = os.path.join(md.HERE, "..", "..", "..")
@@ -33,6 +34,8 @@ FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_level", "marble_fixt
 TRACE_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_physics", "marble_trace.h")
 OBJ_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_objects",
                            "marble_objects_trace.h")
+SPRITE_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_sprites",
+                              "marble_sprites_trace.h")
 
 MAX_ROWS = 145   # must match marble_level.h
 MAX_TILES = 896  # must match marble_level.h
@@ -250,6 +253,36 @@ def object_runs(mem, terrains):
     return out
 
 
+SPRITES = []   # marble_mo.Sprites per race, built from the full ROM before it is replaced
+
+
+def sprite_runs(mem, terrains):
+    """Phase 4a: every sprite fixture segment (objects, draw list, sort, publish) on Mem class
+    mem. Returns crc32 of the published lists per segment."""
+    if not os.path.exists(SPRITE_FIXTURE):
+        fatal(f"marble: {SPRITE_FIXTURE} missing, run tools/make_fixture.py swrite")
+    out = []
+    for seg in mo.load_spritefixture(SPRITE_FIXTURE):
+        m = ms.fixture_mem(seg, terrains[seg["race"]], mem)
+        bad, got = mo.replay_spritefixture(seg, m, SPRITES[seg["race"]])
+        if bad is not None:
+            fatal("marble: sprite fixture replay differs, run marble_mo.py spritefixture")
+        out.append(zlib.crc32(repr(got).encode()))
+    return out
+
+
+def sprite_bytes():
+    """Phase 4a tables (whole) as a byte address set: frame header box bytes +4..+7 of every
+    frame a slot can draw (0x1b12a), the empty animation (0x20c14, its header read at
+    0xffffffff + 4 = ROM 0x3-0x6), the tag 3 palette command bytes 0x1df18."""
+    out = set(range(3, 7)) | set(range(ms.ANIM_NONE, ms.ANIM_NONE + 4))
+    out |= set(range(mo.TAG3_PAL, mo.TAG3_PAL + mo.TAG3_FRAMES))
+    for sp in SPRITES:
+        for h in sp.hdrs:
+            out |= set(range(h + 4, h + 8))
+    return out
+
+
 def merge(addrs, gap=8):
     """Sorted byte addresses -> [first, end) ranges, joining gaps up to gap bytes."""
     out = []
@@ -332,11 +365,13 @@ def edge_check(tables):
 
 
 def prog_blocks(terrains):
-    """Program ROM ranges the sim reads. Returns (blocks, phase 2 blocks, reference runs):
-    phase 2 = physics reads plus the Phase 2 tables, all = phase 2 plus everything the
-    object and occlusion runs read plus the Phase 3 tables."""
+    """Program ROM ranges the sim reads. Returns (blocks, phase 2 blocks, reference runs,
+    phase 3 blocks): phase 2 = physics reads plus the Phase 2 tables, phase 3 = phase 2 plus
+    everything the object and occlusion runs read plus the Phase 3 tables, all = phase 3 plus
+    the sprite runs and the Phase 4a tables."""
     covered = table_bytes([t.desc for t in terrains])
     phase3 = phase3_bytes()      # before ms.PROG is replaced
+    sprite_tab = sprite_bytes()
     ms.EDGES = lambda race, ult, c, d: edge_lookup(EDGE_TABLES, race, ult, c, d)
     plain = ms.PROG
     ms.PROG = RecProg(plain)
@@ -346,6 +381,8 @@ def prog_blocks(terrains):
         want = set(RecProg.reads)
         ref3 = physics_runs(RecMem, terrains, True) + object_runs(RecMem, terrains)
         want3 = set(RecProg.reads)
+        ref4 = sprite_runs(RecMem, terrains)
+        want4 = set(RecProg.reads)
     finally:
         ms.PROG = plain
         ms.EDGES = None
@@ -354,12 +391,17 @@ def prog_blocks(terrains):
         fatal("marble: physics reads ROM outside the known tables: "
               + ", ".join(f"{a:06x}" for a in outside[:16]))
     p2 = [(a, bytes(plain[a:e])) for a, e in merge(want | covered)]
-    allb = [(a, bytes(plain[a:e])) for a, e in merge(want3 | covered | phase3)]
+    blocks3 = [(a, bytes(plain[a:e])) for a, e in merge(want3 | covered | phase3)]
+    allb = [(a, bytes(plain[a:e])) for a, e in merge(want4 | covered | phase3 | sprite_tab)]
     dyn_only = want3 - covered - phase3
     if dyn_only:
         print(f"phase 3 runs read {len(dyn_only)} B outside the tables: "
               + ", ".join(f"{a:05x}+{e - a}" for a, e in merge(dyn_only, 0)))
-    return allb, p2, ref2 + ref3
+    sprite_only = want4 - want3 - covered - phase3 - sprite_tab
+    if sprite_only:
+        print(f"phase 4a runs read {len(sprite_only)} B outside the tables: "
+              + ", ".join(f"{a:05x}+{e - a}" for a, e in merge(sprite_only, 0)))
+    return allb, p2, ref2 + ref3 + ref4, blocks3
 
 
 def mo_sprites(rom):
@@ -389,9 +431,9 @@ def c_words(w, indent="  "):
                       for k in range(0, len(w), 16))
 
 
-def emit_physics(f, rom, size3):
+def emit_physics(f, rom, size3, size4):
     """Phase 2 data into marble_rom.h. Returns {item: flash bytes}; the prog blocks added by
-    Phase 3 go to size3."""
+    Phase 3 go to size3, by Phase 4a to size4."""
     size = {}
     global EDGE_TABLES
     terrains = [ms.Terrain(n) for n in range(md.LEVELS)]
@@ -461,7 +503,7 @@ def emit_physics(f, rom, size3):
     size["terrain info"] = 6 * 32  # 32 bit pointers, padded
 
     BlockMem.records = {n: (r[3], r[2]) for n, r in enumerate(races)}
-    blocks, blocks2, ref = prog_blocks(terrains)
+    blocks, blocks2, ref, blocks3 = prog_blocks(terrains)
     for n in range(md.LEVELS):
         recs, data = BlockMem.records[n]
         if any(not recs <= a < recs + len(data) for a in RecMem.slap.get(n, ())):
@@ -471,7 +513,7 @@ def emit_physics(f, rom, size3):
     ms.EDGES = lambda race, ult, c, d: edge_lookup(EDGE_TABLES, race, ult, c, d)
     try:
         got = (physics_runs(BlockMem, terrains) + physics_runs(BlockMem, terrains, True)
-               + object_runs(BlockMem, terrains))
+               + object_runs(BlockMem, terrains) + sprite_runs(BlockMem, terrains))
     finally:
         ms.PROG = plain
         ms.EDGES = None
@@ -491,7 +533,8 @@ def emit_physics(f, rom, size3):
     print(f"}};\nstatic const uint8_t MARBLE_PROG_BLOCKS = {len(blocks)};", file=f)
     flash = lambda bl: sum(len(d) for _, d in bl) + 8 * len(bl)
     size["prog blocks"] = flash(blocks2)
-    size3["prog blocks"] = flash(blocks) - flash(blocks2)
+    size3["prog blocks"] = flash(blocks3) - flash(blocks2)
+    size4["prog blocks"] = flash(blocks) - flash(blocks3)
 
     tiles, pal = mo_sprites(rom)
     first = [0xFF] * MO_CODES.stop
@@ -588,6 +631,161 @@ def emit_objects(f, rom, levels, size3):
           f"of codes 0x{first:03x}-0x{last:03x}")
 
 
+SHADE_COLOURS = (0x343, 0x3f2, 0x3f3)   # palette entries the wave strip pens 2/3 select
+HDR_BASE = 0x20000                      # frame header address table: (address - base) >> 1
+LIFT_PAL_FIRST = 0x161                  # tag 3 palette variants: set 6 pens 1-4
+
+
+def sprite_set(rom, sp):
+    """Tile pixels (4 bpp, 32 B per tile: left pixel in the high nibble) of a race's sprite
+    set, in sorted code order. A frame column of tiles c .. c + h - 1 reads consecutive
+    tiles, so identical tiles are not merged (LZMA folds them at no index cost)."""
+    out = bytearray()
+    for code in sp.tile_codes:
+        tile, cs = md.mo_lookup(rom, code)
+        px = md.mo_tile(rom, tile)
+        out += bytes(px[k] << 4 | px[k + 1] for k in range(0, 64, 2))
+    return bytes(out)
+
+
+def sprite_check_codes(rom, sp):
+    """A column code carries its palette set in bits 11-13 (ORed by 0x26f3e): the tile and the
+    set the lookup returns must equal the plain tile code (checked for the sets in use)."""
+    for code in sp.tile_codes:
+        for st in SETS_USED:
+            t, cs = md.mo_lookup(rom, code | st << 11)
+            if t != md.mo_lookup(rom, code)[0] or cs != st:
+                fatal(f"marble: MO code {code:03x} with set {st} looks up tile {t:03x}, set {cs}")
+
+
+SETS_USED = mo.SETS
+
+
+def lift_palette(rom):
+    """The four tag 3 palette variants (0x20ae4 commands) as RGB565 for set 6 pens 1-4."""
+    out = []
+    for c in range(4):
+        d = ms.rom_l(mo.PAL_CMDS + 4 * c)
+        n = ms.PROG[d]
+        dest = [(ms.rom_l(mo.PAL_DESTS + ms.PROG[d + 1] + 4 * k) - 0xb00000) // 2
+                for k in range(n)]
+        if dest != [LIFT_PAL_FIRST + k for k in range(4)]:
+            fatal(f"marble: lift palette command {c} writes {dest}")
+        out.append([rgb888_to_rgb565_le(*md._irgb(ms.rom_w(d + 2 + 2 * k))) for k in range(4)])
+    return out
+
+
+def emit_sprites(f, rom, size4):
+    """Phase 4a: level object sprites per race (MARBLE.md "Level object sprites"): tile set,
+    frame table, palettes. Races with the same frames and tiles share one set."""
+    sets, race_set, keys = [], [], {}
+    for n, sp in enumerate(SPRITES):
+        sprite_check_codes(rom, sp)
+        tiles = sprite_set(rom, sp)
+        key = (tuple(sp.hdrs), tuple(tuple(c) for c in sp.cols), tuple(sp.tile_codes), tiles)
+        if key not in keys:
+            keys[key] = len(sets)
+            sets.append((n, sp, tiles))
+        race_set.append(keys[key])
+    print("\n// ---- Phase 4a: level object sprites (MARBLE.md \"Level object sprites\")", file=f)
+    for line in (
+            "// Sprite set per race (races with the same frames and tiles share one): the 4 bpp",
+            "// tiles of every MO code the race's slots draw (sorted code order, 32 B per tile, left",
+            "// pixel in the high nibble, pens 0-7, LZMA like the playfield tiles). Frame ids: k <",
+            "// nhdr is the frame whose MO header is at 0x20000 + addr[k] * 2 (68010 address,",
+            "// ascending); nhdr + i (i < 23) is wave strip entry i (priority shade MOs, 0x27fa2;",
+            "// ncols 0: none). A column shows tiles tile .. tile + (h & 0x7f) - 1 top down, hflip",
+            "// h bit 7, top left at (slot x + x, slot y + y) in race pixels (y = -(MO y offset +",
+            "// 8 h), MO y offset above sy + 16). Slot origin: x = sx (tag 5: sx - 1), y = camera -",
+            "// descriptor +0x10 + 240 - sy."):
+        print(line, file=f)
+    print("struct MarbleSpriteCol { int8_t x, y; uint8_t h; uint16_t tile; };", file=f)
+    print("struct MarbleSpriteFrame { uint8_t ncols; uint16_t first; };", file=f)
+    print("struct MarbleSpriteSet {\n  const MarbleSpriteFrame *frames; const MarbleSpriteCol *cols;\n"
+          "  const uint16_t *addr; uint8_t nhdr, nframes; uint16_t ntiles;\n};", file=f)
+    sizes = {"tiles": 0, "frames": 0, "columns": 0, "header ids": 0}
+    for k, (n, sp, tiles) in enumerate(sets):
+        pool, first, seen = [], [], {}
+        for fid in range(len(sp.cols)):
+            cols = tuple(sp.objs_cols(fid))
+            for x, y, hh, tile in cols:
+                if not (-128 <= x < 128 and -128 <= y < 128):
+                    fatal(f"marble: sprite column offset {x},{y} does not fit int8")
+            if cols not in seen:
+                seen[cols] = len(pool); pool += cols
+            first.append(seen[cols])
+        for h in sp.hdrs:
+            if h & 1 or not HDR_BASE <= h < HDR_BASE + 0x20000:
+                fatal(f"marble: frame header {h:05x} odd or outside 0x20000-0x3ffff")
+        addr = [(h - HDR_BASE) >> 1 for h in sp.hdrs]
+        print(f"static const uint16_t marble_sprite_addr_{k}[] = {{\n{c_words(addr)}\n}};", file=f)
+        print(f"static const MarbleSpriteFrame marble_sprite_frames_{k}[] = {{", file=f)
+        for fid, c in enumerate(sp.cols):
+            print(f"  {{ {len(c)}, {first[fid]} }},", file=f)
+        print("};", file=f)
+        print(f"static const MarbleSpriteCol marble_sprite_cols_{k}[] = {{", file=f)
+        for x, y, hh, tile in pool:
+            print(f"  {{ {x}, {y}, {hh}, {tile} }},", file=f)
+        print("};", file=f)
+        emit_compressed(f, f"marble_spr{k}_tiles", "unsigned char", "[32]", len(sp.tile_codes),
+                        list(tiles))
+        packed = len(lzma_compress(tiles))
+        names = "/".join(md.NAMES[r] for r in range(md.LEVELS) if race_set[r] == k)
+        print(f"sprite set {k} ({names}): {len(sp.hdrs)} frame headers + "
+              f"{len(sp.cols) - len(sp.hdrs)} strip entries, {len(sp.tile_codes)} tiles, "
+              f"{len(tiles)} B raw (Arena), {packed} B LZMA, {len(pool)} columns "
+              f"(of {sum(len(c) for c in sp.cols)})")
+        sizes["tiles"] += packed + 16
+        sizes["frames"] += 4 * len(sp.cols)
+        sizes["columns"] += 6 * len(pool)
+        sizes["header ids"] += 2 * len(addr)
+    print("static const MarbleSpriteSet marble_sprites[%d] = {" % len(sets), file=f)
+    for k, (n, sp, tiles) in enumerate(sets):
+        print(f"  {{ marble_sprite_frames_{k}, marble_sprite_cols_{k}, marble_sprite_addr_{k}, "
+              f"{len(sp.hdrs)}, {len(sp.cols)}, {len(sp.tile_codes)} }},", file=f)
+    print("};", file=f)
+    print("static const FlashAsset<unsigned char[32], COMPRESSED> marble_sprite_tiles[%d] = { "
+          % len(sets) + ", ".join(f"marble_spr{k}_tiles_blob" for k in range(len(sets))) + " };",
+          file=f)
+    print("// Sprite set of each race; raw tile bytes of the largest set (Arena buffer):", file=f)
+    print("static const uint8_t marble_sprite_race[6] = { "
+          + ", ".join(str(k) for k in race_set) + " };", file=f)
+    print(f"static const uint16_t MARBLE_SPRITE_MAX_TILES = {max(len(s[1].tile_codes) for s in sets)};",
+          file=f)
+    print("// Palette per race, set 3, 5, 6, 7 (MO palette RAM 0x100 + set * 16), pens 0-7 as", file=f)
+    print("// RGB565 byte swapped; the wave strip shade colours (palette entries 0x343, 0x3f2,", file=f)
+    print("// 0x3f3 = pen 3 over playfield pixel 4, pen 2 and 3 over pixel 15; every other 0x3xx", file=f)
+    print("// entry is black); the lift palette variants 0-3 (set 6 pens 1-4).", file=f)
+    pals, shade = [], []
+    for n in range(md.LEVELS):
+        rgb = md.palette(rom, n)
+        pals.append([[rgb888_to_rgb565_le(*rgb[0x100 + st * 16 + pen]) for pen in range(8)]
+                     for st in mo.SETS])
+        for e in range(0x300, 0x400):
+            if e not in SHADE_COLOURS and rgb[e] != (0, 0, 0):
+                fatal(f"marble: race {n} shade palette entry {e:03x} not black")
+        shade.append([rgb888_to_rgb565_le(*rgb[e]) for e in SHADE_COLOURS])
+    print("static const uint16_t marble_sprite_pal[6][4][8] = {", file=f)
+    for pr in pals:
+        print("  {" + ", ".join("{" + ",".join(f"0x{v:04x}" for v in row) + "}" for row in pr)
+              + "},", file=f)
+    print("};", file=f)
+    print("static const uint16_t marble_sprite_shade[6][3] = {", file=f)
+    for sh in shade:
+        print("  {" + ",".join(f"0x{v:04x}" for v in sh) + "},", file=f)
+    print("};", file=f)
+    lift = lift_palette(rom)
+    print("static const uint16_t marble_lift_pal[4][4] = {", file=f)
+    for row in lift:
+        print("  {" + ",".join(f"0x{v:04x}" for v in row) + "},", file=f)
+    print("};", file=f)
+    sizes["palettes"] = 2 * (6 * 32 + 6 * 3 + 16)
+    sizes["set table"] = 16 * len(sets) + 6
+    size4.update(sizes)
+    print("sprite frame ids per race: " + ", ".join(
+        f"{md.NAMES[r]} {len(SPRITES[r].cols)}" for r in range(md.LEVELS)))
+
+
 def main():
     rom = md.load()
     levels = [convert_level(rom, n) for n in range(md.LEVELS)]
@@ -614,9 +812,11 @@ def main():
         for _, _, _, pal in levels:
             print("  { " + ", ".join(f"0x{v:04x}" for v in pal) + " },", file=f)
         print("};", file=f)
-        size3 = {}
-        size = emit_physics(f, rom, size3)
+        size3, size4 = {}, {}
+        SPRITES[:] = [mo.Sprites(n) for n in range(md.LEVELS)]
+        size = emit_physics(f, rom, size3, size4)
         emit_objects(f, rom, levels, size3)
+        emit_sprites(f, rom, size4)
         print("#endif", file=f)
     total = sum(size.values())
     print("phase 2 flash: " + ", ".join(f"{k} {v}" for k, v in size.items()) + f", total {total} B")
@@ -627,6 +827,9 @@ def main():
           + f", total {total3} B (before {PHASE3_BEFORE} B, {PHASE3_BEFORE - total3} B less)")
     if total3 > PHASE3_BUDGET:
         fatal(f"marble: phase 3 data {total3} B over the {PHASE3_BUDGET} B budget")
+    total4 = sum(size4.values())
+    print("phase 4a flash: " + ", ".join(f"{k} {v}" for k, v in size4.items())
+          + f", total {total4} B")
     os.makedirs(os.path.dirname(FIXTURE), exist_ok=True)
     with open(FIXTURE, "w") as f:
         print("// Generated by romconv/internal/marble/marble_rom_convert.py; do not edit.", file=f)

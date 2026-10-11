@@ -22,6 +22,8 @@ usage:
                                      MAME PNG vs MO RAM render vs remake rule, pixel
                                      differences in a box around each level object
   marble_mo.py data                  per race: drawn tags, frames, MO tiles, palette sets
+  marble_mo.py spritefixture HEADER  replay the sprite host test fixture (make_fixture.py
+                                     sprites): draw list, sort, published objects, no trace
 """
 import os
 import struct
@@ -29,10 +31,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import marble_sim as ms
-from marble_sim import PROG, rom_w, rom_l, s8, s16
+from marble_sim import rom_w, rom_l, s8, s16
 
 LIST, LIST_END = 0x4003bc, 0x4003dc     # draw list bytes, 0xff end
 RECTS = 0x1f0e2                         # long per list byte -> 14 byte entry (type, index, box)
+ENTRIES, ENTRY_SIZE, NENTRIES = 0x4001dc, 14, 31    # entry k = ENTRIES + 14 k (RECTS[k])
+LIST_MAX = 0x1f                         # list bytes before the sentinel limit (0x18e6c)
 SLOT_TYPES = (3, 5, 6)                  # level object slot tags drawn by 0x26f3e (in scope)
 
 
@@ -42,7 +46,7 @@ class Ram:
     def rb(self, a):
         a &= 0xffffffff
         if 0x400000 <= a < 0x402000: return self.ram[a - 0x400000]
-        if a < 0x30000: return PROG[a]
+        if a < 0x30000: return ms.PROG[a]
         return 0
     def rw(self, a): return self.rb(a) << 8 | self.rb(a + 1)
     def rl(self, a): return self.rw(a) << 16 | self.rw(a + 2)
@@ -58,18 +62,18 @@ def frame_1a8d2(hdr, x, y, orm):
     then count x (height - 1, s8 dy, word code); else long form: count, s8 dx, height - 1,
     s8 dy, count codes. One MO per column, 8 px apart, code | orm."""
     if hdr == 0xffffffff: return []
-    x = (x + s8(PROG[hdr])) & 0xffff; y = (y + s8(PROG[hdr + 1])) & 0xffff
+    x = (x + s8(ms.PROG[hdr])) & 0xffff; y = (y + s8(ms.PROG[hdr + 1])) & 0xffff
     b = rom_l(hdr + 8)
     flip, step = (0x8000, -8) if b & 1 else (0, 8)
     b &= ~1
     out = []
-    if PROG[b] == 0xff:
-        n = PROG[b + 2]; x = (x + s8(PROG[b + 3])) & 0xffff; p = b + 4
+    if ms.PROG[b] == 0xff:
+        n = ms.PROG[b + 2]; x = (x + s8(ms.PROG[b + 3])) & 0xffff; p = b + 4
         for k in range(n):
-            h, dy, code = PROG[p], s8(PROG[p + 1]), rom_w(p + 2); p += 4
+            h, dy, code = ms.PROG[p], s8(ms.PROG[p + 1]), rom_w(p + 2); p += 4
             out.append((((y + dy) << 5) & 0x3fe0 | flip | h, code | orm, ((x + step * k) << 5) & 0x3fe0))
     else:
-        n, dx, h, dy = PROG[b], s8(PROG[b + 1]), PROG[b + 2], s8(PROG[b + 3])
+        n, dx, h, dy = ms.PROG[b], s8(ms.PROG[b + 1]), ms.PROG[b + 2], s8(ms.PROG[b + 3])
         x = (x + dx) & 0xffff; w0 = ((y + dy) << 5) & 0x3fe0 | flip | h
         for k in range(n):
             out.append((w0, rom_w(b + 4 + 2 * k) | orm, ((x + step * k) << 5) & 0x3fe0))
@@ -133,17 +137,16 @@ def box_1b12a(m, typ, idx):
 # ------------------------------------------------------------------ 0x1a7a8 / 0x1a80a sort
 
 def entry(m, k):
-    """List byte k -> 14 byte entry address."""
-    return rom_l(RECTS + 4 * k)
+    """List byte k -> 14 byte entry address (pointer table 0x1f0e2 is ENTRIES + 14 k)."""
+    return ENTRIES + ENTRY_SIZE * k
 
 
 def boxw(m, e):
     return [s16(m.rw(e + 2 + 2 * i)) for i in range(6)]
 
 
-def cmp_1a80a(m, a1, a0):
-    """1: a1 must be drawn after a0 (swap). Sums of x + y + z min / max, then axis overlaps."""
-    p, q = boxw(m, a1), boxw(m, a0)
+def cmp_boxes(p, q):
+    """0x1a80a on box word lists (x, y, z min, x, y, z max). 1: p must be drawn after q."""
     if sum(p[3:]) <= sum(q[:3]): return 0
     if sum(q[3:]) <= sum(p[:3]): return 1
     if q[1] >= p[4]: return 0
@@ -152,6 +155,11 @@ def cmp_1a80a(m, a1, a0):
     if p[0] >= q[3]: return 1
     if q[2] >= p[5]: return 0
     return 1
+
+
+def cmp_1a80a(m, a1, a0):
+    """1: entry a1 must be drawn after entry a0 (swap)."""
+    return cmp_boxes(boxw(m, a1), boxw(m, a0))
 
 
 def sort_1a7a8(m, stride):
@@ -263,7 +271,7 @@ def slot_mos(m, typ, idx):
         if p46 != 0x2227a: return out
         i = s16(((p42 - p46) >> 2) & 0xffff)
         if i < 0 or rom_w(0x20f64 + 2 * i) == 0xffff: return out
-        tw = rom_w(0x20f64 + 2 * i); yo = s8(PROG[0x20f92 + i])
+        tw = rom_w(0x20f64 + 2 * i); yo = s8(ms.PROG[0x20f92 + i])
         x, y2 = (d5 + 8) & 0xffff, (d4 - 0x40 + yo) & 0xffff
         for _ in range(4):
             out.append(mo(s16(x), s16(y2), tw & 0x7ff, (tw >> 11) & 7, 0x8000))   # 0x27fa2
@@ -465,9 +473,9 @@ def tag3_palette(m, a):
     0x26b88): {palette index: word}."""
     i = ((m.rl(a + 0x3e) - m.rl(a + 0x46)) >> 3) & 0xffff
     if m.rl(a + 0x46) == 0x21192: i += 7
-    d = rom_l(PAL_CMDS + 4 * PROG[TAG3_PAL + i])
-    return {(rom_l(PAL_DESTS + PROG[d + 1] + 4 * k) - 0xb00000) // 2: rom_w(d + 2 + 2 * k)
-            for k in range(PROG[d])}
+    d = rom_l(PAL_CMDS + 4 * ms.PROG[TAG3_PAL + i])
+    return {(rom_l(PAL_DESTS + ms.PROG[d + 1] + 4 * k) - 0xb00000) // 2: rom_w(d + 2 + 2 * k)
+            for k in range(ms.PROG[d])}
 
 
 def entity_words(trace, fr, ram, vram, bank):
@@ -602,7 +610,7 @@ WAVE_STRIP = (0x20f64, 0x20f92, 23)                    # tag 6 list 0x2227a: wor
 def frame_tiles(hdr):
     """Header -> (header + body bytes, MO tile codes (code & 0x7ff, every tile of a column))."""
     b = rom_l(hdr + 8) & ~1
-    body = 4 + 4 * PROG[b + 2] if PROG[b] == 0xff else 4 + 2 * PROG[b]
+    body = 4 + 4 * ms.PROG[b + 2] if ms.PROG[b] == 0xff else 4 + 2 * ms.PROG[b]
     tiles = set()
     for w0, code, _ in frame_1a8d2(hdr, 0, 0, 0):
         tiles.update((code + t) & 0x7ff for t in range((w0 & 15) + 1))
@@ -660,7 +668,284 @@ def cmd_data():
     return True
 
 
+# ------------------------------------------------------------------ draw list upkeep
+
+class DrawList:
+    """Slot hooks of marble_sim (Mem.drawlist): 0x18e6c insert and 0x18f46 remove on the work
+    RAM list 0x4003bc and its 31 entries at 0x4001dc."""
+    def insert(self, m, typ, idx):
+        """Sorted insert (0x18e6c): before the first entry that 0x1a80a puts after the new
+        box (op 0 time, animation still empty), else at the end; only type and index of the
+        entry are stored, the box is refreshed by the next 0x26f3e."""
+        box = list(box_1b12a(m, typ, idx))
+        end = LIST + LIST_MAX
+        a3 = LIST
+        while m.rb(a3) != 0xff and a3 < end:
+            if cmp_boxes(boxw(m, entry(m, m.rb(a3))), box): break
+            a3 += 1
+        if a3 >= end: return
+        a1, d1 = ENTRIES, 0
+        while m.rb(a1) != 0 and a1 < ENTRIES + 0x1b2:
+            a1 += ENTRY_SIZE; d1 += 1
+        if a1 >= ENTRIES + 0x1b2: return
+        m.wb(a1, typ); m.wb(a1 + 1, idx)
+        if m.rb(a3) != 0xff:
+            a1 = a3 + 1
+            while m.rb(a1) != 0xff and a1 < end: a1 += 1
+            a1 -= 1
+            while a1 >= a3:
+                if a1 < end - 1: m.wb(a1 + 1, m.rb(a1))
+                a1 -= 1
+        m.wb(a3, d1)
+
+    def remove(self, m, typ, idx):
+        """0x18f46: entry of (typ, idx) freed, the list closed up, 0xff at the new end."""
+        end = LIST + LIST_MAX
+        a1 = LIST
+        while m.rb(a1) != 0xff and a1 < end:
+            e = entry(m, m.rb(a1))
+            if m.rb(e) == typ and m.rb(e + 1) == idx: break
+            a1 += 1
+        if a1 >= end or m.rb(a1) == 0xff: return
+        m.wb(entry(m, m.rb(a1)), 0)
+        a3 = a1 + 1
+        while m.rb(a3) != 0xff and a3 < end: a3 += 1
+        a3 -= 1
+        while a1 < a3:
+            m.wb(a1, m.rb(a1 + 1)); a1 += 1
+        m.wb(a1, 0xff)
+
+
+# ------------------------------------------------------------------ remake sprite data
+
+NONE32 = 0xffffffff
+STRIP_N = 23                    # wave strip entries (0x20f64 words, list 0x2227a frames)
+SET_SHADE = 8                   # published set of the wave strip (priority MOs, shade colours)
+SETS = (3, 5, 6, 7)             # MO palette sets of the level object frames
+MAX_OBJS = 8                    # published objects per tick (fixture asserts)
+NO_VARIANT = 0xff               # published tag 3 palette variant: no lift frame drawn
+TAG3_FRAMES = 14                # 0x1df18: 7 frames of list 0x21156, 7 of 0x21192
+CULL_MARGIN = 0                 # extra lines outward on every arcade cull (remake: 24)
+
+
+def frame_cols(hdr):
+    """MO frame header -> columns [(x, y, h, hflip, code)]: x = xb + dx + 8 k (k steps -8 when
+    flipped), y = yb + dy (MO y offset above sy + 16), h tiles, code word."""
+    P = ms.PROG
+    xb, yb = s8(P[hdr]), s8(P[hdr + 1])
+    b = rom_l(hdr + 8)
+    flip = b & 1
+    b &= ~1
+    step = -8 if flip else 8
+    out = []
+    if P[b] == 0xff:
+        n, dx, p = P[b + 2], s8(P[b + 3]), b + 4
+        for k in range(n):
+            out.append((xb + dx + step * k, yb + s8(P[p + 1]), P[p] + 1, flip, rom_w(p + 2)))
+            p += 4
+    else:
+        n, dx, h, dy = P[b], s8(P[b + 1]), P[b + 2] + 1, s8(P[b + 3])
+        for k in range(n):
+            out.append((xb + dx + step * k, yb + dy, h, flip, rom_w(b + 4 + 2 * k)))
+    return out
+
+
+def strip_cols(i):
+    """Wave strip entry i (0x27fa2): 4 priority columns of one tile code, 8 px right and 4
+    lines up per column from the slot (no entry: none)."""
+    w = rom_w(0x20f64 + 2 * i)
+    if w == 0xffff: return []
+    h, yo = ((w >> 11) & 7) + 1, s8(ms.PROG[0x20f92 + i])
+    return [(8 + 8 * k, -0x40 + yo + 4 * k, h, 0, w & 0x7ff) for k in range(4)]
+
+
+class Sprites:
+    """Level object sprite data of one race (MARBLE.md "Level object sprites"): frame ids
+    (sorted header addresses, then the wave strip entries), columns, tile codes. The
+    converter emits it, the publish model and the fixture use the same ids."""
+    def __init__(self, race):
+        fr = race_frames(race)
+        self.race = race
+        self.hdrs = sorted({h for hs in fr.values() for h in hs if h != NONE32})
+        self.ids = {h: i for i, h in enumerate(self.hdrs)}
+        self.strip = len(self.hdrs)
+        self.cols = [frame_cols(h) for h in self.hdrs]
+        if any(k[0] == 6 and k[1] == 0x2227a for k in fr):
+            self.cols += [strip_cols(i) for i in range(STRIP_N)]
+        codes = set()
+        for cs in self.cols:
+            for x, y, h, flip, code in cs:
+                if code > 0x7ff or (code & 0x7ff) + h > 0x800:
+                    raise SystemExit("marble: frame column code %04x height %d" % (code, h))
+                codes.update(code + t for t in range(h))
+        self.tile_codes = sorted(codes)
+        self.tile_of = {c: i for i, c in enumerate(self.tile_codes)}
+
+    def col_y(self, c):
+        """Race row offset of a column from the entry y: -(MO y offset + 8 h)."""
+        return -(c[1] + 8 * c[2])
+
+    def objs_cols(self, frame):
+        """Columns of a frame as the remake stores them: (x, y, h | hflip << 7, tile)."""
+        return [(c[0], self.col_y(c), c[2] | c[3] << 7, self.tile_of[c[4]])
+                for c in self.cols[frame]]
+
+
+def slot_objs(m, sp, typ, idx, top, margin):
+    """One drawn slot -> ([(frame id, set, x, y)], lift palette variant). Race pixel
+    position of the slot origin: x = sx (tag 5: sx - 1), y = top + 240 - sy; the frame
+    columns add their offsets. Culls as 0x26f3e (slot MOs above), moved outward by margin."""
+    a = rom_l(0x1f016 + 4 * idx)
+    d5, d4 = pos(m, a, 0x4e, 0x17 if typ == 5 else 0x18)
+    ex, ey, cy = s16(d5) - 24, top + 240 - s16(m.rw(a + 0x50)), s16(d4)
+
+    def one(hdr, st):
+        if hdr == NONE32: return []
+        return [(sp.ids[hdr], st, ex, ey)]
+
+    def hdr_of(p): return m.rl(m.rl(p))
+
+    if typ == 5:
+        if cy <= -0x40 - margin or cy >= 0x100 + margin: return [], NO_VARIANT
+        return one(hdr_of(a + 0x42), 3), NO_VARIANT
+    if typ == 3:
+        if cy <= -0x40 - margin or cy >= 0x160 + margin: return [], NO_VARIANT
+        out = []
+        for g in (0x40044a, 0x40044e, 0x400452): out += one(hdr_of(g), 7)
+        own = hdr_of(a + 0x42)
+        out += one(own, 6)
+        i = ((m.rl(a + 0x42) - m.rl(a + 0x46)) >> 3) & 0xffff
+        if m.rl(a + 0x46) == 0x21192: i += 7
+        return out, (ms.PROG[TAG3_PAL + i] if own != NONE32 and i < TAG3_FRAMES else NO_VARIANT)
+    # tag 6
+    if cy <= -0x40 - margin or cy >= 0x140 + margin: return [], NO_VARIANT
+    p42, p46 = m.rl(a + 0x42), m.rl(a + 0x46)
+    hdr = m.rl(p42)
+    out = one(hdr, 7 if hdr >= 0x220ee else 5)
+    if p46 == 0x2227a:
+        i = s16(((p42 - p46) >> 2) & 0xffff)
+        if 0 <= i < STRIP_N and sp.cols[sp.strip + i]: out.append((sp.strip + i, SET_SHADE, ex, ey))
+    return out, NO_VARIANT
+
+
+def publish(m, sp, cam, margin=0):
+    """Published object list of one tick (draw list order, back to front): (objs, marble_at,
+    variant). objs: (frame id, set, x, y) in race pixels; marble_at: objs drawn before the
+    marble (the marble's masks and body sit between objs[:marble_at] and the rest);
+    variant: tag 3 palette variant of the drawn lift frame (0xff: none). cam: camera word
+    0x40097e as the slot update saw it (before the tick's camera update)."""
+    top = s16(cam) - m.sw(m.t.desc + 0x10)
+    out, at, variant = [], None, NO_VARIANT
+    for k in draw_list(m):
+        e = entry(m, k)
+        typ, idx = m.rb(e), m.rb(e + 1)
+        if typ == 1 and idx == 0 and at is None: at = len(out)
+        if typ not in SLOT_TYPES: continue
+        objs, v = slot_objs(m, sp, typ, idx, top, margin)
+        out += objs
+        if v != NO_VARIANT: variant = v
+    if len(out) > MAX_OBJS:
+        raise SystemExit("marble: %d published objects, MAX_OBJS %d" % (len(out), MAX_OBJS))
+    return out, len(out) if at is None else at, variant
+
+
+def expand(sp, objs, top):
+    """Published objects -> comparable MO columns [(x, screen line, h, hflip, tile code, set,
+    priority)] with x and line modulo 512, the form of the MAME MO words."""
+    out = []
+    for fid, st, ex, ey in objs:
+        for x, y, hh, tile in sp.objs_cols(fid):
+            h = hh & 0x7f
+            out.append(((ex + x + 24) & 0x1ff, (ey + y - top) & 0x1ff, h, hh >> 7,
+                        sp.tile_codes[tile], 0 if st == SET_SHADE else st, int(st == SET_SHADE)))
+    return out
+
+
+def mo_cols(lst):
+    """mo_list_26f3e slot entries -> the same column tuples (shade: set 0)."""
+    out = []
+    for _, typ, _, mos in lst:
+        if typ not in SLOT_TYPES: continue
+        for w0, code, w2 in mos:
+            h = (w0 & 15) + 1
+            out.append(((w2 >> 5) & 0x1ff, (-((w0 >> 5) & 0x1ff) - 256 - 8 * h) & 0x1ff, h,
+                        w0 >> 15, code & 0x7ff, 0 if w2 & 0x8000 else (code >> 11) & 7,
+                        w2 >> 15))
+    return out
+
+
+def check_publish(ram, sp, objs, top):
+    """Published objects expand to the MO words of the validated model (Ram of the same
+    state)."""
+    return expand(sp, objs, top) == mo_cols(mo_list_26f3e(ram))
+
+
+def refresh_sort(m):
+    """0x26f3e head: box refresh and the three sort passes."""
+    boxes_and_sort(m)
+
+
+# ------------------------------------------------------------------ sprite fixture
+
+def load_spritefixture(path):
+    """Segments of source/test/test_marble_sprites/marble_sprites_trace.h:
+    [{"race", "frame", "ram": [(addr, bytes)], "ticks": [(c6, c7, camera, n, marble_at,
+    variant, first)], "objs": [(frame, set, x, y)]}]."""
+    import re
+    text = open(path).read()
+    num = lambda s: [int(v, 0) for v in re.findall(r"-?0x[0-9a-fA-F]+|-?\d+", s)]
+    arrays = {name: body for name, body in
+              re.findall(r"static const \w+ (\w+)\[\] = \{(.*?)\n?\};", text, re.S)}
+    segs = []
+    for race, frame, nram, ramname, nticks, tickname, nobjs, objname in re.findall(
+            r"\{ *(\d+), *(\d+), *(\d+), *(\w+), *(\d+), *(\w+), *(\d+), *(\w+) *\}",
+            arrays["marble_sprites_segments"]):
+        ram = []
+        for addr, length, data in re.findall(r"\{ *(0x[0-9a-f]+), *(\d+), *(\w+) *\}",
+                                             arrays[ramname]):
+            b = bytes(num(arrays[data]))
+            assert len(b) == int(length)
+            ram.append((int(addr, 0), b))
+        v, o = num(arrays[tickname]), num(arrays[objname])
+        ticks = [tuple(v[k:k + 7]) for k in range(0, len(v), 7)]
+        objs = [tuple(o[k:k + 4]) for k in range(0, len(o), 4)]
+        assert len(ram) == int(nram) and len(ticks) == int(nticks) and len(objs) == int(nobjs)
+        segs.append({"race": int(race), "frame": int(frame), "ram": ram, "ticks": ticks,
+                     "objs": objs})
+    return segs
+
+
+def replay_spritefixture(seg, m, sp, margin=0):
+    """Run every tick on m (objects, sprites and the draw list on): the sim tick, then
+    0x26f3e (box refresh, sort) and publish. Returns (index of the first tick whose published
+    list differs or None, [(objs, marble_at, variant)] per tick)."""
+    m.objects = m.sprites = True
+    m.drawlist = DrawList()
+    bad, got = None, []
+    for k, (c6, c7, cam, n, at, variant, first) in enumerate(seg["ticks"]):
+        cam_before = m.rw(0x40097e)
+        ms.tick(m, c6 & 0xff, c7 & 0xff, camera=cam & 0xffffffff)
+        refresh_sort(m)
+        got.append(publish(m, sp, cam_before, margin))
+        want = ([tuple(o) for o in seg["objs"][first:first + n]], at, variant)
+        if bad is None and got[-1] != want: bad = k
+    return bad, got
+
+
+def cmd_spritefixture(path):
+    ok = True
+    for seg in load_spritefixture(path):
+        m = ms.fixture_mem(seg, ms.Terrain(seg["race"]))
+        bad, _ = replay_spritefixture(seg, m, Sprites(seg["race"]))
+        print("sprites fixture race %d frame %d: %d ticks, %s" % (seg["race"], seg["frame"],
+              len(seg["ticks"]), "exact" if bad is None else "differs at tick %d" % bad))
+        ok &= bad is None
+    return ok
+
+
 def main(argv):
+    if len(argv) == 3 and argv[1] == "spritefixture":
+        return 0 if cmd_spritefixture(argv[2]) else 1
     if len(argv) == 2 and argv[1] == "data":
         return 0 if cmd_data() else 1
     if len(argv) >= 7 and argv[1] == "render":

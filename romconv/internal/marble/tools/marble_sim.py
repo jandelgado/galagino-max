@@ -306,6 +306,7 @@ class Mem:
         self.events = []
         self.objects = False    # run the level object slots in tick()
         self.sprites = False    # projection 0x1b9cc and occlusion masks 0x264aa in tick()
+        self.drawlist = None    # MO draw list hooks (marble_mo.DrawList): 0x18e6c / 0x18f46
     def _loc(self, a):
         a &= 0xffffff
         if a < 0x30000: return PROG, a, False
@@ -1054,7 +1055,8 @@ def slot_start_12f44(m, a, mode, script=0):
     if a == m.rl(0x400974): m.wl(0x400978, 0); m.wl(0x400974, 0)
     m.wb(a + 0x18, 0); m.wb(a + 0x1a, 0)
     if m.rb(a + 0x1f) == 6: m.wb(0x40075c, m.rb(0x40075c) - 1)
-    # mode != 1: 0x18f46 removes the slot from the MO draw list 0x4003bc (not modelled)
+    if m.rb(a + 0x1e) != 1 and m.drawlist:     # 0x18f46: out of the MO draw list 0x4003bc
+        m.drawlist.remove(m, m.rb(a + 0x1f), m.rb(a + 0x19))
 
 
 def slot_free_12d6e(m):
@@ -1181,7 +1183,8 @@ def script_12896(m, a):
                 anim_render_13334(m, a)
             else:
                 m.wl(a + 0x3e, ANIM_NONE)
-                # 0x18e6c inserts the slot into the MO draw list (not modelled)
+                if m.drawlist:                       # 0x18e6c: into the MO draw list 0x4003bc
+                    m.drawlist.insert(m, m.rb(a + 0x1f), m.rb(a + 0x19))
                 if m.rb(a + 0x1f) == 6:
                     m.ww(a + 0x52, 0); m.ww(a + 0x54, 0x500)
                     m.wb(0x40075e, 0); m.wb(0x40075c, m.rb(0x40075c) + 1); m.wb(a + 0x25, 0)
