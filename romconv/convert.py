@@ -71,6 +71,7 @@ GAMES = [
     "bzone",
     "tempest",
     "spacduel",
+    "berzerk",
     "starwars",
     "missile",
     "mpatrol",
