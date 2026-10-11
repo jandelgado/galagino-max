@@ -194,6 +194,88 @@ static void test_object_sprites(void) {
   TEST_ASSERT_EQUAL_HEX32(frameCrc(l, marble_video::VideoState{}), frameCrc(none, v));
 }
 
+// one object of `frame` (race `race`, palette set `set`) over a playfield whose pixel in column
+// x is kPf[x & 7]; every sprite tile byte is `fill` (two pens). base: without the object.
+static const uint8_t kPf[8] = {4, 20, 15, 31, 7, 0, 5, 9};
+
+static void objectFrames(uint8_t race, uint8_t frame, uint8_t set, uint8_t lift, uint8_t fill,
+                         uint16_t *base, uint16_t *got) {
+  static uint8_t px[1][64];
+  for (int i = 0; i < 64; i++) px[0][i] = kPf[i & 7];
+  static uint16_t pal[128];
+  for (int i = 0; i < 128; i++) pal[i] = 0x1000 + i;
+  static uint16_t map[marble_level::COLS * 36];
+  static uint8_t spr[531][32];
+  memset(spr, fill, sizeof(spr));
+  const marble_level::Level l = {36, 1, map, px, pal, spr};
+  marble_video::VideoState v = {};
+  v.level = race;
+  v.lift = lift;
+  v.n = 1;
+  v.marbleAt = 1;
+  v.objs[0] = {frame, set, 100, 100};
+  marble_video::VideoState none = v;
+  none.n = 0;
+  for (int row = 0; row < marble_video::OUT_H / 8; row++) {
+    marble_video::renderRow(l, none, row, base + row * marble_video::OUT_W * 8);
+    marble_video::renderRow(l, v, row, got + row * marble_video::OUT_W * 8);
+  }
+}
+
+static uint16_t sprBase[marble_video::OUT_W * marble_video::OUT_H];
+static uint16_t sprGot[marble_video::OUT_W * marble_video::OUT_H];
+static uint16_t sprPlain[marble_video::OUT_W * marble_video::OUT_H];
+
+// wave strip: colour 0x300 + ((playfield pixel & 15) << 4) + pen over playfield pixels 4, 20,
+// 15, 31 (and 7, 0, 5, 9); only 0x343, 0x3f2, 0x3f3 are not black (race 2: all 0x4108)
+static void test_shade_colour(void) {
+  const MarbleSpriteSet &set = marble_sprites[marble_sprite_race[2]];
+  uint8_t frame = 0xff;
+  for (uint8_t f = set.nhdr; f < set.nframes && frame == 0xff; f++) {
+    if (set.frames[f].ncols) frame = f;
+  }
+  TEST_ASSERT_NOT_EQUAL(0xff, frame);
+  for (uint8_t pen = 1; pen <= 3; pen++) {
+    objectFrames(2, frame, 8, 0xff, (uint8_t)(pen << 4 | pen), sprBase, sprGot);
+    int drawn[8] = {};
+    for (int i = 0; i < marble_video::OUT_W * marble_video::OUT_H; i++) {
+      if (sprGot[i] == sprBase[i]) continue;
+      const int k = kPf[(i % marble_video::OUT_W) & 7] & 15;
+      drawn[(i % marble_video::OUT_W) & 7]++;
+      const bool lit = (k == 4 && pen == 3) || (k == 15 && (pen == 2 || pen == 3));
+      TEST_ASSERT_EQUAL_HEX16(lit ? marble_sprite_shade[2][0] : 0, sprGot[i]);
+    }
+    for (int c = 0; c < 8; c++) {  // pen 1 shows the playfield, pens 2 and 3 reach every kind
+      if (pen == 1) TEST_ASSERT_EQUAL_INT(0, drawn[c]);
+      else TEST_ASSERT_TRUE(drawn[c] > 0);
+    }
+  }
+}
+
+// tag 3 lift: set 6 pens 1-4 come from marble_lift_pal[lift], pen 0 stays transparent
+static void test_lift_palette(void) {
+  const uint16_t *pal6 = marble_sprite_pal[1][2];
+  for (uint8_t lift = 0; lift < 4; lift++) {
+    int changed = 0;
+    for (uint8_t fill = 0x12; fill <= 0x34; fill += 0x22) {  // pens 1 2, then 3 4
+      objectFrames(1, 0, 6, 0xff, fill, sprBase, sprPlain);
+      objectFrames(1, 0, 6, lift, fill, sprBase, sprGot);
+      for (int i = 0; i < marble_video::OUT_W * marble_video::OUT_H; i++) {
+        if (sprPlain[i] == sprBase[i]) {
+          TEST_ASSERT_EQUAL_HEX16(sprBase[i], sprGot[i]);
+          continue;
+        }
+        int pen = 1;
+        while (pen <= 4 && sprPlain[i] != pal6[pen]) pen++;
+        TEST_ASSERT_TRUE(pen <= 4);
+        TEST_ASSERT_EQUAL_HEX16(marble_lift_pal[lift][pen - 1], sprGot[i]);
+        changed++;
+      }
+    }
+    TEST_ASSERT_TRUE(changed > 0);
+  }
+}
+
 static void test_patch(void) {
   const uint16_t *map = store.load(0).map;
   const uint16_t at = 5 * marble_level::COLS + 16;  // block row 2, column 2
@@ -225,6 +307,8 @@ int main(int, char **) {
   RUN_TEST(test_masks_hide_marble);
   RUN_TEST(test_patch);
   RUN_TEST(test_object_sprites);
+  RUN_TEST(test_shade_colour);
+  RUN_TEST(test_lift_palette);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif

@@ -122,7 +122,7 @@ void drawObj(const Level &l, const VideoState &v, const Obj &o, int y0, uint16_t
         if (!pen) { continue; }
         if (shade) {  // pen 1 shows the playfield; 2 and 3 darken it, three colours survive
           if (pen == 1) { continue; }
-          const uint8_t pf = pfPixel(l, x + v.sx, y);
+          const uint8_t pf = pfPixel(l, x + v.sx, y) & 15;  // colour 0x300 + (pf << 4) + pen
           out[x] = (pf == 4 && pen == 3) ? shades[0]
                    : (pf == 15 && pen == 2) ? shades[1]
                    : (pf == 15 && pen == 3) ? shades[2] : 0;

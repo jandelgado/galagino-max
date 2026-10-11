@@ -860,8 +860,9 @@ columns 2370, header ids 118, palettes 452, set table 54). `emit_sprites`; model
   1`. Per object a frame column is culled once per strip (rows, view columns, tile index
   against the set), then drawn line by line: pen 0 transparent, hflip per column, clip at the
   240 px edges. Set 6 pens 1-4 come from `marble_lift_pal[lift]` when `lift < 4`. Set 8 (wave
-  strip): pen 1 skipped, pens 2/3 write `marble_sprite_shade[race]` when the playfield colour
-  index under the pixel is 4 (pen 3) or 15 (pen 2, 3), else black. Cost: the culling is
+  strip): pen 1 skipped, pens 2/3 write `marble_sprite_shade[race]` when the playfield pixel
+  under it (0..31) & 15 is 4 (pen 3) or 15 (pen 2, 3), else black. Pen 1 does not erase earlier
+  MOs here (the MAME merge does; never seen in the traces). Cost: the culling is
   n x columns per strip (at most about 8 x 10), the pixel loop only runs for overlapping
   columns, at most 15 per strip.
 - Culls at margin 24 (remake view, 24 lines more above and below), most objects in the fixture
