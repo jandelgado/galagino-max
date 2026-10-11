@@ -390,6 +390,8 @@ void Audio::transmit() {
       llander_render_buffer();
     else if(machineType == MCH_BZONE)
       bzone_render_buffer();
+    else if(machineType == MCH_BERZERK)
+      berzerk_render_buffer();
   } while(bytesOut);
 }
 
@@ -614,6 +616,18 @@ void Audio::bzone_render_buffer(void) {
   bzone_sound.render(currentMachine->soundregs[BZ_SND_LATCH], samples, out, 64);
   for (int i = 0; i < 64; i++) {
     valueToBuffer(i, out[i]);
+  }
+}
+
+// Stern Berzerk: S14001A speech + Exidy 6840, mixed on the emulation core
+void Audio::berzerk_render_buffer(void) {
+  static const int32_t SAMPLE_MAX = 511;
+  static const int MIX_SHIFT = 6; // int16 -> +-512
+  int16_t samples[64];
+  currentMachine->renderSpeech(samples, 64);
+  for (int i = 0; i < 64; i++) {
+    const int32_t v = samples[i] >> MIX_SHIFT;
+    valueToBuffer(i, v > SAMPLE_MAX ? SAMPLE_MAX : (v < -SAMPLE_MAX ? -SAMPLE_MAX : v));
   }
 }
 
