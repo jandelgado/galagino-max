@@ -262,11 +262,29 @@ const Logo &berzerk::logo(void) {
 }
 
 #ifdef LED_PIN
+// game palette: player green, wall blue, robot olive
+static const CRGB BERZERK_LED_GREEN(0x00ff00), BERZERK_LED_BLUE(0x00006c);
+static const CRGB BERZERK_LED_OLIVE(0x6c6c00);
+static const uint8_t SPEECH_BLINK_FRAMES = 8;
+
 void berzerk::menuLeds(CRGB *leds) {
-  defaultMenuLeds(leds);
+  static const CRGB menu_leds[NUM_LEDS] = {
+      BERZERK_LED_GREEN, BERZERK_LED_BLUE, BERZERK_LED_OLIVE, BERZERK_LED_OLIVE,
+      BERZERK_LED_OLIVE, BERZERK_LED_BLUE, BERZERK_LED_GREEN};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 
+// robot voice talking: all LEDs blink green, else the menu colors
 void berzerk::gameLeds(CRGB *leds) {
-  defaultMenuLeds(leds);
+  menuLeds(leds);
+  if (!audio.speaking()) {
+    led_frame = 0;
+    return;
+  }
+
+  led_frame = (led_frame + 1) % (2 * SPEECH_BLINK_FRAMES);
+  if (led_frame < SPEECH_BLINK_FRAMES) {
+    fill_solid(leds, NUM_LEDS, BERZERK_LED_GREEN);
+  }
 }
 #endif
