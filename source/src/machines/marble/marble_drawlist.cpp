@@ -3,7 +3,6 @@
 #ifdef ENABLE_MARBLE
 
 #include "marble_physics.h"
-#include "marble_rom.h"
 
 namespace marble_drawlist {
 
@@ -25,10 +24,8 @@ static const uint32_t SLOTS = 0x1f016, ENEMIES_E = 0x1f07a, ENEMIES7 = 0x1f096, 
 static const uint32_t TAG3_PAL = 0x1df18;     // tag 3 frame -> palette variant
 static const uint8_t TAG3_FRAMES = 14;        // 7 frames of list 0x21192 follow the 7 of 0x21156
 static const uint32_t TAG3_LIST2 = 0x21192;
-static const uint32_t FRAMES_BASE = 0x20000;  // frame headers: 0x20000 + addr * 2
 static const uint32_t STRIP_LIST = 0x2227a;   // tag 6 list with wave strip entries
 static const uint32_t FLAG_SET7 = 0x220ee;    // tag 6 headers from here use set 7
-static const uint8_t STRIP_N = 23;
 static const uint32_t NONE32 = 0xffffffff;
 static const uint32_t TAG3_GLOBALS[3] = {0x40044a, 0x40044e, 0x400452};
 
@@ -181,21 +178,6 @@ void putBox(Mem &m, uint32_t e, const Box &b) {
   for (uint8_t i = 0; i < 6; i++) { m.ww(e + 2 + 2 * i, (uint16_t)b.v[i]); }
 }
 
-// frame id of the header at 68010 address hdr in the sprite set of the race
-uint8_t frameId(const Mem &m, uint32_t hdr) {
-  const MarbleSpriteSet &s = marble_sprites[marble_sprite_race[m.rw(marble_physics::RACE)]];
-  const uint32_t key = (hdr - FRAMES_BASE) >> 1;
-  uint8_t lo = 0, hi = s.nhdr;
-  while (lo < hi) {
-    const uint8_t mid = (lo + hi) / 2;
-    if (s.addr[mid] < key) { lo = mid + 1; } else { hi = mid; }
-  }
-  if (hdr < FRAMES_BASE || lo == s.nhdr || s.addr[lo] != key) {
-    marble_physics::fail("sprite frame", hdr);
-  }
-  return lo;
-}
-
 // object list under construction; n counts past max, the caller truncates
 struct Out {
   Obj *p;
@@ -207,7 +189,7 @@ struct Out {
 };
 
 void one(const Mem &m, Out &o, uint32_t hdr, uint8_t set, int16_t x, int16_t y) {
-  if (hdr != NONE32) { o.add(frameId(m, hdr), set, x, y); }
+  if (hdr != NONE32) { o.add(m.spriteFrame(hdr), set, x, y); }
 }
 
 inline uint32_t hdrOf(const Mem &m, uint32_t p) { return rdl(m, rdl(m, p)); }
@@ -252,9 +234,8 @@ void slotObjs(const Mem &m, Out &o, uint8_t type, uint8_t idx, int32_t top, int1
   if (p46 != STRIP_LIST) { return; }
 
   const int16_t i = s16((uint32_t)((int32_t)(p42 - p46) >> 2) & 0xffff);
-  const MarbleSpriteSet &s = marble_sprites[marble_sprite_race[m.rw(marble_physics::RACE)]];
-  if (i < 0 || i >= STRIP_N || s.nhdr + i >= s.nframes) { return; }
-  if (s.frames[s.nhdr + i].ncols) { o.add(s.nhdr + i, SET_SHADE, x, y); }
+  const int16_t f = m.stripFrame(i);
+  if (f >= 0) { o.add((uint8_t)f, SET_SHADE, x, y); }
 }
 
 }  // namespace

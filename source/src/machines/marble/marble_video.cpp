@@ -4,6 +4,7 @@
 
 #include <string.h>
 #include "../../emulation/asset.h"
+#include "marble_mem.h"
 #include "marble_rom.h"
 
 namespace marble_video {
@@ -86,7 +87,7 @@ inline uint8_t pfPixel(const Level &l, int x, int y) {
 // Level object sprite o on the 8 playfield lines from y0, into dst (8 lines of OUT_W). Columns
 // off the strip or the view are skipped, tiles past the set are never read.
 void drawObj(const Level &l, const VideoState &v, const Obj &o, int y0, uint16_t *dst) {
-  const MarbleSpriteSet &s = marble_sprites[marble_sprite_race[v.level]];
+  const MarbleSpriteSet &s = marble_physics::spriteSet(v.level);
   if (o.frame >= s.nframes) { return; }
   const MarbleSpriteFrame &f = s.frames[o.frame];
   const bool shade = o.set == SET_SHADE;

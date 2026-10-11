@@ -9,7 +9,14 @@
 #define ENABLE_MARBLE
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
+#include "../../src/machines/marble/marble_rom.h"
+// the real shade colours are all equal: the renderer reads three distinct ones here so a swap
+// of its entries shows
+#define marble_sprite_shade marble_test_shade
+static const uint16_t marble_test_shade[6][3] = {
+  {1, 2, 3}, {1, 2, 3}, {0x1111, 0x2222, 0x3333}, {1, 2, 3}, {1, 2, 3}, {1, 2, 3}};
 #include "../../src/machines/marble/marble_level.cpp"
+#include "../../src/machines/marble/marble_mem.cpp"
 #include "../../src/machines/marble/marble_video.cpp"
 #endif
 #include "marble_fixture.h"
@@ -205,7 +212,7 @@ static void objectFrames(uint8_t race, uint8_t frame, uint8_t set, uint8_t lift,
   static uint16_t pal[128];
   for (int i = 0; i < 128; i++) pal[i] = 0x1000 + i;
   static uint16_t map[marble_level::COLS * 36];
-  static uint8_t spr[531][32];
+  static uint8_t spr[MARBLE_SPRITE_MAX_TILES][32];
   memset(spr, fill, sizeof(spr));
   const marble_level::Level l = {36, 1, map, px, pal, spr};
   marble_video::VideoState v = {};
@@ -227,7 +234,8 @@ static uint16_t sprGot[marble_video::OUT_W * marble_video::OUT_H];
 static uint16_t sprPlain[marble_video::OUT_W * marble_video::OUT_H];
 
 // wave strip: colour 0x300 + ((playfield pixel & 15) << 4) + pen over playfield pixels 4, 20,
-// 15, 31 (and 7, 0, 5, 9); only 0x343, 0x3f2, 0x3f3 are not black (race 2: all 0x4108)
+// 15, 31 (and 7, 0, 5, 9). Lit: pf 4 with pen 3 (shade 0), pf 15 with pen 2 (shade 1) and
+// pen 3 (shade 2); every other drawn pixel is black, pen 1 shows the playfield.
 static void test_shade_colour(void) {
   const MarbleSpriteSet &set = marble_sprites[marble_sprite_race[2]];
   uint8_t frame = 0xff;
@@ -235,6 +243,7 @@ static void test_shade_colour(void) {
     if (set.frames[f].ncols) frame = f;
   }
   TEST_ASSERT_NOT_EQUAL(0xff, frame);
+  int lit[3] = {};
   for (uint8_t pen = 1; pen <= 3; pen++) {
     objectFrames(2, frame, 8, 0xff, (uint8_t)(pen << 4 | pen), sprBase, sprGot);
     int drawn[8] = {};
@@ -242,21 +251,27 @@ static void test_shade_colour(void) {
       if (sprGot[i] == sprBase[i]) continue;
       const int k = kPf[(i % marble_video::OUT_W) & 7] & 15;
       drawn[(i % marble_video::OUT_W) & 7]++;
-      const bool lit = (k == 4 && pen == 3) || (k == 15 && (pen == 2 || pen == 3));
-      TEST_ASSERT_EQUAL_HEX16(lit ? marble_sprite_shade[2][0] : 0, sprGot[i]);
+      int shade = -1;
+      if (k == 4 && pen == 3) shade = 0;
+      else if (k == 15 && pen == 2) shade = 1;
+      else if (k == 15 && pen == 3) shade = 2;
+      TEST_ASSERT_EQUAL_HEX16(shade < 0 ? 0 : marble_test_shade[2][shade], sprGot[i]);
+      if (shade >= 0) lit[shade]++;
     }
     for (int c = 0; c < 8; c++) {  // pen 1 shows the playfield, pens 2 and 3 reach every kind
       if (pen == 1) TEST_ASSERT_EQUAL_INT(0, drawn[c]);
       else TEST_ASSERT_TRUE(drawn[c] > 0);
     }
   }
+  for (int k = 0; k < 3; k++) TEST_ASSERT_TRUE(lit[k] > 0);
 }
 
-// tag 3 lift: set 6 pens 1-4 come from marble_lift_pal[lift], pen 0 stays transparent
+// tag 3 lift: set 6 pens 1-4 come from marble_lift_pal[lift] for the variants 1-3 (variant 0
+// is the default palette), pen 0 stays transparent; lift 4 and up: no substitution
 static void test_lift_palette(void) {
   const uint16_t *pal6 = marble_sprite_pal[1][2];
-  for (uint8_t lift = 0; lift < 4; lift++) {
-    int changed = 0;
+  for (uint8_t lift = 1; lift < 6; lift++) {
+    int drawn = 0, replaced = 0;
     for (uint8_t fill = 0x12; fill <= 0x34; fill += 0x22) {  // pens 1 2, then 3 4
       objectFrames(1, 0, 6, 0xff, fill, sprBase, sprPlain);
       objectFrames(1, 0, 6, lift, fill, sprBase, sprGot);
@@ -265,14 +280,20 @@ static void test_lift_palette(void) {
           TEST_ASSERT_EQUAL_HEX16(sprBase[i], sprGot[i]);
           continue;
         }
+        drawn++;
+        if (lift >= 4) {
+          TEST_ASSERT_EQUAL_HEX16(sprPlain[i], sprGot[i]);
+          continue;
+        }
         int pen = 1;
         while (pen <= 4 && sprPlain[i] != pal6[pen]) pen++;
         TEST_ASSERT_TRUE(pen <= 4);
         TEST_ASSERT_EQUAL_HEX16(marble_lift_pal[lift][pen - 1], sprGot[i]);
-        changed++;
+        if (sprGot[i] != sprPlain[i]) replaced++;
       }
     }
-    TEST_ASSERT_TRUE(changed > 0);
+    TEST_ASSERT_TRUE(drawn > 0);
+    if (lift < 4) TEST_ASSERT_TRUE(replaced > 0);
   }
 }
 

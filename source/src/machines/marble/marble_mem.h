@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 struct MarbleTerrainInfo;
+struct MarbleSpriteSet;
 
 // 68010 memory as the marble physics sees it (MARBLE.md "Marble physics", "Remake data"):
 //
@@ -60,8 +61,14 @@ public:
   uint8_t record(uint16_t code, uint8_t q) const;
   uint32_t desc() const;
   // 0x264aa terrain edge: first diagonal >= d (d < maxd) of screen column col with an edge,
-  // in the table of the current ultimate scroll frame (ULT_COL). -1: none.
+  // in the table of the current ultimate scroll frame (ULT_COL). Every column ends in maxd - 1.
   int16_t edgeFrom(uint8_t col, uint8_t d) const;
+
+  // Sprite frames of the race (RACE word). spriteFrame: frame id of the frame header at 68010
+  // address hdr, aborts if there is none. stripFrame: wave strip entry i (0x27fa2) as frame id,
+  // -1 if it has no columns or no entry.
+  uint8_t spriteFrame(uint32_t hdr) const;
+  int16_t stripFrame(int16_t i) const;
 
 private:
   static uint16_t off(uint32_t a) {
@@ -72,6 +79,9 @@ private:
   uint8_t *ram;
   const MarbleTerrainInfo *terrain = nullptr;
 };
+
+// sprite set of level n (races share sets), for the renderer
+const MarbleSpriteSet &spriteSet(uint8_t level);
 
 }  // namespace marble_physics
 

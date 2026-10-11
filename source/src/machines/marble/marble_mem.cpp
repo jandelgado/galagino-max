@@ -43,13 +43,38 @@ uint32_t Mem::desc() const { return terrain->desc; }
 
 int16_t Mem::edgeFrom(uint8_t col, uint8_t d) const {
   const uint16_t ult = rw(ULT_COL);
-  const uint8_t frame = ult / 0x90;
+  const uint16_t frame = ult / 0x90;
   if (col >= 36 || ult % 0x90 || frame >= terrain->nedges) { fail("terrain edges", ult); }
 
   // ascending list ending in maxd - 1: the scan stops there for d < maxd
   const uint8_t *p = marble_edge_lists + terrain->edges[36 * frame + col];
   while (*p < d) { p++; }
   return *p;
+}
+
+const MarbleSpriteSet &spriteSet(uint8_t level) {
+  if (level >= RACES) { fail("race", level); }
+  return marble_sprites[marble_sprite_race[level]];
+}
+
+uint8_t Mem::spriteFrame(uint32_t hdr) const {
+  static const uint32_t FRAMES_BASE = 0x20000;  // frame headers: 0x20000 + addr * 2
+  const MarbleSpriteSet &s = spriteSet(rw(RACE));
+  const uint32_t key = (hdr - FRAMES_BASE) >> 1;
+  uint8_t lo = 0, hi = s.nhdr;
+  while (lo < hi) {
+    const uint8_t mid = (lo + hi) / 2;
+    if (s.addr[mid] < key) { lo = mid + 1; } else { hi = mid; }
+  }
+  if (hdr < FRAMES_BASE || lo == s.nhdr || s.addr[lo] != key) { fail("sprite frame", hdr); }
+  return lo;
+}
+
+int16_t Mem::stripFrame(int16_t i) const {
+  static const uint8_t STRIP_N = 23;
+  const MarbleSpriteSet &s = spriteSet(rw(RACE));
+  if (i < 0 || i >= STRIP_N || s.nhdr + i >= s.nframes || !s.frames[s.nhdr + i].ncols) { return -1; }
+  return s.nhdr + i;
 }
 
 uint16_t Mem::base(int16_t d) const {
