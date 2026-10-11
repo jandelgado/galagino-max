@@ -94,6 +94,16 @@ bottom rows), so pf_check cannot identify them.
   plus animation 0x25fc2 and a countdown after 0x121b8.
 - 0x1ac18 stores only the latest frame's counter delta (+0xc6/+0xc7), so the tick sees
   every second frame's trackball motion.
+- Trackball hardware (MAME trakball_r): port 0xf20000 = x + y, 0xf20002 = x - y of the
+  ball; 0x1ac18 stores port 0 in +0xc7, port 2 in +0xc6.
+- Remake (marble.cpp): run_frame() counts 0x400010 like the vblank IRQ and runs one logic
+  tick on even counts: camera 0x13ee6, then `marble_physics::tick` (or the respawn wait),
+  then the projection 0x1b9cc. Stick as trackball, deltas per tick, k = `MARBLE_STICK_K`
+  (9, about MAME's keyboard trackball speed; tune on the device): right c7 = c6 = -k, left
+  +k, +k, down c7 = +k, c6 = -k, up c7 = -k, c6 = +k; two directions add, scaled by
+  181/256 (about 1.4k on the axis both use). EXTRA held: no input (EXTRA + UP/DOWN is
+  volume). FIRE: next race (debug until Phase 3): cleared work RAM image, race start,
+  camera and pan reset.
 
 ## Marble physics
 
@@ -229,7 +239,19 @@ race by 0x1a444 at level init (0x16f6c), read by 0x1caba.
   0x1ef1a[race] (cx, cy, zone, pad; 0xff end), nearest checkpoint of zone +0x1d to the
   last ground cell (distance max + 3/8 min of the cell deltas * 16 < 0x300) that no other
   object blocks (0x17cb8), else the last entry of zone - 1. Trace: lost at cell (39, 24),
-  respawned at checkpoint (35, 24).
+  respawned at checkpoint (35, 24). Details: distance per checkpoint = |dx| << 4 and
+  |dy| << 4 (words), max + (min >> 3) * 3, the smallest below 0x300 wins (0x400462/
+  0x400466 pixel = cell * 8 + 4, 0x400472 zone); the fallback scans backwards from the
+  0xff end entry for zone +0x1d - 1 (zone 0 stays 0). 0x2591a then sets x/y, z = terrain,
+  +0x1b = that zone, clears velocity, +0x36, +0x56, +0x58; 0x25c34 calls it when the
+  marble is lost, then state 4.
+- Remake port `marble_physics::respawn` (0x262b2, 0x2637a, 0x2591a, without 0x17cb8):
+  equal to MAME in 22 of 23 trace respawns (races 0-5); the miss is beginner (cell
+  (26, 33) chosen, MAME took (22, 36)), consistent with the skipped blocked check. If no
+  checkpoint is found the remake uses the race start cell (the original would use pixel
+  (0, 0), outside the terrain). Timing placeholder until Phase 3: 60 frames after state
+  2 or 4 (marble hidden, not moved) the marble respawns in state 0, damage +0x57 0
+  (MAME traces: 98 frames between death and control).
 - Zone lines 0x1eb16[race]: 6 bytes (x, y, end, zone a, zone b, 0); x < 0: line y = |y|
   from x = |x| to end, else line x from y = |y| to end; leaving a line cell sets the zone
   of the side (0x1365c). Zone 0xff = goal.
@@ -237,9 +259,12 @@ race by 0x1a444 at level init (0x16f6c), read by 0x1caba.
 ## Marble sprite
 
 - Projection 0x1b9cc: sx = y - x + 0x88, sy = camera + z + 0x54 - (x + y) / 2 (words,
-  camera = 0x40097e), sy counts up from the bottom of the 240 line screen (start sy 184
-  near the top; camera rule below). Surface codes 0x2f-0x31 add 2 on odd x at speed
-  (bumps). Stored at +0x1e/+0x20.
+  camera = 0x40097e; x + y summed as longs, asr 1), sy counts up from the bottom of the
+  240 line screen (start sy 184 near the top; camera rule below). Surface codes 0x2f-0x31
+  add 2 to z on odd x when |vx| > 0x4000 (bumps). Stored at +0x1e/+0x20. Verified against
+  the traces (tools/mame_trace.lua, 10 traces): +0x20 equals the formula with the previous
+  tick's camera in 9547 of 9640 ticks, the rest differ by 1-3 px in ticks where code after
+  0x1b9cc moved the marble (mostly surface 0x2d).
 - Motion object RAM 0xa02000 (bank 0, 64 entries, 4 word planes of 0x80 bytes): word 0
   y << 5 | hflip 0x8000 | height - 1, word 1 code, word 2 x << 5 | priority 0x8000,
   word 3 link (MAME atarisy1_v.cpp). MO x = sx + 16, MO y = sy + 16 (traces).
@@ -247,6 +272,17 @@ race by 0x1a444 at level init (0x16f6c), read by 0x1caba.
   8 x 8 surface dots (codes 0x10-0x2c by angle, positions from 0x1c014 rotating 4 points
   by the velocity; angle table 0x24ade per Marble Love, unverified), code 0x0007 5 lines
   lower (shadow or highlight, unverified). Code to tile/colour via the PROM lookup (ROM).
+- Screen position (MAME atarimo, MO yscroll 256, no MO x scroll; playfield x scroll 0
+  from the vblank IRQ 0x287cc, y scroll = 0x400000): MO screen x = MO x, MO top line =
+  (-(MO y) - 256 - height * 8) & 0x1ff. Playfield: screen line L shows race pixel row
+  camera - descriptor +0x10 + L, screen x X shows race x X - 24 (playfield column 3).
+  So in race pixels the 0x05 half has its top left at (sx - 8, camera - +0x10 + 224 - sy),
+  0x03 at x + 8, 0x07 3 lines lower (screen top 227 - sy). Link order 0x05, 0x03, dots,
+  0x07; MAME draws in link order, later on top. Calibrated with MAME snapshots of
+  practice (frames 900, 1300, 1700, camera 0 and 40 px down): playfield matches the
+  decoded race at that offset exactly, marble pixels inside the predicted 16 x 16 box; the
+  remake's frame at race start equals the MAME frame pixel for pixel apart from the HUD
+  and the surface dots.
 - Occlusion: the playfield priority mask 0x840000 is written 0 once at boot (0x100b6,
   MAME write tap during a race: no other write), so the playfield never covers motion
   objects by hardware. MAME merge: priority MOs (word 2 bit 15) replace the pixel with
@@ -264,7 +300,25 @@ race by 0x1a444 at level init (0x16f6c), read by 0x1caba.
   Camera clamped to descriptor +0x10 .. +0x10 + +0x12; playfield y scroll 0x400000 moves
   by the same step (mod 0x200). Traces: camera steps +1/+2 per tick, only while
   sy <= 0x58.
-  Exact speed hysteresis not trace-verified.
+- Details (0x1411c-0x144e2): runs before the object update (0x10fce, 30 Hz), when the
+  60 Hz counter 0x400010 & 7 == 0 or a scroll runs (0x400008). Constants 0x1f1ca: speed
+  bytes 1, 2, 4; words low 0x48, high 0xa8, near 0x10, far 0x30. Only players in slot 1,
+  state 0/1/3/4/5 and not falling (airborne with vz <= 0) give sy; none (sentinel 0x7000,
+  silly 0x9000) while scrolling: a ghost sy 0x40000c continues at the current speed
+  (low or high, -/+ near or far) and moves with the camera. Forward when sy < low or a
+  forward scroll runs: speed 4 below low - far, 2 below low - near, 1 above low (else
+  kept); back mirrored around high. Direction 0x400004 (1 / 0xff), speed 0x40000a. A
+  scroll stops at the race range or once sy > low + 0x10 (forward) / < high - 0x10 (back).
+  Initial camera: +0x10, silly +0x10 + +0x12 (0x16f4a); scroll state 0 (0x10540).
+- Remake port `marble_camera::tick` (source/src/machines/marble/marble_camera.cpp): equal
+  to the traces in all 9640 ticks of 10 traces (642 camera moves, races 0-5), camera
+  long, playfield scroll, direction, speed, scroll flag and ghost sy. Not ported: row
+  decode (the remake renders from the whole level) and 0x144e4 (objects entering the
+  screen, Phase 4).
+- Remake view (240 x 288, the arcade screen is 240 lines): view top = camera - +0x10 -
+  24, clamped to 0 .. range - 48, so the arcade screen sits in the middle. X (proposal,
+  remake only): pan 0..48, keep the marble centre sx between view x 64 and 176, 1 px per
+  60 Hz frame, 2 px when 16 px beyond, 4 px when 48 px beyond.
 
 ## Remake data
 
@@ -357,6 +411,6 @@ python3 romconv/internal/marble/tools/marble_sim.py fixture \
 - Level object slots: spawn lists and byte code (0x12896), unported slot tags, dynamic
   terrain codes 0x40076e, priority mask MOs. Phase 4.
 - Enemy collision 0x1bc88 and enemy updates of the shared scratch words. Phase 4.
-- Death/respawn timing (states 2/4, 0x13ade), sprite dots 0x1c014 and MO emission
-  0x264aa (not ported, formats above).
+- Death/respawn timing and animation (states 2/4, 0x13ade, 0x25fc2), sprite dots 0x1c014
+  and MO emission 0x264aa (not ported, formats above). Remake placeholder: 60 frames.
 - Object/enemy scripts, Phase 4. Sound command protocol, Phase 5.

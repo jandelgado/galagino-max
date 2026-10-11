@@ -49,12 +49,15 @@ static const uint32_t GRAD_X = 0x4006a4, GRAD_Y = 0x4006a6;
 static const uint32_t ATTRACT = 0x400390;                    // 1 = attract demo
 static const uint32_t RACE = 0x400394;
 static const uint32_t DYN = 0x40076e;                        // dynamic terrain codes
+static const uint32_t SPAWN_X = 0x400462, SPAWN_Y = 0x400466;  // longs, respawn pixel
+static const uint32_t SPAWN_ZONE = 0x400472;                 // 0xff: none found
 static const uint32_t VERTS = 0x401c28;                      // 4 vertices x 4 heights
 
 // program ROM tables
 static const uint32_t DYN_INTERMEDIATE = 0x1d370;  // 66 dynamic codes (0x11ac2)
 static const uint32_t ZONE_LISTS = 0x1eb16;        // zone line list per race
 static const uint32_t GOAL_VX = 0x1eb2e, GOAL_VY = 0x1eb34;
+static const uint32_t CHECKPOINTS = 0x1ef1a;       // list per race: cx, cy, zone, pad; 0xff end
 static const uint32_t DROP = 0x1ed62;              // two level code height steps
 static const uint32_t FRICTION = 0x1eef8;
 static const uint32_t TEETER_LIFT = 0x2398c;   // z lift by distance to the edge
@@ -64,6 +67,8 @@ static const uint32_t STEPS = 0x24b3a;             // vertex walk of 0x1caba
 static const uint32_t FALL_VZ = 0xffffa000;        // -0x6000: vz when a fall starts
 static const uint8_t RACE_PRACTICE = 0, RACE_INTERMEDIATE = 2, RACE_AERIAL = 3, RACE_SILLY = 4;
 static const uint8_t DYN_PRACTICE = 9, DYN_INTERMEDIATE_N = 0x42;
+static const uint16_t SPAWN_RANGE = 0x300;         // max checkpoint distance (max + 3/8 min) * 16
+static const uint8_t NO_ZONE = 0xff;
 
 inline int8_t s8(int32_t v) { return (int8_t)v; }
 inline int16_t s16(int32_t v) { return (int16_t)v; }
@@ -815,7 +820,87 @@ void start_259b4(Mem &m, uint8_t race, uint32_t a2) {
   input_17f66(m, a2);
 }
 
+// checkpoint entry a3 -> spawn pixel (cell * 8 + 4) and zone
+void spawnAt(Mem &m, uint32_t a3) {
+  m.wl(SPAWN_X, (uint32_t)(m.romb(a3) * 8 + 4));
+  m.wl(SPAWN_Y, (uint32_t)(m.romb(a3 + 1) * 8 + 4));
+  m.wb(SPAWN_ZONE, m.romb(a3 + 2));
+}
+
+// 0x2637a: nearest checkpoint of the ground zone (+0x1d) to the last ground cell
+void nearest_2637a(Mem &m, uint32_t a2) {
+  const uint16_t zone = (uint16_t)(int16_t)m.sb(a2 + GROUND_ZONE);  // ext.w
+  uint32_t best = SPAWN_RANGE;
+  for (uint32_t a3 = m.roml(CHECKPOINTS + 4 * m.rw(RACE)); m.romb(a3) != 0xff; a3 += 4) {
+    if (m.romb(a3 + 2) != zone) { continue; }
+
+    // octagonal distance of the cell deltas, words << 4
+    const int16_t ex = s16(m.rw(a2 + GROUND_CX) - m.romb(a3));
+    const int16_t ey = s16(m.rw(a2 + GROUND_CY) - m.romb(a3 + 1));
+    const uint16_t dx = (uint16_t)((ex < 0 ? -ex : ex) << 4);
+    const uint16_t dy = (uint16_t)((ey < 0 ? -ey : ey) << 4);
+    const uint32_t d = dx > dy ? (uint32_t)(dy >> 3) * 3 + dx : (uint32_t)(dx >> 3) * 3 + dy;
+
+    // 0x17cb8 (spot blocked by another object): not ported, no objects yet
+    if (d >= best) { continue; }
+    best = d;
+    spawnAt(m, a3);
+  }
+}
+
+// 0x262b2: respawn point; fallback is the last checkpoint of zone - 1
+void spawnPoint_262b2(Mem &m, uint32_t a2) {
+  m.wl(SPAWN_Y, 0);
+  m.wl(SPAWN_X, 0);
+  m.wb(SPAWN_ZONE, NO_ZONE);
+  nearest_2637a(m, a2);
+  if (m.rb(SPAWN_ZONE) != NO_ZONE) { return; }
+
+  const uint32_t first = m.roml(CHECKPOINTS + 4 * m.rw(RACE));
+  uint32_t a3 = first;
+  while (m.romb(a3) != 0xff) { a3 += 4; }
+  int16_t zone = m.sb(a2 + GROUND_ZONE);
+  if (zone) { zone--; }
+
+  // backwards from the end marker (its zone 0xff never matches)
+  for (; a3 != first - 4; a3 -= 4) {
+    if (m.romb(a3 + 2) == (uint16_t)zone) {
+      spawnAt(m, a3);
+      return;
+    }
+  }
+}
+
 }  // namespace
+
+// 0x2591a (physics fields) after a death, then the state 0 entry as in start_259b4.
+// Placeholder for the state 2/4 sequence (0x25c34, 0x13ade): state back to 0, damage 0.
+void respawn(Mem &m) {
+  const uint32_t a2 = PLAYER;
+  spawnPoint_262b2(m, a2);
+  if (m.rb(SPAWN_ZONE) == NO_ZONE) {  // the original would use pixel (0, 0): off the terrain
+    const uint16_t cell = m.romw(m.desc() + 0x14);
+    m.wl(SPAWN_X, (cell >> 8) * 8 + 4);
+    m.wl(SPAWN_Y, (cell & 0xff) * 8 + 4);
+    m.wb(SPAWN_ZONE, 0);
+  }
+
+  m.wl(a2 + PX, m.rl(SPAWN_X) << 16);
+  m.wl(a2 + PY, m.rl(SPAWN_Y) << 16);
+  m.ww(CELL_Y, 0xffff);
+  m.ww(CELL_X, 0xffff);
+  posupd_1bab2(m, a2);
+  m.wl(a2 + PZ, (uint32_t)height_1cc62(m));
+  m.wb(a2 + ZONE, m.rb(SPAWN_ZONE));
+
+  static const uint8_t longs[] = {VX, VY, VZ, ANIM};
+  static const uint8_t bytes[] = {DIZZY_CNT, DAMAGE, STATE, AIR, SURFACE, BALL_C6, BALL_C7};
+  for (uint8_t o : longs) { m.wl(a2 + o, 0); }
+  for (uint8_t o : bytes) { m.wb(a2 + o, 0); }
+
+  ground_253bc(m, a2);
+  input_17f66(m, a2);
+}
 
 void startRace(Mem &m, uint8_t race) {
   m.setRace(race);
