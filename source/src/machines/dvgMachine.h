@@ -8,9 +8,10 @@
 #include "../emulation/dvg.h"
 
 // Shared base of the Atari vector machines on the Asteroids CPU board
-// (Asteroids, Lunar Lander: DVG; Battle Zone: AVG) and Tempest: one M6502
-// at 12.096 MHz / 8 with a 3 kHz / 12 NMI (Tempest: IRQ, held until
-// acknowledged), display list decoded at GO and rasterized strip by strip.
+// (Asteroids, Lunar Lander: DVG; Battle Zone: AVG), Tempest and Space Duel:
+// one M6502 at 12.096 MHz / 8 with a 3 kHz / 12 NMI (Tempest, Space Duel:
+// IRQ, held until acknowledged), display list decoded at GO and rasterized
+// strip by strip.
 //
 //   emulation core                   video core
 //   CPU writes VRAM, GO: go()        prepare_frame(): go_list ->

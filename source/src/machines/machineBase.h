@@ -115,7 +115,8 @@ enum {
   MCH_GBERET,
   MCH_HERO,
   MCH_GNG,
-  MCH_TEMPEST
+  MCH_TEMPEST,
+  MCH_SPACDUEL
 };
 
 // one inst at 3Mhz ~ 500k inst/sec = 500000/60 inst per frame
