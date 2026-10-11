@@ -16,6 +16,7 @@ ZIP = os.path.join(HERE, "..", "..", "..", "romszip", "marble.zip")
 
 LEVELS = 6
 COLS = 36  # playfield width in tiles, 288 px
+SCREEN_ROWS = 30  # 240 px visible below the camera
 NAMES = ["practice", "beginner", "intermediate", "aerial", "silly", "ultimate"]
 BANK = [1, 2, 2, 3, 3, 0]  # slapstic bank holding each level's bitstream
 
@@ -195,12 +196,16 @@ def _decode_row(r, bank, src, attr):
 
 
 def decode_level(r, n):
-    """Level n (0..5) -> rows x 36 playfield words (68010 0x16f80 draws them)."""
+    """Level n (0..5) -> rows x 36 playfield words as in playfield RAM.
+
+    Same per-row inputs as level init 0x16f6c and scroll redraw 0x13ee6: tile offset
+    word and attribute byte, both indexed by row (verified against MAME, tools/pf_check.py).
+    """
     d = u32(r, LEVEL_TABLE + 4 * n)
     bank = BANK[n]
     offsets = u32(r, d + 0x04)
-    attr_index = u32(r, d + 0x2A) + 0x4E
-    rows = u16(r, d + 0x12) >> 3
+    attr_index = u32(r, d + 0x2A)
+    rows = (u16(r, d + 0x12) >> 3) + SCREEN_ROWS  # camera range + one screen
     m = []
     for row in range(rows):
         off = _slap16(r, bank, offsets + 2 * row)

@@ -25,12 +25,31 @@ TypeScript port named by ROM address. Facts below were read from the disassembly
 - Level table 0x2be00: 6 x long -> descriptor (practice 0x2bee2, beginner 0x2c54c,
   intermediate 0x2cd9e, aerial 0x2d648, silly 0x2de1e, ultimate 0x2e790).
   Field meanings: Marble Love docs/level-header-format.md.
-- Descriptor +0x04: row offset table (slapstic), +0x12: height in px (360, 920, 840, 784,
-  896, 624), +0x2a: per-row attribute index (slapstic), + 0x4e.
+- Descriptor +0x04: row offset table (slapstic, word per row), +0x10: camera y at the top
+  of the race, +0x12: camera range in px (360, 920, 840, 784, 896, 624), +0x2a: attribute
+  index table (slapstic, byte per row). Race height = range + one 240 px screen: 75, 145,
+  135, 128, 142, 108 rows (Task 1 decoded only range / 8 rows, missing the goal area).
 - Row decode 0x1a668 (Marble Love decode-bitstream-1a668.ts): 36 words per row from a
   bitstream at 0x800e4 + signed row offset; codes 14 bit literal, 7 bit runs (+1 run,
   table 0x249da run, 0x4d/0x4e alternation), 9 bit table 0x2499a; attribute high bytes from
-  run-length pairs at 0x2be18 + index. Full-screen init: 0x16f80.
+  run-length pairs (count, high byte) at 0x2be18 + index byte. Word = tile low bits + high
+  byte << 8: bit 15 hflip, bits 8-14 lookup PROM index (bits 12-13 pick the colour set).
+- Row n uses offset word +0x04[n] and attribute byte +0x2a[n], no other input. Callers:
+  level init 0x16f6c (32 rows from row 0 into 0xa00006, race 4 from the bottom) and
+  scroll redraw 0x13ee6 (one row per 8 px of camera, row (camera - +0x10) / 8 - 1, +0x20
+  when scrolling down). decode_level() matches MAME playfield RAM for every row of all 6
+  races (tools/pf_check.py). Task 1 read the attribute table at +0x2a + 0x4e: wrong
+  colour sets (practice row 9 grey band).
+- Camera: 0x40097c (long, +0x10 .. +0x10 + +0x12), playfield y scroll 0x400000. Race
+  index: 0x400394 (word, 0-5).
+- 0x13ee6 has a second path for objects of type 0x19: it decodes a row of ultimate
+  (descriptor 0x2be14) with attribute byte +0x2a + 0x4e + row into an object buffer.
+  Probable source of Task 1's + 0x4e (open, Phase 4).
+- 0x1a444 (Marble Love tilemap-row-build-1a444.ts) does not touch colours: it packs
+  terrain data into off-screen playfield RAM columns 39-63 (row offsets 0x1eb3a,
+  0x4e + 0x80 * row).
+- Scroll draws rows past a race's last row: they come from the next descriptor's tables
+  in the same bank (aerial shows silly rows 0-1 off screen).
 - Slapstic bank per level (found by decoding all banks): 1, 2, 2, 3, 3, 0. Switching
   sequence not traced (Marble Love slapstic-103.ts).
 - Unique playfield tiles per level: 551, 673, 514, 591, 818, 395; 3009 over all levels.
@@ -39,6 +58,25 @@ TypeScript port named by ROM address. Facts below were read from the disassembly
 - Animated level pieces are blitted by 0x1344c from a list at RAM 0x400970 (open).
 - Surface/height lookup reads the playfield word and indexes a table at RAM 0x40065a
   (0x177f8) (open, Phase 2).
+
+## MAME playfield oracle
+
+`romconv/internal/marble/tools/mame_pf.lua` dumps playfield RAM every 30 frames; without
+`MARBLE_LEVEL` it records attract mode. With `MARBLE_LEVEL=n` it inserts a coin, starts,
+forces race n (write tap on 0x400394) and drives the camera with a read tap on the
+marble screen y (0x400038: 0x00 = scroll down, 0xf0 = scroll up), so every row is drawn
+by the game. `tools/pf_check.py PFSEQ.BIN` matches RAM rows to decode_level() and exits 1
+on any difference.
+
+```sh
+MARBLE_OUT=$PWD MARBLE_LEVEL=2 MARBLE_FRAMES=2200 mame marble -video none -sound none \
+  -nothrottle -noautosave -skip_gameinfo -autoboot_script /abs/path/mame_pf.lua
+python3 romconv/internal/marble/tools/pf_check.py pfseq.bin
+```
+
+Seen rows per race (2200 frames): 70/75, 140/145, 129/135, 122/128, 142/142, 107/108,
+0 mismatches. Unseen rows have tile words shared with other rows (blank rows, repeated
+bottom rows), so pf_check cannot identify them; their full words do occur in RAM.
 
 ## Open questions
 
