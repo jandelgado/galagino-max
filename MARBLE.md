@@ -662,8 +662,8 @@ numbers only), `make_fixture.py owrite`:
 - Segments (events counted by the model): practice mt/p3 frame 730, 340 ticks: 3 slot wall
   contacts (ticks 232, 319, 333), the gate opening (10 dynamic code changes, ticks 153-266), 71
   ticks with masks, 12 with hflip; beginner lo/cam1 frame 2399, 340 ticks: the moving part (tag
-  3) active 111 ticks, 23 dynamic code changes, 206 ticks with the marble hidden (camera driven
-  away from it), spawns and removals; intermediate lo/i2 frame 660, 251 ticks (to the death):
+  3) active 111 ticks, 23 dynamic code changes, 206 ticks with masks, all with the marble hidden
+  (camera driven away from it), no hflip, spawns and removals; intermediate lo/i2 frame 660, 251 ticks (to the death):
   39 ticks with masks, 14 hflip, 8 hidden; intermediate mt/q2 frame 1942, 300 ticks: 92 ticks
   with masks, 48 hflip, 10 round post contacts. lo/pw and lo/pw2 do not open the gate within
   their ticks (no dynamic code change), so the practice segment is a Phase 2 trace.

@@ -97,7 +97,8 @@ uint32_t gl(const Mem &m, uint32_t a) { return a < ROM_END ? m.roml(a) : m.rl(a)
 
 inline uint32_t slotAddr(uint8_t i) { return SLOTS + (uint32_t)i * SLOT_SIZE; }
 
-// 0x13a98: random 0..n-1 (n > 0: n == 0 never ends the loop; the only caller passes 4); 16 bit shift register, one step per significant bit of n
+// 0x13a98: random 0..n-1, 16 bit shift register, one step per significant bit of n.
+// n > 0: n == 0 never ends the loop; the only caller passes 4.
 int16_t rng_13a98(Mem &m, uint16_t n) {
   uint16_t d0 = m.rw(RNG);
   uint16_t d1 = n;
