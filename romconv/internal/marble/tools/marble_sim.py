@@ -1384,7 +1384,8 @@ def anim_apply_1344c(m):
 
 def start_race(m, race):
     """Race start as the remake runs it (marble_physics::startRace): player start, the draw
-    list with the player when m.drawlist is on, then the level init of the slots."""
+    list with the player when m.drawlist is on, the level init of the slots, the time out
+    byte. Ends at a tick boundary of main_tick; tick() users call snapshot_start after it."""
     start_259b4(m, race)
     if m.drawlist: m.drawlist.init(m)
     objects_init(m, race)
@@ -1461,7 +1462,7 @@ def dyn_init(m, race):
 
 
 def start_259b4(m, race, a2=P, player=0):
-    """Race start of one player on a cleared work RAM, up to the snapshot point of tick().
+    """Race start of one player on a cleared work RAM, at a tick boundary of main_tick.
     0x259b4 physics fields only; sprite setup (0x25b40, 0x1b9cc, 0x1c014, 0x1281c, 0x18e6c)
     and the slot/animation bytes (+0x6a-+0x71, +0xc4, +0xcb, +0xd1, +0xd8) are skipped."""
     m.ww(0x400394, race)
@@ -1478,9 +1479,21 @@ def start_259b4(m, race, a2=P, player=0):
     m.wb(a2 + 0x18, 1)
     if race == 3:                                       # aerial: starts on surface 0x17/0x18
         m.wb(a2 + 0x58, 0x18 if player else 0x17); m.wb(a2 + 0x59, 0xff)
-    # first object update before the first 0x121b8: 0x253bc, 0x17f66 (deltas are 0)
+
+
+def snapshot_start(m, a2=P):
+    """From a race start to the snapshot point of tick() (0x121b8 entry): the first tick's
+    0x253bc, 0x17f66 (deltas 0). main_tick runs them itself."""
     ground_253bc(m, a2)
     input_17f66(m, a2)
+
+
+def begin_race(m, race):
+    """The remake machine's race start (marble.cpp beginRace) on a cleared work RAM:
+    start_race, projection 0x1b9cc, masks 0x1281c."""
+    start_race(m, race)
+    proj_1b9cc(m, P)
+    enter_1281c(m, P)
 
 
 # ---------------------------------------------------------------- player states, deaths
@@ -1854,8 +1867,8 @@ def wobble_25416(m, a2):
 
 
 def object_253ec(m, a2):
-    """One player object tick by state +0x1a: 0 roll, 1 dizzy, 2 shatter, 4 lost. Other
-    states (3, 5-0xb) are not ported: event."""
+    """One player object tick by state +0x1a: 0 roll, 1 dizzy, 2 shatter, 4 lost, 6 goal.
+    Other states (3, 5, 7-0xb) are not ported: event."""
     st = m.rb(a2 + 0x1a)
     if m.rb(a2 + 0xd8) and st not in (2, 4, 0xa, 0xb, 7): wobble_25416(m, a2)
     if st == 0:
@@ -1884,6 +1897,15 @@ def object_253ec(m, a2):
                 m.wb(a2 + 0x57, 0x65); enter_25bae(m, a2, 4); done = False
         if done:
             m.wl(a2 + 4, 0); m.wl(a2, 0); m.wb(a2 + 0x1a, 0)
+    elif st == 6:
+        # goal 0x254d2 (Marble Love refresh-frame-10fce.ts JT[6]): physics, +0x57 (0x1e from
+        # 0x1365c) counts down; at 0 out of play (+0x18 = 3), v = 0. +0x57 wraps to 0xff, so
+        # this repeats every 256 ticks while state 6 lasts.
+        if m.rw(0x400390) == 1: m.events.append(("unported", 0x1815a))   # attract
+        physics_121b8(m, a2)
+        m.wb(a2 + 0x57, m.rb(a2 + 0x57) - 1)
+        if m.rb(a2 + 0x57) == 0 and m.rb(a2 + 0x18) != 2:
+            m.wb(a2 + 0x18, 3); m.wl(a2 + 4, 0); m.wl(a2, 0)
     else:
         m.events.append(("unported state", st))
 
@@ -2162,7 +2184,7 @@ def cmd_start(trace, race):
     """start_259b4 on a cleared RAM == the first race snapshot, over the first segment."""
     t = Terrain(race)
     i = next(k for k, x in enumerate(trace) if live(x[1]))
-    m = Mem(t, bytes(0x2000)); start_259b4(m, race)
+    m = Mem(t, bytes(0x2000)); start_259b4(m, race); snapshot_start(m)
     ref = Mem(t, trace[i][1])
     n = 0
     for (fr, r, _), (fr2, r2, _) in zip(trace[i:], trace[i + 1:]):

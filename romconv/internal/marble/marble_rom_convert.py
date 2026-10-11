@@ -223,6 +223,7 @@ def physics_runs(mem, terrains, objects=False):
         m = mem(terrains[n], bytes(0x2000))
         m.objects = m.sprites = objects
         ms.start_259b4(m, n)
+        ms.snapshot_start(m)
         out.append(tuple(m.sl(ms.P + o) for o in (0xC, 0x10, 0x14)))
     for seg in ms.load_fixture(TRACE_FIXTURE):
         m = ms.fixture_mem(seg, terrains[seg["race"]], mem)
@@ -244,6 +245,7 @@ def object_runs(mem, terrains):
         m = mem(terrains[n], bytes(0x2000))
         m.objects = m.sprites = True
         ms.start_259b4(m, n)
+        ms.snapshot_start(m)
         ms.objects_init(m, n)
         for _ in range(OBJ_IDLE_TICKS): ms.tick(m, 0, 0)
         out.append(zlib.crc32(bytes(m.ram)))
@@ -280,6 +282,7 @@ def sprite_runs(mem, terrains):
         m.objects = m.sprites = True
         m.drawlist = mo.DrawList()
         ms.start_race(m, n)
+        ms.snapshot_start(m)
         SWEEP_MAX[n], got = mo.race_sweep(m, n, SPRITES[n])
         out.append(zlib.crc32(repr(got).encode()))
     return out

@@ -21,6 +21,7 @@
 #include "../../src/machines/marble/marble_camera.cpp"
 #endif
 #include "marble_deaths_trace.h"
+#include "marble_start_trace.h"
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -33,6 +34,8 @@ using marble_physics::PLAYER;
 static const uint8_t PZ = 0x14, SLOT = 0x18, STATE = 0x1a, VISIBLE = 0x1c, SX = 0x1e, SY = 0x20;
 static const uint8_t GROUND_Z = 0x2a, AIR = 0x36, MASKS = 0x38, ANIM = 0x5a, SHARDS = 0x62;
 static const uint8_t SHARDS_ON = 0x67, VZ = 0x08, SCORE = 0xbc, DISTANCE = 0xc4, DEATHS = 0xd2;
+static const uint8_t VX = 0x00, VY = 0x04, PX = 0x0c, PY = 0x10, ZONE = 0x1b, DAMAGE = 0x57;
+static const uint8_t PLAYER_BYTES = 0xe2;
 static const uint8_t MASK_BYTES = 30, MASK_ENTRY = 6;
 static const uint16_t MASK_BIT = 0x4000;
 static const uint8_t AIRBORNE = 2;
@@ -84,15 +87,19 @@ static const char *diff(const Mem &m, const MarbleDeathTick &t) {
 
 // One main loop tick as marble_sim.py main_tick: 0x400010 and the camera long are inputs (the
 // race timer is not run), then 0x1344c, band spawns, player 0x251de, slots 0x12fd0, rng.
-static void replayTick(Mem &m, const MarbleDeathTick &t) {
-  m.wl(marble_physics::FRAMES, t.frames);
+static void mainTick(Mem &m, int8_t c6, int8_t c7, uint32_t camera, uint32_t frames) {
+  m.wl(marble_physics::FRAMES, frames);
   marble_objects::applyQueued(m);
   const uint16_t old = m.rw(marble_physics::CAMERA);
-  m.wl(marble_physics::CAMERA_L, t.camera);
-  if ((uint16_t)t.camera != old) { marble_objects::cameraBands(m, old, (int16_t)t.camera); }
-  marble_physics::tick(m, t.c6, t.c7);
+  m.wl(marble_physics::CAMERA_L, camera);
+  if ((uint16_t)camera != old) { marble_objects::cameraBands(m, old, (int16_t)camera); }
+  marble_physics::tick(m, c6, c7);
   marble_objects::update(m);
   marble_rng::rng(m, RNG_TICK);
+}
+
+static void replayTick(Mem &m, const MarbleDeathTick &t) {
+  mainTick(m, t.c6, t.c7, t.camera, t.frames);
 }
 
 // MAME player bytes after the last tick of each segment (pd1/bd2 traces; not in the
@@ -247,6 +254,98 @@ static void test_race_start_sweep(void) {
   }
 }
 
+// crc32 of player 1 (dots zeroed: 0x1c014 not ported) and the RNG word, as make_fixture.py
+// start_crc
+static uint32_t startCrc(const Mem &m) {
+  uint8_t b[PLAYER_BYTES + 2];
+  for (uint8_t o = 0; o < PLAYER_BYTES; o++) {
+    const bool dot = (o >= MARBLE_DOTS_LO && o < MARBLE_DOTS_HI) || o == MARBLE_DOTS_K;
+    b[o] = dot ? 0 : m.rb(PLAYER + o);
+  }
+  b[PLAYER_BYTES] = m.rb(RNG);
+  b[PLAYER_BYTES + 1] = m.rb(RNG + 1);
+
+  uint32_t crc = ~0u;
+  for (uint8_t v : b) {
+    crc ^= v;
+    for (uint8_t k = 0; k < 8; k++) { crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1))); }
+  }
+  return ~crc;
+}
+
+// make_fixture.py place_goal: marble on the middle cell of the first goal line (zone list
+// 0x1eb16), z on the terrain, rolling MARBLE_GOAL_V towards zone 0xff, zone of the other side
+static void placeGoal(Mem &m, uint8_t race) {
+  static const uint32_t ZONE_LISTS = 0x1eb16;
+  static const uint8_t GOAL_ZONE = 0xff, LINE = 6;
+  uint32_t a0 = m.roml(ZONE_LISTS + 4 * race);
+  while (m.romb(a0 + 3) != GOAL_ZONE && m.romb(a0 + 4) != GOAL_ZONE) { a0 += LINE; }
+  TEST_ASSERT_FALSE(m.romb(a0 + 3) == GOAL_ZONE && m.romb(a0 + 4) == GOAL_ZONE);
+
+  const int8_t x = (int8_t)m.romb(a0), y = (int8_t)m.romb(a0 + 1), end = (int8_t)m.romb(a0 + 2);
+  const bool horiz = x < 0;
+  const int16_t ax = x < 0 ? -x : x, ay = y < 0 ? -y : y;
+  const int16_t mid = ((horiz ? ax : ay) + end) / 2;
+  const int16_t cx = horiz ? mid : ax, cy = horiz ? ay : mid;
+  const bool up = m.romb(a0 + 4) == GOAL_ZONE;
+
+  m.wl(PLAYER + PX, (uint32_t)(cx * 8 + 4) << 16);
+  m.wl(PLAYER + PY, (uint32_t)(cy * 8 + 4) << 16);
+  m.ww(marble_physics::CELL_Y, 0xffff);
+  m.ww(marble_physics::CELL_X, 0xffff);
+  marble_physics::posupd_1bab2(m, PLAYER);
+  const uint32_t z = (uint32_t)marble_physics::height_1cc62(m);
+  m.wl(PLAYER + PZ, z);
+  m.wl(PLAYER + GROUND_Z, z);
+  m.wb(PLAYER + ZONE, m.romb(a0 + (up ? 3 : 4)));
+  m.wb(PLAYER + AIR, 0);
+  m.wl(PLAYER + (horiz ? VY : VX), (uint32_t)(up ? MARBLE_GOAL_V : -MARBLE_GOAL_V));
+}
+
+static void runFail(const MarbleStartRun &r, int16_t k, const char *what) {
+  char msg[100];
+  snprintf(msg, sizeof(msg), "race %d %s tick %d: %s", r.race, r.goal ? "goal" : "start", k,
+           what);
+  TEST_FAIL_MESSAGE(msg);
+}
+
+// Remake start (beginRace) and ticks equal the model (marble_start_trace.h): stick input from
+// the start, and the goal crossing. Goal 0x254d2: +0x57 reaches 0 after 0x1e ticks: out of
+// play (+0x18 = 3), v = 0; it wraps to 0xff and repeats 256 ticks later.
+static void test_start_and_goal(void) {
+  static const uint8_t OUT_OF_PLAY = 3;
+  static const uint16_t WRAP = 256;
+  for (uint8_t i = 0; i < MARBLE_START_RUNS; i++) {
+    const MarbleStartRun &r = marble_start_runs[i];
+    beginRace(r.race);
+    Mem m(ram, r.race);
+    if (startCrc(m) != r.crc0) { runFail(r, -1, "player after beginRace differs"); }
+    if (r.goal) { placeGoal(m, r.race); }
+
+    const uint16_t n = r.goal ? MARBLE_GOAL_TICKS : MARBLE_START_TICKS;
+    int16_t out = -1;  // tick of the first out of play write
+    uint8_t outs = 0;
+    for (uint16_t k = 0; k < n; k++) {
+      const int8_t c6 = r.goal ? 0 : marble_start_input[k][0];
+      const int8_t c7 = r.goal ? 0 : marble_start_input[k][1];
+      mainTick(m, c6, c7, r.camera, k + 1);
+      if (startCrc(m) != r.crc[k]) { runFail(r, k, "player or rng differs from the model"); }
+      if (!r.goal || marble_physics::state(m) != marble_physics::GOAL || m.rb(PLAYER + DAMAGE)) {
+        continue;
+      }
+
+      // goal countdown at 0: out of play, v = 0
+      if (m.rb(PLAYER + SLOT) != OUT_OF_PLAY || m.rl(PLAYER + VX) || m.rl(PLAYER + VY)) {
+        runFail(r, k, "goal end: slot 3, v = 0 expected");
+      }
+      if (out >= 0 && k - out != WRAP) { runFail(r, k, "goal end not 256 ticks later"); }
+      if (out < 0) { out = k; }
+      outs++;
+    }
+    if (r.goal && outs != 2) { runFail(r, n, "goal end not seen twice"); }
+  }
+}
+
 // RNG consumers of the race start (0x10fb8 byte, random slot groups): model start_race on a
 // cleared work RAM gives 0x4003a6 = 0x0102, 0x400444 = 2, 0x40076c = 1 in every race
 static void test_race_start_rng(void) {
@@ -300,6 +399,7 @@ int main(int, char **) {
 #ifdef HAVE_ROM
   RUN_TEST(test_replay_deaths);
   RUN_TEST(test_race_start_rng);
+  RUN_TEST(test_start_and_goal);
   RUN_TEST(test_race_start_sweep);
   RUN_TEST(test_race_switch_dead);
 #else

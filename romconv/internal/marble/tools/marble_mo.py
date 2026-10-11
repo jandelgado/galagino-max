@@ -1107,9 +1107,9 @@ SWEEP_MARGIN = 24               # remake cull margin
 
 
 def race_sweep(m, race, sp):
-    """Draw list sweep of one race on m after ms.start_race (objects, sprites and DrawList on): the
-    camera visits the race in SWEEP_STEP lines (top to bottom, silly bottom to top), then
-    back, then again, the marble idle. Per tick: slot update, camera and band
+    """Draw list sweep of one race on m after ms.start_race and ms.snapshot_start (objects,
+    sprites and DrawList on): the camera visits the race in SWEEP_STEP lines (top to bottom,
+    silly bottom to top), then back, then again, the marble idle. Per tick: slot update, camera and band
     spawns (ms.tick), box refresh and sort, publish at the remake margin. Returns (largest
     published object count, the published lists per tick)."""
     top, rng = ms.rom_w(m.t.desc + 0x10), ms.rom_w(m.t.desc + 0x12)

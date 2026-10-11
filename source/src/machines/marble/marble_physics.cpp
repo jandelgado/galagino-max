@@ -811,7 +811,7 @@ void distance_26214(Mem &m, uint32_t a2, uint32_t speed) {
 void speedcap_26196(Mem &m, uint32_t a2) {
   const uint32_t cap = m.rb(a2 + STATE) == ROLL ? 0x40000 : 0x50000;
   const uint32_t d3 = speedNorm(m.sl(a2 + VX), m.sl(a2 + VY));
-  distance_26214(m, a2, d3);
+  if (a2 == PLAYER || a2 == PLAYER + PLAYER_SIZE) { distance_26214(m, a2, d3); }  // players
   if (cap >= d3) { return; }
 
   const uint16_t q = divu(cap << 6, (d3 >> 8) & 0xffff);

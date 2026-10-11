@@ -270,15 +270,32 @@ included); race start 0x10fb8 rng(0x100) -> 0x400444 (time out event: below
 0x24a94[race], 0x1bbaa; level init also sets 0x40076c = 1); other consumers: section
 Enemies.
 
-Remake (`marble_physics.cpp`, `marble_rng.cpp`): handlers of states 0, 1, 2, 4 and goal 6
-(0x254d2, section Open questions), 0x25bae (2, 4), 0x25fc2, 0x2591a, 0x262b2/0x2637a with
-0x17cb8, 0x13ade, 0x26214, race start rng. Not ported: dots 0x1c014/0x25b40, zone hook
-0x13966, time out 0x1bbaa (state 8; needs the race timer), +0xd8 wobble, sounds. Host test
-`test_marble_deaths`: the death fixture per tick (player fields, +0x5a, frame headers,
-masks, RNG; score, distance, death count at segment ends, from the traces); race start
-RNG; every race kills the marble through the machine's start and tick path (200 px fall
-and 20 px embedded: lost, sparkle; 40 px drop: shatter, sparkle) and rolls again within
-300 ticks; a race switch while dead starts clean.
+Goal 6 (0x254d2, Marble Love refresh-frame-10fce.ts JT[6], `object_253ec`): physics, +0x57
+(0x1e from 0x1365c) - 1; at 0 and +0x18 != 2: +0x18 = 3 (out of play, no input), v = 0.
++0x57 wraps to 0xff, so this repeats every 256 ticks while state 6 lasts (the game flow
+ends the race first; not modelled). None of the recorded MAME traces reaches state 6.
+
+Race start: `start_259b4` / `start_race` end at a `main_tick` boundary (the first tick runs
+0x253bc/0x17f66); `tick()` users add `snapshot_start`. `begin_race` = the remake's
+beginRace (start_race, projection, masks).
+
+Remake (`marble_physics.cpp`, `marble_rng.cpp`): handlers of states 0, 1, 2, 4, 6, 0x25bae
+(2, 4), 0x25fc2, 0x2591a, 0x262b2/0x2637a with 0x17cb8, 0x13ade, 0x26214, race start rng.
+Not ported: dots 0x1c014/0x25b40, zone hook 0x13966, time out 0x1bbaa (state 8; needs the
+race timer), +0xd8 wobble, sounds. Host test `test_marble_deaths`: the death fixture per
+tick (player fields, +0x5a, frame headers, masks, RNG; score, distance, death count at
+segment ends, from the traces); race start RNG; start fixture `marble_start_trace.h`
+(`make_fixture.py rwrite`, model only): per race beginRace + 60 ticks of stick input, and a
+goal crossing (marble on the first goal line, 300 idle ticks: goal, out of play, one +0x57
+wrap), crc32 of player 1 (dots +0x74-+0xbb, +0xca zeroed) and 0x4003a6 per tick; every race
+kills the marble through the machine's start and tick path (200 px fall and 20 px embedded:
+lost, sparkle; 40 px drop: shatter, sparkle) and rolls again within 300 ticks; a race switch
+while dead starts clean.
+
+```sh
+python3 romconv/internal/marble/tools/make_fixture.py rwrite \
+  source/test/test_marble_deaths/marble_start_trace.h
+```
 
 Validation: `deaths` runs free between teleports of tick start traces (`MARBLE_TICK=start`);
 per tick the player object (but the IRQ bytes +0x6a-+0x6f, +0xc6-+0xc9), 0x4003a6, slots,
@@ -550,7 +567,7 @@ where the TS reads +0x18).
 
 Validation: `marble_sim.py occl TRACE RACE` (projection + masks of every tick from a MAME
 snapshot): 10249 ticks of 14 traces, all races, 1903 with masks, 394 with the marble
-hidden, 0 differ (one aerial tick where the respawn sparkle 0x13d38 wrote +0x38 is
+hidden, 0 differ (one aerial tick where the respawn sparkle 0x13ade wrote +0x38 is
 skipped). `tools/marble_occlusion.py` renders MAME frames (mame_trace.lua `MARBLE_SHOTS`)
 from playfield + MO RAM with the MAME merge and with the remake rule (marble MOs + masks
 from the logic entries): intermediate start, 46 live frames: both equal the MAME PNG
@@ -1161,7 +1178,7 @@ python3 romconv/internal/marble/tools/marble_enemy.py spawn TRACE RACE
   sets 0x400768 = 0x3c). Not ported to C++: zone hook 0x13966 (silly/aerial respawn: sound
   latches, 0x400768, zone wait slot restart via the slot script 0x12896), dots 0x1c014 /
   0x25b40.
-- Goal (state 6, 0x254d2): physics, +0x57 (0x1e from 0x1365c) counts down, then +0x18 = 3
-  (out of play, input off) and v = 0; a landing in state 6 also sets +0x18 = 3. The camera
+- Goal (state 6, section Player states, deaths, RNG): the race end flow after it, and the
+  +0x57 wrap (out of play again every 256 ticks) is unchecked against MAME. The camera
   ignores the marble (sy only from states 0/1/3/4/5).
 - Object/enemy scripts, Phase 4. Sound command protocol, Phase 5.
