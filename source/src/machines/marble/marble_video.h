@@ -50,7 +50,8 @@ static_assert(sizeof(VideoState) <= 92, "VideoState limit");
 
 void clamp(VideoState &v, const marble_level::Level &l);
 
-// 8 display lines of strip `row` (0..35), OUT_W pixels each, into dst: playfield, objects before marbleAt, marble and masks, the other objects
+// 8 display lines of strip `row` (0..35), OUT_W pixels each, into dst: playfield, objects
+// before marbleAt, marble and masks, the other objects
 void renderRow(const marble_level::Level &l, const VideoState &v, int row, uint16_t *dst);
 
 }  // namespace marble_video
