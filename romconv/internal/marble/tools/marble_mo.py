@@ -21,6 +21,10 @@ usage:
   marble_mo.py render SHOTS SNAPDIR TRACE RACE OUTDIR [N ...]
                                      MAME PNG vs MO RAM render vs remake rule, pixel
                                      differences in a box around each level object
+  marble_mo.py camcheck SHOTS SNAPDIR TRACE RACE [N ...]
+                                     remake pipeline (published objects, marble, view scroll)
+                                     vs MAME PNG on frames where the camera moves, per camera
+                                     convention for the published y and the view scroll
   marble_mo.py data                  per race: drawn tags, frames, MO tiles, palette sets
   marble_mo.py spritefixture HEADER  replay the sprite host test fixture (make_fixture.py
                                      sprites): draw list, sort, published objects, no trace
@@ -603,6 +607,168 @@ def cmd_render(argv):
     return tot["mo"] == 0 and tot["B"] == 0
 
 
+# ------------------------------------------------------------------ camera convention check
+
+def slot_camera(m, a):
+    """Camera word a level object slot's screen position +0x50 was computed with (0x13334):
+    sy = camera + z + 0x54 - ((x + y) >> 1) on the slot's own position words."""
+    sy = m.rw(a + 0x50)
+    xy = (s16(m.rw(a + 0xc)) + s16(m.rw(a + 0x10))) >> 1
+    return (sy - m.rw(a + 0x14) - 0x54 + xy) & 0xffff
+
+
+def marble_camera(m):
+    """Same for the player projection 0x1b9cc (+0x20, position copy 0x400690/2); None on the
+    bumpy surfaces (2 px jitter term)."""
+    if m.rb(P_ + 0x58) in (0x2f, 0x30, 0x31): return None
+    xy = (s16(m.rw(0x400690)) + s16(m.rw(0x400692))) >> 1
+    return (m.rw(P_ + 0x20) - m.rw(P_ + 0x14) - 0x54 + xy) & 0xffff
+
+
+P_ = ms.P
+
+
+def published_mos(sp, objs, top):
+    """Published objects -> MAME MO words (w0, code, w2) with the view top line subtracted: the
+    remake's screen position of every column."""
+    out = []
+    for fid, st, ex, ey in objs:
+        for x, y, hh, tile in sp.objs_cols(fid):
+            h = hh & 0x7f
+            line = (ey + y - top) & 0x1ff
+            code = sp.tile_codes[tile] | (0 if st == SET_SHADE else st << 11)
+            out.append(((-(line + 8 * h + 256) & 0x1ff) << 5 | (hh >> 7) << 15 | (h - 1),
+                        code, ((ex + x + 24) & 0x1ff) << 5 | (0x8000 if st == SET_SHADE else 0)))
+    return out
+
+
+def shift_mos(mos, d):
+    """MO words with the screen line moved d lines down."""
+    return [((w0 & ~0x3fe0) | ((((w0 >> 5) & 0x1ff) - d) & 0x1ff) << 5, c, w2) for w0, c, w2 in mos]
+
+
+def cmd_camcheck(argv):
+    """Remake pipeline (published objects and marble in race pixels, playfield at the view
+    scroll) vs the MAME PNG on frames where the camera moves. The C++ takes the race y of the
+    objects and the marble ('pub') and the view scroll ('view') from one camera word, the one
+    the slot update and the projection used. Rows: (pub, view) camera pairs; 'update' the
+    camera the slot update used (derived from the stored screen position), 'word' the camera
+    word of the matched state, 'mame' the playfield scroll MAME shows (reference render)."""
+    import marble_data as md
+    import marble_occlusion as mocc
+    from PIL import Image
+    shots, snapdir, trace, race = argv[2], argv[3], ms.load_trace(argv[4]), int(argv[5])
+    rom = md.load()
+    recs = ms.load_trace(shots)
+    palf = os.path.join(os.path.dirname(shots), "shots_pal.bin")
+    pals = open(palf, "rb").read() if os.path.exists(palf) else None
+    terrain, sp = ms.Terrain(race), Sprites(race)
+    pick = [int(a) for a in argv[6:]]
+    if not pick:                                    # shots where the camera moves around the frame
+        for n, (fr, ram, vram) in enumerate(recs):
+            cams = {ms.tw(r, 0x40097e) for f, r, _ in trace if fr - 4 <= f <= fr + 4}
+            if len(cams) > 1 and ram[0x3bc] != 0xff: pick.append(n)
+
+    # pass 1: MAME frame, playfield scroll calibration, matched state
+    shotsd, yoff_seen = [], None
+    for n in pick:
+        fr, ram, vram = recs[n]
+        f = mocc.Frame(rom, race, ram, vram)
+        if pals:
+            pram = pals[n * 0x800:(n + 1) * 0x800]
+            f.pal = [md._irgb(struct.unpack(">H", pram[2 * i:2 * i + 2])[0]) for i in range(1024)]
+        snap = Image.open(os.path.join(snapdir, "%04d.png" % n)).convert("RGB")
+        best = None
+        for yoff in ([yoff_seen] if yoff_seen is not None else []) + list(range(-16, 17)):
+            d = mocc.diff(f.merge(f.playfield(yoff), [[None] * mocc.W for _ in range(mocc.H)]), snap)
+            if best is None or d < best[0]: best = (d, yoff)
+            if yoff == yoff_seen and d < 8000: break
+        yoff_seen = best[1]
+        renders = {}
+        for b in (0, 1):
+            layer = [[None] * mocc.W for _ in range(mocc.H)]
+            f.draw_mos(f.mo_list(b), layer)
+            renders[b] = f.merge(f.playfield(best[1]), layer)
+        b = min((0, 1), key=lambda k: mocc.diff(renders[k], snap))
+        lst, src = entity_words(trace, fr, ram, vram, f.mo_list(b))
+        if lst is not None: shotsd.append((n, fr, ram, f, snap, best[1], lst, src, renders[b]))
+    yoffs = {}
+    for e in shotsd: yoffs[e[5]] = yoffs.get(e[5], 0) + 1
+
+    convs = (("pub update, view update", "u", "u"), ("pub update, view word", "u", "w"),
+             ("pub word, view word", "w", "w"), ("pub update, view MAME", "u", "m"))
+    tot = {c[0]: {"bad": 0, "px": 0} for c in convs}
+    tot["MAME MO RAM render"] = {"bad": 0, "px": 0}
+    cam_rel, mar_rel, ysd = {}, {}, {}
+    for n, fr, ram, f, snap, yoff, lst, src, mo_img in shotsd:
+        m = ms.Mem(terrain, src)
+        dt = m.sw(m.t.desc + 0x10)
+        ys = struct.unpack(">H", ram[0:2])[0]
+        cam_shot = struct.unpack(">H", ram[0x97e:0x980])[0]
+        ysd[(ys - (cam_shot - dt) + 0x200) % 0x200] = ysd.get((ys - (cam_shot - dt) + 0x200) % 0x200, 0) + 1
+        cam_word = m.rw(0x40097e)
+        cams = {slot_camera(m, rom_l(0x1f016 + 4 * idx)) for _, typ, idx, mos in lst
+                if typ in SLOT_TYPES and mos for idx in (idx,)}
+        cam_mar = None
+        if len(cams) > 1:
+            print("shot %d: slots used different cameras %s" % (n, sorted(cams)))
+            continue
+        cam_upd = cams.pop() if cams else cam_mar if cam_mar is not None else cam_word
+        cam_rel[s16(cam_upd - cam_word)] = cam_rel.get(s16(cam_upd - cam_word), 0) + 1
+        top_mame = s16(cam_shot) - dt + yoff        # race row of the playfield line MAME shows
+        pl_entity = next((mos for _, typ, _, mos in lst if typ == 1), [])
+        sy_m = m.sw(P_ + 0x20)
+        boxes = [(x0 - 8, max(24, y0 - 8), min(288, x1 + 8), y1 + 8) for x0, y0, x1, y1 in
+                 (mo_box(mos) for _, typ, _, mos in lst if (typ in SLOT_TYPES or typ == 1) and mos)]
+        if pl_entity:
+            w0 = pl_entity[0][0]
+            l05 = (-((w0 >> 5) & 0x1ff) - 256 - 8 * ((w0 & 15) + 1)) & 0x1ff
+            mar_rel[l05 - (224 - sy_m)] = mar_rel.get(l05 - (224 - sy_m), 0) + 1
+        d = sum(mocc.diff(mo_img, snap, bx) for bx in boxes)
+        tot["MAME MO RAM render"]["bad"] += d > 0
+        tot["MAME MO RAM render"]["px"] += d
+        for name, kp, kv in convs:
+            cam_pub = cam_upd if kp == "u" else cam_word
+            top_pub = s16(cam_pub) - dt
+            top_view = {"u": s16(cam_upd) - dt, "w": s16(cam_word) - dt, "m": top_mame}[kv]
+            layer = [[None] * mocc.W for _ in range(mocc.H)]
+            for _, typ, idx, emos in lst:                   # link order, as published
+                if typ in SLOT_TYPES:
+                    objs, _ = slot_objs(m, sp, typ, idx, top_pub, 0)
+                    f.draw_mos(published_mos(sp, objs, top_view), layer, "slot")
+                elif typ != 1 or not emos:
+                    f.draw_mos(emos, layer, "other")        # enemies: not ported, as MAME
+                else:
+                    l05 = (-((emos[0][0] >> 5) & 0x1ff) - 256 - 8 * ((emos[0][0] & 15) + 1)) & 0x1ff
+                    pl = shift_mos(emos, (top_pub + 224 - sy_m - top_view) - l05)
+                    f.draw_mos([w for w in pl if not w[2] & 0x8000], layer, "marble")
+                    probe = [[None] * mocc.W for _ in range(mocc.H)]
+                    f.draw_mos([w for w in pl if w[2] & 0x8000], probe)
+                    for y in range(mocc.H):
+                        for x in range(mocc.W):
+                            if probe[y][x] is not None and layer[y][x] is not None and \
+                                    layer[y][x][3] == "marble":
+                                layer[y][x] = None
+            # playfield line of screen line 0 = race row of the view top (scroll = camera - top)
+            img = f.merge(f.playfield(top_view - ys), layer)
+            d = sum(mocc.diff(img, snap, bx) for bx in boxes)
+            if d and name == convs[0][0] and os.environ.get("CAMCHECK_V"):
+                print("  shot %d frame %d: %d px, boxes %s, entities %s" % (
+                    n, fr, d, [mocc.diff(img, snap, bx) for bx in boxes],
+                    [(typ, idx) for _, typ, idx, mos in lst if (typ in SLOT_TYPES or typ == 1) and mos]))
+            tot[name]["bad"] += d > 0
+            tot[name]["px"] += d
+    print("camcheck race %d: %d shots with a moving camera, %d matched a state" % (race, len(pick), len(shotsd)))
+    print("  MAME playfield line - work RAM scroll at the shot: %s" % sorted(yoffs.items()))
+    print("  work RAM scroll - (camera word - descriptor top), mod 512: %s" % sorted(ysd.items()))
+    print("  slot update camera - camera word of the matched state: %s" % sorted(cam_rel.items()))
+    print("  marble MO 0x05 screen line - (224 - sy): %s" % sorted(mar_rel.items()))
+    for name in [c[0] for c in convs] + ["MAME MO RAM render"]:
+        print("  %-26s %d of %d shots differ from MAME, %d px in the object and marble boxes"
+              % (name, tot[name]["bad"], len(shotsd), tot[name]["px"]))
+    return all(v["bad"] == 0 for k, v in tot.items() if k.endswith("update"))
+
+
 TAG3_GLOBALS = (0x211fe, 0x2121e, 0x2126e, 0x212b2)   # 0x40044a/e/52 lists (set 7)
 WAVE_STRIP = (0x20f64, 0x20f92, 23)                    # tag 6 list 0x2227a: words, s8 dy
 
@@ -948,6 +1114,8 @@ def main(argv):
         return 0 if cmd_spritefixture(argv[2]) else 1
     if len(argv) == 2 and argv[1] == "data":
         return 0 if cmd_data() else 1
+    if len(argv) >= 6 and argv[1] == "camcheck":
+        return 0 if cmd_camcheck(argv) else 1
     if len(argv) >= 7 and argv[1] == "render":
         return 0 if cmd_render(argv) else 1
     if len(argv) >= 4 and argv[1] in ("check", "sort"):
