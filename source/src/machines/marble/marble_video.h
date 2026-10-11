@@ -25,6 +25,14 @@ struct Mask {
 };
 static const uint8_t MASKS = 5;
 
+// Level object sprite (MARBLE.md "Level object sprites"): frame id and palette set (3, 5, 6, 7;
+// 8 = wave strip shade) of the race's sprite set, slot origin in playfield pixels.
+struct Obj {
+  uint8_t frame, set;
+  int16_t x, y;
+};
+static const uint8_t OBJS = 8;
+
 // render input, published by the emulation core once per frame (Seqlock)
 struct VideoState {
   int16_t sx, sy;  // viewport origin in playfield pixels
@@ -32,8 +40,13 @@ struct VideoState {
   uint8_t marble;  // enum Marble; HIDDEN also when every column is covered (+0x1c = 0)
   int16_t mx, my;  // marble sprite top left (MO 0x05) in playfield pixels
   Mask masks[MASKS];
-  uint8_t patch;  // last playfield patch, index into marble_patches (NO_PATCH = none)
+  Obj objs[OBJS];  // level object sprites, back to front
+  uint8_t patch;   // last playfield patch, index into marble_patches (NO_PATCH = none)
+  uint8_t n;       // objects
+  uint8_t marbleAt;  // objects drawn before the marble, the rest on top
+  uint8_t lift;    // tag 3 palette variant 0-3, 0xff none
 };
+static_assert(sizeof(VideoState) <= 92, "VideoState limit");
 
 void clamp(VideoState &v, const marble_level::Level &l);
 

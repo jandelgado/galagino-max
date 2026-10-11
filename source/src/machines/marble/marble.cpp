@@ -3,6 +3,7 @@
 #ifdef ENABLE_MARBLE
 
 #include "marble_camera.h"
+#include "marble_drawlist.h"
 #include "marble_objects.h"
 #include "marble_occlusion.h"
 #include "marble_physics.h"
@@ -19,6 +20,8 @@ using marble_physics::PLAYER;
 static const uint8_t DEATH_TICKS = 30;    // 60 frames after state 2/4 (placeholder)
 static const int16_t BODY_X = 8;          // MO 0x05 left of the marble centre sx
 static const int16_t BODY_Y = 224;        // MO 0x05 top = screen line 224 - sy
+// Remake view is 24 lines taller above and below the arcade screen: object culls move out
+static const int16_t MARBLE_CULL_MARGIN = 24;
 
 // stick -> trackball deltas c6/c7; diagonals scaled by 1/sqrt(2) to keep the length
 static void stick(uint32_t keys, int8_t &c6, int8_t &c7) {
@@ -58,9 +61,11 @@ void marble::beginRace(uint8_t n) {
   view.patch = marble_level::NO_PATCH;
   Mem m(memory, race);
   marble_physics::startRace(m, race);
+  marble_drawlist::init(m);
   marble_camera::start(m, race);
   marble_physics::project(m);
   marble_occlusion::enter(m, marble_physics::PLAYER);  // first tick comes 2 frames later
+  buildObjs(m);
   view.sx = PAN / 2;
   publish();
 }
@@ -93,6 +98,14 @@ void marble::logicTick(uint32_t keys) {
     if (respawn) { marble_occlusion::enter(m, PLAYER); }  // masks and +0x1c of the new position
   }
   marble_objects::update(m);
+  marble_drawlist::sort(m);  // 0x26f3e head
+  buildObjs(m);
+}
+
+// level object sprites of the tick, with the camera the slot update saw
+void marble::buildObjs(Mem &m) {
+  view.n = marble_drawlist::build(m, m.sw(marble_physics::CAMERA), MARBLE_CULL_MARGIN, view.objs,
+                                  OBJS, view.marbleAt, view.lift);
 }
 
 // view and marble sprite from the work RAM image

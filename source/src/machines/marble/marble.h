@@ -9,6 +9,7 @@
 #include "marble_level.h"
 #include "marble_video.h"
 #include "../../emulation/seqlock.h"
+#include "marble_mem.h"
 
 // Marble Madness (Atari 1984). Not emulated: graphics, levels and music come from the
 // ROM, the game is reimplemented (MARBLE.md). Phase 2: the marble rolls (stick as
@@ -34,6 +35,7 @@ private:
   void beginRace(uint8_t race);
   void logicTick(uint32_t keys);
   void publish(void);
+  void buildObjs(marble_physics::Mem &m);
 
   Seqlock<marble_video::VideoState> vblank;
   marble_video::VideoState view = {};   // emulation core

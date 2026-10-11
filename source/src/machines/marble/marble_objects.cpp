@@ -2,6 +2,7 @@
 
 #ifdef ENABLE_MARBLE
 
+#include "marble_drawlist.h"
 #include "marble_physics.h"
 
 // 1:1 port of the level object part of tools/marble_sim.py (function names and order as
@@ -133,6 +134,7 @@ void slot_start_12f44(Mem &m, uint32_t a, uint8_t mode, uint32_t script = 0) {
   m.wb(a + ACTIVE, 0);
   m.wb(a + STATE, 0);
   if (m.rb(a + TAG) == TAG_WAVE) { m.wb(WAVES, m.rb(WAVES) - 1); }
+  if (m.rb(a + MODE) != MODE_PATCH) { marble_drawlist::remove(m, a); }  // 0x18f46
 }
 
 // 0x12d6e: first free slot, 0 = none
@@ -290,7 +292,7 @@ void script_12896(Mem &m, uint32_t a) {
           anim_render_13334(m, a);
         } else {
           m.wl(a + ANIM, ANIM_NONE);
-          // 0x18e6c inserts the slot into the MO draw list (not ported)
+          marble_drawlist::insert(m, a, m.rb(a + TAG));  // 0x18e6c
           if (m.rb(a + TAG) == TAG_WAVE) {
             m.ww(a + BAND_LO, 0);
             m.ww(a + BAND_HI, 0x500);
