@@ -896,7 +896,7 @@ python3 romconv/internal/marble/tools/marble_sim.py objfixture \
 
 ### Phase 4a data (level object sprites)
 
-Same converter run; flash 9215 B (converter prints it: prog blocks 762, tiles 5131, frames 328,
+Same converter run; flash 9327 B (converter prints it: prog blocks 874, tiles 5131, frames 328,
 columns 2370, header ids 118, palettes 452, set table 54). `emit_sprites`; model and ids in
 `tools/marble_mo.py` (`Sprites`, `DrawList`, `publish`).
 
@@ -906,7 +906,8 @@ columns 2370, header ids 118, palettes 452, set table 54). `emit_sprites`; model
   data too because the walker reaches the wave script there). Tiles
   `marble_sprite_tiles[set]` (`FlashAsset<unsigned char[32], COMPRESSED>`, 4 bpp, left pixel in
   the high nibble, pens 0-7, sorted MO code order): raw / LZMA 672 / 271 B, 5376 / 1203 B,
-  16992 / 3609 B; `MARBLE_SPRITE_MAX_TILES` = 531 (16992 B Arena buffer, largest set).
+  16992 / 3609 B; `MARBLE_SPRITE_MAX_TILES` = 750 (24000 B Arena buffer: death set 219 +
+  largest set 531, Phase 4b-0).
   Identical tiles are not merged: columns read consecutive tiles, merging would need an index
   per tile, and LZMA folds the duplicates (merged 412 tiles / 3750 B vs 3609 B unmerged for
   intermediate, 146 vs 168 tiles and 1370 vs 1203 B for beginner; hflip merging saves 1 more
@@ -917,7 +918,8 @@ columns 2370, header ids 118, palettes 452, set table 54). `emit_sprites`; model
   rl(rl(+0x42)) of a slot). `MarbleSpriteFrame {ncols, first}`, `MarbleSpriteCol {x, y, h | hflip
   << 7, tile}`: x = xb + dx + 8 k (-8 k flipped), y = -(MO y offset + 8 h) with MO y offset
   yb + dy (strip: 0x20f92 s8 - 0x40 + 4 k, x = 8 + 8 k, one tile code per entry, height from the
-  word), `tile` = index of the first of h consecutive tiles. Identical column lists share
+  word), `tile` = buffer index of the first of h consecutive tiles (race tiles start at
+  `MARBLE_DEATH_TILES`; `ntiles` = buffer tiles the set reaches). Identical column lists share
   columns (327 columns for 331).
 - Palettes: `marble_sprite_pal[race][4][8]` sets 3, 5, 6, 7 pens 0-7 (RGB565 byte swapped),
   `marble_sprite_shade[race][3]` entries 0x343, 0x3f2, 0x3f3 (all other 0x3xx black, checked),
@@ -944,8 +946,10 @@ columns 2370, header ids 118, palettes 452, set table 54). `emit_sprites`; model
   for list 0x21192] of the drawn lift frame, 0xff otherwise. Expanded to MO columns the objects
   equal `mo_list_26f3e` in every fixture tick (checked when writing).
 - Remake renderer (`marble_video.cpp`): `Store::load` decodes the race's sprite set into one
-  Arena buffer of 531 tiles (16992 B, allocated once in `init`, behind the playfield tiles in
-  the same block; skipped when the new race uses the same set). Per strip: playfield 8
+  Arena buffer of 750 tiles (24000 B, allocated once in `init`) behind the death set (Phase
+  4b-0, decoded on the first load); skipped when the new race uses the same set. The buffer
+  no longer fits behind map and playfield tiles (67784 B) in Arena block A: it takes block B
+  (91784 B of 182000 in all). Per strip: playfield 8
   lines, objects `0 .. marbleAt - 1`, the marble (hide masks, rule A), objects `marbleAt .. n -
   1`. Per object a frame column is culled once per strip (rows, view columns, tile index
   against the set), then drawn line by line: pen 0 transparent, hflip per column, clip at the
@@ -991,6 +995,37 @@ python3 romconv/internal/marble/tools/marble_mo.py spritefixture \
 ```
 
 ### Phase 4b-0 data (deaths)
+
+Same converter run; flash 3772 B (converter prints it: prog blocks 900, tiles 1864, frames
+176, columns 696, header ids 88, palette 32, set 16). `emit_death`; model in
+`tools/marble_mo.py` (`DeathSprites`).
+
+- Death set (`marble_death_set`, `MarbleSpriteSet` as the race sets, ids = ascending header
+  order, `nframes = nhdr`, no strip), the same in every race: the frames of the player
+  animation lists rl(+0x5a) 0x20faa, 0x20fb6, 0x20fd2 (dizzy, eaten), 0x20fde (shatter),
+  0x21062 (dissolve) and the shatter overlay rl(+0x62) list 0x215f6 entries 0-43 (+0x62
+  steps once per tick from shatter frame 10 to the list end: (32 - 9 - 1) x 2 ticks; entries
+  44+ are never drawn). 44 frame headers, 116 columns. `deathFrame(hdr)` (marble_mem): id
+  by binary search, aborts on a miss like `spriteFrame`.
+- Tiles `marble_death_tiles_blob` (LZMA, format of the race sets): 219 tiles (every code of
+  the 44 frames plus the sparkle stars), 7008 / 1848 B. `MARBLE_DEATH_TILES` = 219. The
+  sprite tile buffer holds them first (decoded once, first `Store::load`), the race set
+  after them: race set columns store `tile + MARBLE_DEATH_TILES`, death columns index the
+  buffer directly.
+- Sparkle stars (state 4, 0x13ade): single MOs of code 0x10b + k (k < 8, height 1, set 0),
+  not frames. Sorted codes make them 8 consecutive tiles: buffer tile `MARBLE_STAR_TILE`
+  (187) + k, `MARBLE_STAR_CODE`, `MARBLE_STARS`. Three constants, smaller than a code table
+  (`marble_mo_code_first`) or 8 one-column frames.
+- Palette `marble_death_pal[2][8]`: set 0 (player 1 frames, +0x19 = 0, and stars), set 2
+  (overlay, code | 0x1000), pens 0-7 RGB565 byte swapped; equal in every race (checked). The
+  converter checks that code | set << 11 looks up the same tile for both sets.
+- Program ROM blocks: collection also replays the death fixture (main tick with deaths,
+  objects, sprites; the check values read the full ROM since the player MO model reads frame
+  bytes the remake replaces by the death set) and requires every drawn frame header, read
+  through the blocks, to be in the death set. Whole tables added: the 5 animation lists with
+  their end, overlay entries 0-43, sine 0x1eda2 (0x66 words), 1/sqrt 0x1ee6e (0x35 words),
+  dot codes 0x24ade (39 words) and y bias 0x24b2c (13), sparkle offsets 0x1ef32, dot rest
+  pose 0x1d3f4 (16), time out limits 0x24a94 and zone lists 0x24aae.
 
 Death fixture `source/test/test_marble_deaths/marble_deaths_trace.h` (committed, derived
 numbers only), `make_fixture.py dwrite`: segments of the tick start traces pd1/bd2 (section

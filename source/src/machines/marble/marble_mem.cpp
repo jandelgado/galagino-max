@@ -57,18 +57,26 @@ const MarbleSpriteSet &spriteSet(uint8_t level) {
   return marble_sprites[marble_sprite_race[level]];
 }
 
-uint8_t Mem::spriteFrame(uint32_t hdr) const {
+// frame id of the frame header at hdr in s (addr ascending), aborts with `what` if none
+static uint8_t frameOf(const MarbleSpriteSet &s, uint32_t hdr, const char *what) {
   static const uint32_t FRAMES_BASE = 0x20000;  // frame headers: 0x20000 + addr * 2
-  const MarbleSpriteSet &s = spriteSet(rw(RACE));
   const uint32_t key = (hdr - FRAMES_BASE) >> 1;
   uint8_t lo = 0, hi = s.nhdr;
   while (lo < hi) {
     const uint8_t mid = (lo + hi) / 2;
     if (s.addr[mid] < key) { lo = mid + 1; } else { hi = mid; }
   }
-  if (hdr < FRAMES_BASE || lo == s.nhdr || s.addr[lo] != key) { fail("sprite frame", hdr); }
+  if (hdr < FRAMES_BASE || lo == s.nhdr || s.addr[lo] != key) { fail(what, hdr); }
   return lo;
 }
+
+uint8_t Mem::spriteFrame(uint32_t hdr) const {
+  return frameOf(spriteSet(rw(RACE)), hdr, "sprite frame");
+}
+
+const MarbleSpriteSet &deathSet() { return marble_death_set; }
+
+uint8_t deathFrame(uint32_t hdr) { return frameOf(marble_death_set, hdr, "death frame"); }
 
 int16_t Mem::stripFrame(int16_t i) const {
   static const uint8_t STRIP_N = 23;

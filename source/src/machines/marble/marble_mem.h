@@ -83,6 +83,12 @@ private:
 // sprite set of level n (races share sets), for the renderer
 const MarbleSpriteSet &spriteSet(uint8_t level);
 
+// Player death frames of every race (dizzy, eaten, shatter and its overlay, dissolve), for
+// the renderer. deathFrame: frame id of the frame header at 68010 address hdr (rl(rl(+0x5a))
+// or rl(rl(+0x62))), aborts if there is none.
+const MarbleSpriteSet &deathSet();
+uint8_t deathFrame(uint32_t hdr);
+
 }  // namespace marble_physics
 
 #endif

@@ -21,6 +21,7 @@
 #endif
 #include "marble_sprites_trace.h"
 #include "../test_marble_level/marble_fixture.h"  // MARBLE_FIX_SWEEP_MAX
+#include "../test_marble_deaths/marble_deaths_trace.h"
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -41,9 +42,9 @@ static void test_tiles_decode(void) {
     const MarbleSpriteSet &s = marble_sprites[k];
     TEST_ASSERT_TRUE(s.ntiles <= MARBLE_SPRITE_MAX_TILES);
     Asset<unsigned char[32], COMPRESSED> tiles(marble_sprite_tiles[k]);
-    TEST_ASSERT_EQUAL_UINT32(s.ntiles, tiles.size());
+    TEST_ASSERT_EQUAL_UINT32(s.ntiles - MARBLE_DEATH_TILES, tiles.size());  // after the death set
     tiles.decodeInto((unsigned char(*)[32])buf);
-    for (uint32_t i = 0; i < 32u * s.ntiles; i++) {
+    for (uint32_t i = 0; i < 32u * tiles.size(); i++) {
       TEST_ASSERT_TRUE((buf[i] >> 4) < PENS && (buf[i] & 15) < PENS);
     }
   }
@@ -58,10 +59,53 @@ static void test_frames_in_range(void) {
       for (uint8_t c = 0; c < fr.ncols; c++) {
         const MarbleSpriteCol &col = s.cols[fr.first + c];
         TEST_ASSERT_TRUE((col.h & 0x7f) >= 1);
+        TEST_ASSERT_TRUE(col.tile >= MARBLE_DEATH_TILES);
         TEST_ASSERT_TRUE(col.tile + (col.h & 0x7f) <= s.ntiles);
       }
     }
   }
+}
+
+// Death set: tiles decode (pens 0-7), stars and columns inside it, header ids ascending, and
+// every frame header the death fixture draws (rl(+0x5a), overlay rl(+0x62)) has an id.
+static void test_death_set(void) {
+  static const uint32_t FRAMES_BASE = 0x20000;
+  static uint8_t buf[32 * MARBLE_DEATH_TILES];
+  const MarbleSpriteSet &s = marble_physics::deathSet();
+  TEST_ASSERT_EQUAL_UINT16(MARBLE_DEATH_TILES, s.ntiles);
+  TEST_ASSERT_EQUAL_UINT8(s.nhdr, s.nframes);
+  TEST_ASSERT_TRUE(MARBLE_STAR_TILE + MARBLE_STARS <= MARBLE_DEATH_TILES);
+  Asset<unsigned char[32], COMPRESSED> tiles(marble_death_tiles_blob);
+  TEST_ASSERT_EQUAL_UINT32(MARBLE_DEATH_TILES, tiles.size());
+  tiles.decodeInto((unsigned char(*)[32])buf);
+  for (uint32_t i = 0; i < sizeof(buf); i++) {
+    TEST_ASSERT_TRUE((buf[i] >> 4) < PENS && (buf[i] & 15) < PENS);
+  }
+
+  for (uint8_t i = 1; i < s.nhdr; i++) { TEST_ASSERT_TRUE(s.addr[i - 1] < s.addr[i]); }
+  for (uint8_t f = 0; f < s.nframes; f++) {
+    const MarbleSpriteFrame &fr = s.frames[f];
+    TEST_ASSERT_TRUE(fr.ncols > 0);
+    for (uint8_t c = 0; c < fr.ncols; c++) {
+      const MarbleSpriteCol &col = s.cols[fr.first + c];
+      TEST_ASSERT_TRUE((col.h & 0x7f) >= 1);
+      TEST_ASSERT_TRUE(col.tile + (col.h & 0x7f) <= s.ntiles);
+    }
+  }
+
+  uint16_t drawn = 0;
+  for (uint8_t k = 0; k < MARBLE_DEATHS_SEGMENTS; k++) {
+    const MarbleDeathSegment &seg = marble_deaths_segments[k];
+    for (uint16_t t = 0; t < seg.nticks; t++) {
+      const uint32_t hdrs[2] = {seg.ticks[t].frame_hdr, seg.ticks[t].shard_hdr};
+      for (uint32_t h : hdrs) {
+        if (!h) { continue; }
+        TEST_ASSERT_EQUAL_UINT16((h - FRAMES_BASE) >> 1, s.addr[marble_physics::deathFrame(h)]);
+        drawn++;
+      }
+    }
+  }
+  TEST_ASSERT_TRUE(drawn > 0);
 }
 
 static void test_published_objects(void) {
@@ -217,6 +261,7 @@ int main(int, char **) {
 #ifdef HAVE_ROM
   RUN_TEST(test_tiles_decode);
   RUN_TEST(test_frames_in_range);
+  RUN_TEST(test_death_set);
   RUN_TEST(test_published_objects);
   RUN_TEST(test_draw_list);
   RUN_TEST(test_margin_fits_objs);

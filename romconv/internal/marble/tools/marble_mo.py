@@ -959,7 +959,11 @@ class Sprites:
         self.cols = [frame_cols(h) for h in self.hdrs]
         if any(k[0] == 6 and k[1] == 0x2227a for k in fr):
             self.cols += [strip_cols(i) for i in range(STRIP_N)]
-        codes = set()
+        self.tile_set()
+
+    def tile_set(self, extra=()):
+        """Tile codes of every column (and the codes extra), sorted; tile_of: code -> index."""
+        codes = set(extra)
         for cs in self.cols:
             for x, y, h, flip, code in cs:
                 if code > 0x7ff or (code & 0x7ff) + h > 0x800:
@@ -977,6 +981,36 @@ class Sprites:
         assert all(c[2] <= 127 for c in self.cols[frame])  # h shares the byte with hflip
         return [(c[0], self.col_y(c), c[2] | c[3] << 7, self.tile_of[c[4]])
                 for c in self.cols[frame]]
+
+
+DEATH_LISTS = (ms.ANIM_DIZZY, ms.ANIM_DIZZY_LOOP, ms.ANIM_DIZZY_END, ms.ANIM_SHATTER,
+               ms.ANIM_DISSOLVE)   # player +0x5a lists: dizzy and eaten, shatter, dissolve
+SHATTER_TICKS = 2                  # ticks per shatter frame (0x25bae: +0x60 = 2)
+STAR_CODE, STARS = 0x10b, 8        # respawn sparkle MOs: code STAR_CODE + k, height 1 (0x13ade)
+
+
+def anim_list(a):
+    """Frame headers of an animation list up to its 0xffffffff end."""
+    out = []
+    while rom_l(a + 4 * len(out)) != NONE32: out.append(rom_l(a + 4 * len(out)))
+    return out
+
+
+class DeathSprites(Sprites):
+    """Player death frames of every race (MARBLE.md "Phase 4b-0 data"): the +0x5a lists and
+    the shatter overlay entries 0x25fc2 reaches (+0x62 steps once per tick from shatter frame
+    SHATTER_SHARDS + 1 to the list end), header frames only. The tiles also hold the sparkle
+    star codes, consecutive."""
+    def __init__(self):
+        hdrs = {h for a in DEATH_LISTS for h in anim_list(a)}
+        self.shards = (len(anim_list(ms.ANIM_SHATTER)) - ms.SHATTER_SHARDS - 1) * SHATTER_TICKS
+        hdrs |= set(anim_list(ms.ANIM_SHARDS)[:self.shards])
+        self.race = None
+        self.hdrs = sorted(hdrs)
+        self.ids = {h: i for i, h in enumerate(self.hdrs)}
+        self.strip = len(self.hdrs)
+        self.cols = [frame_cols(h) for h in self.hdrs]
+        self.tile_set(range(STAR_CODE, STAR_CODE + STARS))
 
 
 def slot_objs(m, sp, typ, idx, top, margin):

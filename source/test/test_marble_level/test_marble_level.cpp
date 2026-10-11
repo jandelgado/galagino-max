@@ -47,6 +47,21 @@ static void test_levels_match_decoder(void) {
   }
 }
 
+// death tiles open the sprite buffer and survive race set switches; race tiles follow them
+static void test_sprite_buffer_layout(void) {
+  static uint8_t death[MARBLE_DEATH_TILES][32];
+  static uint8_t race[MARBLE_SPRITE_MAX_TILES][32];
+  const Asset<unsigned char[32], COMPRESSED> d(marble_death_tiles_blob);
+  d.decodeInto(death);
+  for (uint8_t n = 0; n < marble_level::LEVELS; n++) {
+    const marble_level::Level &l = store.load(n);
+    TEST_ASSERT_EQUAL_MEMORY(death, l.sprites, sizeof(death));
+    const Asset<unsigned char[32], COMPRESSED> r(marble_sprite_tiles[marble_sprite_race[n]]);
+    r.decodeInto(race);
+    TEST_ASSERT_EQUAL_MEMORY(race, l.sprites + MARBLE_DEATH_TILES, 32u * r.size());
+  }
+}
+
 static void test_store_reuses_buffers(void) {
   store.load(0);
   const uint32_t used = Arena::bytesUsed();
@@ -321,6 +336,7 @@ int main(int, char **) {
   Arena::init();
   store.init();
   RUN_TEST(test_levels_match_decoder);
+  RUN_TEST(test_sprite_buffer_layout);
   RUN_TEST(test_store_reuses_buffers);
   RUN_TEST(test_frames_match_decoder);
   RUN_TEST(test_clamp);

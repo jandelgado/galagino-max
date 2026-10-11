@@ -13,7 +13,8 @@ static const uint8_t COLS = 36;
 static const uint16_t WIDTH = COLS * 8;  // 288
 static const uint16_t MAX_ROWS = 145;    // beginner race; romconv checks
 static const uint16_t MAX_TILES = 896;   // beginner race; romconv checks
-static const uint16_t SPRITE_TILES = 531;  // intermediate sprite set (32 B/tile); romconv checks
+// sprite tile buffer (32 B/tile): death set 219 + intermediate set 531; romconv checks
+static const uint16_t SPRITE_TILES = 750;
 
 struct Level {
   uint16_t rows;
@@ -21,8 +22,8 @@ struct Level {
   const uint16_t *map;          // rows * COLS
   const uint8_t (*pixels)[64];  // per tile 8x8 colour indices 0..31
   const uint16_t *palette;      // 4 sets x 32, RGB565 byte-swapped
-  // level object sprite tiles of the race's set (4 bpp, left pixel in the high nibble);
-  // null: none
+  // sprite tile buffer (4 bpp, left pixel in the high nibble): the death set's tiles, then
+  // the race set's; frame columns of both index it. null: none
   const uint8_t (*sprites)[32];
 };
 
@@ -36,7 +37,8 @@ static const uint8_t NO_PATCH = 0xff;
 uint8_t patchIndex(uint32_t record);
 
 // Arena buffers for the largest level, allocated once; load() unpacks into them
-// (85 KB: tiles 57344 B in one Arena block, map 10440 B, sprite tiles 16992 B).
+// (90 KB: map 10440 B and tiles 57344 B in one Arena block, sprite tiles 24000 B in the
+// other).
 class Store {
 public:
   void init();  // idempotent: start() runs twice
@@ -51,7 +53,8 @@ private:
   uint16_t *map = nullptr;
   uint8_t (*pixels)[64] = nullptr;
   uint8_t (*sprites)[32] = nullptr;
-  uint8_t sprSet = 0xff;  // sprite set decoded into `sprites`
+  static const uint8_t NO_SET = 0xff;
+  uint8_t sprSet = NO_SET;  // sprite set decoded into `sprites`, NO_SET: nothing loaded yet
   Level level = {};
 };
 
