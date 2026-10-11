@@ -6,11 +6,14 @@
 #include "../../emulation/asset.h"
 #include "marble_rom.h"
 
+static_assert(MARBLE_SPRITE_MAX_TILES == marble_level::SPRITE_TILES, "sprite tile buffer");
+
 namespace marble_level {
 
 void Store::init() {
   if (!map) { map = Arena::alloc<uint16_t>(MAX_ROWS * COLS); }
   if (!pixels) { pixels = (uint8_t (*)[64])Arena::alloc(MAX_TILES * 64, 4); }
+  if (!sprites) { sprites = (uint8_t (*)[32])Arena::alloc(SPRITE_TILES * 32, 4); }
 }
 
 const Level &Store::load(uint8_t n) {
@@ -18,8 +21,15 @@ const Level &Store::load(uint8_t n) {
   m.decodeInto(map);
   const Asset<unsigned char[64], COMPRESSED> t(marble_tiles[n]);
   t.decodeInto(pixels);
+  const uint8_t set = marble_sprite_race[n];  // races share sets
+  if (set != sprSet) {
+    const Asset<unsigned char[32], COMPRESSED> s(marble_sprite_tiles[set]);
+    s.decodeInto(sprites);
+    sprSet = set;
+  }
   race = n;
-  level = {marble_levels[n].rows, marble_levels[n].tiles, map, pixels, marble_pf_palette[n]};
+  level = {marble_levels[n].rows, marble_levels[n].tiles, map, pixels, marble_pf_palette[n],
+           sprites};
   return level;
 }
 

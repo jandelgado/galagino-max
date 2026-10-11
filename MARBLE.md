@@ -853,6 +853,20 @@ columns 2370, header ids 118, palettes 452, set table 54). `emit_sprites`; model
   max 6). `marble_at` = objects before the marble, `variant` = 0x1df18[(+0x42 - +0x46) >> 3, +7
   for list 0x21192] of the drawn lift frame, 0xff otherwise. Expanded to MO columns the objects
   equal `mo_list_26f3e` in every fixture tick (checked when writing).
+- Remake renderer (`marble_video.cpp`): `Store::load` decodes the race's sprite set into one
+  Arena buffer of 531 tiles (16992 B, allocated once in `init`, behind the playfield tiles in
+  the same block; skipped when the new race uses the same set). Per strip: playfield 8
+  lines, objects `0 .. marbleAt - 1`, the marble (hide masks, rule A), objects `marbleAt .. n -
+  1`. Per object a frame column is culled once per strip (rows, view columns, tile index
+  against the set), then drawn line by line: pen 0 transparent, hflip per column, clip at the
+  240 px edges. Set 6 pens 1-4 come from `marble_lift_pal[lift]` when `lift < 4`. Set 8 (wave
+  strip): pen 1 skipped, pens 2/3 write `marble_sprite_shade[race]` when the playfield colour
+  index under the pixel is 4 (pen 3) or 15 (pen 2, 3), else black. Cost: the culling is
+  n x columns per strip (at most about 8 x 10), the pixel loop only runs for overlapping
+  columns, at most 15 per strip.
+- Culls at margin 24 (remake view, 24 lines more above and below), most objects in the fixture
+  segments: beginner 4, intermediate 6, ultimate 5, practice 2; `OBJS` 8 holds
+  (`test_margin_fits_objs`).
 
 Sprite fixture `source/test/test_marble_sprites/marble_sprites_trace.h` (committed, derived numbers
 only), `make_fixture.py swrite`: segments of the research runs between `MARBLE_PLACE`

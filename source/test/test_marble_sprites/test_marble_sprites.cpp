@@ -116,6 +116,40 @@ static void replayTick(Mem &m, const MarbleSprTick &t, Obj *out, uint8_t &n, uin
   n = marble_drawlist::build(m, seen, 0, out, MAX_OBJS, at, lift);
 }
 
+// replayTick with a cull margin (the remake draws 24 lines more above and below)
+static uint8_t replayCount(Mem &m, const MarbleSprTick &t, int16_t margin) {
+  marble_physics::tick(m, t.c6, t.c7);
+  marble_objects::update(m);
+  marble_objects::applyQueued(m);
+  const int16_t seen = m.sw(marble_physics::CAMERA);
+  m.wl(marble_physics::CAMERA_L, t.camera);
+  if ((uint16_t)t.camera != (uint16_t)seen) {
+    marble_objects::cameraBands(m, seen, (int16_t)t.camera);
+  }
+  marble_drawlist::sort(m);
+  Obj out[64];
+  uint8_t at, lift;
+  return marble_drawlist::build(m, seen, margin, out, 64, at, lift);  // buffer well past OBJS
+}
+
+static void test_margin_fits_objs(void) {
+  for (uint8_t s = 0; s < MARBLE_SPRITES_SEGMENTS; s++) {
+    const MarbleSprSegment &seg = marble_sprites_segments[s];
+    loadRam(seg);
+    Mem m(ram, seg.race);
+    uint8_t most = 0;
+    for (uint16_t k = 0; k < seg.nticks; k++) {
+      const uint8_t n = replayCount(m, seg.ticks[k], 24);
+      if (n > most) { most = n; }
+      char msg[80];
+      snprintf(msg, sizeof(msg), "segment %d (race %d) tick %d: %d objects at margin 24", s,
+               seg.race, k, n);
+      TEST_ASSERT_TRUE_MESSAGE(n <= MAX_OBJS, msg);
+    }
+    printf("segment %d race %d: most objects at margin 24: %d\n", s, seg.race, most);
+  }
+}
+
 static void test_draw_list(void) {
   for (uint8_t s = 0; s < MARBLE_SPRITES_SEGMENTS; s++) {
     const MarbleSprSegment &seg = marble_sprites_segments[s];
@@ -154,6 +188,7 @@ int main(int, char **) {
   RUN_TEST(test_frames_in_range);
   RUN_TEST(test_published_objects);
   RUN_TEST(test_draw_list);
+  RUN_TEST(test_margin_fits_objs);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif

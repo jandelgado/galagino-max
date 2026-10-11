@@ -118,6 +118,82 @@ static void test_masks_hide_marble(void) {
   TEST_ASSERT_EQUAL_HEX32(gone, masked);
 }
 
+// naive composite of one race 0 object (palette set 3, no marble) onto a full frame
+static void refFrame(const marble_level::Level &l, const marble_video::VideoState &v,
+                     uint16_t *img) {
+  const MarbleSpriteSet &s = marble_sprites[marble_sprite_race[0]];
+  const MarbleSpriteFrame &f = s.frames[v.objs[0].frame];
+  for (uint8_t c = 0; c < f.ncols; c++) {
+    const MarbleSpriteCol &col = s.cols[f.first + c];
+    for (int t = 0; t < (col.h & 0x7f); t++) {
+      for (int ty = 0; ty < 8; ty++) {
+        for (int k = 0; k < 8; k++) {
+          const int x = v.objs[0].x + col.x + k - v.sx;
+          const int y = v.objs[0].y + col.y + t * 8 + ty - v.sy;
+          if (x < 0 || x >= marble_video::OUT_W || y < 0 || y >= marble_video::OUT_H) continue;
+          const int tx = (col.h & 0x80) ? 7 - k : k;
+          const uint8_t b = l.sprites[col.tile + t][ty * 4 + tx / 2];
+          const uint8_t pen = (tx & 1) ? b & 15 : b >> 4;
+          if (pen) img[y * marble_video::OUT_W + x] = marble_sprite_pal[0][0][pen];
+        }
+      }
+    }
+  }
+}
+
+static void test_object_sprites(void) {
+  const marble_level::Level &l0 = store.load(0);
+  // tile buffer of exactly the set's size: a read past it would hit the guard bytes
+  const MarbleSpriteSet &set = marble_sprites[marble_sprite_race[0]];
+  static uint8_t guarded[32 * 531 + 64];
+  memset(guarded, 0xff, sizeof(guarded));
+  memcpy(guarded, l0.sprites, 32u * set.ntiles);
+  marble_level::Level l = l0;
+  l.sprites = (const uint8_t (*)[32])guarded;
+
+  static uint16_t ref[marble_video::OUT_W * marble_video::OUT_H];
+  static uint16_t got[marble_video::OUT_W * marble_video::OUT_H];
+  static const int16_t px[] = {-20, 100, 232, 300};  // left edge, inside, right edge, outside
+  static const int16_t py[] = {-12, 80, 280};        // top, inside, bottom line of the view
+  uint32_t crc = 0;
+  for (int16_t x : px) {
+    for (int16_t y : py) {
+      marble_video::VideoState v = {};
+      v.level = 0;
+      v.sx = 20;
+      v.sy = 40;
+      v.n = 1;
+      v.marbleAt = 1;
+      v.objs[0] = {0, 3, (int16_t)(x + v.sx), (int16_t)(y + v.sy)};
+
+      marble_video::VideoState none = v;
+      none.n = 0;
+      for (int row = 0; row < marble_video::OUT_H / 8; row++) {
+        marble_video::renderRow(l, none, row, ref + row * marble_video::OUT_W * 8);
+        marble_video::renderRow(l, v, row, got + row * marble_video::OUT_W * 8);
+      }
+      const uint32_t before = crc32((const uint8_t *)ref, sizeof(ref));
+      refFrame(l, v, ref);
+      if (x == 100 && y == 80) {  // the object is really there
+        TEST_ASSERT_NOT_EQUAL(before, crc32((const uint8_t *)ref, sizeof(ref)));
+      }
+      TEST_ASSERT_EQUAL_MEMORY(ref, got, sizeof(got));
+      crc = crc32((const uint8_t *)got, sizeof(got), crc);
+    }
+  }
+  TEST_ASSERT_EQUAL_HEX32(0xB832CBEA, crc);
+
+  // frame id past the set and an unloaded tile buffer draw nothing
+  marble_video::VideoState v = {};
+  v.n = 1;
+  v.objs[0] = {255, 3, 100, 100};
+  TEST_ASSERT_EQUAL_HEX32(frameCrc(l, marble_video::VideoState{}), frameCrc(l, v));
+  marble_level::Level none = l;
+  none.sprites = nullptr;
+  v.objs[0] = {0, 3, 100, 100};
+  TEST_ASSERT_EQUAL_HEX32(frameCrc(l, marble_video::VideoState{}), frameCrc(none, v));
+}
+
 static void test_patch(void) {
   const uint16_t *map = store.load(0).map;
   const uint16_t at = 5 * marble_level::COLS + 16;  // block row 2, column 2
@@ -148,6 +224,7 @@ int main(int, char **) {
   RUN_TEST(test_flip);
   RUN_TEST(test_masks_hide_marble);
   RUN_TEST(test_patch);
+  RUN_TEST(test_object_sprites);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif

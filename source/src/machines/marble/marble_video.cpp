@@ -73,6 +73,67 @@ void drawMarble(const VideoState &v, int y, uint16_t *dst) {
   }
 }
 
+// Wave strip shade set (priority MOs, MARBLE.md "Level object sprites")
+static const uint8_t SET_SHADE = 8;
+
+// playfield colour index (0..31) of playfield pixel (x, y)
+inline uint8_t pfPixel(const Level &l, int x, int y) {
+  if (y >= l.rows * 8) { return 0; }
+  const uint16_t w = l.map[(y >> 3) * COLS + (x >> 3)];
+  return l.pixels[tileOf(w)][(y & 7) * 8 + ((x & 7) ^ (flipOf(w) ? 7 : 0))];
+}
+
+// Level object sprite o on the 8 playfield lines from y0, into dst (8 lines of OUT_W). Columns
+// off the strip or the view are skipped, tiles past the set are never read.
+void drawObj(const Level &l, const VideoState &v, const Obj &o, int y0, uint16_t *dst) {
+  const MarbleSpriteSet &s = marble_sprites[marble_sprite_race[v.level]];
+  if (o.frame >= s.nframes) { return; }
+  const MarbleSpriteFrame &f = s.frames[o.frame];
+  const bool shade = o.set == SET_SHADE;
+  const uint16_t *pal = nullptr;
+  if (!shade) {
+    const uint8_t k = o.set == 3 ? 0 : o.set == 5 ? 1 : o.set == 6 ? 2 : 3;
+    pal = marble_sprite_pal[v.level][k];
+  }
+  const uint16_t *lift = (o.set == 6 && v.lift < 4) ? marble_lift_pal[v.lift] : nullptr;
+  const uint16_t *shades = marble_sprite_shade[v.level];
+
+  for (uint8_t c = 0; c < f.ncols; c++) {
+    const MarbleSpriteCol &col = s.cols[f.first + c];
+    const int h = col.h & 0x7f;
+    const int top = o.y + col.y;
+    const int x0 = o.x + col.x - v.sx;
+    if (top >= y0 + 8 || top + h * 8 <= y0 || x0 <= -8 || x0 >= OUT_W ||
+        col.tile + h > s.ntiles) {
+      continue;
+    }
+    const bool flip = (col.h & 0x80) != 0;
+    const int a = top > y0 ? top : y0;
+    const int b = top + h * 8 < y0 + 8 ? top + h * 8 : y0 + 8;
+    for (int y = a; y < b; y++) {
+      const int ty = y - top;
+      const uint8_t *row = l.sprites[col.tile + (ty >> 3)] + (ty & 7) * 4;
+      uint16_t *out = dst + (y - y0) * OUT_W;
+      for (int k = 0; k < 8; k++) {
+        const int x = x0 + k;
+        if (x < 0 || x >= OUT_W) { continue; }
+        const int tx = flip ? 7 - k : k;
+        const uint8_t pen = (tx & 1) ? row[tx >> 1] & 15 : row[tx >> 1] >> 4;
+        if (!pen) { continue; }
+        if (shade) {  // pen 1 shows the playfield; 2 and 3 darken it, three colours survive
+          if (pen == 1) { continue; }
+          const uint8_t pf = pfPixel(l, x + v.sx, y);
+          out[x] = (pf == 4 && pen == 3) ? shades[0]
+                   : (pf == 15 && pen == 2) ? shades[1]
+                   : (pf == 15 && pen == 3) ? shades[2] : 0;
+        } else {
+          out[x] = (lift && pen >= 1 && pen <= 4) ? lift[pen - 1] : pal[pen];
+        }
+      }
+    }
+  }
+}
+
 }  // namespace
 
 void clamp(VideoState &v, const Level &l) {
@@ -84,11 +145,11 @@ void clamp(VideoState &v, const Level &l) {
 }
 
 void renderRow(const Level &l, const VideoState &v, int row, uint16_t *dst) {
+  uint16_t *const strip = dst;
   for (int line = 0; line < 8; line++, dst += OUT_W) {
     const int y = v.sy + row * 8 + line;
     if (y >= l.rows * 8) {
       memset(dst, 0, OUT_W * sizeof(uint16_t));
-      drawMarble(v, y, dst);
       continue;
     }
     const uint16_t *cells = l.map + (y >> 3) * COLS;
@@ -110,7 +171,19 @@ void renderRow(const Level &l, const VideoState &v, int row, uint16_t *dst) {
       n += end - (x & 7);
       x = (x & ~7) + end;
     }
-    drawMarble(v, y, dst);
+  }
+
+  // level objects behind the marble, the marble, objects in front (link order)
+  const int y0 = v.sy + row * 8;
+  const bool objs = l.sprites && v.level < LEVELS;
+  const uint8_t n = v.n < OBJS ? v.n : OBJS;
+  const uint8_t at = v.marbleAt < n ? v.marbleAt : n;
+  if (objs) {
+    for (uint8_t i = 0; i < at; i++) { drawObj(l, v, v.objs[i], y0, strip); }
+  }
+  for (int line = 0; line < 8; line++) { drawMarble(v, y0 + line, strip + line * OUT_W); }
+  if (objs) {
+    for (uint8_t i = at; i < n; i++) { drawObj(l, v, v.objs[i], y0, strip); }
   }
 }
 
