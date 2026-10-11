@@ -11,8 +11,9 @@
 //   startRace(m, race)        race start of player 1 on a cleared work RAM, level objects
 //   tick(m, c6, c7) per 30 Hz logic tick:
 //     physics 0x121b8 -> dizzy countdown -> new trackball deltas -> 0x253bc, input 0x17f66
-//   project(m)                screen position 0x1b9cc (the physics tail calls it; call it
-//                             where the physics does not run)
+//   project(m)                screen position 0x1b9cc of the player. The physics tail calls
+//                             it; ticks that return early keep the stored value, as in the
+//                             arcade. Call it where the physics does not run.
 //   respawn(m)                after state 2/4: checkpoint search 0x262b2, reset 0x2591a
 //
 // Level object slots (marble_objects.h): 0x29cce runs inside the physics, startRace spawns
@@ -21,7 +22,6 @@
 namespace marble_physics {
 
 static const uint32_t PLAYER = 0x400018;  // player 1 object
-static const uint32_t CAMERA = 0x40097e;  // camera word (0x13ee6)
 
 // player state +0x1a
 enum State : uint8_t { ROLL = 0, DIZZY = 1, BROKEN = 2, LOST = 4, GOAL = 6 };
@@ -55,7 +55,7 @@ inline int16_t sy(const Mem &m) {
 
 // 0x1b9cc: +0x1e/+0x20 (camera reads +0x20), older pairs +0x22, +0x26. A position equal to
 // one of the stored pairs is not written.
-void project(Mem &m, uint32_t obj = PLAYER);
+void project(Mem &m);
 
 }  // namespace marble_physics
 

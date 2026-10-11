@@ -12,11 +12,18 @@ namespace marble_objects {
 
 using marble_physics::Mem;
 using marble_physics::PLAYER;
+using marble_physics::RACE;
+using marble_physics::ULT_COL;
+using marble_physics::DYN;
+using marble_physics::CAMERA;
+using marble_physics::CAMERA_L;
+using marble_physics::DESC_TOP;
+using marble_physics::DESC_RANGE;
+using marble_physics::s8;
+using marble_physics::s16;
 
 namespace {
 
-inline int8_t s8(uint32_t v) { return (int8_t)v; }
-inline int16_t s16(uint32_t v) { return (int16_t)v; }
 inline int32_t s32(uint32_t v) { return (int32_t)v; }
 
 // level object slots
@@ -55,18 +62,15 @@ static const uint32_t HIT_X = 0x400666, HIT_Y = 0x400668;  // wall bounce flags
 static const uint32_t OLD_X = 0x400684, OLD_Y = 0x400688;  // position before the move
 static const uint32_t POS_X = 0x400690, POS_Y = 0x400692;
 static const uint32_t CELL_X = 0x400696, CELL_Y = 0x400698;
-static const uint32_t RACE = 0x400394, PLAYERS = 0x400396;
+static const uint32_t PLAYERS = 0x400396;
 static const uint32_t RNG = 0x4003a6;
 static const uint32_t MASK_TAB0 = 0x40044a, MASK_TAB1 = 0x40044e, MASK_TAB2 = 0x400452;
 static const uint32_t MASK_T0 = 0x400456, MASK_T1 = 0x400458, MASK_T2 = 0x40045a;
-static const uint32_t ULT_COL = 0x40045c;
 static const uint32_t WAVES = 0x40075c, WAVE_DONE = 0x40075e;
-static const uint32_t DYN = 0x40076e;
 static const uint32_t DYN_PAUSE = 0x400768, DYN_FLAG = 0x40076a;
 static const uint32_t ANIM_REQ = 0x400970;     // frame record queued for applyQueued
 static const uint32_t CUR_SLOT = 0x400974;     // slot that queued it
 static const uint32_t PATCHED = 0x400978;      // record of the last playfield patch
-static const uint32_t CAMERA_L = 0x40097c, CAMERA_W = 0x40097e;
 
 // ROM
 static const uint32_t ROM_END = 0x30000;
@@ -77,8 +81,6 @@ static const uint32_t SPAWN_GROUPS = 0x1ded8;  // 4 groups of 4 scripts
 static const uint32_t WAVE_SCRIPT = 0x1d854;
 static const uint32_t DYN_INTERMEDIATE = 0x1d370;
 static const uint8_t DYN_INTERMEDIATE_N = 0x42;
-static const uint32_t DESC_TOP = 0x10;         // descriptor: camera top
-static const uint32_t DESC_RANGE = 0x12;
 static const uint32_t END_MARK = 0xffffffff;
 
 static const uint8_t RACE_INTERMEDIATE = 2, RACE_SILLY = 4;
@@ -95,7 +97,7 @@ uint32_t gl(const Mem &m, uint32_t a) { return a < ROM_END ? m.roml(a) : m.rl(a)
 
 inline uint32_t slotAddr(uint8_t i) { return SLOTS + (uint32_t)i * SLOT_SIZE; }
 
-// 0x13a98: random 0..n-1 (n > 0); 16 bit shift register, one step per significant bit of n
+// 0x13a98: random 0..n-1 (n > 0: n == 0 never ends the loop; the only caller passes 4); 16 bit shift register, one step per significant bit of n
 int16_t rng_13a98(Mem &m, uint16_t n) {
   uint16_t d0 = m.rw(RNG);
   uint16_t d1 = n;
@@ -160,8 +162,8 @@ void spawn_12dfa(Mem &m, int16_t oldB, int16_t newB) {
   uint32_t e = m.roml(SPAWN_LISTS + 4 * m.rw(RACE));
   for (; m.romb(e) != 0xff; e += 6) {
     const int8_t lo = s8(m.romb(e)), hi = s8(m.romb(e + 1));
-    if (spawned_12dae(m, e)) { continue; }
     if (!(nw == lo || nw == hi) || (lo <= old && old <= hi)) { continue; }
+    if (spawned_12dae(m, e)) { continue; }
 
     uint32_t scripts[4] = {m.roml(e + 2), 0, 0, 0};
     uint8_t n = 1;
@@ -232,7 +234,7 @@ void anim_render_13334(Mem &m, uint32_t a) {
   m.ww(POS_X, x);
   m.ww(POS_Y, y);
   const uint16_t sx = (uint16_t)(y - x + 0x88);
-  const uint16_t sy = (uint16_t)(m.rw(CAMERA_W) + m.rw(a + PZ) + 0x54 - ((s16(x) + s16(y)) >> 1));
+  const uint16_t sy = (uint16_t)(m.rw(CAMERA) + m.rw(a + PZ) + 0x54 - ((s16(x) + s16(y)) >> 1));
   m.wl(a + SCREEN, (uint32_t)sx << 16 | sy);
   if (m.rb(a + TAG) == TAG_WAVE) { wave_1d06a(m, s8(m.rb(a + LOOP7))); }
   // tag 3: 0x26b66 (palette / banner animation) not ported

@@ -50,8 +50,6 @@ static const uint32_t FRAC_X = 0x40069e, FRAC_Y = 0x4006a0;  // position in the 
 static const uint32_t SPLIT = 0x4006a2;                      // triangle: fy >= fx
 static const uint32_t GRAD_X = 0x4006a4, GRAD_Y = 0x4006a6;
 static const uint32_t ATTRACT = 0x400390;                    // 1 = attract demo
-static const uint32_t RACE = 0x400394;
-static const uint32_t DYN = 0x40076e;                        // dynamic terrain codes
 static const uint32_t SPAWN_X = 0x400462, SPAWN_Y = 0x400466;  // longs, respawn pixel
 static const uint32_t SPAWN_ZONE = 0x400472;                 // 0xff: none found
 static const uint32_t VERTS = 0x401c28;                      // 4 vertices x 4 heights
@@ -77,8 +75,6 @@ static const uint16_t SPAWN_RANGE = 0x300;         // max checkpoint distance (m
 static const uint8_t NO_ZONE = 0xff;
 static const uint8_t STATE_ENEMY = 0xb;  // set by enemy update 0x19d94 (0x19e14), Phase 4
 
-inline int8_t s8(int32_t v) { return (int8_t)v; }
-inline int16_t s16(int32_t v) { return (int16_t)v; }
 inline int32_t s32(int64_t v) { return (int32_t)(uint32_t)v; }
 inline int32_t add32(int32_t a, int32_t b) { return (int32_t)((uint32_t)a + (uint32_t)b); }
 inline int32_t shl32(int32_t v, uint8_t n) { return (int32_t)((uint32_t)v << n); }
@@ -725,7 +721,7 @@ void physics_121b8(Mem &m, uint32_t a2) {
   }
 
   // 0x1b9cc projection, 0x1281c occlusion (0x1c014 surface dots: not ported)
-  project(m, a2);
+  project(m);
   marble_occlusion::enter(m, a2);
   edgepush_1706c(m, a2);
   if (m.rb(a2 + AIR)) { return; }
@@ -815,7 +811,7 @@ void start_259b4(Mem &m, uint8_t race, uint32_t a2) {
   dyn_init(m, race);
 
   // start cell: high byte x, low byte y; position = cell * 8 + 4
-  const uint16_t cell = m.romw(m.desc() + 0x14);
+  const uint16_t cell = m.romw(m.desc() + DESC_CELL);
   m.wl(a2 + PX, ((uint32_t)(cell >> 8) << 19) + 0x40000);
   m.wl(a2 + PY, ((uint32_t)(cell & 0xff) << 19) + 0x40000);
   m.ww(CELL_Y, 0xffff);
@@ -898,7 +894,7 @@ void respawn(Mem &m) {
   const uint32_t a2 = PLAYER;
   spawnPoint_262b2(m, a2);
   if (m.rb(SPAWN_ZONE) == NO_ZONE) {  // the original would use pixel (0, 0): off the terrain
-    const uint16_t cell = m.romw(m.desc() + 0x14);
+    const uint16_t cell = m.romw(m.desc() + DESC_CELL);
     m.wl(SPAWN_X, (cell >> 8) * 8 + 4);
     m.wl(SPAWN_Y, (cell & 0xff) * 8 + 4);
     m.wb(SPAWN_ZONE, 0);
@@ -958,14 +954,14 @@ void tick(Mem &m, int8_t c6, int8_t c7) {
 }
 
 // 0x1b9cc (see marble_physics.h)
-void project(Mem &m, uint32_t a2) {
-  posupd_1bab2(m, a2);
+void project(Mem &m) {
+  posupd_1bab2(m, PLAYER);
   const uint32_t packed = (uint32_t)(uint16_t)sx(m) << 16 | (uint16_t)sy(m);
-  if (packed == m.rl(a2 + SCREEN) || packed == m.rl(a2 + SCREEN_OLD)) { return; }
+  if (packed == m.rl(PLAYER + SCREEN) || packed == m.rl(PLAYER + SCREEN_OLD)) { return; }
 
-  m.wl(a2 + SCREEN_OLD2, m.rl(a2 + SCREEN_OLD));
-  m.wl(a2 + SCREEN_OLD, m.rl(a2 + SCREEN));
-  m.wl(a2 + SCREEN, packed);
+  m.wl(PLAYER + SCREEN_OLD2, m.rl(PLAYER + SCREEN_OLD));
+  m.wl(PLAYER + SCREEN_OLD, m.rl(PLAYER + SCREEN));
+  m.wl(PLAYER + SCREEN, packed);
 }
 
 }  // namespace marble_physics

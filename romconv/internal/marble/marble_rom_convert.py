@@ -307,8 +307,9 @@ def prog_blocks(terrains):
     p2 = [(a, bytes(plain[a:e])) for a, e in merge(want | covered)]
     allb = [(a, bytes(plain[a:e])) for a, e in merge(want3 | covered | phase3)]
     dyn_only = want3 - covered - phase3
-    print(f"phase 3 runs read {len(dyn_only)} B outside the tables: "
-          + ", ".join(f"{a:05x}+{e - a}" for a, e in merge(dyn_only, 0)))
+    if dyn_only:
+        print(f"phase 3 runs read {len(dyn_only)} B outside the tables: "
+              + ", ".join(f"{a:05x}+{e - a}" for a, e in merge(dyn_only, 0)))
     return allb, p2, ref2 + ref3
 
 
@@ -446,28 +447,33 @@ def emit_objects(f, rom, levels, size3):
           file=f)
     print("// record at `record` (68010 address, 0x400970 queue) is applied, the w x h map words",
           file=f)
-    print("// (same format as the level map) are written at map column `col`, race row `row`.",
+    print("// (same format as the level map) are written at map column `col`, race row `row` of",
           file=f)
-    print("struct MarblePatch {\n  uint32_t record; uint16_t col, row, w, h; const uint16_t *words;\n};",
-          file=f)
+    print("// race `race`.", file=f)
+    print("struct MarblePatch {\n  uint32_t record; uint8_t race, col, row, w, h;\n"
+          "  const uint16_t *words;\n};", file=f)
+    for race, rec, col, row, w, h, blk in patches:
+        if max(race, col, row, w, h) > 255:
+            fatal(f"marble: patch {rec:05x} does not fit the byte fields")
     blocks = sorted(PATCH_WORDS)
     for race, blk in blocks:
         print(f"static const uint16_t marble_patch_words_{blk:05x}[] = {{\n"
               f"{c_words(PATCH_WORDS[(race, blk)])}\n}};", file=f)
     print(f"static const MarblePatch marble_patches[{len(patches)}] = {{", file=f)
     for race, rec, col, row, w, h, blk in patches:
-        print(f"  {{ 0x{rec:05x}, {col}, {row}, {w}, {h}, marble_patch_words_{blk:05x} }},",
+        print(f"  {{ 0x{rec:05x}, {race}, {col}, {row}, {w}, {h}, marble_patch_words_{blk:05x} }},",
               file=f)
     print(f"}};\nstatic const uint8_t MARBLE_PATCHES = {len(patches)};", file=f)
     size3["patches"] = 16 * len(patches) + sum(2 * len(w) for w in PATCH_WORDS.values())
-    # the first frame of a gate shows the map as decoded: words must equal the map
-    for race, rec, col, row, w, h, blk in patches:
+    # the closed state of a patched race shows the map as decoded: per race, one record
+    # (the first frame of the gate) must equal the decoded map words
+    for race in sorted({p[0] for p in patches}):
         mapw = levels[race][2]
-        if all(mapw[(row + r) * md.COLS + col + c] == PATCH_WORDS[(race, blk)][r * w + c]
-               for r in range(h) for c in range(w)):
-            break
-    else:
-        fatal("marble: no patch frame equals the decoded level map, patch words are wrong")
+        if not any(all(mapw[(row + r) * md.COLS + col + c] == PATCH_WORDS[(rc, blk)][r * w + c]
+                       for r in range(h) for c in range(w))
+                   for rc, rec, col, row, w, h, blk in patches if rc == race):
+            fatal(f"marble: race {race}: no patch frame equals the decoded level map, "
+                  "patch words are wrong")
 
     codes = od.mask_tile_codes()
     tiles = []

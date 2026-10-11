@@ -18,6 +18,20 @@ static const uint32_t RAM_BASE = 0x400000;
 static const uint16_t RAM_SIZE = 0x2000;
 static const uint32_t FRAMES = 0x400010;  // long, 60 Hz counter (vblank 0x287a6)
 
+// shared work RAM globals
+static const uint32_t RACE = 0x400394;      // word
+static const uint32_t ULT_COL = 0x40045c;   // word: ultimate race frame * 0x90
+static const uint32_t DYN = 0x40076e;       // 128 dynamic terrain codes (words)
+static const uint32_t CAMERA_L = 0x40097c;  // camera long (0x13ee6)
+static const uint32_t CAMERA = 0x40097e;    // camera word (low word of CAMERA_L)
+
+// terrain descriptor (Mem::desc()) fields, program ROM
+static const uint32_t DESC_TOP = 0x10, DESC_RANGE = 0x12, DESC_CELL = 0x14, DESC_END = 0x18,
+                      DESC_EDGES = 0x2e;
+
+inline int8_t s8(uint32_t v) { return (int8_t)v; }
+inline int16_t s16(uint32_t v) { return (int16_t)v; }
+
 [[noreturn]] void fail(const char *what, uint32_t addr);
 
 class Mem {

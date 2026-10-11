@@ -39,6 +39,8 @@ static void stick(uint32_t keys, int8_t &c6, int8_t &c7) {
 void marble::reset() {
   machineBase::reset();
   prev_keys = 0;
+  patchRec = 0;
+  view.patch = video.patch = marble_level::NO_PATCH;
   game_started = 1;  // no boot phase
   beginRace(0);
 }
@@ -52,6 +54,8 @@ void marble::beginRace(uint8_t n) {
   race = n;
   dead_ticks = 0;
   memset(memory, 0, marble_physics::RAM_SIZE);
+  patchRec = 0;
+  view.patch = marble_level::NO_PATCH;
   Mem m(memory, race);
   marble_physics::startRace(m, race);
   marble_camera::start(m, race);
@@ -79,12 +83,14 @@ void marble::logicTick(uint32_t keys) {
   const uint8_t st = marble_physics::state(m);
   if (st != marble_physics::BROKEN && st != marble_physics::LOST) {
     marble_physics::tick(m, c6, c7);
-  } else if (++dead_ticks >= DEATH_TICKS) {
-    dead_ticks = 0;
-    marble_physics::respawn(m);
-    marble_physics::project(m);
   } else {
+    const bool respawn = ++dead_ticks >= DEATH_TICKS;
+    if (respawn) {
+      dead_ticks = 0;
+      marble_physics::respawn(m);
+    }
     marble_physics::project(m);
+    if (respawn) { marble_occlusion::enter(m, PLAYER); }  // masks and +0x1c of the new position
   }
   marble_objects::update(m);
 }
@@ -104,17 +110,24 @@ void marble::publish(void) {
   if (view.sy > maxy) { view.sy = maxy; }
   if (view.sy < 0) { view.sy = 0; }
   view.level = race;
-  view.marble = (st == marble_physics::BROKEN || st == marble_physics::LOST) ? HIDDEN : SHOWN;
+  // hidden when dead or every column is covered (+0x1c = 0)
+  view.marble = (st == marble_physics::BROKEN || st == marble_physics::LOST ||
+                 !m.rb(PLAYER + 0x1c)) ? HIDDEN : SHOWN;
   view.mx = sx - BODY_X;
   view.my = top + BODY_Y - sy;
-  view.visible = m.rb(PLAYER + 0x1c);
-  view.patch = marble_objects::lastPatch(m);
+  const uint32_t rec = marble_objects::lastPatch(m);
+  if (rec != patchRec) {  // map record -> table index, only on change
+    patchRec = rec;
+    view.patch = marble_level::patchIndex(rec);
+  }
   uint8_t n = 0;
   for (uint8_t i = 0; i < MASKS; i++) {
     const uint32_t e = PLAYER + 0x38 + 6 * i;
     const uint16_t code = m.rw(e);
     if (!code) { break; }
-    if (!(code & 0x4000)) { n = 0; break; }  // not a mask (respawn sparkle)
+    // guard for Phase 4 writers of +0x38 (respawn sparkle 0x13d38): not a mask; every
+    // 0x264aa code has bit 14, so this never fires yet
+    if (!(code & 0x4000)) { n = 0; break; }
     const int16_t h = ((code >> 11) & 7) + 1;
     view.masks[n++] = {code, (int16_t)(m.sw(e + 2) - view.mx),
                        (int16_t)(sy - m.sw(e + 4) + 16 - 8 * h)};
@@ -150,11 +163,11 @@ void marble::prepare_frame(void) {
     printf("marble: level %u loaded in %u ms\n", (unsigned)video.level, (unsigned)(millis() - t0));
 #endif
     loaded = video.level;
-    patched = 0;
+    patched = marble_level::NO_PATCH;
   }
   if (video.patch != patched) {  // video core owns the map
     patched = video.patch;
-    if (patched) { store.patch(patched); }
+    store.patch(patched);
   }
   clamp(video, *level);
 }

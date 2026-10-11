@@ -10,6 +10,15 @@
 namespace marble_occlusion {
 
 using marble_physics::Mem;
+using marble_physics::CAMERA;
+using marble_physics::ULT_COL;
+using marble_physics::DYN;
+using marble_physics::RACE;
+using marble_physics::DESC_TOP;
+using marble_physics::DESC_END;
+using marble_physics::DESC_EDGES;
+using marble_physics::s8;
+using marble_physics::s16;
 
 namespace {
 
@@ -26,12 +35,8 @@ enum : uint8_t { ST_DIZZY = 1, ST_BROKEN = 2, ST_LOST = 4, ST_GOAL = 6, ST_5 = 5
                  ST_A = 0xa, ST_B = 0xb };
 
 static const uint32_t PLAYER2 = 0x4000fa;
-static const uint32_t CAMERA = 0x40097e;
 static const uint32_t FLAG = 0x400988;      // long: quadrant parity of the vertex pair
 static const uint32_t FLAG_LO = 0x40098a;   // low word of FLAG: column bias of the vertex field
-static const uint32_t ULT_COL = 0x40045c;
-static const uint32_t DYN = 0x40076e;
-static const uint32_t RACE = 0x400394;
 
 static const uint32_t SHAPES = 0x1eaba;     // 3 x 5 diagonal offsets per column
 static const uint32_t BITS = 0x1eaca;       // 8 masks, bit i = diagonals >= i
@@ -42,15 +47,10 @@ static const uint32_t DROP = 0x1ed62;
 static const uint32_t QUADS = 0x2417e;      // 4 x (2 longs: quadrant offsets)
 static const uint32_t QUAD_MASKS = 0x24176;
 
-// descriptor
-static const uint32_t DESC_TOP = 0x10, DESC_END = 0x18, DESC_EDGES = 0x2e;
-
 static const uint16_t MASK_FULL = 0x6ce0;  // height 6 tiles, MO code 0x4e0 (all pen 1)
 static const uint8_t COLS = 5;
 static const int16_t FULL_SHIFT = 0x2f;
 
-inline int8_t s8(uint32_t v) { return (int8_t)v; }
-inline int16_t s16(uint32_t v) { return (int16_t)v; }
 
 bool isPlayer(uint32_t a) { return a == marble_physics::PLAYER || a == PLAYER2; }
 
@@ -94,8 +94,8 @@ uint16_t vertexHeight_177f8(const Mem &m, int32_t d, int32_t col, int16_t k) {
 }
 
 // 0x264aa: up to 5 entries (code, x, y) at +0x38, one per 8 px screen column under the
-// sprite. Entry code: bits 12-15 MO height in tiles, bit 15 also hflip (span masks), bit
-// 11 set, bits 0-10 MO code. The MO builder turns them into priority MOs (pen 1 =
+// sprite. Entry code: bit 15 hflip, bit 14 always 1, bits 11-13 height - 1 in
+// tiles, bits 0-10 MO code. The MO builder turns them into priority MOs (pen 1 =
 // playfield shows). +0x1c = 0 when every column is covered. d3: 0 player, 1 other.
 void occlusion_264aa(Mem &m, uint32_t a2, uint8_t d3) {
   uint32_t out = a2 + MASKS;
@@ -213,13 +213,18 @@ void occlusion_264aa(Mem &m, uint32_t a2, uint8_t d3) {
     }
     if (done) { continue; }
 
-    // first terrain edge diagonal >= d in this column (bitmap, descriptor +0x2e)
+    // first terrain edge diagonal >= d in this column (bitmap, descriptor +0x2e). Remake
+    // guard: the arcade reads past the table when there is no edge; stop at maxd and treat
+    // it as no edge, so the column stays unmasked.
+    const uint32_t maxd = m.maxd();
+    if ((uint32_t)d >= maxd) { continue; }
     const uint32_t bm = m.roml(desc + DESC_EDGES + 4 * c + s16(m.rw(ULT_COL))) + (d >> 3);
     uint8_t mask = m.romb(BITS + (d & 7)) & m.romb(bm);
     d &= ~7;
     if (mask == 0) {
       uint32_t p = bm + 1;
-      while (m.romb(p) == 0) { p++; }
+      while ((uint32_t)d + (p - bm) * 8 < maxd && m.romb(p) == 0) { p++; }
+      if ((uint32_t)d + (p - bm) * 8 >= maxd) { continue; }
       mask = m.romb(p);
       d += (p - bm) * 8;
     }

@@ -9,6 +9,12 @@ namespace marble_camera {
 
 using marble_physics::Mem;
 using marble_physics::FRAMES;
+using marble_physics::RACE;
+using marble_physics::CAMERA;
+using marble_physics::CAMERA_L;
+using marble_physics::DESC_TOP;
+using marble_physics::DESC_RANGE;
+using marble_physics::s16;
 
 namespace {
 
@@ -19,8 +25,6 @@ static const uint32_t ROW_DUE = 0x400006;    // a playfield row must be decoded
 static const uint32_t SCROLLING = 0x400008;
 static const uint32_t SPEED = 0x40000a;      // px per call
 static const uint32_t GHOST_SY = 0x40000c;   // sy that keeps a scroll going without a player
-static const uint32_t CAMERA_L = 0x40097c;   // long, low word = marble_physics::CAMERA
-static const uint32_t RACE = 0x400394;
 
 // constants 0x1f1ca: speeds (bytes), sy thresholds and margins (words)
 static const uint32_t SLOW = 0x1f1ca, MID = 0x1f1cc, FAST = 0x1f1ce;
@@ -37,7 +41,6 @@ static const int16_t STOP_MARGIN = 0x10;
 // X pan: view x window and step thresholds (same shape as the Y rule)
 static const int16_t PAN_LO = 64, PAN_HI = 176, PAN_MID = 16, PAN_FAR = 48;
 
-inline int16_t s16(int32_t v) { return (int16_t)v; }
 inline int16_t rom(const Mem &m, uint32_t a) { return (int16_t)m.romw(a); }
 
 // lowest sy of the players that steer the camera (silly: highest); only player 1 here
@@ -72,12 +75,12 @@ int16_t ghostSy(Mem &m) {
 
 }  // namespace
 
-int16_t top(const Mem &m) { return s16(m.rw(marble_physics::CAMERA) - m.romw(m.desc() + 0x10)); }
+int16_t top(const Mem &m) { return s16(m.rw(CAMERA) - m.romw(m.desc() + DESC_TOP)); }
 
-int16_t range(const Mem &m) { return rom(m, m.desc() + 0x12); }
+int16_t range(const Mem &m) { return rom(m, m.desc() + DESC_RANGE); }
 
 void start(Mem &m, uint8_t race) {
-  int32_t cam = rom(m, m.desc() + 0x10);
+  int32_t cam = rom(m, m.desc() + DESC_TOP);
   if (race == RACE_SILLY) { cam += range(m); }
   m.wl(CAMERA_L, (uint32_t)cam);
 
@@ -106,10 +109,10 @@ void tick(Mem &m) {
   }
 
   const int16_t low = rom(m, LOW), high = rom(m, HIGH), near = rom(m, NEAR), far = rom(m, FAR);
-  const int16_t camTop = rom(m, m.desc() + 0x10);
+  const int16_t camTop = rom(m, m.desc() + DESC_TOP);
   const uint8_t dir = m.rb(DIR);
   const bool scrolling = m.rb(SCROLLING);
-  int16_t pf = m.sw(PF_SCROLL), cam = m.sw(marble_physics::CAMERA);
+  int16_t pf = m.sw(PF_SCROLL), cam = m.sw(CAMERA);
   uint8_t newDir = 0;
 
   if ((d3 < low && d3 != none) || (scrolling && dir == FWD)) {
@@ -128,7 +131,7 @@ void tick(Mem &m) {
     newDir = FWD;
     if (cam > (int32_t)range(m) + camTop) {
       m.wb(SCROLLING, 0);
-      cam = m.sw(marble_physics::CAMERA);
+      cam = m.sw(CAMERA);
       pf = m.sw(PF_SCROLL);
     } else if ((m.sw(PF_SCROLL) >> 3) != (pf >> 3)) {
       m.wb(ROW_DUE, 1);
@@ -149,7 +152,7 @@ void tick(Mem &m) {
     newDir = BACK;
     if (cam < camTop) {
       m.wb(SCROLLING, 0);
-      cam = m.sw(marble_physics::CAMERA);
+      cam = m.sw(CAMERA);
       pf = m.sw(PF_SCROLL);
     } else if ((m.sw(PF_SCROLL) >> 3) != (pf >> 3)) {
       m.wb(ROW_DUE, 1);

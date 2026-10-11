@@ -8,8 +8,6 @@
 
 namespace marble_level {
 
-static const uint8_t PATCH_RACE = 0;  // practice: the start gate
-
 void Store::init() {
   if (!map) { map = Arena::alloc<uint16_t>(MAX_ROWS * COLS); }
   if (!pixels) { pixels = (uint8_t (*)[64])Arena::alloc(MAX_TILES * 64, 4); }
@@ -25,18 +23,23 @@ const Level &Store::load(uint8_t n) {
   return level;
 }
 
-void Store::patch(uint32_t record) {
-  if (race != PATCH_RACE) { return; }
-  for (const MarblePatch &p : marble_patches) {
-    if (p.record != record) { continue; }
-    for (uint16_t y = 0; y < p.h; y++) {
-      if (p.row + y >= level.rows) { break; }
-      for (uint16_t x = 0; x < p.w && p.col + x < COLS; x++) {
-        map[(p.row + y) * COLS + p.col + x] = p.words[y * p.w + x];
-      }
+void Store::patch(uint8_t index) {
+  if (index >= MARBLE_PATCHES) { return; }
+  const MarblePatch &p = marble_patches[index];
+  if (p.race != race) { return; }
+  for (uint16_t y = 0; y < p.h; y++) {
+    if (p.row + y >= level.rows) { break; }
+    for (uint16_t x = 0; x < p.w && p.col + x < COLS; x++) {
+      map[(p.row + y) * COLS + p.col + x] = p.words[y * p.w + x];
     }
-    return;
   }
+}
+
+uint8_t patchIndex(uint32_t record) {
+  for (uint8_t i = 0; i < MARBLE_PATCHES; i++) {
+    if (marble_patches[i].record == record) { return i; }
+  }
+  return NO_PATCH;
 }
 
 }  // namespace marble_level

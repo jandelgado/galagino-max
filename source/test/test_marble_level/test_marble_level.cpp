@@ -104,7 +104,6 @@ static void test_masks_hide_marble(void) {
   marble_video::VideoState v = {};
   v.level = 0;
   v.marble = marble_video::SHOWN;
-  v.visible = 1;
   v.mx = 100;
   v.my = 20;
   const uint32_t shown = frameCrc(l, v);
@@ -113,7 +112,7 @@ static void test_masks_hide_marble(void) {
   v.masks[1] = {0x4000 | (1 << 11) | 0x4e0, 8, 0};
   const uint32_t masked = frameCrc(l, v);
   v.masks[0] = v.masks[1] = {};
-  v.visible = 0;
+  v.marble = marble_video::HIDDEN;
   const uint32_t gone = frameCrc(l, v);
   TEST_ASSERT_NOT_EQUAL(shown, gone);
   TEST_ASSERT_EQUAL_HEX32(gone, masked);
@@ -123,12 +122,17 @@ static void test_patch(void) {
   const uint16_t *map = store.load(0).map;
   const uint16_t at = 5 * marble_level::COLS + 16;  // block row 2, column 2
   TEST_ASSERT_NOT_EQUAL(0x02f8, map[at]);
-  store.patch(0x16660);
+  const uint8_t idx = marble_level::patchIndex(0x16660);
+  TEST_ASSERT_NOT_EQUAL(marble_level::NO_PATCH, idx);
+  TEST_ASSERT_EQUAL_UINT8(marble_level::NO_PATCH, marble_level::patchIndex(0x12345));
+  store.patch(idx);
   TEST_ASSERT_EQUAL_HEX16(0x02f8, map[at]);
-  store.patch(0x12345);  // unknown record: ignored
+  store.patch(marble_level::NO_PATCH);  // none: ignored
   TEST_ASSERT_EQUAL_HEX16(0x02f8, map[at]);
-  store.load(1);
-  store.patch(0x16660);  // other race: ignored
+  const uint16_t *map1 = store.load(1).map;  // other race: map unchanged
+  const uint16_t before = map1[at];
+  store.patch(idx);
+  TEST_ASSERT_EQUAL_HEX16(before, map1[at]);
 }
 #endif
 

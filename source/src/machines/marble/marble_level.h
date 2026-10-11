@@ -26,16 +26,21 @@ inline uint16_t tileOf(uint16_t w) { return w & 0x3ff; }
 inline uint8_t setOf(uint16_t w) { return (w >> 10) & 3; }
 inline bool flipOf(uint16_t w) { return (w & 0x8000) != 0; }
 
+static const uint8_t NO_PATCH = 0xff;
+
+// index into marble_patches of the animation frame record, NO_PATCH if there is none
+uint8_t patchIndex(uint32_t record);
+
 // Arena buffers for the largest level, allocated once; load() unpacks into them
 // (68 KB: tiles 57344 B in one Arena block, map 10440 B).
 class Store {
 public:
   void init();  // idempotent: start() runs twice
   const Level &load(uint8_t n);
-  // Playfield patch of the loaded race (mode 1 level object, MARBLE.md "Level objects"):
-  // write the block of frame record `record` into the map, clipped to the map. Unknown
-  // records are ignored.
-  void patch(uint32_t record);
+  // Playfield patch `index` of marble_patches (mode 1 level object, MARBLE.md "Level
+  // objects"): write its block into the map, clipped to the map. Ignored when it belongs
+  // to another race or the index is out of range (NO_PATCH).
+  void patch(uint8_t index);
 
 private:
   uint8_t race = 0xff;

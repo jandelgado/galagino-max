@@ -24,8 +24,14 @@ void Mem::setRace(uint8_t race) {
 }
 
 uint8_t Mem::romb(uint32_t a) const {
-  for (uint8_t i = 0; i < MARBLE_PROG_BLOCKS; i++) {
-    const MarbleProgBlock &b = marble_prog_blocks[i];
+  // blocks are sorted by address and do not overlap: last block starting at or below a
+  uint8_t lo = 0, hi = MARBLE_PROG_BLOCKS;
+  while (lo < hi) {
+    const uint8_t mid = (lo + hi) / 2;
+    if (marble_prog_blocks[mid].addr <= a) { lo = mid + 1; } else { hi = mid; }
+  }
+  if (lo) {
+    const MarbleProgBlock &b = marble_prog_blocks[lo - 1];
     if (a - b.addr < b.len) { return b.data[a - b.addr]; }
   }
   fail("ROM", a);

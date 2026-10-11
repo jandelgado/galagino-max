@@ -29,11 +29,10 @@ static const uint8_t MASKS = 5;
 struct VideoState {
   int16_t sx, sy;  // viewport origin in playfield pixels
   uint8_t level;
-  uint8_t marble;  // enum Marble
+  uint8_t marble;  // enum Marble; HIDDEN also when every column is covered (+0x1c = 0)
   int16_t mx, my;  // marble sprite top left (MO 0x05) in playfield pixels
-  uint8_t visible;  // object +0x1c, 0: all columns covered, marble not drawn
   Mask masks[MASKS];
-  uint32_t patch;  // last applied playfield patch record (0 = none)
+  uint8_t patch;  // last playfield patch, index into marble_patches (NO_PATCH = none)
 };
 
 void clamp(VideoState &v, const marble_level::Level &l);

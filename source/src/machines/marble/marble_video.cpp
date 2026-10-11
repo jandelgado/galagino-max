@@ -53,7 +53,7 @@ uint32_t hideMask(const VideoState &v, int ly) {
 
 // marble pixels of playfield line y, pen 0 transparent, clipped at the view edges
 void drawMarble(const VideoState &v, int y, uint16_t *dst) {
-  if (v.marble == HIDDEN || !v.visible || y < v.my || y >= v.my + MARBLE_H) { return; }
+  if (v.marble == HIDDEN || y < v.my || y >= v.my + MARBLE_H) { return; }
   const uint32_t hide = hideMask(v, y - v.my);
 
   for (const Mo &o : MARBLE_MOS) {

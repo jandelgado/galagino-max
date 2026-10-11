@@ -99,13 +99,16 @@ bottom rows), so pf_check cannot identify them.
 - Trackball hardware (MAME trakball_r): port 0xf20000 = x + y, 0xf20002 = x - y of the
   ball; 0x1ac18 stores port 0 in +0xc7, port 2 in +0xc6.
 - Remake (marble.cpp): run_frame() counts 0x400010 like the vblank IRQ and runs one logic
-  tick on even counts: camera 0x13ee6, then `marble_physics::tick` (or the respawn wait),
-  then the projection 0x1b9cc. Stick as trackball, deltas per tick, k = `MARBLE_STICK_K`
+  tick on even counts: queued animation frame 0x1344c (`applyQueued`), camera 0x13ee6 with
+  the band spawns 0x144e4 (`cameraBands`, when the camera moved), `marble_physics::tick` (or
+  the respawn wait; the physics tail runs the slot contacts 0x29cce, the projection 0x1b9cc
+  and the occlusion masks 0x1281c), then the slot update 0x12fd0 (`objects::update`), then
+  publish. Stick as trackball, deltas per tick, k = `MARBLE_STICK_K`
   (9, about MAME's keyboard trackball speed; tune on the device): right c7 = c6 = -k, left
   +k, +k, down c7 = +k, c6 = -k, up c7 = -k, c6 = +k; two directions add, scaled by
   181/256 (about 1.4k on the axis both use). EXTRA held: no input (EXTRA + UP/DOWN is
-  volume). FIRE: next race (debug until Phase 3): cleared work RAM image, race start,
-  camera and pan reset.
+  volume). FIRE: next race (debug until the game flow phase): cleared work RAM image, race
+  start, camera and pan reset.
 
 ## Marble physics
 
@@ -664,6 +667,8 @@ numbers only), `make_fixture.py owrite`:
   39 ticks with masks, 14 hflip, 8 hidden; intermediate mt/q2 frame 1942, 300 ticks: 92 ticks
   with masks, 48 hflip, 10 round post contacts. lo/pw and lo/pw2 do not open the gate within
   their ticks (no dynamic code change), so the practice segment is a Phase 2 trace.
+  Over the four segments (1231 ticks): 408 with masks, 313 of them with more than one entry, 74
+  with hflip, 214 with the marble hidden.
 
 ```sh
 python3 romconv/internal/marble/tools/make_fixture.py osearch TRACE RACE [MIN]
