@@ -33,8 +33,9 @@ enum : uint8_t {
   IN0_IDLE = 0x7f, // coins, service, diag step, AVG done (high: decoded at GO)
   IN0_CLOCK_3K = 0x80,
 };
-// IN1 data bits, active high
-enum : uint8_t { IN1_B7 = 0x80, IN1_B6 = 0x40 };
+// game RAM: select state, see spacduel_inputs.h
+static const uint16_t RAM_SELECT = 0x03ee;
+static const uint8_t SELECT_PENDING = 0x80;
 // 0x0c00 lamps, active low
 enum : uint8_t { LAMP_START = 0x20 };
 
@@ -77,53 +78,9 @@ uint8_t spacduel::in0() const {
   return v | (clock_3k() ? IN0_CLOCK_3K : 0);
 }
 
-// MAME spacduel_IN3_r: two inputs per address in bits 7 and 6. Player 2
-// never presses anything; upright cabinet.
 uint8_t spacduel::in1(uint8_t offset) const {
-  const unsigned int k = input->buttons_get();
-  uint8_t v = 0;
-  switch (offset) {
-    case 0: // P1 shield, fire
-      if (k & (BUTTON_DOWN | BUTTON_B)) {
-        v |= IN1_B7;
-      }
-      if (k & (BUTTON_FIRE | BUTTON_A)) {
-        v |= IN1_B6;
-      }
-      break;
-    case 2: // P1 left, right
-      if (k & BUTTON_LEFT) {
-        v |= IN1_B7;
-      }
-      if (k & BUTTON_RIGHT) {
-        v |= IN1_B6;
-      }
-      break;
-    case 4: // P1 thrust, start
-      if (k & BUTTON_UP) {
-        v |= IN1_B7;
-      }
-      if (k & BUTTON_START) {
-        v |= IN1_B6;
-      }
-      break;
-    case 5: // P2 thrust, charge by game
-      if (!(SPACDUEL_DSW2 & 0x01)) {
-        v |= IN1_B6;
-      }
-      break;
-    case 6: // select, 2 credit minimum
-      if (!(SPACDUEL_DSW2 & 0x02)) {
-        v |= IN1_B6;
-      }
-      break;
-    case 7: // cabinet (upright = 0), 1 player game only
-      if (!(SPACDUEL_DSW2 & 0x04)) {
-        v |= IN1_B6;
-      }
-      break;
-  }
-  return v;
+  const SdSelect select = (memory[RAM_SELECT] & SELECT_PENDING) ? SD_SELECT_PENDING : SD_SELECTED;
+  return spacduel_in1(offset, input->buttons_get(), select);
 }
 
 bool spacduel::pokey_running(uint8_t n) const {

@@ -5,6 +5,7 @@
 #include "spacduel_logo.h"
 #include "spacduel_dipswitches.h"
 #include "spacduel_layout.h"
+#include "spacduel_inputs.h" // after dvgMachine.h: needs input.h
 #include "../../emulation/avg.h"
 #include "../../emulation/er2055.h"
 
