@@ -49,7 +49,7 @@ private:
   // emulation core: race state lives in the work RAM image, machineBase::memory
   uint8_t race = 0;
   uint32_t patchRec = 0;   // lastPatch record that view.patch was mapped from
-  uint8_t dead_ticks = 0;  // ticks since the marble broke or got lost
+  bool odd = false;        // frame without a logic tick
 };
 
 #endif // ENABLE_MARBLE

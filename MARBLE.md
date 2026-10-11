@@ -90,6 +90,8 @@ bottom rows), so pf_check cannot identify them.
   read 0x1ac18 (0x28824). The game logic main loop 0x117b2 waits for two vblanks
   (0x118ba, 0x118c8): 30 Hz. MAME traces: player ticks always 2 frames apart during a race
   (2400+ ticks, 3 traces).
+- 0x400010 counts logic ticks, not frames: the IRQ adds 1 (0x287a6) only when the main loop
+  set 0x40039a (0x118c0, before its last wait; cleared 0x287bc). Traces: + 1 per tick.
 - Per logic tick, object dispatcher 0x251de calls 0x253ec per object: switch on state
   +0x1a (jump table 0x254ba). State 0 (rolling) 0x256d2: 0x253bc (save last ground),
   0x17f66 (input, 0x26196 speed cap), 0x121b8 (physics). State 1 (dizzy) 0x2574c: same
@@ -104,17 +106,20 @@ bottom rows), so pf_check cannot identify them.
   every second frame's trackball motion.
 - Trackball hardware (MAME trakball_r): port 0xf20000 = x + y, 0xf20002 = x - y of the
   ball; 0x1ac18 stores port 0 in +0xc7, port 2 in +0xc6.
-- Remake (marble.cpp): run_frame() counts 0x400010 like the vblank IRQ and runs one logic
-  tick on even counts: queued animation frame 0x1344c (`applyQueued`), camera 0x13ee6 with
-  the band spawns 0x144e4 (`cameraBands`, when the camera moved), `marble_physics::tick` (or
-  the respawn wait; the physics tail runs the slot contacts 0x29cce, the projection 0x1b9cc
-  and the occlusion masks 0x1281c), then the slot update 0x12fd0 (`objects::update`), then
-  publish. Stick as trackball, deltas per tick, k = `MARBLE_STICK_K`
-  (9, about MAME's keyboard trackball speed; tune on the device): right c7 = c6 = -k, left
-  +k, +k, down c7 = +k, c6 = -k, up c7 = -k, c6 = +k; two directions add, scaled by
-  181/256 (about 1.4k on the axis both use). EXTRA held: no input (EXTRA + UP/DOWN is
-  volume). FIRE: next race (debug until the game flow phase): cleared work RAM image, race
-  start, camera and pan reset.
+- Remake (marble.cpp): run_frame() runs one logic tick every second frame, 0x400010 + 1
+  first (rule above): queued animation frame 0x1344c (`applyQueued`), camera 0x13ee6 with
+  the band spawns 0x144e4 (`cameraBands`, when the camera moved), `marble_physics::tick`
+  (0x251de: deltas to +0xc6/+0xc7, state handler 0x253ec; the physics tail runs the slot
+  contacts 0x29cce, the projection 0x1b9cc and the occlusion masks 0x1281c), the slot update
+  0x12fd0 (`objects::update`), rng(0x100) 0x118a4 (`marble_rng::rng`), the MO list (sort,
+  build), then publish. Order from the disassembly 0x117b2-0x118ce; Marble Love main-tick.ts
+  approximates the main loop (rng(0x100) on its wait tick). Not modelled: race timer and
+  other IRQ work, countdowns 0x400768/0x4003b8. Stick as trackball, deltas per tick, k =
+  `MARBLE_STICK_K` (9, about MAME's keyboard trackball speed; tune on the device): right c7
+  = c6 = -k, left +k, +k, down c7 = +k, c6 = -k, up c7 = -k, c6 = +k; two directions add,
+  scaled by 181/256 (about 1.4k on the axis both use). EXTRA held: no input (EXTRA + UP/DOWN
+  is volume). FIRE: next race (debug until the game flow phase): cleared work RAM image,
+  race start, camera and pan reset.
 
 ## Marble physics
 
@@ -260,9 +265,20 @@ Entries and steps:
   (0x213e6, 0x213f2); shatter 0x20fde (0x213fe-0x2146a, 10, then 0x2137a); overlay 0x215f6
   entries 0-43 (0x214ca-0x2157e, 16, and 0x2137a); dissolve 0x21062 (0x21476-0x214be, 7).
 
-RNG 0x13a98 (word 0x4003a6): rng(0x100) per tick at 0x118a4 after 0x10fce; race start
-0x10fb8 rng(0x100) -> 0x400444 (time out event: below 0x24a94[race], 0x1bbaa; level init
-also sets 0x40076c = 1); other consumers: section Enemies.
+RNG 0x13a98 (word 0x4003a6): rng(0x100) per tick at 0x118a4 after 0x1101e (slots 0x12fd0
+included); race start 0x10fb8 rng(0x100) -> 0x400444 (time out event: below
+0x24a94[race], 0x1bbaa; level init also sets 0x40076c = 1); other consumers: section
+Enemies.
+
+Remake (`marble_physics.cpp`, `marble_rng.cpp`): handlers of states 0, 1, 2, 4 and goal 6
+(0x254d2, section Open questions), 0x25bae (2, 4), 0x25fc2, 0x2591a, 0x262b2/0x2637a with
+0x17cb8, 0x13ade, 0x26214, race start rng. Not ported: dots 0x1c014/0x25b40, zone hook
+0x13966, time out 0x1bbaa (state 8; needs the race timer), +0xd8 wobble, sounds. Host test
+`test_marble_deaths`: the death fixture per tick (player fields, +0x5a, frame headers,
+masks, RNG; score, distance, death count at segment ends, from the traces); race start
+RNG; every race kills the marble through the machine's start and tick path (200 px fall
+and 20 px embedded: lost, sparkle; 40 px drop: shatter, sparkle) and rolls again within
+300 ticks; a race switch while dead starts clean.
 
 Validation: `deaths` runs free between teleports of tick start traces (`MARBLE_TICK=start`);
 per tick the player object (but the IRQ bytes +0x6a-+0x6f, +0xc6-+0xc9), 0x4003a6, slots,
@@ -337,14 +353,10 @@ race by 0x1a444 at level init (0x16f6c), read by 0x1caba.
   0xff end entry for zone +0x1d - 1 (zone 0 stays 0). 0x2591a then sets x/y, z = terrain,
   +0x1b = that zone, clears velocity, +0x36, +0x56, +0x58; 0x25c34 calls it when the
   marble is lost, then state 4.
-- Remake port `marble_physics::respawn` (0x262b2, 0x2637a, 0x2591a, without 0x17cb8):
-  equal to MAME in 22 of 23 trace respawns (races 0-5); the miss is beginner (cell
-  (26, 33) chosen, MAME took (22, 36)), consistent with the skipped blocked check. If no
-  checkpoint is found the remake uses the race start cell (the original would use pixel
-  (0, 0), outside the terrain). Timing placeholder until Phase 3: 60 frames after state
-  2 or 4 (marble hidden, not moved) the marble respawns in state 0, damage +0x57 0
-  (MAME traces: 98 frames between death and control). The arcade sequence with 0x17cb8:
-  section Player states, deaths, RNG.
+- Remake port: `marble_physics` 0x2591a, 0x262b2, 0x2637a with 0x17cb8 (section Player
+  states, deaths, RNG). Without 0x17cb8 (Phase 3) it equalled MAME in 22 of 23 trace
+  respawns; the miss (beginner, cell (26, 33), MAME (22, 36)) fits a blocked spot. No
+  checkpoint found: pixel (0, 0), zone 0xff, as the arcade.
 - Zone lines 0x1eb16[race]: 6 bytes (x, y, end, zone a, zone b, 0); x < 0: line y = |y|
   from x = |x| to end, else line x from y = |y| to end; leaving a line cell sets the zone
   of the side (0x1365c). Zone 0xff = goal.
@@ -689,15 +701,15 @@ python3 romconv/internal/marble/tools/marble_mo.py data
   Camera clamped to descriptor +0x10 .. +0x10 + +0x12; playfield y scroll 0x400000 moves
   by the same step (mod 0x200). Traces: camera steps +1/+2 per tick, only while
   sy <= 0x58.
-- Details (0x1411c-0x144e2): runs before the object update (0x10fce, 30 Hz), when the
-  60 Hz counter 0x400010 & 7 == 0 or a scroll runs (0x400008). Constants 0x1f1ca: speed
-  bytes 1, 2, 4; words low 0x48, high 0xa8, near 0x10, far 0x30. Only players in slot 1,
-  state 0/1/3/4/5 and not falling (airborne with vz <= 0) give sy; none (sentinel 0x7000,
-  silly 0x9000) while scrolling: a ghost sy 0x40000c continues at the current speed
-  (low or high, -/+ near or far) and moves with the camera. Forward when sy < low or a
-  forward scroll runs: speed 4 below low - far, 2 below low - near, 1 above low (else
-  kept); back mirrored around high. Direction 0x400004 (1 / 0xff), speed 0x40000a. A
-  scroll stops at the race range or once sy > low + 0x10 (forward) / < high - 0x10 (back).
+- Details (0x1411c-0x144e2): runs before the object update (0x10fce, 30 Hz), when the tick
+  counter 0x400010 & 7 == 0 (every 8th tick) or a scroll runs (0x400008). Constants 0x1f1ca:
+  speed bytes 1, 2, 4; words low 0x48, high 0xa8, near 0x10, far 0x30. Only players in slot
+  1, state 0/1/3/4/5 and not falling (airborne with vz <= 0) give sy; none (sentinel 0x7000,
+  silly 0x9000) while scrolling: a ghost sy 0x40000c continues at the current speed (low or
+  high, -/+ near or far) and moves with the camera. Forward when sy < low or a forward
+  scroll runs: speed 4 below low - far, 2 below low - near, 1 above low (else kept); back
+  mirrored around high. Direction 0x400004 (1 / 0xff), speed 0x40000a. A scroll stops at the
+  race range or once sy > low + 0x10 (forward) / < high - 0x10 (back).
   Initial camera: +0x10, silly +0x10 + +0x12 (0x16f4a); scroll state 0 (0x10540).
 - Remake port `marble_camera::tick` (source/src/machines/marble/marble_camera.cpp): equal
   to the traces in all 9640 ticks of 10 traces (642 camera moves, races 0-5), camera
@@ -783,14 +795,18 @@ numbers only), `tools/make_fixture.py`:
   blocks `{addr, len, bytes}` (everything else 0: object 0x400018 + 0xe2, race words
   0x400390-0x400395, scratch 0x400660-0x4006a7), ticks `{c6, c7, x, y, z, state}`.
 - Per tick: `tick(c6, c7)` as in marble_sim.py (physics of the current tick, then the new
-  deltas, 0x253bc and input), then x, y, z (16.16) and state +0x1a must match.
+  deltas, 0x253bc and input), then x, y, z (16.16) and state +0x1a must match. The C++
+  `tick` starts at the handler (deltas, 0x253bc, input, physics): the host test finishes
+  the snapshot's tick first (physics internals), then runs tick k with the deltas of k - 1.
 - Segments (no level object slots, dynamic codes and enemy scratch from the initial RAM
   only; each tick also matched the trace in velocity, +0x1b, +0x36, +0x37, +0x56-+0x58):
   practice frame 2056 of trace p4 (360 ticks, rolling, leftward, negative velocities),
-  practice frame 1420 of p3 (212 ticks, side bounce, wall, teetering, 31 airborne ticks,
-  ends lost, state 4), beginner frame 1187 of b2 (360 ticks, 7 walls, teetering, 26
-  airborne ticks, ends broken on landing, state 2). Practice has no 300 tick segment with
-  a death: its random runs fall off within 240 ticks of a respawn.
+  practice frame 1420 of p3 (211 ticks, side bounce, wall, teetering, 31 airborne ticks,
+  next tick lost), beginner frame 1187 of b2 (359 ticks, 7 walls, teetering, 26 airborne
+  ticks, next tick broken on landing). Practice has no 300 tick segment with a death: its
+  random runs fall off within 240 ticks of a respawn. The death ticks are cut: the break
+  choice needs the projected sy (no camera word in this fixture) and 0x25bae(4) respawns
+  in the death tick; test_marble_deaths covers deaths.
 - The beginner segment needs the stale wall outputs (0x400674-0x400683) of its initial
   RAM: zeroing them diverges at tick 345.
 
@@ -798,7 +814,7 @@ numbers only), `tools/make_fixture.py`:
 python3 romconv/internal/marble/tools/make_fixture.py search TRACE RACE [MIN]
 python3 romconv/internal/marble/tools/make_fixture.py write \
   source/test/test_marble_physics/marble_trace.h 0:p4/trace.bin:2056:360 \
-  0:p3/trace.bin:1420:212 1:b2/trace.bin:1187:360
+  0:p3/trace.bin:1420:211 1:b2/trace.bin:1187:359
 python3 romconv/internal/marble/tools/marble_sim.py fixture \
   source/test/test_marble_physics/marble_trace.h   # replay, no trace needed
 ```
@@ -1137,14 +1153,15 @@ python3 romconv/internal/marble/tools/marble_enemy.py spawn TRACE RACE
   marble not seen in traces).
 - Enemies (section Enemies): slinky states 1/5/6 (0x14a28-0x14bba, not in Marble Love), two
   player target choice 0x15fe6, no trace of steelie landing/shatter or acid/bird/piston hits.
-- Deaths (section Player states, deaths, RNG): states 1/2/4 modelled, the remake keeps its
-  60 frame placeholder until the C++ port. Not modelled: states 3 (catapult), 5/7/9/0xb
-  (enemies), 8 (time out, 0x258a8), 0xa (gate, 0x13d38 writes +0x38), practice landing
-  markers (type 0x2a, 0x12532, score 0x285b0), aerial piston hook 0x186ac in 0x13966, the
-  race timer and other vblank IRQ work, two players. Sparkle star tiles (MO codes
-  0x10b-0x112) are not in the remake sprite data.
-- Goal (state 6), Phase 3: the remake keeps calling `marble_physics::tick` (physics runs,
-  input off: 0x253bc/0x17f66 only in states 0/1), the camera ignores the marble (sy only
-  from states 0/1/3/4/5), and a later landing (0x25c74) sets state 1, so the marble becomes
-  controllable again.
+- Deaths (section Player states, deaths, RNG): states 1/2/4 modelled and ported. Not
+  modelled: states 3 (catapult), 5/7/9/0xb (enemies), 8 (time out, 0x258a8), 0xa (gate,
+  0x13d38 writes +0x38), practice landing markers (type 0x2a, 0x12532, score 0x285b0),
+  aerial piston hook 0x186ac in 0x13966, the race timer and other vblank IRQ work, two
+  players, the main loop countdowns 0x400768/0x4003b8 (aerial deaths diverge once 0x13966
+  sets 0x400768 = 0x3c). Not ported to C++: zone hook 0x13966 (silly/aerial respawn: sound
+  latches, 0x400768, zone wait slot restart via the slot script 0x12896), dots 0x1c014 /
+  0x25b40.
+- Goal (state 6, 0x254d2): physics, +0x57 (0x1e from 0x1365c) counts down, then +0x18 = 3
+  (out of play, input off) and v = 0; a landing in state 6 also sets +0x18 = 3. The camera
+  ignores the marble (sy only from states 0/1/3/4/5).
 - Object/enemy scripts, Phase 4. Sound command protocol, Phase 5.

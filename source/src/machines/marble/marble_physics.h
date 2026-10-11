@@ -8,27 +8,31 @@
 // marble_sim.py, MARBLE.md "Marble physics"). State lives in the work RAM image of Mem,
 // at the original addresses, so the port stays bit exact with MAME traces.
 //
-//   startRace(m, race)        race start of player 1 on a cleared work RAM, level objects
-//   tick(m, c6, c7) per 30 Hz logic tick:
-//     physics 0x121b8 -> dizzy countdown -> new trackball deltas -> 0x253bc, input 0x17f66
+//   startRace(m, race)        race start of player 1 on a cleared work RAM, level objects,
+//                             time out byte rng(0x100) (0x10fb8)
+//   tick(m, c6, c7) per 30 Hz logic tick (0x251de): trackball deltas of the tick to
+//     +0xc6/+0xc7, then the handler of state +0x1a (0x253ec):
+//       ROLL    0x253bc, input 0x17f66, physics 0x121b8
+//       DIZZY   animation 0x25fc2, as ROLL, countdown
+//       BROKEN  shatter animation 0x25fc2, projection, masks; ends in LOST
+//       LOST    respawned at entry (0x2591a); sparkle 0x13ade, then ROLL
+//       GOAL    physics, countdown, then out of play
 //   project(m)                screen position 0x1b9cc of the player. The physics tail calls
 //                             it; ticks that return early keep the stored value, as in the
 //                             arcade. Call it where the physics does not run.
-//   respawn(m)                after state 2/4: checkpoint search 0x262b2, reset 0x2591a
 //
 // Level object slots (marble_objects.h): 0x29cce runs inside the physics, startRace spawns
-// the first slots. Not ported (Phase 4): enemies and object collision, the death sequence
-// (states 2/4), sprite dots, sounds.
+// the first slots. Not ported (Phase 4): enemies and object collision, states 3, 5, 7-0xb,
+// the race timer (time out 0x1bbaa), sprite dots 0x1c014, zone hook 0x13966, sounds.
 namespace marble_physics {
 
 static const uint32_t PLAYER = 0x400018;  // player 1 object
 
-// player state +0x1a
-enum State : uint8_t { ROLL = 0, DIZZY = 1, BROKEN = 2, LOST = 4, GOAL = 6 };
+// player state +0x1a (handler table 0x254ba)
+enum State : uint8_t { ROLL = 0, DIZZY = 1, BROKEN = 2, LOST = 4, EATEN = 5, GOAL = 6 };
 
 void startRace(Mem &m, uint8_t race);
 void tick(Mem &m, int8_t c6, int8_t c7);
-void respawn(Mem &m);
 
 // position, 16.16 pixels; z high word = height
 inline int32_t x(const Mem &m) { return m.sl(PLAYER + 0x0c); }

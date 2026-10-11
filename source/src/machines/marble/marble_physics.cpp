@@ -2,6 +2,7 @@
 #include "marble_drawlist.h"
 #include "marble_objects.h"
 #include "marble_occlusion.h"
+#include "marble_rng.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -18,18 +19,25 @@ enum : uint8_t {
   VX = 0x00, VY = 0x04, VZ = 0x08,  // velocity, 16.16 per tick
   PX = 0x0c, PY = 0x10, PZ = 0x14,  // position, 16.16
   SLOT = 0x18,                      // 1 in play, 2/3 out of play
+  PLAYER_NO = 0x19,
   STATE = 0x1a,                     // enum State
-  ZONE = 0x1b, GROUND_ZONE = 0x1d,
+  ZONE = 0x1b, VISIBLE = 0x1c, GROUND_ZONE = 0x1d,
   SCREEN = 0x1e, SCREEN_OLD = 0x22, SCREEN_OLD2 = 0x26,  // sx, sy words
   GROUND_Z = 0x2a,                  // z at last ground (fall height)
   EDGE_CX = 0x2e, EDGE_CY = 0x30,   // cell where teetering / the fall started
+  ORBIT_ANGLE = 0x2e,               // state 4: sparkle angle
   GROUND_CX = 0x32, GROUND_CY = 0x34,
   AIR = 0x36,                       // 0 ground, 1 teetering, 2 airborne
   EDGE_MASK = 0x37,
-  DIZZY_CNT = 0x56, DAMAGE = 0x57,
+  MASKS = 0x38,                     // 5 x {code, x, y}: masks, state 4 sparkle stars
+  DIZZY_CNT = 0x56, DAMAGE = 0x57,  // damage: countdown in states 4 and 6
   SURFACE = 0x58, SURFACE_T = 0x59,
-  ANIM = 0x5a, ANIM_5F = 0x5f, ANIM_60 = 0x60,
+  ANIM = 0x5a, ANIM_5F = 0x5f, ANIM_60 = 0x60,  // frame list, tick counter, ticks per frame
+  SHARDS = 0x62, SHARD_TICK = 0x66, SHARDS_ON = 0x67,  // shatter overlay list
+  STARS = 0xa4,                     // 4 x {code, x, y}: dots, state 4 sparkle stars
+  SCORE = 0xbc, DISTANCE = 0xc4,
   BALL_C6 = 0xc6, BALL_C7 = 0xc7,   // trackball deltas port 2 / port 0
+  DEATHS = 0xd2,
 };
 
 enum : uint8_t { ON_GROUND = 0, TEETER = 1, AIRBORNE = 2 };
@@ -54,6 +62,12 @@ static const uint32_t ATTRACT = 0x400390;                    // 1 = attract demo
 static const uint32_t SPAWN_X = 0x400462, SPAWN_Y = 0x400466;  // longs, respawn pixel
 static const uint32_t SPAWN_ZONE = 0x400472;                 // 0xff: none found
 static const uint32_t VERTS = 0x401c28;                      // 4 vertices x 4 heights
+static const uint32_t PLAYERS = 0x400396;                    // word: player count
+static const uint32_t SCORED = 0x40039c;                     // bit per player: score changed
+static const uint32_t TIMEOUT_RND = 0x400444;                // race start random byte
+static const uint32_t BLOCK_HIT = 0x40046a;                  // long: index 0x17cb8 found
+static const uint32_t TIMEOUT_ARMED = 0x40076c;              // time out event 0x1bbaa armed
+static const uint32_t STEELIES = 0x4009a4, SLINKIES = 0x401302;
 
 // program ROM tables
 static const uint32_t DYN_INTERMEDIATE = 0x1d370;  // 66 dynamic codes (0x11ac2)
@@ -67,6 +81,37 @@ static const uint32_t FRICTION = 0x1eef8;
 static const uint32_t TEETER_LIFT = 0x2398c;   // z lift by distance to the edge
 static const uint32_t PUSH = 0x23d40;
 static const uint32_t STEPS = 0x24b3a;             // vertex walk of 0x1caba
+// animation lists of +0x5a (long frame headers, LIST_END), shatter overlay +0x62
+static const uint32_t ANIM_DIZZY = 0x20faa, ANIM_DIZZY_LOOP = 0x20fb6, ANIM_DIZZY_END = 0x20fd2;
+static const uint32_t ANIM_SHATTER = 0x20fde, ANIM_SHARDS = 0x215f6;
+static const uint32_t SINE = 0x1eda2;              // 0x4000 = 1, quarter turn QUARTER entries
+static const uint32_t STAR_STEPS = 0x1ef32;        // 8 x (s8 dx, s8 dy)
+
+static const uint32_t LIST_END = 0xffffffff;
+static const uint32_t SHATTER_BYTES = 0x80;        // 32 entries
+static const uint16_t SHATTER_SHARDS = 9;          // shatter frame that starts the overlay
+static const uint8_t ANIM_RATE = 2;                // ticks per frame
+static const uint8_t DIZZY_LOOPS = 6;              // +0x56 above: loop list, else end list
+static const uint8_t OUT_OF_LIST = 2, OUT_OF_PLAY = 3;  // +0x18: 2 also off the draw list
+static const uint8_t SHATTER_CNT = 2;              // +0x56 in state 2 (0, 1: other lists)
+static const int8_t SPARKLE_LAST = 2;              // +0x57 below: last sparkle tick
+static const uint8_t FELL = 0x64, EMBEDDED = 0x65, CARRIED = 0x66;  // +0x57 at state 4 entry
+static const uint8_t BREAK_LIMIT = 0x1f;           // +0x56 + (+0x57 - +0x56) / 2 above: break
+static const int16_t BREAK_SY_MIN = -0x10, BREAK_SY_MAX = 0xf0;  // on screen: shatter
+// sparkle 0x13ade: ticks by +0x57, angle steps of a full turn, stars on screen
+static const uint8_t ORBIT_FELL = 0x30, ORBIT_EMBEDDED = 0x18, ORBIT_CARRIED = 0x24;
+static const int16_t FULL_TURN = 0x192, QUARTER = 0x64, ORBIT_STEP = 10, STAR_STEP = 0x32;
+static const uint16_t STAR_CODE = 0x10b;           // MO code of star k: + k, no mask bit
+static const uint8_t STAR_N = 8, STAR_SLOTS = 4;   // 4 at +0xa4, then 4 at +0x38
+static const int16_t STAR_MIN = -8, STAR_X_MAX = 0x120, STAR_Y_MAX = 0xf0;
+// 0x17cb8: objects near a pixel, radius of the octant distance (pixels * 16)
+static const uint16_t SPAWN_FREE = 0x180, RESPAWN_FREE = 0x70;
+static const uint8_t NEAR_CELLS = 3;               // both deltas below 32 px
+static const uint16_t PLAYER_SIZE = 0xe2, STEELIE_SIZE = 0x7c, SLINKY_SIZE = 0x60;
+static const uint8_t STEELIE_N = 2, SLINKY_N = 4;
+static const uint8_t HIT_PLAYER = 1, HIT_STEELIE = 2, HIT_SLINKY = 4;
+static const int16_t SCORE_STEP = 0xa0, SCORE_POINTS = 10;  // distance score 0x26214
+static const uint16_t RNG_BYTE = 0x100;
 
 static const uint32_t FALL_VZ = 0xffffa000;        // -0x6000: vz when a fall starts
 static const uint8_t RACE_PRACTICE = 0, RACE_BEGINNER = 1, RACE_INTERMEDIATE = 2;
@@ -97,6 +142,7 @@ uint32_t speedNorm(int32_t vx, int32_t vy) {
 uint32_t scaleV(int32_t v, uint16_t k) { return (uint32_t)((s16(v >> 8) * s16(k)) >> 6); }
 
 void terrain_1caba(Mem &m);
+void enter_25bae(Mem &m, uint32_t a2, State code);
 
 // 0x1bb50: derive cell / fraction fields from 0x400690/0x400692
 void derive_1bb50(Mem &m) {
@@ -588,20 +634,35 @@ Friction frictionMode(uint8_t c) {
 // 0x25c74: landing (player path)
 void land_25c74(Mem &m, uint32_t a2, int16_t fall) {
   const uint8_t prev = m.rb(a2 + STATE);
+  if (prev == GOAL) { m.wb(a2 + SLOT, OUT_OF_PLAY); }
   m.wb(a2 + STATE, DIZZY);
   int32_t d4 = s8(m.rb(a2 + DAMAGE)) + fall;
   if (d4 > 0x7f) { d4 = 0x7f; }
   m.wb(a2 + DAMAGE, (uint8_t)d4);
 
   const int8_t s56 = m.sb(a2 + DIZZY_CNT), s57 = m.sb(a2 + DAMAGE);
-  if (s56 + ((s57 - s56) >> 1) > 0x1f) {
-    m.wb(a2 + STATE, BROKEN);
+  if (s56 + ((s57 - s56) >> 1) > BREAK_LIMIT) {
+    if (prev == DIZZY || prev == EATEN) {  // broken while dizzy (sound 0x15884)
+      m.wb(a2 + ANIM_5F, 0);
+      m.wb(a2 + DIZZY_CNT, 1);
+      m.wb(a2 + ANIM_60, ANIM_RATE);
+      m.wl(a2 + ANIM, ANIM_DIZZY_END);
+    }
+
+    // shatter on screen (sy of the last projection), else lost
+    const int16_t sy = m.sw(a2 + SCREEN + 2);
+    if (sy > BREAK_SY_MIN && sy < BREAK_SY_MAX) {
+      enter_25bae(m, a2, BROKEN);
+      return;
+    }
+    m.wb(a2 + DAMAGE, FELL);
+    enter_25bae(m, a2, LOST);
     return;
   }
   if (prev == DIZZY) { return; }
   m.wb(a2 + ANIM_5F, 0);
-  m.wb(a2 + ANIM_60, 2);
-  m.wl(a2 + ANIM, 0x20faa);  // sound 0x39
+  m.wb(a2 + ANIM_60, ANIM_RATE);
+  m.wl(a2 + ANIM, ANIM_DIZZY);  // sound 0x39
 }
 
 // 0x1365c: zone lines (checkpoint zone +0x1b, goal zone 0xff)
@@ -660,10 +721,10 @@ void physics_121b8(Mem &m, uint32_t a2) {
   m.ww(CELL_X, 0xffff);
   posupd_1bab2(m, a2);
 
-  // more than 16 px below the terrain: embedded, lost
+  // more than 16 px below the terrain: embedded, lost (sounds 0x15884, 0x46)
   if (s32((int64_t)height_1cc62(m) - m.sl(a2 + PZ)) > 0x100000) {
-    m.wb(a2 + DAMAGE, 0x65);
-    m.wb(a2 + STATE, LOST);
+    m.wb(a2 + DAMAGE, EMBEDDED);
+    enter_25bae(m, a2, LOST);
     return;
   }
 
@@ -713,8 +774,8 @@ void physics_121b8(Mem &m, uint32_t a2) {
       m.wl(a2 + PZ, (uint32_t)h);
       land_25c74(m, a2, s16((int32_t)fall));
     } else if (s32((int64_t)m.sl(a2 + GROUND_Z) - m.sl(a2 + PZ)) > 0x800000) {
-      m.wb(a2 + DAMAGE, 0x64);  // fell more than 128 px: lost
-      m.wb(a2 + STATE, LOST);
+      m.wb(a2 + DAMAGE, FELL);  // fell more than 128 px: lost (sounds 0x15884, 0x46)
+      enter_25bae(m, a2, LOST);
       return;
     }
   } else if (m.rb(a2 + AIR) == ON_GROUND) {
@@ -732,10 +793,25 @@ void physics_121b8(Mem &m, uint32_t a2) {
   if (m.rw(ATTRACT) != 1) { gravity_25df6(m, a2); }
 }
 
+// 0x26214: +0xc4 sums the friction table at the speed (>> 9); every SCORE_STEP scores
+// SCORE_POINTS (0x28608: +0xbc, flag 0x40039c)
+void distance_26214(Mem &m, uint32_t a2, uint32_t speed) {
+  const uint8_t i4 = (speed >> 15) & 0xf, i2 = (speed >> 12) & 7;
+  const int16_t t0 = s16(m.romw(FRICTION + 2 * i4)), t1 = s16(m.romw(FRICTION + 2 * i4 + 2));
+  const int32_t d1 = ((s16(t1 - t0) * i2 >> 3) + t0) >> 9;
+  m.ww(a2 + DISTANCE, (uint16_t)(m.rw(a2 + DISTANCE) + d1));
+  if (m.sw(a2 + DISTANCE) <= SCORE_STEP) { return; }
+
+  m.ww(a2 + DISTANCE, m.rw(a2 + DISTANCE) - SCORE_STEP);
+  m.wl(a2 + SCORE, m.rl(a2 + SCORE) + SCORE_POINTS);
+  m.wb(SCORED, m.rb(SCORED) | (1 << m.rb(a2 + PLAYER_NO)));
+}
+
 // 0x26196 / 0x261bc: speed cap
 void speedcap_26196(Mem &m, uint32_t a2) {
   const uint32_t cap = m.rb(a2 + STATE) == ROLL ? 0x40000 : 0x50000;
   const uint32_t d3 = speedNorm(m.sl(a2 + VX), m.sl(a2 + VY));
+  distance_26214(m, a2, d3);
   if (cap >= d3) { return; }
 
   const uint16_t q = divu(cap << 6, (d3 >> 8) & 0xffff);
@@ -830,20 +906,47 @@ void start_259b4(Mem &m, uint8_t race, uint32_t a2) {
     m.wb(a2 + SURFACE, 0x17);
     m.wb(a2 + SURFACE_T, 0xff);
   }
-
-  // first object update before the first 0x121b8 (deltas are 0)
-  ground_253bc(m, a2);
-  input_17f66(m, a2);
 }
 
-// checkpoint entry a3 -> spawn pixel (cell * 8 + 4) and zone
+// 0x17cb8: kind (HIT_*) of another live object near pixel (x, y), index to BLOCK_HIT, 0 if
+// none. Players (not a2), steelies, slinkies: both deltas below 32 px and the octant
+// distance (deltas * 16) below r.
+uint8_t blocked_17cb8(Mem &m, uint32_t a2, int16_t x, int16_t y, uint16_t r) {
+  struct Group { uint32_t base; uint16_t size; uint8_t n, kind; };
+  const Group groups[] = {{PLAYER, PLAYER_SIZE, (uint8_t)m.rw(PLAYERS), HIT_PLAYER},
+                          {STEELIES, STEELIE_SIZE, STEELIE_N, HIT_STEELIE},
+                          {SLINKIES, SLINKY_SIZE, SLINKY_N, HIT_SLINKY}};
+  for (const Group &g : groups) {
+    for (uint8_t i = 0; i < g.n; i++) {
+      const uint32_t a = g.base + (uint32_t)g.size * i;
+      if ((g.kind == HIT_PLAYER && a == a2) || !m.rb(a + SLOT)) { continue; }
+
+      const int16_t ex = s16(m.rw(a + PX) - (uint16_t)x), ey = s16(m.rw(a + PY) - (uint16_t)y);
+      const uint16_t dx = (uint16_t)(ex < 0 ? -ex : ex), dy = (uint16_t)(ey < 0 ? -ey : ey);
+      if (dx >> 3 > NEAR_CELLS || dy >> 3 > NEAR_CELLS) { continue; }
+
+      const uint16_t fx = (uint16_t)(dx << 4), fy = (uint16_t)(dy << 4);
+      const uint32_t d = fx > fy ? (uint32_t)(fy >> 3) * 3 + fx : (uint32_t)(fx >> 3) * 3 + fy;
+      if (r <= d) { continue; }
+      m.wl(BLOCK_HIT, i);
+      return g.kind;
+    }
+  }
+  return 0;
+}
+
+// checkpoint entry a3: spawn pixel (cell * 8 + 4)
+inline int16_t spawnX(const Mem &m, uint32_t a3) { return (int16_t)(m.romb(a3) * 8 + 4); }
+inline int16_t spawnY(const Mem &m, uint32_t a3) { return (int16_t)(m.romb(a3 + 1) * 8 + 4); }
+
+// checkpoint entry a3 -> spawn pixel and zone
 void spawnAt(Mem &m, uint32_t a3) {
-  m.wl(SPAWN_X, (uint32_t)(m.romb(a3) * 8 + 4));
-  m.wl(SPAWN_Y, (uint32_t)(m.romb(a3 + 1) * 8 + 4));
+  m.wl(SPAWN_X, (uint32_t)spawnX(m, a3));
+  m.wl(SPAWN_Y, (uint32_t)spawnY(m, a3));
   m.wb(SPAWN_ZONE, m.romb(a3 + 2));
 }
 
-// 0x2637a: nearest checkpoint of the ground zone (+0x1d) to the last ground cell
+// 0x2637a: nearest free checkpoint of the ground zone (+0x1d) to the last ground cell
 void nearest_2637a(Mem &m, uint32_t a2) {
   const uint16_t zone = (uint16_t)(int16_t)m.sb(a2 + GROUND_ZONE);  // ext.w
   uint32_t best = SPAWN_RANGE;
@@ -857,14 +960,15 @@ void nearest_2637a(Mem &m, uint32_t a2) {
     const uint16_t dy = (uint16_t)((ey < 0 ? -ey : ey) << 4);
     const uint32_t d = dx > dy ? (uint32_t)(dy >> 3) * 3 + dx : (uint32_t)(dx >> 3) * 3 + dy;
 
-    // 0x17cb8 (spot blocked by another object): not ported, no objects yet
+    if (blocked_17cb8(m, a2, spawnX(m, a3), spawnY(m, a3), SPAWN_FREE)) { continue; }
     if (d >= best) { continue; }
     best = d;
     spawnAt(m, a3);
   }
 }
 
-// 0x262b2: respawn point; fallback is the last checkpoint of zone - 1
+// 0x262b2: respawn point; fallback is the last free checkpoint of zone - 1, none: pixel
+// (0, 0), zone NO_ZONE
 void spawnPoint_262b2(Mem &m, uint32_t a2) {
   m.wl(SPAWN_Y, 0);
   m.wl(SPAWN_X, 0);
@@ -878,8 +982,9 @@ void spawnPoint_262b2(Mem &m, uint32_t a2) {
   int16_t zone = m.sb(a2 + GROUND_ZONE);
   if (zone) { zone--; }
 
-  // backwards from the end marker (its zone 0xff never matches)
+  // backwards from the end marker (its zone 0xff never matches, 0x17cb8 still runs)
   for (; a3 != first - 4; a3 -= 4) {
+    if (blocked_17cb8(m, a2, spawnX(m, a3), spawnY(m, a3), SPAWN_FREE)) { continue; }
     if (m.romb(a3 + 2) == (uint16_t)zone) {
       spawnAt(m, a3);
       return;
@@ -887,76 +992,14 @@ void spawnPoint_262b2(Mem &m, uint32_t a2) {
   }
 }
 
-}  // namespace
+enum Refetch : uint8_t { KEEP_CELL, REFETCH };
 
-// 0x2591a (physics fields) after a death, then the state 0 entry as in start_259b4.
-// Placeholder for the state 2/4 sequence (0x25c34, 0x13ade): state back to 0, damage 0.
-void respawn(Mem &m) {
-  const uint32_t a2 = PLAYER;
-  spawnPoint_262b2(m, a2);
-  if (m.rb(SPAWN_ZONE) == NO_ZONE) {  // the original would use pixel (0, 0): off the terrain
-    const uint16_t cell = m.romw(m.desc() + DESC_CELL);
-    m.wl(SPAWN_X, (cell >> 8) * 8 + 4);
-    m.wl(SPAWN_Y, (cell & 0xff) * 8 + 4);
-    m.wb(SPAWN_ZONE, 0);
+// 0x1b9cc (see marble_physics.h); REFETCH reloads the terrain cell first
+void proj_1b9cc(Mem &m, Refetch r) {
+  if (r == REFETCH) {
+    m.ww(CELL_Y, 0xffff);
+    m.ww(CELL_X, 0xffff);
   }
-
-  m.wl(a2 + PX, m.rl(SPAWN_X) << 16);
-  m.wl(a2 + PY, m.rl(SPAWN_Y) << 16);
-  m.ww(CELL_Y, 0xffff);
-  m.ww(CELL_X, 0xffff);
-  posupd_1bab2(m, a2);
-  m.wl(a2 + PZ, (uint32_t)height_1cc62(m));
-  m.wb(a2 + ZONE, m.rb(SPAWN_ZONE));
-
-  static const uint8_t longs[] = {VX, VY, VZ, ANIM};
-  static const uint8_t bytes[] = {DIZZY_CNT, DAMAGE, STATE, AIR, SURFACE, BALL_C6, BALL_C7};
-  for (uint8_t o : longs) { m.wl(a2 + o, 0); }
-  for (uint8_t o : bytes) { m.wb(a2 + o, 0); }
-
-  ground_253bc(m, a2);
-  input_17f66(m, a2);
-}
-
-void startRace(Mem &m, uint8_t race) {
-  m.setRace(race);
-  start_259b4(m, race, PLAYER);
-  marble_drawlist::init(m);  // 0x28ca6: before the slot inserts of the level init
-  marble_objects::init(m, race);
-}
-
-// Snapshot point (0x121b8 entry) to the next one; c6/c7: trackball deltas of the next tick.
-void tick(Mem &m, int8_t c6, int8_t c7) {
-  const uint32_t a2 = PLAYER;
-  const uint8_t st = m.rb(a2 + STATE);  // the state handler was picked before the physics
-  physics_121b8(m, a2);
-
-  // 0x2574c tail: dizzy countdown
-  if (st == DIZZY && m.rb(a2 + STATE) == DIZZY) {
-    if (m.rb(a2 + DAMAGE)) { m.wb(a2 + DAMAGE, m.rb(a2 + DAMAGE) - 1); }
-    if (m.sb(a2 + DAMAGE) < m.sb(a2 + DIZZY_CNT)) {
-      m.wb(a2 + DIZZY_CNT, m.rb(a2 + DIZZY_CNT) - 1);
-      if (m.rb(a2 + DIZZY_CNT) == 0) {
-        m.wb(a2 + STATE, ROLL);
-        m.wl(a2 + ANIM, 0);
-      }
-    } else {
-      m.wb(a2 + DIZZY_CNT, m.rb(a2 + DIZZY_CNT) + 1);
-    }
-  }
-
-  m.wb(a2 + BALL_C6, (uint8_t)c6);
-  m.wb(a2 + BALL_C7, (uint8_t)c7);
-  const uint8_t now = m.rb(a2 + STATE);
-  if (now != ROLL && now != DIZZY) { return; }
-
-  // 0x25fc2 animation script step (state 1) does not touch the motion
-  ground_253bc(m, a2);
-  input_17f66(m, a2);
-}
-
-// 0x1b9cc (see marble_physics.h)
-void project(Mem &m) {
   posupd_1bab2(m, PLAYER);
   const uint32_t packed = (uint32_t)(uint16_t)sx(m) << 16 | (uint16_t)sy(m);
   if (packed == m.rl(PLAYER + SCREEN) || packed == m.rl(PLAYER + SCREEN_OLD)) { return; }
@@ -965,6 +1008,277 @@ void project(Mem &m) {
   m.wl(PLAYER + SCREEN_OLD, m.rl(PLAYER + SCREEN));
   m.wl(PLAYER + SCREEN, packed);
 }
+
+// 0x2591a: to the respawn point 0x262b2, z on the terrain, motion cleared, projected. Not
+// ported: dot pose 0x25b40 (dots 0x1c014), zone hook 0x13966 (silly, aerial).
+void respawn_2591a(Mem &m, uint32_t a2) {
+  spawnPoint_262b2(m, a2);
+  m.wl(a2 + PX, m.rl(SPAWN_X) << 16);
+  m.wl(a2 + PY, m.rl(SPAWN_Y) << 16);
+  m.ww(CELL_Y, 0xffff);
+  m.ww(CELL_X, 0xffff);
+  posupd_1bab2(m, a2);
+  m.wl(a2 + PZ, (uint32_t)height_1cc62(m));
+  m.wb(a2 + ZONE, m.rb(SPAWN_ZONE));
+
+  static const uint8_t longs[] = {VZ, VY, VX, SCREEN_OLD2, SCREEN_OLD};
+  static const uint8_t bytes[] = {DIZZY_CNT, AIR, SURFACE};
+  for (uint8_t o : longs) { m.wl(a2 + o, 0); }
+  for (uint8_t o : bytes) { m.wb(a2 + o, 0); }
+  proj_1b9cc(m, KEEP_CELL);
+}
+
+// 0x25bae: state entry, velocity x/y cleared. BROKEN: shatter animation. LOST: respawn at
+// once, the sparkle of state 4 shows the new spot (sound 0x3c / 0x3d). Not ported: 9
+// dissolve (acid, Phase 4b).
+void enter_25bae(Mem &m, uint32_t a2, State code) {
+  m.wl(a2 + VY, 0);
+  m.wl(a2 + VX, 0);
+  if (m.rb(a2 + STATE) == GOAL) { m.wb(a2 + SLOT, OUT_OF_PLAY); }
+
+  if (code == BROKEN) {  // sound 0x38
+    m.wb(a2 + ANIM_5F, 0);
+    m.wb(a2 + ANIM_60, ANIM_RATE);
+    m.wl(a2 + ANIM, ANIM_SHATTER);
+    m.wb(a2 + DIZZY_CNT, SHATTER_CNT);
+    m.wb(a2 + STATE, BROKEN);
+    return;
+  }
+
+  respawn_2591a(m, a2);
+  m.wl(a2 + ANIM, 0);
+  m.wb(a2 + STATE, LOST);
+  m.ww(a2 + DEATHS, m.rw(a2 + DEATHS) + 1);
+}
+
+// shatter list entry of +0x5a
+inline uint16_t shatterIdx(uint32_t anim) { return (uint16_t)((anim - ANIM_SHATTER) >> 2); }
+
+// 0x25fc2: next frame of +0x5a every +0x60 ticks (counter +0x5f). Shatter frame 9 starts the
+// overlay +0x62, stepped every tick after. List end: dizzy lists loop, a shatter is lost.
+void anim_25fc2(Mem &m, uint32_t a2) {
+  const uint8_t st = m.rb(a2 + STATE);
+  const uint32_t anim = m.rl(a2 + ANIM);
+  if (st == BROKEN && anim > ANIM_SHATTER && anim < ANIM_SHATTER + SHATTER_BYTES &&
+      s16(shatterIdx(anim)) > SHATTER_SHARDS) {
+    m.wb(a2 + SHARD_TICK, m.rb(a2 + SHARD_TICK) + 1);
+    if (m.rb(a2 + SHARD_TICK) == 1) {
+      m.wb(a2 + SHARD_TICK, 0);
+      m.wl(a2 + SHARDS, m.rl(a2 + SHARDS) + 4);
+    }
+  }
+
+  m.wb(a2 + ANIM_5F, m.rb(a2 + ANIM_5F) + 1);
+  if (m.sb(a2 + ANIM_60) > m.sb(a2 + ANIM_5F)) { return; }
+  m.wb(a2 + ANIM_5F, 0);
+  m.wl(a2 + ANIM, m.rl(a2 + ANIM) + 4);
+  if (st == BROKEN && shatterIdx(m.rl(a2 + ANIM)) == SHATTER_SHARDS) {  // sound 0x5f
+    m.wl(a2 + SHARDS, ANIM_SHARDS);
+    m.wb(a2 + SHARD_TICK, 0);
+    m.wb(a2 + SHARDS_ON, 1);
+  }
+  if (m.roml(m.rl(a2 + ANIM)) != LIST_END) { return; }
+
+  if (st == DIZZY || st == EATEN) {
+    m.wb(a2 + ANIM_5F, 0);
+    m.wb(a2 + ANIM_60, ANIM_RATE);
+    m.wl(a2 + ANIM, m.sb(a2 + DIZZY_CNT) > DIZZY_LOOPS ? ANIM_DIZZY_LOOP : ANIM_DIZZY_END);
+    return;
+  }
+  if (st == BROKEN && m.rb(a2 + DIZZY_CNT) == 0) {
+    m.wb(a2 + ANIM_5F, 0);
+    m.wb(a2 + ANIM_60, ANIM_RATE);
+    m.wl(a2 + ANIM, ANIM_DIZZY_END);
+    m.wb(a2 + DIZZY_CNT, 1);
+    return;
+  }
+  if (st == BROKEN && m.rb(a2 + DIZZY_CNT) == 1) {  // sound 0x15884
+    enter_25bae(m, a2, BROKEN);
+    return;
+  }
+  if (st == BROKEN) {  // +0x18 == OUT_OF_LIST: steelies only
+    m.wb(a2 + SHARDS_ON, 0);
+    m.ww(a2 + STARS, 0);
+  }
+  m.wb(a2 + DAMAGE, EMBEDDED);
+  enter_25bae(m, a2, LOST);
+}
+
+// (cos, sin) words of angle a (0 .. FULL_TURN - 1), 0x4000 = 1
+void sinePair(const Mem &m, int16_t a, int16_t &cs, int16_t &sn) {
+  auto t = [&m](int16_t i) { return s16(m.romw(SINE + 2 * i)); };
+  if (a <= QUARTER) {
+    cs = t(a);
+    sn = t(QUARTER - a);
+  } else if (a < 2 * QUARTER + 1) {
+    cs = s16(-t(2 * QUARTER - a));
+    sn = t(a - QUARTER);
+  } else if (a <= 3 * QUARTER + 1) {
+    cs = s16(-t(a - 2 * QUARTER - 1));
+    sn = s16(-t(3 * QUARTER + 1 - a));
+  } else {
+    cs = t(FULL_TURN - 1 - a);
+    sn = s16(-t(a - 3 * QUARTER - 1));
+  }
+}
+
+// sparkle length by +0x57 at the state 4 entry, 0: running
+uint8_t orbitTicks(uint8_t damage) {
+  switch (damage) {
+    case FELL: return ORBIT_FELL;
+    case EMBEDDED: return ORBIT_EMBEDDED;
+    case CARRIED: return ORBIT_CARRIED;
+    default: return 0;
+  }
+}
+
+// 0x13ade: respawn sparkle, 8 stars circling the screen position on a shrinking radius; the
+// first 4 on screen to +0xa4, the next 4 to +0x38 (no mask bit). True when +0x57 is 0.
+bool orbit_13ade(Mem &m, uint32_t a2) {
+  const uint8_t ticks = orbitTicks(m.rb(a2 + DAMAGE));
+  if (ticks) {
+    m.wb(a2 + DAMAGE, ticks);
+    m.ww(a2 + ORBIT_ANGLE, 0);
+  }
+  int16_t d1 = m.sb(a2 + DAMAGE);
+  m.wb(a2 + DAMAGE, m.rb(a2 + DAMAGE) - 1);
+  if (m.rb(a2 + STATE) == STATE_ENEMY) { d1 = ORBIT_CARRIED - d1; }
+  const int32_t rad = d1 >> 1;
+
+  uint16_t d3 = m.rw(a2 + ORBIT_ANGLE) + ORBIT_STEP;
+  if (s16(d3) >= FULL_TURN) { d3 -= FULL_TURN; }
+  m.ww(a2 + ORBIT_ANGLE, d3);
+
+  const uint16_t sx = m.rw(a2 + SCREEN), sy = m.rw(a2 + SCREEN + 2);
+  for (uint8_t k = 0; k < STAR_SLOTS; k++) {
+    m.ww(a2 + MASKS + 6 * k, 0);
+    m.ww(a2 + STARS + 6 * k, 0);
+  }
+
+  uint8_t n = 0;
+  for (uint8_t k = 0; k < STAR_N; k++) {
+    int16_t cs, sn;
+    sinePair(m, s16(d3), cs, sn);
+    const int16_t a1 = s16((uint32_t)((rad * cs) >> 12));
+    const int32_t d0 = (rad * sn) >> 12;
+    const int16_t x = s16((uint32_t)(s8(m.romb(STAR_STEPS + 2 * k)) + s16((uint32_t)(d0 + sx - a1))));
+    const int16_t y = s16((uint32_t)(s8(m.romb(STAR_STEPS + 2 * k + 1)) +
+                                     s16((uint32_t)(d1 + sy - ((s16((uint32_t)d0) + a1) >> 1)))));
+    if (x > STAR_MIN && x < STAR_X_MAX && y > STAR_MIN && y < STAR_Y_MAX) {
+      const uint32_t e = n < STAR_SLOTS ? a2 + STARS + 6 * n : a2 + MASKS + 6 * (n - STAR_SLOTS);
+      n++;
+      m.ww(e, STAR_CODE + k);
+      m.ww(e + 2, (uint16_t)x);
+      m.ww(e + 4, (uint16_t)y);
+    }
+    d3 += STAR_STEP;
+    if (s16(d3) >= FULL_TURN) { d3 -= FULL_TURN; }
+  }
+  m.wb(a2 + VISIBLE, 1);
+  return m.rb(a2 + DAMAGE) == 0;
+}
+
+// 0x2574c tail: dizzy countdown, back to ROLL at 0 (sound 0x15884; dots 0x1c014 not ported)
+void countdown_2574c(Mem &m, uint32_t a2) {
+  if (m.rb(a2 + STATE) != DIZZY) { return; }
+  if (m.rb(a2 + DAMAGE)) { m.wb(a2 + DAMAGE, m.rb(a2 + DAMAGE) - 1); }
+  if (m.sb(a2 + DAMAGE) >= m.sb(a2 + DIZZY_CNT)) {
+    m.wb(a2 + DIZZY_CNT, m.rb(a2 + DIZZY_CNT) + 1);
+    return;
+  }
+  m.wb(a2 + DIZZY_CNT, m.rb(a2 + DIZZY_CNT) - 1);
+  if (m.rb(a2 + DIZZY_CNT)) { return; }
+  m.wb(a2 + STATE, ROLL);
+  m.wl(a2 + ANIM, 0);
+}
+
+// 0x256d2: roll. Not ported: +0xcb (set by the time out 0x1bbaa) starts state 8.
+void roll_256d2(Mem &m, uint32_t a2) {
+  ground_253bc(m, a2);
+  input_17f66(m, a2);
+  physics_121b8(m, a2);
+}
+
+// 0x2574c: dizzy, the roll with the animation and the countdown
+void dizzy_2574c(Mem &m, uint32_t a2) {
+  anim_25fc2(m, a2);
+  roll_256d2(m, a2);
+  countdown_2574c(m, a2);
+}
+
+// 0x25824: shatter animation, projection, masks while visible
+void shatter_25824(Mem &m, uint32_t a2) {
+  anim_25fc2(m, a2);
+  proj_1b9cc(m, REFETCH);
+  if (m.rb(a2 + VISIBLE)) { marble_occlusion::enter(m, a2); }
+}
+
+// 0x255c6: lost, the sparkle at the respawn point; once it ends the spot is checked again
+// (taken: respawn elsewhere), then ROLL
+void lost_255c6(Mem &m, uint32_t a2) {
+  proj_1b9cc(m, REFETCH);
+  bool done = orbit_13ade(m, a2);
+  const bool check = done || m.sb(a2 + DAMAGE) < SPARKLE_LAST;
+  if (check && blocked_17cb8(m, a2, m.sw(a2 + PX), m.sw(a2 + PY), RESPAWN_FREE)) {
+    m.wb(a2 + DAMAGE, EMBEDDED);
+    enter_25bae(m, a2, LOST);
+    done = false;
+  }
+  if (!done) { return; }
+
+  m.wl(a2 + VY, 0);
+  m.wl(a2 + VX, 0);
+  m.wb(a2 + STATE, ROLL);
+}
+
+// 0x254d2: goal, physics until +0x57 counts to 0, then out of play. Not ported: attract
+// 0x1815a.
+void goal_254d2(Mem &m, uint32_t a2) {
+  physics_121b8(m, a2);
+  m.wb(a2 + DAMAGE, m.rb(a2 + DAMAGE) - 1);
+  if (m.rb(a2 + DAMAGE) || m.rb(a2 + SLOT) == OUT_OF_LIST) { return; }
+
+  m.wb(a2 + SLOT, OUT_OF_PLAY);
+  m.wl(a2 + VY, 0);
+  m.wl(a2 + VX, 0);
+}
+
+// 0x253ec: handler of state +0x1a (table 0x254ba). Not ported: +0xd8 wobble (silly minis),
+// states 3, 5, 7-0xb.
+void object_253ec(Mem &m, uint32_t a2) {
+  switch (m.rb(a2 + STATE)) {
+    case ROLL: roll_256d2(m, a2); break;
+    case DIZZY: dizzy_2574c(m, a2); break;
+    case BROKEN: shatter_25824(m, a2); break;
+    case LOST: lost_255c6(m, a2); break;
+    case GOAL: goal_254d2(m, a2); break;
+    default: break;
+  }
+}
+
+}  // namespace
+
+void startRace(Mem &m, uint8_t race) {
+  m.setRace(race);
+  start_259b4(m, race, PLAYER);
+  marble_drawlist::init(m);  // 0x28ca6: before the slot inserts of the level init
+  marble_objects::init(m, race);
+
+  // level init end 0x10fb8: time out event armed, its random byte
+  m.wb(TIMEOUT_ARMED, 1);
+  m.wb(TIMEOUT_RND, (uint8_t)marble_rng::rng(m, RNG_BYTE));
+}
+
+// 0x251de, one player. Not ported: time out 0x1bbaa (needs the race timer +0x6a).
+void tick(Mem &m, int8_t c6, int8_t c7) {
+  const uint32_t a2 = PLAYER;
+  m.wb(a2 + BALL_C6, (uint8_t)c6);
+  m.wb(a2 + BALL_C7, (uint8_t)c7);
+  if (!m.rb(a2 + SLOT)) { return; }
+  object_253ec(m, a2);
+}
+
+void project(Mem &m) { proj_1b9cc(m, KEEP_CELL); }
 
 }  // namespace marble_physics
 

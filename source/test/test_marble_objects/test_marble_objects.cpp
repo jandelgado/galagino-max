@@ -9,6 +9,7 @@
 #define HAVE_ROM 1
 #define ENABLE_MARBLE
 #include "../../src/machines/marble/marble_mem.cpp"
+#include "../../src/machines/marble/marble_rng.cpp"
 #include "../../src/machines/marble/marble_physics.cpp"
 #include "../../src/machines/marble/marble_drawlist.h"
 
@@ -66,9 +67,18 @@ static const char *maskDiff(const Mem &m, const MarbleObjTick &t) {
 }
 
 // One tick as the model's tick(c6, c7, camera) with objects on: the player update, the slot
-// update, the queued frame, then the camera long (an input) with the band spawns.
-static void tick(Mem &m, const MarbleObjTick &t) {
-  marble_physics::tick(m, t.c6, t.c7);
+// update, the queued frame, then the camera long (an input) with the band spawns. A fixture
+// snapshot is the 0x121b8 entry of a state 0/1 handler: tick 0 finishes that handler
+// (internals of the included marble_physics.cpp), tick k runs tick() with the deltas stored
+// at tick k - 1.
+static void tick(Mem &m, const MarbleObjTick *prev, const MarbleObjTick &t) {
+  if (prev) {
+    marble_physics::tick(m, prev->c6, prev->c7);
+  } else {
+    const uint8_t st = marble_physics::state(m);
+    marble_physics::physics_121b8(m, PLAYER_OBJ);
+    if (st == marble_physics::DIZZY) { marble_physics::countdown_2574c(m, PLAYER_OBJ); }
+  }
   marble_objects::update(m);
   marble_objects::applyQueued(m);
 
@@ -85,7 +95,7 @@ static void test_replay_objects(void) {
 
     for (uint16_t k = 0; k < seg.nticks; k++) {
       const MarbleObjTick &t = seg.ticks[k];
-      tick(m, t);
+      tick(m, k ? &seg.ticks[k - 1] : nullptr, t);
 
       const uint32_t slots = crc32(ram + (SLOT_AREA - marble_physics::RAM_BASE), SLOT_AREA_LEN);
       const uint32_t dyn = crc32(ram + (DYN_AREA - marble_physics::RAM_BASE), DYN_AREA_LEN);

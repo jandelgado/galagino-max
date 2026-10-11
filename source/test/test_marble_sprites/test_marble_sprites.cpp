@@ -14,6 +14,7 @@
 #include "../../src/machines/marble/marble_rom.h"
 #define ENABLE_MARBLE
 #include "../../src/machines/marble/marble_mem.cpp"
+#include "../../src/machines/marble/marble_rng.cpp"
 #include "../../src/machines/marble/marble_physics.cpp"
 #include "../../src/machines/marble/marble_objects.cpp"
 #include "../../src/machines/marble/marble_occlusion.cpp"
@@ -142,12 +143,25 @@ static void loadRam(const MarbleSprSegment &seg) {
   }
 }
 
+// Player update of a fixture tick. A fixture snapshot is the 0x121b8 entry of a state 0/1
+// handler: tick 0 (prev null) finishes that handler (internals of the included
+// marble_physics.cpp), tick k runs tick() with the deltas stored at tick k - 1.
+static void playerTick(Mem &m, const MarbleSprTick *prev) {
+  if (prev) {
+    marble_physics::tick(m, prev->c6, prev->c7);
+    return;
+  }
+  const uint8_t st = marble_physics::state(m);
+  marble_physics::physics_121b8(m, marble_physics::PLAYER);
+  if (st == marble_physics::DIZZY) { marble_physics::countdown_2574c(m, marble_physics::PLAYER); }
+}
+
 // One tick as the fixture model: player update, slot update, queued frame, the camera long (an
 // input) with the band spawns; then box refresh and sort, and the objects built with the
 // camera word the slot update saw.
-static void replayTick(Mem &m, const MarbleSprTick &t, Obj *out, uint8_t &n, uint8_t &at,
-                       uint8_t &lift) {
-  marble_physics::tick(m, t.c6, t.c7);
+static void replayTick(Mem &m, const MarbleSprTick *prev, const MarbleSprTick &t, Obj *out,
+                       uint8_t &n, uint8_t &at, uint8_t &lift) {
+  playerTick(m, prev);
   marble_objects::update(m);
   marble_objects::applyQueued(m);
 
@@ -162,8 +176,9 @@ static void replayTick(Mem &m, const MarbleSprTick &t, Obj *out, uint8_t &n, uin
 }
 
 // replayTick with a cull margin (the remake draws 24 lines more above and below)
-static uint8_t replayCount(Mem &m, const MarbleSprTick &t, int16_t margin) {
-  marble_physics::tick(m, t.c6, t.c7);
+static uint8_t replayCount(Mem &m, const MarbleSprTick *prev, const MarbleSprTick &t,
+                           int16_t margin) {
+  playerTick(m, prev);
   marble_objects::update(m);
   marble_objects::applyQueued(m);
   const int16_t seen = m.sw(marble_physics::CAMERA);
@@ -184,7 +199,7 @@ static void test_margin_fits_objs(void) {
     Mem m(ram, seg.race);
     uint8_t most = 0;
     for (uint16_t k = 0; k < seg.nticks; k++) {
-      const uint8_t n = replayCount(m, seg.ticks[k], 24);
+      const uint8_t n = replayCount(m, k ? &seg.ticks[k - 1] : nullptr, seg.ticks[k], 24);
       if (n > most) { most = n; }
       char msg[80];
       snprintf(msg, sizeof(msg), "segment %d (race %d) tick %d: %d objects at margin 24", s,
@@ -215,7 +230,7 @@ static void test_race_sweep(void) {
         const bool rev = ((pass & 1) != 0) != (race == 4);  // silly starts at the bottom
         MarbleSprTick t = {};
         t.camera = top + STEP * (rev ? n - 1 - i : i);
-        const uint8_t count = replayCount(m, t, 24);
+        const uint8_t count = replayCount(m, &t, t, 24);  // race start: whole ticks
         if (count > most) { most = count; }
       }
     }
@@ -235,7 +250,7 @@ static void test_draw_list(void) {
       const MarbleSprTick &t = seg.ticks[k];
       Obj got[MAX_OBJS];
       uint8_t n, at, lift;
-      replayTick(m, t, got, n, at, lift);
+      replayTick(m, k ? &seg.ticks[k - 1] : nullptr, t, got, n, at, lift);
 
       bool same = n == t.n && at == t.marble_at && lift == t.variant;
       for (uint8_t i = 0; same && i < n; i++) {

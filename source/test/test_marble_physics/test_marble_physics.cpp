@@ -8,6 +8,7 @@
 #define HAVE_ROM 1
 #define ENABLE_MARBLE
 #include "../../src/machines/marble/marble_mem.cpp"
+#include "../../src/machines/marble/marble_rng.cpp"
 #include "../../src/machines/marble/marble_physics.cpp"
 #include "../../src/machines/marble/marble_drawlist.h"
 
@@ -37,6 +38,15 @@ static void loadRam(const MarbleTraceSegment &seg) {
   }
 }
 
+// A fixture snapshot is the 0x121b8 entry of a state 0/1 handler: finish that tick (internals
+// of the included marble_physics.cpp). Fixture tick k + 1 is then one tick() with the deltas
+// stored at tick k.
+static void finishTick(marble_physics::Mem &m) {
+  const uint8_t st = marble_physics::state(m);
+  marble_physics::physics_121b8(m, marble_physics::PLAYER);
+  if (st == marble_physics::DIZZY) { marble_physics::countdown_2574c(m, marble_physics::PLAYER); }
+}
+
 static void test_replay_trace(void) {
   for (uint8_t s = 0; s < MARBLE_TRACE_SEGMENTS; s++) {
     const MarbleTraceSegment &seg = marble_trace_segments[s];
@@ -45,7 +55,11 @@ static void test_replay_trace(void) {
 
     for (uint16_t k = 0; k < seg.nticks; k++) {
       const MarbleTraceTick &t = seg.ticks[k];
-      marble_physics::tick(m, t.c6, t.c7);
+      if (k == 0) {
+        finishTick(m);
+      } else {
+        marble_physics::tick(m, seg.ticks[k - 1].c6, seg.ticks[k - 1].c7);
+      }
 
       const int32_t x = marble_physics::x(m), y = marble_physics::y(m), z = marble_physics::z(m);
       const uint8_t st = marble_physics::state(m);

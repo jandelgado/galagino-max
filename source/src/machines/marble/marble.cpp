@@ -7,6 +7,7 @@
 #include "marble_objects.h"
 #include "marble_occlusion.h"
 #include "marble_physics.h"
+#include "marble_rng.h"
 
 using namespace marble_video;
 using marble_physics::Mem;
@@ -17,7 +18,7 @@ using marble_physics::PLAYER;
 // keyboard trackball speed. Screen right: c7 = c6 = -k; down: c7 = +k, c6 = -k.
 #define MARBLE_STICK_K 9
 
-static const uint8_t DEATH_TICKS = 30;    // 60 frames after state 2/4 (placeholder)
+static const uint16_t RNG_TICK = 0x100;   // main loop rng(0x100) 0x118a4
 static const int16_t BODY_X = 8;          // MO 0x05 left of the marble centre sx
 static const int16_t BODY_Y = 224;        // MO 0x05 top = screen line 224 - sy
 // Remake view is 24 lines taller above and below the arcade screen: object culls move out
@@ -55,7 +56,7 @@ void marble::start() {
 // race start on a cleared work RAM image, camera at the race top, view centred
 void marble::beginRace(uint8_t n) {
   race = n;
-  dead_ticks = 0;
+  odd = false;
   memset(memory, 0, marble_physics::RAM_SIZE);
   patchRec = 0;
   view.patch = marble_level::NO_PATCH;
@@ -70,7 +71,8 @@ void marble::beginRace(uint8_t n) {
 }
 
 // one 30 Hz logic tick: queued animation frame 0x1344c, camera 0x13ee6 with the band spawns
-// 0x144e4 before the player update (0x10fce), then the slot update 0x12fd0
+// 0x144e4 before the player update (0x10fce), the slot update 0x12fd0, rng 0x118a4, then
+// the MO list 0x26f3e
 void marble::logicTick(uint32_t keys) {
   int8_t c6 = 0, c7 = 0;
   if (!(keys & BUTTON_EXTRA)) { stick(keys, c6, c7); }  // EXTRA + UP/DOWN is volume
@@ -83,20 +85,9 @@ void marble::logicTick(uint32_t keys) {
   const int16_t newCam = m.sw(marble_physics::CAMERA);
   if (newCam != oldCam) { marble_objects::cameraBands(m, oldCam, newCam); }
 
-  // dead: the marble stays put (projected, so the camera settles), then respawns
-  const uint8_t st = marble_physics::state(m);
-  if (st != marble_physics::BROKEN && st != marble_physics::LOST) {
-    marble_physics::tick(m, c6, c7);
-  } else {
-    const bool respawn = ++dead_ticks >= DEATH_TICKS;
-    if (respawn) {
-      dead_ticks = 0;
-      marble_physics::respawn(m);
-    }
-    marble_physics::project(m);
-    if (respawn) { marble_occlusion::enter(m, PLAYER); }  // masks and +0x1c of the new position
-  }
+  marble_physics::tick(m, c6, c7);
   marble_objects::update(m);
+  marble_rng::rng(m, RNG_TICK);  // result unused
   marble_drawlist::sort(m);  // 0x26f3e head
   buildObjs(m);
 }
@@ -137,8 +128,7 @@ void marble::publish(void) {
     const uint32_t e = PLAYER + 0x38 + 6 * i;
     const uint16_t code = m.rw(e);
     if (!code) { break; }
-    // guard for Phase 4 writers of +0x38 (respawn sparkle 0x13d38): not a mask; every
-    // 0x264aa code has bit 14, so this never fires yet
+    // state 4 sparkle stars (0x13ade) are not masks; every 0x264aa code has bit 14
     if (!(code & 0x4000)) { n = 0; break; }
     const int16_t h = ((code >> 11) & 7) + 1;
     view.masks[n++] = {code, (int16_t)(m.sw(e + 2) - view.mx),
@@ -157,10 +147,14 @@ void marble::run_frame(void) {
     return;
   }
 
-  // logic on every second frame, as the arcade main loop waits for two vblanks
-  Mem m(memory, race);
-  m.wl(FRAMES, m.rl(FRAMES) + 1);
-  if (!(m.rl(FRAMES) & 1)) { logicTick(keys); }
+  // logic on every second frame, as the arcade main loop waits for two vblanks; 0x400010
+  // counts logic ticks (the vblank IRQ adds 1 once the loop set 0x40039a)
+  odd = !odd;
+  if (!odd) {
+    Mem m(memory, race);
+    m.wl(FRAMES, m.rl(FRAMES) + 1);
+    logicTick(keys);
+  }
   publish();
 }
 

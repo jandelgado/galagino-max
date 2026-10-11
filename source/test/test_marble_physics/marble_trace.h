@@ -10,7 +10,9 @@
 // Work RAM 0x400000-0x401fff is 0 except these blocks (68010 address, big-endian).
 struct MarbleTraceRam { uint32_t addr; uint16_t len; const uint8_t *bytes; };
 // One logic tick: tick(c6, c7), then player 0x400018 has x, y, z (16.16, +0x0c/10/14)
-// and state (+0x1a). The last tick of a segment is the death (state 4 or 2).
+// and state (+0x1a). Segments end before the death tick: the break choice needs the
+// projected sy (no camera word here), 0x25bae(4) respawns in that tick; the deaths
+// fixture (test_marble_deaths) covers deaths.
 struct MarbleTraceTick { int8_t c6, c7; int32_t x, y, z; uint8_t state; };
 struct MarbleTraceSegment {
   uint8_t race; uint32_t frame;  // race 0-5, MAME frame of the first snapshot
@@ -656,7 +658,6 @@ static const MarbleTraceTick marble_trace_s1_ticks[] = {
   { 2, -3, 0x0147702e, 0x00f062b0, 0x3f696000, 0 },
   { 2, -3, 0x01466177, 0x00f01fa2, 0x3f646000, 0 },
   { 2, -3, 0x014552c0, 0x00efdc94, 0x3f5f6000, 0 },
-  { -2, -5, 0x01444409, 0x00ef9986, 0x3f5a6000, 4 },
 };
 
 static const uint8_t marble_trace_s2_ram0[] = {
@@ -1051,13 +1052,12 @@ static const MarbleTraceTick marble_trace_s2_ticks[] = {
   { 4, -3, 0x014e5647, 0x00db3cc0, 0x3f926000, 0 },
   { 4, -3, 0x014f4c81, 0x00dc7f61, 0x3f8d6000, 0 },
   { 4, -3, 0x015042bb, 0x00ddc202, 0x3f886000, 0 },
-  { -1, 8, 0x015138f5, 0x00df04a3, 0x3f880000, 2 },
 };
 
 static const MarbleTraceSegment marble_trace_segments[] = {
   { 0, 2056, 3, marble_trace_s0_ram, 360, marble_trace_s0_ticks },
-  { 0, 1420, 3, marble_trace_s1_ram, 212, marble_trace_s1_ticks },
-  { 1, 1187, 3, marble_trace_s2_ram, 360, marble_trace_s2_ticks },
+  { 0, 1420, 3, marble_trace_s1_ram, 211, marble_trace_s1_ticks },
+  { 1, 1187, 3, marble_trace_s2_ram, 359, marble_trace_s2_ticks },
 };
 static const uint8_t MARBLE_TRACE_SEGMENTS = 3;
 #endif

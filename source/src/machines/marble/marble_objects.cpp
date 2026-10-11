@@ -4,6 +4,7 @@
 
 #include "marble_drawlist.h"
 #include "marble_physics.h"
+#include "marble_rng.h"
 
 // 1:1 port of the level object part of tools/marble_sim.py (function names and order as
 // there). Integer semantics of the 68010: word results wrap at 16 bits, long results at 32
@@ -65,7 +66,6 @@ static const uint32_t OLD_X = 0x400684, OLD_Y = 0x400688;  // position before th
 static const uint32_t POS_X = 0x400690, POS_Y = 0x400692;
 static const uint32_t CELL_X = 0x400696, CELL_Y = 0x400698;
 static const uint32_t PLAYERS = 0x400396;
-static const uint32_t RNG = 0x4003a6;
 static const uint32_t MASK_TAB0 = 0x40044a, MASK_TAB1 = 0x40044e, MASK_TAB2 = 0x400452;
 static const uint32_t MASK_T0 = 0x400456, MASK_T1 = 0x400458, MASK_T2 = 0x40045a;
 static const uint32_t WAVES = 0x40075c, WAVE_DONE = 0x40075e;
@@ -98,26 +98,6 @@ uint16_t gw(const Mem &m, uint32_t a) { return a < ROM_END ? m.romw(a) : m.rw(a)
 uint32_t gl(const Mem &m, uint32_t a) { return a < ROM_END ? m.roml(a) : m.rl(a); }
 
 inline uint32_t slotAddr(uint8_t i) { return SLOTS + (uint32_t)i * SLOT_SIZE; }
-
-// 0x13a98: random 0..n-1, 16 bit shift register, one step per significant bit of n.
-// n > 0: n == 0 never ends the loop; the only caller passes 4.
-int16_t rng_13a98(Mem &m, uint16_t n) {
-  uint16_t d0 = m.rw(RNG);
-  uint16_t d1 = n;
-  uint8_t k = 0;
-  do {
-    uint8_t d2 = (uint8_t)((d0 >> 8) ^ d0);
-    if (d2 == 0) { d2 = 0x40; }
-    d0 = (uint16_t)((d0 << 1) | ((d2 >> 6) & 1));  // asl.b #2 -> X = bit 6, roxl.w
-    k++;
-    d1 >>= 1;
-  } while (d1);
-  m.ww(RNG, d0);
-
-  d0 &= (uint16_t)((1u << k) - 1);
-  while (!(n > s16(d0))) { d0 = (uint16_t)(d0 - n); }
-  return (int16_t)d0;
-}
 
 // 0x12f44: mode 0 spawn (script, state 3), mode 1 remove
 void slot_start_12f44(Mem &m, uint32_t a, uint8_t mode, uint32_t script = 0) {
@@ -172,7 +152,7 @@ void spawn_12dfa(Mem &m, int16_t oldB, int16_t newB) {
     uint32_t scripts[4] = {m.roml(e + 2), 0, 0, 0};
     uint8_t n = 1;
     if (scripts[0] == 0) {  // random group of 4
-      const uint32_t g = SPAWN_GROUPS + 16 * (uint32_t)rng_13a98(m, 4);
+      const uint32_t g = SPAWN_GROUPS + 16 * (uint32_t)marble_rng::rng(m, 4);
       for (uint8_t k = 0; k < 4; k++) { scripts[k] = m.roml(g + 4 * k); }
       n = 4;
     }
