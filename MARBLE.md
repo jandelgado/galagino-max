@@ -470,6 +470,129 @@ Playfield patches: the video core writes the block of `lastPatch()` into the map
 only) whenever the published value changes to a non-zero record, clipped to the map; a level
 load resets the applied value.
 
+## Level object sprites
+
+Visible level objects are motion objects built by the MO list 0x26f3e (Marble Love
+late-game-logic-26f3e.ts, mo-block-emit-1a8d2.ts, buffer-fill-1b12a.ts,
+sort-adjacent-objects-1a7a8.ts, slot-insert-sorted-18e6c.ts, helper-18f46.ts). Ported in
+`tools/marble_mo.py`.
+
+Draw list. Op 0 of a slot script (0x12896) with mode != 1 calls 0x18e6c(tag, slot index):
+a 14 byte entry (type = tag, index, box words x, y, z min, x, y, z max) in the first free of
+31 entries at 0x4001dc (pointer table 0x1f0e2), its byte inserted into the list 0x4003bc
+(0xff end) before the first entry e with 0x1a80a(e, new) != 0. Slot removal (0x12f44, mode
+!= 1) calls 0x18f46 (entry freed, list closed up). Players (type 1, 0x1eff6) and enemies
+(types 2, 4, 7-9, 14, 15, 0x29, 0x2a) share the list. Mode 1 slots (patches, walls, tubes,
+surfaces) are never in it. Each 0x26f3e: every box refreshed by 0x1b12a, then 0x1a7a8 three
+times (stride 1, 2, 3, one pass each, swap when 0x1a80a(a[i], a[i + s]) != 0), then MOs
+emitted in list order (link order, later on top). 0x1a80a(a, b) = 0 (keep) when x + y + z max
+of a <= x + y + z min of b, 1 (swap) when max of b <= min of a, else by y, x, z overlaps:
+ascending x + y + z, back to front. The order
+persists across ticks (partial bubble sort), so a port keeps the list, not a fresh sort.
+
+Boxes (0x1b12a, slot x/y/z = high words of +0x0c/+0x10/+0x14, frame header h = rl(+0x3e)):
+tag 3: (x + h[4], y + h[5], z - 16) size (h[6], h[7], 16); tag 5: (x + h[4], y + h[5], z)
+size (h[6], h[7], 0x18); tag 6: (x, y + h[4], z) size (0x20, h[6], 0x28); player: (x - 3,
+y - 3, z + 1) size 6. h[] signed bytes. A new entry is boxed at op 0 time (+0x3e =
+0x20c14, so h = 0xffffffff and h[4..7] read ROM 0x000003-0x000006).
+
+Drawn slot tags (0x26f3e type = tag; per race from the spawn data, `marble_mo.py data`):
+
+| race | tag (count) | position | frames, MO set |
+| --- | --- | --- | --- |
+| practice | 5 goal flags (2) | (576, 512/544), z -36 | list 0x212fe, 4 frames, set 3 |
+| beginner | 3 lift (1, mode 2), 5 flags (2) | lift cell (61, 56), z -120 | lists 0x21156/0x21192 (7 records, 4 frames) set 6; 3 global parts 0x211fe/0x2121e, 0x2126e, 0x212b2 set 7 |
+| intermediate | 6 wave (zone 9/10 spawn, 2 seen at once), 5 flags (2) | wave start cell (81, 77) | lists 0x2222e, 0x22266, 0x2227a (35 frames) set 7 (frame header >= 0x220ee) or 5 |
+| aerial | 5 flags (2); 0x0a-0x0d out of scope | | |
+| silly | 5 flags (2) | (152/184, 144) | |
+| ultimate | 5 flags (5) | (704-736, 704-784), z -32 | |
+
+Types 10-13 (aerial catapult, gates, bounce box) are drawn too (not checked). Tags >= 0x10
+are skipped by 0x26f3e.
+
+Per slot (screen position sx = +0x4e high word, sy = low word, as 0x1b9cc; MO frame header
+h = rl(rl(+0x42))): d5 = sx + 0x18 (tag 5: 0x17), d4 = sy + 0x10; culled when d4 <= -0x40 or
+d4 >= 0x160 (tag 3; ROM 0x27a44, Marble Love lacks the lower bound), 0x100 (tag 5), 0x140
+(tag 6). Tag 3 emits the frames of rl(0x40044a), rl(0x40044e), rl(0x400452) with code | 0x3800,
+then its own frame | 0x3000. Tag 6 (ROM 0x27f22, Marble Love inverts the test and compares the
+record pointer) emits its frame | 0x3800 when h >= 0x220ee else | 0x2800; with list 0x2227a it
+adds 4 priority MOs (x word | 0x8000): word w = 0x20f64[i], i = (+0x42 - +0x46) >> 2 (0xffff:
+none), code w & 0x7ff, height (w >> 11) & 7 (no hflip, ROM 0x27fa2), x = d5 + 8 + 8k, y = d4 -
+0x40 + s8 0x20f92[i] + 4k (k = 0-3).
+
+MO frame (0x1a8d2, header 12 bytes): s8 x bias, s8 y bias, 2 bytes, 4 box bytes (above), long
+body (bit 0 = hflip: hflip bit in every MO, columns step -8 px). Body 0xff: short form, 1 byte
+skipped, count, s8 dx, then count x (height - 1, s8 dy, code word); else long form: count, s8 dx,
+height - 1, s8 dy, count code words. Column k: MO x word = (d5 + xb + dx + 8k) << 5, y word =
+(d4 + yb + dy) << 5 | hflip | height - 1, code | set bits. One MO per column, tiles code ..
+code + height - 1 top down.
+
+Remake coordinates (MARBLE.md "Marble sprite"): column k at race x = sx + xb + dx + 8k, race
+row top + 240 - (sy + yb + dy) - 8 * height, top = camera - descriptor +0x10 (same form as the
+marble). MO code: tile = 0x800 + (code & 0x7ff), palette set = bits
+11-13 (PROM 136033.118/119 entries 0x00-0x3f all bank 2, 4 bpp), colour 0x100 + set * 16 + pen.
+
+Masks and order:
+- Slots get no 0x264aa masks (only objects of 0x251de run 0x1281c); a slot entity emits frame
+  MOs only (all checked lists).
+- MAME merge: a priority MO pixel with pen 1 shows the playfield, pens 2/3 the shade colour
+  0x300 + ((playfield pixel & 15) << 4) + pen, both over every MO earlier in link order. So the
+  marble's masks would also erase slot MOs drawn before the marble. Never seen: 0 mask pixels
+  over an earlier slot MO in 9 traces (5523 ticks with slot MOs, 1553 with a slot behind the
+  marble); the wave strips never covered an earlier MO (190 ticks).
+- Shade colours set by the race palette: 0x343, 0x3f2, 0x3f3 (intermediate 0x1ba9, 0x1888,
+  0x1ba9), every other 0x3xx entry 0: the wave strip (pens 0-3) darkens the playfield (pen 1:
+  unchanged, pen 2: black unless playfield pixel 15, pen 3: black unless pixel 4 or 15).
+
+Palette: MO sets 3, 5, 6, 7 come from the race palette set (0x1fc10, pens 0-7, unchanged in
+every shot of 4 runs). Tag 3 also queues a palette command per drawn frame (0x13334: byte
+0x1df18[(+0x3e - +0x46) >> 3, +7 for list 0x21192] = command 0-3, 0x26b66 queue, drained by
+the vblank IRQ 0x26b88): 4 words to 0x161-0x164 (set 6 pens 1-4) from descriptors 0x20ae4
+(0x3eee/0x4fff/0x8fff/0xafff, 0x1eee/0x3eee/0x7eee/0x8fff, 0x1bbb/0x1eee/0x4fff/0x7eee,
+0x1888/0x1bbb/0x3eee/0x4fff): the lift's shading follows its height. Palette RAM in the shots
+shows the drawn frame's command in 276 of 301 shots (b2), the previous tick's in 24 (all at a
+frame change).
+
+Timing: 0x26f3e runs at the end of the main loop after the slot update 0x12fd0, from the slot
+state (+0x4e, +0x42, 0x40044a/e/52) and the marble projection (+0x1e/+0x20) of the same tick;
+the bank is shown from the next vblank (0x40039a -> 0x4003ae). A snapshot at the next tick's
+0x121b8 entry reproduces it (`check`). The terrain of a mode 2 frame (0x1344c) only applies at
+the start of the next tick, one tick after the drawn frame. The remake's publish() after
+objects::update sees the same state.
+
+Cost (traces, `marble_mo.py`): most slot MOs per frame 4 (practice), 13 (beginner: lift 8
+columns + parts 2 + 1 + 2), 35 (intermediate: 2 waves of up to 10 + 4 strip + flags), 10
+(ultimate); most on one line 4, 10, 14, 6; most touching one 8 line strip 4, 10, 15, 6. Tiles
+(`marble_mo.py data`): practice/silly/ultimate 21 (flags, pens 0-4), beginner 168 (lift 147,
+pens 0-7), intermediate 531 (wave 390 + strip 120, strip pens 0-3), 678 distinct over all races
+= 21696 B at 4 bpp; frame data (lists, headers, bodies) 112 / 720 / 1821 B.
+
+Validation (`tools/marble_mo.py`, traces in $TMPDIR, `mame_trace.lua` with `MARBLE_PLACE`):
+- `check` (model MO list from snapshot work RAM == the MO RAM bank 0x4003b0, words and links):
+  b1 794 snapshots with slot MOs, b2 644, p1 292, u1 335, i1 428, cam0 785, cam1 827, cam2 679,
+  cam5 739; every slot entity equal except 30 after a lag frame (logic tick of 3+ frames,
+  ultimate, MO y 2 px off).
+- `sort` (previous list + 0x18e6c inserts + 0x18f46 removals + box refresh + 3 passes == list):
+  all 9 traces equal, 8201 pairs, 287 with a new order, 29 inserts, 25 removals (teleport
+  frames skipped).
+- `render` (MAME PNG, MO RAM render, remake rule with the live palette RAM; box +-8 px around
+  each slot object): b1 212, b2 151, p1 128, u1 380, i1 437 boxes; 0 differing MO pixels. 4
+  boxes differ in playfield pixels only (scroll redraw timing, same in the MO RAM render). 564
+  shots compared; 88 more matched no snapshot (shot taken mid tick) and are skipped. Marble over the lift
+  194 ticks, lift over the marble 46, wave over/under the marble 297/30 ticks: order matches.
+- Teleport runs: `MARBLE_PLACE=800:500:436:-120,1600:500:490:-120` (beginner, lift),
+  `800:540:528:-44` (practice), `800:720:744:-32` (ultimate), `800:652:652:-236:9` (intermediate,
+  zone 9 spawns the wave); heights from `marble_sim.py` terrain. `MARBLE_SHOTS` also writes
+  shots_pal.bin (palette RAM per shot).
+
+```sh
+python3 romconv/internal/marble/tools/marble_mo.py check TRACE RACE
+python3 romconv/internal/marble/tools/marble_mo.py sort TRACE RACE [PLACE_FRAME ...]
+python3 romconv/internal/marble/tools/marble_mo.py render DIR/shots.bin DIR/snap/marble \
+  DIR/trace.bin RACE OUTDIR [N ...]
+python3 romconv/internal/marble/tools/marble_mo.py data
+```
+
 ## Camera
 
 - 0x13ee6 (main loop via 0x10fce), every 8th frame or every frame while a scroll is
@@ -683,12 +806,12 @@ python3 romconv/internal/marble/tools/marble_sim.py objfixture \
 
 - Level objects: unported tags (0x0a-0x0d, tubes 0x12-0x16, 0x20-0x27), zone triggered
   slots (state 4, 0x13966/0x13a1c, aerial), enemy spawners in 0x144e4 (0x15a12, 0x14c46,
-  0x17346), MO frame format of visible moving parts (0x1a8d2), playfield patch decode of
-  tag 0x19 rows, tag 3 extras (0x26b66). Section Level objects.
+  0x17346), playfield patch decode of tag 0x19 rows. Section Level objects. Slot sprites:
+  section Level object sprites (masks over slot MOs behind the marble not seen in traces).
 - Enemy collision 0x1bc88 and enemy updates of the shared scratch words. Phase 4.
 - Death/respawn timing and animation (states 2/4, 0x13ade, 0x25fc2, respawn sparkle
-  0x13d38 writes +0x38 too), sprite dots 0x1c014, MO list builder 0x26f3e (link order
-  verified only for the player and its masks). Remake placeholder: 60 frames.
+  0x13d38 writes +0x38 too), sprite dots 0x1c014, player MOs of 0x26f3e in states 1/2/5/9
+  (frame +0x5a; order and slot MOs: section Level object sprites). Remake placeholder: 60 frames.
 - Goal (state 6), Phase 3: the remake keeps calling `marble_physics::tick` (physics runs,
   input off: 0x253bc/0x17f66 only in states 0/1), the camera ignores the marble (sy only
   from states 0/1/3/4/5), and a later landing (0x25c74) sets state 1, so the marble becomes

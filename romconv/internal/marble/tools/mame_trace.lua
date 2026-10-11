@@ -28,6 +28,10 @@
 -- n = n-th listed frame; shots.txt maps them, shots.bin holds a trace record of each
 -- (frame end, the state the PNG shows).
 --
+-- shots_pal.bin holds palette RAM 0xb00000-0xb007ff of each shot (same order).
+-- $MARBLE_PLACE "frame:x:y:z[:zone],...": at that frame put player 1 at pixel (x, y), height
+-- z (z word - 0x4000, e.g. -120), velocity 0, last ground = there, optional zone +0x1b/+0x1d
+-- (teleport next to a level object for render checks; z from tools/marble_sim.py terrain).
 -- usage (absolute script path, scratch dir):
 --   MARBLE_OUT=$PWD MARBLE_LEVEL=0 MARBLE_FRAMES=1500 MARBLE_INPUT=120:0:0,60:4:0 \
 --   SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy mame marble -rompath romszip -video none \
@@ -48,6 +52,11 @@ local TICK_ADDR = 0x400684
 local PLAYER_X = 0x400024
 local COIN_FRAME, START_FRAME = 300, 400
 
+local places = {}
+for fr, x, y, z, zone in (os.getenv("MARBLE_PLACE") or ""):gmatch("(%d+):(%-?%d+):(%-?%d+):(%-?%d+):?(%d*)") do
+  places[tonumber(fr)] = { tonumber(x), tonumber(y), tonumber(z), tonumber(zone) }
+end
+
 local segs = {}
 for n, a, b in script:gmatch("(%-?%d+):(%-?%d+):(%-?%d+)") do
   segs[#segs + 1] = { tonumber(n), tonumber(a), tonumber(b) }
@@ -60,6 +69,7 @@ local start = ports[":F60000"].fields["1 Player Start"]
 local out = io.open(out_dir .. "/trace.bin", "wb")
 local shots = io.open(out_dir .. "/shots.txt", "w")
 local shots_bin = io.open(out_dir .. "/shots.bin", "wb")
+local shots_pal = io.open(out_dir .. "/shots_pal.bin", "wb")
 local f = 0
 local cnt = { 0, 0 }
 
@@ -105,6 +115,16 @@ SUB = emu.add_machine_frame_notifier(function()
   f = f + 1
   coin:set_value((f >= COIN_FRAME and f < COIN_FRAME + 10) and 1 or 0)
   start:set_value((f >= START_FRAME and f < START_FRAME + 10) and 1 or 0)
+  local p = places[f]
+  if p then
+    local P = 0x400018
+    for o = 0, 8, 4 do mem:write_u32(P + o, 0) end
+    mem:write_u32(P + 0xc, p[1] << 16); mem:write_u32(P + 0x10, p[2] << 16)
+    mem:write_u32(P + 0x14, (p[3] + 0x4000) << 16); mem:write_u32(P + 0x2a, (p[3] + 0x4000) << 16)
+    mem:write_u16(P + 0x32, p[1] >> 3); mem:write_u16(P + 0x34, p[2] >> 3)
+    mem:write_u8(P + 0x36, 0)
+    if p[4] then mem:write_u8(P + 0x1b, p[4]); mem:write_u8(P + 0x1d, p[4]) end
+  end
   local d0, d1 = input_delta(f)
   cnt[1] = cnt[1] + d0
   cnt[2] = cnt[2] + d1
@@ -114,6 +134,9 @@ SUB = emu.add_machine_frame_notifier(function()
     shots_bin:write("TICK", string.pack(">I4", f))
     dump(0x400000, 0x2000, shots_bin)
     dump(0xa00000, 0x3000, shots_bin)
+    dump(0xb00000, 0x800, shots_pal)
   end
-  if f == frames then out:close(); shots:close(); shots_bin:close(); manager.machine:exit() end
+  if f == frames then
+    out:close(); shots:close(); shots_bin:close(); shots_pal:close(); manager.machine:exit()
+  end
 end)
