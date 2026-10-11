@@ -1,5 +1,6 @@
 #include "marble_physics.h"
 #include "marble_objects.h"
+#include "marble_occlusion.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -18,6 +19,7 @@ enum : uint8_t {
   SLOT = 0x18,                      // 1 in play, 2/3 out of play
   STATE = 0x1a,                     // enum State
   ZONE = 0x1b, GROUND_ZONE = 0x1d,
+  SCREEN = 0x1e, SCREEN_OLD = 0x22, SCREEN_OLD2 = 0x26,  // sx, sy words
   GROUND_Z = 0x2a,                  // z at last ground (fall height)
   EDGE_CX = 0x2e, EDGE_CY = 0x30,   // cell where teetering / the fall started
   GROUND_CX = 0x32, GROUND_CY = 0x34,
@@ -650,6 +652,18 @@ void zones_1365c(Mem &m, uint32_t a2) {
   }
 }
 
+// 0x1b9cc: screen position +0x1e/+0x20 (older pairs +0x22, +0x26). A position equal to
+// one of the two stored ones is not written (the sprite keeps the other).
+void proj_1b9cc(Mem &m, uint32_t a2) {
+  posupd_1bab2(m, a2);
+  const uint32_t packed = (uint32_t)(uint16_t)sx(m) << 16 | (uint16_t)sy(m);
+  if (packed == m.rl(a2 + SCREEN) || packed == m.rl(a2 + SCREEN_OLD)) { return; }
+
+  m.wl(a2 + SCREEN_OLD2, m.rl(a2 + SCREEN_OLD));
+  m.wl(a2 + SCREEN_OLD, m.rl(a2 + SCREEN));
+  m.wl(a2 + SCREEN, packed);
+}
+
 // 0x121b8: object physics update (player object only)
 void physics_121b8(Mem &m, uint32_t a2) {
   m.wl(OLD_X, m.rl(a2 + PX));
@@ -722,7 +736,9 @@ void physics_121b8(Mem &m, uint32_t a2) {
     m.wl(a2 + PZ, (uint32_t)h);
   }
 
-  // 0x1b9cc / 0x1c014 / 0x1281c sprite: not ported
+  // 0x1b9cc projection, 0x1281c occlusion (0x1c014 surface dots: not ported)
+  proj_1b9cc(m, a2);
+  marble_occlusion::enter(m, a2);
   edgepush_1706c(m, a2);
   if (m.rb(a2 + AIR)) { return; }
 

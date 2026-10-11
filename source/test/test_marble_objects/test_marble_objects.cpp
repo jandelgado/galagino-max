@@ -11,6 +11,7 @@
 #include "../../src/machines/marble/marble_mem.cpp"
 #include "../../src/machines/marble/marble_physics.cpp"
 #include "../../src/machines/marble/marble_objects.cpp"
+#include "../../src/machines/marble/marble_occlusion.cpp"
 #endif
 #include "marble_objects_trace.h"
 
@@ -22,6 +23,7 @@ using marble_physics::Mem;
 
 static const uint32_t SLOT_AREA = 0x400a9c, SLOT_AREA_LEN = 25 * 0x56;
 static const uint32_t DYN_AREA = 0x40076e, DYN_AREA_LEN = 256;
+static const uint32_t PLAYER_OBJ = marble_physics::PLAYER;
 static const uint32_t CAMERA_L = 0x40097c;
 
 static uint8_t ram[marble_physics::RAM_SIZE];
@@ -42,6 +44,17 @@ static void loadRam(const MarbleObjSegment &seg) {
     const MarbleObjRam &r = seg.ram[i];
     memcpy(ram + (r.addr - marble_physics::RAM_BASE), r.bytes, r.len);
   }
+}
+
+static const char *maskDiff(const Mem &m, const MarbleObjTick &t) {
+  static char buf[130];
+  char *p = buf;
+  for (uint8_t i = 0; i < 30; i++) {
+    p += sprintf(p, "%02x", m.rb(PLAYER_OBJ + 0x38 + i));
+  }
+  *p++ = '/';
+  for (uint8_t i = 0; i < 30; i++) { p += sprintf(p, "%02x", t.mask[i]); }
+  return buf;
 }
 
 // One tick as the model's tick(c6, c7, camera) with objects on: the player update, the slot
@@ -70,19 +83,21 @@ static void test_replay_objects(void) {
       const uint32_t dyn = crc32(ram + (DYN_AREA - marble_physics::RAM_BASE), DYN_AREA_LEN);
       if (marble_physics::x(m) == t.x && marble_physics::y(m) == t.y &&
           marble_physics::z(m) == t.z && marble_physics::state(m) == t.state &&
-          slots == t.slot_crc && dyn == t.dyn_crc) {
+          slots == t.slot_crc && dyn == t.dyn_crc && m.rb(PLAYER_OBJ + 0x1c) == t.vis &&
+          memcmp(ram + (PLAYER_OBJ + 0x38 - marble_physics::RAM_BASE), t.mask, 30) == 0) {
         continue;
       }
 
-      char msg[220];
+      char msg[400];
       snprintf(msg, sizeof(msg),
                "segment %d (race %d frame %u) tick %d: expected x %08x y %08x z %08x state %d"
-               " slots %08x dyn %08x, got x %08x y %08x z %08x state %d slots %08x dyn %08x",
+               " slots %08x dyn %08x vis %d, got x %08x y %08x z %08x state %d slots %08x"
+               " dyn %08x vis %d mask %s",
                s, seg.race, (unsigned)seg.frame, k, (unsigned)t.x, (unsigned)t.y, (unsigned)t.z,
-               t.state, (unsigned)t.slot_crc, (unsigned)t.dyn_crc,
+               t.state, (unsigned)t.slot_crc, (unsigned)t.dyn_crc, t.vis,
                (unsigned)marble_physics::x(m), (unsigned)marble_physics::y(m),
                (unsigned)marble_physics::z(m), marble_physics::state(m), (unsigned)slots,
-               (unsigned)dyn);
+               (unsigned)dyn, m.rb(PLAYER_OBJ + 0x1c), maskDiff(m, t));
       TEST_FAIL_MESSAGE(msg);
     }
   }

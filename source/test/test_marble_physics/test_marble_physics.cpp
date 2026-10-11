@@ -10,6 +10,7 @@
 #include "../../src/machines/marble/marble_mem.cpp"
 #include "../../src/machines/marble/marble_physics.cpp"
 #include "../../src/machines/marble/marble_objects.cpp"
+#include "../../src/machines/marble/marble_occlusion.cpp"
 #endif
 #include "marble_trace.h"
 
