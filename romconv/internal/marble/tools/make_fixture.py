@@ -9,8 +9,14 @@ tick; the segment ends at the death the sim detects (its frame gap in the trace 
   make_fixture.py search TRACE RACE [MIN]   list reproducible segments ending in a death
   make_fixture.py write OUT RACE:TRACE:FRAME:TICKS ...
                                             write the C header (marble_trace.h)
+  make_fixture.py osearch TRACE RACE [MIN]  list reproducible object segments (slots,
+                                            dynamic codes, occlusion masks) and their events
+  make_fixture.py owrite OUT RACE:TRACE:FRAME:TICKS ...
+                                            write the object header
+                                            (test_marble_objects/marble_objects_trace.h)
 """
 import os
+import struct
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -119,6 +125,107 @@ def cmd_search(path, race, need):
             i += 10
 
 
+# ---------------------------------------------------------------- objects fixture
+
+# initial RAM blocks of an object segment: as above, plus the whole slot area and all 128
+# dynamic code words (their crc32 are checked), plus whatever else the run reads first
+# (slot globals, camera, projection scratch), merged with gaps up to 16 bytes
+OBJ_BLOCKS = ((P, 0xe2), (0x400390, 6), (0x400660, 0x48), (0x401c28, 0x20),
+              (0x400000 + ms.OBJ_DYN_AREA[0], ms.OBJ_DYN_AREA[1] - ms.OBJ_DYN_AREA[0]),
+              (0x400000 + ms.OBJ_SLOT_AREA[0], ms.OBJ_SLOT_AREA[1] - ms.OBJ_SLOT_AREA[0]))
+
+
+def obj_run(t, trace, i, limit=10 ** 6):
+    """Replay from snapshot i with objects and sprites on, nothing copied from later
+    snapshots except the trackball deltas and the camera long (inputs of the tick). The run
+    ends before the first tick whose player, slots, dynamic codes or masks differ from the
+    trace, near an enemy (enemies are not ported), at a frame gap. Returns (ticks, end, events, reads)."""
+    m = RecMem(t, trace[i][1])
+    m.objects = m.sprites = True
+    ticks = []
+    ev = {"wall": 0, "dyn": 0, "masks": 0, "hflip": 0, "tall": 0, "hidden": 0, "tag3": 0,
+          "post": 0}
+    prev_dyn = bytes(m.ram[slice(*ms.OBJ_DYN_AREA)])
+    a = P - 0x400000
+    for (fr, r, _), (fr2, r2, _) in zip(trace[i:], trace[i + 1:]):
+        if len(ticks) == limit: return ticks, "limit", ev, m.first_read
+        if not ms.live(r) or not ms.live(r2): return ticks, "not live", ev, m.first_read
+        if ms.enemy_near(r, r2): return ticks, "enemy near", ev, m.first_read
+        if fr2 - fr != TICK_FRAMES: return ticks, "frame gap", ev, m.first_read
+        c6, c7 = ms.tb(r2, P + 0xc6), ms.tb(r2, P + 0xc7)
+        cam = ms.tl(r2, 0x40097c) & 0xffffffff
+        m.events = []; m.sounds = []
+        snap = (bytes(m.ram), set(m.first_read), set(m.written))
+        ms.tick(m, c6, c7, camera=cam)
+        got = m.ram[a + 0x1c:a + 0x56]; ref = r2[a + 0x1c:a + 0x56]
+        bad = (any(m.sl(P + o) != ms.tl(r2, P + o) for o in (0xc, 0x10, 0x14))
+               or any(m.rb(P + o) != ms.tb(r2, P + o) for o in CHECK)
+               or ms.slot_diff(m, r2) or got[:0x0e] != ref[:0x0e] or got[0x1c:] != ref[0x1c:])
+        if bad:
+            m.ram[:], m.first_read, m.written = bytearray(snap[0]), snap[1], snap[2]
+            return ticks, "differs at frame %d" % fr2, ev, m.first_read
+        st = ms.obj_state(m)
+        ticks.append((ms.s8(c6), ms.s8(c7), cam) + st[:5] + (st[5], st[6], st[7]))
+        dyn = bytes(m.ram[slice(*ms.OBJ_DYN_AREA)])
+        ev["dyn"] += dyn != prev_dyn; prev_dyn = dyn
+        ev["wall"] += any(isinstance(e, tuple) and e[0] == "slot wall" for e in m.events)
+        ev["post"] += 0x42 in m.sounds and not any(
+            isinstance(e, tuple) and e[0] == "slot wall" for e in m.events)
+        ev["hidden"] += st[4] == 0
+        ents = [struct.unpack(">H", st[5][6 * k:6 * k + 2])[0] for k in range(5)]
+        ents = [e for e in ents if e]
+        ev["masks"] += bool(ents)
+        ev["hflip"] += any(e & 0x8000 for e in ents)
+        ev["tall"] += any((e >> 11) & 7 for e in ents)
+        ev["tag3"] += any(m.rb(ms.slot(k) + 0x18) and m.rb(ms.slot(k) + 0x1f) == 3
+                          for k in range(ms.SLOT_N))
+    return ticks, "trace end", ev, m.first_read
+
+
+def obj_blocks(trace_ram, reads):
+    """Initial RAM blocks: OBJ_BLOCKS plus the other first-read bytes."""
+    keep = set()
+    for addr, n in OBJ_BLOCKS:
+        keep.update(range(addr - 0x400000, addr - 0x400000 + n))
+    extra = sorted(reads - keep)
+    ranges = []
+    for o in extra:
+        if ranges and o <= ranges[-1][1] + 16: ranges[-1][1] = o + 1
+        else: ranges.append([o, o + 1])
+    blocks = sorted([(addr - 0x400000, addr - 0x400000 + n) for addr, n in OBJ_BLOCKS]
+                    + [tuple(r) for r in ranges])
+    merged = []
+    for lo, hi in blocks:
+        if merged and lo <= merged[-1][1]: merged[-1][1] = max(merged[-1][1], hi)
+        else: merged.append([lo, hi])
+    return [(0x400000 + lo, bytes(trace_ram[lo:hi])) for lo, hi in merged]
+
+
+def obj_segment(t, trace, i, limit=10 ** 6):
+    ticks, end, ev, reads = obj_run(t, trace, i, limit)
+    seg = {"race": t.race, "frame": trace[i][0], "ram": obj_blocks(trace[i][1], reads),
+           "ticks": ticks}
+    return seg, end, ev
+
+
+def obj_check(seg):
+    """Replay from the initial RAM blocks alone."""
+    return ms.replay_objfixture(seg, ms.fixture_mem(seg, ms.Terrain(seg["race"])))
+
+
+def cmd_osearch(path, race, need):
+    t = ms.Terrain(race)
+    trace = ms.load_trace(path)
+    i = 0
+    while i < len(trace) - 1:
+        if not ms.live(trace[i][1]):
+            i += 1; continue
+        ticks, end, ev, _ = obj_run(t, trace, i)
+        if len(ticks) >= need:
+            print("frame %d: %d ticks, %s, %s" % (trace[i][0], len(ticks), end, ev))
+        i += max(1, len(ticks) // 4) if len(ticks) >= need else max(1, len(ticks))
+
+
 def c_bytes(b):
     return ",\n".join("  " + ", ".join("0x%02x" % v for v in b[k:k + 16])
                       for k in range(0, len(b), 16))
@@ -179,7 +286,80 @@ def cmd_write(out, specs):
         w("static const uint8_t MARBLE_TRACE_SEGMENTS = %d;\n#endif" % len(segs))
 
 
+def cmd_owrite(out, specs):
+    segs = []
+    for spec in specs:
+        race, path, frame, n = spec.split(":")
+        race, frame, n = int(race), int(frame), int(n)
+        trace = ms.load_trace(path)
+        i = next(k for k, x in enumerate(trace) if x[0] == frame)
+        seg, end, ev = obj_segment(ms.Terrain(race), trace, i, n)
+        if len(seg["ticks"]) != n:
+            raise SystemExit("race %d frame %d: only %d ticks (%s)" % (race, frame,
+                                                                       len(seg["ticks"]), end))
+        bad = obj_check(seg)
+        if bad is not None:
+            raise SystemExit("race %d frame %d: does not replay from its RAM blocks (tick %d)"
+                             % (race, frame, bad))
+        print("race %d frame %d: %d ticks, %s, RAM %s" % (race, frame, n, ev,
+              ", ".join("%06x+%d" % (a, len(b)) for a, b in seg["ram"])))
+        segs.append(seg)
+    with open(out, "w") as f:
+        w = lambda s="": print(s, file=f)
+        w("// Generated by romconv/internal/marble/tools/make_fixture.py owrite; do not edit.")
+        w("// Marble level object host test: MAME trace segments (tools/mame_trace.lua) that the")
+        w("// reference model tools/marble_sim.py reproduces with level object slots, dynamic")
+        w("// terrain codes and occlusion masks running free. Derived numbers only. Replay check:")
+        w("//   python3 romconv/internal/marble/tools/marble_sim.py objfixture <this file>")
+        w("#ifndef MARBLE_OBJECTS_TRACE_H\n#define MARBLE_OBJECTS_TRACE_H\n#include <stdint.h>\n")
+        w("// Work RAM 0x400000-0x401fff is 0 except these blocks (68010 address, big-endian).")
+        w("struct MarbleObjRam { uint32_t addr; uint16_t len; const uint8_t *bytes; };")
+        w("// One logic tick, as tick(c6, c7, camera) of the model: the player update, the slot")
+        w("// update 0x12fd0, the queued animation frame 0x1344c, then the camera long")
+        w("// (0x40097c, an input like the trackball deltas) with the band spawns 0x144e4.")
+        w("// Then x, y, z (16.16) and state of the player 0x400018 (+0x0c/+0x10/+0x14/+0x1a),")
+        w("// vis (+0x1c: 0 = marble hidden), mask (the 30 bytes +0x38-+0x55: 5 entries of big")
+        w("// endian code, x, y; code 0 ends the list), slot_crc (crc32 of the 2150 bytes of")
+        w("// the 25 slots, work RAM 0x400a9c-0x401301) and dyn_crc (crc32 of the 256 bytes of")
+        w("// the 128 dynamic code words, 0x40076e-0x40086d), both over the big-endian RAM bytes.")
+        w("struct MarbleObjTick {")
+        w("  int8_t c6, c7; uint32_t camera; int32_t x, y, z; uint8_t state, vis;")
+        w("  uint8_t mask[30]; uint32_t slot_crc, dyn_crc;")
+        w("};")
+        w("struct MarbleObjSegment {")
+        w("  uint8_t race; uint32_t frame;  // race 0-5, MAME frame of the first snapshot")
+        w("  uint8_t nram; const MarbleObjRam *ram; uint16_t nticks; const MarbleObjTick *ticks;")
+        w("};\n")
+        for k, seg in enumerate(segs):
+            p = "marble_obj_s%d" % k
+            for j, (addr, b) in enumerate(seg["ram"]):
+                w("static const uint8_t %s_ram%d[] = {\n%s\n};" % (p, j, c_bytes(b)))
+            w("static const MarbleObjRam %s_ram[] = {" % p)
+            for j, (addr, b) in enumerate(seg["ram"]):
+                w("  { 0x%06x, %d, %s_ram%d }," % (addr, len(b), p, j))
+            w("};")
+            w("static const MarbleObjTick %s_ticks[] = {" % p)
+            for c6, c7, cam, x, y, z, state, vis, masks, scrc, dcrc in seg["ticks"]:
+                w("  { %d, %d, 0x%08x, %s, %s, %s, %d, %d, {%s}, 0x%08x, 0x%08x }," % (
+                    c6, c7, cam, c_int(x), c_int(y), c_int(z), state, vis,
+                    ",".join(str(v) for v in masks), scrc, dcrc))
+            w("};\n")
+        w("static const MarbleObjSegment marble_objects_segments[] = {")
+        for k, seg in enumerate(segs):
+            p = "marble_obj_s%d" % k
+            w("  { %d, %d, %d, %s_ram, %d, %s_ticks }," % (seg["race"], seg["frame"],
+              len(seg["ram"]), p, len(seg["ticks"]), p))
+        w("};")
+        w("static const uint8_t MARBLE_OBJECTS_SEGMENTS = %d;\n#endif" % len(segs))
+
+
 def main(argv):
+    if len(argv) >= 4 and argv[1] == "osearch":
+        cmd_osearch(argv[2], int(argv[3]), int(argv[4]) if len(argv) > 4 else 300)
+        return 0
+    if len(argv) >= 4 and argv[1] == "owrite":
+        cmd_owrite(argv[2], argv[3:])
+        return 0
     if len(argv) >= 4 and argv[1] == "search":
         cmd_search(argv[2], int(argv[3]), int(argv[4]) if len(argv) > 4 else 300)
         return 0

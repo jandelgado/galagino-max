@@ -7,6 +7,10 @@ bits 0-9 local tile, 10-11 colour set, 15 hflip. Also writes the host test fixtu
 
 Phase 2 (marble physics, MARBLE.md "Remake data"): terrain per race, the program ROM
 blocks the physics reads, marble motion object tiles and palette.
+
+Phase 3 (level objects and occlusion): more program ROM blocks (slot scripts, animation
+lists, terrain blocks, occlusion and edge bitmap tables), practice gate playfield patches
+(tiles added to the practice tile set), occlusion mask tiles.
 """
 import os
 import sys
@@ -21,15 +25,21 @@ from convutil import fatal
 
 sys.path.insert(0, os.path.join(md.HERE, "tools"))
 import marble_sim as ms
+import objects_data as od
 
 ROOT = os.path.join(md.HERE, "..", "..", "..")
 OUT = os.path.join(ROOT, "source", "src", "machines", "marble", "marble_rom.h")
 FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_level", "marble_fixture.h")
 TRACE_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_physics", "marble_trace.h")
+OBJ_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_objects",
+                           "marble_objects_trace.h")
 
 MAX_ROWS = 145   # must match marble_level.h
 MAX_TILES = 896  # must match marble_level.h
 VIEW_W, VIEW_H, PAN = 240, 288, 48
+
+
+PATCH_WORDS = {}   # (race, block address) -> map words (local tile | colour set << 10 | flip)
 
 
 def convert_level(rom, n):
@@ -37,17 +47,28 @@ def convert_level(rom, n):
     local = {}
     tiles = []
     mapw = []
+
+    def tile_word(w):
+        code, cs, flip = md.pf_lookup(rom, w)
+        if code not in local:
+            local[code] = len(tiles)
+            tiles.append(md.pf_tile(rom, code))
+            if len(tiles) > 1024:
+                fatal("marble: more than 1024 tiles in a level (map word has 10 tile bits)")
+        if cs > 3:
+            fatal(f"marble: colour set {cs} > 3 (map word has 2 colour bits)")
+        return local[code] | cs << 10 | (0x8000 if flip else 0)
+
     for row in words:
         for w in row:
-            code, cs, flip = md.pf_lookup(rom, w)
-            if code not in local:
-                local[code] = len(tiles)
-                tiles.append(md.pf_tile(rom, code))
-                if len(tiles) > 1024:
-                    fatal("marble: more than 1024 tiles in a level (map word has 10 tile bits)")
-            if cs > 3:
-                fatal(f"marble: colour set {cs} > 3 (map word has 2 colour bits)")
-            mapw.append(local[code] | cs << 10 | (0x8000 if flip else 0))
+            mapw.append(tile_word(w))
+    # playfield patches of the level objects: their tiles join the tile set
+    for race, rec, col, prow, w, h, blk in od.patches():
+        if race != n or (n, blk) in PATCH_WORDS: continue
+        PATCH_WORDS[(n, blk)] = [tile_word(md.u16(rom, blk + 2 + 2 * k)) for k in range(w * h)]
+        if len(tiles) > MAX_TILES:
+            fatal(f"marble: race {n} patch tiles raise the tile set to {len(tiles)} > "
+                  f"MAX_TILES {MAX_TILES}")
     rgb = md.palette(rom, n)[md.PF_PALETTE:md.PF_PALETTE + 128]
     pal = [rgb888_to_rgb565_le(*c) for c in rgb]
     return len(words), tiles, mapw, pal
@@ -70,6 +91,7 @@ def frame_crc(rows, tiles, mapw, pal, sx, sy):
 # ---------------------------------------------------------------- Phase 2: marble physics
 
 FLASH_BUDGET = 50 * 1024
+PHASE3_BUDGET = 25 * 1024
 PAIR_BYTES = 54   # two diagonals, 44 x 10 bit fields MSB first, last 8 bits not stored
 # Program ROM tables the physics, start, respawn and camera read (address, length). Read
 # extents follow from the index ranges in marble_sim.py; the recorded reads below must fall
@@ -131,50 +153,98 @@ def check_dynamic(t, used, nrecords):
             fatal(f"marble: race {t.race} dynamic code {c:04x} -> record {v:04x} beyond records")
 
 
+class RecProg(bytearray):
+    """Program ROM that records the byte addresses read (indexing and slices)."""
+    reads = set()
+    def __getitem__(self, k):
+        if isinstance(k, slice):
+            RecProg.reads.update(range(*k.indices(len(self))))
+        else:
+            RecProg.reads.add(k)
+        return bytearray.__getitem__(self, k)
+
+
+class BlockProg(bytearray):
+    """Program ROM that serves only the emitted blocks: a read outside fails."""
+    def __init__(self, blocks):
+        super().__init__(0x30000)
+        self.cov = bytearray(0x30000)
+        for addr, data in blocks:
+            self[addr:addr + len(data)] = data
+            self.cov[addr:addr + len(data)] = b"\x01" * len(data)
+    def __getitem__(self, k):
+        if isinstance(k, slice):
+            span = range(*k.indices(len(self)))
+            if any(not self.cov[a] for a in span):
+                fatal(f"marble: ROM read {span.start:06x}+{len(span)} outside the emitted blocks")
+        elif not self.cov[k]:
+            fatal(f"marble: ROM read {k:06x} outside the emitted blocks")
+        return bytearray.__getitem__(self, k)
+
+
 class RecMem(ms.Mem):
-    """Mem that records the ROM addresses the physics reads."""
-    prog = set()
+    """Mem that records the slapstic window addresses the physics reads."""
     slap = {}  # race -> 68010 addresses in the slapstic window
     def rb(self, a):
         a &= 0xFFFFFF
-        if a < 0x30000:
-            RecMem.prog.add(a)
-        elif 0x80000 <= a < 0x88000:
+        if 0x80000 <= a < 0x88000:
             RecMem.slap.setdefault(self.t.race, set()).add(a)
         return super().rb(a)
 
 
 class BlockMem(ms.Mem):
-    """Mem that serves ROM only from the emitted blocks and records: a read outside fails."""
-    blocks = []
+    """Mem that serves slapstic data only from the emitted terrain records; program ROM
+    comes from BlockProg (ms.PROG replaced while it runs)."""
     records = {}
     def rb(self, a):
         a &= 0xFFFFFF
-        if 0x400000 <= a < 0x402000:
-            return super().rb(a)
         if 0x80000 <= a < 0x88000:
             base, data = BlockMem.records[self.t.race]
-            if base <= a < base + len(data):
-                return data[a - base]
-        for addr, data in BlockMem.blocks:
-            if addr <= a < addr + len(data):
-                return data[a - addr]
-        fatal(f"marble: ROM read {a:06x} outside the emitted blocks")
+            if not base <= a < base + len(data):
+                fatal(f"marble: ROM read {a:06x} outside the emitted blocks")
+            return data[a - base]
+        return super().rb(a)
 
 
-def physics_runs(mem):
-    """Race starts of all races and every fixture tick, on Mem class mem. Returns positions."""
+def physics_runs(mem, terrains, objects=False):
+    """Race starts of all races and every Phase 2 fixture tick, on Mem class mem (with
+    objects: slots, projection and masks on). Returns positions."""
     out = []
-    terrains = [ms.Terrain(n) for n in range(md.LEVELS)]
     for n in range(md.LEVELS):
         m = mem(terrains[n], bytes(0x2000))
+        m.objects = m.sprites = objects
         ms.start_259b4(m, n)
         out.append(tuple(m.sl(ms.P + o) for o in (0xC, 0x10, 0x14)))
     for seg in ms.load_fixture(TRACE_FIXTURE):
         m = ms.fixture_mem(seg, terrains[seg["race"]], mem)
+        m.objects = m.sprites = objects
         if ms.replay_fixture(seg, m) is not None:
             fatal("marble: fixture replay differs, run marble_sim.py fixture")
         out.append(tuple(m.sl(ms.P + o) for o in (0xC, 0x10, 0x14)))
+    return out
+
+
+OBJ_IDLE_TICKS = 200   # past the practice gate wait (150 ticks) and its first frames
+
+
+def object_runs(mem, terrains):
+    """Phase 3: level init (objects_init) of all races plus idle ticks on a cleared RAM, and
+    every object fixture segment, objects and sprites on. Returns RAM crc32 per run."""
+    out = []
+    for n in range(md.LEVELS):
+        m = mem(terrains[n], bytes(0x2000))
+        m.objects = m.sprites = True
+        ms.start_259b4(m, n)
+        ms.objects_init(m, n)
+        for _ in range(OBJ_IDLE_TICKS): ms.tick(m, 0, 0)
+        out.append(zlib.crc32(bytes(m.ram)))
+    if not os.path.exists(OBJ_FIXTURE):
+        fatal(f"marble: {OBJ_FIXTURE} missing, run tools/make_fixture.py owrite")
+    for seg in ms.load_objfixture(OBJ_FIXTURE):
+        m = ms.fixture_mem(seg, terrains[seg["race"]], mem)
+        if ms.replay_objfixture(seg, m) is not None:
+            fatal("marble: object fixture replay differs, run marble_sim.py objfixture")
+        out.append(zlib.crc32(bytes(m.ram)))
     return out
 
 
@@ -189,11 +259,8 @@ def merge(addrs, gap=8):
     return out
 
 
-def prog_blocks(descs):
-    """Program ROM ranges the physics reads: recorded reads plus whole tables."""
-    RecMem.prog.clear(); RecMem.slap.clear()
-    ref = physics_runs(RecMem)
-    want = set(RecMem.prog)
+def table_bytes(descs):
+    """Phase 2 tables (whole) as a byte address set."""
     tables = list(PROG_TABLES) + [(d, DESC_BYTES) for d in descs]
     for n in range(md.LEVELS):
         for table, entry, last in ((0x1eb16, 6, lambda b: b[3] == 0xFF and b[4] == 0xFF),
@@ -206,12 +273,43 @@ def prog_blocks(descs):
     covered = set()
     for a, length in tables:
         covered |= set(range(a, a + length))
+    return covered
+
+
+def phase3_bytes():
+    """Phase 3 tables (whole): level objects, occlusion, edge bitmaps."""
+    out = set(od.object_tables()) | od.occlusion_bytes() | od.edge_bitmap_bytes()
+    for race in range(md.LEVELS):
+        out |= od.object_bytes(race)
+    return out
+
+
+def prog_blocks(terrains):
+    """Program ROM ranges the sim reads. Returns (blocks, phase 2 blocks, reference runs):
+    phase 2 = physics reads plus the Phase 2 tables, all = phase 2 plus everything the
+    object and occlusion runs read plus the Phase 3 tables."""
+    covered = table_bytes([t.desc for t in terrains])
+    phase3 = phase3_bytes()      # before ms.PROG is replaced
+    plain = ms.PROG
+    ms.PROG = RecProg(plain)
+    try:
+        RecProg.reads.clear(); RecMem.slap.clear()
+        ref2 = physics_runs(RecMem, terrains)
+        want = set(RecProg.reads)
+        ref3 = physics_runs(RecMem, terrains, True) + object_runs(RecMem, terrains)
+        want3 = set(RecProg.reads)
+    finally:
+        ms.PROG = plain
     outside = sorted(want - covered)
     if outside:
         fatal("marble: physics reads ROM outside the known tables: "
               + ", ".join(f"{a:06x}" for a in outside[:16]))
-    blocks = [(a, bytes(ms.PROG[a:e])) for a, e in merge(want | covered)]
-    return blocks, ref
+    p2 = [(a, bytes(plain[a:e])) for a, e in merge(want | covered)]
+    allb = [(a, bytes(plain[a:e])) for a, e in merge(want3 | covered | phase3)]
+    dyn_only = want3 - covered - phase3
+    print(f"phase 3 runs read {len(dyn_only)} B outside the tables: "
+          + ", ".join(f"{a:05x}+{e - a}" for a, e in merge(dyn_only, 0)))
+    return allb, p2, ref2 + ref3
 
 
 def mo_sprites(rom):
@@ -241,8 +339,9 @@ def c_words(w, indent="  "):
                       for k in range(0, len(w), 16))
 
 
-def emit_physics(f, rom):
-    """Phase 2 data into marble_rom.h. Returns {item: flash bytes}."""
+def emit_physics(f, rom, size3):
+    """Phase 2 data into marble_rom.h. Returns {item: flash bytes}; the prog blocks added by
+    Phase 3 go to size3."""
     size = {}
     terrains = [ms.Terrain(n) for n in range(md.LEVELS)]
     races = [terrain_race(t) for t in terrains]
@@ -282,17 +381,25 @@ def emit_physics(f, rom):
     size["terrain info"] = 6 * 32  # 32 bit pointers, padded
 
     BlockMem.records = {n: (r[3], r[2]) for n, r in enumerate(races)}
-    blocks, ref = prog_blocks([t.desc for t in terrains])
+    blocks, blocks2, ref = prog_blocks(terrains)
     for n in range(md.LEVELS):
         recs, data = BlockMem.records[n]
         if any(not recs <= a < recs + len(data) for a in RecMem.slap.get(n, ())):
             fatal(f"marble: race {n} reads slapstic data outside its terrain records")
-    BlockMem.blocks = blocks
-    if physics_runs(BlockMem) != ref:
-        fatal("marble: physics on the emitted blocks differs from the full ROM")
-    print("// Program ROM bytes the physics reads (68010 address, sorted). Records and terrain",
+    plain = ms.PROG
+    ms.PROG = BlockProg(blocks)
+    try:
+        got = (physics_runs(BlockMem, terrains) + physics_runs(BlockMem, terrains, True)
+               + object_runs(BlockMem, terrains))
+    finally:
+        ms.PROG = plain
+    if got != ref:
+        fatal("marble: simulation on the emitted blocks differs from the full ROM")
+    print("// Program ROM bytes the physics, level objects and occlusion read (68010 address,",
           file=f)
-    print("// come from marble_terrain; any other ROM address is a porting error.", file=f)
+    print("// sorted). Records and terrain come from marble_terrain; any other ROM address is a",
+          file=f)
+    print("// porting error.", file=f)
     print("struct MarbleProgBlock { uint32_t addr; uint16_t len; const uint8_t *data; };", file=f)
     for k, (a, data) in enumerate(blocks):
         print(f"static const uint8_t marble_prog_{a:05x}[] = {{\n{c_bytes(data)}\n}};", file=f)
@@ -300,7 +407,9 @@ def emit_physics(f, rom):
     for a, data in blocks:
         print(f"  {{ 0x{a:05x}, {len(data)}, marble_prog_{a:05x} }},", file=f)
     print(f"}};\nstatic const uint8_t MARBLE_PROG_BLOCKS = {len(blocks)};", file=f)
-    size["prog blocks"] = sum(len(d) for _, d in blocks) + 8 * len(blocks)
+    flash = lambda bl: sum(len(d) for _, d in bl) + 8 * len(bl)
+    size["prog blocks"] = flash(blocks2)
+    size3["prog blocks"] = flash(blocks) - flash(blocks2)
 
     tiles, pal = mo_sprites(rom)
     first = [0xFF] * MO_CODES.stop
@@ -328,9 +437,75 @@ def emit_physics(f, rom):
     return size
 
 
+def emit_objects(f, rom, levels, size3):
+    """Phase 3 data besides the prog blocks: playfield patches of the level objects and the
+    occlusion mask tiles. Sizes into size3."""
+    patches = od.patches()
+    print("\n// ---- Phase 3: level objects and occlusion (MARBLE.md \"Remake data\")", file=f)
+    print("// Playfield patches of mode 1 level objects (practice start gate): when the animation",
+          file=f)
+    print("// record at `record` (68010 address, 0x400970 queue) is applied, the w x h map words",
+          file=f)
+    print("// (same format as the level map) are written at map column `col`, race row `row`.",
+          file=f)
+    print("struct MarblePatch {\n  uint32_t record; uint16_t col, row, w, h; const uint16_t *words;\n};",
+          file=f)
+    blocks = sorted(PATCH_WORDS)
+    for race, blk in blocks:
+        print(f"static const uint16_t marble_patch_words_{blk:05x}[] = {{\n"
+              f"{c_words(PATCH_WORDS[(race, blk)])}\n}};", file=f)
+    print(f"static const MarblePatch marble_patches[{len(patches)}] = {{", file=f)
+    for race, rec, col, row, w, h, blk in patches:
+        print(f"  {{ 0x{rec:05x}, {col}, {row}, {w}, {h}, marble_patch_words_{blk:05x} }},",
+              file=f)
+    print(f"}};\nstatic const uint8_t MARBLE_PATCHES = {len(patches)};", file=f)
+    size3["patches"] = 16 * len(patches) + sum(2 * len(w) for w in PATCH_WORDS.values())
+    # the first frame of a gate shows the map as decoded: words must equal the map
+    for race, rec, col, row, w, h, blk in patches:
+        mapw = levels[race][2]
+        if all(mapw[(row + r) * md.COLS + col + c] == PATCH_WORDS[(race, blk)][r * w + c]
+               for r in range(h) for c in range(w)):
+            break
+    else:
+        fatal("marble: no patch frame equals the decoded level map, patch words are wrong")
+
+    codes = od.mask_tile_codes()
+    tiles = []
+    for code in codes:
+        tile, _ = md.mo_lookup(rom, code)
+        px = md.mo_tile(rom, tile)
+        if max(px) > 1:
+            fatal(f"marble: mask tile {code:03x} uses pen {max(px)} (only pens 0/1 are masks)")
+        tiles.append([sum((px[8 * y + x] & 1) << (7 - x) for x in range(8)) for y in range(8)])
+    first, last = codes[0], codes[-1]
+    index = [0xFFFF] * (last - first + 1)
+    for k, code in enumerate(codes): index[code - first] = k
+    print("// Occlusion mask tiles: MO tile of code c (marble_mask_index(c), 0xffff: none) is 8",
+          file=f)
+    print("// rows, bit 7 = left pixel, 1 = mask pixel (pen 1; pen 0 transparent). A mask entry",
+          file=f)
+    print("// of MO code c and height h uses codes c .. c + h - 1.", file=f)
+    print(f"static const uint16_t MARBLE_MASK_FIRST = 0x{first:03x};", file=f)
+    print(f"static const uint16_t MARBLE_MASK_CODES = {len(index)};", file=f)
+    print(f"static const uint16_t marble_mask_map[MARBLE_MASK_CODES] = {{\n{c_words(index)}\n}};",
+          file=f)
+    print(f"static const uint8_t marble_mask_tiles[{len(tiles)}][8] = {{", file=f)
+    for t in tiles:
+        print("  {" + ",".join(f"0x{v:02x}" for v in t) + "},", file=f)
+    print("};", file=f)
+    print("static inline uint16_t marble_mask_index(uint16_t code) {\n"
+          "  return (uint16_t)(code - MARBLE_MASK_FIRST) < MARBLE_MASK_CODES\n"
+          "      ? marble_mask_map[code - MARBLE_MASK_FIRST] : 0xffff;\n}", file=f)
+    size3["mask tiles"] = 8 * len(tiles) + 2 * len(index)
+    print(f"patches: {len(patches)} records, {len(PATCH_WORDS)} blocks; mask tiles: {len(tiles)} "
+          f"of codes 0x{first:03x}-0x{last:03x}")
+
+
 def main():
     rom = md.load()
     levels = [convert_level(rom, n) for n in range(md.LEVELS)]
+    if max(len(l[1]) for l in levels) > MAX_TILES:
+        fatal(f"marble: a tile set exceeds MAX_TILES {MAX_TILES}")
     if max(l[0] for l in levels) != MAX_ROWS or max(len(l[1]) for l in levels) != MAX_TILES:
         fatal("MAX_ROWS / MAX_TILES changed, update marble_level.h and this file")
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
@@ -352,12 +527,19 @@ def main():
         for _, _, _, pal in levels:
             print("  { " + ", ".join(f"0x{v:04x}" for v in pal) + " },", file=f)
         print("};", file=f)
-        size = emit_physics(f, rom)
+        size3 = {}
+        size = emit_physics(f, rom, size3)
+        emit_objects(f, rom, levels, size3)
         print("#endif", file=f)
     total = sum(size.values())
     print("phase 2 flash: " + ", ".join(f"{k} {v}" for k, v in size.items()) + f", total {total} B")
     if total > FLASH_BUDGET:
         fatal(f"marble: phase 2 data {total} B over the {FLASH_BUDGET} B budget")
+    total3 = sum(size3.values())
+    print("phase 3 flash: " + ", ".join(f"{k} {v}" for k, v in size3.items())
+          + f", total {total3} B")
+    if total3 > PHASE3_BUDGET:
+        fatal(f"marble: phase 3 data {total3} B over the {PHASE3_BUDGET} B budget")
     os.makedirs(os.path.dirname(FIXTURE), exist_ok=True)
     with open(FIXTURE, "w") as f:
         print("// Generated by romconv/internal/marble/marble_rom_convert.py; do not edit.", file=f)

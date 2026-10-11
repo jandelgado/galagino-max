@@ -580,6 +580,89 @@ python3 romconv/internal/marble/tools/marble_sim.py fixture \
   source/test/test_marble_physics/marble_trace.h   # replay, no trace needed
 ```
 
+### Phase 3 data (level objects, occlusion)
+
+Same converter run; flash 22777 B (budget 25 KB): program ROM blocks 18069 B (added to the
+Phase 2 blocks, which stay 4237 B), practice gate patches 912 B, mask tiles 3796 B. The
+converter prints these, fails above 25 KB.
+
+Program ROM blocks (`marble_prog_blocks`, now 36 blocks): collection runs the model with
+`objects` and `sprites` on over the race starts, `objects_init` + 200 idle ticks of every race
+(practice gate included), the Phase 2 fixture and the object fixture, and records every ROM
+byte read (ms.PROG is replaced by a recording `bytearray`, so direct table reads count too).
+Added as whole tables, so a port never meets a gap:
+
+- object slots (`objects_data.object_bytes`): spawn list 0x1dec0[race] (6 byte entries + 0xff),
+  random group table 0x1ded8 (64 B), every script byte the byte code walk reaches, animation
+  lists up to the 0xffffffff end, terrain blocks (word first slot, word count, words), the
+  intermediate wave tables 0x24c7a-0x24e27; shared: pointer table 0x1dec0, slot address table
+  0x1f016, the three tag 3 global lists (0x211fe, 0x2121e, 0x2126e, 0x212b2 and the long before);
+- occlusion (`occlusion_bytes`): 0x1eaba, 0x1eaca, 0x1ead2, 0x1eaf4 (shape, bit, slope tables),
+  0x24176/0x2417e (quadrant masks, vertex offsets), 0x1ed0a (vertex field mapping), 0x1eb3a (pair
+  address words, only the model reads them: it reads the video RAM image, a port uses the
+  terrain index), the pointer table 0x1ea2a, the six word offsets per column and the explicit
+  occluder lists of all columns and races (175 records of 10 bytes);
+- terrain edge bitmaps (`edge_bitmap_bytes`): emitted as program ROM blocks at the addresses
+  the model reads, no extra struct. Per race the pointer table of descriptor + 0x2e (36
+  longs, stride 4; ultimate: 4 tables, descriptor + 0x2e + 0x90 * frame, frame = 0x40045c / 0x90)
+  and the 36 bitmaps `rom_l(table + 4 * col)`, `(maxd + 7) / 8` bytes each (practice 20, beginner
+  and aerial 27, intermediate 24, silly 30, ultimate 25; the last diagonal always has a bit, scans
+  never leave the bitmap). 9504 B.
+
+Slapstic reads stay terrain records. The converter replays all runs on the emitted blocks only
+(`BlockProg` fails on any other address) and requires the same results as on the full ROM.
+
+Practice gate patches (`marble_patches[MARBLE_PATCHES]`, `MarblePatch {record, col, row, w, h,
+words}`): the 12 animation records of the tag 0x11 gate (lists 0x16658, 0x1668c; 6 distinct tile
+blocks of 10 x 6 words, bytes w, h, then w x h playfield words). `record` is the animation record
+address 0x1344c is given (0x400970 queue = `m.rl(a + 0x3e)`), `col`/`row` the slot's patch
+column and race row from the script (14, 3), `words` map words (local tile | colour set << 10 |
+hflip << 15) written row-major at (col, row) of the level map. The tiles missing from the
+practice tile set were appended in first-use order (practice 760 -> 863 tiles, MAX_TILES 896 kept;
+the converter fails above). Check: record 0x16658 equals the decoded level map (closed gate). Tag
+0x19 (ultimate rows) is not emitted (Phase 4).
+
+Mask tiles (`marble_mask_tiles[376][8]`, `marble_mask_map[]`, `marble_mask_index(code)`): the
+tiles of every entry code 0x264aa can emit (explicit occluders except control -2 and the
+placeholder code 0, the slope table 0x1ead2, full mask 0x6ce0; height from bits 11-13): MO codes
+0x4df-0x668 (not 0x4e0-0x747: no entry reaches beyond 0x668, 0x4df is used by 0x44df). 1 bpp, bit
+7 = left pixel, 1 = mask (pen 1; the converter fails on a pen > 1). `marble_mask_index` returns the
+dense index of a tile code or 0xffff.
+
+Object fixture `source/test/test_marble_objects/marble_objects_trace.h` (committed, derived
+numbers only), `make_fixture.py owrite`:
+
+- `marble_objects_segments[MARBLE_OBJECTS_SEGMENTS]`: race, MAME frame, initial work RAM blocks
+  (player, race words, scratch, all 25 slots 0x400a9c-0x401301, all 128 dynamic codes
+  0x40076e-0x40086d, slot globals 0x40045c, 0x40075c, 0x400970 and whatever else the run reads
+  first), ticks.
+- Tick `{c6, c7, camera, x, y, z, state, vis, mask[30], slot_crc, dyn_crc}`: `tick(c6, c7, camera)`
+  of the model with `objects` and `sprites`, then player x, y, z, state, +0x1c (`vis`, 0 = marble
+  hidden), the 30 bytes at +0x38 (5 entries code, x, y, big endian), crc32 (zlib) of the 2150
+  bytes 0x400a9c-0x401301 and of the 256 bytes 0x40076e-0x40086d (big-endian RAM bytes).
+  `camera` is the camera long 0x40097c after the tick, an input like the trackball deltas
+  (marble_camera computes it from the player, the model does not). Nothing else comes from
+  the trace after the first snapshot. Each tick also equals the trace in the slot fields
+  (`slot_diff`: active slots, dynamic codes), the object bytes of Phase 2, +0x1c-+0x29 and the
+  masks; a segment ends before the first difference (death, frame gap, enemy within 24 px).
+- Segments (events counted by the model): practice mt/p3 frame 730, 340 ticks: 3 slot wall
+  contacts (ticks 232, 319, 333), the gate opening (10 dynamic code changes, ticks 153-266), 71
+  ticks with masks, 12 with hflip; beginner lo/cam1 frame 2399, 340 ticks: the moving part (tag
+  3) active 111 ticks, 23 dynamic code changes, 206 ticks with the marble hidden (camera driven
+  away from it), spawns and removals; intermediate lo/i2 frame 660, 251 ticks (to the death):
+  39 ticks with masks, 14 hflip, 8 hidden; intermediate mt/q2 frame 1942, 300 ticks: 92 ticks
+  with masks, 48 hflip, 10 round post contacts. lo/pw and lo/pw2 do not open the gate within
+  their ticks (no dynamic code change), so the practice segment is a Phase 2 trace.
+
+```sh
+python3 romconv/internal/marble/tools/make_fixture.py osearch TRACE RACE [MIN]
+python3 romconv/internal/marble/tools/make_fixture.py owrite \
+  source/test/test_marble_objects/marble_objects_trace.h 0:mt/p3/trace.bin:730:340 \
+  1:lo/cam1/trace.bin:2399:340 2:lo/i2/trace.bin:660:251 2:mt/q2/trace.bin:1942:300
+python3 romconv/internal/marble/tools/marble_sim.py objfixture \
+  source/test/test_marble_objects/marble_objects_trace.h   # replay, no trace needed
+```
+
 ## Open questions
 
 - Level objects: unported tags (0x0a-0x0d, tubes 0x12-0x16, 0x20-0x27), zone triggered

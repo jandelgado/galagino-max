@@ -31,12 +31,13 @@ def scripts_of(race):
     return ents, roots
 
 
-def walk(roots):
-    """Script bytes, animation lists (pointer, frame stride), tags."""
+def walk(roots, patch=None):
+    """Script bytes, animation lists (pointer, frame stride), tags. patch: optional set,
+    receives (list pointer, column, row) of mode 1 slots (op 0 and ops 12/13 lists)."""
     code, anims, tags, seen = set(), set(), set(), set()
-    todo = [(r, 0, 0) for r in roots]
+    todo = [(r, 0, 0, None) for r in roots]
     while todo:
-        pc, mode, tag = todo.pop()
+        pc, mode, tag, crow = todo.pop()
         loops = {}
         while (pc, mode) not in seen:
             seen.add((pc, mode))
@@ -45,14 +46,18 @@ def walk(roots):
             if op == 0:
                 mode = PROG[pc + 7]; tag = PROG[pc + 9]; tags.add(tag); pc += 10
                 if mode == 1:
+                    crow = (rom_w(pc), rom_w(pc + 2))
                     anims.add((rom_l(pc + 4), 8, tag, 1)); pc += 8
+                    if patch is not None: patch.add((rom_l(pc - 4),) + crow)
             else:
                 pc += ARGS[op]
             code.update(range(start, pc))
             if op in (4, 6): loops[op] = PROG[pc - 1]
             if op in (5, 7) and loops.get(op - 1) == 0: break     # count 0: loops forever
-            if op in (12, 13): anims.add((rom_l(pc - 4), 8 if mode else 4, tag, mode))
-            if op in (8, 10, 18): todo.append((rom_l(pc - 4), mode, tag))
+            if op in (12, 13):
+                anims.add((rom_l(pc - 4), 8 if mode else 4, tag, mode))
+                if patch is not None and mode == 1: patch.add((rom_l(pc - 4),) + crow)
+            if op in (8, 10, 18): todo.append((rom_l(pc - 4), mode, tag, crow))
             if op == 9: pc = rom_l(pc - 4); continue
             if op in (11, 15): break
             if op == 3 and rom_w(pc - 2) == 0: break
@@ -101,6 +106,130 @@ def occlusion_tables():
         bitmaps += 36 * ((rom_w(desc + 0x18) + 7) // 8 + 1)
     small = 15 + 8 + 2 * 17 + 2 * 17 + 4 * 36 + 8 * 4 + 8 + 0x58
     return 10 * len(expl), bitmaps, small
+
+
+def spans(addrs):
+    """Byte addresses -> sorted [first, end) ranges."""
+    out = []
+    for a in sorted(addrs):
+        if out and a == out[-1][1]: out[-1][1] = a + 1
+        else: out.append([a, a + 1])
+    return [tuple(r) for r in out]
+
+
+def object_bytes(race):
+    """Program ROM bytes the object slots of one race read: spawn list, scripts, animation
+    lists, terrain blocks. Playfield tile blocks (never read by the sim, patched by the
+    remake from `patches`) and MO frames (format 0x1a8d2, Phase 4) are not included."""
+    ents, roots = scripts_of(race)
+    code, anims, tags = walk(roots)
+    out = set(code)
+    a = rom_l(0x1dec0 + 4 * race)
+    out.update(range(a, a + 6 * len(ents) + 1))
+    if any(sc == 0 for _, _, sc in ents): out.update(range(0x1ded8, 0x1ded8 + 64))
+    for lst, stride, tag, mode in anims:
+        n = 0
+        while rom_l(lst + n * stride) != 0xffffffff and n < 500: n += 1
+        out.update(range(lst, lst + n * stride + 4))
+        if stride != 8: continue
+        for k in range(n):
+            d = rom_l(lst + k * stride + 4)
+            if d: out.update(range(d, d + 4 + 2 * rom_w(d + 2)))
+    if race == 2: out.update(range(0x24c7a, 0x24e28))    # wave tables 0x1d06a
+    return out
+
+
+def object_tables():
+    """Tables all races share: spawn list pointers, slot address table (0x12d6e), the three
+    global animation lists tag 3 steps (0x40044a/e/52, wrap targets 0x211fe, 0x2121e,
+    0x2126e, 0x212b2; 0x13068 also reads the long before the pointer)."""
+    out = set(range(0x1dec0, 0x1dec0 + 24)) | set(range(0x1f016, 0x1f016 + 100))
+    for a in (0x211fe, 0x2121e, 0x2126e, 0x212b2):
+        e = a
+        while rom_l(e) != 0xffffffff: e += 4
+        out.update(range(a - 4, e + 4))
+    return out
+
+
+def occlusion_bytes():
+    """Program ROM bytes 0x264aa reads outside the edge bitmaps: shape and mask tables, the
+    vertex tables of 0x177f8, the explicit occluder lists (0x1ea2a)."""
+    out = set(range(0x1eaba, 0x1eaba + 16)) | set(range(0x1eaca, 0x1eaca + 8))
+    out.update(range(0x1ead2, 0x1ead2 + 34)); out.update(range(0x1eaf4, 0x1eaf4 + 34))
+    out.update(range(0x24176, 0x24176 + 8 + 32))
+    out.update(range(0x1ed0a, 0x1ed0a + 0x58))
+    out.update(range(0x1eb3a, 0x1eb3a + 2 * 120))     # vertex pair addresses, d & 0xfe < 238
+    out.update(range(0x1ea2a, 0x1ea2a + 144))
+    for c in range(36):
+        tab = rom_l(0x1ea2a + 4 * c)
+        out.update(range(tab, tab + 12))
+        for race in range(6):
+            sel = rom_w(tab + 2 * race)
+            if not sel: continue
+            r = tab + 2 * sel
+            while s16(rom_w(r)) != -1: r += 10
+            out.update(range(tab + 2 * sel, r + 2))
+    return out
+
+
+def edge_bitmap_bytes():
+    """Per race: descriptor pointer tables (+0x2e, 36 longs; ultimate 4 tables of the
+    scroll frames 0x40045c = frame * 0x90) and the 36 edge bitmaps of each. Column c of
+    table k: bitmap at rom_l(desc + 0x2e + 0x90 * k + 4 * c), (maxd + 7) // 8 bytes (the
+    last diagonal always has a bit, scans never leave the bitmap)."""
+    out = set()
+    for race in range(6):
+        desc = rom_l(0x2be00 + 4 * race); maxd = rom_w(desc + 0x18)
+        n = 4 if race == 5 else 1                        # ultimate: list 0x24e2a has 4 frames
+        for k in range(n):
+            t = desc + 0x2e + 0x90 * k
+            out.update(range(t, t + 0x90))
+            for c in range(36):
+                b = rom_l(t + 4 * c)
+                out.update(range(b, b + (maxd + 7) // 8))
+    return out
+
+
+def mask_entries():
+    """Mask entry codes 0x264aa can emit (bit 15 = hflip variants not listed): the explicit
+    occluder codes (not the z compare of control -2), the slope table 0x1ead2, the full
+    mask. Code 0 (placeholder records) ends an entry list: never drawn."""
+    ents = {0x6ce0}
+    for c in range(36):
+        tab = rom_l(0x1ea2a + 4 * c)
+        for race in range(6):
+            sel = rom_w(tab + 2 * race)
+            if not sel: continue
+            r = tab + 2 * sel
+            while s16(rom_w(r)) != -1:
+                if s16(rom_w(r + 4)) != -2 and rom_w(r + 8): ents.add(rom_w(r + 8))
+                r += 10
+    for i in range(17): ents.add(rom_w(0x1ead2 + 2 * i) & 0x7fff)
+    return ents
+
+
+def mask_tile_codes():
+    """MO codes of the tiles the mask entries draw: entry code & 0x7ff + k, height
+    ((code >> 11) & 7) + 1 tiles."""
+    return sorted({(e & 0x7ff) + k for e in mask_entries() for k in range(((e >> 11) & 7) + 1)})
+
+
+def patches():
+    """Playfield patches of mode 1 slots: [(race, record address, column, row, width, height,
+    block address)], one per animation record with a tile block (tag 0x19 rows excluded)."""
+    out = []
+    for race in range(6):
+        ents, roots = scripts_of(race)
+        patch = set()
+        code, anims, tags = walk(roots, patch)
+        for lst, col, row in sorted(patch):
+            if lst == 0x24e2a: continue                  # ultimate: row index, not a block
+            n = 0
+            while rom_l(lst + 8 * n) != 0xffffffff:
+                t = rom_l(lst + 8 * n)
+                if t: out.append((race, lst + 8 * n, col, row, PROG[t], PROG[t + 1], t))
+                n += 1
+    return out
 
 
 def main():

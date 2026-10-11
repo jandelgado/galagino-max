@@ -13,6 +13,8 @@ Validation against MAME traces (tools/mame_trace.lua), exit code 1 on failure:
   marble_sim.py start TRACE RACE     start_259b4 on a cleared RAM runs like the first snapshot
   marble_sim.py fixture HEADER       replay the host test fixture (tools/make_fixture.py),
                                      no trace needed
+  marble_sim.py objfixture HEADER   replay the object host test fixture (tools/make_fixture.py
+                                     objects): slots, occlusion masks, no trace needed
   marble_sim.py occl TRACE RACE     projection 0x1b9cc + occlusion masks 0x264aa per tick
   marble_sim.py slots TRACE RACE [MIN]  level object slots + dynamic terrain codes run free
                                      (never copied from the trace), marble physics on them
@@ -1724,9 +1726,75 @@ def cmd_fixture(path):
     return ok
 
 
+OBJ_SLOT_AREA = (0xa9c, 0xa9c + SLOT_N * SLOT_SIZE)   # 0x400a9c-0x401301
+OBJ_DYN_AREA = (0x76e, 0x86e)                           # 128 dynamic code words
+
+
+def obj_state(m):
+    """Fixture check values of one tick: player x, y, z, state, +0x1c, the 30 bytes of the
+    mask entries (+0x38), crc32 of the slot area and of the dynamic code words (work RAM
+    offsets OBJ_SLOT_AREA, OBJ_DYN_AREA, big-endian bytes as in the 68k RAM)."""
+    import zlib
+    a = P - 0x400000
+    return (m.sl(P + 0xc), m.sl(P + 0x10), m.sl(P + 0x14), m.rb(P + 0x1a), m.rb(P + 0x1c),
+            bytes(m.ram[a + 0x38:a + 0x56]), zlib.crc32(bytes(m.ram[slice(*OBJ_SLOT_AREA)])),
+            zlib.crc32(bytes(m.ram[slice(*OBJ_DYN_AREA)])))
+
+
+def load_objfixture(path):
+    """Segments of source/test/test_marble_objects/marble_objects_trace.h:
+    [{"race", "frame", "ram": [(addr, bytes)], "ticks": [(c6, c7, camera, x, y, z, state,
+    vis, masks, slot_crc, dyn_crc)]}]."""
+    import re
+    text = open(path).read()
+    num = lambda s: [int(v, 0) for v in re.findall(r"-?0x[0-9a-fA-F]+|-?\d+", s)]
+    arrays = {name: body for name, body in
+              re.findall(r"static const \w+ (\w+)\[\] = \{(.*?)\n?\};", text, re.S)}
+    segs = []
+    for race, frame, nram, ramname, nticks, tickname in re.findall(
+            r"\{ *(\d+), *(\d+), *(\d+), *(\w+), *(\d+), *(\w+) *\}",
+            arrays["marble_objects_segments"]):
+        ram = []
+        for addr, length, data in re.findall(r"\{ *(0x[0-9a-f]+), *(\d+), *(\w+) *\}",
+                                             arrays[ramname]):
+            b = bytes(num(arrays[data]))
+            assert len(b) == int(length)
+            ram.append((int(addr, 0), b))
+        v = num(arrays[tickname])
+        w = 8 + 30 + 2
+        ticks = [tuple(v[k:k + 8]) + (bytes(v[k + 8:k + 38]),) + tuple(v[k + 38:k + 40])
+                 for k in range(0, len(v), w)]
+        assert len(ram) == int(nram) and len(ticks) == int(nticks)
+        segs.append({"race": int(race), "frame": int(frame), "ram": ram, "ticks": ticks})
+    return segs
+
+
+def replay_objfixture(seg, m):
+    """Run every object fixture tick on m (objects and sprites on); index of the first tick
+    that differs, or None."""
+    m.objects = m.sprites = True
+    for k, (c6, c7, cam, x, y, z, state, vis, masks, scrc, dcrc) in enumerate(seg["ticks"]):
+        tick(m, c6 & 0xff, c7 & 0xff, camera=cam & 0xffffffff)
+        if obj_state(m) != (x, y, z, state, vis, masks, scrc, dcrc):
+            return k
+    return None
+
+
+def cmd_objfixture(path):
+    ok = True
+    for seg in load_objfixture(path):
+        bad = replay_objfixture(seg, fixture_mem(seg, Terrain(seg["race"])))
+        print("objects fixture race %d frame %d: %d ticks, %s" % (seg["race"], seg["frame"],
+              len(seg["ticks"]), "exact" if bad is None else "differs at tick %d" % bad))
+        ok &= bad is None
+    return ok
+
+
 def main(argv):
     if len(argv) == 3 and argv[1] == "fixture":
         return 0 if cmd_fixture(argv[2]) else 1
+    if len(argv) == 3 and argv[1] == "objfixture":
+        return 0 if cmd_objfixture(argv[2]) else 1
     if len(argv) < 4 or argv[1] not in ("terrain", "ticks", "run", "start", "occl", "slots"):
         print(__doc__); return 2
     trace = load_trace(argv[2]); race = int(argv[3])
