@@ -70,6 +70,7 @@ GAMES = [
     "ccastles",
     "bzone",
     "tempest",
+    "spacduel",
     "starwars",
     "missile",
     "mpatrol",
