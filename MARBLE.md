@@ -44,9 +44,10 @@ TypeScript port named by ROM address. Facts below were read from the disassembly
   colour sets (practice row 9 grey band).
 - Camera: 0x40097c (long, +0x10 .. +0x10 + +0x12), playfield y scroll 0x400000. Race
   index: 0x400394 (word, 0-5).
-- 0x13ee6 has a second path for objects of type 0x19: it decodes a row of ultimate
-  (descriptor 0x2be14) with attribute byte +0x2a + 0x4e + row into an object buffer.
-  Probable source of the +0x4e offset (open, Phase 4).
+- 0x1344c (called by 0x13ee6) has a second path for level object tag 0x19 (ultimate moving
+  parts): it decodes ultimate rows (descriptor 0x2be14) with attribute byte +0x2a + 0x4e +
+  row into playfield RAM, row index from the animation record (section Level objects).
+  Source of the +0x4e offset (row decode not ported).
 - 0x1a444 does not touch colours: it builds the terrain cells (section Terrain) into
   off-screen playfield RAM columns 39-63 and motion object RAM 0xa02400+ (verified).
 - Scroll draws rows past a race's last row: they come from the next descriptor's tables
@@ -57,7 +58,8 @@ TypeScript port named by ROM address. Facts below were read from the disassembly
   866, 595; 3726 over all levels.
 - Palette sets: 6 x 195 words at 0x1fc10, written to the addresses listed at 0x20534 by
   0x26b2a; set n belongs to level n (verified visually).
-- Animated level pieces are blitted by 0x1344c from a list at RAM 0x400970 (open).
+- Animated level pieces are blitted by 0x1344c from the animation frame record queued at
+  RAM 0x400970 (section Level objects).
 - Surface/height lookup does not use the visible playfield words: it reads the terrain
   cells built by 0x1a444 (section Terrain).
 
@@ -166,12 +168,13 @@ Friction 0x25e7c: n as in the speed cap, f = table 0x1eef8 interpolated by n bit
 mode 0: k = (n - f) * 64 / (n >> 8), v = (v >> 8) * k >> 6 (n at least 0x100).
 
 Level object slots 0x400a9c (25 x 0x56, +0x18 active, +0x0c/+0x10 position, +0x1f tag)
-run byte code scripts (0x12896) spawned by level object lists (Phase 4). 0x29cce clears
+run byte code scripts (0x12896) spawned by level object lists (section Level objects). 0x29cce clears
 +0x58 and tests every slot (jump table 0x29db4): tags 0x1a-0x1f are invisible wall
 segments (pixel boxes relative to the slot, end caps reflect the other axis), tags 0x10,
 0x17, 0x18, 0x2d-0x3b are cell rectangles that set +0x58 (0x2d-0x31, 0x38-0x3b also need
-equal z). Practice uses tags 0x11 (no-op) and 0x1a-0x1f. Tags 0x05, 0x0a-0x0d,
-0x12-0x16, 0x20-0x27 (bumpers, gates, pipes, catapult) are not ported (Phase 4).
+equal z). Practice uses tags 0x11 (no-op) and 0x1a-0x1f. Tag 0x05 is ported from Marble
+Love (no trace contact). Tags 0x0a-0x0d, 0x12-0x16, 0x20-0x27 (gates, pipes, catapult) are
+not ported (section Level objects).
 
 Validation (tools/marble_sim.py, traces from tools/mame_trace.lua, random stick input,
 3000 frames): `ticks` from each MAME snapshot and `run` free running from the first
@@ -217,7 +220,7 @@ race by 0x1a444 at level init (0x16f6c), read by 0x1caba.
   - 0x0800-0x0fff: dynamic, word at RAM 0x40076e + (code & 0x7fe) (moving parts, Phase 4).
     Slots and diagonals per race: practice 0-8 (diagonals 11-16), beginner 0-11 (96-103),
     intermediate 0-65 (137-162), ultimate 0-111 (144-189); aerial, silly none. Level
-    object animations (0x13628, Phase 4) rewrite them while the race runs.
+    object animations rewrite them while the race runs (section Level objects).
   - 0x1000-0xefff: v = base + (code & 0x7f) - 0x40; quadrant q has v if bit 12 + q is set,
     else v - table 0x1ed62[(code >> 7) & 0x1f] (0x1000 = no floor).
   - 0xf000-0xffff: flat v.
@@ -289,10 +292,169 @@ race by 0x1a444 at level init (0x16f6c), read by 0x1caba.
   and the surface dots.
 - Occlusion: the playfield priority mask 0x840000 is written 0 once at boot (0x100b6,
   MAME write tap during a race: no other write), so the playfield never covers motion
-  objects by hardware. MAME merge: priority MOs (word 2 bit 15) replace the pixel with
-  palette 0x300 + pf pen * 16 + mo pen. Level objects use such MOs (codes 0x4e0-0x571, 7
-  to 8 tiles tall, seen in traces); hypothesis (unverified): they mask the marble behind
-  walls. Spawned by level object scripts (Phase 4).
+  objects by hardware. The marble hides behind walls through its own priority mask MOs,
+  computed per tick from the terrain (section Occlusion), not through level objects
+  (correction: the earlier hypothesis was wrong).
+
+## Level objects
+
+Static and scripted level pieces (start walls, gates, tubes, moving floors, animated
+playfield patches) are slots, not tiles. Sources: ROM disassembly and Marble Love
+(script-slot-step-13068.ts, helper-12896.ts, sub-29cce.ts, scroll-range-144e4.ts,
+terrain-wave-update-1d06a.ts); ported in tools/marble_sim.py and validated against MAME
+traces (below). Enemies (0x4009a4, 0x401302, ...) are other arrays and not covered.
+
+Tick order (main loop 0x10fce, 30 Hz): 0x13ee6 (first 0x1344c, then camera; a camera
+change calls 0x144e4 = spawns) -> 0x251de players and other objects (the player physics
+0x121b8 reads the slots via 0x29cce) -> 0x189e2, 0x158cc, 0x1493c, 0x17230, 0x1912c,
+0x19baa, 0x1844a -> 0x12fd0 slot update -> 0x28624. So physics sees the slot state and
+dynamic codes of the previous tick; a slot's animation frame is applied by 0x1344c at the
+start of the next tick. The MO list (0x26f3e, main loop 0x118aa) shows the logic one tick
+later.
+
+Slot (0x400a9c + 0x56 * i, i = 0-24, allocated in index order via table 0x1f016):
+
+| off | size | meaning |
+| --- | --- | --- |
+| +0x00/+0x04 | long | vx, vy (op 14: word << 8) |
+| +0x0c/+0x10/+0x14 | long | x, y (cell << 19), z (word << 16) |
+| +0x18 | byte | 1 active |
+| +0x1a | byte | state: 0 wait, 1/2 animate, 3 start script, 4 wait for zone |
+| +0x1b | byte | zone (op 17) |
+| +0x1c | word | wait ticks / animation repeat count (0 = forever) |
+| +0x1e | byte | mode: 0 motion object, 1 playfield patch, 2 MO + terrain |
+| +0x1f | byte | tag (0x29cce collision kind) |
+| +0x20/21, +0x22/23 | byte | frame counter / ticks per frame, state 1 and 2 |
+| +0x24/+0x25 | byte | loop counters (ops 4/5, 6/7); tag 6: wave phase |
+| +0x26/+0x28 | word | playfield patch column, race row (mode 1) |
+| +0x2a/+0x2e/+0x32 | long | loop pcs, saved pc (op 10/17) |
+| +0x36 | long | script pc |
+| +0x3a | long | spawn script |
+| +0x3e | long | current animation record; +0x46 (state 2) / +0x4a (state 1) list starts |
+| +0x42 | long | MO frame record (modes 0/2) |
+| +0x4e | long | screen sx << 16 \| sy (same projection as 0x1b9cc) |
+| +0x52/+0x54 | word | camera band range of the spawn entry |
+
+Spawning (0x144e4 -> 0x12dfa): band = (camera - descriptor +0x10) >> 4 (16 px). List
+0x1dec0[race]: 6 byte entries (lo band, hi band, long script; 0xff end); script 0 = a
+random group of 4 scripts from 0x1ded8 + 16 * rng(4) (0x13a98, shift register 0x4003a6,
+aerial only). When the camera moves from band old to new: every entry with new == lo or
+hi and old outside [lo, hi] spawns (unless already alive: 0x12dae, same +0x3a) into the
+first free slot (+0x3a = script, state 3, +0x52/+0x54 = lo/hi); then every slot with
+old == +0x52 and new < +0x52, or old == +0x54 and new > +0x54 is removed (0x12f44 mode
+1). Level init (0x105a0) spawns with old = camera -/+ 0x19 (silly: +), runs one 0x12fd0 and
+0x1344c; slots do not run before the first race tick (sim `objects_init` equals the first
+race snapshot of all 6 races).
+
+Update 0x12fd0: intermediate only: a player in zone 9/10 with 0x40075e set spawns the
+wave script 0x1d854; while a wave runs (0x40075c) 0x11ac2 reloads the 66 dynamic codes
+from 0x1d370 each tick; then 0x13068 per slot: tag 3 steps three global animation
+pointers (0x40044a/e/52); state 3 starts the script; state 0 counts +0x1c down then
+continues the script; state 1 moves by v and advances the animation every +0x21 ticks,
+state 2 the same without moving every +0x23 ticks (tag 6 counts +0x25, 0x1e sets
+0x40075e; tag 0x19 sets 0x40045c = frame * 0x90); animation end (0xffffffff) wraps to the
+list start, +0x1c counts repeats (0 = forever), at 0 the script continues. 0x13334 per
+animated frame: modes 1/2 queue the record at 0x400970 (one per tick, last slot wins),
+modes 0/2 store the screen position +0x4e and +0x42; tag 6 calls the wave 0x1d06a
+(rewrites up to 12 dynamic codes from tables 0x24c7a-0x24e1a), tag 3 0x26b66.
+
+Byte code 0x12896 (word opcode, args words; ops yield where marked):
+
+| op | args | effect |
+| --- | --- | --- |
+| 0 | x, y, z, mode, tag [, col, row, long anim] | init (cells, z word); mode 1: patch at col/row, anim list; else MO draw list insert 0x18e6c |
+| 1/2 | ticks, frames per step | animate list +0x4a / +0x46 (state 1 / 2), yield |
+| 3 | ticks | wait (0 = forever), yield |
+| 4/6, 5/7 | count | loop start / end (count 0 = forever) |
+| 8 | 0, long | player within 3 cells of the slot: jump (sound 0x31) |
+| 9, 10, 11 | long / long / - | jump, call, return |
+| 12/13 | long | animation list for state 2 / 1 |
+| 14 | vx, vy | velocity << 8 |
+| 15 | - | remove slot, yield |
+| 16 | - | x += vx, y += vy |
+| 17 | zone | state 4: wait until a player enters the zone (0x1365c -> 0x13a1c), yield |
+| 18 | long | jump when no player is in zone +0x1b (or +0x1b + 1 >= 0x1e) |
+
+Animation records: mode 0 lists hold longs (MO frame for 0x1a8d2), modes 1/2 pairs of
+longs (tile block or MO frame, terrain block). 0x1344c applies the queued record: mode 1
+tile block = bytes w, h, then w x h playfield words written at column +0x26, race row
++0x28 (rows on screen only; the remake must patch its playfield copy); tag 0x19 decodes
+ultimate rows instead (row index in the record); terrain block = word first slot, word
+count, words to 0x40076e.
+
+Objects per race (tools/objects_data.py):
+
+| race | spawned tags | dynamic codes from |
+| --- | --- | --- |
+| practice | 0x11 start gate at (16,16) (mode 1: playfield patch + terrain; 150 ticks after the start, if a player is in cells 16-18 / 16-18, i.e. the start pen, it opens: lists 0x16658, 0x1668c, then the slot is removed), walls 0x1a-0x1d (start pen), 0x1e/0x1f, 0x05 | tag 0x11 frames |
+| beginner | 0x03 (61,56) mode 2 moving part, tubes 0x12-0x16, 0x10, 0x05 | tag 0x03 lists 0x21156, 0x21192 |
+| intermediate | tubes 0x20/0x21, 0x05, wave 0x06 (zone 9/10) | level init 0x11ac2 copy, wave 0x1d06a |
+| aerial | 0x17/0x18 start surfaces, gates 0x0b/0x0d (zone scripts), 0x0a catapult, random 0x0c groups, 0x05 | none |
+| silly | tubes 0x22-0x24, 0x05 | none |
+| ultimate | 0x19 (mode 1, rows), surfaces 0x2d-0x3a, tubes 0x25-0x27, 0x05 | tag 0x19 list 0x24e2a |
+
+Tags in 0x29cce (Marble Love sub-29cce.ts, tag dispatch 0x29db4): 0x05 round post
+(max + 3/8 min of |dx| * 16, |dy| * 16 below 0x38, about 3.5 px: both axes reflect,
+sound 0x42), 0x0a catapult, 0x0b/0x0d
+aerial gates (may set state 4), 0x0c bounce box, 0x10/0x17/0x18/0x2d-0x3b surface cells
+(+0x58), 0x12-0x16 and 0x20-0x27 tubes (teleport to fixed exits, state 3, blocked check
+0x17cb8, shape test 0x1cd00, rng; some return without the bounce epilogue), 0x1a-0x1f
+walls. Ported: 0x05, surfaces, walls.
+
+Validation (`marble_sim.py slots TRACE RACE`: slots, dynamic codes and slot globals never
+copied from the trace after the first race snapshot; camera long and enemy scratch are):
+all slot fields and all 128 dynamic words equal MAME every tick, and the marble physics on
+them, in 20 traces, 16757 ticks: practice 6 (3 random input, 2 start pen input, 1 camera
+driven; 13 slot wall contacts, physics segments up to 934 ticks), beginner 3 + 1 camera
+driven, intermediate 3 + 1 camera driven (physics segment 528), silly 2, ultimate 2 + 1
+camera driven, aerial 1 short (camera traces: `MARBLE_CAMERA=800:1600` in
+mame_trace.lua, spawns and removals over the whole race, beginner 46 and ultimate 37
+dynamic code changes). The second aerial trace differs only where gates 0x0b/0x0d act.
+Not covered by a trace: the intermediate wave (tag 6), zone triggers, tube tags.
+
+## Occlusion
+
+The marble (and every other visible object) gets up to 5 priority mask MOs per tick from
+0x264aa, called by 0x1281c after the projection 0x1b9cc in the physics tail (0x1272c).
+Ported 1:1 as `occlusion_264aa` (Marble Love fun-264aa.ts; ROM 0x2651c compares +0x1a == 9
+where the TS reads +0x18).
+
+- 0x1281c: +0x1c = 1 if -16 < sy < 256, then 0x264aa (players kind 0, others 1).
+- Kind 0 skip: surface code +0x58 set with timer +0x59 != 0xff (and not 0x0a, state not
+  9/0xa/0xb): +0x1c = 0, no masks; states 4, 6, 0xa: no masks.
+- Columns: c = sx >> 3; 3 columns c-1..c+1 (states 1/2/5/9: 5 columns, c-2..c+2),
+  clipped to 0..35. Sprite box top = sy + 0xe (0x20 for 5 columns). Diagonal per column =
+  cell diagonal (cx + cy - 0x15) + offset byte from 0x1eaba (+10 when the pixel-sum
+  diagonal differs, +5 when column and diagonal parity differ, +1 for 3 columns).
+- Per column, first explicit occluders 0x1ea2a[col] (word offset per race, records of 5
+  words: diagonal limit, depth, control, y, entry code; 175 records): control 0-7 full
+  mask when y >= sy - control else emit, 8 emit when y < top, > 8 emit when y <= top else
+  restart at diagonal control & 0xff, -2 full mask when the record z > marble z, -1 emit
+  unless on the limit diagonal.
+- Else terrain: first diagonal >= d with a bit in the column's edge bitmap (descriptor
+  +0x2e + 4 * col (+ 0x40045c, ultimate), bit d & 7 of byte d >> 3); the two vertex heights
+  of that edge (0x177f8: terrain field of the column, higher of two quadrants picked by
+  0x2417e and parity flag 0x400988) give screen lines y0, y1 relative to the sprite: both
+  below the sprite: nothing; both above the top: full mask (entry 0x6ce0 at y = top -
+  0x2f); else a slope mask, code 0x1ead2[|y1 - y0|] (+0x8000 hflip by direction), y =
+  0x1eaf4[|y1 - y0|] + lower.
+- All columns full (or columns 1-3 of 5): +0x1c = 0, the marble is not drawn.
+- Entry (+0x38 + 6 * i): code, x = col * 8, y; first word 0 ends the list. Code bits: 15
+  hflip, 14 always 1, 11-13 MO height - 1, 0-10 MO code (0x4e0-0x747, all pens 1). MO:
+  x + 24, y + 16 (MO x/y words like the marble: marble MO x = sx + 16), priority bit,
+  linked right after the object's own MOs (traces).
+- MAME merge (atarisy1_v.cpp): a priority MO pixel with pen 1 keeps the playfield pixel;
+  MOs drawn before it in link order are gone there. Mask tiles have only pens 0/1, so
+  palette 0x300+ is never used and the rule is: a mask pixel clears the marble pixel.
+
+Validation: `marble_sim.py occl TRACE RACE` (projection + masks of every tick from a MAME
+snapshot): 10249 ticks of 14 traces, all races, 1903 with masks, 394 with the marble
+hidden, 0 differ (one aerial tick where the respawn sparkle 0x13d38 wrote +0x38 is
+skipped). `tools/marble_occlusion.py` renders MAME frames (mame_trace.lua `MARBLE_SHOTS`)
+from playfield + MO RAM with the MAME merge and with the remake rule (marble MOs + masks
+from the logic entries): intermediate start, 46 live frames: both equal the MAME PNG
+pixel for pixel in a box around the marble; without masks 9 frames differ (up to 156 px).
+Not rendered: alpha layer (HUD, opaque columns right of 288).
 
 ## Camera
 
@@ -372,7 +534,8 @@ equals the run from the first race snapshot): cell from descriptor `+0x14 + 2 * 
 `x/y = cell * 8 + 4`, z from 0x1bab2 + 0x1cc62, physics fields 0, +0x18 = 1, aerial
 +0x58 = 0x17. Needs the dynamic terrain codes first (`dyn_init`): intermediate copies 66 words
 from 0x1d370 (0x11ac2, level init 0x105be). Practice, beginner and ultimate get theirs from
-level object animations (Phase 4); `dyn_init` holds them at the first animation frame, read
+level object animations (section Level objects; `objects_init` + the slot update give the
+exact arcade values); `dyn_init` holds them at the first animation frame, read
 from ROM like the copy loop 0x13628 (word slot, word count, words): practice 0x1699c (9
 words, all 0xf040), beginner 0x1b908 (12), ultimate 0x24e4e (112). MAME write tap on
 0x40076e (all writes from PC 0x13638): practice writes that frame at level init, beginner
@@ -419,11 +582,14 @@ python3 romconv/internal/marble/tools/marble_sim.py fixture \
 
 ## Open questions
 
-- Level object slots: spawn lists and byte code (0x12896), unported slot tags, dynamic
-  terrain codes 0x40076e, priority mask MOs. Phase 4.
+- Level objects: unported tags (0x0a-0x0d, tubes 0x12-0x16, 0x20-0x27), zone triggered
+  slots (state 4, 0x13966/0x13a1c, aerial), enemy spawners in 0x144e4 (0x15a12, 0x14c46,
+  0x17346), MO frame format of visible moving parts (0x1a8d2), playfield patch decode of
+  tag 0x19 rows, tag 3 extras (0x26b66). Section Level objects.
 - Enemy collision 0x1bc88 and enemy updates of the shared scratch words. Phase 4.
-- Death/respawn timing and animation (states 2/4, 0x13ade, 0x25fc2), sprite dots 0x1c014
-  and MO emission 0x264aa (not ported, formats above). Remake placeholder: 60 frames.
+- Death/respawn timing and animation (states 2/4, 0x13ade, 0x25fc2, respawn sparkle
+  0x13d38 writes +0x38 too), sprite dots 0x1c014, MO list builder 0x26f3e (link order
+  verified only for the player and its masks). Remake placeholder: 60 frames.
 - Goal (state 6), Phase 3: the remake keeps calling `marble_physics::tick` (physics runs,
   input off: 0x253bc/0x17f66 only in states 0/1), the camera ignores the marble (sy only
   from states 0/1/3/4/5), and a later landing (0x25c74) sets state 1, so the marble becomes

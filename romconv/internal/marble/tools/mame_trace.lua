@@ -16,6 +16,17 @@
 --   "TICK", frame (u32 BE), work RAM 0x400000-0x401fff, video RAM 0xa00000-0xa02fff
 --   (playfield RAM + motion object RAM, both hold terrain cells, see MARBLE.md).
 -- Exits after $MARBLE_FRAMES frames.
+-- Level objects (MARBLE.md "Level objects"): work RAM holds the slots 0x400a9c, dynamic
+-- terrain codes 0x40076e and the occlusion mask entries (object +0x38); video RAM holds the
+-- motion object banks 0xa02000 (0) and 0xa02200 (1, the game builds into one while the
+-- other is shown, 0x4003ae).
+-- $MARBLE_CAMERA "from:frames": from frame `from` (0 = off) a read tap on the marble screen
+-- y (0x400038) returns 0 for `frames` frames (camera scrolls down the race at full speed,
+-- level objects spawn), then the real value. Readers other than the camera see it too
+-- (projection history +0x22, occlusion masks): use for slot traces only.
+-- $MARBLE_SHOTS "from:to:step": PNG snapshot (-snapshot_directory) at those frames, file
+-- n = n-th listed frame; shots.txt maps them, shots.bin holds a trace record of each
+-- (frame end, the state the PNG shows).
 --
 -- usage (absolute script path, scratch dir):
 --   MARBLE_OUT=$PWD MARBLE_LEVEL=0 MARBLE_FRAMES=1500 MARBLE_INPUT=120:0:0,60:4:0 \
@@ -27,6 +38,10 @@ local frames = tonumber(os.getenv("MARBLE_FRAMES") or "1500")
 local level = tonumber(os.getenv("MARBLE_LEVEL") or "0")
 local input_frame = tonumber(os.getenv("MARBLE_INPUT_FRAME") or "700")
 local script = os.getenv("MARBLE_INPUT") or ""
+local shot_from, shot_to, shot_step = (os.getenv("MARBLE_SHOTS") or "0:-1:1"):match("(%d+):(%-?%d+):(%d+)")
+shot_from, shot_to, shot_step = tonumber(shot_from), tonumber(shot_to), tonumber(shot_step)
+local cam_from, cam_frames = (os.getenv("MARBLE_CAMERA") or "0:0"):match("(%d+):(%d+)")
+cam_from, cam_frames = tonumber(cam_from), tonumber(cam_frames)
 
 local RACE = 0x400394
 local TICK_ADDR = 0x400684
@@ -43,6 +58,8 @@ local ports = manager.machine.ioport.ports
 local coin = ports[":1820"].fields["Coin 1"]
 local start = ports[":F60000"].fields["1 Player Start"]
 local out = io.open(out_dir .. "/trace.bin", "wb")
+local shots = io.open(out_dir .. "/shots.txt", "w")
+local shots_bin = io.open(out_dir .. "/shots.bin", "wb")
 local f = 0
 local cnt = { 0, 0 }
 
@@ -56,12 +73,12 @@ local function input_delta(frame)
   return 0, 0
 end
 
-local function dump(base, len)
+local function dump(base, len, file)
   local t = {}
   for a = base, base + len - 1, 4 do
     t[#t + 1] = string.pack(">I4", mem:read_u32(a))
   end
-  out:write(table.concat(t))
+  (file or out):write(table.concat(t))
 end
 
 -- taps must stay referenced, else they are garbage collected
@@ -69,6 +86,10 @@ RACE_TAP = mem:install_write_tap(RACE, RACE + 1, "race", function() return level
 BALL_TAP = mem:install_read_tap(0xf20000, 0xf20003, "ball", function(offset, data, mask)
   local v = cnt[(offset & 2) == 0 and 1 or 2] & 0xff
   return (data & 0xff00) | v
+end)
+CAM_TAP = mem:install_read_tap(0x400038, 0x400039, "sy", function(offset, data, mask)
+  if cam_from > 0 and f >= cam_from and f < cam_from + cam_frames then return 0 end
+  return data
 end)
 local last_tick = -1
 TICK_TAP = mem:install_write_tap(TICK_ADDR, TICK_ADDR + 1, "tick", function(offset, data, mask)
@@ -87,5 +108,12 @@ SUB = emu.add_machine_frame_notifier(function()
   local d0, d1 = input_delta(f)
   cnt[1] = cnt[1] + d0
   cnt[2] = cnt[2] + d1
-  if f == frames then out:close(); manager.machine:exit() end
+  if f >= shot_from and f <= shot_to and (f - shot_from) % shot_step == 0 then
+    manager.machine.video:snapshot()
+    shots:write(f, "\n")
+    shots_bin:write("TICK", string.pack(">I4", f))
+    dump(0x400000, 0x2000, shots_bin)
+    dump(0xa00000, 0x3000, shots_bin)
+  end
+  if f == frames then out:close(); shots:close(); shots_bin:close(); manager.machine:exit() end
 end)

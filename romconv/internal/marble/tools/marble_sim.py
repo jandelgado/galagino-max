@@ -13,9 +13,12 @@ Validation against MAME traces (tools/mame_trace.lua), exit code 1 on failure:
   marble_sim.py start TRACE RACE     start_259b4 on a cleared RAM runs like the first snapshot
   marble_sim.py fixture HEADER       replay the host test fixture (tools/make_fixture.py),
                                      no trace needed
-Level objects (0x400a9c slots), dynamic terrain codes (0x40076e) and enemies are Phase 4:
-`run` copies those from the trace each tick, divergences at deaths and enemy contacts end a
-segment and are reported, any other divergence fails.
+  marble_sim.py occl TRACE RACE     projection 0x1b9cc + occlusion masks 0x264aa per tick
+  marble_sim.py slots TRACE RACE [MIN]  level object slots + dynamic terrain codes run free
+                                     (never copied from the trace), marble physics on them
+`run` copies slots, dynamic codes and enemy scratch from the trace each tick; `slots` only
+the camera and enemy scratch. Divergences at deaths and enemy contacts end a segment and
+are reported, any other divergence fails. Enemies are not ported.
 """
 import os
 import struct
@@ -266,6 +269,9 @@ class Terrain:
                                          s16(bases[d4 + i]), code_base, code_end))
             if w == 0xffff: break
         self.diag = diag
+        self.vram = bytearray(0x3000)               # 0xa00000-0xa02fff, terrain pairs only
+        for off, data in self.vram_image().items():
+            self.vram[off:off + 54] = data
 
     def index(self, d, f):
         """Vertex field f (0-43, odd diagonals +0x16) of the diagonal pair holding d."""
@@ -296,11 +302,14 @@ class Mem:
         self.ram = bytearray(ram)
         self.sounds = []
         self.events = []
+        self.objects = False    # run the level object slots in tick()
+        self.sprites = False    # projection 0x1b9cc and occlusion masks 0x264aa in tick()
     def _loc(self, a):
         a &= 0xffffff
         if a < 0x30000: return PROG, a, False
         if 0x80000 <= a < 0x88000: return ROM.slap, self.bank * 0x2000 + (a & 0x1fff), False
         if 0x400000 <= a < 0x402000: return self.ram, a - 0x400000, True
+        if 0xa00000 <= a < 0xa03000: return self.t.vram, a - 0xa00000, False
         raise ValueError("addr %06x" % a)
     def rb(self, a):
         b, o, _ = self._loc(a); return b[o]
@@ -677,7 +686,10 @@ def physics_121b8(m, a2):
             m.events.append("fell"); m.wb(a2 + 0x57, 0x64); m.wb(a2 + 0x1a, 4); return
     elif m.rb(a2 + 0x36) == 0:
         m.wl(a2 + 0x14, h & 0xffffffff)
-    # 0x1b9cc / 0x1c014 / 0x1281c sprite: not ported
+    if m.sprites:                                    # no effect on the motion
+        proj_1b9cc(m, a2)
+        # 0x1c014 surface dots (players, not in state 1/5): sprite only, not ported
+        enter_1281c(m, a2)
     edgepush_1706c(m, a2)
     if m.rb(a2 + 0x36): return
     fm = friction_mode(m.rb(a2 + 0x58))
@@ -723,7 +735,10 @@ def ground_253bc(m, a):
         m.wl(a + 0x2a, m.rl(a + 0x14)); m.wb(a + 0x1d, m.rb(a + 0x1b))
 
 # 0x29cce: collision with level object slots (0x400a9c, 25 x 0x56). Ported: wall
-# segments (tags 0x1a-0x1f) and cell rectangles that set the surface code +0x58.
+# segments (tags 0x1a-0x1f), round posts (0x05, Marble Love sub-29cce.ts, no trace contact)
+# and cell rectangles that set the surface code +0x58. Not ported (MARBLE.md "Level
+# objects"): 0x0a catapult, 0x0b/0x0d aerial gates, 0x0c, tubes 0x12-0x16 and 0x20-0x27
+# (some return from 0x29cce early, skipping the bounce epilogue).
 WALLS = {  # tag: (along x?, along range, perp range, end ranges)
     0x1b: (True, (-8, 0x20), (-0xc, 0), ((-8, 0), (0x18, 0x20))),
     0x1c: (True, (-8, 0x20), (-8, 4), ((-8, 0), (0x18, 0x20))),
@@ -762,11 +777,16 @@ def slots_29cce(m, a2):
                     if (ends[0][0] < al < ends[0][1] and v < 0) or (ends[1][0] < al < ends[1][1] and v > 0):
                         m.wb(0x400666 if ax else 0x400668, 1)
                     m.wb(0x400668 if ax else 0x400666, 1)
-                    m.sounds.append(0x42)
+                    m.sounds.append(0x42); m.events.append(("slot wall", tag))
             elif tag in RECTS:
                 w, h, zc = RECTS[tag]
                 if 0 <= d1 < w and 0 <= d2 < h and (not zc or m.rl(s + 0x14) == m.rl(a2 + 0x14)):
                     m.wb(a2 + 0x58, tag); m.wb(a2 + 0x59, 0xff)
+            elif tag == 0x05:                        # round post: |d| < 3.5 px reflects both axes
+                ax_, ay_ = (abs(d6) << 4) & 0xffff, (abs(a0) << 4) & 0xffff
+                dist = (((ay_ >> 3) * 3 + ax_) if ax_ > ay_ else ((ax_ >> 3) * 3 + ay_)) & 0xffff
+                if dist < 0x38:
+                    m.wb(0x400668, 1); m.wb(0x400666, 1); m.sounds.append(0x42)
             elif tag == 0x17:
                 if d1 == 0 and -0x12 < d2 <= 0: m.wb(a2 + 0x58, tag); m.wb(a2 + 0x59, 0xff)
             elif tag == 0x18:
@@ -833,8 +853,503 @@ def zones_1365c(m, a2):
         if m.rb(a0 + 3) == 0xff and m.rb(a0 + 4) == 0xff: return
         a0 += 6
 
-def tick(m, c6=None, c7=None, a2=P):
-    """Snapshot point (0x121b8 entry) to the next one. c6/c7: trackball deltas of the next tick."""
+# ---------------------------------------------------------------- sprite position, occlusion masks
+
+def proj_1b9cc(m, a2, refetch=False):
+    """Screen position of an object: +0x1e sx, +0x20 sy (sy counts up from the screen
+    bottom), older pairs at +0x22, +0x26 (only shifted when the position is new)."""
+    if refetch: m.ww(0x400698, 0xffff); m.ww(0x400696, 0xffff)
+    posupd_1bab2(m, a2)
+    z = m.rw(a2 + 0x14)
+    if m.rb(a2 + 0x58) in (0x2f, 0x30, 0x31) and m.rb(0x400691) & 1 and abs(m.sl(a2)) > 0x4000:
+        z = (z + 2) & 0xffff                         # bumpy surface: 2 px jitter
+    sx = (m.rw(0x400692) - m.rw(0x400690) + 0x88) & 0xffff
+    sy = (m.rw(0x40097e) + z + 0x54 - ((m.sw(0x400690) + m.sw(0x400692)) >> 1)) & 0xffff
+    packed = sx << 16 | sy
+    if packed in (m.rl(a2 + 0x1e), m.rl(a2 + 0x22)): return
+    m.wl(a2 + 0x26, m.rl(a2 + 0x22)); m.wl(a2 + 0x22, m.rl(a2 + 0x1e)); m.wl(a2 + 0x1e, packed)
+
+
+def enter_1281c(m, a2):
+    """+0x1c = on screen (-16 < sy < 256); visible objects get their occlusion masks."""
+    m.wb(a2 + 0x1c, 0)
+    sy = m.sw(a2 + 0x20)
+    if sy <= -16 or sy >= 0x100: return
+    m.wb(a2 + 0x1c, 1)
+    occlusion_264aa(m, a2, 0 if is_player(a2) else 1)
+
+
+def vertex_height_177f8(m, d, col, k):
+    """Height (word) of the terrain vertex on diagonal d under screen column col: the higher
+    of two quadrants, picked by k + flag 0x400988 (table 0x2417e). 0 = no floor."""
+    desc = m.t.desc
+    if s16(d) >= s16(m.rw(desc + 0x18)): return 0
+    d3 = s16(k) + m.sl(0x400988)
+    d0 = (s16((col + m.rw(0x40098a)) & 0xffff) >> 1) + 2
+    if d & 1: d0 += 0x16
+    a1 = 0xa00000 + s16(m.rw(0x1eb3a + (d & 0xfe))) + PROG[0x1ed0a + d0] - 2
+    idx = (m.rl(a1) >> (PROG[0x1ed0a + 0x2c + d0] & 0x3f)) & 0x7fe
+    # code table *0x40065a = descriptor +0x26, bases 0x400478 = Terrain.bases (level init)
+    code = m.t.codes[idx >> 1]
+    base = m.t.bases[d]
+    while True:
+        if code & 0xf000:
+            if code & 0xf000 & m.rw(0x24176 + s16((d3 * 2) & 0xffff)):
+                return ((code & 0x7f) - 0x40 + base) & 0xffff
+            bias = m.rw(0x1ed62 + ((code & 0xf80) >> 6))
+            if bias == 0x1000: return 0
+            return ((code & 0x7f) - 0x40 - s16(bias) + base) & 0xffff
+        if code & 0xfff == 0: return 0
+        if code & 0x800:
+            code = m.rw(0x40076e + (code & 0x7fe)); continue
+        rec = (m.rl(desc) + s16(code)) & 0xffffff
+        tab = 0x2417e + 8 * (d3 & 0x1fffffff)
+        hv = max(m.rb(rec + m.rl(tab)), m.rb(rec + m.rl(tab + 4)))
+        if hv == 0: return 0
+        return (hv - 0x80 + base) & 0xffff
+
+
+MASK_FULL = 0x6ce0      # mask entry code: height 6 tiles, MO code 0x4e0 (all pen 1)
+
+
+def occlusion_264aa(m, a2, d3):
+    """Occlusion masks of an object (d3 0 player, 1 other): up to 5 entries (code, x, y)
+    at +0x38, one per 8 px screen column under the sprite. Entry code: bits 12-15 MO
+    height in tiles, bit 15 also hflip (span masks), bit 11 set, bits 0-10 MO code (bank
+    lookup 0x0400 | code & 0x7ff). The MO builder turns them into priority MOs (pen 1 =
+    playfield shows, the sprite under it is hidden). +0x1c = 0 when every column is covered."""
+    out = [a2 + 0x38]
+    def emit(*words):
+        for w in words:
+            m.ww(out[0], w); out[0] += 2
+    for i in range(5): m.ww(a2 + 0x38 + 6 * i, 0)
+    if d3 == 0:
+        if m.rb(a2 + 0x58) and m.rb(a2 + 0x59) != 0xff and m.rb(a2 + 0x58) != 0xa \
+                and m.rb(a2 + 0x1a) not in (9, 0xb, 0xa):
+            m.wb(a2 + 0x1c, 0); return
+        if m.rb(a2 + 0x1a) in (4, 6, 0xa): return
+    x = m.sl(a2 + 0xc); y = m.sl(a2 + 0x10)
+    sy = m.sw(a2 + 0x20); col = m.sw(a2 + 0x1e) >> 3
+    ncol, top = 3, 0xe
+    if d3 == 0 and m.rb(a2 + 0x1a) in (1, 2, 5, 9): ncol, top = 5, 0x20
+    top = s16(top + sy)                              # sprite top line (counting up)
+    diag = s16((y >> 19) + (x >> 19) - 0x15)         # diagonal of the cell
+    diag2 = s16(((x + y) >> 19) - 0x15)              # diagonal of the pixel sum
+    shape = 0x1eaba
+    if diag != diag2: shape += 10
+    elif (col ^ diag) & 1: shape += 5
+    if ncol == 3: shape += 1; c0 = col - 1
+    else: c0 = col - 2
+    if c0 < 0: ncol += c0; shape -= c0; c0 = 0
+    elif ncol + c0 > 0x24: ncol = 0x24 - c0
+    desc = m.t.desc
+    cam = s16(m.rw(0x40097e) - m.rw(desc + 0x10))
+    covered = 0
+    def full(c):
+        nonlocal covered
+        covered |= 1 << (c - c0)
+        emit(MASK_FULL, (c << 3) & 0xffff, (top - 0x2f) & 0xffff)
+    race = m.rw(0x400394)
+    for c in range(c0, c0 + ncol):
+        d = max(0, s8(PROG[shape + c - c0]) + diag)
+        # explicit occluders per column and race (0x1ea2a): records of 5 words
+        # (diagonal limit, depth, control, y, entry code)
+        tab = rom_l(0x1ea2a + 4 * c); sel = rom_w(tab + 2 * race)
+        done = False
+        if sel:
+            r = tab + 2 * sel
+            while True:
+                lim = s16(rom_w(r))
+                if lim == -1: break
+                if lim < d: r += 10; continue
+                if d < lim - s16(rom_w(r + 2)): break
+                ctl = s16(rom_w(r + 4)); yy = s16(rom_w(r + 6) + cam); code = rom_w(r + 8)
+                done = True
+                if 0 <= ctl < 8:
+                    if yy >= sy - ctl: full(c)
+                    else: emit(code, c << 3, yy & 0xffff)
+                elif ctl == 8:
+                    if yy < top: emit(code, c << 3, yy & 0xffff)
+                elif ctl > 0:
+                    if yy <= top: emit(code, c << 3, yy & 0xffff)
+                    else: d = ctl & 0xff; done = False
+                elif ctl == -2:
+                    if s16(rom_w(r + 8)) > (m.sl(a2 + 0x14) >> 16): full(c)
+                elif not (d == lim and diag2 == lim):
+                    emit(code, c << 3, yy & 0xffff)
+                break
+        if done: continue
+        # first terrain edge diagonal >= d in this column (bitmap, descriptor +0x2e)
+        bm = rom_l(desc + 0x2e + 4 * c + s16(m.rw(0x40045c))) + (d >> 3)
+        mask = PROG[0x1eaca + (d & 7)] & PROG[bm]; d &= ~7; p = bm
+        if mask == 0:
+            p += 1
+            while PROG[p] == 0: p += 1
+            mask = PROG[p]; d += (p - bm) * 8
+        b = 1
+        while not mask & b: b <<= 1; d += 1
+        m.wl(0x400988, (c ^ d) & 1)
+        sline = s16((d << 2) - m.rw(0x40097e))
+        y0 = s16(vertex_height_177f8(m, d, c, 0) - sline)
+        if y0 > top + 0x10: full(c); continue
+        if y0 < sy - 0x10: continue
+        m.wl(0x400988, m.rl(0x400988) ^ 1)
+        sline = s16(sline + 4)
+        y1 = s16(vertex_height_177f8(m, d + 1, c, 2) - sline)
+        if y1 <= sy and y0 <= sy: continue
+        if y1 >= top and y0 >= top: full(c); continue
+        if m.rl(0x400988) == 0: y0, y1 = y1, y0
+        if y0 <= y1:
+            emit(rom_w(0x1ead2 + 2 * (y1 - y0)), c << 3, (rom_w(0x1eaf4 + 2 * (y1 - y0)) + y0) & 0xffff)
+        else:
+            emit((rom_w(0x1ead2 + 2 * (y0 - y1)) + 0x8000) & 0xffff, c << 3,
+                 (rom_w(0x1eaf4 + 2 * (y0 - y1)) + y1) & 0xffff)
+    allm = (1 << ncol) - 1
+    if covered & allm == allm or (d3 == 0 and ncol == 5 and covered & 0xe == 0xe):
+        m.wb(a2 + 0x1c, 0)
+
+
+# ---------------------------------------------------------------- level object slots
+
+SLOTS, SLOT_N, SLOT_SIZE = 0x400a9c, 25, 0x56
+ANIM_NONE = 0x20c14     # empty animation (first long 0xffffffff)
+ANIM_REQ = 0x400970     # animation frame record queued for 0x1344c (one per tick, last wins)
+
+
+def slot(i): return SLOTS + i * SLOT_SIZE
+
+
+def rng_13a98(m, n):
+    """Random 0..n-1: 16 bit shift register 0x4003a6, one step per significant bit of n."""
+    d0 = m.rw(0x4003a6); d1 = n & 0xffff; k = 0
+    while True:
+        d2 = ((d0 >> 8) ^ d0) & 0xff or 0x40
+        d0 = ((d0 << 1) | (d2 >> 6 & 1)) & 0xffff     # asl.b #2 -> X = bit 6, roxl.w
+        k += 1; d1 >>= 1
+        if not d1: break
+    m.ww(0x4003a6, d0)
+    if n == 0: return d0
+    d0 &= (1 << k) - 1
+    while not n > s16(d0): d0 = (d0 - n) & 0xffff
+    return d0
+
+
+def slot_start_12f44(m, a, mode, script=0):
+    """mode 0: spawn (+0x3a script, state 3); mode 1: remove."""
+    if mode == 0:
+        m.wl(a + 0x3a, script); m.wb(a + 0x1a, 3); m.wb(a + 0x18, 1)
+        return
+    if a == m.rl(0x400974): m.wl(0x400978, 0); m.wl(0x400974, 0)
+    m.wb(a + 0x18, 0); m.wb(a + 0x1a, 0)
+    if m.rb(a + 0x1f) == 6: m.wb(0x40075c, m.rb(0x40075c) - 1)
+    # mode != 1: 0x18f46 removes the slot from the MO draw list 0x4003bc (not modelled)
+
+
+def slot_free_12d6e(m):
+    for i in range(SLOT_N):
+        a = m.rl(0x1f016 + 4 * i)
+        if not m.rb(a + 0x18): return a
+    return None
+
+
+def spawned_12dae(m, ent):
+    """Entry already alive: an active slot runs its script (+0x3a), or a random group
+    entry (script 0) while a tag 0x0c slot is active."""
+    for i in range(SLOT_N):
+        a = slot(i)
+        if m.rb(a + 0x18) != 1: continue
+        if m.rl(ent + 2) == m.rl(a + 0x3a): return True
+        if m.rl(ent + 2) == 0 and m.rb(a + 0x1f) == 0xc: return True
+    return False
+
+
+def spawn_12dfa(m, old, new):
+    """Camera band change (16 px, 0x144e4): spawn list 0x1dec0[race] entries (lo, hi,
+    script) whose band lo or hi is entered from outside [lo, hi]; remove slots whose band
+    range is left."""
+    old = s8(old); new = s8(new)
+    e = m.rl(0x1dec0 + 4 * m.rw(0x400394))
+    while m.rb(e) != 0xff:
+        lo, hi = s8(m.rb(e)), s8(m.rb(e + 1))
+        if not spawned_12dae(m, e) and new in (lo, hi) and not lo <= old <= hi:
+            scripts = [m.rl(e + 2)]
+            if scripts[0] == 0:                      # random group of 4 (0x1ded8)
+                g = 0x1ded8 + 16 * rng_13a98(m, 4)
+                scripts = [m.rl(g + 4 * k) for k in range(4)]
+            for sc in scripts:
+                a = slot_free_12d6e(m)
+                if a is None: break
+                m.ww(a + 0x52, lo & 0xffff); m.ww(a + 0x54, hi & 0xffff)
+                slot_start_12f44(m, a, 0, sc)
+        e += 6
+    for i in range(SLOT_N):
+        a = slot(i)
+        if not m.rb(a + 0x18): continue
+        if (old == m.sw(a + 0x52) and new < m.sw(a + 0x52)) or \
+                (old == m.sw(a + 0x54) and new > m.sw(a + 0x54)):
+            slot_start_12f44(m, a, 1)
+
+
+def camera_bands_144e4(m, old, new):
+    """Camera move: band = (camera - descriptor +0x10) >> 4. Enemy spawners 0x15a12,
+    0x14c46, 0x17346 and the aerial extras are not modelled."""
+    top = m.sw(m.t.desc + 0x10)
+    a = s16(old - top) >> 4; b = s16(new - top) >> 4
+    if (a & 0xff) != (b & 0xff): spawn_12dfa(m, a, b)
+
+
+def anim_render_13334(m, a):
+    """Slot animation output. Mode 1 (playfield patch) and 2 (MO + terrain) queue the
+    current frame record for 0x1344c; modes 0/2 store the screen position +0x4e and the
+    MO frame +0x42."""
+    mode = m.rb(a + 0x1e)
+    if mode in (1, 2):
+        if m.rl(m.rl(a + 0x3e)) == 0xffffffff: return
+        if mode == 1 or m.rb(a + 0x1a) in (1, 2):
+            m.wl(ANIM_REQ, m.rl(a + 0x3e)); m.wl(0x400974, a)
+            if mode == 1: return
+    x, y = m.rw(a + 0xc), m.rw(a + 0x10)
+    m.ww(0x400690, x); m.ww(0x400692, y)
+    sx = (y - x + 0x88) & 0xffff
+    sy = (m.rw(0x40097e) + m.rw(a + 0x14) + 0x54 - ((s16(x) + s16(y)) >> 1)) & 0xffff
+    m.wl(a + 0x4e, sx << 16 | sy)
+    if m.rb(a + 0x1f) == 6: wave_1d06a(m, s8(m.rb(a + 0x25)))
+    # tag 3: 0x26b66 (palette/banner animation, not modelled)
+    m.wl(a + 0x42, m.rl(a + 0x3e))
+
+
+def wave_1d06a(m, n):
+    """Intermediate wave (tag 6): rewrites up to 4 x 3 dynamic terrain codes (Marble Love
+    terrain-wave-update-1d06a.ts, unverified: no trace reaches it)."""
+    tabs = {0: 0x24d5c, 1: 0x24da8, 2: 0x24dce, 3: 0x24df4}
+    d1 = s8(PROG[0x24e1a + n]) if n <= 0xc else n - 6
+    src = 0x24c98 + ((((d1 - 7) & 3) + 7) << 2)
+    ctl = 0x24c7a + (d1 >> 2); dst = DYN + (d1 >> 2) * 6
+    for _ in range(4):
+        c = s8(PROG[ctl])
+        if c < 0: break
+        k = s8(PROG[src]) * 2
+        t = (0x24d10, 0x24cc4, tabs[c]) if c < 4 else (0x24d36, 0x24cea, 0x24d82)
+        for j in range(3): m.ww(dst + 2 * j, rom_w(t[j] + k))
+        src += 1; ctl += 1; dst += 6
+
+
+def anim_next_132e0(m, a):
+    """Next animation frame (+4, modes 1/2 +8); at the 0xffffffff end wrap to +0x46
+    (state 2) or +0x4a and count +0x1c down (0 = loop forever). True: script continues."""
+    m.wl(a + 0x3e, m.rl(a + 0x3e) + (8 if m.rb(a + 0x1e) else 4))
+    if m.rl(m.rl(a + 0x3e)) != 0xffffffff: return False
+    m.wl(a + 0x3e, m.rl(a + (0x46 if m.rb(a + 0x1a) == 2 else 0x4a)))
+    if m.rw(a + 0x1c) == 0: return False
+    m.ww(a + 0x1c, m.rw(a + 0x1c) - 1)
+    return m.rw(a + 0x1c) == 0
+
+
+def players(m):
+    return [P + 0xe2 * k for k in range(m.rw(0x400396))]
+
+
+def script_12896(m, a):
+    """Slot byte code (pc +0x36), word opcodes 0-18; runs until an opcode yields."""
+    def arg():
+        v = m.rw(m.rl(a + 0x36)); m.wl(a + 0x36, m.rl(a + 0x36) + 2); return v
+    while True:
+        op = s16(arg())
+        if op < 0 or op > 18: return
+        if op == 0:                                  # init: position, mode, tag
+            m.wl(a + 0xc, (s16(arg()) << 19) & 0xffffffff)
+            m.wl(a + 0x10, (s16(arg()) << 19) & 0xffffffff)
+            m.wl(a + 0x14, (s16(arg()) << 16) & 0xffffffff)
+            m.wb(a + 0x1e, arg()); m.wb(a + 0x1f, arg())
+            m.wl(a + 0x42, ANIM_NONE)
+            if m.rb(a + 0x1e) == 1:                  # playfield patch at (col, row)
+                m.ww(a + 0x26, arg()); m.ww(a + 0x28, arg())
+                pc = m.rl(a + 0x36); m.wl(a + 0x46, m.rl(pc)); m.wl(a + 0x36, pc + 4)
+                m.wl(a + 0x3e, m.rl(a + 0x46))
+                anim_render_13334(m, a)
+            else:
+                m.wl(a + 0x3e, ANIM_NONE)
+                # 0x18e6c inserts the slot into the MO draw list (not modelled)
+                if m.rb(a + 0x1f) == 6:
+                    m.ww(a + 0x52, 0); m.ww(a + 0x54, 0x500)
+                    m.wb(0x40075e, 0); m.wb(0x40075c, m.rb(0x40075c) + 1); m.wb(a + 0x25, 0)
+            if m.rb(a + 0x1f) == 3:
+                m.wl(a + 0x4e, 0xfffffe00)
+                m.wl(0x40044a, 0x211fe); m.wb(0x400456, 2)
+                m.wl(0x40044e, 0x2126e); m.wb(0x400458, 3)
+                m.wl(0x400452, 0x212b2); m.wb(0x40045a, 3)
+        elif op in (1, 2):                           # animate (state 1: +0x4a, 2: +0x46)
+            if op == 2 and m.rb(a + 0x1f) == 0xa: m.sounds.append(0x60)
+            m.ww(a + 0x1c, arg()); m.wb(a + (0x21 if op == 1 else 0x23), arg())
+            m.wl(a + 0x3e, m.rl(a + (0x4a if op == 1 else 0x46)))
+            m.wb(a + (0x20 if op == 1 else 0x22), 0); m.wb(a + 0x1a, op)
+            return
+        elif op == 3:                                # wait +0x1c ticks (0 = forever)
+            m.ww(a + 0x1c, arg()); m.wb(a + 0x1a, 0)
+            return
+        elif op in (4, 6):                           # loop start, count
+            k = 0x24 if op == 4 else 0x25
+            m.wb(a + k, arg()); m.wl(a + (0x2a if op == 4 else 0x2e), m.rl(a + 0x36))
+        elif op in (5, 7):                           # loop end: count 0 = forever
+            k = 0x24 if op == 5 else 0x25
+            if m.rb(a + k):
+                m.wb(a + k, m.rb(a + k) - 1)
+                if m.rb(a + k) == 0: continue
+            m.wl(a + 0x36, m.rl(a + (0x2a if op == 5 else 0x2e)))
+        elif op == 8:                                # player within 3 cells: jump
+            w = arg(); hit = False
+            if w == 0:
+                for p in players(m):
+                    if m.rb(p + 0x18) != 1: continue
+                    dx = s16(s32(m.rl(p + 0xc) - m.rl(a + 0xc)) >> 19)
+                    dy = s16(s32(m.rl(p + 0x10) - m.rl(a + 0x10)) >> 19)
+                    if 0 <= dx < 3 and 0 <= dy < 3:
+                        hit = True; m.sounds.append(0x31)
+            if hit: m.wl(a + 0x36, m.rl(m.rl(a + 0x36)))
+            else: m.wl(a + 0x36, m.rl(a + 0x36) + 2)
+        elif op == 9: m.wl(a + 0x36, m.rl(m.rl(a + 0x36)))
+        elif op == 10:
+            pc = m.rl(a + 0x36); m.wl(a + 0x36, m.rl(pc)); m.wl(a + 0x32, pc + 4)
+        elif op == 11: m.wl(a + 0x36, m.rl(a + 0x32))
+        elif op in (12, 13):                         # animation for state 2 / 1
+            pc = m.rl(a + 0x36); v = m.rl(pc)
+            m.wl(a + (0x46 if op == 12 else 0x4a), v); m.wl(a + 0x3e, v); m.wl(a + 0x36, pc + 4)
+        elif op == 14:
+            m.wl(a, (s16(arg()) << 8) & 0xffffffff); m.wl(a + 4, (s16(arg()) << 8) & 0xffffffff)
+        elif op == 15:
+            slot_start_12f44(m, a, 1); return
+        elif op == 16:
+            m.wl(a + 0xc, (m.rl(a + 0xc) + m.rl(a)) & 0xffffffff)
+            m.wl(a + 0x10, (m.rl(a + 0x10) + m.rl(a + 4)) & 0xffffffff)
+        elif op == 17:                               # wait for a player in zone
+            m.wl(a + 0x32, m.rl(a + 0x36) - 2); m.wb(a + 0x1a, 4); m.wb(a + 0x1b, arg())
+            return
+        elif op == 18:                               # no player in zone (or zone+1 >= 0x1e): jump
+            free = True
+            for p in players(m):
+                if m.rb(p + 0x18) != 1: continue
+                if m.rb(a + 0x1b) == m.rb(p + 0x1b) or \
+                        (s8(m.rb(p + 0x1b)) == s8(m.rb(a + 0x1b)) + 1 and s8(m.rb(p + 0x1b)) >= 0x1e):
+                    free = False
+            pc = m.rl(a + 0x36)
+            if free: m.wl(a + 0x36, m.rl(pc)); m.sounds.append(("1ef5a", m.rb(a + 0x1b)))
+            else: m.wl(a + 0x36, pc + 4)
+
+
+def slot_step_13068(m, a):
+    """One logic tick of a slot (state +0x1a: 0 wait, 1/2 animate, 3 start, 4 zone wait)."""
+    if not m.rb(a + 0x18): return
+    d3 = m.rb(a + 0x1a); d2 = False
+    if m.rb(a + 0x1f) == 3: tag3_globals(m)
+    while True:
+        st = m.rb(a + 0x1a)
+        if st == 3:
+            m.wl(a + 0x36, m.rl(a + 0x3a))
+            m.wl(a + 0x4a, ANIM_NONE); m.wl(a + 0x46, ANIM_NONE); m.wl(a + 0x3e, ANIM_NONE)
+            script_12896(m, a)
+        elif st == 0:
+            if m.rw(a + 0x1c):
+                m.ww(a + 0x1c, m.rw(a + 0x1c) - 1)
+                if m.rw(a + 0x1c) == 0 and m.rb(a + 0x18) == 1: script_12896(m, a)
+            d2 = True
+        elif st == 4:
+            m.wl(a + 0x3e, ANIM_NONE); d2 = True
+        elif st == 1:
+            if m.rb(a + 0x21): m.wb(a + 0x20, m.rb(a + 0x20) + 1)
+            if m.rb(a + 0x21) == m.rb(a + 0x20):
+                m.wb(a + 0x20, 0)
+                m.wl(a + 0xc, (m.rl(a + 0xc) + m.rl(a)) & 0xffffffff)
+                m.wl(a + 0x10, (m.rl(a + 0x10) + m.rl(a + 4)) & 0xffffffff)
+                anim_render_13334(m, a)
+                if anim_next_132e0(m, a): script_12896(m, a)
+            else: d2 = True
+        elif st == 2:
+            if m.rb(a + 0x23): m.wb(a + 0x22, m.rb(a + 0x22) + 1)
+            if m.rb(a + 0x23) == m.rb(a + 0x22):
+                m.wb(a + 0x22, 0)
+                if m.rb(a + 0x1f) == 6:
+                    m.wb(a + 0x25, m.rb(a + 0x25) + 1)
+                    if m.rb(a + 0x25) == 0x1e: m.wb(0x40075e, 1)
+                if m.rb(a + 0x1f) == 0x19:
+                    m.ww(0x40045c, (((m.rl(a + 0x3e) - m.rl(a + 0x46)) >> 3) * 0x90) & 0xffff)
+                anim_render_13334(m, a)
+                if anim_next_132e0(m, a): script_12896(m, a)
+            else: d2 = True
+        if m.rb(a + 0x1a) != d3 and m.rb(a + 0x1a) == 1 and not m.rb(a + 0x21):
+            d3 = m.rb(a + 0x1a); continue
+        break
+    if m.rb(a + 0x1e) != 1 and d2: anim_render_13334(m, a)
+
+
+def tag3_globals(m):
+    """Tag 3 (beginner) steps three global animation pointers (0x40044a/e/52)."""
+    def step(ptr, timer, reload, wrap):
+        m.wb(timer, m.rb(timer) - 1)
+        if m.rb(timer): return
+        m.wb(timer, reload)
+        m.wl(ptr, m.rl(ptr) + 4)
+        if m.rl(m.rl(ptr)) == 0xffffffff: wrap()
+    def w44a():
+        if m.rl(m.rl(0x40044a) - 4) == 0x211f2:
+            m.wl(0x40044a, 0x2121e); m.wb(0x400456, m.rb(0x400456) + 0xf)
+        else:
+            m.wl(0x40044a, 0x211fe); m.wb(0x400456, m.rb(0x400456) + 0x1e)
+    step(0x40044a, 0x400456, 2, w44a)
+    step(0x40044e, 0x400458, 3, lambda: m.wl(0x40044e, 0x2126e))
+    step(0x400452, 0x40045a, 3, lambda: m.wl(0x400452, 0x212b2))
+
+
+def slots_12fd0(m):
+    """Per tick slot update (main loop, after the objects): intermediate wave trigger,
+    dynamic code reload (0x11ac2) while a wave runs, then every slot in index order."""
+    if m.rw(0x400394) == 2:
+        for p in players(m):
+            if m.rb(p + 0x18) == 1 and m.rb(0x40075e) and m.rb(p + 0x1b) in (9, 0xa):
+                a = slot_free_12d6e(m)
+                if a is not None: slot_start_12f44(m, a, 0, 0x1d854)
+                break
+    if m.rb(0x40075c):
+        for k in range(0x42): m.ww(DYN + 2 * k, m.rw(0x1d370 + 2 * k))
+    for i in range(SLOT_N): slot_step_13068(m, slot(i))
+
+
+def anim_apply_1344c(m):
+    """Next tick, before the camera: the queued frame record (long playfield tile block,
+    long dynamic terrain block) is applied. Tile block (mode 1 only): bytes w, h, then
+    w x h playfield words at column +0x26, race row +0x28 (visible rows only; tag 0x19
+    decodes ultimate rows instead); not modelled here, the remake must patch its
+    playfield. Terrain block: word first code slot, word count, words -> 0x40076e."""
+    rec = m.rl(ANIM_REQ)
+    if not rec: return
+    # mode 1 with rows on screen: 0x400978 = record after the blit (not modelled)
+    dyn = m.rl(rec + 4)
+    if dyn:
+        first, n = m.rw(dyn), m.rw(dyn + 2)
+        for k in range(n): m.ww(DYN + 2 * (s16(first) + k), m.rw(dyn + 4 + 2 * k))
+    m.wl(ANIM_REQ, 0)
+
+
+def objects_init(m, race):
+    """Level init 0x105a0-0x10614 (slot part): 0x400768 = 0xffff, 0x40076a = 0, intermediate
+    dynamic codes (0x11ac2), camera at the race top (silly: bottom), spawn the bands the
+    camera enters from 0x19 px outside (0x144e4), one slot update (0x12fd0), then 0x1344c."""
+    desc = m.t.desc
+    m.ww(0x400394, race); m.ww(0x400396, 1)
+    m.ww(0x400768, 0xffff); m.wb(0x40076a, 0)
+    cam = rom_w(desc + 0x10) + (rom_w(desc + 0x12) if race == 4 else 0)
+    m.wl(0x40097c, cam)
+    if race == 2:
+        for k in range(0x42): m.ww(DYN + 2 * k, m.rw(0x1d370 + 2 * k))
+    old = cam + 0x19 if race == 4 else cam - 0x19
+    camera_bands_144e4(m, old & 0xffff, cam & 0xffff)
+    slots_12fd0(m)
+    anim_apply_1344c(m)
+
+
+def tick(m, c6=None, c7=None, a2=P, camera=None):
+    """Snapshot point (0x121b8 entry) to the next one. c6/c7: trackball deltas of the next tick.
+    With m.objects the level object slots run too (0x12fd0 after the objects, then the next
+    tick's 0x1344c and, given its new camera long, the camera band spawns 0x144e4)."""
     st = m.rb(a2 + 0x1a)  # state handler was picked before the physics update
     physics_121b8(m, a2)
     if st == 1 and m.rb(a2 + 0x1a) == 1:  # 0x2574c tail: dizzy countdown
@@ -845,6 +1360,13 @@ def tick(m, c6=None, c7=None, a2=P):
                 m.wb(a2 + 0x1a, 0); m.wl(a2 + 0x5a, 0)
         else:
             m.wb(a2 + 0x56, m.rb(a2 + 0x56) + 1)
+    if m.objects:
+        slots_12fd0(m)
+        anim_apply_1344c(m)
+        if camera is not None:
+            old = m.rw(0x40097e)
+            m.wl(0x40097c, camera)
+            if (camera & 0xffff) != old: camera_bands_144e4(m, old, camera & 0xffff)
     if c6 is not None: m.wb(a2 + 0xc6, c6); m.wb(a2 + 0xc7, c7)
     if m.rb(a2 + 0x1a) in (0, 1):
         # 0x25fc2 animation script step (state 1) does not touch the motion
@@ -980,6 +1502,115 @@ def cmd_ticks(trace, race):
     return bad == 0
 
 
+def cmd_occl(trace, race):
+    """Projection 0x1b9cc (+0x1e-+0x29) and occlusion masks 0x264aa (+0x1c, +0x38-+0x55)
+    of each logic tick from a MAME snapshot (ticks whose x/y/z match)."""
+    t = Terrain(race)
+    n = bad = masks = hidden = other = 0
+    for (fr, r, _), (fr2, r2, _) in zip(trace, trace[1:]):
+        if not live(r) or not live(r2): continue
+        m = Mem(t, r); m.sprites = True
+        tick(m, tb(r2, P + 0xc6), tb(r2, P + 0xc7))
+        if any(m.sl(P + o) != tl(r2, P + o) for o in (0xc, 0x10, 0x14)): continue
+        n += 1
+        a, b = P - 0x400000, P - 0x400000 + 0x56
+        got, ref = m.ram[a + 0x1c:a + 0x56], r2[a + 0x1c:a + 0x56]
+        masks += r2[a + 0x38] != 0 or r2[a + 0x39] != 0
+        hidden += tb(r2, P + 0x1c) == 0
+        if got[:0x0e] == ref[:0x0e] and got[0x1c:] == ref[0x1c:]: continue
+        if ref[0x1c] and not ref[0x1c] & 0x40:       # not a mask: respawn sparkle (0x13d38)
+            other += 1; continue
+        bad += 1
+        if bad <= 10:
+            ent = lambda b_: [(struct.unpack(">H", b_[0x1c + 6 * i:0x1e + 6 * i])[0],
+                               s16(struct.unpack(">H", b_[0x1e + 6 * i:0x20 + 6 * i])[0]),
+                               s16(struct.unpack(">H", b_[0x20 + 6 * i:0x22 + 6 * i])[0])) for i in range(5)]
+            print("tick %d: sx/sy %s vs %s, 1c %d vs %d\n  got %s\n  ref %s" % (
+                fr, struct.unpack(">hh", got[2:6]), struct.unpack(">hh", ref[2:6]), got[0], ref[0],
+                ent(got), ent(ref)))
+    print("occl race %d: %d ticks, %d with masks, %d hidden, %d other writer, %d differ"
+          % (race, n, masks, hidden, other, bad))
+    return bad == 0
+
+
+SLOT_RAM = ((0xa9c, 0xa9c + SLOT_N * SLOT_SIZE), (0x76e, 0x86e), (0x970, 0x97c),
+            (0x75c, 0x75f), (0x44a, 0x45e), (0x3a6, 0x3a8))   # state the slot port owns
+SLOT_FIELDS = ((0x00, 4, "vx"), (0x04, 4, "vy"), (0x0c, 4, "x"), (0x10, 4, "y"), (0x14, 4, "z"),
+               (0x18, 1, "active"), (0x1a, 1, "state"), (0x1b, 1, "zone"), (0x1c, 2, "timer"),
+               (0x1e, 1, "mode"), (0x1f, 1, "tag"), (0x20, 4, "counters"), (0x24, 2, "loops"),
+               (0x26, 4, "col/row"), (0x2a, 8, "loop pcs"), (0x32, 4, "saved pc"),
+               (0x36, 4, "pc"), (0x3a, 4, "script"), (0x3e, 4, "anim"), (0x42, 4, "MO frame"),
+               (0x46, 8, "anim bases"), (0x4e, 4, "screen"), (0x52, 4, "bands"))
+
+
+def slot_diff(m, r):
+    """Differences between the simulated slot state and a MAME snapshot."""
+    out = []
+    for i in range(SLOT_N):
+        o = 0xa9c + i * SLOT_SIZE
+        if m.ram[o + 0x18] == 0 and r[o + 0x18] == 0: continue    # free slots keep junk
+        for off, n, name in SLOT_FIELDS:
+            if m.ram[o + off:o + off + n] != r[o + off:o + off + n]:
+                out.append("slot %d tag %02x %s %s/%s" % (i, r[o + 0x1f], name,
+                           m.ram[o + off:o + off + n].hex(), r[o + off:o + off + n].hex()))
+    for k in range(0x80):
+        if m.ram[0x76e + 2 * k:0x770 + 2 * k] != r[0x76e + 2 * k:0x770 + 2 * k]:
+            out.append("dyn %d %s/%s" % (k, m.ram[0x76e + 2 * k:0x770 + 2 * k].hex(),
+                                          r[0x76e + 2 * k:0x770 + 2 * k].hex()))
+    return out
+
+
+def cmd_slots(trace, race, need=300):
+    """Level object slots, dynamic terrain codes and the marble run free from the first race
+    snapshot: slots/dynamic codes are never copied from the trace again (camera long and
+    enemy wall outputs are). While the player is not rolling only the slots run; a
+    physics divergence (death, enemy, unported tag) restarts the player from the trace."""
+    t = Terrain(race)
+    i0 = next(k for k, x in enumerate(trace) if live(x[1]))
+    m = Mem(t, trace[i0][1]); m.objects = True
+    n = sbad = walls = 0; segs = []; seg = 0; pbad = 0; sync = False; tags = set()
+    for (fr, r, _), (fr2, r2, _) in zip(trace[i0:], trace[i0 + 1:]):
+        if sync:                                     # player and the rest from the trace
+            keep = [(a, b, m.ram[a:b]) for a, b in SLOT_RAM]
+            m.ram[:] = r
+            for a, b, v in keep: m.ram[a:b] = v
+            sync = False
+        m.events = []; m.sounds = []
+        if any(tb(r, e + 0x18) for e in ENEMIES): m.ram[0x674:0x684] = r[0x674:0x684]
+        if live(r):
+            tick(m, tb(r2, P + 0xc6), tb(r2, P + 0xc7), camera=tl(r2, 0x40097c) & 0xffffffff)
+            err = any(m.sl(P + o) != tl(r2, P + o) for o in (0xc, 0x10, 0x14))
+            if err or not live(r2):
+                if err and not any(e in DEATH for e in m.events) and live(r2) \
+                        and not enemy_near(r, r2):
+                    pbad += 1
+                    print("tick %d: physics differs %s" % (fr, m.events))
+                segs.append(seg); seg = 0; sync = True
+            else:
+                seg += 1
+        else:
+            slots_12fd0(m); anim_apply_1344c(m)
+            cam = tl(r2, 0x40097c) & 0xffffffff; old = m.rw(0x40097e)
+            m.wl(0x40097c, cam)
+            if (cam & 0xffff) != old: camera_bands_144e4(m, old, cam & 0xffff)
+            sync = True
+        n += 1
+        walls += any(isinstance(e, tuple) and e[0] == "slot wall" for e in m.events)
+        for i in range(SLOT_N):
+            if r2[0xa9c + i * SLOT_SIZE + 0x18]: tags.add(r2[0xa9c + i * SLOT_SIZE + 0x1f])
+        d = slot_diff(m, r2)
+        if d:
+            sbad += 1
+            if sbad <= 8: print("tick %d: %s" % (fr2, "; ".join(d[:6])))
+            for a, b in SLOT_RAM: m.ram[a:b] = r2[a:b]     # resync to keep counting
+    segs.append(seg)
+    print("slots race %d: %d ticks, slot/dyn state differs in %d, tags seen %s; physics "
+          "segments longest %d (%d ticks), slot wall contacts %d, unexplained physics %d"
+          % (race, n, sbad, " ".join("%02x" % x for x in sorted(tags)), max(segs), sum(segs),
+             walls, pbad))
+    return sbad == 0 and pbad == 0 and max(segs) >= need
+
+
 def cmd_run(trace, race, need=300):
     t = Terrain(race)
     m = None; segs = []; seg = 0; maxerr = 0.0; bad = 0; unp = 0
@@ -1096,10 +1727,12 @@ def cmd_fixture(path):
 def main(argv):
     if len(argv) == 3 and argv[1] == "fixture":
         return 0 if cmd_fixture(argv[2]) else 1
-    if len(argv) < 4 or argv[1] not in ("terrain", "ticks", "run", "start"):
+    if len(argv) < 4 or argv[1] not in ("terrain", "ticks", "run", "start", "occl", "slots"):
         print(__doc__); return 2
     trace = load_trace(argv[2]); race = int(argv[3])
     if argv[1] == "terrain": ok = cmd_terrain(trace, race)
+    elif argv[1] == "occl": ok = cmd_occl(trace, race)
+    elif argv[1] == "slots": ok = cmd_slots(trace, race, int(argv[4]) if len(argv) > 4 else 300)
     elif argv[1] == "ticks": ok = cmd_ticks(trace, race)
     elif argv[1] == "start": ok = cmd_start(trace, race)
     else: ok = cmd_run(trace, race, int(argv[4]) if len(argv) > 4 else 300)

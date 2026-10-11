@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+"""Marble Madness level object data per race: what a remake port has to carry.
+
+Walks the spawn lists (0x1dec0[race], entries lo band, hi band, long script; script 0 =
+random group of 4 from 0x1ded8), every slot script reachable from them (byte code
+0x12896, MARBLE.md "Level objects"), the animation lists the scripts select and the
+frame records they hold, and the occlusion tables (0x264aa). Prints byte counts.
+
+usage: objects_data.py [-v]
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import marble_sim as ms
+from marble_sim import PROG, rom_w, rom_l, s16
+
+ARGS = {0: None, 1: 4, 2: 4, 3: 2, 4: 2, 5: 0, 6: 2, 7: 0, 8: 6, 9: 4, 10: 4, 11: 0,
+        12: 4, 13: 4, 14: 4, 15: 0, 16: 0, 17: 2, 18: 4}
+
+
+def scripts_of(race):
+    a = rom_l(0x1dec0 + 4 * race)
+    ents = []
+    while PROG[a] != 0xff:
+        ents.append((PROG[a], PROG[a + 1], rom_l(a + 2))); a += 6
+    roots = []
+    for lo, hi, sc in ents:
+        roots += [rom_l(0x1ded8 + 4 * k) for k in range(16)] if sc == 0 else [sc]
+    if race == 2: roots.append(0x1d854)              # wave, spawned by 0x12fd0
+    return ents, roots
+
+
+def walk(roots):
+    """Script bytes, animation lists (pointer, frame stride), tags."""
+    code, anims, tags, seen = set(), set(), set(), set()
+    todo = [(r, 0, 0) for r in roots]
+    while todo:
+        pc, mode, tag = todo.pop()
+        loops = {}
+        while (pc, mode) not in seen:
+            seen.add((pc, mode))
+            op = s16(rom_w(pc)); start = pc; pc += 2
+            if op < 0 or op > 18: code.update(range(start, pc)); break
+            if op == 0:
+                mode = PROG[pc + 7]; tag = PROG[pc + 9]; tags.add(tag); pc += 10
+                if mode == 1:
+                    anims.add((rom_l(pc + 4), 8, tag, 1)); pc += 8
+            else:
+                pc += ARGS[op]
+            code.update(range(start, pc))
+            if op in (4, 6): loops[op] = PROG[pc - 1]
+            if op in (5, 7) and loops.get(op - 1) == 0: break     # count 0: loops forever
+            if op in (12, 13): anims.add((rom_l(pc - 4), 8 if mode else 4, tag, mode))
+            if op in (8, 10, 18): todo.append((rom_l(pc - 4), mode, tag))
+            if op == 9: pc = rom_l(pc - 4); continue
+            if op in (11, 15): break
+            if op == 3 and rom_w(pc - 2) == 0: break
+            if op in (1, 2) and rom_w(pc - 4) == 0: break
+    return code, anims, tags
+
+
+def frames(anims):
+    """Animation lists (records until 0xffffffff) -> list bytes, tile blocks, dyn blocks,
+    MO frame pointers."""
+    lists = tiles = dyn = 0
+    mo = set(); tb = set(); db = set()
+    for a, stride, tag, mode in anims:
+        n = 0
+        while rom_l(a + n * stride) != 0xffffffff and n < 500: n += 1
+        lists += n * stride + 4
+        for k in range(n):
+            r = a + k * stride
+            if stride == 4:
+                mo.add(rom_l(r)); continue
+            t, d = rom_l(r), rom_l(r + 4)
+            if mode == 2: mo.add(t); t = 0               # mode 2: MO frame + terrain block
+            if tag == 0x19: t = 0                    # ultimate row number, not a tile block
+            if t and t not in tb:
+                if t >= 0x30000: raise ValueError("tile block %06x outside program ROM" % t)
+                tb.add(t); tiles += 2 + 2 * PROG[t] * PROG[t + 1]
+            if d and d not in db:
+                db.add(d); dyn += 4 + 2 * rom_w(d + 2)
+    return lists, tiles, dyn, len(mo), len(tb), len(db)
+
+
+def occlusion_tables():
+    """0x1ea2a explicit occluders (36 columns x 6 races), terrain edge bitmaps (descriptor
+    +0x2e, 36 columns), small tables."""
+    expl = set()
+    for c in range(36):
+        tab = rom_l(0x1ea2a + 4 * c)
+        for race in range(6):
+            sel = rom_w(tab + 2 * race)
+            if not sel: continue
+            r = tab + 2 * sel
+            while s16(rom_w(r)) != -1: expl.add(r); r += 10
+    bitmaps = 0
+    for race in range(6):
+        desc = rom_l(0x2be00 + 4 * race)
+        bitmaps += 36 * ((rom_w(desc + 0x18) + 7) // 8 + 1)
+    small = 15 + 8 + 2 * 17 + 2 * 17 + 4 * 36 + 8 * 4 + 8 + 0x58
+    return 10 * len(expl), bitmaps, small
+
+
+def main():
+    verbose = "-v" in sys.argv
+    tot = 0
+    for race in range(6):
+        ents, roots = scripts_of(race)
+        code, anims, tags = walk(roots)
+        lists, tiles, dyn, nmo, ntb, ndb = frames(anims)
+        size = 6 * len(ents) + 2 + len(code) + lists + tiles + dyn
+        tot += size
+        print("race %d: %d spawn entries, script %d B, %d animation lists %d B, %d tile "
+              "blocks %d B, %d terrain blocks %d B, %d MO frames, tags %s -> %d B"
+              % (race, len(ents), len(code), len(anims), lists, ntb, tiles, ndb, dyn, nmo,
+                 " ".join("%02x" % t for t in sorted(tags)), size))
+        if verbose:
+            for a, s, t, md_ in sorted(anims):
+                print("   anim %06x stride %d tag %02x mode %d" % (a, s, t, md_))
+    expl, bitmaps, small = occlusion_tables()
+    print("objects total %d B; occlusion: explicit occluders %d B, edge bitmaps %d B, "
+          "small tables ~%d B" % (tot, expl, bitmaps, small))
+
+
+if __name__ == "__main__":
+    main()
