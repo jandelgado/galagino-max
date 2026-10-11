@@ -10,6 +10,7 @@
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
 #include "../../src/machines/marble/marble_level.cpp"
+#include "../../src/machines/marble/marble_video.cpp"
 #endif
 #include "marble_fixture.h"
 
@@ -48,6 +49,57 @@ static void test_store_reuses_buffers(void) {
 }
 #endif
 
+#ifdef HAVE_ROM
+static uint32_t frameCrc(const marble_level::Level &l, const marble_video::VideoState &v) {
+  static uint16_t strip[marble_video::OUT_W * 8];
+  uint32_t crc = 0;
+  for (int row = 0; row < marble_video::OUT_H / 8; row++) {
+    marble_video::renderRow(l, v, row, strip);
+    crc = crc32((const uint8_t *)strip, sizeof(strip), crc);
+  }
+  return crc;
+}
+
+static void test_frames_match_decoder(void) {
+  static const int16_t pans[3] = {0, marble_video::PAN / 2, marble_video::PAN};
+  for (uint8_t n = 0; n < marble_level::LEVELS; n++) {
+    const marble_level::Level &l = store.load(n);
+    for (int k = 0; k < 3; k++) {
+      marble_video::VideoState v = {pans[k], 0, n};
+      char msg[32];
+      snprintf(msg, sizeof(msg), "level %d pan %d", n, pans[k]);
+      TEST_ASSERT_EQUAL_HEX32_MESSAGE(MARBLE_FIX_FRAME_CRC[n][k], frameCrc(l, v), msg);
+    }
+  }
+}
+
+static void test_clamp(void) {
+  const marble_level::Level &l = store.load(0);  // practice: 75 rows = 600 px
+  marble_video::VideoState v = {-5, -9, 0};
+  marble_video::clamp(v, l);
+  TEST_ASSERT_EQUAL_INT16(0, v.sx);
+  TEST_ASSERT_EQUAL_INT16(0, v.sy);
+  v = {500, 500, 0};
+  marble_video::clamp(v, l);
+  TEST_ASSERT_EQUAL_INT16(marble_video::PAN, v.sx);
+  TEST_ASSERT_EQUAL_INT16(600 - marble_video::OUT_H, v.sy);
+}
+
+static void test_flip(void) {
+  // hand-built level: one flipped tile with a gradient row
+  static uint8_t px[1][64];
+  for (int i = 0; i < 64; i++) px[0][i] = i & 7;
+  static uint16_t pal[128];
+  for (int i = 0; i < 128; i++) pal[i] = i;
+  static uint16_t map[marble_level::COLS * 36];
+  for (auto &w : map) w = 0x8000;
+  const marble_level::Level l = {36, 1, map, px, pal};
+  static uint16_t strip[marble_video::OUT_W * 8];
+  marble_video::renderRow(l, marble_video::VideoState{0, 0, 0}, 0, strip);
+  for (int c = 0; c < 8; c++) TEST_ASSERT_EQUAL_UINT16(7 - c, strip[c]);
+}
+#endif
+
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
@@ -55,6 +107,9 @@ int main(int, char **) {
   store.init();
   RUN_TEST(test_levels_match_decoder);
   RUN_TEST(test_store_reuses_buffers);
+  RUN_TEST(test_frames_match_decoder);
+  RUN_TEST(test_clamp);
+  RUN_TEST(test_flip);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif
