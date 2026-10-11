@@ -98,6 +98,38 @@ static void test_flip(void) {
   marble_video::renderRow(l, marble_video::VideoState{0, 0, 0}, 0, strip);
   for (int c = 0; c < 8; c++) TEST_ASSERT_EQUAL_UINT16(7 - c, strip[c]);
 }
+
+static void test_masks_hide_marble(void) {
+  const marble_level::Level &l = store.load(0);
+  marble_video::VideoState v = {};
+  v.level = 0;
+  v.marble = marble_video::SHOWN;
+  v.visible = 1;
+  v.mx = 100;
+  v.my = 20;
+  const uint32_t shown = frameCrc(l, v);
+  // two full 8x16 masks over the marble == marble not drawn
+  v.masks[0] = {0x4000 | (1 << 11) | 0x4e0, 0, 0};
+  v.masks[1] = {0x4000 | (1 << 11) | 0x4e0, 8, 0};
+  const uint32_t masked = frameCrc(l, v);
+  v.masks[0] = v.masks[1] = {};
+  v.visible = 0;
+  const uint32_t gone = frameCrc(l, v);
+  TEST_ASSERT_NOT_EQUAL(shown, gone);
+  TEST_ASSERT_EQUAL_HEX32(gone, masked);
+}
+
+static void test_patch(void) {
+  const uint16_t *map = store.load(0).map;
+  const uint16_t at = 5 * marble_level::COLS + 16;  // block row 2, column 2
+  TEST_ASSERT_NOT_EQUAL(0x02f8, map[at]);
+  store.patch(0x16660);
+  TEST_ASSERT_EQUAL_HEX16(0x02f8, map[at]);
+  store.patch(0x12345);  // unknown record: ignored
+  TEST_ASSERT_EQUAL_HEX16(0x02f8, map[at]);
+  store.load(1);
+  store.patch(0x16660);  // other race: ignored
+}
 #endif
 
 int main(int, char **) {
@@ -110,6 +142,8 @@ int main(int, char **) {
   RUN_TEST(test_frames_match_decoder);
   RUN_TEST(test_clamp);
   RUN_TEST(test_flip);
+  RUN_TEST(test_masks_hide_marble);
+  RUN_TEST(test_patch);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif

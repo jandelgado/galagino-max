@@ -456,6 +456,17 @@ from the logic entries): intermediate start, 46 live frames: both equal the MAME
 pixel for pixel in a box around the marble; without masks 9 frames differ (up to 156 px).
 Not rendered: alpha layer (HUD, opaque columns right of 288).
 
+Remake renderer (`marble_video.cpp` `hideMask`): `publish()` takes the marble position from the
+stored projection +0x1e/+0x20 (same tick as the masks) and converts each entry to
+`dx = x - mx`, `dy = (sy - y) + 16 - 8 * height` relative to the marble sprite top left
+(MO top = 240 - y - 8h vs marble 224 - sy, camera cancels). Per marble line (16 lines only)
+a 32 bit hide mask is built from the mask tile rows (bit reverse for hflip, height h rows =
+codes c .. c + h - 1, top first); a set bit skips the marble pixel. +0x1c == 0 skips the
+marble. Entries without bit 14 (respawn sparkle) are dropped. VideoState grew 10 -> 48 B.
+Playfield patches: the video core writes the block of `lastPatch()` into the map (practice
+only) whenever the published value changes to a non-zero record, clipped to the map; a level
+load resets the applied value.
+
 ## Camera
 
 - 0x13ee6 (main loop via 0x10fce), every 8th frame or every frame while a scroll is

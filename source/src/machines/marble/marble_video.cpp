@@ -22,11 +22,39 @@ struct Mo {
 };
 static const Mo MARBLE_MOS[] = {{0x05, 0, 0, 2}, {0x03, 8, 0, 2}, {0x07, 0, 3, 1}};
 static const int16_t MARBLE_H = 16;
+static const int16_t MARBLE_W = 16;
 static const uint8_t MO_TILES = sizeof(marble_mo_tiles) / sizeof(marble_mo_tiles[0]);
+
+inline uint8_t reverse8(uint8_t b) {
+  b = (uint8_t)((b >> 4) | (b << 4));
+  b = (uint8_t)(((b & 0xcc) >> 2) | ((b & 0x33) << 2));
+  return (uint8_t)(((b & 0xaa) >> 1) | ((b & 0x55) << 1));
+}
+
+// Hide mask of marble line ly (0..15): bit 31 - k set = marble pixel k is covered by a
+// priority mask MO (pen 1 clears the marble pixel).
+uint32_t hideMask(const VideoState &v, int ly) {
+  uint32_t hide = 0;
+  for (const Mask &e : v.masks) {
+    if (!e.code) { break; }
+    const int r = ly - e.dy;
+    if (r < 0 || r >= (((e.code >> 11) & 7) + 1) * 8 || e.dx <= -8 || e.dx >= MARBLE_W) {
+      continue;
+    }
+    const uint16_t t = marble_mask_index((e.code & 0x7ff) + (r >> 3));
+    if (t == 0xffff) { continue; }
+    uint8_t b = marble_mask_tiles[t][r & 7];
+    if (e.code & 0x8000) { b = reverse8(b); }
+    const uint32_t w = (uint32_t)b << 24;
+    hide |= e.dx >= 0 ? w >> e.dx : w << -e.dx;
+  }
+  return hide;
+}
 
 // marble pixels of playfield line y, pen 0 transparent, clipped at the view edges
 void drawMarble(const VideoState &v, int y, uint16_t *dst) {
-  if (v.marble == HIDDEN || y < v.my || y >= v.my + MARBLE_H) { return; }
+  if (v.marble == HIDDEN || !v.visible || y < v.my || y >= v.my + MARBLE_H) { return; }
+  const uint32_t hide = hideMask(v, y - v.my);
 
   for (const Mo &o : MARBLE_MOS) {
     const int ty = y - v.my - o.dy;
@@ -38,7 +66,9 @@ void drawMarble(const VideoState &v, int y, uint16_t *dst) {
     const int x0 = v.mx + o.dx - v.sx;
     for (int k = 0; k < 8; k++) {
       const int x = x0 + k;
-      if (px[k] && x >= 0 && x < OUT_W) { dst[x] = marble_mo_palette[px[k]]; }
+      if (px[k] && x >= 0 && x < OUT_W && !(hide & (0x80000000u >> (o.dx + k)))) {
+        dst[x] = marble_mo_palette[px[k]];
+      }
     }
   }
 }

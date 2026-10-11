@@ -4,11 +4,13 @@
 
 #include "marble_camera.h"
 #include "marble_objects.h"
+#include "marble_occlusion.h"
 #include "marble_physics.h"
 
 using namespace marble_video;
 using marble_physics::Mem;
 using marble_physics::FRAMES;
+using marble_physics::PLAYER;
 
 // Stick as trackball (MARBLE.md "Logic tick"): counter delta per tick, k = 9 is about MAME's
 // keyboard trackball speed. Screen right: c7 = c6 = -k; down: c7 = +k, c6 = -k.
@@ -54,6 +56,7 @@ void marble::beginRace(uint8_t n) {
   marble_physics::startRace(m, race);
   marble_camera::start(m, race);
   marble_physics::project(m);
+  marble_occlusion::enter(m, marble_physics::PLAYER);  // first tick comes 2 frames later
   view.sx = PAN / 2;
   publish();
 }
@@ -89,7 +92,8 @@ void marble::logicTick(uint32_t keys) {
 // view and marble sprite from the work RAM image
 void marble::publish(void) {
   Mem m(memory, race);
-  const int16_t sx = marble_physics::sx(m), sy = marble_physics::sy(m);
+  // projection of the last tick (+0x1e/+0x20), as the arcade MO list and the masks use it
+  const int16_t sx = m.sw(PLAYER + 0x1e), sy = m.sw(PLAYER + 0x20);
   const int16_t top = marble_camera::top(m);
   const uint8_t st = marble_physics::state(m);
 
@@ -103,6 +107,19 @@ void marble::publish(void) {
   view.marble = (st == marble_physics::BROKEN || st == marble_physics::LOST) ? HIDDEN : SHOWN;
   view.mx = sx - BODY_X;
   view.my = top + BODY_Y - sy;
+  view.visible = m.rb(PLAYER + 0x1c);
+  view.patch = marble_objects::lastPatch(m);
+  uint8_t n = 0;
+  for (uint8_t i = 0; i < MASKS; i++) {
+    const uint32_t e = PLAYER + 0x38 + 6 * i;
+    const uint16_t code = m.rw(e);
+    if (!code) { break; }
+    if (!(code & 0x4000)) { n = 0; break; }  // not a mask (respawn sparkle)
+    const int16_t h = ((code >> 11) & 7) + 1;
+    view.masks[n++] = {code, (int16_t)(m.sw(e + 2) - view.mx),
+                       (int16_t)(sy - m.sw(e + 4) + 16 - 8 * h)};
+  }
+  for (; n < MASKS; n++) { view.masks[n] = {}; }
   vblank.publish([this](VideoState &s) { s = view; });
 }
 
@@ -133,6 +150,11 @@ void marble::prepare_frame(void) {
     printf("marble: level %u loaded in %u ms\n", (unsigned)video.level, (unsigned)(millis() - t0));
 #endif
     loaded = video.level;
+    patched = 0;
+  }
+  if (video.patch != patched) {  // video core owns the map
+    patched = video.patch;
+    if (patched) { store.patch(patched); }
   }
   clamp(video, *level);
 }

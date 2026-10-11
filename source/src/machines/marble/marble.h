@@ -42,6 +42,7 @@ private:
   marble_level::Store store;
   const marble_level::Level *level = nullptr;
   uint8_t loaded = 0xff;
+  uint32_t patched = 0;  // playfield patch applied to the loaded map
   uint32_t prev_keys = 0;
   // emulation core: race state lives in the work RAM image, machineBase::memory
   uint8_t race = 0;

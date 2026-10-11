@@ -32,8 +32,13 @@ class Store {
 public:
   void init();  // idempotent: start() runs twice
   const Level &load(uint8_t n);
+  // Playfield patch of the loaded race (mode 1 level object, MARBLE.md "Level objects"):
+  // write the block of frame record `record` into the map, clipped to the map. Unknown
+  // records are ignored.
+  void patch(uint32_t record);
 
 private:
+  uint8_t race = 0xff;
   uint16_t *map = nullptr;
   uint8_t (*pixels)[64] = nullptr;
   Level level = {};
