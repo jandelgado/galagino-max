@@ -8,14 +8,15 @@
 // marble_sim.py, MARBLE.md "Marble physics"). State lives in the work RAM image of Mem,
 // at the original addresses, so the port stays bit exact with MAME traces.
 //
-//   startRace(m, race)        race start of player 1 on a cleared work RAM
+//   startRace(m, race)        race start of player 1 on a cleared work RAM, level objects
 //   tick(m, c6, c7) per 30 Hz logic tick:
 //     physics 0x121b8 -> dizzy countdown -> new trackball deltas -> 0x253bc, input 0x17f66
 //   project(m)                screen position 0x1b9cc to +0x1e/+0x20 (camera reads +0x20)
 //   respawn(m)                after state 2/4: checkpoint search 0x262b2, reset 0x2591a
 //
-// Not ported (Phase 4): level object slots 0x29cce (surface code +0x58 is cleared),
-// enemies and object collision, the death sequence (states 2/4), sprite dots, sounds.
+// Level object slots (marble_objects.h): 0x29cce runs inside the physics, startRace spawns
+// the first slots. Not ported (Phase 4): enemies and object collision, the death sequence
+// (states 2/4), sprite dots, sounds.
 namespace marble_physics {
 
 static const uint32_t PLAYER = 0x400018;  // player 1 object

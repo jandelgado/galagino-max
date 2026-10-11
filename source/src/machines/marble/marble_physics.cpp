@@ -1,4 +1,5 @@
 #include "marble_physics.h"
+#include "marble_objects.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -585,9 +586,6 @@ Friction frictionMode(uint8_t c) {
   }
 }
 
-// 0x29cce: level object slots (Phase 4). Without slots it only clears the surface code.
-void slots_29cce(Mem &m, uint32_t a2) { m.wb(a2 + SURFACE, 0); }
-
 // 0x25c74: landing (player path)
 void land_25c74(Mem &m, uint32_t a2, int16_t fall) {
   const uint8_t prev = m.rb(a2 + STATE);
@@ -694,7 +692,7 @@ void physics_121b8(Mem &m, uint32_t a2) {
   if (m.rb(HIT_X) || m.rb(HIT_Y)) { posupd_1bab2(m, a2); }
   m.wb(HIT_Y, 0);
   m.wb(HIT_X, 0);
-  slots_29cce(m, a2);
+  marble_objects::slots_29cce(m, a2);
   if (m.rb(a2 + SURFACE) == 0xa || m.rb(a2 + STATE) == LOST) { return; }
 
   // 0x1bc88 object pair collision and enemy updates: not ported
@@ -922,6 +920,7 @@ void respawn(Mem &m) {
 void startRace(Mem &m, uint8_t race) {
   m.setRace(race);
   start_259b4(m, race, PLAYER);
+  marble_objects::init(m, race);
 }
 
 // Snapshot point (0x121b8 entry) to the next one; c6/c7: trackball deltas of the next tick.

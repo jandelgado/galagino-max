@@ -89,8 +89,8 @@ void start(Mem &m, uint8_t race) {
   m.ww(GHOST_SY, 0);
 }
 
-// 0x13ee6 from 0x1411c. Not ported: row decode (the renderer reads the whole level) and
-// 0x144e4 (level objects entering the screen, Phase 4).
+// 0x13ee6 from 0x1411c. Not ported: row decode (the renderer reads the whole level). The
+// caller runs the band spawns 0x144e4 (marble_objects::cameraBands) on a changed camera word.
 void tick(Mem &m) {
   m.wb(ROW_DUE, 0);  // 0x13f06 decodes the row here; the renderer reads the whole level
   if ((m.rl(FRAMES) & 7) && !m.rb(SCROLLING)) { return; }

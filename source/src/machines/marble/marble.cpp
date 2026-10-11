@@ -3,6 +3,7 @@
 #ifdef ENABLE_MARBLE
 
 #include "marble_camera.h"
+#include "marble_objects.h"
 #include "marble_physics.h"
 
 using namespace marble_video;
@@ -57,13 +58,19 @@ void marble::beginRace(uint8_t n) {
   publish();
 }
 
-// one 30 Hz logic tick: camera 0x13ee6 before the player update (0x10fce)
+// one 30 Hz logic tick: queued animation frame 0x1344c, camera 0x13ee6 with the band spawns
+// 0x144e4 before the player update (0x10fce), then the slot update 0x12fd0
 void marble::logicTick(uint32_t keys) {
   int8_t c6 = 0, c7 = 0;
   if (!(keys & BUTTON_EXTRA)) { stick(keys, c6, c7); }  // EXTRA + UP/DOWN is volume
 
   Mem m(memory, race);
+  marble_objects::applyQueued(m);
+
+  const int16_t oldCam = m.sw(marble_physics::CAMERA);
   marble_camera::tick(m);
+  const int16_t newCam = m.sw(marble_physics::CAMERA);
+  if (newCam != oldCam) { marble_objects::cameraBands(m, oldCam, newCam); }
 
   // dead: the marble stays put (projected, so the camera settles), then respawns
   const uint8_t st = marble_physics::state(m);
@@ -73,6 +80,7 @@ void marble::logicTick(uint32_t keys) {
     dead_ticks = 0;
     marble_physics::respawn(m);
   }
+  marble_objects::update(m);
   marble_physics::project(m);
 }
 
