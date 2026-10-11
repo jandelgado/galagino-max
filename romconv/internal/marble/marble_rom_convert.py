@@ -92,6 +92,8 @@ def frame_crc(rows, tiles, mapw, pal, sx, sy):
 
 FLASH_BUDGET = 50 * 1024
 PHASE3_BUDGET = 25 * 1024
+PHASE3_BEFORE = 22777  # flash B of the Phase 3 data with edge bitmaps and the mask map
+EDGE_TABLES = None
 PAIR_BYTES = 54   # two diagonals, 44 x 10 bit fields MSB first, last 8 bits not stored
 # Program ROM tables the physics, start, respawn and camera read (address, length). Read
 # extents follow from the index ranges in marble_sim.py; the recorded reads below must fall
@@ -277,11 +279,56 @@ def table_bytes(descs):
 
 
 def phase3_bytes():
-    """Phase 3 tables (whole): level objects, occlusion, edge bitmaps."""
-    out = set(od.object_tables()) | od.occlusion_bytes() | od.edge_bitmap_bytes()
+    """Phase 3 tables (whole): level objects, occlusion (edge bitmaps are edge lists)."""
+    out = set(od.object_tables()) | od.occlusion_bytes()
     for race in range(md.LEVELS):
         out |= od.object_bytes(race)
     return out
+
+
+def edge_tables():
+    """Terrain edge diagonals of 0x264aa. Per race and descriptor table (4 for the ultimate
+    race, one per scroll frame) and column 0-35: the ascending diagonals < maxd with a bit in
+    the edge bitmap at descriptor +0x2e. Returns [(race, [36 lists])] per table, checks that
+    the list lookup equals the bitmap scan (with the remake guard) for every d < maxd."""
+    out = []
+    for race in range(md.LEVELS):
+        desc = ms.rom_l(0x2be00 + 4 * race)
+        maxd = ms.rom_w(desc + 0x18)
+        for k in range(4 if race == 5 else 1):
+            cols = []
+            for c in range(36):
+                bm = ms.rom_l(desc + 0x2e + 0x90 * k + 4 * c)
+                lst = [d for d in range(maxd) if ms.PROG[bm + (d >> 3)] >> (d & 7) & 1]
+                if not lst or lst[-1] != maxd - 1 or maxd > 256:
+                    fatal(f"marble: race {race} column {c}: edge list unusable")
+                cols.append(lst)
+            out.append((race, cols))
+    return out
+
+
+def edge_lookup(tables, race, ult, c, d):
+    """First edge diagonal >= d of column c (-1: none), as the remake reads the lists."""
+    base = sum(1 for r, _ in tables if r < race)
+    for e in tables[base + ult // 0x90][1][c]:
+        if e >= d: return e
+    return -1
+
+
+def edge_check(tables):
+    """List lookup == arcade bitmap scan (0x264aa, first set bit at or after d) for all d."""
+    for race in range(md.LEVELS):
+        desc = ms.rom_l(0x2be00 + 4 * race)
+        maxd = ms.rom_w(desc + 0x18)
+        for k in range(4 if race == 5 else 1):
+            for c in range(36):
+                bm = ms.rom_l(desc + 0x2e + 0x90 * k + 4 * c)
+                for d in range(maxd + 1):
+                    want = next((e for e in range(d, maxd)
+                                 if ms.PROG[bm + (e >> 3)] >> (e & 7) & 1), -1)
+                    if edge_lookup(tables, race, 0x90 * k, c, d) != want:
+                        fatal(f"marble: edge list differs from bitmap: race {race} "
+                              f"table {k} column {c} d {d}")
 
 
 def prog_blocks(terrains):
@@ -290,6 +337,7 @@ def prog_blocks(terrains):
     object and occlusion runs read plus the Phase 3 tables."""
     covered = table_bytes([t.desc for t in terrains])
     phase3 = phase3_bytes()      # before ms.PROG is replaced
+    ms.EDGES = lambda race, ult, c, d: edge_lookup(EDGE_TABLES, race, ult, c, d)
     plain = ms.PROG
     ms.PROG = RecProg(plain)
     try:
@@ -300,6 +348,7 @@ def prog_blocks(terrains):
         want3 = set(RecProg.reads)
     finally:
         ms.PROG = plain
+        ms.EDGES = None
     outside = sorted(want - covered)
     if outside:
         fatal("marble: physics reads ROM outside the known tables: "
@@ -344,8 +393,11 @@ def emit_physics(f, rom, size3):
     """Phase 2 data into marble_rom.h. Returns {item: flash bytes}; the prog blocks added by
     Phase 3 go to size3."""
     size = {}
+    global EDGE_TABLES
     terrains = [ms.Terrain(n) for n in range(md.LEVELS)]
     races = [terrain_race(t) for t in terrains]
+    EDGE_TABLES = edge_tables()
+    edge_check(EDGE_TABLES)
     print("\n// ---- Phase 2: marble physics (MARBLE.md \"Remake data\")", file=f)
     print("// Terrain per race: 10 bit vertex index (54 bytes per diagonal pair, fields MSB first,",
           file=f)
@@ -354,8 +406,34 @@ def emit_physics(f, rom, size3):
           file=f)
     print("struct MarbleTerrainInfo {\n  const uint8_t *index; uint16_t pairs;\n"
           "  const uint16_t *codes; uint16_t ncodes;\n  const uint8_t *records;\n"
-          "  const uint16_t *bases; uint16_t maxd;\n  uint16_t nrecords; uint32_t desc;\n};",
+          "  const uint16_t *bases; uint16_t maxd;\n  uint16_t nrecords; uint32_t desc;\n"
+          "  const uint16_t *edges; uint8_t nedges;\n};",
           file=f)
+    # edge lists: marble_edge_lists[marble_edge_off[col]...] of the table of race and scroll
+    # frame, first diagonal >= d (the last list entry is maxd - 1); equal lists are shared
+    pool, where, offs = bytearray(), {}, {}
+    for t, (race, cols) in enumerate(EDGE_TABLES):
+        row = []
+        for lst in cols:
+            key = bytes(lst)
+            if key not in where:
+                where[key] = len(pool); pool += key
+            row.append(where[key])
+        offs.setdefault(race, []).append(row)
+    if len(pool) > 0xffff:
+        fatal("marble: edge lists too long for 16 bit offsets")
+    print("// Terrain edge diagonals (0x264aa): column c of scroll frame k (the ultimate race has 4,",
+          file=f)
+    print("// others 1) of a race: ascending diagonals < maxd from marble_edge_lists[edges[36 * k +",
+          file=f)
+    print("// c]]; the first entry >= d is the edge, the last is maxd - 1.", file=f)
+    print(f"static const uint8_t marble_edge_lists[{len(pool)}] = {{\n{c_bytes(pool)}\n}};",
+          file=f)
+    for race, rows in sorted(offs.items()):
+        flat = [o for row in rows for o in row]
+        print(f"static const uint16_t marble_edge_off_{race}[{len(flat)}] = {{\n{c_words(flat)}\n}};",
+              file=f)
+    size3["edge lists"] = len(pool) + 2 * sum(len(r) * 36 for r in offs.values()) + 6 * 8
     code_names = {}
     for n, (index, codes, records, _, bases) in enumerate(races):
         print(f"static const uint8_t marble_terrain_index_{n}[] = {{\n{c_bytes(index)}\n}};",
@@ -377,7 +455,8 @@ def emit_physics(f, rom, size3):
         t = terrains[n]
         print(f"  {{ marble_terrain_index_{n}, {len(index) // PAIR_BYTES}, "
               f"{code_names[tuple(codes)]}, {len(codes)}, marble_terrain_records_{n}, "
-              f"marble_terrain_bases_{n}, {t.maxd}, {len(records)}, 0x{t.desc:05x} }},", file=f)
+              f"marble_terrain_bases_{n}, {t.maxd}, {len(records)}, 0x{t.desc:05x}, "
+              f"marble_edge_off_{n}, {len(offs[n])} }},", file=f)
     print("};", file=f)
     size["terrain info"] = 6 * 32  # 32 bit pointers, padded
 
@@ -389,11 +468,13 @@ def emit_physics(f, rom, size3):
             fatal(f"marble: race {n} reads slapstic data outside its terrain records")
     plain = ms.PROG
     ms.PROG = BlockProg(blocks)
+    ms.EDGES = lambda race, ult, c, d: edge_lookup(EDGE_TABLES, race, ult, c, d)
     try:
         got = (physics_runs(BlockMem, terrains) + physics_runs(BlockMem, terrains, True)
                + object_runs(BlockMem, terrains))
     finally:
         ms.PROG = plain
+        ms.EDGES = None
     if got != ref:
         fatal("marble: simulation on the emitted blocks differs from the full ROM")
     print("// Program ROM bytes the physics, level objects and occlusion read (68010 address,",
@@ -484,25 +565,25 @@ def emit_objects(f, rom, levels, size3):
             fatal(f"marble: mask tile {code:03x} uses pen {max(px)} (only pens 0/1 are masks)")
         tiles.append([sum((px[8 * y + x] & 1) << (7 - x) for x in range(8)) for y in range(8)])
     first, last = codes[0], codes[-1]
-    index = [0xFFFF] * (last - first + 1)
-    for k, code in enumerate(codes): index[code - first] = k
+    by = dict(zip(codes, tiles))
+    dense = [by.get(c, [0] * 8) for c in range(first, last + 1)]   # absent code: blank tile
     print("// Occlusion mask tiles: MO tile of code c (marble_mask_index(c), 0xffff: none) is 8",
           file=f)
     print("// rows, bit 7 = left pixel, 1 = mask pixel (pen 1; pen 0 transparent). A mask entry",
           file=f)
-    print("// of MO code c and height h uses codes c .. c + h - 1.", file=f)
-    print(f"static const uint16_t MARBLE_MASK_FIRST = 0x{first:03x};", file=f)
-    print(f"static const uint16_t MARBLE_MASK_CODES = {len(index)};", file=f)
-    print(f"static const uint16_t marble_mask_map[MARBLE_MASK_CODES] = {{\n{c_words(index)}\n}};",
+    print("// of MO code c and height h uses codes c .. c + h - 1. Codes in between that no entry",
           file=f)
-    print(f"static const uint8_t marble_mask_tiles[{len(tiles)}][8] = {{", file=f)
-    for t in tiles:
+    print("// uses are blank tiles (no mask pixel).", file=f)
+    print(f"static const uint16_t MARBLE_MASK_FIRST = 0x{first:03x};", file=f)
+    print(f"static const uint16_t MARBLE_MASK_CODES = {len(dense)};", file=f)
+    print(f"static const uint8_t marble_mask_tiles[{len(dense)}][8] = {{", file=f)
+    for t in dense:
         print("  {" + ",".join(f"0x{v:02x}" for v in t) + "},", file=f)
     print("};", file=f)
     print("static inline uint16_t marble_mask_index(uint16_t code) {\n"
           "  return (uint16_t)(code - MARBLE_MASK_FIRST) < MARBLE_MASK_CODES\n"
-          "      ? marble_mask_map[code - MARBLE_MASK_FIRST] : 0xffff;\n}", file=f)
-    size3["mask tiles"] = 8 * len(tiles) + 2 * len(index)
+          "      ? (uint16_t)(code - MARBLE_MASK_FIRST) : 0xffff;\n}", file=f)
+    size3["mask tiles"] = 8 * len(dense)
     print(f"patches: {len(patches)} records, {len(PATCH_WORDS)} blocks; mask tiles: {len(tiles)} "
           f"of codes 0x{first:03x}-0x{last:03x}")
 
@@ -543,7 +624,7 @@ def main():
         fatal(f"marble: phase 2 data {total} B over the {FLASH_BUDGET} B budget")
     total3 = sum(size3.values())
     print("phase 3 flash: " + ", ".join(f"{k} {v}" for k, v in size3.items())
-          + f", total {total3} B")
+          + f", total {total3} B (before {PHASE3_BEFORE} B, {PHASE3_BEFORE - total3} B less)")
     if total3 > PHASE3_BUDGET:
         fatal(f"marble: phase 3 data {total3} B over the {PHASE3_BUDGET} B budget")
     os.makedirs(os.path.dirname(FIXTURE), exist_ok=True)

@@ -41,6 +41,17 @@ uint16_t Mem::maxd() const { return terrain->maxd; }
 
 uint32_t Mem::desc() const { return terrain->desc; }
 
+int16_t Mem::edgeFrom(uint8_t col, uint8_t d) const {
+  const uint16_t ult = rw(ULT_COL);
+  const uint8_t frame = ult / 0x90;
+  if (col >= 36 || ult % 0x90 || frame >= terrain->nedges) { fail("terrain edges", ult); }
+
+  // ascending list ending in maxd - 1: the scan stops there for d < maxd
+  const uint8_t *p = marble_edge_lists + terrain->edges[36 * frame + col];
+  while (*p < d) { p++; }
+  return *p;
+}
+
 uint16_t Mem::base(int16_t d) const {
   if (d < 0 || d >= terrain->maxd) { fail("terrain base", (uint16_t)d); }
   return terrain->bases[d];

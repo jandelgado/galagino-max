@@ -435,7 +435,8 @@ where the TS reads +0x18).
   restart at diagonal control & 0xff, -2 full mask when the record z > marble z, -1 emit
   unless on the limit diagonal.
 - Else terrain: first diagonal >= d with a bit in the column's edge bitmap (descriptor
-  +0x2e + 4 * col (+ 0x40045c, ultimate), bit d & 7 of byte d >> 3); the two vertex heights
+  +0x2e + 4 * col (+ 0x40045c, ultimate), bit d & 7 of byte d >> 3; the remake uses edge
+  lists, see Phase 3 data); the two vertex heights
   of that edge (0x177f8: terrain field of the column, higher of two quadrants picked by
   0x2417e and parity flag 0x400988) give screen lines y0, y1 relative to the sprite: both
   below the sprite: nothing; both above the top: full mask (entry 0x6ce0 at y = top -
@@ -719,11 +720,11 @@ python3 romconv/internal/marble/tools/marble_sim.py fixture \
 
 ### Phase 3 data (level objects, occlusion)
 
-Same converter run; flash 22777 B (budget 25 KB): program ROM blocks 18069 B (added to the
-Phase 2 blocks, which stay 4237 B), practice gate patches 912 B, mask tiles 3796 B. The
-converter prints these, fails above 25 KB.
+Same converter run; flash 16222 B (was 22777 B before the edge lists; budget 25 KB): edge lists
+4144 B, program ROM blocks 8014 B (added to the Phase 2 blocks, which stay 4237 B), practice gate
+patches 912 B, mask tiles 3152 B. The converter prints these and the saving, fails above 25 KB.
 
-Program ROM blocks (`marble_prog_blocks`, now 36 blocks): collection runs the model with
+Program ROM blocks (`marble_prog_blocks`, now 35 blocks): collection runs the model with
 `objects` and `sprites` on over the race starts, `objects_init` + 200 idle ticks of every race
 (practice gate included), the Phase 2 fixture and the object fixture, and records every ROM
 byte read (ms.PROG is replaced by a recording `bytearray`, so direct table reads count too).
@@ -734,17 +735,22 @@ Added as whole tables, so a port never meets a gap:
   lists up to the 0xffffffff end, terrain blocks (word first slot, word count, words), the
   intermediate wave tables 0x24c7a-0x24e27; shared: pointer table 0x1dec0, slot address table
   0x1f016, the three tag 3 global lists (0x211fe, 0x2121e, 0x2126e, 0x212b2 and the long before);
-- occlusion (`occlusion_bytes`): 0x1eaba, 0x1eaca, 0x1ead2, 0x1eaf4 (shape, bit, slope tables),
-  0x24176/0x2417e (quadrant masks, vertex offsets), 0x1ed0a (vertex field mapping), 0x1eb3a (pair
-  address words, only the model reads them: it reads the video RAM image, a port uses the
-  terrain index), the pointer table 0x1ea2a, the six word offsets per column and the explicit
-  occluder lists of all columns and races (175 records of 10 bytes);
-- terrain edge bitmaps (`edge_bitmap_bytes`): emitted as program ROM blocks at the addresses
-  the model reads, no extra struct. Per race the pointer table of descriptor + 0x2e (36
-  longs, stride 4; ultimate: 4 tables, descriptor + 0x2e + 0x90 * frame, frame = 0x40045c / 0x90)
-  and the 36 bitmaps `rom_l(table + 4 * col)`, `(maxd + 7) / 8` bytes each (practice 20, beginner
-  and aerial 27, intermediate 24, silly 30, ultimate 25; the last diagonal always has a bit, scans
-  never leave the bitmap). 9504 B.
+- occlusion (`occlusion_bytes`): 0x1eaba, 0x1ead2, 0x1eaf4 (shape, slope tables),
+  0x24176/0x2417e (quadrant masks, vertex offsets), the pointer table 0x1ea2a, the six word
+  offsets per column and the explicit occluder lists of all columns and races (175 records of
+  10 bytes). The model's `vertex_height_177f8` reads the terrain index like the remake (the
+  field map 0x1ed0a is the identity, the pair address words 0x1eb3a only locate the video RAM
+  image), so those two tables are not emitted; the bit masks 0x1eaca neither.
+- terrain edges (`edge_tables`): not program ROM blocks. The arcade scan (first diagonal >= d
+  with a bit in the bitmap of descriptor + 0x2e + 4 * col, ultimate: 4 tables, + 0x90 * frame,
+  frame = 0x40045c / 0x90) becomes per race and frame, per column 0-35, the ascending list of
+  diagonals < maxd with a bit (`marble_edge_lists`, uint8_t, maxd <= 238, equal lists shared:
+  3448 B) and `marble_edge_off_<race>[36 * frames]` (uint16_t list offsets, 648 B; pointer and
+  frame count in `MarbleTerrainInfo`). The last entry is always maxd - 1, so for d < maxd a
+  linear scan (`Mem::edgeFrom`) ends at an edge; d >= maxd is no edge (remake guard). The
+  converter checks the lookup against the bitmap scan for every race, frame, column and d, and
+  the model (`marble_sim.EDGES` hook) replays on the lists. Was 9504 B of bitmaps plus the
+  pointer tables.
 
 Slapstic reads stay terrain records. The converter replays all runs on the emitted blocks only
 (`BlockProg` fails on any other address) and requires the same results as on the full ROM.
@@ -759,12 +765,13 @@ practice tile set were appended in first-use order (practice 760 -> 863 tiles, M
 the converter fails above). Check: record 0x16658 equals the decoded level map (closed gate). Tag
 0x19 (ultimate rows) is not emitted (Phase 4).
 
-Mask tiles (`marble_mask_tiles[376][8]`, `marble_mask_map[]`, `marble_mask_index(code)`): the
+Mask tiles (`marble_mask_tiles[394][8]`, `marble_mask_index(code)`: code - 0x4df or 0xffff): the
 tiles of every entry code 0x264aa can emit (explicit occluders except control -2 and the
 placeholder code 0, the slope table 0x1ead2, full mask 0x6ce0; height from bits 11-13): MO codes
 0x4df-0x668 (not 0x4e0-0x747: no entry reaches beyond 0x668, 0x4df is used by 0x44df). 1 bpp, bit
 7 = left pixel, 1 = mask (pen 1; the converter fails on a pen > 1). `marble_mask_index` returns the
-dense index of a tile code or 0xffff.
+index of a tile code or 0xffff. The 18 codes in the range no entry uses are blank tiles (376
+real tiles), which draws the same as no tile: the 788 B map is gone.
 
 Object fixture `source/test/test_marble_objects/marble_objects_trace.h` (committed, derived
 numbers only), `make_fixture.py owrite`:

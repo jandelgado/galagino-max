@@ -152,13 +152,11 @@ def object_tables():
 
 
 def occlusion_bytes():
-    """Program ROM bytes 0x264aa reads outside the edge bitmaps: shape and mask tables, the
+    """Program ROM bytes 0x264aa reads (edges come from the converter edge lists): shape and mask tables, the
     vertex tables of 0x177f8, the explicit occluder lists (0x1ea2a)."""
-    out = set(range(0x1eaba, 0x1eaba + 16)) | set(range(0x1eaca, 0x1eaca + 8))
+    out = set(range(0x1eaba, 0x1eaba + 16))
     out.update(range(0x1ead2, 0x1ead2 + 34)); out.update(range(0x1eaf4, 0x1eaf4 + 34))
     out.update(range(0x24176, 0x24176 + 8 + 32))
-    out.update(range(0x1ed0a, 0x1ed0a + 0x58))
-    out.update(range(0x1eb3a, 0x1eb3a + 2 * 120))     # vertex pair addresses, d & 0xfe < 238
     out.update(range(0x1ea2a, 0x1ea2a + 144))
     for c in range(36):
         tab = rom_l(0x1ea2a + 4 * c)

@@ -11,12 +11,10 @@ namespace marble_occlusion {
 
 using marble_physics::Mem;
 using marble_physics::CAMERA;
-using marble_physics::ULT_COL;
 using marble_physics::DYN;
 using marble_physics::RACE;
 using marble_physics::DESC_TOP;
 using marble_physics::DESC_END;
-using marble_physics::DESC_EDGES;
 using marble_physics::s8;
 using marble_physics::s16;
 
@@ -39,7 +37,6 @@ static const uint32_t FLAG = 0x400988;      // long: quadrant parity of the vert
 static const uint32_t FLAG_LO = 0x40098a;   // low word of FLAG: column bias of the vertex field
 
 static const uint32_t SHAPES = 0x1eaba;     // 3 x 5 diagonal offsets per column
-static const uint32_t BITS = 0x1eaca;       // 8 masks, bit i = diagonals >= i
 static const uint32_t OCCLUDERS = 0x1ea2a;  // per column: table of per race record lists
 static const uint32_t FLAT_H = 0x1ead2;     // entry code by height difference
 static const uint32_t FLAT_Y = 0x1eaf4;
@@ -213,22 +210,11 @@ void occlusion_264aa(Mem &m, uint32_t a2, uint8_t d3) {
     }
     if (done) { continue; }
 
-    // first terrain edge diagonal >= d in this column (bitmap, descriptor +0x2e). Remake
-    // guard: the arcade reads past the table when there is no edge; stop at maxd and treat
-    // it as no edge, so the column stays unmasked.
-    const uint32_t maxd = m.maxd();
-    if ((uint32_t)d >= maxd) { continue; }
-    const uint32_t bm = m.roml(desc + DESC_EDGES + 4 * c + s16(m.rw(ULT_COL))) + (d >> 3);
-    uint8_t mask = m.romb(BITS + (d & 7)) & m.romb(bm);
-    d &= ~7;
-    if (mask == 0) {
-      uint32_t p = bm + 1;
-      while ((uint32_t)d + (p - bm) * 8 < maxd && m.romb(p) == 0) { p++; }
-      if ((uint32_t)d + (p - bm) * 8 >= maxd) { continue; }
-      mask = m.romb(p);
-      d += (p - bm) * 8;
-    }
-    for (uint8_t b = 1; !(mask & b); b <<= 1) { d++; }
+    // first terrain edge diagonal >= d in this column (edge list). Remake guard: the arcade
+    // reads past the table when there is no edge; at maxd it is no edge, the column stays
+    // unmasked.
+    if ((uint32_t)d >= m.maxd()) { continue; }
+    d = m.edgeFrom((uint8_t)c, (uint8_t)d);
 
     m.wl(FLAG, (c ^ d) & 1);
     int32_t sline = s16((d << 2) - m.rw(CAMERA));

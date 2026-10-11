@@ -889,10 +889,10 @@ def vertex_height_177f8(m, d, col, k):
     d3 = s16(k) + m.sl(0x400988)
     d0 = (s16((col + m.rw(0x40098a)) & 0xffff) >> 1) + 2
     if d & 1: d0 += 0x16
-    a1 = 0xa00000 + s16(m.rw(0x1eb3a + (d & 0xfe))) + PROG[0x1ed0a + d0] - 2
-    idx = (m.rl(a1) >> (PROG[0x1ed0a + 0x2c + d0] & 0x3f)) & 0x7fe
+    # the field map 0x1ed0a is the identity (field d0 of the pair): read the terrain index,
+    # as the remake does. Same value the video RAM image 0x1eb3a gives (validated by replays).
     # code table *0x40065a = descriptor +0x26, bases 0x400478 = Terrain.bases (level init)
-    code = m.t.codes[idx >> 1]
+    code = m.t.codes[m.t.index(d, d0)] if d0 < 43 else m.t.codes[0]
     base = m.t.bases[d]
     while True:
         if code & 0xf000:
@@ -910,6 +910,10 @@ def vertex_height_177f8(m, d, col, k):
         if hv == 0: return 0
         return (hv - 0x80 + base) & 0xffff
 
+
+# Converter hook: callable(race, ult_col, column, d) -> first edge diagonal >= d or -1. None
+# reads the edge bitmaps of the program ROM (descriptor +0x2e) as the arcade does.
+EDGES = None
 
 MASK_FULL = 0x6ce0      # mask entry code: height 6 tiles, MO code 0x4e0 (all pen 1)
 
@@ -982,14 +986,20 @@ def occlusion_264aa(m, a2, d3):
                 break
         if done: continue
         # first terrain edge diagonal >= d in this column (bitmap, descriptor +0x2e)
-        bm = rom_l(desc + 0x2e + 4 * c + s16(m.rw(0x40045c))) + (d >> 3)
-        mask = PROG[0x1eaca + (d & 7)] & PROG[bm]; d &= ~7; p = bm
-        if mask == 0:
-            p += 1
-            while PROG[p] == 0: p += 1
-            mask = PROG[p]; d += (p - bm) * 8
-        b = 1
-        while not mask & b: b <<= 1; d += 1
+        if EDGES is None:
+            bm = rom_l(desc + 0x2e + 4 * c + s16(m.rw(0x40045c))) + (d >> 3)
+            mask = PROG[0x1eaca + (d & 7)] & PROG[bm]; d &= ~7; p = bm
+            if mask == 0:
+                p += 1
+                while PROG[p] == 0: p += 1
+                mask = PROG[p]; d += (p - bm) * 8
+            b = 1
+            while not mask & b: b <<= 1; d += 1
+        else:
+            # remake edge lists (converter): same result, no bitmap bytes; none at or past
+            # the last diagonal leaves the column unmasked as in the remake
+            d = EDGES(m.t.race, s16(m.rw(0x40045c)), c, d) if d < m.t.maxd else -1
+            if d < 0: continue
         m.wl(0x400988, (c ^ d) & 1)
         sline = s16((d << 2) - m.rw(0x40097e))
         y0 = s16(vertex_height_177f8(m, d, c, 0) - sline)
