@@ -88,6 +88,8 @@ def load():
     # bank 1, planes 0-4, 32 KB each (two ROMs), ROMREGION_INVERT
     pairs = (("137", "138"), ("139", "140"), ("141", "142"), ("143", "144"), ("145", "146"))
     r.pf_planes = [_inv(_f("136033." + a) + _f("136033." + b)) for a, b in pairs]
+    # bank 2 (motion objects), planes 0-2 at +0x4000 (tiles 2048-4095), plane 3 empty
+    r.mo_planes = [_inv(_f("136033." + n)) for n in ("149", "151", "153")]
     r.prom1 = _f("136033.118")
     r.prom2 = _f("136033.119")
     return r
@@ -127,6 +129,33 @@ def pf_tile(r, code):
     for p, plane in enumerate(r.pf_planes):
         for row in range(8):
             v = plane[code * 8 + row]
+            for c in range(8):
+                if v & (0x80 >> c):
+                    px[row * 8 + c] |= 1 << p
+    return bytes(px)
+
+
+MO_BANK = 2           # graphics bank of the motion objects
+MO_FIRST_TILE = 2048  # first tile of bank 2 in ROM (149/151/153 load at plane offset 0x4000)
+
+
+def mo_lookup(r, code):
+    """Motion object code -> (graphics tile, palette set 0..7), atarisy1_v.cpp decode_gfx:
+    lookup PROM entry 256 + (code >> 8); tile = PROM1 offset << 8 | code low byte; set from
+    PROM2 (negative logic). Only bank 2 at 4 bpp is decoded."""
+    e = 256 + ((code >> 8) & 0xFF)
+    p1, p2 = r.prom1[e], r.prom2[e]
+    if p1 & 0x20 or not p1 & 0x10 or p2 & 0x30:  # PROM1 bank 2 select active low, 4 bpp
+        raise ValueError(f"motion object code {code:04x}: not bank 2, 4 bpp")
+    return (p1 & 0x0F) << 8 | (code & 0xFF), ~p2 & 0x07
+
+
+def mo_tile(r, tile):
+    """Motion object tile (bank 2) -> 64 pens 0..7 (row-major, 0 transparent)."""
+    px = bytearray(64)
+    for p, plane in enumerate(r.mo_planes):
+        for row in range(8):
+            v = plane[(tile - MO_FIRST_TILE) * 8 + row]
             for c in range(8):
                 if v & (0x80 >> c):
                     px[row * 8 + c] |= 1 << p

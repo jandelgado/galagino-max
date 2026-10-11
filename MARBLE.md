@@ -266,6 +266,92 @@ race by 0x1a444 at level init (0x16f6c), read by 0x1caba.
   sy <= 0x58.
   Exact speed hysteresis not trace-verified.
 
+## Remake data
+
+`./convert.sh marble` (romconv/internal/marble/marble_rom_convert.py) appends the physics
+data to `source/src/machines/marble/marble_rom.h` (generated, untracked). Terrain comes from
+`Terrain` in tools/marble_sim.py, so the bytes equal the MAME video RAM image (`marble_sim.py
+terrain`). Flash: 45635 B (terrain 38870, program ROM blocks 3935, marble sprites 2830).
+
+Terrain, `marble_terrain[race]` (`MarbleTerrainInfo`):
+
+- `index`, `pairs`: 10 bit vertex index, 54 bytes per diagonal pair (pair p = d >> 1),
+  fields MSB first, field f at bit 10 * f, f = column (0-21) + 22 on odd diagonals.
+  Field 43 is not stored: index 0.
+- `codes`, `ncodes`: code table (descriptor +0x26, `Terrain.codes`), races 1-5 share one.
+- `records`, `nrecords`: descriptor +0x00 records from offset 0 to the 0xffffffff end;
+  record code c (0x0001-0x07ff), quadrant q: `records[c + q]`.
+- `bases`, `maxd`: base height word per diagonal (`Terrain.bases`), diagonal count.
+- `desc`: 68010 address of the level descriptor (start cells +0x14, camera +0x10/+0x12).
+
+`Terrain.index(d, f)` = `(be16(index + 54 * (d >> 1) + 10 * f / 8) >> (6 - 10 * f % 8)) &
+0x3ff` for f < 43, 0 for f = 43 (a 16 bit read never leaves the pair). Code -> heights:
+`code_heights` (0x1cb64); dynamic codes read work RAM 0x40076e.
+
+| race | diagonals | index | codes | records | bases |
+| --- | --- | --- | --- | --- | --- |
+| practice | 160 | 4320 | 160 (320 B) | 80 | 320 |
+| beginner | 216 | 5832 | 982 shared (1964 B) | 156 | 432 |
+| intermediate | 192 | 5184 | shared | 376 | 384 |
+| aerial | 216 | 5832 | shared | 108 | 432 |
+| silly | 238 | 6426 | shared | 192 | 476 |
+| ultimate | 200 | 5400 | shared | 44 | 400 |
+
+Program ROM, `marble_prog_blocks[MARBLE_PROG_BLOCKS]` (`MarbleProgBlock {addr, len, data}`,
+sorted): every byte below 0x30000 that `marble_sim.py` reads in `tick()` and `start_259b4`
+(recorded over all fixture ticks and the start of all 6 races) plus the whole tables:
+0x24b3a vertex steps, 0x1ed62 drop, 0x23d40 edge push, 0x2398c teeter, 0x1eef8 friction,
+0x1eb16 zone line pointers + lists 0x239b8-0x23c03, 0x1eb2e/0x1eb34 goal velocity,
+0x1ef1a checkpoint pointers + lists 0x1f1d8-0x1fbcf (respawn), 0x1f1ca camera, 0x2be00
+and the 6 descriptors (0x2e bytes), 0x1d370 intermediate dynamic codes. The converter
+fails when the sim reads ROM outside these, and replays starts and fixture on the emitted
+blocks only. Slapstic reads (0x80000+) are terrain records, served by `records`. A port's
+ROM accessor should fail on an address outside the blocks.
+
+Race start (`start_259b4`, validated for all 6 races: `marble_sim.py start TRACE RACE`
+equals the run from the first race snapshot): cell from descriptor `+0x14 + 2 * player`,
+`x/y = cell * 8 + 4`, z from 0x1bab2 + 0x1cc62, physics fields 0, +0x18 = 1, aerial
++0x58 = 0x17. Needs the dynamic terrain codes first (`dyn_init`): intermediate copies 66 words
+from 0x1d370 (0x11ac2, level init 0x105be); practice starts on dynamic vertices, written by
+a level object animation (0x1344c, Phase 4), held at their first frame 0xf040 (placeholder,
+the original animates them).
+
+Marble sprite: `marble_mo_tiles[k][64]` (pens 0-7, 0 transparent) for MO codes 0x03-0x2d,
+tile t of an MO of code c and height h at `marble_mo_code_first[c] + t` (t < h, 0xff = not
+emitted). Lookup PROM entry 256 + (code >> 8): 136033.118 = 0xd8 (bank 2, tile offset 8:
+graphics tile 0x800 | code), 136033.119 = 0x0f (4 bpp, palette set 0). `marble_mo_palette`
+= palette RAM 0x100-0x10f (RGB565 byte-swapped, same in every race; pens 8-15 unused).
+Player MOs in the traces: 0x05 (h 2, left half), 0x03 (h 2, right half, x + 8), 0x07 (h 1,
+5 lines lower), dots 0x0d-0x21 (h 1, hflip used); 0x22-0x2c (h 2) and higher codes appear
+around deaths.
+
+Host test fixture `source/test/test_marble_physics/marble_trace.h` (committed, derived
+numbers only), `tools/make_fixture.py`:
+
+- `marble_trace_segments[MARBLE_TRACE_SEGMENTS]`: race, MAME frame, initial work RAM
+  blocks `{addr, len, bytes}` (everything else 0: object 0x400018 + 0xe2, race words
+  0x400390-0x400395, scratch 0x400660-0x4006a7), ticks `{c6, c7, x, y, z, state}`.
+- Per tick: `tick(c6, c7)` as in marble_sim.py (physics of the current tick, then the new
+  deltas, 0x253bc and input), then x, y, z (16.16) and state +0x1a must match.
+- Segments (no level object slots, dynamic codes and enemy scratch from the initial RAM
+  only; each tick also matched the trace in velocity, +0x1b, +0x36, +0x37, +0x56-+0x58):
+  practice frame 2056 of trace p4 (360 ticks, rolling, leftward, negative velocities),
+  practice frame 1420 of p3 (212 ticks, side bounce, wall, teetering, 31 airborne ticks,
+  ends lost, state 4), beginner frame 1187 of b2 (360 ticks, 7 walls, teetering, 26
+  airborne ticks, ends broken on landing, state 2). Practice has no 300 tick segment with
+  a death: its random runs fall off within 240 ticks of a respawn.
+- The beginner segment needs the stale wall outputs (0x400674-0x400683) of its initial
+  RAM: zeroing them diverges at tick 345.
+
+```sh
+python3 romconv/internal/marble/tools/make_fixture.py search TRACE RACE [MIN]
+python3 romconv/internal/marble/tools/make_fixture.py write \
+  source/test/test_marble_physics/marble_trace.h 0:p4/trace.bin:2056:360 \
+  0:p3/trace.bin:1420:212 1:b2/trace.bin:1187:360
+python3 romconv/internal/marble/tools/marble_sim.py fixture \
+  source/test/test_marble_physics/marble_trace.h   # replay, no trace needed
+```
+
 ## Open questions
 
 - Level object slots: spawn lists and byte code (0x12896), unported slot tags, dynamic

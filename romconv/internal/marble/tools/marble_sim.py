@@ -10,6 +10,9 @@ Validation against MAME traces (tools/mame_trace.lua), exit code 1 on failure:
   marble_sim.py ticks TRACE RACE     each logic tick from a MAME snapshot, ROM terrain
   marble_sim.py run TRACE RACE [MIN] free run from the first snapshot, ROM terrain;
                                      needs one segment of MIN (300) ticks, 0 px error
+  marble_sim.py start TRACE RACE     start_259b4 on a cleared RAM runs like the first snapshot
+  marble_sim.py fixture HEADER       replay the host test fixture (tools/make_fixture.py),
+                                     no trace needed
 Level objects (0x400a9c slots), dynamic terrain codes (0x40076e) and enemies are Phase 4:
 `run` copies those from the trace each tick, divergences at deaths and enemy contacts end a
 segment and are reported, any other divergence fails.
@@ -849,6 +852,43 @@ def tick(m, c6=None, c7=None, a2=P):
         input_17f66(m, a2)
 
 
+DYN = 0x40076e          # dynamic terrain codes 0x0800-0x0fff, word per code
+DYN_PRACTICE = 9        # practice codes 0x800-0x810
+
+
+def dyn_init(m, race):
+    """Dynamic terrain codes at race start. Intermediate: level init 0x105be calls 0x11ac2,
+    66 words from 0x1d370. Practice: a level object animation (0x1344c, Phase 4) writes its
+    9 codes; the first frame is flat (0xf040, all traces). Other races: none used at start."""
+    if race == 2:
+        for k in range(0x42): m.ww(DYN + 2 * k, m.rw(0x1d370 + 2 * k))
+    elif race == 0:
+        for k in range(DYN_PRACTICE): m.ww(DYN + 2 * k, 0xf040)
+
+
+def start_259b4(m, race, a2=P, player=0):
+    """Race start of one player on a cleared work RAM, up to the snapshot point of tick().
+    0x259b4 physics fields only; sprite setup (0x25b40, 0x1b9cc, 0x1c014, 0x1281c, 0x18e6c)
+    and the slot/animation bytes (+0x6a-+0x71, +0xc4, +0xcb, +0xd1, +0xd8) are skipped."""
+    m.ww(0x400394, race)
+    dyn_init(m, race)
+    cell = m.rw(m.t.desc + 0x14 + 2 * player)          # high byte cell x, low byte cell y
+    m.wl(a2 + 0xc, ((cell >> 8) << 19) + 0x40000)
+    m.wl(a2 + 0x10, ((cell & 0xff) << 19) + 0x40000)
+    m.ww(0x400698, 0xffff); m.ww(0x400696, 0xffff)
+    posupd_1bab2(m, a2)
+    m.wl(a2 + 0x14, height_1cc62(m) & 0xffffffff)
+    m.wb(a2 + 0x1b, 0)
+    for o in (0, 4, 8, 0x5a): m.wl(a2 + o, 0)
+    for o in (0x56, 0x57, 0x1a, 0x36, 0x58): m.wb(a2 + o, 0)
+    m.wb(a2 + 0x18, 1)
+    if race == 3:                                       # aerial: starts on surface 0x17/0x18
+        m.wb(a2 + 0x58, 0x18 if player else 0x17); m.wb(a2 + 0x59, 0xff)
+    # first object update before the first 0x121b8: 0x253bc, 0x17f66 (deltas are 0)
+    ground_253bc(m, a2)
+    input_17f66(m, a2)
+
+
 
 # ---------------------------------------------------------------- MAME trace validation
 
@@ -969,12 +1009,92 @@ def cmd_run(trace, race, need=300):
     return bad == 0 and max(segs or [0]) >= need
 
 
+def cmd_start(trace, race):
+    """start_259b4 on a cleared RAM == the first race snapshot, over the first segment."""
+    t = Terrain(race)
+    i = next(k for k, x in enumerate(trace) if live(x[1]))
+    m = Mem(t, bytes(0x2000)); start_259b4(m, race)
+    ref = Mem(t, trace[i][1])
+    n = 0
+    for (fr, r, _), (fr2, r2, _) in zip(trace[i:], trace[i + 1:]):
+        if not live(r): break
+        for mm in (m, ref):
+            oracle(mm, r); mm.events = []
+            tick(mm, tb(r2, P + 0xc6), tb(r2, P + 0xc7))
+        if any(m.sl(P + o) != ref.sl(P + o) for o, _ in FIELDS) or m.rb(P + 0x1a) != ref.rb(P + 0x1a):
+            print("start race %d: differs from the snapshot run at tick %d" % (race, n)); return False
+        if any(e in DEATH for e in ref.events) or not live(r2) \
+                or any(ref.sl(P + o) != tl(r2, P + o) for o in (0xc, 0x10, 0x14)):
+            break
+        n += 1
+    print("start race %d: cell %04x, %d ticks equal to the run from the first snapshot"
+          % (race, m.rw(t.desc + 0x14), n))
+    return n >= 100
+
+
+# ---------------------------------------------------------------- host test fixture replay
+
+def load_fixture(path):
+    """Segments of source/test/test_marble_physics/marble_trace.h (tools/make_fixture.py):
+    [{"race", "frame", "ram": [(addr, bytes)], "ticks": [(c6, c7, x, y, z, state)]}]."""
+    import re
+    text = open(path).read()
+    num = lambda s: [int(v, 0) for v in re.findall(r"-?0x[0-9a-fA-F]+|-?\d+", s)]
+    arrays = {name: body for name, body in
+              re.findall(r"static const \w+ (\w+)\[\] = \{(.*?)\n?\};", text, re.S)}
+    segs = []
+    for body in re.findall(r"\{ *(\d+), *(\w+), *(\d+), *(\w+), *(\d+), *(\w+) *\}",
+                           arrays["marble_trace_segments"]):
+        race, frame, nram, ramname, nticks, tickname = body
+        ram = []
+        for addr, length, data in re.findall(r"\{ *(0x[0-9a-f]+), *(\d+), *(\w+) *\}",
+                                             arrays[ramname]):
+            b = bytes(num(arrays[data]))
+            assert len(b) == int(length)
+            ram.append((int(addr, 0), b))
+        v = num(arrays[tickname])
+        ticks = [tuple(v[k:k + 6]) for k in range(0, len(v), 6)]
+        assert len(ram) == int(nram) and len(ticks) == int(nticks)
+        segs.append({"race": int(race), "frame": int(frame), "ram": ram, "ticks": ticks})
+    return segs
+
+
+def fixture_mem(seg, terrain, mem=Mem):
+    """Work RAM of a fixture segment: zero except the listed initial blocks."""
+    ram = bytearray(0x2000)
+    for addr, b in seg["ram"]:
+        ram[addr - 0x400000:addr - 0x400000 + len(b)] = b
+    return mem(terrain, ram)
+
+
+def replay_fixture(seg, m):
+    """Run every fixture tick on m; index of the first tick that differs, or None."""
+    for k, (c6, c7, x, y, z, state) in enumerate(seg["ticks"]):
+        tick(m, c6 & 0xff, c7 & 0xff)
+        if (m.sl(P + 0xc), m.sl(P + 0x10), m.sl(P + 0x14), m.rb(P + 0x1a)) != (x, y, z, state):
+            return k
+    return None
+
+
+def cmd_fixture(path):
+    ok = True
+    for seg in load_fixture(path):
+        bad = replay_fixture(seg, fixture_mem(seg, Terrain(seg["race"])))
+        print("fixture race %d frame %d: %d ticks, %s" % (seg["race"], seg["frame"],
+              len(seg["ticks"]), "exact" if bad is None else "differs at tick %d" % bad))
+        ok &= bad is None
+    return ok
+
+
 def main(argv):
-    if len(argv) < 4 or argv[1] not in ("terrain", "ticks", "run"):
+    if len(argv) == 3 and argv[1] == "fixture":
+        return 0 if cmd_fixture(argv[2]) else 1
+    if len(argv) < 4 or argv[1] not in ("terrain", "ticks", "run", "start"):
         print(__doc__); return 2
     trace = load_trace(argv[2]); race = int(argv[3])
     if argv[1] == "terrain": ok = cmd_terrain(trace, race)
     elif argv[1] == "ticks": ok = cmd_ticks(trace, race)
+    elif argv[1] == "start": ok = cmd_start(trace, race)
     else: ok = cmd_run(trace, race, int(argv[4]) if len(argv) > 4 else 300)
     return 0 if ok else 1
 
