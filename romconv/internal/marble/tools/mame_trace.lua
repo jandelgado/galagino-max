@@ -16,6 +16,9 @@
 --   "TICK", frame (u32 BE), work RAM 0x400000-0x401fff, video RAM 0xa00000-0xa02fff
 --   (playfield RAM + motion object RAM, both hold terrain cells, see MARBLE.md).
 -- Exits after $MARBLE_FRAMES frames.
+-- $MARBLE_TICK=start: snapshot at the main loop top instead (write of 0x4003f0 from PC
+-- 0x11804, before 0x1101e), one per logic tick in every player state, from the start
+-- button frame on. Same record format.
 -- Level objects (MARBLE.md "Level objects"): work RAM holds the slots 0x400a9c, dynamic
 -- terrain codes 0x40076e and the occlusion mask entries (object +0x38); video RAM holds the
 -- motion object banks 0xa02000 (0) and 0xa02200 (1, the game builds into one while the
@@ -24,6 +27,7 @@
 -- y (0x400038) returns 0 for `frames` frames (camera scrolls down the race at full speed,
 -- level objects spawn), then the real value. Readers other than the camera see it too
 -- (projection history +0x22, occlusion masks): use for slot traces only.
+-- $MARBLE_CAMERA_SY: value the tap returns (default 0; 240 scrolls the silly race up).
 -- $MARBLE_SHOTS "from:to:step": PNG snapshot (-snapshot_directory) at those frames, file
 -- n = n-th listed frame; shots.txt maps them, shots.bin holds a trace record of each
 -- (frame end, the state the PNG shows).
@@ -46,8 +50,11 @@ local shot_from, shot_to, shot_step = (os.getenv("MARBLE_SHOTS") or "0:-1:1"):ma
 shot_from, shot_to, shot_step = tonumber(shot_from), tonumber(shot_to), tonumber(shot_step)
 local cam_from, cam_frames = (os.getenv("MARBLE_CAMERA") or "0:0"):match("(%d+):(%d+)")
 cam_from, cam_frames = tonumber(cam_from), tonumber(cam_frames)
+local cam_sy = tonumber(os.getenv("MARBLE_CAMERA_SY") or "0")
+local tick_start = os.getenv("MARBLE_TICK") == "start"
 
 local RACE = 0x400394
+local LOOP_ADDR, LOOP_PC = 0x4003f0, 0x11804   -- addq.b #1,0x4003f0 at the main loop top
 local TICK_ADDR = 0x400684
 local PLAYER_X = 0x400024
 local COIN_FRAME, START_FRAME = 300, 400
@@ -98,18 +105,28 @@ BALL_TAP = mem:install_read_tap(0xf20000, 0xf20003, "ball", function(offset, dat
   return (data & 0xff00) | v
 end)
 CAM_TAP = mem:install_read_tap(0x400038, 0x400039, "sy", function(offset, data, mask)
-  if cam_from > 0 and f >= cam_from and f < cam_from + cam_frames then return 0 end
+  if cam_from > 0 and f >= cam_from and f < cam_from + cam_frames then return cam_sy end
   return data
 end)
 local last_tick = -1
-TICK_TAP = mem:install_write_tap(TICK_ADDR, TICK_ADDR + 1, "tick", function(offset, data, mask)
-  -- player slot 0x400018 is updated first; later objects with the same x word are skipped
-  if data ~= mem:read_u16(PLAYER_X) or last_tick == f then return end
-  last_tick = f
+local function snapshot()
   out:write("TICK", string.pack(">I4", f))
   dump(0x400000, 0x2000)
   dump(0xa00000, 0x3000)
-end)
+end
+if tick_start then
+  local cpu = manager.machine.devices[":maincpu"]
+  TICK_TAP = mem:install_write_tap(LOOP_ADDR, LOOP_ADDR + 1, "tick", function(offset, data, mask)
+    if f >= START_FRAME and cpu.state["CURPC"].value == LOOP_PC then snapshot() end
+  end)
+else
+  TICK_TAP = mem:install_write_tap(TICK_ADDR, TICK_ADDR + 1, "tick", function(offset, data, mask)
+    -- player slot 0x400018 is updated first; later objects with the same x word are skipped
+    if data ~= mem:read_u16(PLAYER_X) or last_tick == f then return end
+    last_tick = f
+    snapshot()
+  end)
+end
 
 SUB = emu.add_machine_frame_notifier(function()
   f = f + 1

@@ -94,6 +94,12 @@ bottom rows), so pf_check cannot identify them.
   +0x1a (jump table 0x254ba). State 0 (rolling) 0x256d2: 0x253bc (save last ground),
   0x17f66 (input, 0x26196 speed cap), 0x121b8 (physics). State 1 (dizzy) 0x2574c: same
   plus animation 0x25fc2 and a countdown after 0x121b8.
+- Main loop body 0x11804-0x118ce: 0x4003f0 + 1, 0x1101e (race: 0x10fce = 0x13ee6 (0x1344c,
+  camera, 0x144e4), players 0x251de, 0x189e2, enemies 0x158cc, 0x1493c, 0x4003f0 + 1,
+  0x17230, 0x1912c, 0x19baa, 0x1844a, slots 0x12fd0, 0x4003f0 + 1, HUD 0x28624), countdowns
+  0x400768/0x4003b8, rng(0x100) 0x118a4 (result unused), MO list 0x26f3e, two vblank waits
+  0x28dea (0x4003f0 + 1 each; the first is skipped after a lag frame). Traces: 0x4003f0 + 5
+  and 0x400010 + 1 per tick.
 - 0x1ac18 stores only the latest frame's counter delta (+0xc6/+0xc7), so the tick sees
   every second frame's trackball motion.
 - Trackball hardware (MAME trakball_r): port 0xf20000 = x + y, 0xf20002 = x - y of the
@@ -119,17 +125,23 @@ Player object 0x400018 (player 2 0x4000fa, stride 0xe2). 16.16 fixed point, pixe
 | +0x00/04/08 | long | vx, vy, vz (per tick) |
 | +0x0c/10/14 | long | x, y, z. z high word = height, ground near 0x4000 |
 | +0x18 | byte | slot in use (1), 2/3 = out of play |
-| +0x1a | byte | state: 0 roll, 1 dizzy after landing, 2 broken, 4 lost (respawn), 6 goal |
+| +0x1a | byte | state: 0 roll, 1 dizzy after landing, 2 broken, 4 lost (respawn), 6 goal; enemies: 5 eaten, 7 hidden, 9 dissolving, 0xb carried; 3 catapult, 8 time out, 0xa gate |
 | +0x1b, +0x1d | byte | zone (checkpoint area), zone at last ground |
 | +0x1e/+0x20 | word | screen x, screen y (0x1b9cc), +0x22..+0x29 two older pairs |
 | +0x2a | long | z at last ground (fall height) |
 | +0x32/+0x34 | word | last ground cell (x >> 19, y >> 19) |
 | +0x36 | byte | 0 on ground, 1 teetering at an edge, 2 airborne |
 | +0x37 | byte | edge direction mask while teetering |
-| +0x56/+0x57 | byte | dizzy counter, accumulated fall damage |
+| +0x56/+0x57 | byte | dizzy counter, accumulated fall damage (states 4/0xb: sparkle ticks) |
 | +0x58/+0x59 | byte | surface code set by level object slots (0x29cce), timer |
-| +0xa4 | 4 x 6 | marble surface dots for the sprite (0x1c014) |
+| +0x5a, +0x5f, +0x60 | long, byte, byte | animation list pointer (frame header longs), tick counter, ticks per frame |
+| +0x62, +0x66, +0x67 | long, byte, byte | shatter overlay list pointer, counter, on |
+| +0x6a-+0x6f | 3 words | race time: seconds, tenths, frames (vblank IRQ) |
+| +0x74/+0x84/+0x94 | 8 words each | surface dot points x, y, z (0x4000 = 1, 0x1c014) |
+| +0xa4 | 4 x 6 | marble surface dots for the sprite (0x1c014), state 4 sparkle stars 0-3 |
+| +0xbc | long | score; +0xc4 word: distance score sum (0x26214) |
 | +0xc6/+0xc7 | byte | trackball delta port 2 / port 0 (0x1ac18) |
+| +0xca, +0xd2 | byte, word | dot point renormalised next (0-7), death count |
 
 Tick (0x121b8, ported 1:1 in tools/marble_sim.py `physics_121b8`):
 
@@ -197,6 +209,77 @@ MARBLE_OUT=$PWD MARBLE_LEVEL=0 MARBLE_FRAMES=3000 MARBLE_INPUT_FRAME=1000 \
 python3 romconv/internal/marble/tools/marble_sim.py run trace.bin 0   # also: ticks, terrain
 ```
 
+### Player states, deaths, RNG
+
+Ported in `marble_sim.py` with `Mem.deaths` (`main_tick`, `object_253ec`; Marble Love
+refresh-frame-10fce.ts, object-state-entry-25bae.ts, helper-25fc2.ts, object-init-2591a.ts,
+object-orbit-emit-13ade.ts, sprite-rotate-1c014.ts). Handlers of 0x253ec (table 0x254ba):
+
+- 0 roll (0x256d2): +0xcb set (time out event 0x1bbaa) and on ground: state 8 (not ported);
+  else 0x253bc, 0x17f66, 0x121b8.
+- 1 dizzy (0x2574c): 0x25fc2, 0x253bc, 0x17f66, 0x121b8, countdown (step 12 above); at 0
+  state 0, +0x5a = 0, dots 0x1c014.
+- 2 shatter (0x25824): 0x25fc2, projection 0x1b9cc (cell refetch), masks 0x1281c if +0x1c.
+- 4 lost (0x255c6): projection, sparkle 0x13ade; at its end (or +0x57 < 2) 0x17cb8 (radius
+  0x70) checks the spot again: taken: 0x25bae(4) (new spot), else v = 0, state 0.
+
+Entries and steps:
+
+- Landing 0x25c74 (player): state 1, +0x57 += fall (max 0x7f). Break when +0x56 + (+0x57 -
+  +0x56) / 2 > 0x1f: on screen (-0x10 < sy < 0xf0) 0x25bae(2), else +0x57 = 0x64,
+  0x25bae(4). No break and not dizzy before: +0x5a = 0x20faa, +0x60 = 2.
+- 0x121b8 embedded (+0x57 = 0x65) and fall beyond 128 px (+0x57 = 0x64): 0x25bae(4), exit.
+- 0x25bae(code): vx = vy = 0. 2: +0x5a = 0x20fde, +0x60 = 2, +0x56 = 2. 9: 0x21062, +0x60 =
+  4. 4: respawn 0x2591a at once (the sparkle shows the new spot), +0x5a = 0, +0xd2 + 1.
+- 0x25fc2: next frame every +0x60 ticks (counter +0x5f). Shatter frame 9 starts the overlay
+  +0x62 = 0x215f6 (+0x67), stepped every tick after. List end (0xffffffff): states 1/5 loop
+  0x20fb6 (+0x56 > 6) or 0x20fd2; state 2 (+0x56 = 2): +0x67 = 0, +0xa4 = 0, +0x57 = 0x65,
+  0x25bae(4) (+0x56 0/1: dizzy end list, shatter again; not used by players); others: lost.
+- Respawn 0x2591a: point 0x262b2, x/y, z = terrain, zone, v, +0x36, +0x56, +0x58,
+  +0x22-+0x29 cleared, dot pose 0x25b40 (0x1d3f4/0x1d3fc), projection, zone hook 0x13966
+  (silly, aerial only). 0x262b2/0x2637a as in section Terrain; every candidate first runs
+  0x17cb8 (radius 0x180) and is skipped when taken.
+- 0x17cb8 (0x17cb8-0x17f64): players (not itself), steelies 0x4009a4, slinkies 0x401302 with
+  +0x18 set, both pixel deltas below 32 and octant distance (deltas * 16) below the radius:
+  returns 1/2/4, index to 0x40046a.
+- Sparkle 0x13ade: +0x57 0x64 -> 48 ticks, 0x65 -> 24, 0x66 (bird) -> 36. 8 stars (MO code
+  0x10b + k, height 1, no mask bit) on a circle of radius +0x57 / 2 at +0x1e/+0x20, angle +10
+  of 0x192 per tick (sine 0x1eda2, offsets 0x1ef32); visible ones (-8 < x < 0x120, -8 < y <
+  0xf0) to +0xa4 (first 4), then +0x38; +0x1c = 1.
+- Dots 0x1c014 (players in the 0x121b8 tail unless state 1/5, dizzy end): 8 points turned by
+  (vx, vy) >> 4, one of points 0/1 renormalised per tick in turn (+0xca), points 2-7 mirror
+  them; sorted by screen x, pairs give 4 dot MOs at +0xa4 (code 0x24ade, y bias 0x24b2c).
+- Distance score 0x26214 (in the speed cap 0x261bc, players): +0xc4 += friction table
+  0x1eef8 at the speed >> 9; above 0xa0: - 0xa0, +0xbc += 10.
+- Timing (traces): dizzy 44-48 ticks; shatter 64 ticks (32 frames) + sparkle 24 = control
+  88 ticks after the landing; fall: sparkle 48 ticks after the fell tick.
+- Player MOs (0x26f3e type 1, `marble_mo.type1`, equal to MO RAM in all death ticks):
+  states 1/2/5/9 draw frame rl(+0x5a) (set +0x19) instead of halves, dots and shade; +0x67
+  adds rl(+0x62) set 2; state 4 draws the stars (+0xa4, +0x38); masks +0x38 last. Frame
+  headers: dizzy 0x20faa (0x21386, 0x21392), 0x20fb6 (0x2139e-0x213da, 6), 0x20fd2
+  (0x213e6, 0x213f2); shatter 0x20fde (0x213fe-0x2146a, 10, then 0x2137a); overlay 0x215f6
+  entries 0-43 (0x214ca-0x2157e, 16, and 0x2137a); dissolve 0x21062 (0x21476-0x214be, 7).
+
+RNG 0x13a98 (word 0x4003a6): rng(0x100) per tick at 0x118a4 after 0x10fce; race start
+0x10fb8 rng(0x100) -> 0x400444 (time out event: below 0x24a94[race], 0x1bbaa; level init
+also sets 0x40076c = 1); other consumers: section Enemies.
+
+Validation: `deaths` runs free between teleports of tick start traces (`MARBLE_TICK=start`);
+per tick the player object (but the IRQ bytes +0x6a-+0x6f, +0xc6-+0xc9), 0x4003a6, slots,
+dynamic codes and player MOs equal MAME. pd1 (practice, `MARBLE_PLACE`
+800:140:140:22,1000:140:140:70,1500:164:308:-21, input from 1100
+350:1:0,150:0:-4,800:0:1): 34, 98 (dizzy), 248 (shatter, sparkle 24), 448 ticks (fall,
+sparkle 48). bd2 (beginner, 800:700:812:-256:11,1400:676:780:-186:11,1900:628:772:-256:11,
+2500:676:780:-232:11, input from 1550 300:1:0,150:0:4,450:1:-1,800:1:0): 48, 248 (shatter),
+298 (fall off row 94), 349 ticks (dizzy). Not covered: practice landing markers (type 0x2a,
+0x12532), 2 player respawn (0x2523e), states 3, 5, 7-0xb.
+
+```sh
+MARBLE_TICK=start ... mame_trace.lua            # one snapshot per main loop tick
+python3 romconv/internal/marble/tools/marble_sim.py deaths pd1/trace.bin 0 \
+  0:798 800:998 1000:1498 1500:2400             # FROM:TO segments between teleports
+```
+
 ## Terrain
 
 Height field on an iso vertex grid, independent of the playfield graphics. Built once per
@@ -260,7 +343,8 @@ race by 0x1a444 at level init (0x16f6c), read by 0x1caba.
   checkpoint is found the remake uses the race start cell (the original would use pixel
   (0, 0), outside the terrain). Timing placeholder until Phase 3: 60 frames after state
   2 or 4 (marble hidden, not moved) the marble respawns in state 0, damage +0x57 0
-  (MAME traces: 98 frames between death and control).
+  (MAME traces: 98 frames between death and control). The arcade sequence with 0x17cb8:
+  section Player states, deaths, RNG.
 - Zone lines 0x1eb16[race]: 6 bytes (x, y, end, zone a, zone b, 0); x < 0: line y = |y|
   from x = |x| to end, else line x from y = |y| to end; leaving a line cell sets the zone
   of the side (0x1365c). Zone 0xff = goal.
@@ -906,16 +990,124 @@ python3 romconv/internal/marble/tools/marble_mo.py spritefixture \
   source/test/test_marble_sprites/marble_sprites_trace.h   # replay, no trace needed
 ```
 
+### Phase 4b-0 data (deaths)
+
+Death fixture `source/test/test_marble_deaths/marble_deaths_trace.h` (committed, derived
+numbers only), `make_fixture.py dwrite`: segments of the tick start traces pd1/bd2 (section
+Player states, deaths, RNG), initial work RAM blocks (player, race words, 0x400444, slot
+globals, scratch, 25 slots, dynamic codes, the +0x18 bytes of steelies and slinkies 0x17cb8
+reads, vertex cache), per tick `MarbleDeathTick {c6, c7, camera, frames, x, y, z, state,
+vis, sx, sy, anim, frame_hdr, shard_hdr, mask[30], rng, n, first}` and the player MO words
+`MarbleDeathMo {w0, code, w2}[]`. Inputs: trackball deltas of the tick, camera long after
+the camera step, 0x400010 at the tick start. `main_tick` reproduces every value from these
+alone (`dfixture`) and equals MAME in each tick.
+
+| segment | ticks | events |
+| --- | --- | --- |
+| practice pd1 802 | 60 | fall 22 px, dizzy 44 (frames 0x20faa, 0x20fb6, 0x20fd2) |
+| practice pd1 1002 | 168 | fall 70 px, shatter 64 (11 frames, overlay 17), sparkle 24, respawn (10, 22), 60 rolling |
+| beginner bd2 1971 | 148 | off the edge, fell, sparkle 48, respawn (78, 95), 60 rolling, 36 mask ticks |
+| beginner bd2 2501 | 80 | fall 24 px, dizzy 48 |
+
+```sh
+python3 romconv/internal/marble/tools/make_fixture.py dwrite \
+  source/test/test_marble_deaths/marble_deaths_trace.h 0:pd1/trace.bin:802:60 \
+  0:pd1/trace.bin:1002:168 1:bd2/trace.bin:1971:148 1:bd2/trace.bin:2501:80
+python3 romconv/internal/marble/tools/marble_sim.py dfixture \
+  source/test/test_marble_deaths/marble_deaths_trace.h   # replay, no trace needed
+```
+
+## Enemies
+
+Research: docs/superpowers/specs/2026-10-11-marble-enemies-research.md (steelie model) and
+2026-10-11-marble-enemies-research-b.md (interaction, RNG, plan basis). Model:
+`tools/marble_enemy.py` (steelie update and 0x1bc88, Marble Love ports by address).
+
+| array | count x size | draw type, ptr table | races (max live) |
+| --- | --- | --- | --- |
+| 0x4009a4 steelie (black marble) | 2 x 0x7c | 2, 0x1effe | beginner 2, aerial 1, ultimate 1 |
+| 0x401302 slinky (green worm) | 4 x 0x60 | 4, 0x1f006 | beginner 3, intermediate 2, ultimate 4 |
+| 0x401482 acid (green puddle) | 7 x 0x42 | 0x0e, 0x1f07a | intermediate 7, ultimate 4 |
+| 0x401650 pistons (rising posts) | 36 x 0x10 | 0x29 | aerial (16 seen) |
+| 0x401890 minis (small steelie/slinky/acid) | 9 x 0x28 | 7, 8, 9, 0x1f096 | silly (bonus, no death) |
+| 0x4019f8 birds | 10 x 0x38 | 0x0f, 0x1f0ba | silly |
+
+Spawning: 0x144e4 calls 0x15a12 (steelies), 0x14c46 (slinkies), 0x17346 (acid) before the slot
+spawner 0x12dfa, band = (camera - descriptor +0x10) >> 4. Tables 0x22706, 0x2257a, 0x23d4a
+[race]: 8 byte entries (lo, hi, long data, kind byte -> +0x1b, pad; 0xff end), same spawn/remove
+rule as slots, free slot = highest free index, no spawn while a live slot has the same data
+pointer. Steelie entry 0x2276e (beginner start) has hi - 16. Acid long 0 = random: kind 5 one
+path from 0x23d62/0x23d66, else six from 0x23d6a/0x23d82 (rng(2)). Silly: band enters/leaves
+0x1d-0x38: minis spawn (0x18ffa, rng positions) / clear (0x190ee); band in 3-0x1b sets
+0x400762, birds spawn every 8 frames (0x19a40, points 0x244f6). Aerial: a player in zone 4/5
+(0x13a16 -> 0x186ac) fills the 36 pistons and sets 0x400760.
+
+Tick order (0x10fce): spawns in 0x13ee6 -> players 0x251de (0x121b8 runs 0x1bc88 after 0x29cce,
+then player only: 0x14e92 slinky, 0x175c8 acid, 0x1881c pistons, 0x1924e minis, 0x19d94 birds,
+0x1365c zones) -> 0x158cc steelies -> 0x1493c slinkies -> 0x17230 acid -> 0x1912c minis ->
+0x19baa birds -> 0x1844a pistons -> 0x12fd0 slots. The main loop calls rng(0x100) (0x118a4)
+once per tick before 0x26f3e (traces: one call per tick plus spawn/enemy calls); modelled in
+`marble_sim.main_tick`. RNG consumers in a race: acid 0x173b0 rng(2), aerial random slot
+groups 0x12e54 rng(4), pistons 0x1871e rng(4), launch 0x188ce/0x188f4 rng(2), sounds
+0x1858a/0x185ea/0x1864e rng(2), minis 0x19054/0x1906e rng(0x20), 0x1960e rng(5)/rng(2) per
+mini, birds 0x19c94/0x19cb6 rng(2), tubes 0x29ec8/0x29ee4/0x2a792/0x2a8c0, palette 0x26d20.
+A fixture equal to MAME needs every consumer the race reaches. Bird spawns read 0x400010 & 7
+(fixture input). 0x17cb8 (respawn spot check) also scans steelies and slinkies.
+
+Steelie (layout = player object +0x00-+0x5f, then +0x62/+0x67 extra frame, +0x68 speed long,
++0x6c anger word (0xffff at spawn, 0x96 at the first hit, counts down), +0x6e node, +0x72 node
+list, +0x76/+0x78 band, +0x7a target index into 0x1eff6). Per tick 0x158f6: anger and stun
+timers, then (+0x18 == 2) shatter animation, else 0x253bc, AI 0x182ba, player physics 0x121b8
+(no gravity, no zones; slots 0x29cce, masks 0x264aa kind 1 at +0x38). Nodes 6 bytes (cell x, y,
+4 signed links into +0x72). States: 0x20 patrol (link 0), 0x21 chase the player (same zone,
+octant distance < 0x280, angry or zone 7/9, on ground), 0x22 hunt (angry: link nearest the
+player, 0x15c46), 0x23 return to the nearest node (0x15d10), 0x24 stunned after a landing.
+Speed +0x68 0xc0000 / 0x80000 / 0x70000 (0x10000 near the target); v += ((k * dir >> 4) - v)
+>> 5, then speed cap 0x26196. Model equals MAME byte for byte (5 traces, 3104 steelie ticks,
+states 0x20-0x23, 3 collisions).
+
+0x1bc88 (pair list 0x24ac6 = P1, P2, steelies; races 1/3/5 all four, else players):
+|dx|, |dy| <= 7, |dz| <= 14, octant < 0x70, partner not in state 2/4/0xb: mover back to the
+old position, velocities swapped, each pushed by s8 0x24ad6[|v high word|] << 12 (x4 marble vs
+steelie); steelie: anger, +0x56 += 0x14, state 0x23. Mover airborne and not below: partner
+breaks (player 0x25bae(2), steelie shatters). Non-player landing 0x25c74: state 0x24, +0x56 +=
+fall, shatter above 0x50 or fall > 0x1f; fall > 128 px / embedded: 0x15bd0 (slot freed).
+
+Player deaths by enemies: slinky 0x14e92 -> state 5 (carried, anim 0x20faa/0x20fb6) -> 7
+(hidden) -> 4; acid 0x175c8 -> 9 (anim 0x21062) -> 4; bird 0x19d94 -> 0xb (+0x57 0x66, orbit
+0x13ade) -> 4; steelie from above -> 2 (anim 0x20fde). State 4 entry (0x25bae) places the
+respawn (0x2591a).
+
+Drawing (0x26f3e, frames 0x1a8d2): type 2 at +0x1e, visible by +0x1c, frame 0x21f36 set 5,
+masks +0x38; type 4 at +0x28, -0x20 < d4 < 0x100, rl(rl(+0x58)) set 4, masks +0x2c; 0x0e at
++0x28, -0x30 < d4 < 0x120, rl(rl(+0x3a)) set 6; 7/8/9 at +0x20, -0x10 < d4 < 0x100,
+rl(rl(+0x1c)) sets 5/6/4; 0x0f same, set 7, masks +0x26 (3); 0x29 at +0xc, -0x40 < d4 < 0x100,
+rl(rl(+8)) set 4 (d4 = sy + 0x10). `marble_mo.py mo_list_26f3e` equals MAME for enemies except
+an acid spawn tick, a slinky eating, bird mask x words. Arcade cap 60 MOs per frame.
+
+Data (per race: slots + enemies): tiles 21, 333, 761, 545, 87, 255 (LZMA 15.9 KB total);
+player death frames 170 tiles; frame headers 179, columns 383.
+
+```sh
+python3 romconv/internal/marble/tools/marble_enemy.py steelie TRACE RACE
+python3 romconv/internal/marble/tools/marble_enemy.py spawn TRACE RACE
+# camera driven silly race: MARBLE_CAMERA=800:1700 MARBLE_CAMERA_SY=240 (mame_trace.lua)
+```
+
 ## Open questions
 
 - Level objects: unported tags (0x0a-0x0d, tubes 0x12-0x16, 0x20-0x27), zone triggered
-  slots (state 4, 0x13966/0x13a1c, aerial), enemy spawners in 0x144e4 (0x15a12, 0x14c46,
-  0x17346), playfield patch decode of tag 0x19 rows. Section Level objects. Slot sprites:
-  section Level object sprites (masks over slot MOs behind the marble not seen in traces).
-- Enemy collision 0x1bc88 and enemy updates of the shared scratch words. Phase 4.
-- Death/respawn timing and animation (states 2/4, 0x13ade, 0x25fc2, respawn sparkle
-  0x13d38 writes +0x38 too), sprite dots 0x1c014, player MOs of 0x26f3e in states 1/2/5/9
-  (frame +0x5a; order and slot MOs: section Level object sprites). Remake placeholder: 60 frames.
+  slots (state 4, 0x13966/0x13a1c, aerial), playfield patch decode of tag 0x19 rows. Section
+  Level objects. Slot sprites: section Level object sprites (masks over slot MOs behind the
+  marble not seen in traces).
+- Enemies (section Enemies): slinky states 1/5/6 (0x14a28-0x14bba, not in Marble Love), two
+  player target choice 0x15fe6, no trace of steelie landing/shatter or acid/bird/piston hits.
+- Deaths (section Player states, deaths, RNG): states 1/2/4 modelled, the remake keeps its
+  60 frame placeholder until the C++ port. Not modelled: states 3 (catapult), 5/7/9/0xb
+  (enemies), 8 (time out, 0x258a8), 0xa (gate, 0x13d38 writes +0x38), practice landing
+  markers (type 0x2a, 0x12532, score 0x285b0), aerial piston hook 0x186ac in 0x13966, the
+  race timer and other vblank IRQ work, two players. Sparkle star tiles (MO codes
+  0x10b-0x112) are not in the remake sprite data.
 - Goal (state 6), Phase 3: the remake keeps calling `marble_physics::tick` (physics runs,
   input off: 0x253bc/0x17f66 only in states 0/1), the camera ignores the marble (sy only
   from states 0/1/3/4/5), and a later landing (0x25c74) sets state 1, so the marble becomes

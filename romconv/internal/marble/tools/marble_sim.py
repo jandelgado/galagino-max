@@ -18,6 +18,10 @@ Validation against MAME traces (tools/mame_trace.lua), exit code 1 on failure:
   marble_sim.py occl TRACE RACE     projection 0x1b9cc + occlusion masks 0x264aa per tick
   marble_sim.py slots TRACE RACE [MIN]  level object slots + dynamic terrain codes run free
                                      (never copied from the trace), marble physics on them
+  marble_sim.py deaths TRACE RACE [FROM:TO ...]  tick start traces (MARBLE_TICK=start): the
+                                     main loop tick with deaths (states 1, 2, 4, respawn) runs
+                                     free per segment, player, RNG, slots, player MOs == MAME
+  marble_sim.py dfixture HEADER     replay the death host test fixture (make_fixture.py dwrite)
 `run` copies slots, dynamic codes and enemy scratch from the trace each tick; `slots` only
 the camera and enemy scratch. Divergences at deaths and enemy contacts end a segment and
 are reported, any other divergence fails. Enemies are not ported.
@@ -307,6 +311,9 @@ class Mem:
         self.objects = False    # run the level object slots in tick()
         self.sprites = False    # projection 0x1b9cc and occlusion masks 0x264aa in tick()
         self.drawlist = None    # MO draw list hooks (marble_mo.DrawList): 0x18e6c / 0x18f46
+        self.pair = None        # 0x1bc88 object pair collision and non-player landing hooks
+        self.land = None        # (marble_enemy.Enemies), None: not ported
+        self.deaths = False     # arcade death paths (0x25bae, 0x25c74) and dots 0x1c014
     def _loc(self, a):
         a &= 0xffffff
         if a < 0x30000: return PROG, a, False
@@ -648,7 +655,10 @@ def physics_121b8(m, a2):
     m.ww(0x400698, 0xffff); m.ww(0x400696, 0xffff)
     posupd_1bab2(m, a2)
     if s32(height_1cc62(m) - m.sl(a2 + 0x14)) > 0x100000:
-        m.events.append("embedded"); m.wb(a2 + 0x57, 0x65); m.wb(a2 + 0x1a, 4); return
+        m.events.append("embedded"); m.wb(a2 + 0x57, 0x65)
+        if m.deaths: sound_15884(m); m.sounds.append(0x46); enter_25bae(m, a2, 4)
+        else: m.wb(a2 + 0x1a, 4)
+        return
     for o in (0, 4, 8):
         m.wl(a2 + 0xc + o, (m.sl(a2 + 0xc + o) + m.sl(a2 + o)) & 0xffffffff)
     posupd_1bab2(m, a2)
@@ -668,7 +678,8 @@ def physics_121b8(m, a2):
     m.wb(0x400668, 0); m.wb(0x400666, 0)
     slots_29cce(m, a2)
     if m.rb(a2 + 0x58) == 0xa or m.rb(a2 + 0x1a) == 4: return
-    # 0x1bc88 object pair collision, 0x14e92/0x175c8/0x1881c/0x1924e/0x19d94: enemies, not ported
+    if m.pair and m.pair(m, a2): posupd_1bab2(m, a2)  # 0x1bc88 object pair collision
+    # 0x14e92/0x175c8/0x1881c/0x1924e/0x19d94: enemy contacts of the player, not ported
     if pl:
         zones_1365c(m, a2)
         if m.rb(a2 + 0x1a) == 0xb: return
@@ -684,14 +695,17 @@ def physics_121b8(m, a2):
             fall = (abs(s32(m.sl(a2 + 0x2a) - h)) >> 15)
             m.wl(a2 + 0x14, h & 0xffffffff)
             m.events.append(("land", s16(fall)))
-            land_25c74(m, a2, s16(fall))
+            (land_25c74 if pl or not m.land else m.land)(m, a2, s16(fall))
         elif s32(m.sl(a2 + 0x2a) - m.sl(a2 + 0x14)) > 0x800000:
-            m.events.append("fell"); m.wb(a2 + 0x57, 0x64); m.wb(a2 + 0x1a, 4); return
+            m.events.append("fell"); m.wb(a2 + 0x57, 0x64)
+            if m.deaths: sound_15884(m); m.sounds.append(0x46); enter_25bae(m, a2, 4)
+            else: m.wb(a2 + 0x1a, 4)
+            return
     elif m.rb(a2 + 0x36) == 0:
         m.wl(a2 + 0x14, h & 0xffffffff)
     if m.sprites:                                    # no effect on the motion
         proj_1b9cc(m, a2)
-        # 0x1c014 surface dots (players, not in state 1/5): sprite only, not ported
+        if m.deaths and pl and m.rb(a2 + 0x1a) not in (1, 5): dots_1c014(m, a2)
         enter_1281c(m, a2)
     edgepush_1706c(m, a2)
     if m.rb(a2 + 0x36): return
@@ -707,10 +721,24 @@ def speedcap_26196(m, a2):
     if d1 > d4: d3 = ((d4 >> 3) & 0xffff) * 3 + d1
     else: d3 = ((d1 >> 3) & 0xffff) * 3 + d4
     d3 &= 0xffffffff
+    if m.deaths and is_player(a2): distance_score(m, a2, d3)
     if cap < d3:
         q = ((cap << 6) // ((d3 >> 8) & 0xffff)) & 0xffff
         m.wl(a2, (s32(s16(m.sl(a2) >> 8) * s16(q)) >> 6) & 0xffffffff)
         m.wl(a2 + 4, (s32(s16(m.sl(a2 + 4) >> 8) * s16(q)) >> 6) & 0xffffffff)
+
+def distance_score(m, a2, n):
+    """0x26214: +0xc4 sums the friction table 0x1eef8 at speed n (>> 9); every 0xa0 scores
+    10 (0x28608: +0xbc, flag 0x40039c)."""
+    i4 = (n >> 15) & 0xf; i2 = (n >> 12) & 7
+    t0 = s16(rom_w(0x1eef8 + 2 * i4)); t1 = rom_w(0x1eef8 + 2 * i4 + 2)
+    d1 = (((s16(t1 - t0) * i2) >> 3) + t0) >> 9
+    m.ww(a2 + 0xc4, m.rw(a2 + 0xc4) + d1)
+    if m.sw(a2 + 0xc4) > 0xa0:
+        m.ww(a2 + 0xc4, m.rw(a2 + 0xc4) - 0xa0)
+        m.wl(a2 + 0xbc, m.rl(a2 + 0xbc) + 10)
+        m.wb(0x40039c, m.rb(0x40039c) | (1 << m.rb(a2 + 0x19)))
+
 
 # 0x17f66: input -> velocity
 def input_17f66(m, a2):
@@ -811,14 +839,24 @@ def slots_29cce(m, a2):
 # 0x25c74: landing (player path)
 def land_25c74(m, a2, fall):
     prev = m.rb(a2 + 0x1a)
+    if m.deaths and prev == 6: m.wb(a2 + 0x18, 3)
     m.wb(a2 + 0x1a, 1)
     d4 = s8(m.rb(a2 + 0x57)) + fall
     if d4 > 0x7f: d4 = 0x7f
     m.wb(a2 + 0x57, d4)
     s56 = s8(m.rb(a2 + 0x56)); s57 = s8(m.rb(a2 + 0x57))
     if s56 + ((s57 - s56) >> 1) > 0x1f:
-        m.events.append("broken")  # 0x25bae(a2, 2) or (4) off screen
-        m.wb(a2 + 0x1a, 2)
+        m.events.append("broken")
+        if not m.deaths:
+            m.wb(a2 + 0x1a, 2); return
+        if prev in (1, 5):                           # broken while dizzy or eaten
+            sound_15884(m)
+            m.wb(a2 + 0x5f, 0); m.wb(a2 + 0x56, 1); m.wb(a2 + 0x60, 2)
+            m.wl(a2 + 0x5a, ANIM_DIZZY_END)
+        if -0x10 < m.sw(a2 + 0x20) < 0xf0:           # on screen: shatter, else lost
+            enter_25bae(m, a2, 2)
+        else:
+            m.wb(a2 + 0x57, 0x64); enter_25bae(m, a2, 4)
         return
     if prev == 1: return
     m.wb(a2 + 0x5f, 0); m.wb(a2 + 0x60, 2); m.wl(a2 + 0x5a, 0x20faa); m.sounds.append(0x39)
@@ -1350,6 +1388,8 @@ def start_race(m, race):
     start_259b4(m, race)
     if m.drawlist: m.drawlist.init(m)
     objects_init(m, race)
+    m.wb(0x40076c, 1)                                # level init end: time out event armed,
+    m.wb(0x400444, rng_13a98(m, 0x100))              # its random byte (0x10fb8)
 
 
 def objects_init(m, race):
@@ -1442,6 +1482,452 @@ def start_259b4(m, race, a2=P, player=0):
     ground_253bc(m, a2)
     input_17f66(m, a2)
 
+
+# ---------------------------------------------------------------- player states, deaths
+# Player states 1 (dizzy), 2 (shatter), 4 (lost: respawn sparkle) with m.deaths on.
+# Handlers of the object dispatcher 0x253ec (jump table 0x254ba; Marble Love
+# refresh-frame-10fce.ts fun253ECDispatch). States 5, 7, 9, 0xb need enemies (Phase 4b).
+
+ANIM_DIZZY = 0x20faa        # landing wobble (+0x5a animation lists, long frame headers)
+ANIM_DIZZY_LOOP = 0x20fb6   # dizzy, +0x56 > 6
+ANIM_DIZZY_END = 0x20fd2    # dizzy, +0x56 <= 6
+ANIM_SHATTER = 0x20fde      # state 2
+ANIM_DISSOLVE = 0x21062     # state 9 (acid)
+ANIM_SHARDS = 0x215f6       # state 2 overlay +0x62 from shatter frame 9 on (+0x67 = 1)
+SHATTER_SHARDS = 9          # shatter frame index that starts the overlay
+ORBIT_TICKS = {0x64: 0x30, 0x65: 0x18, 0x66: 0x24}  # sparkle length by +0x57 (fell, lost, bird)
+SINE = 0x1eda2              # sine words, 0x4000 = 1, quarter = 0x64 entries
+ORBIT_STEPS = 0x1ef32       # 8 x (s8 dx, s8 dy) per sparkle star
+SPAWN_X, SPAWN_Y, SPAWN_ZONE = 0x400462, 0x400466, 0x400472
+BLOCK_HIT = 0x40046a        # index of the object 0x17cb8 found
+CHECKPOINTS = 0x1ef1a       # per race: (cx, cy, zone, pad), 0xff end
+STEELIES, STEELIE_SIZE = 0x4009a4, 0x7c
+SLINKIES, SLINKY_SIZE = 0x401302, 0x60
+
+
+def sound_15884(m):
+    m.sounds.append(0x3a)
+    if m.rw(0x400394) != 2: m.sounds.append(0x3b)
+
+
+def enter_25bae(m, a2, code):
+    """State entry: 2 shatter animation, 9 dissolve, 4 lost (respawn 0x2591a at once, the
+    sparkle state 4 shows it). Velocity x/y cleared."""
+    m.wl(a2 + 4, 0); m.wl(a2, 0)
+    if m.rb(a2 + 0x1a) == 6: m.wb(a2 + 0x18, 3)
+    if code == 2:
+        m.sounds.append(0x38)
+        m.wb(a2 + 0x5f, 0); m.wb(a2 + 0x60, 2); m.wl(a2 + 0x5a, ANIM_SHATTER)
+        m.wb(a2 + 0x56, 2); m.wb(a2 + 0x1a, 2)
+    elif code == 9:
+        m.wb(a2 + 0x5f, 0); m.wb(a2 + 0x60, 4); m.wl(a2 + 0x5a, ANIM_DISSOLVE)
+        m.wb(a2 + 0x1a, 9)
+    elif code == 4:
+        respawn_2591a(m, a2)
+        m.sounds.append(0x3c if m.rb(a2 + 0x57) == 0x65 else 0x3d)
+        m.wl(a2 + 0x5a, 0); m.wb(a2 + 0x1a, 4)
+        m.ww(a2 + 0xd2, m.rw(a2 + 0xd2) + 1)        # death count
+
+
+def anim_25fc2(m, a2):
+    """Animation step of +0x5a (one frame per +0x60 ticks, counter +0x5f). At the list
+    end: states 1/5 loop the dizzy lists, state 2 enters lost (+0x56 == 2) or restarts,
+    others (9) enter lost."""
+    st = m.rb(a2 + 0x1a)
+    idx = lambda: ((m.rl(a2 + 0x5a) - ANIM_SHATTER) & 0xffffffff) >> 2 & 0xffff
+    if st == 2 and ANIM_SHATTER < m.rl(a2 + 0x5a) < ANIM_SHATTER + 0x80 \
+            and s16(idx()) > SHATTER_SHARDS:
+        m.wb(a2 + 0x66, m.rb(a2 + 0x66) + 1)
+        if m.rb(a2 + 0x66) == 1:
+            m.wb(a2 + 0x66, 0); m.wl(a2 + 0x62, m.rl(a2 + 0x62) + 4)
+    m.wb(a2 + 0x5f, m.rb(a2 + 0x5f) + 1)
+    if s8(m.rb(a2 + 0x60)) > s8(m.rb(a2 + 0x5f)): return
+    m.wb(a2 + 0x5f, 0); m.wl(a2 + 0x5a, m.rl(a2 + 0x5a) + 4)
+    if st == 2 and idx() == SHATTER_SHARDS:
+        m.wl(a2 + 0x62, ANIM_SHARDS); m.wb(a2 + 0x66, 0); m.wb(a2 + 0x67, 1)
+        m.sounds.append(0x5f)
+    if m.rl(m.rl(a2 + 0x5a)) != 0xffffffff: return
+    st = m.rb(a2 + 0x1a)
+    if st in (1, 5):
+        m.wb(a2 + 0x5f, 0); m.wb(a2 + 0x60, 2)
+        m.wl(a2 + 0x5a, ANIM_DIZZY_LOOP if s8(m.rb(a2 + 0x56)) > 6 else ANIM_DIZZY_END)
+        return
+    if st == 2 and m.rb(a2 + 0x56) == 0:
+        m.wb(a2 + 0x5f, 0); m.wb(a2 + 0x60, 2); m.wl(a2 + 0x5a, ANIM_DIZZY_END)
+        m.wb(a2 + 0x56, 1)
+        return
+    if st == 2 and m.rb(a2 + 0x56) == 1:
+        sound_15884(m); enter_25bae(m, a2, 2)
+        return
+    if st == 2:
+        m.wb(a2 + 0x67, 0)
+        if is_player(a2): m.ww(a2 + 0xa4, 0)
+        if m.rb(a2 + 0x18) == 2:                     # broken steelie: out of the draw list
+            m.wb(a2 + 0x18, 0)
+            if m.drawlist: m.drawlist.remove(m, 1 if is_player(a2) else 2, m.rb(a2 + 0x19))
+            return
+    m.wb(a2 + 0x57, 0x65); enter_25bae(m, a2, 4)
+
+
+def blocked_17cb8(m, a2, x, y, r):
+    """Another live object near pixel (x, y): both deltas below 32 px and octant distance
+    (max + 3/8 min of the deltas * 16) below r. Scans the players (not a2), the steelies,
+    the slinkies; returns 1, 2, 4 (index to 0x40046a) or 0."""
+    groups = ((players(m), 1), ([STEELIES + STEELIE_SIZE * k for k in range(2)], 2),
+              ([SLINKIES + SLINKY_SIZE * k for k in range(4)], 4))
+    for objs, kind in groups:
+        for i, a in enumerate(objs):
+            if (kind == 1 and a == a2) or not m.rb(a + 0x18): continue
+            dx = abs(s16(m.rw(a + 0xc) - x)); dy = abs(s16(m.rw(a + 0x10) - y))
+            if dx >> 3 > 3 or dy >> 3 > 3: continue
+            ex, ey = (dx << 4) & 0xffff, (dy << 4) & 0xffff
+            if r > ((ey >> 3) * 3 + ex if ex > ey else (ex >> 3) * 3 + ey):
+                m.wl(BLOCK_HIT, i)
+                return kind
+    return 0
+
+
+def nearest_2637a(m, a2):
+    """Nearest free checkpoint of the ground zone +0x1d to the last ground cell (+0x32/+0x34),
+    octant distance of the cell deltas * 16 below 0x300 -> SPAWN_X/Y (pixel), SPAWN_ZONE."""
+    a3 = rom_l(CHECKPOINTS + 4 * m.rw(0x400394))
+    zone = s8(m.rb(a2 + 0x1d)) & 0xffff
+    best = 0x300
+    while PROG[a3] != 0xff:
+        if PROG[a3 + 2] == zone:
+            ex = (abs(s16(m.rw(a2 + 0x32) - PROG[a3])) << 4) & 0xffff
+            ey = (abs(s16(m.rw(a2 + 0x34) - PROG[a3 + 1])) << 4) & 0xffff
+            d = (ey >> 3) * 3 + ex if ex > ey else (ex >> 3) * 3 + ey
+            x, y = PROG[a3] * 8 + 4, PROG[a3 + 1] * 8 + 4
+            if not blocked_17cb8(m, a2, x, y, 0x180) and d < best:
+                best = d
+                m.wl(SPAWN_X, x); m.wl(SPAWN_Y, y); m.wb(SPAWN_ZONE, PROG[a3 + 2])
+        a3 += 4
+
+
+def spawn_262b2(m, a2):
+    """Respawn point: nearest checkpoint, else (backwards from the list end) the first free
+    one of zone +0x1d - 1. None: pixel (0, 0), zone 0xff."""
+    m.wl(SPAWN_Y, 0); m.wl(SPAWN_X, 0); m.wb(SPAWN_ZONE, 0xff)
+    nearest_2637a(m, a2)
+    if m.rb(SPAWN_ZONE) != 0xff: return
+    first = rom_l(CHECKPOINTS + 4 * m.rw(0x400394))
+    a3 = first
+    while PROG[a3] != 0xff: a3 += 4
+    zone = s8(m.rb(a2 + 0x1d))
+    if zone: zone -= 1
+    while a3 != first - 4:                           # the 0xff end entry is tested too
+        x, y = PROG[a3] * 8 + 4, PROG[a3 + 1] * 8 + 4
+        if not blocked_17cb8(m, a2, x, y, 0x180) and PROG[a3 + 2] == zone & 0xffff:
+            m.wl(SPAWN_X, x); m.wl(SPAWN_Y, y); m.wb(SPAWN_ZONE, PROG[a3 + 2])
+            return
+        a3 -= 4
+
+
+def dots_init_25b40(m, a2):
+    """Surface dot points (+0x74 x, +0x84 y, +0x94 z words, 8 each) to the rest pose."""
+    m.wb(a2 + 0xca, 0)
+    for i in range(8):
+        m.ww(a2 + 0x74 + 2 * i, (s8(PROG[0x1d3f4 + i]) << 11) & 0xffff)
+        m.ww(a2 + 0x84 + 2 * i, (s8(PROG[0x1d3fc + i]) << 11) & 0xffff)
+        m.ww(a2 + 0x94 + 2 * i, 0)
+
+
+def respawn_2591a(m, a2):
+    """Object to the respawn point (0x262b2): position, z = terrain, zone, motion cleared,
+    dot pose, projection, zone hook 0x13966."""
+    spawn_262b2(m, a2)
+    m.wl(a2 + 0xc, (m.rl(SPAWN_X) << 16) & 0xffffffff)
+    m.wl(a2 + 0x10, (m.rl(SPAWN_Y) << 16) & 0xffffffff)
+    m.ww(0x400698, 0xffff); m.ww(0x400696, 0xffff)
+    posupd_1bab2(m, a2)
+    m.wl(a2 + 0x14, height_1cc62(m) & 0xffffffff)
+    m.wb(a2 + 0x1b, m.rb(SPAWN_ZONE))
+    for o in (8, 4, 0): m.wl(a2 + o, 0)
+    for o in (0x56, 0x36, 0x58): m.wb(a2 + o, 0)
+    m.wl(a2 + 0x26, 0); m.wl(a2 + 0x22, 0)
+    dots_init_25b40(m, a2)
+    proj_1b9cc(m, a2)
+    zone_hook_13966(m, a2)
+
+
+def zone_hook_13966(m, a2):
+    """Zone entry effects of silly (4) and aerial (3): sound latches 0x40076a, aerial
+    pistons 0x186ac (not ported: event) and zone wait slots (tags 0x0b/0x0d) restarted."""
+    race = m.rw(0x400394); zone = m.rb(a2 + 0x1b); flags = 0x40076a
+    if race == 4:
+        if zone == 5 and not m.rb(flags) & 1:
+            m.sounds.append(0x15); m.wb(flags, m.rb(flags) | 1)
+        elif zone == 6 and not m.rb(flags) & 2:
+            m.sounds.append(0x16); m.wb(flags, m.rb(flags) | 2)
+    if race != 3: return
+    if zone == 0x14:
+        if not m.rb(flags) & 1: m.sounds.append(0xf); m.wb(flags, m.rb(flags) | 1)
+    elif zone in (6, 7) and not m.rb(flags) & 2:
+        m.sounds.append(0x12); m.wb(flags, m.rb(flags) | 2); m.ww(0x400768, 0x3c)
+    m.events.append(("unported", 0x186ac))
+    for i in range(SLOT_N):
+        s = slot(i)
+        if m.rb(s + 0x18) != 1 or m.rb(s + 0x1a) != 4 or m.rb(s + 0x1b) != zone: continue
+        if m.rb(s + 0x1f) == 0xb: m.wl(s + 0x36, 0x1d766)
+        if m.rb(s + 0x1f) == 0xd: m.wl(s + 0x36, 0x1d7ac)
+        m.sounds.append(("1ef42", m.rb(s + 0x1b)))
+        script_12896(m, s)
+
+
+def sine_pair(d3):
+    """(cos, sin) words of angle d3 (0..0x191, 0x192 = full turn), 0x4000 = 1."""
+    t = lambda i: s16(rom_w(SINE + 2 * i))
+    if d3 <= 0x64: return t(d3), t(0x64 - d3)
+    if d3 < 0xc9: return s16(-t(0xc8 - d3)), t(d3 - 0x64)
+    if d3 <= 0x12d: return s16(-t(d3 - 0xc9)), s16(-t(0x12d - d3))
+    return t(0x191 - d3), s16(-t(d3 - 0x12d))
+
+
+def orbit_13ade(m, a2):
+    """Respawn sparkle: 8 stars (code 0x10b + k, screen x, y; no mask bit) circling the
+    screen position +0x1e/+0x20 on a shrinking radius, the first 4 visible ones at +0xa4,
+    the next 4 at +0x38. +0x57 counts down (start by ORBIT_TICKS); True when it reaches 0."""
+    c = s8(m.rb(a2 + 0x57))
+    if c in ORBIT_TICKS:
+        m.wb(a2 + 0x57, ORBIT_TICKS[c]); m.ww(a2 + 0x2e, 0)
+    d1 = s8(m.rb(a2 + 0x57))
+    m.wb(a2 + 0x57, m.rb(a2 + 0x57) - 1)
+    if m.rb(a2 + 0x1a) == 0xb: d1 = s16(0x24 - d1)
+    rad = s16(d1) >> 1
+    d3 = (m.rw(a2 + 0x2e) + 10) & 0xffff
+    if s16(d3) >= 0x192: d3 = (d3 - 0x192) & 0xffff
+    m.ww(a2 + 0x2e, d3)
+    sx, sy = m.rw(a2 + 0x1e), m.rw(a2 + 0x20)
+    for k in range(4):
+        m.ww(a2 + 0x38 + 6 * k, 0); m.ww(a2 + 0xa4 + 6 * k, 0)
+    n = 0
+    for k in range(8):
+        cs, sn = sine_pair(s16(d3))
+        a1 = s16((rad * cs) >> 12)
+        d0 = (rad * sn) >> 12
+        x = s16(s8(PROG[ORBIT_STEPS + 2 * k]) + s16(d0 + sx - a1))
+        y = s16(s8(PROG[ORBIT_STEPS + 2 * k + 1]) + s16(d1 + sy - ((s16(d0) + a1) >> 1)))
+        if -8 < x < 0x120 and -8 < y < 0xf0:
+            dst = a2 + 0xa4 + 6 * n if n < 4 else a2 + 0x38 + 6 * (n - 4)
+            n += 1
+            m.ww(dst, 0x10b + k); m.ww(dst + 2, x); m.ww(dst + 4, y)
+        d3 = (d3 + 0x32) & 0xffff
+        if s16(d3) >= 0x192: d3 = (d3 - 0x192) & 0xffff
+    m.wb(a2 + 0x1c, 1)
+    return m.rb(a2 + 0x57) == 0
+
+
+# 0x1c014 surface dots (Marble Love sprite-rotate-1c014.ts): 8 points on the unit sphere
+# (+0x74 x, +0x84 y, +0x94 z words, 0x4000 = 1) turned by the velocity each tick (2 of them
+# renormalised per tick in turn, +0xca), then the 4 front ones as dot MOs at +0xa4.
+LERP = 0x1ee6e              # 1 / sqrt table (0x1c014 normalisation)
+DOT_ANGLE = 0x24ade         # dot MO code by the projected pair delta
+DOT_DY = 0x24b2c            # dot y bias by |dy|
+
+
+def muls(a, b): return s16(a) * s16(b)
+
+
+def asr14w(v): return (v >> 14) & 0xffff
+
+
+def lerp_1ee6e(arg):
+    arg &= 0xffff
+    i = s16(((arg >> 10) - 0xc) & 0xffff)
+    v1 = rom_w(LERP + 2 * (i + 1)); v0 = rom_w(LERP + 2 * i)
+    return (((((arg & 0x3ff) * s16(v1 - v0)) >> 10) + v0) & 0xffff)
+
+
+def sine_lerp(d6):
+    def one(a):
+        i = s16(a) >> 6; f = a & 0x3f
+        v1 = s16(rom_w(SINE + 2 * (i + 1))); v0 = s16(rom_w(SINE + 2 * i))
+        return (s16(((s16(v1 - v0) * f) >> 6) & 0xffff) + v0) & 0xffff
+    return one(d6 & 0xffff), one((0x1922 - d6) & 0xffff)
+
+
+def dots_1c014(m, a2):
+    if m.rb(a2 + 0x58) == 0xa:
+        vx = vy = 0
+    else:
+        vx = (m.sl(a2) >> 4) & 0xffff; vy = (m.sl(a2 + 4) >> 4) & 0xffff
+    ax, ay = abs(s16(vx)) & 0xffff, abs(s16(vy)) & 0xffff
+    if ax == 0 and ay == 0:
+        if m.rw(0x400394) != 4:
+            dots_out(m, a2); return
+        vx = vy = ax = ay = 0x10
+    if ax and ay:
+        big, small = (ax, ay) if ax > ay else (ay, ax)
+        na = ((small << 14) // big) & 0xffff
+        d3 = lerp_1ee6e(((((na * na) >> 14) & 0xffff) + 0x4000) & 0xffff)
+        q = 0x10000000 // d3 if d3 else 0
+        q = 0 if q > 0xffff else q
+        if ax > ay: d4 = q; d5 = ((na * d4) >> 14) & 0xffff
+        else: d5 = q; d4 = ((na * d5) >> 14) & 0xffff
+        if s16(vx) >= 0: d4 = (-s16(d4)) & 0xffff
+        if s16(vy) < 0: d5 = (-s16(d5)) & 0xffff
+        d3 = ((big * d3) >> 14) & 0xffff
+    else:
+        if ax: d4, d3, d5 = 0x4000, ax, 0
+        else: d4, d3, d5 = 0, ay, 0x4000
+        if s16(vx) >= 0: d4 = (-s16(d4)) & 0xffff
+        if s16(vy) < 0: d5 = (-s16(d5)) & 0xffff
+    d6 = (d3 // 7) & 0xffff
+    if m.rw(0x400394) == 4:
+        t = (0x600 - d6) & 0xffff
+        d6 = 0 if s16(t) < 0 else t
+    sn, cs = sine_lerp(d6)
+    d2m = asr14w(muls(d5, d5)); nc = asr14w(muls(d4, d4))
+    a3m = ((asr14w(muls(sn, nc))) + d2m) & 0xffff
+    d3m = asr14w(muls(d5, (0x4000 - sn) & 0xffff))
+    d3f = asr14w(muls(d4, d3m))
+    ne = asr14w(-muls(cs, d4))
+    a4m = ((asr14w(muls(sn, d2m))) + nc) & 0xffff
+    n10 = asr14w(muls(cs, d5))
+    n16 = (-s16(ne)) & 0xffff; n14 = (-s16(n10)) & 0xffff
+    for lp in (0, 1):
+        o = 2 * lp
+        p4, p6, p8 = m.rw(a2 + 0x74 + o), m.rw(a2 + 0x84 + o), m.rw(a2 + 0x94 + o)
+        nx = ((muls(ne, p8) + muls(d3f, p6) + muls(a3m, p4)) >> 14) & 0xffff
+        ny = ((muls(n10, p8) + muls(a4m, p6) + muls(d3f, p4)) >> 14) & 0xffff
+        nz = ((muls(sn, p8) + muls(n14, p6) + muls(n16, p4)) >> 14) & 0xffff
+        if s8(m.rb(a2 + 0xca)) == lp:
+            sq = (muls(nz, nz) + muls(ny, ny) + muls(nx, nx)) & 0xffffffff
+            if sq < 0x1f80000 or sq > 0x2080000:
+                d7 = (sq >> 14) & 0xffff
+                q = 0x2000000 // d7 if d7 else 0
+                sc = lerp_1ee6e(0 if q > 0xffff else q)
+                nx, ny, nz = asr14w(muls(sc, nx)), asr14w(muls(sc, ny)), asr14w(muls(sc, nz))
+        m.ww(a2 + 0x74 + o, nx); m.ww(a2 + 0x84 + o, ny); m.ww(a2 + 0x94 + o, nz)
+    p = a2 + 0x74                                    # points 2-7 mirror points 0 and 1
+    for _ in range(4):
+        a, b = s16(m.rw(p)), s16(m.rw(p + 2))
+        for k, v in enumerate((-a, -b, b + a, -a - b, a - b, -a + b)):
+            m.ww(p + 4 + 2 * k, v & 0xffff)
+        p += 16
+    m.wb(a2 + 0xca, 0 if m.rb(a2 + 0xca) + 1 >= 8 else m.rb(a2 + 0xca) + 1)
+    dots_out(m, a2)
+
+
+def dots_out(m, a2):
+    """The 8 points projected around the screen position, sorted by x; pairs (0, 1) ..
+    (6, 7) give 4 dot MOs (code by the pair delta, x, y) at +0xa4."""
+    bx = m.sw(a2 + 0x1e); by = (m.rw(a2 + 0x20) + 7) & 0xffff
+    kind = 0
+    if m.rb(a2 + 0x1a) == 8:
+        t = m.rl(m.rl(a2 + 0xcc))
+        kind = 1 if t == 0x215c6 else 2 if t == 0x215ea else 0
+    pts = []
+    for i in range(8):
+        px, py, pz = m.sw(a2 + 0x74 + 2 * i), m.sw(a2 + 0x84 + 2 * i), m.rw(a2 + 0x94 + 2 * i)
+        if kind == 1: pz = (pz - (s16(pz) >> 2)) & 0xffff
+        elif kind == 2: pz = (pz + (s16(pz) >> 1)) & 0xffff
+        x = s16((((bx << 1) + ((py - px) >> 10)) >> 1) & 0xffff)
+        y = s16((((s16(by) << 1) + ((s16(pz) - ((py + px) >> 1)) >> 10)) >> 1) & 0xffff)
+        pts.append((x, y))
+    for i in range(7):
+        for j in range(i + 1, 8):
+            if pts[i][0] > pts[j][0]: pts[i], pts[j] = pts[j], pts[i]
+    for k in range(4):
+        (xa, ya), (xb, yb) = pts[2 * k], pts[2 * k + 1]
+        dx = min(s16(xb - xa), 2); dy = s16(yb - ya)
+        ady = min(abs(dy), 0xc)
+        code = rom_w(DOT_ANGLE + (((ady << 2) + dx - ady) * 2 & 0xffff))
+        x, y = xa, ya
+        if dy < 0:
+            code = (code + 0x8000) & 0xffff; x = (xa + dx - 6) & 0xffff; y = (ya + dy) & 0xffff
+        e = a2 + 0xa4 + 6 * k
+        m.ww(e + 2, x)
+        m.ww(e + 4, (s8(PROG[DOT_DY + ady]) + y) & 0xffff)
+        m.ww(e, code)
+
+
+def wobble_25416(m, a2):
+    """+0xd8 squash wobble (silly minis): +0x68 swings -0x16..2, +0x70 counts odd steps."""
+    m.wb(a2 + 0x68, m.rb(a2 + 0x68) + m.rb(a2 + 0x69))
+    if s8(m.rb(a2 + 0x68)) > 2: m.wb(a2 + 0x68, 2); m.wb(a2 + 0x69, 0xff)
+    elif s8(m.rb(a2 + 0x68)) < -0x16: m.wb(a2 + 0x68, 0xea); m.wb(a2 + 0x69, 1)
+    if m.rb(a2 + 0x68) & 1:
+        m.wb(a2 + 0x70, m.rb(a2 + 0x70) + 1)
+        if s8(m.rb(a2 + 0x70)) > 0x28: m.wb(a2 + 0x70, 0xff); m.wb(a2 + 0xd8, 0)
+
+
+def object_253ec(m, a2):
+    """One player object tick by state +0x1a: 0 roll, 1 dizzy, 2 shatter, 4 lost. Other
+    states (3, 5-0xb) are not ported: event."""
+    st = m.rb(a2 + 0x1a)
+    if m.rb(a2 + 0xd8) and st not in (2, 4, 0xa, 0xb, 7): wobble_25416(m, a2)
+    if st == 0:
+        if m.rb(a2 + 0xcb) and not m.rb(a2 + 0x36) and m.rb(a2 + 0x58) in (0, 0x34, 0x35):
+            m.events.append(("unported state", 8))   # 0x256f8: time out animation
+            return
+        ground_253bc(m, a2); input_17f66(m, a2); physics_121b8(m, a2)
+    elif st == 1:
+        anim_25fc2(m, a2); ground_253bc(m, a2); input_17f66(m, a2); physics_121b8(m, a2)
+        if m.rb(a2 + 0x1a) != 1: return
+        if m.rb(a2 + 0x57): m.wb(a2 + 0x57, m.rb(a2 + 0x57) - 1)
+        if s8(m.rb(a2 + 0x57)) >= s8(m.rb(a2 + 0x56)):
+            m.wb(a2 + 0x56, m.rb(a2 + 0x56) + 1); return
+        m.wb(a2 + 0x56, m.rb(a2 + 0x56) - 1)
+        if m.rb(a2 + 0x56): return
+        sound_15884(m); m.wb(a2 + 0x1a, 0); m.wl(a2 + 0x5a, 0)
+        dots_1c014(m, a2)
+    elif st == 2:
+        anim_25fc2(m, a2); proj_1b9cc(m, a2, True)
+        if m.rb(a2 + 0x1c): enter_1281c(m, a2)
+    elif st == 4:
+        proj_1b9cc(m, a2, True)
+        done = orbit_13ade(m, a2)
+        if done or s8(m.rb(a2 + 0x57)) < 2:
+            if blocked_17cb8(m, a2, m.sw(a2 + 0xc), m.sw(a2 + 0x10), 0x70):
+                m.wb(a2 + 0x57, 0x65); enter_25bae(m, a2, 4); done = False
+        if done:
+            m.wl(a2 + 4, 0); m.wl(a2, 0); m.wb(a2 + 0x1a, 0)
+    else:
+        m.events.append(("unported state", st))
+
+
+def timeout_1bbaa(m):
+    """Race with a time out event (0x40076c, race start rng 0x400444 below 0x24a94[race]): a
+    rolling player with 3-6 s left in a zone of list 0x24aae[race] sets +0xcb of all."""
+    race = m.rw(0x400394)
+    zones = rom_l(0x24aae + 4 * race)
+    if not m.rb(0x40076c) or PROG[0x24a94 + race] <= m.rb(0x400444) or PROG[zones] == 0xff:
+        return
+    for a in players(m):
+        z = zones; hit = False
+        while PROG[z] != 0xff:
+            hit |= m.rb(a + 0x1b) == PROG[z]; z += 1
+        if m.rb(a + 0x18) == 1 and m.rb(a + 0x1a) == 0 and 2 < m.sw(a + 0x6a) < 7 and hit:
+            m.wb(0x40076c, 0)
+            for b in players(m):
+                if m.rb(b + 0x18) == 1: m.wb(b + 0xcb, 1)
+
+
+def objects_251de(m):
+    """Player objects 0x400018 + 0xe2 k in turn (one player: no 2 player respawn swap)."""
+    timeout_1bbaa(m)
+    for a2 in players(m):
+        if m.rb(a2 + 0x18): object_253ec(m, a2)
+
+
+def main_tick(m, c6, c7, camera, frame):
+    """Main loop tick from its top (0x11804, mame_trace.lua MARBLE_TICK=start) to the next:
+    inputs c6/c7 (trackball deltas the vblank IRQ left in +0xc6/+0xc7), camera long after
+    0x13ee6 (an input as in objfixture), frame counter 0x400010 at the tick start. Runs
+    0x1344c, the camera band spawns, the players 0x251de, the slots 0x12fd0, rng(0x100)
+    0x118a4. Needs m.deaths, m.objects, m.sprites on."""
+    m.wl(0x400010, frame)
+    m.wb(P + 0xc6, c6); m.wb(P + 0xc7, c7)
+    anim_apply_1344c(m)                              # 0x13ee6: 0x1344c, camera, 0x144e4
+    old = m.rw(0x40097e)
+    m.wl(0x40097c, camera)
+    if (camera & 0xffff) != old: camera_bands_144e4(m, old, camera & 0xffff)
+    objects_251de(m)
+    # 0x189e2 practice markers, enemies 0x158cc .. 0x1844a: not ported
+    slots_12fd0(m)
+    rng_13a98(m, 0x100)
 
 
 # ---------------------------------------------------------------- MAME trace validation
@@ -1695,6 +2181,99 @@ def cmd_start(trace, race):
     return n >= 100
 
 
+# player bytes the vblank IRQ writes: race timer +0x6a-+0x6f (seconds, tenths, frames),
+# trackball deltas and sums +0xc6-+0xc9
+DEATH_SKIP = set(range(0x6a, 0x70)) | set(range(0xc6, 0xca))
+
+
+def death_mem(t, ram):
+    m = Mem(t, ram)
+    m.deaths = m.objects = m.sprites = True
+    return m
+
+
+def death_inputs(r, r2):
+    """Tick inputs of a tick start snapshot r (next snapshot r2): c6, c7, camera long after
+    the camera step, 0x400010."""
+    return (tb(r, P + 0xc6), tb(r, P + 0xc7), tl(r2, 0x40097c) & 0xffffffff,
+            tl(r, 0x400010) & 0xffffffff)
+
+
+def player_mos(m):
+    """MOs 0x26f3e emits for player 1 (marble_mo.type1): [(w0, code, w2)]."""
+    import marble_mo
+    return marble_mo.type1(m, 0)
+
+
+def ref_player_mos(r, v):
+    """Player 1 MOs in the MO bank the snapshot shows built (list order from its RAM)."""
+    import marble_mo
+    words, _ = marble_mo.mo_ram(r, v)
+    k = 0
+    for _, typ, idx, mos in marble_mo.mo_list_26f3e(marble_mo.Ram(r)):
+        if typ == 1 and idx == 0: return words[k:k + len(mos)]
+        k += len(mos)
+    return []
+
+
+def death_diff(m, r2, v2):
+    """Differences of a death model tick to the next tick start snapshot: player bytes
+    (but DEATH_SKIP), RNG word 0x4003a6, slots, dynamic codes, player MOs."""
+    a = P - 0x400000
+    out = ["+%02x %02x/%02x" % (o, m.ram[a + o], r2[a + o]) for o in range(0xe2)
+           if o not in DEATH_SKIP and m.ram[a + o] != r2[a + o]]
+    if m.ram[0x3a6:0x3a8] != r2[0x3a6:0x3a8]:
+        out.append("rng %s/%s" % (m.ram[0x3a6:0x3a8].hex(), r2[0x3a6:0x3a8].hex()))
+    out += slot_diff(m, r2)
+    if player_mos(m) != ref_player_mos(r2, v2): out.append("player MOs")
+    return out
+
+
+def cmd_deaths(trace, race, segs):
+    """Death model free runs (mame_trace.lua MARBLE_TICK=start), one per segment "FROM:TO"
+    (frames, between MARBLE_PLACE teleports; default the whole race): from the first race
+    snapshot after FROM, per tick only the inputs (death_inputs) come from the trace. Every
+    tick up to TO must equal the next snapshot (death_diff)."""
+    ok = True
+    for seg in segs or ["0:%d" % trace[-1][0]]:
+        a, b = (int(v) for v in seg.split(":"))
+        ok &= death_segment(trace, race, a, b)
+    return ok
+
+
+def death_segment(trace, race, start, end):
+    t = Terrain(race)
+    i0 = next(k for k, x in enumerate(trace) if x[0] > start and live_race(x[1]))
+    m = death_mem(t, trace[i0][1])
+    states = {}; mos_bad = 0; n = 0
+    run = [x for x in trace[i0:] if x[0] <= end]
+    for (fr, r, v), (fr2, r2, v2) in zip(run, run[1:]):
+        m.events = []; m.sounds = []
+        main_tick(m, *death_inputs(r, r2))
+        n += 1
+        st = m.rb(P + 0x1a); states[st] = states.get(st, 0) + 1
+        mos_bad += player_mos(marble_mo_ram(r2)) != ref_player_mos(r2, v2)
+        d = death_diff(m, r2, v2)
+        if d:
+            print("deaths race %d: tick %d (frame %d, state %d) differs: %s %s"
+                  % (race, n, fr2, st, "; ".join(d[:8]), m.events))
+            return False
+    print("deaths race %d: frames %d-%d, %d ticks equal, ticks per state %s; player MO model "
+          "vs MO RAM differs in %d" % (race, run[0][0], run[-1][0], n,
+                                       dict(sorted(states.items())), mos_bad))
+    return mos_bad == 0
+
+
+def live_race(r):
+    """In race play (0x400390 0: not the attract demo, not the race start), player 1 active."""
+    return tw(r, 0x400390) == 0 and tb(r, P + 0x18) == 1 and tl(r, P + 0xc) != 0
+
+
+def marble_mo_ram(r):
+    import marble_mo
+    return marble_mo.Ram(r)
+
+
 # ---------------------------------------------------------------- host test fixture replay
 
 def load_fixture(path):
@@ -1813,15 +2392,84 @@ def cmd_objfixture(path):
     return ok
 
 
+def death_state(m):
+    """Death fixture check values of one tick: player x, y, z, state, +0x1c, sx, sy, +0x5a,
+    the drawn frame header (rl(+0x5a) in states 1/2/5/9, else 0), the shard overlay header
+    (rl(+0x62) when +0x67), mask entries +0x38 (30 bytes), RNG word, player MO words."""
+    a = P - 0x400000
+    drawn = m.rb(P + 0x1c)
+    hdr = m.rl(m.rl(P + 0x5a)) if drawn and m.rb(P + 0x1a) in (1, 2, 5, 9) else 0
+    shard = m.rl(m.rl(P + 0x62)) if drawn and m.rb(P + 0x67) else 0
+    return (m.sl(P + 0xc), m.sl(P + 0x10), m.sl(P + 0x14), m.rb(P + 0x1a), drawn,
+            m.sw(P + 0x1e), m.sw(P + 0x20), m.rl(P + 0x5a), hdr, shard,
+            bytes(m.ram[a + 0x38:a + 0x56]), m.rw(0x4003a6), tuple(player_mos(m)))
+
+
+def load_dfixture(path):
+    """Segments of source/test/test_marble_deaths/marble_deaths_trace.h (make_fixture.py
+    dwrite): [{"race", "frame", "ram", "ticks": [(c6, c7, camera, frames, state tuple)]}]."""
+    import re
+    text = open(path).read()
+    num = lambda s: [int(v, 0) for v in re.findall(r"-?0x[0-9a-fA-F]+|-?\d+", s)]
+    arrays = {name: body for name, body in
+              re.findall(r"static const \w+ (\w+)\[\] = \{(.*?)\n?\};", text, re.S)}
+    segs = []
+    for race, frame, nram, ramname, nticks, tickname, nmos, moname in re.findall(
+            r"\{ *(\d+), *(\d+), *(\d+), *(\w+), *(\d+), *(\w+), *(\d+), *(\w+) *\}",
+            arrays["marble_deaths_segments"]):
+        ram = []
+        for addr, length, data in re.findall(r"\{ *(0x[0-9a-f]+), *(\d+), *(\w+) *\}",
+                                             arrays[ramname]):
+            b = bytes(num(arrays[data]))
+            assert len(b) == int(length)
+            ram.append((int(addr, 0), b))
+        v = num(arrays[tickname]); mw = num(arrays[moname])
+        mos = [tuple(mw[k:k + 3]) for k in range(0, len(mw), 3)]
+        w = 14 + 30 + 3
+        ticks = []
+        for k in range(0, len(v), w):
+            t = v[k:k + w]
+            c6, c7, cam, frames, x, y, z, st, vis, sx, sy, anim, hdr, shard = t[:14]
+            rng, n, first = t[44:47]
+            ticks.append((c6, c7, cam, frames, (x, y, z, st, vis, sx, sy, anim, hdr, shard,
+                          bytes(t[14:44]), rng, tuple(mos[first:first + n]))))
+        assert len(ram) == int(nram) and len(ticks) == int(nticks) and len(mos) == int(nmos)
+        segs.append({"race": int(race), "frame": int(frame), "ram": ram, "ticks": ticks})
+    return segs
+
+
+def replay_dfixture(seg, m):
+    """Run every death fixture tick on m; index of the first tick that differs, or None."""
+    m.deaths = m.objects = m.sprites = True
+    for k, (c6, c7, cam, frames, want) in enumerate(seg["ticks"]):
+        main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
+        if death_state(m) != want: return k
+    return None
+
+
+def cmd_dfixture(path):
+    ok = True
+    for seg in load_dfixture(path):
+        bad = replay_dfixture(seg, fixture_mem(seg, Terrain(seg["race"])))
+        print("deaths fixture race %d frame %d: %d ticks, %s" % (seg["race"], seg["frame"],
+              len(seg["ticks"]), "exact" if bad is None else "differs at tick %d" % bad))
+        ok &= bad is None
+    return ok
+
+
 def main(argv):
+    if len(argv) == 3 and argv[1] == "dfixture":
+        return 0 if cmd_dfixture(argv[2]) else 1
     if len(argv) == 3 and argv[1] == "fixture":
         return 0 if cmd_fixture(argv[2]) else 1
     if len(argv) == 3 and argv[1] == "objfixture":
         return 0 if cmd_objfixture(argv[2]) else 1
-    if len(argv) < 4 or argv[1] not in ("terrain", "ticks", "run", "start", "occl", "slots"):
+    if len(argv) < 4 or argv[1] not in ("terrain", "ticks", "run", "start", "occl", "slots",
+                                        "deaths"):
         print(__doc__); return 2
     trace = load_trace(argv[2]); race = int(argv[3])
     if argv[1] == "terrain": ok = cmd_terrain(trace, race)
+    elif argv[1] == "deaths": ok = cmd_deaths(trace, race, argv[4:])
     elif argv[1] == "occl": ok = cmd_occl(trace, race)
     elif argv[1] == "slots": ok = cmd_slots(trace, race, int(argv[4]) if len(argv) > 4 else 300)
     elif argv[1] == "ticks": ok = cmd_ticks(trace, race)
