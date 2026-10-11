@@ -66,6 +66,10 @@ static AVG_INLINE uint8_t line_color(const Memory &m, const State &s, uint8_t z)
     return level < 16 || !s.color ? 0 : (s.color << SW_COLOR_SHIFT) | (level >> 4);
   }
   const uint8_t level = (z >> 1) == 1 ? s.intensity : (z & 0xe);
+  if (m.variant == COLOR) {
+    // MAME avg_strobe3: color111(STAT color), black lines skipped
+    return level && s.color ? (s.color << SW_COLOR_SHIFT) | level : 0;
+  }
   if (m.variant != TEMPEST) {
     return level;
   }
@@ -80,7 +84,7 @@ static AVG_INLINE uint8_t line_color(const Memory &m, const State &s, uint8_t z)
   return (value << TP_COLOR_SHIFT) | (l < TP_LEVEL_MASK ? l : TP_LEVEL_MASK);
 }
 
-// MAME avg_strobe2 STAT, bzone_strobe2, starwars_strobe2 and tempest_strobe2 variants
+// MAME avg_strobe2 STAT (color), bzone_strobe2, starwars_strobe2 and tempest_strobe2 variants
 static void stat(const Memory &m, State &s, uint16_t dvy) {
   if (m.variant == TEMPEST) {
     // MAME tempest_strobe2: bit 11 selects color RAM index or intensity
@@ -99,6 +103,10 @@ static void stat(const Memory &m, State &s, uint16_t dvy) {
   }
 
   s.intensity = (dvy >> 4) & 0xf;
+  if (m.variant == COLOR) {
+    s.color = dvy & 7;
+    return;
+  }
   if (!(dvy & 0x400)) {
     s.lst = dvy & 0x200;
     s.hst = !s.lst;

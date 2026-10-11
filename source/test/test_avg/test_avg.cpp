@@ -201,6 +201,41 @@ static void test_tempest_no_clip(void) {
   TEST_ASSERT_EQUAL(tp_line(0, 5), out[0].color);
 }
 
+// Space Duel class AVG: STAT color (bits 2-0, color111) and intensity
+// (bits 7-4); Line::color as Star Wars, RGB << SW_COLOR_SHIFT | level
+static avg::Memory color_mem() {
+  return avg::Memory{ram, sizeof(ram), nullptr, 0, 0, 0, 0, avg::COLOR, nullptr};
+}
+static uint8_t col_line(int rgb, int level) { return (rgb << avg::SW_COLOR_SHIFT) | level; }
+
+static void test_color_stat(void) {
+  at(0); put(CNTR); put(scal(0, 0)); put(stat(12) | 5);
+  vctr(100, 50, 1); vctr(-40, 0, 7); put(HALT);
+  TEST_ASSERT_EQUAL(2, avg::decode(color_mem(), st, out, 64));
+  assert_line(out[0], 290, 200, 389, 150, col_line(5, 12));
+  assert_line(out[1], 389, 150, 349, 150, col_line(5, 14));
+}
+
+// color111(0) is black: skipped like a move
+static void test_color_black(void) {
+  at(0); put(CNTR); put(scal(0, 0)); put(stat(12));
+  vctr(100, 50, 7); put(stat(12) | 2); vctr(10, 0, 7); put(HALT);
+  TEST_ASSERT_EQUAL(1, avg::decode(color_mem(), st, out, 64));
+  assert_line(out[0], 389, 150, 399, 150, col_line(2, 14));
+}
+
+// no clip window: a STAT with bit 10 clear latches nothing
+static void test_color_no_clip(void) {
+  at(0); put(CNTR); put(scal(0, 0));
+  vctr(-200, -100, 0); put(stat(10, 0x000) | 7);
+  vctr(400, 200, 0); put(stat(10, 0x200) | 7);
+  put(CNTR); vctr(-300, 0, 0); vctr(600, 0, 1); put(HALT);
+  TEST_ASSERT_EQUAL(1, avg::decode(color_mem(), st, out, 64));
+  TEST_ASSERT_EQUAL(0, out[0].x0);
+  TEST_ASSERT_GREATER_THAN(489, out[0].x1);
+  TEST_ASSERT_EQUAL(col_line(7, 10), out[0].color);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_vctr_stat);
@@ -217,5 +252,8 @@ int main(int, char **) {
   RUN_TEST(test_tempest_black);
   RUN_TEST(test_tempest_frame_end);
   RUN_TEST(test_tempest_no_clip);
+  RUN_TEST(test_color_stat);
+  RUN_TEST(test_color_black);
+  RUN_TEST(test_color_no_clip);
   return UNITY_END();
 }
