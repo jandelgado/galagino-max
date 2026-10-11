@@ -167,6 +167,7 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Crystal Castles (ccastlesj.zip) | ![Crystal Castles marquee](/logos/ccastles.png) | ![Crystal Castles screenshot](/images/ccastles.png) | Joystick version, needs parent ccastles.zip. FIRE=jump |
 | Battle Zone (bzone.zip)        | ![Battle Zone marquee](/logos/bzone.png) | ![Battle Zone screenshot](/images/bzone.png) | Rev 2. Up/down=both treads, left/right=spin, diagonals=one tread |
 | Tempest (tempest.zip)         | ![Tempest marquee](/logos/tempest.png) | ![Tempest screenshot](/images/tempest.png) | Rev 3. Left/right=spinner, FIRE=fire, up/down=superzap |
+| Space Duel (spacduel.zip)     | ![Space Duel marquee](/logos/spacduel.png) | ![Space Duel screenshot](/images/spacduel.png) | Version 2, 1 player. Left/right=rotate, UP=thrust, DOWN=shield, FIRE=fire. Up/down selects the game type before start |
 | Star Wars (starwars.zip)       | ![Star Wars marquee](/logos/starwars.png) | ![Star Wars screenshot](/images/starwars.png) | Atari classic with early 3D vector graphics and working speech output. Set 1. Stick moves the yoke, position held on release. FIRE=trigger |
 | Missile Command (missile.zip) | ![Missile Command marquee](/logos/missile.png) | ![Missile Command screenshot](/images/missile.png) | Rev 3. Stick moves the cursor. Auto-aim: FIRE launches from the nearest non-empty base to the cross-hair. Controller L1/A/R1=left/center/right base |
 | Moon Patrol (mpatrol.zip)     | ![Moon Patrol marquee](/logos/mpatrol.png) | ![Moon Patrol screenshot](/images/mpatrol.png) | UP=jump, FIRE=fire |

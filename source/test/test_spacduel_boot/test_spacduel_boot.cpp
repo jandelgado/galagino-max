@@ -32,6 +32,7 @@ void tearDown(void) {}
 #ifdef HAVE_ROM
 static const uint32_t CYCLES_PER_FRAME = 25200, CYCLES_PER_IRQ = 6144;
 static const uint16_t RAM_SELECT = 0x03ee; // spacduel.cpp
+static const uint16_t RAM_GAME = 0x03f4; // game type, 1 or 3 with DSW2 "1 player game only"
 
 enum Mapping : uint8_t { START_ONLY, START_SELECTS };
 
@@ -39,7 +40,8 @@ struct Board {
   uint8_t ram[0x400], vram[0x800];
   const uint8_t *rom, *vrom;
   uint32_t cycles;
-  bool coin, start;
+  bool coin;
+  unsigned int keys;
   Mapping mapping;
 };
 
@@ -62,7 +64,7 @@ static uint8_t rd(m6502_t *cpu, uint16_t a) {
   }
   if ((a & 0xfff8) == 0x0900) {
     const SdSelect s = (b->mapping == START_SELECTS && (b->ram[RAM_SELECT] & 0x80)) ? SD_SELECT_PENDING : SD_SELECTED;
-    return spacduel_in1(a & 7, b->start ? BUTTON_START : 0, s);
+    return spacduel_in1(a & 7, b->keys, s);
   }
   if ((a & 0xf80f) == 0x1008) { // POKEY ALLPOT
     return (a & 0x0400) ? SPACDUEL_DSW1 : SPACDUEL_DSW0;
@@ -121,16 +123,21 @@ static void frames(uint32_t n) {
   }
 }
 
+static void press(unsigned int keys, uint32_t n) {
+  board.keys = keys;
+  frames(n);
+  board.keys = 0;
+  frames(30);
+}
+
 // galagino's virtual coin: coin 100 ms, 500 ms pause, START held 100 ms+
 static void coin_and_start(void) {
   board.coin = true;
   frames(6);
   board.coin = false;
   frames(30);
-  board.start = true;
-  frames(10);
-  board.start = false;
-  frames(60);
+  press(BUTTON_START, 10);
+  frames(30);
 }
 #endif
 
@@ -159,9 +166,30 @@ static void test_start_starts_game(void) {
 #endif
 }
 
+// first stick press on the select screen highlights the first game, the
+// second moves to the second game, START starts it
+static void test_down_selects_second_game(void) {
+#ifdef HAVE_ROM
+  boot(START_SELECTS);
+  frames(600);
+  board.coin = true;
+  frames(6);
+  board.coin = false;
+  frames(30);
+  press(BUTTON_DOWN, 5);
+  press(BUTTON_DOWN, 5);
+  press(BUTTON_START, 10);
+  TEST_ASSERT_EQUAL_HEX8(0x00, board.ram[RAM_SELECT]);
+  TEST_ASSERT_EQUAL_HEX8(3, board.ram[RAM_GAME]);
+#else
+  TEST_IGNORE_MESSAGE("spacduel ROM headers missing, run romconv");
+#endif
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_start_only_is_ignored);
   RUN_TEST(test_start_starts_game);
+  RUN_TEST(test_down_selects_second_game);
   return UNITY_END();
 }

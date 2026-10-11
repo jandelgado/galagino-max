@@ -45,10 +45,20 @@ static void test_select(void) {
   TEST_ASSERT_EQUAL_HEX8(0, spacduel_in1(6, BUTTON_START, SD_SELECTED));
 }
 
+// the stick moves the selection on the game select screen; the game
+// ignores Select during play
+static void test_select_stick(void) {
+  TEST_ASSERT_EQUAL_HEX8(B7, spacduel_in1(6, BUTTON_DOWN, SD_SELECTED));
+  TEST_ASSERT_EQUAL_HEX8(B7, spacduel_in1(6, BUTTON_UP, SD_SELECTED));
+  TEST_ASSERT_EQUAL_HEX8(B7, spacduel_in1(6, BUTTON_DOWN, SD_SELECT_PENDING));
+  TEST_ASSERT_EQUAL_HEX8(0, spacduel_in1(6, BUTTON_LEFT | BUTTON_RIGHT | BUTTON_FIRE, SD_SELECTED));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_player1);
   RUN_TEST(test_dsw2);
   RUN_TEST(test_select);
+  RUN_TEST(test_select_stick);
   return UNITY_END();
 }
