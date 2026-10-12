@@ -18,10 +18,11 @@ Validation against MAME traces (tools/mame_trace.lua), exit code 1 on failure:
   marble_sim.py occl TRACE RACE     projection 0x1b9cc + occlusion masks 0x264aa per tick
   marble_sim.py slots TRACE RACE [MIN]  level object slots + dynamic terrain codes run free
                                      (never copied from the trace), marble physics on them
-  marble_sim.py deaths TRACE RACE [FROM:TO ...]  tick start traces (MARBLE_TICK=start): the
+  marble_sim.py deaths TRACE RACE [FROM:TO ...] [rng]  tick start traces (MARBLE_TICK=start): the
                                      main loop tick with deaths (states 1, 2, 4, respawn) runs
                                      free per segment, player, RNG, slots, player MOs == MAME
   marble_sim.py dfixture HEADER     replay the death host test fixture (make_fixture.py dwrite)
+  marble_sim.py tfixture HEADER     replay the tube host test fixture (make_fixture.py twrite)
 `run` copies slots, dynamic codes and enemy scratch from the trace each tick; `slots` only
 the camera and enemy scratch. Divergences at deaths and enemy contacts end a segment and
 are reported, any other divergence fails. Enemies are not ported.
@@ -824,8 +825,94 @@ NOOP = {0x6, 0x7, 0x8, 0x9, 0xe, 0xf, 0x11, 0x19, 0x28, 0x29, 0x2a, 0x2b, 0x2c}
 KEEP58 = {0, 0x10, 0x3b, 0x17, 0x18, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x2d, 0x2e, 0x38, 0x39, 0x3a, 0x2f, 0x30, 0x31}
 QUIET = {0x10, 0x17, 0x18, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37}
 
+# Silly race tubes (Marble Love sub-29cce.ts runTube22/runTube23Or24, helper-1cd00.ts):
+# 0x22 funnel at the start (marble lifted, then dropped out of one of two pipe exits),
+# 0x23/0x24 the pipe exits (3D shape collision 0x1cd00, shape 5)
+SHAPES = 0x24c5e            # 0x1cd00 shape pointers (7 longs): 16 byte plane entries
+TUBE_EXITS = (0x2dc, 0x2ac)  # 0x22 exit x words (y 0x2b0), first by rng(2), the other if blocked
+
+
+def tube_exit(m, a2, s, x, y):
+    """0x22 teleport: marble at (x, y), z of its cell floor (also 0x40068c), +0x58 = the
+    slot tag, state 3 (+0x59 ticks), sounds 0x15884 and 0x36."""
+    m.wl(a2 + 0xc, (x & 0xffff) << 16); m.wl(a2 + 0x10, (y & 0xffff) << 16)
+    posupd_1bab2(m, a2)
+    z = height_1cc62(m) & 0xffffffff
+    m.wl(a2 + 0x14, z); m.wl(0x40068c, z)
+    m.wb(a2 + 0x58, m.rb(s + 0x1f)); m.wb(a2 + 0x1a, 3)
+    m.sounds.append(0x36); m.events.append(("tube", hex(m.rb(s + 0x1f))))
+
+
+def tube_22(m, a2, s, d1, d2, z):
+    """Funnel: on the cell before the slot cell (d1 = d2 = 1) a marble above 0x3f94 drops
+    out of an exit (v = -4 px y, +0x59 0x12); on the funnel floor 0x3f74 it is lifted."""
+    if d1 != 1 or d2 != 1: return
+    if z > 0x3f94:
+        m.wb(a2 + 0x36, 0); m.wb(a2 + 0x59, 0x12)
+        m.wl(a2, 0); m.wl(a2 + 4, 0xfffc0000)
+        a, b = TUBE_EXITS if rng_13a98(m, 2) else TUBE_EXITS[::-1]
+        x = b if blocked_17cb8(m, a2, a, 0x2b0, 0x70) else a
+        tube_exit(m, a2, s, x, 0x2b0)
+        return
+    if z == 0x3f74: m.wl(a2 + 0x14, m.rl(a2 + 0x14) + 0x20000)
+    m.wl(a2 + 8, m.rl(a2 + 8) + 0x9000)
+    m.wl(a2 + 4, 0); m.wl(a2, 0); m.wb(a2 + 0x36, 2)
+
+
+def shape_1cd00(m, a2, s, k):
+    """3D shape collision of the marble against shape k placed at slot s (cell corner + 8):
+    plane entries (normal nx, ny, nz words; box x, y, z min/max bytes; point cx, cy, cz;
+    nx > 0x800 marks the last entry, nx - 0x1000). The new (0x400690) or old (0x400684)
+    position in a box and the plane crossed or within 0x400 of it: deep, the velocity
+    loses its normal part; shallow, a fall of more than 16 px loses the marble (1), else
+    back to the old position with the velocity reversed. Returns 1 for a loss."""
+    vx0, vy0, vz0 = m.sl(a2), m.sl(a2 + 4), m.sl(a2 + 8)
+    rx = (m.sw(s + 0xc) + 8) & 0xffff; ry = (m.sw(s + 0x10) + 8) & 0xffff; rz = m.sw(s + 0x14)
+    x1 = s16(rx - m.rw(0x400690)); y1 = s16(ry - m.rw(0x400692)); z1 = rz - m.sw(0x400694)
+    x2 = s16(rx - m.rw(0x400684)); y2 = s16(ry - m.rw(0x400688)); z2 = s16(rz - m.rw(0x40068c))
+    e = rom_l(SHAPES + 4 * k)
+    while True:
+        nx = s16(rom_w(e)); last = nx > 0x800
+        if last: nx = s16(nx - 0x1000)
+        ny, nz = s16(rom_w(e + 2)), s16(rom_w(e + 4))
+        b = [s8(PROG[e + 6 + i]) for i in range(6)]
+        cx, cy, cz = s8(PROG[e + 0xc]), s8(PROG[e + 0xd]), s8(PROG[e + 0xe])
+        inside = lambda x, y, z: b[0] <= x <= b[1] and b[2] <= y <= b[3] and b[4] <= z <= b[5]
+        if inside(x1, y1, z1) or inside(x2, y2, z2):
+            d5 = s32(nz * s16(z1 - cz) + ny * s16(y1 - cy) + nx * s16(x1 - cx))
+            d6 = s32(nz * s16(z2 - cz) + ny * s16(y2 - cy) + nx * s16(x2 - cx))
+            if abs(d5) < 0x400 or abs(d6) < 0x400 or (d5 ^ d6) < 0:
+                r = shape_hit(m, a2, nx, ny, nz, abs(d6), vx0, vy0, vz0)
+                if r >= 0: return r
+        e += 16
+        if last: return 0
+
+
+def shape_hit(m, a2, nx, ny, nz, ad6, vx0, vy0, vz0):
+    """0x1cd00 response (L_01CF36): -1 continue with the next entry, else the result."""
+    if ad6 >= 0x400:
+        for o, g in ((0xc, 0x400684), (0x10, 0x400688), (0x14, 0x40068c)): m.wl(a2 + o, m.rl(g))
+        vx, vy, vz = m.sl(a2), m.sl(a2 + 4), m.sl(a2 + 8)
+        dot = s16(s32(ny * s16(vy >> 7) + nx * s16(vx >> 7) + nz * s16(vz >> 7)) >> 8)
+        m.wl(a2, (vx - nx * dot) & 0xffffffff); m.wl(a2 + 4, (vy - ny * dot) & 0xffffffff)
+        m.wl(a2 + 8, (vz - nz * dot) & 0xffffffff)
+        return -1
+    if m.rb(a2 + 0x36) == 2 and abs(s32(m.rl(a2 + 0x14) - m.rl(a2 + 0x2a))) > 0x100000:
+        m.sounds.append(0x46)
+        if is_player(a2):
+            m.wb(a2 + 0x57, 0x64); enter_25bae(m, a2, 4)
+        else:
+            import marble_enemy
+            marble_enemy.remove_15bd0(m, a2, 1, 1)
+        return 1
+    m.wl(a2, -vx0 & 0xffffffff); m.wl(a2 + 4, -vy0 & 0xffffffff); m.wl(a2 + 8, -vz0 & 0xffffffff)
+    for o, g in ((0xc, 0x400684), (0x10, 0x400688), (0x14, 0x40068c)): m.wl(a2 + o, m.rl(g))
+    return 0
+
+
 def slots_29cce(m, a2):
     mcx = m.sw(0x400696); mcy = m.sw(0x400698); mx = m.sw(0x400690); my = m.sw(0x400692)
+    mz = m.rw(0x400694)
     vx = m.sl(a2); vy = m.sl(a2 + 4)
     old58 = m.rb(a2 + 0x58); m.wb(a2 + 0x58, 0)
     for i in range(25):
@@ -857,6 +944,11 @@ def slots_29cce(m, a2):
                 if d1 == 0 and -0x12 < d2 <= 0: m.wb(a2 + 0x58, tag); m.wb(a2 + 0x59, 0xff)
             elif tag == 0x18:
                 if -0x12 < d1 <= 0 and d2 == 0: m.wb(a2 + 0x58, tag); m.wb(a2 + 0x59, 0xff)
+            elif tag == 0x22:
+                tube_22(m, a2, s, d1, d2, mz)
+            elif tag in (0x23, 0x24):
+                if -0x10 <= d6 < 0x20 and -0x18 <= a0 < 0x28 and shape_1cd00(m, a2, s, 5):
+                    return                           # loss: no epilogue
             elif tag not in NOOP:
                 m.events.append(("slot", hex(tag)))
         if m.rb(a2 + 0x58) not in KEEP58:
@@ -1940,6 +2032,21 @@ def wobble_25416(m, a2):
         if s8(m.rb(a2 + 0x70)) > 0x28: m.wb(a2 + 0x70, 0xff); m.wb(a2 + 0xd8, 0)
 
 
+def tube_25514(m, a2):
+    """Player state 3 (refresh-frame-10fce.ts JT[3]): screen, dots, visibility; +0x59 counts
+    down while +0x58 holds the tube tag, then points (0x12: 9; 0x13, 0x14, 0x20, 0x22, 0x25:
+    5), +0x58 = 0, +0x22/+0x26 cleared, rolling again."""
+    proj_1b9cc(m, a2, True); dots_1c014(m, a2); enter_1281c(m, a2)
+    t = m.rb(a2 + 0x58)
+    if not t: return
+    m.wb(a2 + 0x59, m.rb(a2 + 0x59) - 1)
+    if m.rb(a2 + 0x59): return
+    if t == 0x12: score_285b0(m, a2, 9)
+    elif t in (0x13, 0x14, 0x20, 0x22, 0x25): score_285b0(m, a2, 5)
+    elif t == 0xa: m.sounds.append(0x45)
+    m.wb(a2 + 0x58, 0); m.wl(a2 + 0x26, 0); m.wl(a2 + 0x22, 0); m.wb(a2 + 0x1a, 0)
+
+
 def object_253ec(m, a2):
     """One player object tick by state +0x1a: 0 roll, 1 dizzy, 2 shatter, 4 lost, 6 goal.
     Other states (3, 5, 7-0xb) are not ported: event."""
@@ -1986,6 +2093,8 @@ def object_253ec(m, a2):
     elif st == 9 and m.acid:
         import marble_acid
         marble_acid.dissolve_2584e(m, a2)
+    elif st == 3:
+        tube_25514(m, a2)
     elif st == 0xb and m.birds:
         import marble_bird
         marble_bird.carried_25876(m, a2)
@@ -2361,13 +2470,17 @@ def cmd_deaths(trace, race, segs):
     snapshot after FROM, per tick only the inputs (death_inputs) come from the trace. Every
     tick up to TO must equal the next snapshot (death_diff)."""
     ok = True
+    rng_in = "rng" in segs
+    segs = [x for x in segs if x != "rng"]
     for seg in segs or ["0:%d" % trace[-1][0]]:
         a, b = (int(v) for v in seg.split(":"))
-        ok &= death_segment(trace, race, a, b)
+        ok &= death_segment(trace, race, a, b, rng_in)
     return ok
 
 
-def death_segment(trace, race, start, end):
+def death_segment(trace, race, start, end, rng_in=False):
+    """rng_in: RNG word 0x4003a6 from each snapshot (silly race start: the unported minis
+    use the RNG), not compared."""
     t = Terrain(race)
     i0 = next(k for k, x in enumerate(trace) if x[0] > start and live_race(x[1]))
     m = death_mem(t, trace[i0][1])
@@ -2375,11 +2488,12 @@ def death_segment(trace, race, start, end):
     run = [x for x in trace[i0:] if x[0] <= end]
     for (fr, r, v), (fr2, r2, v2) in zip(run, run[1:]):
         m.events = []; m.sounds = []
+        if rng_in: m.ww(0x4003a6, tw(r, 0x4003a6))
         main_tick(m, *death_inputs(r, r2))
         n += 1
         st = m.rb(P + 0x1a); states[st] = states.get(st, 0) + 1
         mos_bad += player_mos(marble_mo_ram(r2)) != ref_player_mos(r2, v2)
-        d = death_diff(m, r2, v2)
+        d = [e for e in death_diff(m, r2, v2) if not (rng_in and e.startswith("rng"))]
         if d:
             print("deaths race %d: tick %d (frame %d, state %d) differs: %s %s"
                   % (race, n, fr2, st, "; ".join(d[:8]), m.events))
@@ -2531,9 +2645,10 @@ def death_state(m):
             bytes(m.ram[a + 0x38:a + 0x56]), m.rw(0x4003a6), tuple(player_mos(m)))
 
 
-def load_dfixture(path):
+def load_dfixture(path, rng_in=False):
     """Segments of source/test/test_marble_deaths/marble_deaths_trace.h (make_fixture.py
-    dwrite): [{"race", "frame", "ram", "ticks": [(c6, c7, camera, frames, state tuple)]}]."""
+    dwrite): [{"race", "frame", "ram", "ticks": [(c6, c7, camera, frames, state tuple)]}].
+    rng_in: marble_tubes_trace.h (twrite), ticks (c6, c7, camera, frames, rng, state)."""
     import re
     text = open(path).read()
     num = lambda s: [int(v, 0) for v in re.findall(r"-?0x[0-9a-fA-F]+|-?\d+", s)]
@@ -2542,7 +2657,7 @@ def load_dfixture(path):
     segs = []
     for race, frame, nram, ramname, nticks, tickname, nmos, moname in re.findall(
             r"\{ *(\d+), *(\d+), *(\d+), *(\w+), *(\d+), *(\w+), *(\d+), *(\w+) *\}",
-            arrays["marble_deaths_segments"]):
+            arrays["marble_tubes_segments" if rng_in else "marble_deaths_segments"]):
         ram = []
         for addr, length, data in re.findall(r"\{ *(0x[0-9a-f]+), *(\d+), *(\w+) *\}",
                                              arrays[ramname]):
@@ -2551,32 +2666,36 @@ def load_dfixture(path):
             ram.append((int(addr, 0), b))
         v = num(arrays[tickname]); mw = num(arrays[moname])
         mos = [tuple(mw[k:k + 3]) for k in range(0, len(mw), 3)]
-        w = 14 + 30 + 3
+        w = 14 + 30 + 3 + rng_in
         ticks = []
         for k in range(0, len(v), w):
             t = v[k:k + w]
-            c6, c7, cam, frames, x, y, z, st, vis, sx, sy, anim, hdr, shard = t[:14]
-            rng, n, first = t[44:47]
-            ticks.append((c6, c7, cam, frames, (x, y, z, st, vis, sx, sy, anim, hdr, shard,
-                          bytes(t[14:44]), rng, tuple(mos[first:first + n]))))
+            inp, t = tuple(t[:4 + rng_in]), t[4 + rng_in:]
+            x, y, z, st, vis, sx, sy, anim, hdr, shard = t[:10]
+            rng, n, first = t[40:43]
+            ticks.append(inp + ((x, y, z, st, vis, sx, sy, anim, hdr, shard,
+                          bytes(t[10:40]), rng, tuple(mos[first:first + n])),))
         assert len(ram) == int(nram) and len(ticks) == int(nticks) and len(mos) == int(nmos)
         segs.append({"race": int(race), "frame": int(frame), "ram": ram, "ticks": ticks})
     return segs
 
 
-def replay_dfixture(seg, m):
-    """Run every death fixture tick on m; index of the first tick that differs, or None."""
+def replay_dfixture(seg, m, rng_in=False):
+    """Run every death fixture tick on m (rng_in: tube fixture, RNG word set before each
+    tick); index of the first tick that differs, or None."""
     m.deaths = m.objects = m.sprites = True
-    for k, (c6, c7, cam, frames, want) in enumerate(seg["ticks"]):
+    for k, tick in enumerate(seg["ticks"]):
+        c6, c7, cam, frames = tick[:4]
+        if rng_in: m.ww(0x4003a6, tick[4])
         main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
-        if death_state(m) != want: return k
+        if death_state(m) != tick[-1]: return k
     return None
 
 
-def cmd_dfixture(path):
+def cmd_dfixture(path, rng_in=False):
     ok = True
-    for seg in load_dfixture(path):
-        bad = replay_dfixture(seg, fixture_mem(seg, Terrain(seg["race"])))
+    for seg in load_dfixture(path, rng_in):
+        bad = replay_dfixture(seg, fixture_mem(seg, Terrain(seg["race"])), rng_in)
         print("deaths fixture race %d frame %d: %d ticks, %s" % (seg["race"], seg["frame"],
               len(seg["ticks"]), "exact" if bad is None else "differs at tick %d" % bad))
         ok &= bad is None
@@ -2586,6 +2705,8 @@ def cmd_dfixture(path):
 def main(argv):
     if len(argv) == 3 and argv[1] == "dfixture":
         return 0 if cmd_dfixture(argv[2]) else 1
+    if len(argv) == 3 and argv[1] == "tfixture":
+        return 0 if cmd_dfixture(argv[2], True) else 1
     if len(argv) == 3 and argv[1] == "fixture":
         return 0 if cmd_fixture(argv[2]) else 1
     if len(argv) == 3 and argv[1] == "objfixture":

@@ -516,7 +516,7 @@ sound 0x42), 0x0a catapult, 0x0b/0x0d
 aerial gates (may set state 4), 0x0c bounce box, 0x10/0x17/0x18/0x2d-0x3b surface cells
 (+0x58), 0x12-0x16 and 0x20-0x27 tubes (teleport to fixed exits, state 3, blocked check
 0x17cb8, shape test 0x1cd00, rng; some return without the bounce epilogue), 0x1a-0x1f
-walls. Ported: 0x05, surfaces, walls.
+walls. Ported: 0x05, surfaces, walls, silly tubes 0x22-0x24 (section "Silly race tubes").
 
 Validation (`marble_sim.py slots TRACE RACE`: slots, dynamic codes and slot globals never
 copied from the trace after the first race snapshot; camera long and enemy scratch are):
@@ -1662,9 +1662,53 @@ python3 romconv/internal/marble/tools/marble_bird.py birds TRACE RACE FROM:TO
 python3 romconv/internal/marble/tools/marble_bird.py sweep
 ```
 
+### Silly race tubes
+
+Marble Love TS (`sub-29cce.ts` runTube22, runTube23Or24, runTubeTeleport, `helper-1cd00.ts`,
+`refresh-frame-10fce.ts` JT[3]). Three mode 1 slots spawn at the silly race start: 0x22 funnel
+at cell (89, 90), z 0x3f74; pipe exits 0x24 (86, 86) and 0x23 (92, 86), z 0x3fb4. Without them
+the marble rolling into the funnel stays in its pit (the user's "bridge without top").
+
+- 0x22 (marble cell = slot cell - 1 on both axes): marble z word above 0x3f94: +0x36 0, +0x59
+  0x12, v = (0, -4 px), exit x = 0x2dc or 0x2ac by rng(2) (the other if 0x17cb8 finds it
+  taken, radius 0x70), y 0x2b0, z = cell floor (0x1bab2 + 0x1cc62(0), also 0x40068c), +0x58
+  = 0x22, state 3, sounds 0x15884, 0x36. On the funnel floor (z 0x3f74) z += 2 px; every tick
+  in the cell: vz += 0x9000, v x/y 0, airborne: the marble rises out, then drops.
+- 0x23/0x24 (|slot - marble| px: x -0x10..0x1f, y -0x18..0x27): 0x1cd00 shape 5 at the slot
+  cell corner + 8: plane entries (normal words, box bytes, point bytes; last entry nx > 0x800,
+  nx - 0x1000). New or old position in a box and the plane crossed or within 0x400: old
+  position deep off the plane: back to the old position, velocity minus its normal part;
+  shallow: airborne and fallen over 16 px: lost (+0x57 0x64, 0x25bae(4); objects 0x15bd0)
+  and 0x29cce returns without its epilogue; else old position, velocity reversed.
+- Player state 3 (0x25514): 0x1b9cc(1), dots, 0x1281c (hidden while +0x58 is set: 0x264aa
+  mode 0); +0x59 counts down, then points (tag 0x22: entry 5 = 2000), +0x58 0, +0x22/+0x26
+  cleared, state 0 (the exit velocity starts).
+
+Check: `marble_sim.py deaths TRACE 4 FROM:TO rng` (the RNG word an input each tick: the minis,
+not ported, use it at the silly start) on tick start traces `$TMPDIR/tu` (place
+900:748:716:-140, stick c7 -8 from frame 920): t3 funnel, drop, roll, fall, lost, respawn
+(297 ticks equal), t5-t7 back into the exit walls (373 ticks equal, 12 plane hits). Beyond
+frame 1650 the race timer warning (+0x71, vblank) differs, not modelled. The 16 px loss path
+is not covered by a trace.
+
+Tube fixture `source/test/test_marble_deaths/marble_tubes_trace.h` (`make_fixture.py
+twrite`, death fixture format plus `rng_in`): t3 904 (296 ticks), t6 904 (372 ticks). C++
+(`marble_objects.cpp` `funnel_22`, `shape_1cd00`; `marble_physics` state `TUBE`, `blocked`):
+`test_replay_tubes` replays it, `test_silly_funnel` rolls the marble from the funnel floor to
+an exit through the machine start path. Flash +1800 B.
+
+```sh
+S=$TMPDIR/tu
+python3 romconv/internal/marble/tools/make_fixture.py twrite \
+  source/test/test_marble_deaths/marble_tubes_trace.h 4:$S/t3/trace.bin:904:296 \
+  4:$S/t6/trace.bin:904:372
+python3 romconv/internal/marble/tools/marble_sim.py tfixture \
+  source/test/test_marble_deaths/marble_tubes_trace.h
+```
+
 ## Open questions
 
-- Level objects: unported tags (0x0a-0x0d, tubes 0x12-0x16, 0x20-0x27), zone triggered
+- Level objects: unported tags (0x0a-0x0d, tubes 0x12-0x16, 0x20, 0x21, 0x25-0x27), zone triggered
   slots (state 4, 0x13966/0x13a1c, aerial), playfield patch decode of tag 0x19 rows. Section
   Level objects. Slot sprites: section Level object sprites (masks over slot MOs behind the
   marble not seen in traces).

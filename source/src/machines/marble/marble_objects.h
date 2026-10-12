@@ -18,8 +18,8 @@
 //   lastPatch(m)                  record of the last playfield patch (mode 1 slots), 0 = none
 //
 // Per logic tick: applyQueued, camera tick + cameraBands, physics::tick, update.
-// Not ported (Phase 4): tags 0x0a-0x0d, 0x12-0x16, 0x20-0x27 (tubes, gates, catapult): their
-// contact is ignored; spawners of enemies other than steelies; MO graphics of moving parts.
+// Not ported (Phase 4): tags 0x0a-0x0d, 0x12-0x16, 0x20, 0x21, 0x25-0x27 (tubes, gates,
+// catapult): their contact is ignored; spawners of enemies other than steelies; MO graphics of moving parts.
 namespace marble_objects {
 
 void init(marble_physics::Mem &m, uint8_t race);

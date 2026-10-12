@@ -26,6 +26,7 @@
 #endif
 #include "marble_deaths_trace.h"
 #include "marble_start_trace.h"
+#include "marble_tubes_trace.h"
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -141,6 +142,43 @@ static void test_replay_deaths(void) {
     TEST_ASSERT_EQUAL_HEX32_MESSAGE(SEG_END[s].score, m.rl(PLAYER + SCORE), msg);
     TEST_ASSERT_EQUAL_HEX16_MESSAGE(SEG_END[s].distance, m.rw(PLAYER + DISTANCE), msg);
     TEST_ASSERT_EQUAL_HEX16_MESSAGE(SEG_END[s].deaths, m.rw(PLAYER + DEATHS), msg);
+  }
+}
+
+// Silly race tubes (marble_tubes_trace.h): the marble rolled into the funnel 0x22 is lifted,
+// drops out of a pipe exit (state TUBE), bounces off the exit walls 0x23/0x24. The RNG word
+// is an input per tick (the minis, not ported, use it in MAME).
+static void test_replay_tubes(void) {
+  for (uint8_t s = 0; s < MARBLE_TUBES_SEGMENTS; s++) {
+    const MarbleTubeSegment &seg = marble_tubes_segments[s];
+    memset(ram, 0, sizeof(ram));
+    for (uint8_t i = 0; i < seg.nram; i++) {
+      const MarbleTubeRam &r = seg.ram[i];
+      memcpy(ram + (r.addr - marble_physics::RAM_BASE), r.bytes, r.len);
+    }
+    Mem m(ram, seg.race);
+    marble_drawlist::init(m);  // the fixture has no draw list; slot inserts need one
+
+    uint16_t tube = 0;
+    for (uint16_t k = 0; k < seg.nticks; k++) {
+      const MarbleTubeTick &t = seg.ticks[k];
+      m.ww(RNG, t.rng_in);
+      mainTick(m, t.c6, t.c7, t.camera, t.frames);
+      tube += marble_physics::state(m) == marble_physics::TUBE;
+      // the death tick fields line up from x on
+      const MarbleDeathTick d = {t.c6, t.c7, t.camera, t.frames, t.x, t.y, t.z, t.state, t.vis,
+                                 t.sx, t.sy, t.anim, t.frame_hdr, t.shard_hdr, {}, t.rng, 0, 0};
+      MarbleDeathTick dm = d;
+      memcpy(dm.mask, t.mask, MASK_BYTES);
+      const char *bad = diff(m, dm);
+      if (!bad) { continue; }
+
+      char msg[160];
+      snprintf(msg, sizeof(msg), "tube segment %d tick %d: %s differs (state %d, expected %d)", s,
+               k, bad, marble_physics::state(m), t.state);
+      TEST_FAIL_MESSAGE(msg);
+    }
+    TEST_ASSERT_TRUE_MESSAGE(tube > 0, "no TUBE ticks");
   }
 }
 
@@ -520,6 +558,63 @@ static void test_race_start_rng(void) {
   }
 }
 
+// machine tick with stick deltas c6, c7 (logicTick with input)
+static void inputTick(Mem &m, int8_t c6, int8_t c7) {
+  m.wl(marble_physics::FRAMES, m.rl(marble_physics::FRAMES) + 1);
+  marble_objects::applyQueued(m);
+  const int16_t oldCam = m.sw(marble_physics::CAMERA);
+  const uint32_t oldL = m.rl(marble_physics::CAMERA_L);
+  marble_camera::tick(m);
+  const int16_t newCam = m.sw(marble_physics::CAMERA);
+  if (newCam != oldCam) {
+    const uint32_t newL = m.rl(marble_physics::CAMERA_L);
+    m.wl(marble_physics::CAMERA_L, oldL);
+    marble_objects::cameraBands(m, oldCam, newCam);
+    m.wl(marble_physics::CAMERA_L, newL);
+  }
+  marble_physics::tick(m, c6, c7);
+  marble_enemies::update(m);
+  marble_objects::update(m);
+  marble_rng::rng(m, RNG_TICK);
+  marble_drawlist::sort(m);
+}
+
+// Through the machine start path: the marble put on the silly race funnel floor (MAME run t3:
+// 748, 716) and pushed -x reaches the funnel, drops out of one of the two exits (TUBE), then
+// rolls again with 2000 points (MAME t3: 10 -> 2010)
+static void test_silly_funnel(void) {
+  static const uint8_t SILLY = 4;
+  static const uint32_t TUBE_POINTS = 2000;
+  static const int16_t X0 = 748, Y0 = 716;
+  static const int8_t PUSH = -8;
+  static const uint16_t TICKS = 300;
+  static const int16_t EXIT_A = 0x2dc, EXIT_B = 0x2ac, EXIT_Y = 0x2b0;
+  beginRace(SILLY);
+  Mem m(ram, SILLY);
+  m.wl(PLAYER + VX, 0);
+  m.wl(PLAYER + VY, 0);
+  m.wl(PLAYER + PX, (uint32_t)X0 << 16);
+  m.wl(PLAYER + PY, (uint32_t)Y0 << 16);
+  m.wl(PLAYER + PZ, (uint32_t)marble_physics::cellHeight(m, PLAYER));
+  m.wl(PLAYER + GROUND_Z, m.rl(PLAYER + PZ));
+
+  uint16_t k = 0;
+  while (marble_physics::state(m) != marble_physics::TUBE && k++ < TICKS) {
+    inputTick(m, 0, PUSH);  // c7: -x
+  }
+  TEST_ASSERT_EQUAL_UINT8_MESSAGE(marble_physics::TUBE, marble_physics::state(m), "no drop");
+  const int16_t x = m.sw(PLAYER + PX);
+  TEST_ASSERT_TRUE(x == EXIT_A || x == EXIT_B);
+  TEST_ASSERT_EQUAL_INT16(EXIT_Y, m.sw(PLAYER + PY));
+
+  const uint32_t score = m.rl(PLAYER + SCORE);
+  while (marble_physics::state(m) == marble_physics::TUBE && k++ < TICKS) {
+    inputTick(m, 0, 0);
+  }
+  TEST_ASSERT_EQUAL_UINT8(marble_physics::ROLL, marble_physics::state(m));
+  TEST_ASSERT_EQUAL_UINT32(score + TUBE_POINTS, m.rl(PLAYER + SCORE));
+}
+
 // FIRE while dead: the next race starts from a dying marble in state 0, no stars or death
 // frame left
 static void test_race_switch_dead(void) {
@@ -567,6 +662,8 @@ int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   RUN_TEST(test_replay_deaths);
+  RUN_TEST(test_replay_tubes);
+  RUN_TEST(test_silly_funnel);
   RUN_TEST(test_player_objects);
   RUN_TEST(test_race_start_rng);
   RUN_TEST(test_start_and_goal);

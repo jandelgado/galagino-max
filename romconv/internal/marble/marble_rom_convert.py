@@ -47,6 +47,7 @@ STEELIE_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_steelies",
                                "marble_steelies_trace.h")
 ACID_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_acid", "marble_acid_trace.h")
 BIRD_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_birds", "marble_birds_trace.h")
+TUBE_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_deaths", "marble_tubes_trace.h")
 SLINKY_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_slinkies",
                               "marble_slinkies_trace.h")
 DEATH_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_deaths",
@@ -517,12 +518,39 @@ def bird_runs(mem, terrains, full):
     return out
 
 
+def tube_runs(mem, terrains, full):
+    """Silly race tubes: every tube fixture segment (main tick, the RNG word an input); the
+    check values read the program ROM full, as death_runs. Returns crc32 of the work RAM per
+    segment."""
+    if not os.path.exists(TUBE_FIXTURE):
+        fatal(f"marble: {TUBE_FIXTURE} missing, run tools/make_fixture.py twrite")
+    out = []
+    for seg in ms.load_dfixture(TUBE_FIXTURE, True):
+        m = ms.fixture_mem(seg, terrains[seg["race"]], mem)
+        m.deaths = m.objects = m.sprites = True
+        for c6, c7, cam, frames, rng, want in seg["ticks"]:
+            m.ww(0x4003a6, rng)
+            ms.main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
+            prog, ms.PROG = ms.PROG, full
+            try:
+                got = ms.death_state(m)
+            finally:
+                ms.PROG = prog
+            if got != want:
+                fatal("marble: tube fixture replay differs, run marble_sim.py tfixture")
+        out.append(zlib.crc32(bytes(m.ram)))
+    return out
+
+
 def bird_bytes():
     """Phase 4b-4a tables (whole): the bird pointer table, the spawn cells, the animation
     lists (0xffffffff end)."""
     out = set(range(0x1f0ba, 0x1f0ba + 40)) | set(range(bd.POINTS, bd.POINTS + 10))
     for a in mo.BIRD_LISTS:
         out |= set(range(a, a + 4 * len(mo.anim_list(a)) + 4))
+    # silly race tubes: 0x1cd00 shape 5 (pipe exits 0x23/0x24), pointer and plane entries
+    shape = ms.rom_l(ms.SHAPES + 4 * 5)
+    out |= set(range(ms.SHAPES + 4 * 5, ms.SHAPES + 4 * 6)) | set(range(shape, shape + 3 * 16))
     return out
 
 
@@ -723,7 +751,7 @@ def prog_blocks(terrains):
         want7 = set(RecProg.reads)
         ref8 = acid_runs(RecMem, terrains, plain)
         want8 = set(RecProg.reads)
-        ref9 = bird_runs(RecMem, terrains, plain)
+        ref9 = bird_runs(RecMem, terrains, plain) + tube_runs(RecMem, terrains, plain)
         want9 = set(RecProg.reads)
     finally:
         ms.PROG = plain
@@ -903,7 +931,7 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, size4b
                + object_runs(BlockMem, terrains) + sprite_runs(BlockMem, terrains)
                + death_runs(BlockMem, terrains, plain) + steelie_runs(BlockMem, terrains, plain)
                + slinky_runs(BlockMem, terrains, plain) + acid_runs(BlockMem, terrains, plain)
-               + bird_runs(BlockMem, terrains, plain))
+               + bird_runs(BlockMem, terrains, plain) + tube_runs(BlockMem, terrains, plain))
     finally:
         ms.PROG = plain
         ms.EDGES = None
@@ -1376,7 +1404,7 @@ def main():
     print("phase 4b-3 flash: " + ", ".join(f"{k} {v}" for k, v in size4b3.items())
           + f", total {total4b3} B")
     total4b4 = sum(size4b4.values())
-    print("phase 4b-4a flash: " + ", ".join(f"{k} {v}" for k, v in size4b4.items())
+    print("phase 4b-4a (birds, silly tubes) flash: " + ", ".join(f"{k} {v}" for k, v in size4b4.items())
           + f", total {total4b4} B")
     os.makedirs(os.path.dirname(FIXTURE), exist_ok=True)
     with open(FIXTURE, "w") as f:

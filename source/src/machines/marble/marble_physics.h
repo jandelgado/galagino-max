@@ -14,6 +14,7 @@
 //     +0xc6/+0xc7, then the handler of state +0x1a (0x253ec):
 //       ROLL    0x253bc, input 0x17f66, physics 0x121b8
 //       DIZZY   animation 0x25fc2, as ROLL, countdown
+//       TUBE    dropped out of a silly race pipe exit (0x25514): waits, scores, then ROLL
 //       BROKEN  shatter animation 0x25fc2, projection, masks; ends in LOST
 //       LOST    respawned at entry (0x2591a); sparkle 0x13ade, then ROLL
 //       EATEN   held by a slinky: animation 0x25fc2, as ROLL, countdown
@@ -29,7 +30,7 @@
 // the first slots. Steelies (marble_enemies.h) run the same object physics: pair collision
 // 0x1bc88, non-player landing and loss go to marble_enemies; the player's physics also runs
 // the slinky contact 0x14e92, the acid contact 0x175c8 and the bird contact 0x19d94. Not
-// ported (Phase 4): other enemies, states 3, 8, 0xa, the race
+// ported (Phase 4): other enemies, states 8, 0xa, the race
 // timer (time out 0x1bbaa), sprite dots 0x1c014, zone
 // hook 0x13966, sounds.
 namespace marble_physics {
@@ -38,7 +39,8 @@ static const uint32_t PLAYER = 0x400018;  // player 1 object
 
 // player state +0x1a (handler table 0x254ba)
 enum State : uint8_t {
-  ROLL = 0, DIZZY = 1, BROKEN = 2, LOST = 4, EATEN = 5, GOAL = 6, HIDDEN = 7, DISSOLVING = 9,
+  ROLL = 0, DIZZY = 1, BROKEN = 2, TUBE = 3, LOST = 4, EATEN = 5, GOAL = 6, HIDDEN = 7,
+  DISSOLVING = 9,
   CARRIED = 0xb
 };
 static const uint8_t CARRIED_DAMAGE = 0x66;  // +0x57 a bird sets: orbit length of CARRIED
@@ -85,6 +87,7 @@ void project(Mem &m, uint32_t obj, Refetch r);
 //                            fetched, floor z (the z word scratch is left alone)
 //   drag(m, obj)             0x25e7c mode 2: velocity friction of a pushed slinky
 //   enterState(m, obj, s)    0x25bae state entry (BROKEN, LOST, DISSOLVING)
+//   blocked(m, obj, x, y, r) 0x17cb8: another live object near pixel (x, y), 0 if none
 //   animate(m, obj)          0x25fc2 animation step of +0x5a; a shattering steelie leaves
 //                            the draw list at the end
 //   score(m, player, k)      0x285b0 points entry k
@@ -96,6 +99,7 @@ int32_t floorZ(Mem &m, uint32_t obj);
 int32_t cellHeight(Mem &m, uint32_t obj);
 void drag(Mem &m, uint32_t obj);
 void enterState(Mem &m, uint32_t obj, State s);
+uint8_t blocked(Mem &m, uint32_t obj, int16_t x, int16_t y, uint16_t r);
 void animate(Mem &m, uint32_t obj);
 void score(Mem &m, uint32_t player, uint8_t k);
 

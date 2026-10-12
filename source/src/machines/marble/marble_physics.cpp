@@ -1319,6 +1319,30 @@ void dissolve_2584e(Mem &m, uint32_t a2) {
   marble_occlusion::enter(m, a2);
 }
 
+// 0x25514: dropped out of a tube exit (+0x58 the tube tag): projection, visibility (dots
+// 0x1c014 not ported); +0x59 counts down, then points (0x12: 9; 0x13, 0x14, 0x20, 0x22,
+// 0x25: 5), surface and the older screen pairs +0x22/+0x26 cleared, ROLL
+void tube_25514(Mem &m, uint32_t a2) {
+  static const uint8_t TUBE_12 = 0x12, POINTS_12 = 9, POINTS_TUBE = 5;
+  proj_1b9cc(m, a2, REFETCH);
+  marble_occlusion::enter(m, a2);
+  const uint8_t t = m.rb(a2 + SURFACE);
+  if (!t) { return; }
+
+  m.wb(a2 + SURFACE_T, m.rb(a2 + SURFACE_T) - 1);
+  if (m.rb(a2 + SURFACE_T)) { return; }
+
+  if (t == TUBE_12) {
+    score(m, a2, POINTS_12);
+  } else if (t == 0x13 || t == 0x14 || t == 0x20 || t == 0x22 || t == 0x25) {
+    score(m, a2, POINTS_TUBE);
+  }  // 0x0a catapult: sound 0x45
+  m.wb(a2 + SURFACE, 0);
+  m.wl(a2 + SCREEN_OLD2, 0);
+  m.wl(a2 + SCREEN_OLD, 0);
+  m.wb(a2 + STATE, ROLL);
+}
+
 // 0x25876: carried off by a bird: projection, orbit (radius grows), at its end LOST
 void carried_25876(Mem &m, uint32_t a2) {
   proj_1b9cc(m, a2, REFETCH);
@@ -1328,12 +1352,13 @@ void carried_25876(Mem &m, uint32_t a2) {
 }
 
 // 0x253ec: handler of state +0x1a (table 0x254ba). Not ported: +0xd8 wobble (silly minis),
-// states 3, 8, 0xa.
+// states 8, 0xa.
 void object_253ec(Mem &m, uint32_t a2) {
   switch (m.rb(a2 + STATE)) {
     case ROLL: roll_256d2(m, a2); break;
     case DIZZY: dizzy_2574c(m, a2); break;
     case BROKEN: shatter_25824(m, a2); break;
+    case TUBE: tube_25514(m, a2); break;
     case LOST: lost_255c6(m, a2); break;
     case EATEN: eaten_257ba(m, a2); break;
     case GOAL: goal_254d2(m, a2); break;
@@ -1375,6 +1400,9 @@ void move(Mem &m, uint32_t obj) { physics_121b8(m, obj); }
 void ground(Mem &m, uint32_t obj) { ground_253bc(m, obj); }
 void speedCap(Mem &m, uint32_t obj) { speedcap_26196(m, obj); }
 void enterState(Mem &m, uint32_t obj, State s) { enter_25bae(m, obj, s); }
+uint8_t blocked(Mem &m, uint32_t obj, int16_t x, int16_t y, uint16_t r) {
+  return blocked_17cb8(m, obj, x, y, r);
+}
 void animate(Mem &m, uint32_t obj) { anim_25fc2(m, obj); }
 
 int32_t cellHeight(Mem &m, uint32_t obj) {

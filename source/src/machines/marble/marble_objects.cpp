@@ -560,26 +560,161 @@ void setSurface(Mem &m, uint32_t a2, uint8_t tag) {
 inline int32_t absl(int32_t v) { return v < 0 ? -v : v; }
 
 // contact of the player (a2) with one slot s, in the order of the model
-void contact(Mem &m, uint32_t a2, uint32_t s, int32_t vx, int32_t vy) {
+// Silly race tubes (Marble Love sub-29cce.ts runTube22 / runTube23Or24, helper-1cd00.ts):
+// 0x22 is the funnel by the start, 0x23/0x24 the two pipe exits it drops the marble from.
+static const uint8_t TAG_FUNNEL = 0x22, TAG_EXIT_A = 0x23, TAG_EXIT_B = 0x24;
+static const uint32_t SHAPES = 0x24c5e;       // 0x1cd00 shape pointers: 16 byte plane entries
+static const uint8_t SHAPE_EXIT = 5;          // pipe exit walls
+static const uint32_t POS_Z = 0x400694, OLD_Z = 0x40068c;  // word: z of POS_X/Y; long
+static const uint8_t P_VZ = 0x08, P_PX = 0x0c, P_PY = 0x10, P_AIR = 0x36, P_DAMAGE = 0x57;
+static const uint8_t P_STATE = 0x1a, P_GROUND_Z = 0x2a;
+static const uint8_t AIRBORNE = 2, FELL = 0x64;  // +0x36; +0x57 at the LOST entry
+static const uint16_t FUNNEL_FLOOR = 0x3f74, FUNNEL_DROP = 0x3f94;  // z words
+static const uint16_t EXIT_X0 = 0x2dc, EXIT_X1 = 0x2ac, EXIT_Y = 0x2b0, EXIT_FREE = 0x70;
+static const uint32_t EXIT_VY = 0xfffc0000;   // -4 px per tick
+static const uint8_t EXIT_TICKS = 0x12;       // TUBE state length
+static const uint32_t LIFT_Z = 0x20000, LIFT_VZ = 0x9000;
+static const int32_t SHAPE_NEAR = 0x400, FALL_LOSS = 0x100000;  // plane distance; 16 px
+
+// 0x22 drop: marble at (x, y) on its cell floor (also OLD_Z), surface = the slot tag, TUBE
+// (sounds 0x15884, 0x36)
+void tubeExit(Mem &m, uint32_t a2, uint32_t s, uint16_t x, uint16_t y) {
+  m.wl(a2 + P_PX, (uint32_t)x << 16);
+  m.wl(a2 + P_PY, (uint32_t)y << 16);
+  const uint32_t z = (uint32_t)marble_physics::floorZ(m, a2);
+  m.wl(a2 + P_PZ, z);
+  m.wl(OLD_Z, z);
+  m.wb(a2 + P_SURFACE, m.rb(s + TAG));
+  m.wb(a2 + P_STATE, marble_physics::TUBE);
+}
+
+// 0x22 funnel: on the cell before the slot cell a marble above FUNNEL_DROP drops out of an
+// exit (first by rng(2), the other if that one is blocked); on the funnel floor it is lifted
+void funnel_22(Mem &m, uint32_t a2, uint32_t s, int16_t d1, int16_t d2, uint16_t z) {
+  if (d1 != 1 || d2 != 1) { return; }
+
+  if (z > FUNNEL_DROP) {
+    m.wb(a2 + P_AIR, 0);
+    m.wb(a2 + P_SURFACE_T, EXIT_TICKS);
+    m.wl(a2 + P_VX, 0);
+    m.wl(a2 + P_VY, EXIT_VY);
+    const bool first = marble_rng::rng(m, 2) != 0;
+    const uint16_t a = first ? EXIT_X0 : EXIT_X1, b = first ? EXIT_X1 : EXIT_X0;
+    const bool taken = marble_physics::blocked(m, a2, (int16_t)a, (int16_t)EXIT_Y, EXIT_FREE);
+    tubeExit(m, a2, s, taken ? b : a, EXIT_Y);
+    return;
+  }
+  if (z == FUNNEL_FLOOR) { m.wl(a2 + P_PZ, m.rl(a2 + P_PZ) + LIFT_Z); }
+  m.wl(a2 + P_VZ, m.rl(a2 + P_VZ) + LIFT_VZ);
+  m.wl(a2 + P_VY, 0);
+  m.wl(a2 + P_VX, 0);
+  m.wb(a2 + P_AIR, AIRBORNE);
+}
+
+// back to the position before the move (OLD_X/Y/Z)
+void restoreOld(Mem &m, uint32_t a2) {
+  m.wl(a2 + P_PX, m.rl(OLD_X));
+  m.wl(a2 + P_PY, m.rl(OLD_Y));
+  m.wl(a2 + P_PZ, m.rl(OLD_Z));
+}
+
+// 0x1cd00 response (L_01CF36) to plane (nx, ny, nz): -1 next entry, else the result. Deep
+// (old position 0x400 or more off the plane): old position, the velocity loses its normal
+// part. Shallow: a fall over 16 px loses the marble (1), else old position, velocity reversed.
+int8_t shapeHit(Mem &m, uint32_t a2, int16_t nx, int16_t ny, int16_t nz, int32_t ad6,
+                const uint32_t v0[3]) {
+  if (ad6 >= SHAPE_NEAR) {
+    restoreOld(m, a2);
+    const int32_t vx = m.sl(a2 + P_VX), vy = m.sl(a2 + P_VY), vz = m.sl(a2 + P_VZ);
+    const int32_t sum = ny * s16((uint32_t)(vy >> 7)) + nx * s16((uint32_t)(vx >> 7)) +
+                        nz * s16((uint32_t)(vz >> 7));
+    const int16_t dot = s16((uint32_t)(sum >> 8));
+    m.wl(a2 + P_VX, (uint32_t)vx - (uint32_t)(nx * dot));
+    m.wl(a2 + P_VY, (uint32_t)vy - (uint32_t)(ny * dot));
+    m.wl(a2 + P_VZ, (uint32_t)vz - (uint32_t)(nz * dot));
+    return -1;
+  }
+
+  const int32_t fall = s32(m.rl(a2 + P_PZ) - m.rl(a2 + P_GROUND_Z));
+  if (m.rb(a2 + P_AIR) == AIRBORNE && (fall < 0 ? -(int64_t)fall : fall) > FALL_LOSS) {
+    if (marble_physics::isPlayer(a2)) {  // sound 0x46
+      m.wb(a2 + P_DAMAGE, FELL);
+      marble_physics::enterState(m, a2, marble_physics::LOST);
+    } else {
+      marble_enemies::remove_15bd0(m, a2, marble_enemies::SCORE, marble_enemies::CLEAR);
+    }
+    return 1;
+  }
+  m.wl(a2 + P_VX, 0u - v0[0]);
+  m.wl(a2 + P_VY, 0u - v0[1]);
+  m.wl(a2 + P_VZ, 0u - v0[2]);
+  restoreOld(m, a2);
+  return 0;
+}
+
+// a, b, c within the entry's x, y, z box (bytes 6-11: min, max pairs)
+bool inBox(const Mem &m, uint32_t e, int32_t a, int32_t b, int32_t c) {
+  return s8(m.romb(e + 6)) <= a && a <= s8(m.romb(e + 7)) && s8(m.romb(e + 8)) <= b &&
+         b <= s8(m.romb(e + 9)) && s8(m.romb(e + 10)) <= c && c <= s8(m.romb(e + 11));
+}
+
+// 0x1cd00: the marble's new (POS_X/Y/Z) and old (OLD_X/Y/Z) position against shape k at
+// slot s (cell corner + 8): plane entries {nx, ny, nz words; box; point cx, cy, cz bytes},
+// nx > 0x800 marks the last (nx - 0x1000). A position in a box with the plane crossed or
+// near: shapeHit. Returns 1 when the marble is lost.
+uint8_t shape_1cd00(Mem &m, uint32_t a2, uint32_t s, uint8_t k) {
+  static const int16_t LAST = 0x800, LAST_BIAS = 0x1000;
+  const uint32_t v0[3] = {m.rl(a2 + P_VX), m.rl(a2 + P_VY), m.rl(a2 + P_VZ)};
+  const uint16_t rx = (uint16_t)(m.sw(s + PX) + 8), ry = (uint16_t)(m.sw(s + PY) + 8);
+  const int16_t rz = m.sw(s + PZ);
+  const int16_t x1 = s16((uint32_t)(rx - m.rw(POS_X))), y1 = s16((uint32_t)(ry - m.rw(POS_Y)));
+  const int32_t z1 = rz - m.sw(POS_Z);
+  const int16_t x2 = s16((uint32_t)(rx - m.rw(OLD_X))), y2 = s16((uint32_t)(ry - m.rw(OLD_Y)));
+  const int16_t z2 = s16((uint32_t)(rz - m.rw(OLD_Z)));
+
+  for (uint32_t e = m.roml(SHAPES + 4 * k);; e += 16) {
+    int16_t nx = s16(m.romw(e));
+    const bool last = nx > LAST;
+    if (last) { nx = s16((uint32_t)(nx - LAST_BIAS)); }
+    const int16_t ny = s16(m.romw(e + 2)), nz = s16(m.romw(e + 4));
+    const int8_t cx = s8(m.romb(e + 12)), cy = s8(m.romb(e + 13)), cz = s8(m.romb(e + 14));
+
+    if (inBox(m, e, x1, y1, z1) || inBox(m, e, x2, y2, z2)) {
+      const int32_t d5 = nz * s16((uint32_t)(z1 - cz)) + ny * s16((uint32_t)(y1 - cy)) +
+                         nx * s16((uint32_t)(x1 - cx));
+      const int32_t d6 = nz * s16((uint32_t)(z2 - cz)) + ny * s16((uint32_t)(y2 - cy)) +
+                         nx * s16((uint32_t)(x2 - cx));
+      const int32_t a5 = d5 < 0 ? -d5 : d5, a6 = d6 < 0 ? -d6 : d6;
+      if (a5 < SHAPE_NEAR || a6 < SHAPE_NEAR || (d5 ^ d6) < 0) {
+        const int8_t r = shapeHit(m, a2, nx, ny, nz, a6, v0);
+        if (r >= 0) { return (uint8_t)r; }
+      }
+    }
+    if (last) { return 0; }
+  }
+}
+
+// one slot against object a2 (0x29cce loop body); true: leave 0x29cce without the epilogue
+bool contact(Mem &m, uint32_t a2, uint32_t s, int32_t vx, int32_t vy) {
   const int16_t mcx = m.sw(CELL_X), mcy = m.sw(CELL_Y), mx = m.sw(POS_X), my = m.sw(POS_Y);
   const int16_t sx = m.sw(s + PX), sy = m.sw(s + PY);
   const int16_t d6 = s16((uint32_t)(sx - mx)), a0 = s16((uint32_t)(sy - my));
   const int16_t d1 = s16((uint32_t)((sx >> 3) - mcx)), d2 = s16((uint32_t)((sy >> 3) - mcy));
   const int8_t tag = s8(m.rb(s + TAG));
-  if (tag < TAG_BOUNDS_LO || tag > TAG_BOUNDS_HI) { return; }
+  if (tag < TAG_BOUNDS_LO || tag > TAG_BOUNDS_HI) { return false; }
 
   for (const Wall &w : WALLS) {
     if (w.tag != tag) { continue; }
 
     const int16_t al = w.alongX ? d6 : a0, pe = w.alongX ? a0 : d6;
     const int32_t v = w.alongX ? vx : vy;
-    if (!(w.al0 < al && al < w.al1 && w.pe0 < pe && pe < w.pe1)) { return; }
+    if (!(w.al0 < al && al < w.al1 && w.pe0 < pe && pe < w.pe1)) { return false; }
 
     if ((w.e0a < al && al < w.e0b && v < 0) || (w.e1a < al && al < w.e1b && v > 0)) {
       m.wb(w.alongX ? HIT_X : HIT_Y, 1);
     }
     m.wb(w.alongX ? HIT_Y : HIT_X, 1);  // sound 0x42
-    return;
+    return false;
   }
 
   for (const Rect &r : RECTS) {
@@ -589,7 +724,16 @@ void contact(Mem &m, uint32_t a2, uint32_t s, int32_t vx, int32_t vy) {
         (!r.sameZ || m.rl(s + PZ) == m.rl(a2 + P_PZ))) {
       setSurface(m, a2, tag);
     }
-    return;
+    return false;
+  }
+
+  if (tag == TAG_FUNNEL) {
+    funnel_22(m, a2, s, d1, d2, m.rw(POS_Z));
+    return false;
+  }
+  if (tag == TAG_EXIT_A || tag == TAG_EXIT_B) {
+    if (d6 < -0x10 || d6 >= 0x20 || a0 < -0x18 || a0 >= 0x28) { return false; }
+    return shape_1cd00(m, a2, s, SHAPE_EXIT) != 0;
   }
 
   if (tag == TAG_POST) {  // round post: |d| < 3.5 px reflects both axes
@@ -604,14 +748,15 @@ void contact(Mem &m, uint32_t a2, uint32_t s, int32_t vx, int32_t vy) {
   } else if (tag == TAG_ROW_HI) {
     if (-0x12 < d1 && d1 <= 0 && d2 == 0) { setSurface(m, a2, tag); }
   }
+  return false;
 }
 
 }  // namespace
 
 // 0x29cce: collision with the level object slots. Ported: wall segments (0x1a-0x1f), round
-// posts (0x05, Marble Love sub-29cce.ts) and cell rectangles that set the surface code +0x58.
-// Not ported: 0x0a catapult, 0x0b/0x0d aerial gates, 0x0c, tubes 0x12-0x16 and 0x20-0x27
-// (some return from 0x29cce early, skipping the bounce epilogue).
+// posts (0x05, Marble Love sub-29cce.ts), cell rectangles that set the surface code +0x58,
+// the silly race tubes 0x22-0x24. Not ported: 0x0a catapult, 0x0b/0x0d aerial gates, 0x0c,
+// tubes 0x12-0x16, 0x20, 0x21, 0x25-0x27.
 void slots_29cce(Mem &m, uint32_t a2) {
   const int32_t vx = m.sl(a2 + P_VX), vy = m.sl(a2 + P_VY);
   m.wb(a2 + P_SURFACE, 0);
@@ -620,7 +765,7 @@ void slots_29cce(Mem &m, uint32_t a2) {
     const uint32_t s = slotAddr(i);
     if (!m.rb(s + ACTIVE)) { continue; }
 
-    contact(m, a2, s, vx, vy);
+    if (contact(m, a2, s, vx, vy)) { return; }
     if (!inMask(KEEP58, m.rb(a2 + P_SURFACE))) { break; }
   }
 
