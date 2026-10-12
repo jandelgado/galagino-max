@@ -79,6 +79,16 @@ static const char *diff(const Mem &m, const MarbleAerialTick &t) {
   return nullptr;
 }
 
+// marble.cpp logicTick tail: draw list sort 0x26f3e and the object build of the frame (reads
+// the MO frames of every listed object, e.g. a gate's state 1 list)
+static void drawTick(Mem &m) {
+  static const int16_t CULL_MARGIN = 24;
+  marble_drawlist::sort(m);
+  marble_video::VideoState v = {};
+  v.level = m.rw(marble_physics::RACE);
+  marble_drawlist::build(m, m.sw(marble_physics::CAMERA), CULL_MARGIN, v);
+}
+
 // One main loop tick as marble_sim.py main_tick: 0x400010 and the camera long are inputs,
 // then 0x1344c, band spawns (before the camera store), player 0x251de, enemies, slots, rng.
 static void mainTick(Mem &m, int8_t c6, int8_t c7, uint32_t camera, uint32_t frames) {
@@ -91,6 +101,7 @@ static void mainTick(Mem &m, int8_t c6, int8_t c7, uint32_t camera, uint32_t fra
   marble_enemies::update(m);
   marble_objects::update(m);
   marble_rng::rng(m, RNG_TICK);
+  drawTick(m);
 }
 
 // MAME segments: gate pull and catch, CAUGHT stars, respawn where caught; 0x0d frame bounce;
@@ -153,6 +164,7 @@ static void inputTick(Mem &m, int8_t c6, int8_t c7) {
   marble_enemies::update(m);
   marble_objects::update(m);
   marble_rng::rng(m, RNG_TICK);
+  drawTick(m);
 }
 
 // the marble put at pixel (x, y) on the floor, then ticks without input until the camera
