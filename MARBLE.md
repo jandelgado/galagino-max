@@ -117,13 +117,14 @@ bottom rows), so pf_check cannot identify them.
   contacts 0x29cce, the projection 0x1b9cc and the occlusion masks 0x1281c), the slot update
   0x12fd0 (`objects::update`), rng(0x100) 0x118a4 (`marble_rng::rng`), the MO list (sort,
   build), then publish. Order from the disassembly 0x117b2-0x118ce; Marble Love main-tick.ts
-  approximates the main loop (rng(0x100) on its wait tick). Not modelled: race timer and
-  other IRQ work, countdowns 0x400768/0x4003b8. Stick as trackball, deltas per tick, k =
+  approximates the main loop (rng(0x100) on its wait tick). The race timer and the game
+  flow: section Game flow. Not modelled: other IRQ work, countdowns 0x400768/0x4003b8. Stick as trackball, deltas per tick, k =
   `MARBLE_STICK_K` (9, about MAME's keyboard trackball speed; tune on the device): right c7
   = c6 = -k, left +k, +k, down c7 = +k, c6 = -k, up c7 = -k, c6 = +k; two directions add,
   scaled by 181/256 (about 1.4k on the axis both use). EXTRA held: no input (EXTRA + UP/DOWN
-  is volume). FIRE: next race (debug until the game flow phase): cleared work RAM image,
-  race start, camera and pan reset.
+  is volume). Logic ticks run only while the race is on (`marble_flow::frame` returns LOGIC);
+  a race load (`loadRace`): cleared work RAM image with the carried bytes, race start, camera
+  and pan reset.
 
 ## Marble physics
 
@@ -229,8 +230,8 @@ Ported in `marble_sim.py` with `Mem.deaths` (`main_tick`, `object_253ec`; Marble
 refresh-frame-10fce.ts, object-state-entry-25bae.ts, helper-25fc2.ts, object-init-2591a.ts,
 object-orbit-emit-13ade.ts, sprite-rotate-1c014.ts). Handlers of 0x253ec (table 0x254ba):
 
-- 0 roll (0x256d2): +0xcb set (time out event 0x1bbaa) and on ground: state 8 (not ported);
-  else 0x253bc, 0x17f66, 0x121b8.
+- 0 roll (0x256d2): +0xcb set (time bonus event 0x1bbaa), on the ground and +0x58 0, 0x34
+  or 0x35: state 8 (section Game flow); else 0x253bc, 0x17f66, 0x121b8.
 - 1 dizzy (0x2574c): 0x25fc2, 0x253bc, 0x17f66, 0x121b8, countdown (step 12 above); at 0
   state 0, +0x5a = 0, dots 0x1c014.
 - 2 shatter (0x25824): 0x25fc2, projection 0x1b9cc (cell refetch), masks 0x1281c if +0x1c.
@@ -281,8 +282,10 @@ Enemies.
 
 Goal 6 (0x254d2, Marble Love refresh-frame-10fce.ts JT[6], `object_253ec`): physics, +0x57
 (0x1e from 0x1365c) - 1; at 0 and +0x18 != 2: +0x18 = 3 (out of play, no input), v = 0.
-+0x57 wraps to 0xff, so this repeats every 256 ticks while state 6 lasts (the game flow
-ends the race first; not modelled). None of the recorded MAME traces reaches state 6.
++0x57 wraps to 0xff, so this repeats every 256 ticks while state 6 lasts (the race end ends
+it first: 0x251de sets 0x400390 = 3 in the first tick out of play, section Game flow). Goal
+entry 0x137a4: the first player at the goal (0x4003a4 = 0xff, set by 0x10504) scores
+0x285b0(race * 2 + 3) (1000-6000) and the timer stops (+0x6d = +0x6e, +0x6e = 0xff).
 
 Race start: `start_259b4` / `start_race` end at a `main_tick` boundary (the first tick runs
 0x253bc/0x17f66); `tick()` users add `snapshot_start`. `begin_race` = the remake's
@@ -290,8 +293,8 @@ beginRace (start_race, projection, masks).
 
 Remake (`marble_physics.cpp`, `marble_rng.cpp`): handlers of states 0, 1, 2, 4, 6, 0x25bae
 (2, 4), 0x25fc2, 0x2591a, 0x262b2/0x2637a with 0x17cb8, 0x13ade, 0x26214, race start rng.
-Not ported: dots 0x1c014/0x25b40, zone hook 0x13966, time out 0x1bbaa (state 8; needs the
-race timer), +0xd8 wobble, sounds. Host test `test_marble_deaths`: the death fixture per
+Score wobble 0x25416 (+0xd8 while a 0x285b0 score shows) ported with the goal points (Phase
+3a). Not ported: dots 0x1c014/0x25b40, zone hook 0x13966, sounds. Host test `test_marble_deaths`: the death fixture per
 tick (player fields, +0x5a, frame headers, masks, RNG; score, distance, death count at
 segment ends, from the traces); race start RNG; start fixture `marble_start_trace.h`
 (`make_fixture.py rwrite`, model only, all modelled enemies on since Phase 4b-4b: the silly
@@ -2005,6 +2008,66 @@ python3 romconv/internal/marble/tools/make_fixture.py awrite \
   3:$T/a13/trace.bin:1643:210
 ```
 
+## Game flow
+
+Phase 3a (plan docs/superpowers/plans/2026-10-12-marble-flow.md). Research: Marble Love TS
+game-tick-timers.ts, timer-cascade.ts, object-scan-dispatch-251de.ts,
+main-loop-init-1101e.ts, player-slot-iter-118d2.ts, main-loop-init-10504.ts,
+level-intro-banner-resume.ts (fitted to MAME captures, not a port), state-sub-18a88.ts,
+object-charcode-broadcast-1bbaa.ts, refresh-frame-10fce.ts JT[8]. State 8 entry: disassembly
+0x256d2-0x25730 (exception, not in TS).
+
+- Race timer (vblank IRQ 0x28a96, every 60 Hz frame): player +0x6a word seconds, +0x6c tenths
+  (9..0), +0x6e frames (5..0, 0xff stopped), cascade 0x28c38; 60 s = 3660 frames from the
+  race start. Skipped while +0x1a = 8. Seconds below 0: +0x18 = 2, timer 0 and stopped,
+  +0x71 = 0xff, 0x400390 = 4.
+- 0x400390 (0x1101e): 0 race, 1 attract, 2 game over / high score, 3 race end, 4 time out,
+  5 game start, 6 final. 0x251de tail: all players +0x18 = 3 (goal countdown) and not
+  attract: 3.
+- Race end (frames after the 0x400390 = 3 frame, MAME traces g0-g5, +-1): race index + 1 at
+  2; bonus min(seconds, 99) * 100 at 2 + 40 + level load (81, 80, 60, 116, 73 frames by race
+  finished; ultimate 0); next race init 8 (races 0-2) / 9 later frames after the bonus; the
+  intro adds 5 s every 10 frames from 64/63/63/64/64 frames after the init: races 0/1 set
+  60, later races add 35, 30, 20, 20 to the time left; the race starts (0x400390 = 0, +0x6e
+  = 5) 61 + race time frames after the last arm (first add - 1). New game: first add 131
+  frames after the init (60 frame scroll in). 0x400010 at the race start = at the race end
+  + 6. RNG word: carried, frozen during the race end.
+- Next race carry (`marble_flow.py carry_check`): cleared work RAM with the RNG word, race
+  start (begin_race), player +0x6a-+0x6f, +0xbc score, +0xd2 deaths, 0x400010 equals the MAME
+  RAM before the race start for 400 idle ticks (player fields, RNG, slots) in all 5 next
+  races. Leftover RAM of the previous race is not read.
+- Final (after ultimate): 0x400390 = 6 6 frames after the bonus; 20000 + 1000 * min(s, 99) -
+  1000 * min(deaths, 20) added 250 per 2 frames from 10 frames on; game over 272 frames
+  after the last step. Time out: game over 182 frames after 0x400390 = 4.
+- Time bonus (easter egg): 0x1bbaa (armed at the race start, rng byte 0x400444 below
+  0x24a94[race] = 0, 200, 175, 150, 125, 100; player rolling in a zone of 0x24aae[race] with
+  3-6 s left) sets +0xcb; state 0 enters state 8 (+0x56 = 9, +0x57 = 10, +0xcc = 0x216aa,
+  sound 0x53, +0xd1 = 1); 0x258a8: +1 s every 9 ticks, 10 times, timer paused, then rolling
+  and 0x285b0(0x10).
+
+Validation: `marble_flow.py check` on frame traces ($TMPDIR/t3a, `mame_trace.lua
+MARBLE_TICK=frame`): practice time out p0 (3660 timer frames), goals g0-g5 (MARBLE_PLACE on
+the goal line at 900 and 1350 with MARBLE_PLACE_V, MARBLE_RACE_UNTIL=1000), time bonus s8
+(MARBLE_POKE 5 s, armed, rng byte 0): timer equal every race frame, race end sequences within
++-1 frame, values exact, carry 400 ticks equal. State 8: `marble_sim.py deaths` on tick trace
+s8t (173 ticks equal, player MOs too).
+
+Remake: `marble_flow.{h,cpp}` (sequencer, timer, carry), `marble_physics.cpp` (goal points,
+timer stop, 0x1bbaa, state 8, 0x251de tail, score wobble 0x25416), `marble.cpp`
+(`run_frame` calls `marble_flow::frame` every frame; logic ticks only in LOGIC; `loadRace`).
+Game over: START (EXTRA) or FIRE starts a new game at practice (no attract mode). Host test
+`test_marble_flow`: time out from a new game, race ends (MAME offsets +-1, values exact),
+carry runs (crc of the model run), time bonus segment (`marble_bonus_trace.h`).
+
+```sh
+T=$TMPDIR/t3a
+python3 romconv/internal/marble/tools/marble_flow.py check $T/p0/trace.bin $T/g?/trace.bin
+python3 romconv/internal/marble/tools/make_fixture.py fwrite \
+  source/test/test_marble_flow/marble_flow_trace.h $T/p0/trace.bin $T/g?/trace.bin
+python3 romconv/internal/marble/tools/make_fixture.py tbwrite \
+  source/test/test_marble_flow/marble_bonus_trace.h 1:$T/s8t/trace.bin:1351:120
+```
+
 ## Open questions
 
 - Level objects: playfield patch decode of tag 0x19 rows. Section
@@ -2016,11 +2079,12 @@ python3 romconv/internal/marble/tools/make_fixture.py awrite \
   trace of a slinky pulling the marble (0x15316, octant 0x70-0xc0), of bird/piston hits
   or of a steelie occluded by terrain (masks +0x38).
 - Deaths (section Player states, deaths, RNG): states 1/2/4/5/7/9 modelled, 1/2/4/5/7
-  ported; 3 (tubes, catapult), 0xa (gate) and 0xb (birds) modelled and ported. Not modelled: 8 (time
-  out, 0x258a8), practice landing markers (type 0x2a, 0x12532, score 0x285b0),
-  the race timer and other vblank IRQ work, two players, the main loop countdowns
-  0x400768 (sound only)/0x4003b8. Not ported to C++: dots 0x1c014 / 0x25b40.
-- Goal (state 6, section Player states, deaths, RNG): the race end flow after it, and the
-  +0x57 wrap (out of play again every 256 ticks) is unchecked against MAME. The camera
-  ignores the marble (sy only from states 0/1/3/4/5).
+  ported; 3 (tubes, catapult), 0xa (gate), 0xb (birds) and 8 (time bonus) modelled and
+  ported. Not modelled: practice landing markers (type 0x2a, 0x12532, score 0x285b0), vblank
+  IRQ work besides the race timer, two players, the main loop countdowns 0x400768 (sound
+  only)/0x4003b8. Not ported to C++: dots 0x1c014 / 0x25b40.
+- Goal (state 6): the camera ignores the marble (sy only from states 0/1/3/4/5).
+- Game flow (section Game flow): the 0x16a20 time out summary and 0x18a88 final screen are
+  frame counts only (texts: Phase 3b); the race intro scroll in, the bonus palette flashes
+  (0x26b66, +0x71) and the attract mode / high score entry (Phase 6) are not ported.
 - Object/enemy scripts, Phase 4. Sound command protocol, Phase 5.

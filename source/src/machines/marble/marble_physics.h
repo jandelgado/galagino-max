@@ -18,7 +18,8 @@
 //       BROKEN  shatter animation 0x25fc2, projection, masks; ends in LOST
 //       LOST    respawned at entry (0x2591a); sparkle 0x13ade, then ROLL
 //       EATEN   held by a slinky: animation 0x25fc2, as ROLL, countdown
-//       GOAL    physics, countdown, then out of play
+//       GOAL    physics, countdown, then out of play (0x400390 = 3: the race ends)
+//       TIME_BONUS  +1 s every 9 ticks, 10 times (0x258a8; 0x1bbaa starts it)
 //       HIDDEN  inside a slinky (0x25812) until it sends the player LOST
 //       DISSOLVING  in acid (0x2584e): slides into it, dissolve animation, then LOST
 //       CARRIED  carried off by a bird (0x25876): orbit, then LOST
@@ -33,8 +34,8 @@
 // 0x1bc88, non-player landing and loss go to marble_enemies; the player's physics also runs
 // the slinky contact 0x14e92, the acid contact 0x175c8, the piston contact 0x1881c, the mini
 // contact 0x1924e and the bird contact 0x19d94; zone changes and respawns run the zone hook
-// 0x13966 (pistons 0x186ac, zone wait slots). Not ported (Phase 4): state 8, the race
-// timer (time out 0x1bbaa), sprite dots 0x1c014, sounds.
+// 0x13966 (pistons 0x186ac, zone wait slots). The race timer runs in marble_flow. Not
+// ported: sprite dots 0x1c014, sounds.
 namespace marble_physics {
 
 static const uint32_t PLAYER = 0x400018;  // player 1 object
@@ -42,7 +43,7 @@ static const uint32_t PLAYER = 0x400018;  // player 1 object
 // player state +0x1a (handler table 0x254ba)
 enum State : uint8_t {
   ROLL = 0, DIZZY = 1, BROKEN = 2, TUBE = 3, LOST = 4, EATEN = 5, GOAL = 6, HIDDEN = 7,
-  DISSOLVING = 9, CAUGHT = 0xa,
+  TIME_BONUS = 8, DISSOLVING = 9, CAUGHT = 0xa,
   CARRIED = 0xb
 };
 static const uint8_t CARRIED_DAMAGE = 0x66;  // +0x57 a bird sets: orbit length of CARRIED

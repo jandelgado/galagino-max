@@ -44,9 +44,9 @@ static const MarbleCarry marble_carries[] = {
   {5, 0xe93d, {0x00, 0x1e, 0x09, 0x02, 0xff, 0x00}, 6020, 0, 0x170, 0xc0d8, 0xe7399484},
 };
 
-// Practice time out: frames from the race start (timer armed, 60 s) to 0x400390 = 4,
-// then to game over (0x16a20 summary).
-static const uint16_t MARBLE_TIMEOUT_SECONDS = 60, MARBLE_TIMEOUT_FRAMES = 3661;
+// Practice time out: frames after the race start frame (timer armed, 60 s) to
+// 0x400390 = 4, then to game over (0x16a20 summary).
+static const uint16_t MARBLE_TIMEOUT_SECONDS = 60, MARBLE_TIMEOUT_FRAMES = 3660;
 static const uint16_t MARBLE_TIMEOUT_GAME_OVER = 182;
 
 #endif

@@ -356,6 +356,8 @@ DEATH_TABLES = (
     (0x1d3f4, 16),              # dots_init_25b40 rest pose x, y
     (0x24a94, 6),               # timeout_1bbaa rng limit per race
     (0x24aae, 24),              # timeout_1bbaa zone list per race (0xff end, below)
+    (ms.SCORES, 2 * 17),        # score_285b0 points: goal (race * 2 + 3), time bonus (0x10)
+    (ms.SCORE_TEXTS, 4 * 17),   # score_285b0 score texts
 )
 
 

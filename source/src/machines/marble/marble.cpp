@@ -5,6 +5,7 @@
 #include "marble_camera.h"
 #include "marble_drawlist.h"
 #include "marble_enemies.h"
+#include "marble_flow.h"
 #include "marble_objects.h"
 #include "marble_occlusion.h"
 #include "marble_physics.h"
@@ -45,25 +46,30 @@ void marble::reset() {
   patchRec = 0;
   view.patch = video.patch = marble_level::NO_PATCH;
   game_started = 1;  // no boot phase
-  beginRace(0);
+  marble_flow::newGame(flow);
+  loadRace();
 }
 
 void marble::start() {
   store.init();  // guarded, start() runs twice
 }
 
-// race start on a cleared work RAM image, camera at the race top, view centred
-void marble::beginRace(uint8_t n) {
-  race = n;
-  odd = false;
+// race flow.race on a cleared work RAM image with what a race keeps (timer, score, RNG),
+// camera at the race top, view centred; the flow's race intro follows
+void marble::loadRace() {
+  const marble_flow::Carry c = marble_flow::carry(flow, Mem(memory, race));
+  race = flow.race;
+  odd = true;  // the first logic tick runs in the first race frame
   memset(memory, 0, marble_physics::RAM_SIZE);
   patchRec = 0;
   view.patch = marble_level::NO_PATCH;
   Mem m(memory, race);
+  marble_flow::restore(m, c);
   marble_physics::startRace(m, race);
+  marble_flow::raceLoaded(flow, m);
   marble_camera::start(m, race);
   marble_physics::project(m);
-  marble_occlusion::enter(m, marble_physics::PLAYER);  // first tick comes 2 frames later
+  marble_occlusion::enter(m, marble_physics::PLAYER);
   buildObjs(m);
   view.sx = PAN / 2;
   publish();
@@ -132,18 +138,24 @@ void marble::run_frame(void) {
   const uint32_t keys = input->buttons_get();
   const uint32_t pressed = keys & ~prev_keys;
   prev_keys = keys;
-  if (pressed & BUTTON_FIRE) {
-    beginRace((race + 1) % marble_level::LEVELS);
+
+  // START (EXTRA) or FIRE starts a new game after game over
+  const bool start = pressed & (BUTTON_EXTRA | BUTTON_FIRE);
+  Mem m(memory, race);
+  const marble_flow::Step step = marble_flow::frame(flow, m, start);
+  if (step == marble_flow::START_RACE) {
+    loadRace();
     return;
   }
 
-  // logic on every second frame, as the arcade main loop waits for two vblanks; 0x400010
-  // counts logic ticks (the vblank IRQ adds 1 once the loop set 0x40039a)
-  odd = !odd;
-  if (!odd) {
-    Mem m(memory, race);
-    m.wl(FRAMES, m.rl(FRAMES) + 1);
-    logicTick(keys);
+  // race on: logic on every second frame, as the arcade main loop waits for two vblanks;
+  // 0x400010 counts logic ticks (the vblank IRQ adds 1 once the loop set 0x40039a)
+  if (step == marble_flow::LOGIC) {
+    odd = !odd;
+    if (!odd) {
+      m.wl(FRAMES, m.rl(FRAMES) + 1);
+      logicTick(keys);
+    }
   }
   publish();
 }

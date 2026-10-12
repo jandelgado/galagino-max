@@ -10,10 +10,12 @@
 #include "marble_video.h"
 #include "../../emulation/seqlock.h"
 #include "marble_mem.h"
+#include "marble_flow.h"
 
 // Marble Madness (Atari 1984). Not emulated: graphics, levels and music come from the
-// ROM, the game is reimplemented (MARBLE.md). Phase 2: the marble rolls (stick as
-// trackball, 30 Hz logic tick, camera, respawn); FIRE steps to the next race (debug).
+// ROM, the game is reimplemented (MARBLE.md). One player game: race timer, six races, time
+// bonus, game over (marble_flow); stick as trackball, 30 Hz logic tick, camera, enemies.
+// No HUD yet (Phase 3b).
 class marble : public machineBase
 {
 public:
@@ -32,7 +34,7 @@ public:
 #endif
 
 private:
-  void beginRace(uint8_t race);
+  void loadRace();
   void logicTick(uint32_t keys);
   void publish(void);
   void buildObjs(marble_physics::Mem &m);
@@ -48,6 +50,7 @@ private:
   uint32_t prev_keys = 0;
   // emulation core: race state lives in the work RAM image, machineBase::memory
   uint8_t race = 0;
+  marble_flow::Flow flow = {};
   uint32_t patchRec = 0;   // lastPatch record that view.patch was mapped from
   bool odd = false;        // frame without a logic tick
 };

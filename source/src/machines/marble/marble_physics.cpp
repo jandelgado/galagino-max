@@ -1,6 +1,7 @@
 #include "marble_physics.h"
 #include "marble_drawlist.h"
 #include "marble_enemies.h"
+#include "marble_flow.h"
 #include "marble_objects.h"
 #include "marble_occlusion.h"
 #include "marble_rng.h"
@@ -36,8 +37,11 @@ enum : uint8_t {
   ANIM = 0x5a, ANIM_5F = 0x5f, ANIM_60 = 0x60,  // frame list, tick counter, ticks per frame
   SHARDS = 0x62, SHARD_TICK = 0x66, SHARDS_ON = 0x67,  // shatter overlay list
   STARS = 0xa4,                     // 4 x {code, x, y}: dots, state 4 sparkle stars
+  TIMER = 0x6a, TIMER_KEPT = 0x6d, TIMER_TICKS = 0x6e,  // race timer (marble_flow.h)
   SCORE = 0xbc, DISTANCE = 0xc4,
   BALL_C6 = 0xc6, BALL_C7 = 0xc7,   // trackball deltas port 2 / port 0
+  BONUS_EVENT = 0xcb,               // 0x1bbaa: time bonus pending
+  BONUS_ANIM = 0xcc, BONUS_TICK = 0xd0, BONUS_ON = 0xd1,
   DEATHS = 0xd2,
 };
 
@@ -59,7 +63,8 @@ static const uint32_t OLD_CX = 0x40069a, OLD_CY = 0x40069c;
 static const uint32_t FRAC_X = 0x40069e, FRAC_Y = 0x4006a0;  // position in the cell 0-7
 static const uint32_t SPLIT = 0x4006a2;                      // triangle: fy >= fx
 static const uint32_t GRAD_X = 0x4006a4, GRAD_Y = 0x4006a6;
-static const uint32_t ATTRACT = 0x400390;                    // 1 = attract demo
+static const uint32_t GAME_STATE = 0x400390;                 // word, marble_flow::Phase
+static const uint32_t GOAL_FIRST = 0x4003a4;                 // 0xff: nobody at the goal yet
 static const uint32_t SPAWN_X = 0x400462, SPAWN_Y = 0x400466;  // longs, respawn pixel
 static const uint32_t SPAWN_ZONE = 0x400472;                 // 0xff: none found
 static const uint32_t VERTS = 0x401c28;                      // 4 vertices x 4 heights
@@ -67,7 +72,7 @@ static const uint32_t PLAYERS = 0x400396;                    // word: player cou
 static const uint32_t SCORED = 0x40039c;                     // bit per player: score changed
 static const uint32_t TIMEOUT_RND = 0x400444;                // race start random byte
 static const uint32_t BLOCK_HIT = 0x40046a;                  // long: index 0x17cb8 found
-static const uint32_t TIMEOUT_ARMED = 0x40076c;              // time out event 0x1bbaa armed
+static const uint32_t TIMEOUT_ARMED = 0x40076c;              // time bonus event 0x1bbaa armed
 static const uint32_t ZONE_SOUNDS = 0x40076a;                // zone hook sound latches
 static const uint32_t MODE3_TIMER = 0x400768;                // word: aerial sound countdown
 static const uint32_t STEELIES = 0x4009a4, SLINKIES = 0x401302;
@@ -88,6 +93,9 @@ static const uint32_t STEPS = 0x24b3a;             // vertex walk of 0x1caba
 static const uint32_t ANIM_DIZZY = 0x20faa, ANIM_DIZZY_LOOP = 0x20fb6, ANIM_DIZZY_END = 0x20fd2;
 static const uint32_t ANIM_SHATTER = 0x20fde, ANIM_SHARDS = 0x215f6;
 static const uint32_t ANIM_DISSOLVE = 0x21062;     // state 9 (acid)
+static const uint32_t ANIM_BONUS = 0x216aa;        // state 8 +0xcc
+static const uint32_t BONUS_LIMIT = 0x24a94;       // per race: event when the rng byte is below
+static const uint32_t BONUS_ZONES = 0x24aae;       // per race: zone list (0xff end)
 static const uint32_t SINE = 0x1eda2;              // 0x4000 = 1, quarter turn QUARTER entries
 static const uint32_t STAR_STEPS = 0x1ef32;        // 8 x (s8 dx, s8 dy)
 
@@ -95,6 +103,9 @@ static const uint32_t LIST_END = 0xffffffff;
 static const uint32_t SHATTER_BYTES = 0x80;        // 32 entries
 static const uint16_t SHATTER_SHARDS = 9;          // shatter frame that starts the overlay
 static const uint8_t ANIM_RATE = 2;                // ticks per frame
+static const uint8_t BONUS_RATE = 9, BONUS_SECONDS = 10;     // time bonus: ticks per second
+static const uint8_t BONUS_SURFACE_A = 0x35, BONUS_SURFACE_B = 0x34;  // besides 0
+static const uint8_t SCORE_BONUS_END = 0x10;                  // 0x285b0 entry
 static const uint8_t DISSOLVE_RATE = 4;            // ticks per dissolve frame
 static const uint8_t DIZZY_LOOPS = 6;              // +0x56 above: loop list, else end list
 static const uint8_t OUT_OF_LIST = 2, OUT_OF_PLAY = 3;  // +0x18: 2 also off the draw list
@@ -119,6 +130,7 @@ static const int16_t SCORE_STEP = 0xa0, SCORE_POINTS = 10;  // distance score 0x
 static const uint32_t SCORES = 0x23cd4, SCORE_TEXTS = 0x23cf6;  // 0x285b0: words, longs
 static const uint8_t SCORE_SHOWN = 0x68, SCORE_FLAG = 0x69, SCORE_TEXT_ON = 0x70;  // +0x68..
 static const uint8_t SCORE_TEXT = 0xd4, SCORE_WAIT = 0xd8;
+static const int8_t WOBBLE_HI = 2, WOBBLE_LO = -0x16, WOBBLE_STEPS = 0x28;  // 0x25416
 static const uint16_t RNG_BYTE = 0x100;
 
 static const uint32_t FALL_VZ = 0xffffa000;        // -0x6000: vz when a fall starts
@@ -731,6 +743,14 @@ void zones_1365c(Mem &m, uint32_t a2) {
         const bool sideA = horiz ? ncy <= Y : !(ncx > X);
         m.wb(a2 + ZONE, m.romb(a0 + (sideA ? 3 : 4)));
         if (m.rb(a2 + ZONE) == 0xff) {
+          // 0x137a4: the first player at the goal scores race * 2 + 3 (palette flash not
+          // ported); the race timer stops, +0x6d keeps its frame count
+          if (m.rb(GOAL_FIRST) == 0xff && m.rb(a2 + SLOT) != OUT_OF_LIST) {
+            m.wb(GOAL_FIRST, m.rb(a2 + PLAYER_NO));
+            score(m, a2, (uint8_t)(race * 2 + 3));
+          }
+          m.wb(a2 + TIMER_KEPT, m.rb(a2 + TIMER_TICKS));
+          m.wb(a2 + TIMER_TICKS, 0xff);
           m.wb(a2 + STATE, GOAL);
           m.wb(a2 + DAMAGE, 0x1e);
           if (race == RACE_PRACTICE && (d2 == 3 || d2 == 4)) {
@@ -856,7 +876,7 @@ void physics_121b8(Mem &m, uint32_t a2) {
 
   const Friction fm = frictionMode(m.rb(a2 + SURFACE));
   if (fm != FR_NONE) { friction_25e7c(m, a2, fm); }
-  if (pl && m.rw(ATTRACT) != 1) { gravity_25df6(m, a2); }
+  if (pl && m.rw(GAME_STATE) != marble_flow::ATTRACT) { gravity_25df6(m, a2); }
 }
 
 // 0x26214: +0xc4 sums the friction table at the speed (>> 9); every SCORE_STEP scores
@@ -1277,8 +1297,21 @@ void countdown_2574c(Mem &m, uint32_t a2) {
   m.wl(a2 + ANIM, 0);
 }
 
-// 0x256d2: roll. Not ported: +0xcb (set by the time out 0x1bbaa) starts state 8.
+// 0x256d2: roll; a pending time bonus (+0xcb, 0x1bbaa) on the ground starts it
+// (disassembly 0x256d2-0x25730, sound 0x53 not ported)
 void roll_256d2(Mem &m, uint32_t a2) {
+  const uint8_t s = m.rb(a2 + SURFACE);
+  const bool plain = s == 0 || s == BONUS_SURFACE_A || s == BONUS_SURFACE_B;
+  if (m.rb(a2 + BONUS_EVENT) && m.rb(a2 + AIR) == ON_GROUND && plain) {
+    m.wb(a2 + DIZZY_CNT, BONUS_RATE);
+    m.wb(a2 + DAMAGE, BONUS_SECONDS);
+    m.wb(a2 + BONUS_EVENT, 0);
+    m.wb(a2 + STATE, TIME_BONUS);
+    m.wl(a2 + BONUS_ANIM, ANIM_BONUS);
+    m.wb(a2 + BONUS_TICK, 0);
+    m.wb(a2 + BONUS_ON, 1);
+    return;
+  }
   ground_253bc(m, a2);
   input_17f66(m, a2);
   physics_121b8(m, a2);
@@ -1314,6 +1347,31 @@ void lost_255c6(Mem &m, uint32_t a2) {
   m.wl(a2 + VY, 0);
   m.wl(a2 + VX, 0);
   m.wb(a2 + STATE, ROLL);
+}
+
+// 0x258a8: time bonus, +1 s every +0x56 ticks, +0x57 times (the race timer pauses), then
+// ROLL with 0x285b0(0x10); +0xcc steps every 2 ticks. Dots 0x1c014 not ported.
+void bonus_258a8(Mem &m, uint32_t a2) {
+  if (m.rb(a2 + DIZZY_CNT)) { m.wb(a2 + DIZZY_CNT, m.rb(a2 + DIZZY_CNT) - 1); }
+  if (!m.rb(a2 + DIZZY_CNT)) {
+    m.wb(a2 + DIZZY_CNT, BONUS_RATE);
+    m.ww(a2 + TIMER, m.rw(a2 + TIMER) + 1);
+    m.wb(a2 + DAMAGE, m.rb(a2 + DAMAGE) - 1);
+  }
+
+  if (!m.rb(a2 + DAMAGE)) {
+    m.wb(a2 + BONUS_ON, 0);
+    m.wb(a2 + STATE, ROLL);
+    score(m, a2, SCORE_BONUS_END);
+  } else {
+    m.wb(a2 + BONUS_TICK, m.rb(a2 + BONUS_TICK) + 1);
+    if (m.rb(a2 + BONUS_TICK) == ANIM_RATE) {
+      m.wb(a2 + BONUS_TICK, 0);
+      m.wl(a2 + BONUS_ANIM, m.rl(a2 + BONUS_ANIM) + 4);
+    }
+  }
+  proj_1b9cc(m, a2, REFETCH);
+  marble_occlusion::enter(m, a2);
 }
 
 // 0x254d2: goal, physics until +0x57 counts to 0, then out of play. Not ported: attract
@@ -1448,10 +1506,32 @@ void caught_2563e(Mem &m, uint32_t a2) {
   m.wb(a2 + DAMAGE, EMBEDDED);
 }
 
-// 0x253ec: handler of state +0x1a (table 0x254ba). Not ported: +0xd8 wobble (silly minis),
-// state 8.
+// 0x25416: while a score shows (+0xd8, 0x285b0) +0x68 swings -0x16..2 by +0x69, odd values
+// count +0x70 up to 0x28, then it ends (silly mini squash too)
+void wobble_25416(Mem &m, uint32_t a2) {
+  m.wb(a2 + SCORE_SHOWN, m.rb(a2 + SCORE_SHOWN) + m.rb(a2 + SCORE_FLAG));
+  if (m.sb(a2 + SCORE_SHOWN) > WOBBLE_HI) {
+    m.wb(a2 + SCORE_SHOWN, WOBBLE_HI);
+    m.wb(a2 + SCORE_FLAG, 0xff);
+  } else if (m.sb(a2 + SCORE_SHOWN) < WOBBLE_LO) {
+    m.wb(a2 + SCORE_SHOWN, (uint8_t)WOBBLE_LO);
+    m.wb(a2 + SCORE_FLAG, 1);
+  }
+  if (!(m.rb(a2 + SCORE_SHOWN) & 1)) { return; }
+
+  m.wb(a2 + SCORE_TEXT_ON, m.rb(a2 + SCORE_TEXT_ON) + 1);
+  if (m.sb(a2 + SCORE_TEXT_ON) <= WOBBLE_STEPS) { return; }
+  m.wb(a2 + SCORE_TEXT_ON, 0xff);
+  m.wb(a2 + SCORE_WAIT, 0);
+}
+
+// 0x253ec: handler of state +0x1a (table 0x254ba), after the score wobble 0x25416
 void object_253ec(Mem &m, uint32_t a2) {
-  switch (m.rb(a2 + STATE)) {
+  const uint8_t st = m.rb(a2 + STATE);
+  const bool still = st == BROKEN || st == LOST || st == CAUGHT || st == CARRIED || st == HIDDEN;
+  if (m.rb(a2 + SCORE_WAIT) && !still) { wobble_25416(m, a2); }
+
+  switch (st) {
     case ROLL: roll_256d2(m, a2); break;
     case DIZZY: dizzy_2574c(m, a2); break;
     case BROKEN: shatter_25824(m, a2); break;
@@ -1460,11 +1540,28 @@ void object_253ec(Mem &m, uint32_t a2) {
     case EATEN: eaten_257ba(m, a2); break;
     case GOAL: goal_254d2(m, a2); break;
     case HIDDEN: hidden_25812(m, a2); break;
+    case TIME_BONUS: bonus_258a8(m, a2); break;
     case DISSOLVING: dissolve_2584e(m, a2); break;
     case CARRIED: carried_25876(m, a2); break;
     case CAUGHT: caught_2563e(m, a2); break;
     default: break;
   }
+}
+
+// 0x1bbaa: armed, race start random byte below the race's limit, the player rolling with 3-6
+// s left in a zone of the race's list: time bonus pending (+0xcb of players in play), disarmed
+void bonusEvent_1bbaa(Mem &m) {
+  const uint16_t race = m.rw(RACE);
+  if (!m.rb(TIMEOUT_ARMED) || m.romb(BONUS_LIMIT + race) <= m.rb(TIMEOUT_RND)) { return; }
+  const uint32_t zones = m.roml(BONUS_ZONES + 4 * race);
+  const uint32_t a2 = PLAYER;
+  bool listed = false;
+  for (uint32_t z = zones; m.romb(z) != 0xff; z++) { listed |= m.rb(a2 + ZONE) == m.romb(z); }
+
+  const int16_t s = m.sw(a2 + TIMER);
+  if (!listed || m.rb(a2 + SLOT) != 1 || m.rb(a2 + STATE) != ROLL || s <= 2 || s >= 7) { return; }
+  m.wb(TIMEOUT_ARMED, 0);
+  m.wb(a2 + BONUS_EVENT, 1);
 }
 
 }  // namespace
@@ -1476,18 +1573,25 @@ void startRace(Mem &m, uint8_t race) {
   marble_enemies::init(m);
   marble_objects::init(m, race);
 
-  // level init end 0x10fb8: time out event armed, its random byte
+  // 0x10504 end: nobody at the goal; 0x10fb8: time bonus event armed, its random byte
+  m.wb(GOAL_FIRST, 0xff);
   m.wb(TIMEOUT_ARMED, 1);
   m.wb(TIMEOUT_RND, (uint8_t)marble_rng::rng(m, RNG_BYTE));
 }
 
-// 0x251de, one player. Not ported: time out 0x1bbaa (needs the race timer +0x6a).
+// 0x251de, one player: time bonus event 0x1bbaa, the state handler; out of play after the
+// goal ends the race (0x400390 = 3, not in the attract demo)
 void tick(Mem &m, int8_t c6, int8_t c7) {
   const uint32_t a2 = PLAYER;
   m.wb(a2 + BALL_C6, (uint8_t)c6);
   m.wb(a2 + BALL_C7, (uint8_t)c7);
+  bonusEvent_1bbaa(m);
   if (!m.rb(a2 + SLOT)) { return; }
+
   object_253ec(m, a2);
+  if (m.rb(a2 + SLOT) == OUT_OF_PLAY && m.rw(GAME_STATE) != marble_flow::ATTRACT) {
+    m.ww(GAME_STATE, marble_flow::RACE_END);
+  }
 }
 
 void project(Mem &m) { proj_1b9cc(m, PLAYER, KEEP_CELL); }
