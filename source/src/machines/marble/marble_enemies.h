@@ -12,17 +12,23 @@
 // 0x401302. They walk waypoint lists, get pushed by the marble, chase and eat it.
 // Phase 4b-3: acid (green puddles, marble_acid.cpp), 7 records of 0x42 bytes at 0x401482.
 // They crawl their paths and dissolve the marble.
+// Phase 4b-4a: silly race birds (marble_birds.cpp), 10 records of 0x38 bytes at 0x4019f8.
+// They walk down the course, land and carry the marble off.
 //
-//   init(m)                     race start: steelie, slinky and acid numbers +0x19 (set at
-//                               boot in the arcade)
+//   init(m)                     race start: steelie, slinky, acid and bird numbers +0x19
+//                               (set at boot in the arcade)
 //   cameraBands(m, old, new)    band step of 0x144e4: steelie spawns/removals (0x15a12), then
 //                               slinkies (0x14c46), then acid (0x17346)
+//   sillyBands(m, old, new)     band step of 0x144e4 after the slot spawner (silly race):
+//                               bird spawning flag 0x400762
 //   update(m)                   per logic tick after the player: both steelies (0x158cc), then
-//                               the slinkies (0x1493c), then the acid (0x17230)
+//                               the slinkies (0x1493c), then the acid (0x17230), then the
+//                               birds (0x19baa)
 //   contact_14e92(m, a2)        player a2 against the slinkies, from the player's physics
 //   contact_175c8(m, a2)        player a2 against the acid, right after; true if it dissolves
 //                               (the caller refreshes its cell)
 //   target_176d2(m, a2)         dissolving player a2 slides into its acid
+//   contact_19d94(m, a2)        player a2 against the birds (silly race), after the acid
 //   pair_1bc88(m, a2)           object a2 against the player and steelies, from the physics;
 //                               true if it collided (the caller refreshes its cell)
 //   land_25c74(m, a2, fall)     non-player landing: stunned, shatters on a high fall
@@ -38,17 +44,22 @@ static const uint8_t NSLINKIES = 4;
 static const uint32_t ACIDS = 0x401482;
 static const uint16_t ACID_SIZE = 0x42;
 static const uint8_t NACIDS = 7;
+static const uint32_t BIRDS = 0x4019f8;
+static const uint16_t BIRD_SIZE = 0x38;
+static const uint8_t NBIRDS = 10;
 
 enum Score : uint8_t { NO_SCORE, SCORE };
 enum Clear : uint8_t { KEEP, CLEAR };
 
 void init(marble_physics::Mem &m);
 void cameraBands(marble_physics::Mem &m, int16_t oldBand, int16_t newBand);
+void sillyBands(marble_physics::Mem &m, int16_t oldBand, int16_t newBand);
 void update(marble_physics::Mem &m);
 bool pair_1bc88(marble_physics::Mem &m, uint32_t a2);
 void contact_14e92(marble_physics::Mem &m, uint32_t a2);
 bool contact_175c8(marble_physics::Mem &m, uint32_t a2);
 void target_176d2(marble_physics::Mem &m, uint32_t a2);
+void contact_19d94(marble_physics::Mem &m, uint32_t a2);
 void land_25c74(marble_physics::Mem &m, uint32_t a2, int16_t fall);
 void remove_15bd0(marble_physics::Mem &m, uint32_t a2, Score s, Clear c);
 

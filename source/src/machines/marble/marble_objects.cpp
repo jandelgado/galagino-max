@@ -635,14 +635,16 @@ void slots_29cce(Mem &m, uint32_t a2) {
   }
 }
 
-// 0x144e4: camera move: band = (camera - descriptor top) >> 4. Enemy spawners 0x15a12,
-// 0x14c46, 0x17346 and the aerial extras are not ported.
+// 0x144e4: camera move: band = (camera - descriptor top) >> 4. Enemy spawners (0x15a12,
+// 0x14c46, 0x17346) before the slots, the silly race bird flag after them; the aerial
+// extras and the silly minis are not ported.
 void cameraBands(Mem &m, int16_t oldCam, int16_t newCam) {
   const int16_t top = (int16_t)m.romw(m.desc() + DESC_TOP);
   const int16_t a = (int16_t)(oldCam - top) >> 4, b = (int16_t)(newCam - top) >> 4;
   if ((a & 0xff) == (b & 0xff)) { return; }
   marble_enemies::cameraBands(m, a, b);  // 0x15a12 steelies before the slots
   spawn_12dfa(m, a, b);
+  marble_enemies::sillyBands(m, a, b);
 }
 
 // 0x12fd0: per tick slot update: intermediate wave trigger, dynamic code reload (0x11ac2)

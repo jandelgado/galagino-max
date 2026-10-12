@@ -1620,6 +1620,16 @@ and again after 1363):
 | b1 | 4 | 900:444:470:-44 | spawns, walk, landings, carry, orbit, respawn, removals | 115 ticks equal |
 | b2 | 4 | 900:420:470:-50 (rolls to 461) | same, another bird carries | 114 ticks equal |
 
+C++ (`marble_birds.{h,cpp}`, 1:1 port of `marble_bird.py`, internals in namespace
+`marble_birds`): `marble_enemies` forwards `init`, `sillyBands` (new: `marble_objects::
+cameraBands` calls it after the slot spawner), `update` (after the acid) and `contact_19d94`
+(`physics_121b8` calls it for players after `contact_175c8`; a carried player leaves before
+the zones). `marble_physics` gains state `CARRIED` (0x25876; replaces the `STATE_ENEMY`
+placeholder) and exports `CARRIED_DAMAGE` (0x66); `marble_occlusion::bird` is 0x264aa mode 3.
+Host test `test_marble_birds`: fixture replay (player, birds, masks, 0x400762, draw list in
+order), race sweep (flag against the band, counts as `marble_bird.sweep`), a carry on the b1
+spot (CARRIED, LOST, then rolling) and a race switch while carried.
+
 Bird fixture `source/test/test_marble_birds/marble_birds_trace.h` (`make_fixture.py bdwrite`):
 RAM blocks, per tick `MarbleBirdTick` (inputs, player as `MarbleDeathTick`, the ten birds
 `MarbleBirdObj {live, state, x, y, z, sx, sy, tick, loops, cursor, frame_hdr, mask[18]}` with

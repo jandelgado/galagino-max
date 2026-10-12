@@ -98,7 +98,7 @@ static const uint8_t DIZZY_LOOPS = 6;              // +0x56 above: loop list, el
 static const uint8_t OUT_OF_LIST = 2, OUT_OF_PLAY = 3;  // +0x18: 2 also off the draw list
 static const uint8_t SHATTER_CNT = 2;              // +0x56 in state 2 (0, 1: other lists)
 static const int8_t SPARKLE_LAST = 2;              // +0x57 below: last sparkle tick
-static const uint8_t FELL = 0x64, EMBEDDED = 0x65, CARRIED = 0x66;  // +0x57 at state 4 entry
+static const uint8_t FELL = 0x64, EMBEDDED = 0x65;  // +0x57 at state 4 entry (CARRIED_DAMAGE)
 static const uint8_t BREAK_LIMIT = 0x1f;           // +0x56 + (+0x57 - +0x56) / 2 above: break
 static const int16_t BREAK_SY_MIN = -0x10, BREAK_SY_MAX = 0xf0;  // on screen: shatter
 // sparkle 0x13ade: ticks by +0x57, angle steps of a full turn, stars on screen
@@ -125,7 +125,6 @@ static const uint8_t RACE_AERIAL = 3, RACE_SILLY = 4, RACE_ULTIMATE = 5;
 static const uint8_t DYN_INTERMEDIATE_N = 0x42;
 static const uint16_t SPAWN_RANGE = 0x300;         // max checkpoint distance (max + 3/8 min) * 16
 static const uint8_t NO_ZONE = 0xff;
-static const uint8_t STATE_ENEMY = 0xb;  // set by enemy update 0x19d94 (0x19e14), Phase 4
 static const uint8_t TYPE_STEELIE = 2;   // draw list type
 
 inline int32_t s32(int64_t v) { return (int32_t)(uint32_t)v; }
@@ -770,15 +769,16 @@ void physics_121b8(Mem &m, uint32_t a2) {
   if (m.rb(a2 + SURFACE) == 0xa || m.rb(a2 + STATE) == LOST) { return; }
 
   // 0x1239c: cell refresh after slot hits, 0x1bc88 object pair collision; then the player
-  // only contacts (slinkies 0x14e92, acid 0x175c8; 0x1881c .. 0x19d94: other enemies, not
-  // ported) and zones
+  // only contacts (slinkies 0x14e92, acid 0x175c8, birds 0x19d94; 0x1881c pistons and
+  // 0x1924e minis not ported) and zones; a carried player skips the zones
   if (m.rb(HIT_X) || m.rb(HIT_Y)) { posupd_1bab2(m, a2); }
   if (marble_enemies::pair_1bc88(m, a2)) { posupd_1bab2(m, a2); }
   if (pl) {
     marble_enemies::contact_14e92(m, a2);
     if (marble_enemies::contact_175c8(m, a2)) { posupd_1bab2(m, a2); }
+    marble_enemies::contact_19d94(m, a2);
+    if (m.rb(a2 + STATE) == CARRIED) { return; }
     zones_1365c(m, a2);
-    if (m.rb(a2 + STATE) == STATE_ENEMY) { return; }
   }
 
   const int32_t h = height_1cc62(m);
@@ -1175,7 +1175,7 @@ uint8_t orbitTicks(uint8_t damage) {
   switch (damage) {
     case FELL: return ORBIT_FELL;
     case EMBEDDED: return ORBIT_EMBEDDED;
-    case CARRIED: return ORBIT_CARRIED;
+    case CARRIED_DAMAGE: return ORBIT_CARRIED;
     default: return 0;
   }
 }
@@ -1190,7 +1190,7 @@ bool orbit_13ade(Mem &m, uint32_t a2) {
   }
   int16_t d1 = m.sb(a2 + DAMAGE);
   m.wb(a2 + DAMAGE, m.rb(a2 + DAMAGE) - 1);
-  if (m.rb(a2 + STATE) == STATE_ENEMY) { d1 = ORBIT_CARRIED - d1; }
+  if (m.rb(a2 + STATE) == CARRIED) { d1 = ORBIT_CARRIED - d1; }
   const int32_t rad = d1 >> 1;
 
   uint16_t d3 = m.rw(a2 + ORBIT_ANGLE) + ORBIT_STEP;
@@ -1319,8 +1319,16 @@ void dissolve_2584e(Mem &m, uint32_t a2) {
   marble_occlusion::enter(m, a2);
 }
 
+// 0x25876: carried off by a bird: projection, orbit (radius grows), at its end LOST
+void carried_25876(Mem &m, uint32_t a2) {
+  proj_1b9cc(m, a2, REFETCH);
+  if (!orbit_13ade(m, a2)) { return; }
+  m.wb(a2 + DAMAGE, EMBEDDED);
+  enter_25bae(m, a2, LOST);
+}
+
 // 0x253ec: handler of state +0x1a (table 0x254ba). Not ported: +0xd8 wobble (silly minis),
-// states 3, 8, 0xa, 0xb.
+// states 3, 8, 0xa.
 void object_253ec(Mem &m, uint32_t a2) {
   switch (m.rb(a2 + STATE)) {
     case ROLL: roll_256d2(m, a2); break;
@@ -1331,6 +1339,7 @@ void object_253ec(Mem &m, uint32_t a2) {
     case GOAL: goal_254d2(m, a2); break;
     case HIDDEN: hidden_25812(m, a2); break;
     case DISSOLVING: dissolve_2584e(m, a2); break;
+    case CARRIED: carried_25876(m, a2); break;
     default: break;
   }
 }

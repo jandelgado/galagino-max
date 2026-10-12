@@ -20,6 +20,7 @@
 //       GOAL    physics, countdown, then out of play
 //       HIDDEN  inside a slinky (0x25812) until it sends the player LOST
 //       DISSOLVING  in acid (0x2584e): slides into it, dissolve animation, then LOST
+//       CARRIED  carried off by a bird (0x25876): orbit, then LOST
 //   project(m)                screen position 0x1b9cc of the player. The physics tail calls
 //                             it; ticks that return early keep the stored value, as in the
 //                             arcade. Call it where the physics does not run.
@@ -27,8 +28,8 @@
 // Level object slots (marble_objects.h): 0x29cce runs inside the physics, startRace spawns
 // the first slots. Steelies (marble_enemies.h) run the same object physics: pair collision
 // 0x1bc88, non-player landing and loss go to marble_enemies; the player's physics also runs
-// the slinky contact 0x14e92 and the acid contact 0x175c8. Not ported (Phase 4): other
-// enemies, states 3, 8, 0xa, 0xb, the race
+// the slinky contact 0x14e92, the acid contact 0x175c8 and the bird contact 0x19d94. Not
+// ported (Phase 4): other enemies, states 3, 8, 0xa, the race
 // timer (time out 0x1bbaa), sprite dots 0x1c014, zone
 // hook 0x13966, sounds.
 namespace marble_physics {
@@ -37,8 +38,10 @@ static const uint32_t PLAYER = 0x400018;  // player 1 object
 
 // player state +0x1a (handler table 0x254ba)
 enum State : uint8_t {
-  ROLL = 0, DIZZY = 1, BROKEN = 2, LOST = 4, EATEN = 5, GOAL = 6, HIDDEN = 7, DISSOLVING = 9
+  ROLL = 0, DIZZY = 1, BROKEN = 2, LOST = 4, EATEN = 5, GOAL = 6, HIDDEN = 7, DISSOLVING = 9,
+  CARRIED = 0xb
 };
+static const uint8_t CARRIED_DAMAGE = 0x66;  // +0x57 a bird sets: orbit length of CARRIED
 
 void startRace(Mem &m, uint8_t race);
 void tick(Mem &m, int8_t c6, int8_t c7);

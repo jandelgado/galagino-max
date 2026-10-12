@@ -30,9 +30,12 @@ enum : uint8_t {
   SLINKY_MASKS = 0x2c,
   MASKS = 0x38,
   SLINKY_FRAME = 0x58,         // slinky: frame cursor (long, into a frame header list)
+  BIRD_SCREEN = 0x20,          // bird: screen x, y words
+  BIRD_MASKS = 0x26,
   SURFACE = 0x58, SURFACE_T = 0x59,
 };
-enum Kind : uint8_t { PLAYER_MASKS, OBJECT_MASKS, SLINKY_BOX };
+enum Kind : uint8_t { PLAYER_MASKS, OBJECT_MASKS, SLINKY_BOX, BIRD_BOX };
+static const uint8_t BIRD_COLS = 3;   // a bird record holds 3 mask entries
 enum : uint8_t { ST_DIZZY = 1, ST_BROKEN = 2, ST_LOST = 4, ST_GOAL = 6, ST_5 = 5, ST_9 = 9,
                  ST_A = 0xa, ST_B = 0xb };
 
@@ -98,9 +101,11 @@ uint16_t vertexHeight_177f8(const Mem &m, int32_t d, int32_t col, int16_t k) {
 // sprite. Entry code: bit 15 hflip, bit 14 always 1, bits 11-13 height - 1 in
 // tiles, bits 0-10 MO code. The MO builder turns them into priority MOs (pen 1 =
 // playfield shows). +0x1c = 0 when every column is covered. d3: 0 player, 1 other, 2 slinky
-// (entries at +0x2c, box from the frame header, no explicit occluders, +0x1c untouched).
+// (entries at +0x2c, box from the frame header), 3 bird (3 entries at +0x26, screen +0x20;
+// disassembly, MARBLE.md "Birds"); 2 and 3: no explicit occluders, +0x1c untouched.
 void occlusion_264aa(Mem &m, uint32_t a2, Kind d3) {
-  const uint32_t base = a2 + (d3 == SLINKY_BOX ? SLINKY_MASKS : MASKS);
+  const bool bird = d3 == BIRD_BOX;
+  const uint32_t base = a2 + (d3 == SLINKY_BOX ? SLINKY_MASKS : bird ? BIRD_MASKS : MASKS);
   uint32_t out = base;
   auto emit = [&](uint16_t code, uint16_t x, uint16_t y) {
     m.ww(out, code);
@@ -109,7 +114,7 @@ void occlusion_264aa(Mem &m, uint32_t a2, Kind d3) {
     out += 6;
   };
 
-  for (uint8_t i = 0; i < COLS; i++) { m.ww(base + 6 * i, 0); }
+  for (uint8_t i = 0; i < (bird ? BIRD_COLS : COLS); i++) { m.ww(base + 6 * i, 0); }
 
   const uint8_t st = m.rb(a2 + STATE);
   if (d3 == PLAYER_MASKS) {
@@ -131,6 +136,10 @@ void occlusion_264aa(Mem &m, uint32_t a2, Kind d3) {
     top = s8(m.romb(f + 3)) * 8;
     col = (s16(s8(m.romb(f)) + m.rw(a2 + SLINKY_SCREEN)) >> 3) + (ncol == 3 ? 1 : 2);
     sy = s16(s8(m.romb(f + 1)) + m.rw(a2 + SLINKY_SCREEN + 2));
+  } else if (bird) {
+    col = s16(m.rw(a2 + BIRD_SCREEN) + 3) >> 3;
+    sy = s16(m.rw(a2 + BIRD_SCREEN + 2) - 8);
+    top = 0x10;
   } else {
     sy = m.sw(a2 + SY);
     col = m.sw(a2 + SX) >> 3;
@@ -182,7 +191,7 @@ void occlusion_264aa(Mem &m, uint32_t a2, Kind d3) {
     // explicit occluders per column and race: records of 5 words (diagonal limit, depth,
     // control, y, entry code)
     const uint32_t tab = m.roml(OCCLUDERS + 4 * c);
-    const uint16_t sel = d3 == SLINKY_BOX ? 0 : m.romw(tab + 2 * race);
+    const uint16_t sel = d3 >= SLINKY_BOX ? 0 : m.romw(tab + 2 * race);
     bool done = false;
     if (sel) {
       uint32_t r = tab + 2 * sel;
@@ -263,7 +272,7 @@ void occlusion_264aa(Mem &m, uint32_t a2, Kind d3) {
     }
   }
 
-  if (d3 == SLINKY_BOX) { return; }
+  if (d3 >= SLINKY_BOX) { return; }
   if (ncol < 0) { ncol = 0; }  // c0 above 0x24: no columns
   const uint32_t all = (1u << ncol) - 1;
   if ((covered & all) == all || (d3 == PLAYER_MASKS && ncol == COLS && (covered & 0xe) == 0xe)) {
@@ -284,6 +293,7 @@ void enter(Mem &m, uint32_t obj) {
 }
 
 void slinky(Mem &m, uint32_t obj) { occlusion_264aa(m, obj, SLINKY_BOX); }
+void bird(Mem &m, uint32_t obj) { occlusion_264aa(m, obj, BIRD_BOX); }
 
 }  // namespace marble_occlusion
 

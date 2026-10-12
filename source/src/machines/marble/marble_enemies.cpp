@@ -4,6 +4,7 @@
 #include "marble_physics.h"
 #include "marble_slinkies.h"
 #include "marble_acid.h"
+#include "marble_birds.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -329,6 +330,7 @@ void init(Mem &m) {
   for (uint8_t i = 0; i < NSTEELIES; i++) { m.wb(steelie(i) + IDX, i); }
   slinkyInit(m);
   acidInit(m);
+  birdInit(m);
 }
 
 // Spawn a steelie for every entry of 0x22706[race] whose band lo or hi is entered from
@@ -363,10 +365,15 @@ void cameraBands(Mem &m, int16_t oldBand, int16_t newBand) {
   acidBands(m, a, b);
 }
 
+void sillyBands(Mem &m, int16_t oldBand, int16_t newBand) {
+  birdBands(m, s8((uint32_t)oldBand), s8((uint32_t)newBand));
+}
+
 void update(Mem &m) {
   for (uint8_t i = 0; i < NSTEELIES; i++) { update_158f6(m, steelie(i)); }
   slinkies_1493c(m);
   acid_17230(m);
+  birds_19baa(m);
 }
 
 // 0x1bc88: a2 against P1, P2 and (beginner, aerial, ultimate) the steelies. Overlap 7 px x/y,
