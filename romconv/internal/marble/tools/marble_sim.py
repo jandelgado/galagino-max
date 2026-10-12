@@ -316,6 +316,7 @@ class Mem:
         self.deaths = False     # arcade death paths (0x25bae, 0x25c74) and dots 0x1c014
         self.enemies = False    # steelies (marble_enemy.enable): spawn, update, pair, landing
         self.slinkies = False   # slinkies (marble_slinky.enable): spawn, update, contact
+        self.acid = False       # acid (marble_acid.enable): spawn, update, contact, state 9
     def _loc(self, a):
         a &= 0xffffff
         if a < 0x30000: return PROG, a, False
@@ -683,11 +684,14 @@ def physics_121b8(m, a2):
     slots_29cce(m, a2)
     if m.rb(a2 + 0x58) == 0xa or m.rb(a2 + 0x1a) == 4: return
     if m.pair and m.pair(m, a2): posupd_1bab2(m, a2)  # 0x1bc88 object pair collision
-    # 0x175c8/0x1881c/0x1924e/0x19d94: enemy contacts of the player, not ported
+    # 0x1881c/0x1924e/0x19d94: enemy contacts of the player, not ported
     if pl:
         if m.slinkies:
             import marble_slinky
             marble_slinky.contact_14e92(m, a2)
+        if m.acid:
+            import marble_acid
+            if marble_acid.contact_175c8(m, a2): posupd_1bab2(m, a2)
         zones_1365c(m, a2)
         if m.rb(a2 + 0x1a) == 0xb: return
     h = height_1cc62(m)
@@ -1181,7 +1185,8 @@ def spawn_12dfa(m, old, new):
 
 def camera_bands_144e4(m, old, new):
     """Camera move: band = (camera - descriptor +0x10) >> 4. Steelie spawner 0x15a12 (m.enemies),
-    then the slots 0x12dfa; 0x14c46, 0x17346 and the aerial extras are not modelled."""
+    slinkies 0x14c46 (m.slinkies), acid 0x17346 (m.acid), then the slots 0x12dfa; the aerial
+    extras are not modelled."""
     top = m.sw(m.t.desc + 0x10)
     a = s16(old - top) >> 4; b = s16(new - top) >> 4
     if (a & 0xff) == (b & 0xff): return
@@ -1191,6 +1196,9 @@ def camera_bands_144e4(m, old, new):
     if m.slinkies:
         import marble_slinky
         marble_slinky.spawn_14c46(m, a, b)
+    if m.acid:
+        import marble_acid
+        marble_acid.spawn_17346(m, a, b)
     spawn_12dfa(m, a, b)
 
 
@@ -1450,6 +1458,8 @@ def objects_init(m, race):
         for i, a in enumerate(STEELIES_ALL): m.wb(a + 0x19, i)
     if m.slinkies:                                   # slinky numbers (0x1f006 order)
         for i in range(4): m.wb(SLINKIES + SLINKY_SIZE * i + 0x19, i)
+    if m.acid:                                       # acid numbers (0x1f07a order)
+        for i in range(7): m.wb(0x401482 + 0x42 * i + 0x19, i)
     cam = rom_w(desc + 0x10) + (rom_w(desc + 0x12) if race == 4 else 0)
     m.wl(0x40097c, cam)
     if race == 2:
@@ -1958,6 +1968,9 @@ def object_253ec(m, a2):
     elif st == 7:
         # inside a slinky 0x25812 (JT[7]): hidden until the slinky's state 5 sends it lost
         ground_253bc(m, a2); m.wb(a2 + 0x1c, 0)
+    elif st == 9 and m.acid:
+        import marble_acid
+        marble_acid.dissolve_2584e(m, a2)
     elif st == 6:
         # goal 0x254d2 (Marble Love refresh-frame-10fce.ts JT[6]): physics, +0x57 (0x1e from
         # 0x1365c) counts down; at 0 out of play (+0x18 = 3), v = 0. +0x57 wraps to 0xff, so
@@ -2015,6 +2028,9 @@ def main_tick(m, c6, c7, camera, frame):
     if m.slinkies:
         import marble_slinky
         marble_slinky.update_1493c(m)
+    if m.acid:
+        import marble_acid
+        marble_acid.update_17230(m)
     slots_12fd0(m)
     rng_13a98(m, 0x100)
 

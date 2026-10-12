@@ -487,15 +487,11 @@ def ref_mos(r, v, typ, i):
 
 
 def slinky_diff(m, r2, v2):
-    """Player and steelies (marble_enemy.steelie_diff, draw list without acid), all four
-    slinky records, their MOs."""
+    """Player and steelies (marble_enemy.steelie_diff), the whole draw list in order (acid
+    modelled since 4b-3), all four slinky records, their MOs."""
     import marble_enemy
     out = [d for d in marble_enemy.steelie_diff(m, r2, v2) if not d.startswith("draw list")]
-    full = marble_enemy.drawn(ms.Mem(m.t, r2))
-    want = [e for e in full if e[0] != 0xe]
-    got = [e for e in marble_enemy.drawn(m) if e[0] != 0xe]
-    if len(want) != len(full):                       # acid (4b-3) reorders the sort: set only
-        want, got = sorted(want), sorted(got)
+    want = marble_enemy.drawn(ms.Mem(m.t, r2)); got = marble_enemy.drawn(m)
     if got != want: out.append("draw list %s/%s" % (got, want))
     for i, a in enumerate(SLINKIES):
         o = a - 0x400000

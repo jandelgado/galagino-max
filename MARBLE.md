@@ -1383,8 +1383,8 @@ Tick start traces (`$TMPDIR/sl`, `$TMPDIR/st/run.sh`, place at frame 900, input 
 Also equal: `slinky TRACE RACE` (0x1493c alone between snapshots) on 12 older traces (~6300
 ticks), spawns/removals of cam1/cam2/cam5 (`spawncheck`, 34 events), st/b1 and st/u1 with
 steelies. Old commands (fixture, objfixture, dfixture, sfixture, spritefixture) stay exact
-with slinkies forced on. Acid (type 0x0e, Phase 4b-3) shares the draw list sort: with acid
-entries in MAME's list the checks compare the list as a set.
+with slinkies forced on. Acid (type 0x0e) shares the draw list sort; since Phase 4b-3 the
+checks compare the whole list in order.
 
 C++ (`marble_slinkies.{h,cpp}`, 1:1 port of `marble_slinky.py`, internals in namespace
 `marble_slinkies`: the host tests compile every module into one unit, where the steelie
@@ -1435,6 +1435,85 @@ python3 romconv/internal/marble/tools/marble_slinky.py slfixture \
 python3 romconv/internal/marble/tools/marble_slinky.py slinkies TRACE RACE FROM:TO
 ```
 
+### Acid in the main tick model (Phase 4b-3)
+
+Marble Love TS only (`string-range-dispatch-17346.ts`, `dispatch-strings-17230.ts`,
+`string-step-1725a.ts`, `entity-waypoint-step-1d1ec.ts`, `sub-1d242.ts`, `sprite-coords.ts`
+0x1778e, `string-viewport-hit-175c8.ts`, `string-target-step-176d2.ts`,
+`refresh-frame-10fce.ts` JT[9]); no TS gap, no TS/MAME disagreement. Model
+`tools/marble_acid.py`, `marble_acid.enable(m)` (`m.acid`, on in `marble_enemy.setup`):
+spawner 0x17346 after 0x14c46 in `camera_bands_144e4`, 0x17230 after the slinkies, 0x175c8 for
+players in 0x121b8 right after 0x14e92 (a hit runs 0x1bab2), player state 9 (0x2584e) in
+`object_253ec`.
+
+Record 0x401482 + 0x42 k (table 0x1f07a, +0x19 = k): v +0/+4, pos +0xc/+0x10/+0x14, +0x18
+live, +0x1a 0, +0x1b zone, +0x24 tick, +0x25 ticks per frame, +0x28 screen (x, y words as
+slots), +0x2c path cursor, +0x30 path (4 byte records cell x, y, next record, pad; 0xff end),
++0x34/+0x36 band, +0x3a frame cursor, +0x3e anim list (ROM longs, -1 end).
+
+- Spawn 0x17346 (table 0x23d4a[race], entries as slinkies): per entry, skip if a live acid has
+  the entry's path (0x1730c, +0x30 vs the ROM long), then the band rule. Long 0: rng(2) picks
+  0x23d62/0x23d66 (zone byte 5: one path) or 0x23d6a/0x23d82 (six paths), else the long is
+  the path. Each path takes the highest free slot; none free ends the walk. Init: position
+  = first cell << 19 (cell corner, no +0x40000 centre), z = 0x1bb08 + 0x1cc62(1) (fixed
+  afterwards), v = 0, 0x1d1ec, 0x1778e, draw list insert type 0x0e. Removal as slinkies.
+  Tables: intermediate 14-36 random single (zone 5), 6 x 17-42 random group (zone 6; the
+  first fills six slots, the next fills the last free one or ends the walk); ultimate 0-25 x2
+  (zone 3), 6-32 x2 (zone 0x1e).
+- Tick 0x1725a: +0x24 += 1; at +0x25: +0x24 = 0, +0x25 > 2 becomes 1, cursor +0x3a steps;
+  at the list end it restarts, pos += v (8 px), 0x1d1ec. Always 0x1778e (screen +0x28, the
+  0x150d0 maths without masks).
+- 0x1d1ec: on the cursor's cell, cursor = path + next * 4; then 0x1d242: one axis step of 8
+  px towards the cursor's cell (y first when v x != 0, else x first), v = step << 16, anim
+  0x20ec4 down / 0x20ee4 up / 0x20ea4 right / 0x20f24 left (also standing), +0x24 = 0, +0x25 =
+  2, or 1 while a live player (+0x18 == 1) shares the acid's zone and that zone is 6.
+- Contact 0x175c8 (players, races 2/5, first hit only, no height test): marble x/y +-3 vs
+  the box of frame header rl(rl(+0x3a)) bytes 4-7 (-2, -2, 12, 12 for an empty frame): player
+  0x25bae(9) (v 0, +0x5f 0, +0x60 4, anim 0x21062, state 9), sound 0x5e, player +0x58 = acid
+  number, acid +0x25 = 0x1c (its frame holds 28 ticks, then +0x25 = 1).
+- Player 9 (0x2584e): 0x176d2 (x, y words step 1 px towards the acid box centre, fraction
+  cleared), 0x25fc2 (list end: 0x25bae(4), lost and respawn), 0x1b9cc(1), 0x1281c.
+- 0x17cb8 (respawn spot check) does not scan acid.
+- Mid tick traces (snapshot at the player's 0x121b8 entry, the older runs): the tick's
+  rng(0x100) and the acid update with the snapshot's camera are still due, `spawncheck` and
+  `acid` take `mid`.
+
+Checks: `spawncheck` cam2, cam5, e2 (mid), u1: 44 spawn/removal steps equal; `acid` (0x17230
+alone between snapshots) cam2, cam5, e2, u1: 1248 ticks equal; `acids` free runs below; the
+sweep (all races, all modelled enemies): intermediate 21/21, ultimate 8/10 acid
+spawns/removals, most live 7/4. Old commands stay exact with acid on; the slinky fixture u1
+segment is regenerated with the C++ port (its RAM blocks then hold the acid records).
+
+Tick start traces (`$TMPDIR/ac`, `$TMPDIR/st/run.sh`, no input):
+
+| run | race | place | content | free run |
+| --- | --- | --- | --- | --- |
+| ia | 2 | 1500:530:550:-64:6, 1640:516:548:-64:6 | single spawn, group spawn, hit, dissolve, respawn | 296 ticks equal |
+| ua | 5 | 900:320:400:0:4, 1150:380:316:0:4 | slinky eat with acid, dissolve, respawn | 396 ticks equal |
+
+Acid fixture `source/test/test_marble_acid/marble_acid_trace.h` (`make_fixture.py acwrite`):
+RAM blocks, per tick `MarbleAcidTick` (inputs, player as `MarbleDeathTick`, the seven acids
+`MarbleAcidObj {live, x, y, z, sx, sy, tick, path, cursor, frame_hdr}` with their MOs, the
+draw list in order).
+
+| segment | ticks | events |
+| --- | --- | --- |
+| intermediate ia 1600 | 19 | single spawn, crawl |
+| intermediate ia 1642 | 150 | group spawn (rng), hit, dissolve 28, lost 24, respawn |
+| ultimate ua 1153 | 110 | dissolve, lost, respawn, slinkies and steelie alongside |
+| ultimate ua 902 | 60 | slinky eat (5/7) with four acids crawling |
+
+```sh
+S=$TMPDIR/ac
+python3 romconv/internal/marble/tools/make_fixture.py acwrite \
+  source/test/test_marble_acid/marble_acid_trace.h 2:$S/ia/trace.bin:1600:19 \
+  2:$S/ia/trace.bin:1642:150 5:$S/ua/trace.bin:1153:110 5:$S/ua/trace.bin:902:60
+python3 romconv/internal/marble/tools/marble_acid.py acfixture \
+  source/test/test_marble_acid/marble_acid_trace.h
+python3 romconv/internal/marble/tools/marble_acid.py acids TRACE RACE FROM:TO
+python3 romconv/internal/marble/tools/marble_acid.py spawncheck TRACE RACE [mid]
+```
+
 ## Open questions
 
 - Level objects: unported tags (0x0a-0x0d, tubes 0x12-0x16, 0x20-0x27), zone triggered
@@ -1442,10 +1521,10 @@ python3 romconv/internal/marble/tools/marble_slinky.py slinkies TRACE RACE FROM:
   Level objects. Slot sprites: section Level object sprites (masks over slot MOs behind the
   marble not seen in traces).
 - Enemies (section Enemies): two player target choices 0x15fe6 (steelies and slinkies), no
-  trace of a slinky pulling the marble (0x15316, octant 0x70-0xc0), of acid/bird/piston hits
+  trace of a slinky pulling the marble (0x15316, octant 0x70-0xc0), of bird/piston hits
   or of a steelie occluded by terrain (masks +0x38).
-- Deaths (section Player states, deaths, RNG): states 1/2/4/5/7 modelled, 1/2/4 ported.
-  Not modelled: states 3 (catapult), 9/0xb (enemies), 8 (time out, 0x258a8), 0xa (gate,
+- Deaths (section Player states, deaths, RNG): states 1/2/4/5/7/9 modelled, 1/2/4/5/7
+  ported. Not modelled: states 3 (catapult), 0xb (birds), 8 (time out, 0x258a8), 0xa (gate,
   0x13d38 writes +0x38), practice landing markers (type 0x2a, 0x12532, score 0x285b0),
   aerial piston hook 0x186ac in 0x13966, the race timer and other vblank IRQ work, two
   players, the main loop countdowns 0x400768/0x4003b8 (aerial deaths diverge once 0x13966
