@@ -23,6 +23,7 @@ Validation against MAME traces (tools/mame_trace.lua), exit code 1 on failure:
                                      free per segment, player, RNG, slots, player MOs == MAME
   marble_sim.py dfixture HEADER     replay the death host test fixture (make_fixture.py dwrite)
   marble_sim.py tfixture HEADER     replay the tube host test fixture (make_fixture.py twrite)
+  marble_sim.py afixture HEADER     replay the aerial host test fixture (make_fixture.py awrite)
 `run` copies slots, dynamic codes and enemy scratch from the trace each tick; `slots` only
 the camera and enemy scratch. Divergences at deaths and enemy contacts end a segment and
 are reported, any other divergence fails. Enemies are not ported.
@@ -2765,10 +2766,11 @@ def death_state(m):
             bytes(m.ram[a + 0x38:a + 0x56]), m.rw(0x4003a6), tuple(player_mos(m)))
 
 
-def load_dfixture(path, rng_in=False):
+def load_dfixture(path, rng_in=False, arr=None):
     """Segments of source/test/test_marble_deaths/marble_deaths_trace.h (make_fixture.py
     dwrite): [{"race", "frame", "ram", "ticks": [(c6, c7, camera, frames, state tuple)]}].
-    rng_in: marble_tubes_trace.h (twrite), ticks (c6, c7, camera, frames, rng, state)."""
+    rng_in: marble_tubes_trace.h (twrite), ticks (c6, c7, camera, frames, rng, state). arr:
+    segment array name (default by rng_in; marble_aerials_segments for awrite)."""
     import re
     text = open(path).read()
     num = lambda s: [int(v, 0) for v in re.findall(r"-?0x[0-9a-fA-F]+|-?\d+", s)]
@@ -2777,7 +2779,7 @@ def load_dfixture(path, rng_in=False):
     segs = []
     for race, frame, nram, ramname, nticks, tickname, nmos, moname in re.findall(
             r"\{ *(\d+), *(\d+), *(\d+), *(\w+), *(\d+), *(\w+), *(\d+), *(\w+) *\}",
-            arrays["marble_tubes_segments" if rng_in else "marble_deaths_segments"]):
+            arrays[arr or ("marble_tubes_segments" if rng_in else "marble_deaths_segments")]):
         ram = []
         for addr, length, data in re.findall(r"\{ *(0x[0-9a-f]+), *(\d+), *(\w+) *\}",
                                              arrays[ramname]):
@@ -2800,10 +2802,11 @@ def load_dfixture(path, rng_in=False):
     return segs
 
 
-def replay_dfixture(seg, m, rng_in=False):
+def replay_dfixture(seg, m, rng_in=False, full=None):
     """Run every death fixture tick on m (rng_in: tube fixture, RNG word set before each
-    tick, all enemies run); index of the first tick that differs, or None."""
-    if rng_in:
+    tick; full (default rng_in): all enemies run); index of the first tick that differs, or
+    None."""
+    if rng_in if full is None else full:
         import marble_enemy
         marble_enemy.setup(m)
     else:
@@ -2816,10 +2819,10 @@ def replay_dfixture(seg, m, rng_in=False):
     return None
 
 
-def cmd_dfixture(path, rng_in=False):
+def cmd_dfixture(path, rng_in=False, full=None, arr=None):
     ok = True
-    for seg in load_dfixture(path, rng_in):
-        bad = replay_dfixture(seg, fixture_mem(seg, Terrain(seg["race"])), rng_in)
+    for seg in load_dfixture(path, rng_in, arr):
+        bad = replay_dfixture(seg, fixture_mem(seg, Terrain(seg["race"])), rng_in, full)
         print("deaths fixture race %d frame %d: %d ticks, %s" % (seg["race"], seg["frame"],
               len(seg["ticks"]), "exact" if bad is None else "differs at tick %d" % bad))
         ok &= bad is None
@@ -2831,6 +2834,8 @@ def main(argv):
         return 0 if cmd_dfixture(argv[2]) else 1
     if len(argv) == 3 and argv[1] == "tfixture":
         return 0 if cmd_dfixture(argv[2], True) else 1
+    if len(argv) == 3 and argv[1] == "afixture":
+        return 0 if cmd_dfixture(argv[2], False, True, "marble_aerials_segments") else 1
     if len(argv) == 3 and argv[1] == "fixture":
         return 0 if cmd_fixture(argv[2]) else 1
     if len(argv) == 3 and argv[1] == "objfixture":

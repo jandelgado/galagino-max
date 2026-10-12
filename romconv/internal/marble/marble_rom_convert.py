@@ -50,6 +50,8 @@ STEELIE_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_steelies",
 ACID_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_acid", "marble_acid_trace.h")
 BIRD_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_birds", "marble_birds_trace.h")
 TUBE_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_deaths", "marble_tubes_trace.h")
+AERIAL_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_aerial",
+                              "marble_aerial_trace.h")
 MINI_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_minis", "marble_minis_trace.h")
 PISTON_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_pistons",
                               "marble_pistons_trace.h")
@@ -546,6 +548,28 @@ def tube_runs(mem, terrains, full):
     return out
 
 
+def aerial_runs(mem, terrains, full):
+    """Aerial objects: every aerial fixture segment (main tick with all enemies); the check
+    values read the program ROM full, as death_runs. Returns crc32 of the work RAM per
+    segment."""
+    if not os.path.exists(AERIAL_FIXTURE):
+        fatal(f"marble: {AERIAL_FIXTURE} missing, run tools/make_fixture.py awrite")
+    out = []
+    for seg in ms.load_dfixture(AERIAL_FIXTURE, False, "marble_aerials_segments"):
+        m = me.setup(ms.fixture_mem(seg, terrains[seg["race"]], mem))
+        for c6, c7, cam, frames, want in seg["ticks"]:
+            ms.main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
+            prog, ms.PROG = ms.PROG, full
+            try:
+                got = ms.death_state(m)
+            finally:
+                ms.PROG = prog
+            if got != want:
+                fatal("marble: aerial fixture replay differs, run marble_sim.py afixture")
+        out.append(zlib.crc32(bytes(m.ram)))
+    return out
+
+
 def mini_runs(mem, terrains, full):
     """Phase 4b-4b: every mini fixture segment and the mini race sweep of every race (main tick
     with all modelled enemies) on Mem class mem. Every mini frame drawn must be in the death
@@ -824,7 +848,7 @@ def prog_blocks(terrains):
     slinkies = steelies plus the slinky runs and the Phase 4b-2 tables, acid = slinkies plus
     the acid runs and the Phase 4b-3 tables, birds = acid plus the bird and tube runs and the
     Phase 4b-4a tables, minis = birds plus the mini runs and the Phase 4b-4b tables, all =
-    minis plus the piston runs and the Phase 4b-5 tables."""
+    minis plus the piston and aerial object runs and the Phase 4b-5 tables."""
     covered = table_bytes([t.desc for t in terrains])
     phase3 = phase3_bytes()      # before ms.PROG is replaced
     sprite_tab = sprite_bytes()
@@ -858,7 +882,7 @@ def prog_blocks(terrains):
         want9 = set(RecProg.reads)
         ref10 = mini_runs(RecMem, terrains, plain)
         want10 = set(RecProg.reads)
-        ref11 = piston_runs(RecMem, terrains, plain)
+        ref11 = piston_runs(RecMem, terrains, plain) + aerial_runs(RecMem, terrains, plain)
         want11 = set(RecProg.reads)
     finally:
         ms.PROG = plain
@@ -1057,7 +1081,8 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, size4b
                + death_runs(BlockMem, terrains, plain) + steelie_runs(BlockMem, terrains, plain)
                + slinky_runs(BlockMem, terrains, plain) + acid_runs(BlockMem, terrains, plain)
                + bird_runs(BlockMem, terrains, plain) + tube_runs(BlockMem, terrains, plain)
-               + mini_runs(BlockMem, terrains, plain) + piston_runs(BlockMem, terrains, plain))
+               + mini_runs(BlockMem, terrains, plain) + piston_runs(BlockMem, terrains, plain)
+               + aerial_runs(BlockMem, terrains, plain))
     finally:
         ms.PROG = plain
         ms.EDGES = None

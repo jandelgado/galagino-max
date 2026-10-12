@@ -39,8 +39,11 @@ tick; the segment ends at the death the sim detects (its frame gap in the trace 
                                             aerial piston segments of tick start traces
                                             (test_marble_pistons/marble_pistons_trace.h)
   make_fixture.py twrite OUT RACE:TRACE:FRAME:TICKS|KEEP.h ...
-                                            silly tube segments, RNG as input
+                                            tube segments, RNG as input, all enemies
                                             (test_marble_deaths/marble_tubes_trace.h)
+  make_fixture.py awrite OUT RACE:TRACE:FRAME:TICKS ...
+                                            aerial object segments, all enemies
+                                            (test_marble_aerial/marble_aerial_trace.h)
   make_fixture.py bdwrite OUT RACE:TRACE:FRAME:TICKS ...
                                             silly bird segments of tick start traces
                                             (test_marble_birds/marble_birds_trace.h)
@@ -433,15 +436,15 @@ def cmd_swrite(out, specs):
 
 # ---------------------------------------------------------------- deaths fixture
 
-def death_run(t, trace, i, n, rng_in=False):
+def death_run(t, trace, i, n, rng_in=False, full=None):
     """Death model (marble_sim.main_tick) from tick start snapshot i for n ticks, inputs
     only from the trace; every tick must equal the next snapshot. rng_in (tube fixture): the
     RNG word of each snapshot is an input too (silly race start: minis), all enemies run
     (marble_enemy.setup, as the C++ main tick). Returns (ticks, reads); a tick is (c6, c7,
-    camera, frames[, rng], death_state)."""
+    camera, frames[, rng], death_state). full (default rng_in): all enemies run."""
     import marble_enemy as me
     m = RecMem(t, trace[i][1])
-    if rng_in:
+    if rng_in if full is None else full:
         me.setup(m)
     else:
         m.deaths = m.objects = m.sprites = True
@@ -486,6 +489,15 @@ TUBE_HEADER = ("Tube", "marble_tube", "marble_tubes", "MARBLE_TUBES", "twrite", 
     "// 0x20 hole, walls 0x21; ultimate 0x25 hole, walls 0x26/0x27. marble_sim.py main_tick",
     "// reproduces them from the initial work RAM blocks and the inputs alone (the RNG word is",
     "// an input: the minis are not ported). Derived numbers only. Replay check:"))
+
+
+AERIAL_HEADER = ("Aerial", "marble_aerial", "marble_aerials", "MARBLE_AERIAL", "awrite",
+                 "afixture", (
+    "// Marble aerial object host test: MAME tick start traces (tools/mame_trace.lua",
+    "// MARBLE_TICK=start, MARBLE_PLACE on the aerial course, stick input): vacuum gate pull and",
+    "// catch (state 0xa, stars, respawn), 0x0d gate frame bounce, catapult throw, bounce box",
+    "// hits (dizzy). marble_sim.py main_tick with all enemies reproduces them from the initial",
+    "// work RAM blocks and the inputs alone. Derived numbers only. Replay check:"))
 
 
 def write_deaths(out, segs, hdr, rng_in=False):
@@ -563,7 +575,7 @@ def write_deaths(out, segs, hdr, rng_in=False):
         w("static const uint8_t %s_SEGMENTS = %d;\n#endif" % (guard, len(segs)))
 
 
-def death_segments(specs, rng_in=False):
+def death_segments(specs, rng_in=False, full=None):
     segs = []
     for spec in specs:
         race, path, frame, n = spec.split(":")
@@ -571,10 +583,10 @@ def death_segments(specs, rng_in=False):
         trace = ms.load_trace(path)
         i = next(k for k, x in enumerate(trace) if x[0] == frame)
         t = ms.Terrain(race)
-        ticks, reads = death_run(t, trace, i, n, rng_in)
+        ticks, reads = death_run(t, trace, i, n, rng_in, full)
         seg = {"race": race, "frame": frame, "ram": obj_blocks(trace[i][1], reads),
                "ticks": ticks}
-        bad = ms.replay_dfixture(seg, ms.fixture_mem(seg, t), rng_in)
+        bad = ms.replay_dfixture(seg, ms.fixture_mem(seg, t), rng_in, full)
         if bad is not None:
             raise SystemExit("race %d frame %d: does not replay from its RAM blocks (tick %d)"
                              % (race, frame, bad))
@@ -595,6 +607,10 @@ def cmd_twrite(out, specs):
         segs += (ms.load_dfixture(spec, True) if spec.endswith(".h")
                  else death_segments([spec], True))
     write_deaths(out, segs, TUBE_HEADER, True)
+
+
+def cmd_awrite(out, specs):
+    write_deaths(out, death_segments(specs, False, True), AERIAL_HEADER)
 
 
 # ---------------------------------------------------------------- steelies fixture
@@ -1706,6 +1722,9 @@ def main(argv):
         return 0
     if len(argv) >= 4 and argv[1] == "twrite":
         cmd_twrite(argv[2], argv[3:])
+        return 0
+    if len(argv) >= 4 and argv[1] == "awrite":
+        cmd_awrite(argv[2], argv[3:])
         return 0
     if len(argv) >= 4 and argv[1] == "bdwrite":
         cmd_bdwrite(argv[2], argv[3:])
