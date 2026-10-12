@@ -181,6 +181,106 @@ static void test_replay_minis(void) {
   }
 }
 
+// ---------------------------------------------------------------- mini objects
+
+// One MO as the published state draws it: race pixel top left, height, hflip
+struct DrawnMo {
+  int16_t x, top;
+  uint8_t h;
+  bool flip;
+};
+
+static const uint8_t MOS_MAX = 16;          // frame columns of one mini
+static const uint8_t PAL[3] = {5, 6, 4};    // MO palette set of types 7, 8, 9
+
+// mini j live and listed with the same screen position and frame as mini i (same object)
+static bool twin(const Mem &m, uint8_t i, uint8_t j) {
+  const uint32_t a = mini(i), b = mini(j);
+  return m.rb(b + SLOT) && m.rb(b + N_TYPE) == m.rb(a + N_TYPE) &&
+         listedCount(m, m.rb(b + N_TYPE), j) && m.rl(b + N_SCREEN) == m.rl(a + N_SCREEN) &&
+         m.roml(m.rl(b + N_ANIM)) == m.roml(m.rl(a + N_ANIM));
+}
+
+// MOs of mini i in v: its object (frame rl(+0x1c), palette of its type) at the origin
+// (+0x20, top + ARCADE_H - +0x22); minis on the same spot with the same frame by index order
+static uint8_t miniMos(const Mem &m, const marble_video::VideoState &v, uint8_t i, int16_t top,
+                       DrawnMo *out) {
+  using namespace marble_video;
+  const uint32_t a = mini(i);
+  if (!m.rb(a + SLOT)) { return 0; }
+  const int16_t ox = m.sw(a + N_SCREEN);
+  const int16_t oy = (int16_t)(top + ARCADE_H - m.sw(a + N_SCREEN + 2));
+  const MarbleSpriteSet &ds = marble_physics::deathSet();
+  const uint8_t frame = marble_physics::deathFrame(m.roml(m.rl(a + N_ANIM)));
+  const uint8_t set = SET_DEATH | (uint8_t)(SET_MINI + m.rb(a + N_TYPE) - 7);
+  uint8_t skip = 0;
+  for (uint8_t j = 0; j < i; j++) { skip += twin(m, i, j); }
+  uint8_t k = 0;
+  for (uint8_t j = 0; j < v.n; j++) {
+    const Obj &o = v.objs[j];
+    if (o.x != ox || o.y != oy || o.set != set || o.frame != frame) { continue; }
+    if (skip) {
+      skip--;
+      continue;
+    }
+    TEST_ASSERT_EQUAL_UINT8(0, o.nmask);
+    const MarbleSpriteFrame &f = ds.frames[o.frame];
+    for (uint8_t c = 0; c < f.ncols && k < MOS_MAX; c++) {
+      const MarbleSpriteCol &col = ds.cols[f.first + c];
+      out[k++] = {(int16_t)(o.x + col.x), (int16_t)(o.y + col.y), (uint8_t)(col.h & 0x7f),
+                  (col.h & 0x80) != 0};
+    }
+    break;
+  }
+  return k;
+}
+
+// Published minis (build at the arcade cull) against the mini MOs MAME emitted in every
+// fixture tick: frame columns (position, height, flip, palette set of the type)
+static void test_mini_objects(void) {
+  uint16_t drawn = 0, dropped = 0;
+  for (uint8_t sg = 0; sg < MARBLE_MINI_SEGMENTS; sg++) {
+    const MarbleMiniSegment &seg = marble_mini_segments[sg];
+    loadRam(seg);
+    Mem m(ram, seg.race);
+    const int16_t descTop = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+
+    for (uint16_t k = 0; k < seg.nticks; k++) {
+      const MarbleMiniTick &t = seg.ticks[k];
+      mainTick(m, t.c6, t.c7, t.camera, t.frames);
+      marble_video::VideoState v = {};
+      v.level = seg.race;
+      marble_drawlist::build(m, (int16_t)t.camera, 0, v);
+      const int16_t top = (int16_t)((int16_t)t.camera - descTop);
+
+      for (uint8_t i = 0; i < marble_enemies::NMINIS; i++) {
+        const MarbleMiniObj &s = t.m[i];
+        char msg[100];
+        snprintf(msg, sizeof(msg), "segment %d tick %d mini %d (kind %d)", sg, k, i, s.kind);
+        DrawnMo got[MOS_MAX];
+        const uint8_t n = miniMos(m, v, i, top, got);
+        if (v.n == marble_video::OBJS && n < s.n) {  // published list full: dropped
+          dropped++;
+          continue;
+        }
+        TEST_ASSERT_EQUAL_UINT8_MESSAGE(s.n, n, msg);
+        for (uint8_t j = 0; j < n; j++) {
+          const MarbleMiniMo &e = seg.mos[s.first + j];
+          const uint16_t y = (uint16_t)(top + 256 - got[j].top - 8 * got[j].h);
+          const uint16_t x = (uint16_t)(got[j].x + 24);
+          TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.w0, ((y << 5) & 0x3fe0) | (got[j].flip ? 0x8000 : 0) |
+                                                    (got[j].h - 1), msg);
+          TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.w2, (x << 5) & 0x3fe0, msg);
+          TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.code >> 11, PAL[s.type - 7], msg);
+        }
+        drawn += n != 0;
+      }
+    }
+  }
+  printf("mini objects: %u mini ticks drawn, %u dropped (OBJS full)\n", drawn, dropped);
+  TEST_ASSERT_TRUE(drawn > 0);
+}
+
 // ---------------------------------------------------------------- race start path
 
 // machine race start (marble.cpp beginRace) on a cleared work RAM
@@ -289,6 +389,7 @@ int main(int argc, char **argv) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   RUN_TEST(test_replay_minis);
+  RUN_TEST(test_mini_objects);
   RUN_TEST(test_race_sweep);
   RUN_TEST(test_collect_and_switch);
 #endif

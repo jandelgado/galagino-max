@@ -43,6 +43,7 @@ static const uint32_t ACID_LAST_HDR = 0x2191e;     // highest acid frame header 
 static const uint32_t SLINKY_LAST_HDR = 0x21cc2;   // highest slinky frame header (minis follow)
 static const uint32_t ACID_EDGES_CRC = 0xFB6CB52D;
 static const uint32_t BIRD_EDGES_CRC = 0x8BC88626;
+static const uint32_t MINI_EDGES_CRC = 0x2EC4DA29;
 static marble_level::Store store;
 
 static void test_levels_match_decoder(void) {
@@ -577,6 +578,39 @@ static void test_bird_edges(void) {
   TEST_ASSERT_EQUAL_HEX32(BIRD_EDGES_CRC, crc);
 }
 
+// Minis straddling every view edge: every mini frame (death set, after the acid frames and
+// after the slinky frames) in its type's palette; the tile buffer ends after the death set
+static void test_mini_edges(void) {
+  using namespace marble_video;
+  static const uint8_t RACE = 4;
+  const marble_level::Level l = guardedLevel(store.load(RACE), MARBLE_DEATH_TILES);
+  const uint8_t ranges[2][2] = {
+      {(uint8_t)(marble_physics::deathFrame(ACID_LAST_HDR) + 1),
+       marble_physics::deathFrame(SLINKY_FIRST_HDR)},
+      {(uint8_t)(marble_physics::deathFrame(SLINKY_LAST_HDR) + 1),
+       marble_physics::deathFrame(BIRD_FIRST_HDR)}};
+  uint32_t crc = 0;
+  for (const auto &r : ranges) {
+    for (uint8_t f = r[0]; f < r[1]; f++) {
+      for (int16_t x : EDGE_X) {
+        for (int16_t y : EDGE_Y) {
+          VideoState v = {};
+          v.level = RACE;
+          v.sx = 20;
+          v.sy = 40;
+          v.n = 1;
+          v.marbleAt = 0;
+          v.objs[0] = {f, (uint8_t)(SET_DEATH | (SET_MINI + f % 3)), (int16_t)(x + v.sx),
+                       (int16_t)(y + v.sy), 0, 0};
+          crc = crc32((const uint8_t *)&crc, sizeof(crc), checkRef(l, v));
+        }
+      }
+    }
+  }
+  printf("mini edges crc %08x\n", (unsigned)crc);
+  TEST_ASSERT_EQUAL_HEX32(MINI_EDGES_CRC, crc);
+}
+
 // one object of `frame` (race `race`, palette set `set`) over a playfield whose pixel in column
 // x is kPf[x & 7]; every sprite tile byte is `fill` (two pens). base: without the object.
 static const uint8_t kPf[8] = {4, 20, 15, 31, 7, 0, 5, 9};
@@ -714,6 +748,7 @@ int main(int, char **) {
   RUN_TEST(test_slinky_edges);
   RUN_TEST(test_acid_edges);
   RUN_TEST(test_bird_edges);
+  RUN_TEST(test_mini_edges);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif

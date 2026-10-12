@@ -1731,6 +1731,15 @@ sweep (all nine live exactly in the band; silly 2 spawns, 2 clears), a collect a
 start and a race switch. The race start RNG test expects silly 0xcf09 / 0x400444 = 9 (MAME:
 9).
 
+Drawing: `marble_drawlist::build` publishes types 7/8/9 at their list positions as
+`marble_mo.other_mos` draws them: origin +0x20 (x) and camera top + 240 - +0x22, culled as the
+arcade (-0x10 < sy + 0x10 < 0x100) widened by the remake margin, frame rl(+0x1c) from the death
+set with `SET_DEATH | (SET_MINI + type - 7)` (`marble_death_pal` rows 5-7), no masks. Host
+tests: `test_mini_objects` (every fixture tick at the arcade cull: columns, palette sets 5/6/4
+as MO words equal to MAME; 2183 drawn mini ticks, none dropped by `OBJS`), `test_mini_edges`
+(every mini frame at every view edge, guarded tile buffer). Flash after Phase 4b-4b: 4105165 B
+(+5368 over the tubes, 23.0 KB left).
+
 Mini fixture `source/test/test_marble_minis/marble_minis_trace.h` (`make_fixture.py
 mnwrite`): b1 702 (98 ticks, wander), m3 1000 (120, kind 1, collect), b1 1301 (98, respawn
 with birds live), t6 904 (100, tube).

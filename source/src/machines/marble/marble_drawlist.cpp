@@ -391,6 +391,22 @@ void acid(const Mem &m, Out &o, uint8_t idx, int32_t top, int16_t margin) {
   o.add(marble_physics::deathFrame(hdr), SET_DEATH | SET_ACID, sx, (int16_t)(top + ARCADE_H - sy));
 }
 
+// 0x2724c types 7/8/9 (silly race minis, late-game-logic-26f3e.ts) at origin (+0x20, top +
+// ARCADE_H - +0x22), culled as the arcade (-0x10 < sy + 0x10 < 0x100, widened by margin): the
+// death set frame rl(+0x1c) in the mini palette of its type, no masks
+void mini(const Mem &m, Out &o, uint8_t type, uint8_t idx, int32_t top, int16_t margin) {
+  static const int16_t LO = -0x10, HI = 0x100, Y_BIAS = 0x10;
+  static const uint8_t CURSOR = 0x1c, SCREEN = 0x20;
+  const uint32_t a = m.roml(ENEMIES7 + 4 * idx);
+  const int16_t sx = m.sw(a + SCREEN), sy = m.sw(a + SCREEN + 2);
+  const int16_t cy = s16((uint16_t)(sy + Y_BIAS));
+  if (cy <= LO - margin || cy >= HI + margin) { return; }
+  const uint32_t hdr = hdrOf(m, a + CURSOR);
+  if (hdr == NONE32) { return; }
+  const uint8_t set = SET_DEATH | (uint8_t)(SET_MINI + type - T_ENEMY7);
+  o.add(marble_physics::deathFrame(hdr), set, sx, (int16_t)(top + ARCADE_H - sy));
+}
+
 // 0x2724c type 0x0f (silly race bird, late-game-logic-26f3e.ts) at origin (+0x20, top +
 // ARCADE_H - +0x22), culled as the arcade (-0x10 < sy + 0x10 < 0x100, widened by margin): the
 // death set frame rl(+0x1c) in the bird palette, its masks +0x26
@@ -505,6 +521,7 @@ uint8_t build(const Mem &m, int16_t cam, int16_t cullMargin, VideoState &v) {
     if (type == T_ENEMY4) { slinky(m, o, idx, top, cullMargin); }
     if (type == T_ENEMY_E) { acid(m, o, idx, top, cullMargin); }
     if (type == T_ENEMY_F) { bird(m, o, idx, top, cullMargin); }
+    if (type >= T_ENEMY7 && type <= T_ENEMY9) { mini(m, o, type, idx, top, cullMargin); }
   }
   v.n = o.n < OBJS ? o.n : OBJS;
   if (v.marbleAt > v.n) { v.marbleAt = v.n; }

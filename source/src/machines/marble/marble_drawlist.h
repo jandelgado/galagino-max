@@ -22,7 +22,7 @@ namespace marble_drawlist {
 // (0x2724c, type 1): the marble with its masks (marble, mask, nmask), or in states 1, 2, 4,
 // 5, 9 objects at its list position: death frame +0x5a with the masks, sparkle stars, shatter
 // overlay +0x62. Steelies (type 2), slinkies (type 4) and birds (type 0x0f) with their
-// masks, acid (type 0x0e). cam: camera word 0x40097e as the slot update saw it. Every arcade cull limit
+// masks, acid (type 0x0e), minis (types 7-9). cam: camera word 0x40097e as the slot update saw it. Every arcade cull limit
 // moves outward by cullMargin lines. Returns the object count, also past OBJS.
 static const uint8_t LIFT_NONE = 0xff;
 uint8_t build(const marble_physics::Mem &m, int16_t cam, int16_t cullMargin,
