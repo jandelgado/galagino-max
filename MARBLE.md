@@ -1518,6 +1518,17 @@ C++ (`marble_acid.{h,cpp}`, 1:1 port of `marble_acid.py`, internals in namespace
 `marble_acid.sweep`), a dissolve on the first acid of each acid race (9, 4, then rolling) and
 a race switch while dissolving.
 
+Drawing: `marble_drawlist::build` publishes type 0x0e at its list position as
+`marble_mo.other_mos` draws it: origin +0x28 (x) and camera top + 240 - +0x2a, culled as the
+arcade (-0x30 < sy + 0x10 < 0x120) widened by the remake margin, frame rl(+0x3a) from the death
+set with `SET_DEATH | SET_ACID` (`marble_death_pal` row 3), no masks. The dissolving player
+draws its +0x5a frame (0x21062) as states 1/2/5. Host tests: `test_acid_objects` (every
+fixture tick at the arcade cull: columns, palette set 6 as MO words equal to MAME; 1605 drawn
+acid ticks; acid crawling the same cells with the same frame are matched by index order),
+`test_acid_edges` (reference composite at every view edge, guarded tile buffer). The sprite
+sweep test counts level objects only (its model sweep has no enemies). Flash after Phase
+4b-3: 4095473 B (+5264 over 4b-2).
+
 Acid fixture `source/test/test_marble_acid/marble_acid_trace.h` (`make_fixture.py acwrite`):
 RAM blocks, per tick `MarbleAcidTick` (inputs, player as `MarbleDeathTick`, the seven acids
 `MarbleAcidObj {live, x, y, z, sx, sy, tick, path, cursor, frame_hdr}` with their MOs, the

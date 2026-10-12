@@ -376,6 +376,21 @@ void slinky(const Mem &m, Out &o, uint8_t idx, int32_t top, int16_t margin) {
   }
 }
 
+// 0x2724c type 0x0e (acid, late-game-logic-26f3e.ts) at origin (+0x28, top + ARCADE_H - +0x2a),
+// culled as the arcade (-0x30 < sy + 0x10 < 0x120, widened by margin): the death set frame
+// rl(+0x3a) in the acid palette, no masks
+void acid(const Mem &m, Out &o, uint8_t idx, int32_t top, int16_t margin) {
+  static const int16_t LO = -0x30, HI = 0x120, Y_BIAS = 0x10;
+  static const uint8_t SCREEN = 0x28, CURSOR = 0x3a;
+  const uint32_t a = m.roml(ENEMIES_E + 4 * idx);
+  const int16_t sx = m.sw(a + SCREEN), sy = m.sw(a + SCREEN + 2);
+  const int16_t cy = s16((uint16_t)(sy + Y_BIAS));
+  if (cy <= LO - margin || cy >= HI + margin) { return; }
+  const uint32_t hdr = hdrOf(m, a + CURSOR);
+  if (hdr == NONE32) { return; }
+  o.add(marble_physics::deathFrame(hdr), SET_DEATH | SET_ACID, sx, (int16_t)(top + ARCADE_H - sy));
+}
+
 }  // namespace
 
 // 0x28ca6 list part: entries free, list empty; the player (type 1) is the first entry
@@ -465,6 +480,7 @@ uint8_t build(const Mem &m, int16_t cam, int16_t cullMargin, VideoState &v) {
     }
     if (type == T_ENEMY) { steelie(m, o, idx, top); }
     if (type == T_ENEMY4) { slinky(m, o, idx, top, cullMargin); }
+    if (type == T_ENEMY_E) { acid(m, o, idx, top, cullMargin); }
   }
   v.n = o.n < OBJS ? o.n : OBJS;
   if (v.marbleAt > v.n) { v.marbleAt = v.n; }

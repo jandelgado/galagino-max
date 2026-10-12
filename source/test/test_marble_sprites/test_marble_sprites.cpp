@@ -182,7 +182,7 @@ static void replayTick(Mem &m, const MarbleSprTick *prev, const MarbleSprTick &t
 
 // replayTick with a cull margin (the remake draws 24 lines more above and below)
 static uint8_t replayCount(Mem &m, const MarbleSprTick *prev, const MarbleSprTick &t,
-                           int16_t margin) {
+                           int16_t margin, VideoState &v) {
   playerTick(m, prev);
   marble_objects::update(m);
   marble_objects::applyQueued(m);
@@ -192,8 +192,22 @@ static uint8_t replayCount(Mem &m, const MarbleSprTick *prev, const MarbleSprTic
     marble_objects::cameraBands(m, seen, (int16_t)t.camera);
   }
   marble_drawlist::sort(m);
-  VideoState v = {};
+  v = {};
   return marble_drawlist::build(m, seen, margin, v);  // count also past OBJS
+}
+
+static uint8_t replayCount(Mem &m, const MarbleSprTick *prev, const MarbleSprTick &t,
+                           int16_t margin) {
+  VideoState v;
+  return replayCount(m, prev, t, margin, v);
+}
+
+// published level objects of v: without the death set objects (slinkies, acid; the band
+// spawns place them, the model's sweep has no enemies)
+static uint8_t slotObjs(const VideoState &v) {
+  uint8_t n = 0;
+  for (uint8_t i = 0; i < v.n; i++) { n += !(v.objs[i].set & marble_video::SET_DEATH); }
+  return n;
 }
 
 static void test_margin_fits_objs(void) {
@@ -217,8 +231,8 @@ static void test_margin_fits_objs(void) {
 // Race start as the machine runs it (startRace incl. the draw list), then the camera sweeps the
 // race (marble_mo.race_sweep: step 4, down, up, down, silly bottom first) with the slot update,
 // sort and build at the remake margin. No abort (every ROM read is in the emitted blocks, the
-// sort reads the frame boxes of every list), and the largest object count per race is the
-// model's (MARBLE_FIX_SWEEP_MAX, printed by the converter).
+// sort reads the frame boxes of every list), and the largest level object count per race is
+// the model's (MARBLE_FIX_SWEEP_MAX, printed by the converter).
 static void test_race_sweep(void) {
   static const uint16_t STEP = 4;
   for (uint8_t race = 0; race < 6; race++) {
@@ -234,7 +248,9 @@ static void test_race_sweep(void) {
         const bool rev = ((pass & 1) != 0) != (race == 4);  // silly starts at the bottom
         MarbleSprTick t = {};
         t.camera = top + STEP * (rev ? n - 1 - i : i);
-        const uint8_t count = replayCount(m, &t, t, 24);  // race start: whole ticks
+        VideoState v;
+        TEST_ASSERT_TRUE(replayCount(m, &t, t, 24, v) <= marble_video::OBJS);  // race start: whole ticks
+        const uint8_t count = slotObjs(v);
         if (count > most) { most = count; }
       }
     }

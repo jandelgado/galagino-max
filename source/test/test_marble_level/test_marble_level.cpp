@@ -38,6 +38,7 @@ static uint32_t crc32(const uint8_t *p, size_t n, uint32_t crc = 0) {
 static const uint32_t OBJECT_MASKS_CRC = 0x710D10BC, DEATH_EDGES_CRC = 0x2DB1610B;
 static const uint32_t STEELIE_EDGES_CRC = 0xE923A280, SLINKY_EDGES_CRC = 0x63A9C6FE;
 static const uint32_t SLINKY_FIRST_HDR = 0x21a6a;  // lowest slinky frame header
+static const uint32_t ACID_EDGES_CRC = 0xFB6CB52D;
 static marble_level::Store store;
 
 static void test_levels_match_decoder(void) {
@@ -507,6 +508,37 @@ static void test_slinky_edges(void) {
   TEST_ASSERT_EQUAL_HEX32(SLINKY_EDGES_CRC, crc);
 }
 
+// Acid straddling every view edge: the largest acid frame (death set, acid palette, no
+// masks), the last acid frame beside it; the tile buffer ends after the death set (guard bytes)
+static void test_acid_edges(void) {
+  using namespace marble_video;
+  static const uint8_t RACE = 2;
+  const marble_level::Level l = guardedLevel(store.load(RACE), MARBLE_DEATH_TILES);
+  const MarbleSpriteSet &ds = marble_death_set;
+  const uint8_t end = marble_physics::deathFrame(SLINKY_FIRST_HDR);  // acid frames before
+  uint8_t big = MARBLE_DEATH_FRAMES;
+  for (uint8_t f = MARBLE_DEATH_FRAMES; f < end; f++) {
+    if (ds.frames[f].ncols > ds.frames[big].ncols) big = f;
+  }
+  uint32_t crc = 0;
+  for (int16_t x : EDGE_X) {
+    for (int16_t y : EDGE_Y) {
+      VideoState v = {};
+      v.level = RACE;
+      v.sx = 20;
+      v.sy = 40;
+      v.n = 2;
+      v.marbleAt = 0;
+      const int16_t ox = x + v.sx, oy = y + v.sy;
+      v.objs[0] = {big, SET_DEATH | SET_ACID, ox, oy, 0, 0};
+      v.objs[1] = {(uint8_t)(end - 1), SET_DEATH | SET_ACID, (int16_t)(ox + 20), oy, 0, 0};
+      crc = crc32((const uint8_t *)&crc, sizeof(crc), checkRef(l, v));
+    }
+  }
+  printf("acid edges crc %08x\n", (unsigned)crc);
+  TEST_ASSERT_EQUAL_HEX32(ACID_EDGES_CRC, crc);
+}
+
 // one object of `frame` (race `race`, palette set `set`) over a playfield whose pixel in column
 // x is kPf[x & 7]; every sprite tile byte is `fill` (two pens). base: without the object.
 static const uint8_t kPf[8] = {4, 20, 15, 31, 7, 0, 5, 9};
@@ -642,6 +674,7 @@ int main(int, char **) {
   RUN_TEST(test_death_edges);
   RUN_TEST(test_steelie_edges);
   RUN_TEST(test_slinky_edges);
+  RUN_TEST(test_acid_edges);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif

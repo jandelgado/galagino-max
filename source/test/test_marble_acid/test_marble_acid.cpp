@@ -175,6 +175,109 @@ static void test_replay_acid(void) {
   }
 }
 
+// ---------------------------------------------------------------- acid objects
+
+// One MO as the published state draws it: race pixel top left, height, hflip
+struct DrawnMo {
+  int16_t x, top;
+  uint8_t h;
+  bool flip;
+};
+
+static const uint8_t PAL_ACID = 6;  // MO palette set of the acid frames
+static const uint8_t MOS_MAX = 16;  // frame columns of one acid
+
+// acid j live with the same screen position and frame cursor as acid i (same object)
+static bool twin(const Mem &m, uint8_t i, uint8_t j) {
+  const uint32_t a = acid(i), b = acid(j);
+  return m.rb(b + SLOT) && m.rl(b + A_SCREEN) == m.rl(a + A_SCREEN) &&
+         m.rl(b + A_FRAME) == m.rl(a + A_FRAME);
+}
+
+// MOs of acid i in v: its object (frame rl(+0x3a)) at the origin (+0x28, top + ARCADE_H -
+// +0x2a); acid on the same spot with the same frame (crawling the same cells) are told apart
+// by index order
+static uint8_t acidMos(const Mem &m, const marble_video::VideoState &v, uint8_t i, int16_t top,
+                       DrawnMo *out) {
+  using namespace marble_video;
+  const uint32_t a = acid(i);
+  if (!m.rb(a + SLOT)) { return 0; }
+  const int16_t ox = m.sw(a + A_SCREEN);
+  const int16_t oy = (int16_t)(top + ARCADE_H - m.sw(a + A_SCREEN + 2));
+  const MarbleSpriteSet &ds = marble_physics::deathSet();
+  const uint8_t frame = marble_physics::deathFrame(m.roml(m.rl(a + A_FRAME)));
+  uint8_t skip = 0;
+  for (uint8_t j = 0; j < i; j++) { skip += twin(m, i, j); }
+  uint8_t k = 0;
+  for (uint8_t j = 0; j < v.n; j++) {
+    const Obj &o = v.objs[j];
+    if (o.x != ox || o.y != oy || o.set != (SET_DEATH | SET_ACID) || o.frame != frame) {
+      continue;
+    }
+    if (skip) {
+      skip--;
+      continue;
+    }
+    TEST_ASSERT_EQUAL_UINT8(0, o.nmask);
+    const MarbleSpriteFrame &f = ds.frames[o.frame];
+    for (uint8_t c = 0; c < f.ncols && k < MOS_MAX; c++) {
+      const MarbleSpriteCol &col = ds.cols[f.first + c];
+      out[k++] = {(int16_t)(o.x + col.x), (int16_t)(o.y + col.y), (uint8_t)(col.h & 0x7f),
+                  (col.h & 0x80) != 0};
+    }
+    break;
+  }
+  return k;
+}
+
+// MO RAM words of d (MO x = race x + 24, MO y counts up: top line = 256 - MO y - 8 h)
+static MarbleAcidMo moWords(const DrawnMo &d, int16_t top) {
+  const uint16_t y = (uint16_t)(top + 256 - d.top - 8 * d.h);
+  const uint16_t x = (uint16_t)(d.x + 24);
+  return {(uint16_t)(((y << 5) & 0x3fe0) | (d.flip ? 0x8000 : 0) | (d.h - 1)),
+          (uint16_t)(PAL_ACID << 11), (uint16_t)((x << 5) & 0x3fe0)};
+}
+
+// Published acid (build at the arcade cull) against the acid MOs MAME emitted in every fixture
+// tick: frame columns (position, height, flip, palette set 6), no masks
+static void test_acid_objects(void) {
+  uint16_t drawn = 0;
+  for (uint8_t sg = 0; sg < MARBLE_ACID_SEGMENTS; sg++) {
+    const MarbleAcidSegment &seg = marble_acid_segments[sg];
+    loadRam(seg);
+    Mem m(ram, seg.race);
+    const int16_t descTop = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+
+    for (uint16_t k = 0; k < seg.nticks; k++) {
+      const MarbleAcidTick &t = seg.ticks[k];
+      mainTick(m, t.c6, t.c7, t.camera, t.frames);
+      marble_video::VideoState v = {};
+      v.level = seg.race;
+      TEST_ASSERT_TRUE(marble_drawlist::build(m, (int16_t)t.camera, 0, v) <= marble_video::OBJS);
+      const int16_t top = (int16_t)((int16_t)t.camera - descTop);
+
+      for (uint8_t i = 0; i < marble_enemies::NACIDS; i++) {
+        const MarbleAcidObj &s = t.a[i];
+        char msg[100];
+        snprintf(msg, sizeof(msg), "segment %d tick %d acid %d", sg, k, i);
+        DrawnMo got[MOS_MAX];
+        const uint8_t n = acidMos(m, v, i, top, got);
+        TEST_ASSERT_EQUAL_UINT8_MESSAGE(s.n, n, msg);
+        for (uint8_t j = 0; j < n; j++) {
+          const MarbleAcidMo &e = seg.mos[s.first + j];
+          const MarbleAcidMo w = moWords(got[j], top);
+          TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.w0, w.w0, msg);
+          TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.w2, w.w2, msg);
+          TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.code >> 11, PAL_ACID, msg);
+        }
+        drawn += n != 0;
+      }
+    }
+  }
+  printf("acid objects: %u acid ticks drawn\n", drawn);
+  TEST_ASSERT_TRUE(drawn > 0);
+}
+
 // ---------------------------------------------------------------- race start path
 
 // machine race start (marble.cpp beginRace) on a cleared work RAM
@@ -329,6 +432,7 @@ int main(int argc, char **argv) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   RUN_TEST(test_replay_acid);
+  RUN_TEST(test_acid_objects);
   RUN_TEST(test_race_sweep);
   RUN_TEST(test_dissolve_and_switch);
 #endif
