@@ -3,6 +3,7 @@
 #ifdef ENABLE_MARBLE
 
 #include "../../emulation/asset.h"
+#include "marble_enemies.h"
 #include "marble_physics.h"
 #include "marble_rom.h"
 
@@ -430,6 +431,21 @@ void bird(const Mem &m, Out &o, uint8_t idx, int32_t top, int16_t margin) {
   }
 }
 
+// 0x2724c type 0x29 (aerial race piston, late-game-logic-26f3e.ts) at origin (+0xc, top +
+// ARCADE_H - +0xe), culled as the arcade (-0x40 < sy + 0x10 < 0x100, widened by margin): the
+// death set frame rl(+8) in the piston palette, no masks
+void piston(const Mem &m, Out &o, uint8_t idx, int32_t top, int16_t margin) {
+  static const int16_t LO = -0x40, HI = 0x100, Y_BIAS = 0x10;
+  static const uint8_t CURSOR = 0x08, SCREEN = 0x0c;
+  const uint32_t a = marble_enemies::PISTONS + marble_enemies::PISTON_SIZE * idx;
+  const int16_t sx = m.sw(a + SCREEN), sy = m.sw(a + SCREEN + 2);
+  const int16_t cy = s16((uint16_t)(sy + Y_BIAS));
+  if (cy <= LO - margin || cy >= HI + margin) { return; }
+  const uint32_t hdr = hdrOf(m, a + CURSOR);
+  if (hdr == NONE32) { return; }
+  o.add(marble_physics::deathFrame(hdr), SET_DEATH | SET_PISTON, sx, (int16_t)(top + ARCADE_H - sy));
+}
+
 }  // namespace
 
 // 0x28ca6 list part: entries free, list empty; the player (type 1) is the first entry
@@ -522,6 +538,7 @@ uint8_t build(const Mem &m, int16_t cam, int16_t cullMargin, VideoState &v) {
     if (type == T_ENEMY_E) { acid(m, o, idx, top, cullMargin); }
     if (type == T_ENEMY_F) { bird(m, o, idx, top, cullMargin); }
     if (type >= T_ENEMY7 && type <= T_ENEMY9) { mini(m, o, type, idx, top, cullMargin); }
+    if (type == T_29) { piston(m, o, idx, top, cullMargin); }
   }
   v.n = o.n < OBJS ? o.n : OBJS;
   if (v.marbleAt > v.n) { v.marbleAt = v.n; }

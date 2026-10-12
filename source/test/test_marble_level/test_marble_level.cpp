@@ -44,6 +44,7 @@ static const uint32_t SLINKY_LAST_HDR = 0x21cc2;   // highest slinky frame heade
 static const uint32_t ACID_EDGES_CRC = 0xD02E0B30;
 static const uint32_t BIRD_EDGES_CRC = 0x0B801A33;
 static const uint32_t MINI_EDGES_CRC = 0x0041D2EB;
+static const uint32_t PISTON_EDGES_CRC = 0x73C5E165;
 static marble_level::Store store;
 
 static void test_levels_match_decoder(void) {
@@ -616,6 +617,33 @@ static void test_mini_edges(void) {
   TEST_ASSERT_EQUAL_HEX32(MINI_EDGES_CRC, crc);
 }
 
+// Pistons straddling every view edge: every piston frame (death set ids below
+// MARBLE_DEATH_FIRST) in the piston palette, no masks; the tile buffer ends after the death set
+static void test_piston_edges(void) {
+  using namespace marble_video;
+  static const uint8_t RACE = 3;
+  const marble_level::Level l = guardedLevel(store.load(RACE), MARBLE_DEATH_TILES);
+  uint32_t crc = 0;
+  for (uint8_t f = 0; f < MARBLE_DEATH_FIRST; f++) {
+    for (int16_t x : EDGE_X) {
+      for (int16_t y : EDGE_Y) {
+        VideoState v = {};
+        v.level = RACE;
+        v.sx = 20;
+        v.sy = 40;
+        v.n = 2;
+        v.marbleAt = 0;
+        const int16_t ox = x + v.sx, oy = y + v.sy;
+        v.objs[0] = {f, SET_DEATH | SET_PISTON, ox, oy, 0, 0};
+        v.objs[1] = {f, SET_DEATH | SET_PISTON, (int16_t)(ox + 12), (int16_t)(oy + 4), 0, 0};
+        crc = crc32((const uint8_t *)&crc, sizeof(crc), checkRef(l, v));
+      }
+    }
+  }
+  printf("piston edges crc %08x\n", (unsigned)crc);
+  TEST_ASSERT_EQUAL_HEX32(PISTON_EDGES_CRC, crc);
+}
+
 // one object of `frame` (race `race`, palette set `set`) over a playfield whose pixel in column
 // x is kPf[x & 7]; every sprite tile byte is `fill` (two pens). base: without the object.
 static const uint8_t kPf[8] = {4, 20, 15, 31, 7, 0, 5, 9};
@@ -754,6 +782,7 @@ int main(int, char **) {
   RUN_TEST(test_acid_edges);
   RUN_TEST(test_bird_edges);
   RUN_TEST(test_mini_edges);
+  RUN_TEST(test_piston_edges);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif

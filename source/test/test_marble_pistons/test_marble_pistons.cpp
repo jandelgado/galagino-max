@@ -188,6 +188,94 @@ static void test_replay_pistons(void) {
   }
 }
 
+// ---------------------------------------------------------------- piston objects
+
+// One MO as the published state draws it: race pixel top left, height, hflip
+struct DrawnMo {
+  int16_t x, top;
+  uint8_t h;
+  bool flip;
+};
+
+static const uint8_t MOS_MAX = 16;  // frame columns of one piston
+static const uint8_t PAL = 4;       // MO palette set of the pistons
+
+// MOs of piston i in v: its object (frame rl(+8), piston palette) at the origin (+0xc, top +
+// ARCADE_H - +0xe); pistons on the same spot with the same frame by index order
+static uint8_t pistonMos(const Mem &m, const marble_video::VideoState &v, uint8_t i,
+                         int16_t top, DrawnMo *out) {
+  using namespace marble_video;
+  const uint32_t a = piston(i);
+  if (!listedCount(m, TYPE_PISTON, i)) { return 0; }
+  const int16_t ox = m.sw(a + T_SCREEN);
+  const int16_t oy = (int16_t)(top + ARCADE_H - m.sw(a + T_SCREEN + 2));
+  const MarbleSpriteSet &ds = marble_physics::deathSet();
+  const uint8_t frame = marble_physics::deathFrame(m.roml(m.rl(a + T_ANIM)));
+  for (uint8_t j = 0; j < v.n; j++) {
+    const Obj &o = v.objs[j];
+    if (o.x != ox || o.y != oy || o.set != (SET_DEATH | SET_PISTON) || o.frame != frame) {
+      continue;
+    }
+    TEST_ASSERT_EQUAL_UINT8(0, o.nmask);
+    const MarbleSpriteFrame &f = ds.frames[o.frame];
+    uint8_t k = 0;
+    for (uint8_t c = 0; c < f.ncols && k < MOS_MAX; c++) {
+      const MarbleSpriteCol &col = ds.cols[f.first + c];
+      out[k++] = {(int16_t)(o.x + col.x), (int16_t)(o.y + col.y), (uint8_t)(col.h & 0x7f),
+                  (col.h & 0x80) != 0};
+    }
+    return k;
+  }
+  return 0;
+}
+
+// Published pistons (build at the arcade cull) against the piston MOs MAME emitted in every
+// fixture tick: frame columns (position, height, flip, palette set 4)
+static void test_piston_objects(void) {
+  uint16_t drawn = 0, dropped = 0;
+  for (uint8_t sg = 0; sg < MARBLE_PISTON_SEGMENTS; sg++) {
+    const MarblePistonSegment &seg = marble_piston_segments[sg];
+    loadRam(seg);
+    Mem m(ram, seg.race);
+    const int16_t descTop = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+
+    for (uint16_t k = 0; k < seg.nticks; k++) {
+      const MarblePistonTick &t = seg.ticks[k];
+      mainTick(m, t.c6, t.c7, t.camera, t.frames);
+      marble_video::VideoState v = {};
+      v.level = seg.race;
+      marble_drawlist::build(m, (int16_t)t.camera, 0, v);
+      const int16_t top = (int16_t)((int16_t)t.camera - descTop);
+
+      for (uint8_t i = 0; i < NPISTONS; i++) {
+        const MarblePistonObj &s = t.p[i];
+        char msg[100];
+        snprintf(msg, sizeof(msg), "segment %d tick %d piston %d", sg, k, i);
+        DrawnMo got[MOS_MAX];
+        const uint8_t n = pistonMos(m, v, i, top, got);
+        if (v.n == marble_video::OBJS && n < s.n) {  // published list full: dropped
+          dropped++;
+          continue;
+        }
+        TEST_ASSERT_EQUAL_UINT8_MESSAGE(s.n, n, msg);
+        for (uint8_t j = 0; j < n; j++) {
+          const MarblePistonMo &e = seg.mos[s.first + j];
+          const uint16_t y = (uint16_t)(top + 256 - got[j].top - 8 * got[j].h);
+          const uint16_t x = (uint16_t)(got[j].x + 24);
+          TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.w0, ((y << 5) & 0x3fe0) | (got[j].flip ? 0x8000 : 0) |
+                                                    (got[j].h - 1), msg);
+          TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.w2, (x << 5) & 0x3fe0, msg);
+          TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.code >> 11, PAL, msg);
+        }
+        drawn += n != 0;
+      }
+    }
+  }
+  printf("piston objects: %u piston ticks drawn, %u dropped (OBJS full)\n", drawn, dropped);
+  TEST_ASSERT_TRUE(drawn > 0);
+  TEST_ASSERT_EQUAL_UINT16(0, dropped);
+}
+
 // ---------------------------------------------------------------- race start path
 
 // machine race start (marble.cpp beginRace) on a cleared work RAM
@@ -244,6 +332,39 @@ static Mem armedAerial(void) {
   m.wb(PLAYER + ZONE, ARM_ZONE);
   marble_enemies::arm_186ac(m);
   return m;
+}
+
+// Armed aerial sweep: the table armed at the race start (player kept in zone 4), then the
+// camera over the whole race three times; every tick a piston is listed iff up, the published
+// objects stay within OBJS (the most pistons up at once with the player, steelie and slots).
+static void test_armed_sweep(void) {
+  beginRace(RACE_AERIAL);
+  Mem m(ram, RACE_AERIAL);
+  m.wb(PLAYER + ZONE, ARM_ZONE);
+  marble_enemies::arm_186ac(m);
+  const int16_t top = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+  const int16_t range = (int16_t)m.romw(m.desc() + marble_physics::DESC_RANGE);
+  const int16_t n = range / SWEEP_STEP + 1;
+  uint32_t tick = 0;
+  uint8_t most = 0, mostUp = 0;
+  for (uint8_t pass = 0; pass < 3; pass++) {
+    for (int16_t j = 0; j < n; j++) {
+      const int16_t step = pass == 1 ? n - 1 - j : j;
+      const int16_t cam = top + SWEEP_STEP * step;
+      mainTick(m, 0, 0, (uint32_t)(int32_t)cam, ++tick);
+      marble_video::VideoState v = {};
+      const uint8_t objs = marble_drawlist::build(m, cam, 24, v);
+      TEST_ASSERT_TRUE(objs <= marble_video::OBJS);
+      TEST_ASSERT_EQUAL_UINT8(1, m.rb(ARMED));
+      checkListed(m, RACE_AERIAL, cam);
+      uint8_t up = 0;
+      for (uint8_t i = 0; i < NPISTONS; i++) { up += m.rw(piston(i) + T_TIMER) == UP; }
+      if (objs > most) { most = objs; }
+      if (up > mostUp) { mostUp = up; }
+    }
+  }
+  printf("armed sweep: most objects %u, most pistons up %u\n", most, mostUp);
+  TEST_ASSERT_TRUE(mostUp > 0);
 }
 
 // ticks until piston i is up (timers at most 220 ticks)
@@ -384,7 +505,9 @@ int main(int argc, char **argv) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   RUN_TEST(test_replay_pistons);
+  RUN_TEST(test_piston_objects);
   RUN_TEST(test_race_sweep);
+  RUN_TEST(test_armed_sweep);
   RUN_TEST(test_arm_scratch);
   RUN_TEST(test_contact);
   RUN_TEST(test_teardown_and_switch);

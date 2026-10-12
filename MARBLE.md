@@ -1883,6 +1883,15 @@ the object, so the port passes entry - 0x19). Host test `test_marble_pistons`: f
 zone change), the arming scratch, launch / bounce / wall / down cases of 0x1881c, teardown
 and a race switch with pistons up.
 
+Drawing: `marble_drawlist::build` publishes type 0x29 at its list position as
+`marble_mo.other_mos` draws it: origin +0xc (x) and camera top + 240 - +0xe, culled as the
+arcade (-0x40 < sy + 0x10 < 0x100) widened by the remake margin, frame rl(+8) from the death
+set with `SET_DEATH | SET_PISTON`, no masks. Host tests: `test_piston_objects` (every fixture
+tick at the arcade cull: columns and palette set 4 as MO words equal to MAME; 478 drawn piston
+ticks, none dropped by `OBJS`), `test_armed_sweep` (armed aerial sweep: at most 16 pistons up,
+15 objects), `test_piston_edges` (every piston frame at every view edge, guarded tile buffer).
+Flash after Phase 4b-5: 4107841 B (+2676 over the minis build, 20.4 KB left).
+
 ```sh
 S=$TMPDIR/ps
 python3 romconv/internal/marble/tools/make_fixture.py pswrite \
