@@ -36,6 +36,14 @@
 -- $MARBLE_PLACE "frame:x:y:z[:zone],...": at that frame put player 1 at pixel (x, y), height
 -- z (z word - 0x4000, e.g. -120), velocity 0, last ground = there, optional zone +0x1b/+0x1d
 -- (teleport next to a level object for render checks; z from tools/marble_sim.py terrain).
+-- $MARBLE_PLACE_V "frame:vx:vy,...": at that frame (after a place of the same frame) set
+-- player 1 velocity +0x00/+0x04 (16.16, signed decimal), e.g. roll across the goal line.
+-- $MARBLE_TICK=frame: one record per frame from the start button frame on, magic "FRAM",
+-- frame (u32 BE), work RAM 0x400000-0x401fff only (game flow: race intro, bonus and time
+-- out run in the main loop's blocking waits, no main loop top there).
+-- $MARBLE_RACE_UNTIL: the race tap forces $MARBLE_LEVEL only before this frame (default
+-- always); later writes of 0x400394 pass (race end loads the next race).
+-- $MARBLE_POKE "frame:addr:byte,...": at that frame write the byte (hex address and value).
 -- $MARBLE_DROP "frame:obj:x:y:z,...": at that frame drop object obj (hex work RAM address,
 -- 400018 player 1, 4009a4/400a20 steelies) airborne at pixel (x, y), height z (as above),
 -- velocity 0, fall start +0x2a = z: falls onto what is below (steelie shatter/stun, breaks).
@@ -55,6 +63,8 @@ local cam_from, cam_frames = (os.getenv("MARBLE_CAMERA") or "0:0"):match("(%d+):
 cam_from, cam_frames = tonumber(cam_from), tonumber(cam_frames)
 local cam_sy = tonumber(os.getenv("MARBLE_CAMERA_SY") or "0")
 local tick_start = os.getenv("MARBLE_TICK") == "start"
+local tick_frame = os.getenv("MARBLE_TICK") == "frame"
+local race_until = tonumber(os.getenv("MARBLE_RACE_UNTIL") or "-1")
 
 local RACE = 0x400394
 local LOOP_ADDR, LOOP_PC = 0x4003f0, 0x11804   -- addq.b #1,0x4003f0 at the main loop top
@@ -69,6 +79,18 @@ end
 local places = {}
 for fr, x, y, z, zone in (os.getenv("MARBLE_PLACE") or ""):gmatch("(%d+):(%-?%d+):(%-?%d+):(%-?%d+):?(%d*)") do
   places[tonumber(fr)] = { tonumber(x), tonumber(y), tonumber(z), tonumber(zone) }
+end
+
+local place_v = {}
+for fr, vx, vy in (os.getenv("MARBLE_PLACE_V") or ""):gmatch("(%d+):(%-?%d+):(%-?%d+)") do
+  place_v[tonumber(fr)] = { tonumber(vx), tonumber(vy) }
+end
+
+local pokes = {}
+for fr, a, v in (os.getenv("MARBLE_POKE") or ""):gmatch("(%d+):(%x+):(%x+)") do
+  local k = tonumber(fr)
+  pokes[k] = pokes[k] or {}
+  table.insert(pokes[k], { tonumber(a, 16), tonumber(v, 16) })
 end
 
 local segs = {}
@@ -106,7 +128,10 @@ local function dump(base, len, file)
 end
 
 -- taps must stay referenced, else they are garbage collected
-RACE_TAP = mem:install_write_tap(RACE, RACE + 1, "race", function() return level end)
+RACE_TAP = mem:install_write_tap(RACE, RACE + 1, "race", function(offset, data, mask)
+  if race_until < 0 or f < race_until then return level end
+  return data
+end)
 BALL_TAP = mem:install_read_tap(0xf20000, 0xf20003, "ball", function(offset, data, mask)
   local v = cnt[(offset & 2) == 0 and 1 or 2] & 0xff
   return (data & 0xff00) | v
@@ -121,7 +146,9 @@ local function snapshot()
   dump(0x400000, 0x2000)
   dump(0xa00000, 0x3000)
 end
-if tick_start then
+if tick_frame then
+  TICK_TAP = nil
+elseif tick_start then
   local cpu = manager.machine.devices[":maincpu"]
   TICK_TAP = mem:install_write_tap(LOOP_ADDR, LOOP_ADDR + 1, "tick", function(offset, data, mask)
     if f >= START_FRAME and cpu.state["CURPC"].value == LOOP_PC then snapshot() end
@@ -149,6 +176,11 @@ SUB = emu.add_machine_frame_notifier(function()
     mem:write_u8(P + 0x36, 0)
     if p[4] then mem:write_u8(P + 0x1b, p[4]); mem:write_u8(P + 0x1d, p[4]) end
   end
+  local v = place_v[f]
+  if v then
+    mem:write_u32(0x400018, v[1] & 0xffffffff); mem:write_u32(0x40001c, v[2] & 0xffffffff)
+  end
+  for _, pk in ipairs(pokes[f] or {}) do mem:write_u8(pk[1], pk[2]) end
   local d = drops[f]
   if d then
     local O = d[1]
@@ -167,6 +199,10 @@ SUB = emu.add_machine_frame_notifier(function()
     dump(0x400000, 0x2000, shots_bin)
     dump(0xa00000, 0x3000, shots_bin)
     dump(0xb00000, 0x800, shots_pal)
+  end
+  if tick_frame and f >= START_FRAME then
+    out:write("FRAM", string.pack(">I4", f))
+    dump(0x400000, 0x2000)
   end
   if f == frames then
     out:close(); shots:close(); shots_bin:close(); shots_pal:close(); manager.machine:exit()

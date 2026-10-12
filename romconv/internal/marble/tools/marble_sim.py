@@ -24,6 +24,7 @@ Validation against MAME traces (tools/mame_trace.lua), exit code 1 on failure:
   marble_sim.py dfixture HEADER     replay the death host test fixture (make_fixture.py dwrite)
   marble_sim.py tfixture HEADER     replay the tube host test fixture (make_fixture.py twrite)
   marble_sim.py afixture HEADER     replay the aerial host test fixture (make_fixture.py awrite)
+  marble_sim.py tbfixture HEADER    replay the time bonus fixture (make_fixture.py tbwrite)
 `run` copies slots, dynamic codes and enemy scratch from the trace each tick; `slots` only
 the camera and enemy scratch. Divergences at deaths and enemy contacts end a segment and
 are reported, any other divergence fails. Enemies are not ported.
@@ -1097,6 +1098,11 @@ def zones_1365c(m, a2):
                 side_a = (ncy <= Y) if horiz else not (ncx > X)
                 m.wb(a2 + 0x1b, m.rb(a0 + 3) if side_a else m.rb(a0 + 4))
                 if m.rb(a2 + 0x1b) == 0xff:
+                    # 0x137a4: first player at the goal scores 0x285b0(race * 2 + 3) (palette
+                    # flash 0x26b66 not modelled); the race timer stops (+0x6d keeps +0x6e)
+                    if m.rb(0x4003a4) == 0xff and m.rb(a2 + 0x18) != 2:
+                        m.wb(0x4003a4, m.rb(a2 + 0x19)); score_285b0(m, a2, race * 2 + 3)
+                    m.wb(a2 + 0x6d, m.rb(a2 + 0x6e)); m.wb(a2 + 0x6e, 0xff)
                     m.events.append("goal"); m.wb(a2 + 0x1a, 6); m.wb(a2 + 0x57, 0x1e)
                     if race == 0 and d2 in (3, 4):
                         m.wl(a2, 0); m.wl(a2 + 4, 0)
@@ -1652,7 +1658,8 @@ def start_race(m, race):
     start_259b4(m, race)
     if m.drawlist: m.drawlist.init(m)
     objects_init(m, race)
-    m.wb(0x40076c, 1)                                # level init end: time out event armed,
+    m.wb(0x4003a4, 0xff)                             # 0x10504 end: no player at the goal yet,
+    m.wb(0x40076c, 1)                                # time bonus event armed,
     m.wb(0x400444, rng_13a98(m, 0x100))              # its random byte (0x10fb8)
 
 
@@ -1779,6 +1786,7 @@ ANIM_DIZZY_LOOP = 0x20fb6   # dizzy, +0x56 > 6
 ANIM_DIZZY_END = 0x20fd2    # dizzy, +0x56 <= 6
 ANIM_SHATTER = 0x20fde      # state 2
 ANIM_DISSOLVE = 0x21062     # state 9 (acid)
+ANIM_BONUS = 0x216aa        # state 8 (time bonus) +0xcc
 ANIM_SHARDS = 0x215f6       # state 2 overlay +0x62 from shatter frame 9 on (+0x67 = 1)
 SHATTER_SHARDS = 9          # shatter frame index that starts the overlay
 ORBIT_TICKS = {0x64: 0x30, 0x65: 0x18, 0x66: 0x24}  # sparkle length by +0x57 (fell, lost, bird)
@@ -2166,7 +2174,10 @@ def object_253ec(m, a2):
     if m.rb(a2 + 0xd8) and st not in (2, 4, 0xa, 0xb, 7): wobble_25416(m, a2)
     if st == 0:
         if m.rb(a2 + 0xcb) and not m.rb(a2 + 0x36) and m.rb(a2 + 0x58) in (0, 0x34, 0x35):
-            m.events.append(("unported state", 8))   # 0x256f8: time out animation
+            # 0x256f8 (disassembly 0x256d2-0x25730): time bonus, +1 s every 9 ticks, 10 times
+            m.wb(a2 + 0x56, 9); m.wb(a2 + 0x57, 10); m.wb(a2 + 0xcb, 0); m.wb(a2 + 0x1a, 8)
+            m.wl(a2 + 0xcc, ANIM_BONUS); m.wb(a2 + 0xd0, 0); m.sounds.append(0x53)
+            m.wb(a2 + 0xd1, 1)
             return
         ground_253bc(m, a2); input_17f66(m, a2); physics_121b8(m, a2)
     elif st == 1:
@@ -2202,6 +2213,20 @@ def object_253ec(m, a2):
     elif st == 7:
         # inside a slinky 0x25812 (JT[7]): hidden until the slinky's state 5 sends it lost
         ground_253bc(m, a2); m.wb(a2 + 0x1c, 0)
+    elif st == 8:
+        # time bonus 0x258a8 (refresh-frame-10fce.ts JT[8]): +0x6a + 1 every 9 ticks (+0x56),
+        # +0x57 times; then rolling with 0x285b0(0x10), else +0xcc steps every 2 ticks
+        if m.rb(a2 + 0x56): m.wb(a2 + 0x56, m.rb(a2 + 0x56) - 1)
+        if not m.rb(a2 + 0x56):
+            m.wb(a2 + 0x56, 9); m.ww(a2 + 0x6a, m.rw(a2 + 0x6a) + 1)
+            m.wb(a2 + 0x57, m.rb(a2 + 0x57) - 1)
+        if not m.rb(a2 + 0x57):
+            m.wb(a2 + 0xd1, 0); m.wb(a2 + 0x1a, 0); score_285b0(m, a2, 0x10)
+        else:
+            m.wb(a2 + 0xd0, m.rb(a2 + 0xd0) + 1)
+            if m.rb(a2 + 0xd0) == 2:
+                m.wb(a2 + 0xd0, 0); m.wl(a2 + 0xcc, (m.rl(a2 + 0xcc) + 4) & 0xffffffff)
+        proj_1b9cc(m, a2, True); dots_1c014(m, a2); enter_1281c(m, a2)
     elif st == 9 and m.acid:
         import marble_acid
         marble_acid.dissolve_2584e(m, a2)
@@ -2610,6 +2635,7 @@ def death_segment(trace, race, start, end, rng_in=False):
     for (fr, r, v), (fr2, r2, v2) in zip(run, run[1:]):
         m.events = []; m.sounds = []
         if rng_in: m.ww(0x4003a6, tw(r, 0x4003a6))
+        for o in range(0x6a, 0x70): m.wb(P + o, tb(r, P + o))   # race timer: vblank IRQ
         main_tick(m, *death_inputs(r, r2))
         n += 1
         st = m.rb(P + 0x1a); states[st] = states.get(st, 0) + 1
@@ -2836,6 +2862,8 @@ def main(argv):
         return 0 if cmd_dfixture(argv[2], True) else 1
     if len(argv) == 3 and argv[1] == "afixture":
         return 0 if cmd_dfixture(argv[2], False, True, "marble_aerials_segments") else 1
+    if len(argv) == 3 and argv[1] == "tbfixture":
+        return 0 if cmd_dfixture(argv[2], False, True, "marble_bonuses_segments") else 1
     if len(argv) == 3 and argv[1] == "fixture":
         return 0 if cmd_fixture(argv[2]) else 1
     if len(argv) == 3 and argv[1] == "objfixture":

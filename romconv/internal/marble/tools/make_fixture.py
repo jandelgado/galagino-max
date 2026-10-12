@@ -47,6 +47,12 @@ tick; the segment ends at the death the sim detects (its frame gap in the trace 
   make_fixture.py bdwrite OUT RACE:TRACE:FRAME:TICKS ...
                                             silly bird segments of tick start traces
                                             (test_marble_birds/marble_birds_trace.h)
+  make_fixture.py tbwrite OUT RACE:TRACE:FRAME:TICKS ...
+                                            time bonus (state 8) segments, all enemies
+                                            (test_marble_flow/marble_bonus_trace.h)
+  make_fixture.py fwrite OUT FRAME_TRACE ...
+                                            game flow: race end sequences, next race
+                                            carry, time out (test_marble_flow/marble_flow.h)
   make_fixture.py rwrite OUT               model runs from the remake race start, all races:
                                             stick input, goal crossing
                                             (test_marble_deaths/marble_start_trace.h)
@@ -594,6 +600,19 @@ def death_segments(specs, rng_in=False, full=None):
               ", ".join("%06x+%d" % (a, len(b)) for a, b in seg["ram"])))
         segs.append(seg)
     return segs
+
+
+BONUS_HEADER = ("Bonus", "marble_bonus", "marble_bonuses", "MARBLE_BONUS", "tbwrite",
+                "tbfixture", (
+    "// Marble time bonus host test: MAME tick start traces (tools/mame_trace.lua",
+    "// MARBLE_TICK=start, MARBLE_PLACE into a zone of 0x24aae, MARBLE_POKE 5 s left and the",
+    "// event armed): 0x1bbaa sets +0xcb, state 0 enters state 8 (+1 s every 9 ticks, 10",
+    "// times), then rolling. marble_sim.py main_tick with all enemies reproduces them from the",
+    "// initial work RAM blocks and the inputs alone. Derived numbers only. Replay check:"))
+
+
+def cmd_tbwrite(out, specs):
+    write_deaths(out, death_segments(specs, False, True), BONUS_HEADER)
 
 
 def cmd_dwrite(out, specs):
@@ -1737,6 +1756,13 @@ def main(argv):
         return 0
     if len(argv) >= 4 and argv[1] == "stwrite":
         cmd_stwrite(argv[2], argv[3:])
+        return 0
+    if len(argv) >= 4 and argv[1] == "tbwrite":
+        cmd_tbwrite(argv[2], argv[3:])
+        return 0
+    if len(argv) >= 4 and argv[1] == "fwrite":
+        import marble_flow
+        marble_flow.write_fixture(argv[2], argv[3:])
         return 0
     if len(argv) >= 4 and argv[1] == "dwrite":
         cmd_dwrite(argv[2], argv[3:])
