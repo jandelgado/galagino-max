@@ -53,6 +53,7 @@ private:
   // emulation core: race state lives in the work RAM image, machineBase::memory
   uint8_t race = 0;
   marble_flow::Flow flow = {};
+  marble_hud::Tracker tracker = {};
   uint32_t patchRec = 0;   // lastPatch record that view.patch was mapped from
   bool odd = false;        // frame without a logic tick
 };

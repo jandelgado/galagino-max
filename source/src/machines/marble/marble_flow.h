@@ -56,6 +56,8 @@ struct Carry {
 };
 
 void newGame(Flow &f);
+uint8_t raceTime(uint8_t race);       // intro: seconds races 0/1 set, later races add
+uint16_t firstAdd(const Flow &f);     // intro frames from the race init to the first +5 s
 Step frame(Flow &f, marble_physics::Mem &m, bool start);
 Carry carry(const Flow &f, const marble_physics::Mem &m);
 void restore(marble_physics::Mem &m, const Carry &c);

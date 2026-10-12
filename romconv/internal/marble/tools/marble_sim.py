@@ -1757,6 +1757,7 @@ def start_259b4(m, race, a2=P, player=0):
     for o in (0, 4, 8, 0x5a): m.wl(a2 + o, 0)
     for o in (0x56, 0x57, 0x1a, 0x36, 0x58): m.wb(a2 + o, 0)
     m.wb(a2 + 0x18, 1)
+    m.wb(a2 + 0x70, 0xff); m.wb(a2 + 0x71, 0xff)      # palette pulses off (0x26bee, 0x26c78)
     if race == 3:                                       # aerial: starts on surface 0x17/0x18
         m.wb(a2 + 0x58, 0x18 if player else 0x17); m.wb(a2 + 0x59, 0xff)
 

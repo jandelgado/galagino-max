@@ -47,6 +47,7 @@ void marble::reset() {
   view.patch = video.patch = marble_level::NO_PATCH;
   game_started = 1;  // no boot phase
   marble_flow::newGame(flow);
+  tracker = {};
   loadRace();
 }
 
@@ -131,6 +132,7 @@ void marble::publish(void) {
     patchRec = rec;
     view.patch = marble_level::patchIndex(rec);
   }
+  marble_hud::update(tracker, flow, m, view.hud);
   vblank.publish([this](VideoState &s) { s = view; });
 }
 
@@ -182,7 +184,11 @@ void marble::prepare_frame(void) {
 }
 
 void marble::render_row(short row) {
-  renderRow(*level, video, row, frame_buffer);
+  if (video.hud.screen & marble_hud::FINAL) {  // final screen: texts on black
+    memset(frame_buffer, 0, marble_video::OUT_W * 8 * sizeof(uint16_t));
+  } else {
+    renderRow(*level, video, row, frame_buffer);
+  }
   marble_hud::blend(hud, row, frame_buffer);
 }
 

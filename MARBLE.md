@@ -2116,11 +2116,25 @@ Remake layout (30 x 36 cells, `view`): top items 3 columns left (timer 6, centre
 the final screen 6 columns left and 3 rows down (arcade screen centred in the 288 lines); final
 labels 7, values 9 columns left; cells outside are clipped (the `!` of `CONGRATULATIONS!`, the
 last blank of the silly banner). After game over the remake shows `PUSH 1 PLAYER START`
-(row 24 col 8) until START.
+(row 24 col 8, from game over frame 5) until START.
+
+Remake: `marble_flow` steps the pulse counters every frame before the race timer (0x26bee,
+0x26c78), the timer flash on/off (0x28a96 at 4 s / above 5 s) and the 0x118d2 counter writes
+(+0x70 = 0, +0x71 = 0xff, +0xd8 = 0 with the race index; +0x70 = 0xff with the bonus points);
+the race start sets +0x70 = +0x71 = 0xff (0x259b4). `marble_hud::update` derives the HUD state
+of each frame from the work RAM image and the flow counters as `hud_states` (emulation core,
+published in VideoState); `build` / `blend` draw it on the video core (grid of alpha words
+rebuilt on change, blended over each strip after the MOs; the final screen skips playfield and
+objects). Host tests: `test_marble_hud` (font, palette, layout cases of `marble_hud.py`
+LAYOUT_CASES against `view`, blend), `test_marble_flow` (HUD state every frame of the time out
+run and of all race ends equal to `hud_states` of the MAME traces, +-1 frame;
+`marble_hud_trace.h`, `make_fixture.py hwrite`).
 
 ```sh
 T=$TMPDIR/hud/a   # tools/mame_trace.lua MARBLE_TICK=frame MARBLE_ALPHA=1, runs p0 g0-g5
 python3 romconv/internal/marble/tools/marble_hud.py check $T/p0 $T/g?
+python3 romconv/internal/marble/tools/make_fixture.py hwrite \
+  source/test/test_marble_flow/marble_hud_trace.h $T/p0 $T/g?
 ```
 
 ## Open questions

@@ -18,7 +18,7 @@ using marble_physics::PLAYER;
 enum : uint8_t {
   SLOT = 0x18, PLAYER_NO = 0x19, STATE = 0x1a,
   TIMER = 0x6a, TENTHS = 0x6c, TICKS = 0x6e, FLASH = 0x71,  // race timer 0x6a-0x6e
-  SCORE = 0xbc, DEATHS = 0xd2,
+  FADE = 0x70, SCORE = 0xbc, DEATHS = 0xd2, SKIP = 0xd8,
 };
 static const uint8_t TIMER_BYTES = 6, STOPPED = 0xff, TICKS_START = 5, TENTHS_START = 9;
 static const uint8_t OUT_OF_LIST = 2;           // +0x18 after the time out
@@ -53,6 +53,11 @@ static const uint16_t FINAL_END = 272;          // last step to game over (0x5a 
 
 static const uint16_t TIME_OUT_FRAMES = 182;    // 0x16a20 summary
 
+// palette pulses (0x26bee score fade, 0x26c78 timer flash): counters wrap above these
+static const int8_t FADE_WRAP = 0x3f, FLASH_WRAP = 0x1f;
+static const uint8_t OFF = 0xff;
+static const int16_t FLASH_ON = 4, FLASH_OFF = 5;  // 0x28a96: seconds when a second passes
+
 int16_t seconds(const Mem &m) { return m.sw(PLAYER + TIMER); }
 
 // 0x28608: points to the player score, its score changed flag
@@ -81,9 +86,24 @@ uint8_t cascade(Mem &m) {
   return m.rw(t) == 0xffff ? 3 : 2;
 }
 
+// vblank anim ticks 0x26bee / 0x26c78 (before the race timer): step the pulse counters; the
+// HUD picks the colours from them (marble_hud)
+void pulses(Mem &m) {
+  uint8_t c = m.rb(PLAYER + FADE);
+  if (c != OFF && !m.rb(PLAYER + SKIP)) {
+    c++;
+    m.wb(PLAYER + FADE, (int8_t)c > FADE_WRAP ? 0 : c);
+  }
+  c = m.rb(PLAYER + FLASH);
+  if (c != OFF) {
+    c++;
+    m.wb(PLAYER + FLASH, (int8_t)c > FLASH_WRAP ? 0 : c);
+  }
+}
+
 // race intro of the loaded race: +5 s steps, then the timer starts and the race is on
 void introStep(Flow &f, Mem &m) {
-  const uint16_t first = f.fresh ? START_FIRST_ADD : FIRST_ADD[f.race - 1];
+  const uint16_t first = firstAdd(f);
   const uint8_t time = RACE_TIME[f.race];
   const uint16_t i = ++f.intro;  // frames since the race init
   if (i >= first && (i - first) % ADD_STEP == 0 && (i - first) / ADD_STEP < time / ADD_SECONDS) {
@@ -101,8 +121,16 @@ void introStep(Flow &f, Mem &m) {
 Step raceEnd(Flow &f, Mem &m) {
   const uint8_t race = f.race;
   const uint16_t bonus = NEXT_INDEX + BONUS_WAIT + (race < LAST_RACE ? LOAD[race] : 0);
-  if (f.frame == NEXT_INDEX) { m.ww(marble_physics::RACE, race + 1); }
-  if (f.frame == bonus) { addPoints(m, clamp(seconds(m), SECONDS_MAX) * BONUS_POINTS); }
+  if (f.frame == NEXT_INDEX) {
+    m.ww(marble_physics::RACE, race + 1);
+    m.wb(PLAYER + SKIP, 0);  // 0x118d2: score fade on, timer flash off
+    m.wb(PLAYER + FLASH, OFF);
+    m.wb(PLAYER + FADE, 0);
+  }
+  if (f.frame == bonus) {
+    m.wb(PLAYER + FADE, OFF);  // 0x118d2: score fade off with the points
+    addPoints(m, clamp(seconds(m), SECONDS_MAX) * BONUS_POINTS);
+  }
 
   if (race == LAST_RACE) {
     if (f.frame == bonus + FINAL_AFTER) {
@@ -141,9 +169,18 @@ void newGame(Flow &f) {
   f.final = 0;
 }
 
+uint8_t raceTime(uint8_t race) { return RACE_TIME[race <= LAST_RACE ? race : LAST_RACE]; }
+
+uint16_t firstAdd(const Flow &f) { return f.fresh ? START_FIRST_ADD : FIRST_ADD[f.race - 1]; }
+
 bool timer(Mem &m) {
   if (m.rb(PLAYER + STATE) == TIME_BONUS) { return false; }
-  if (!(cascade(m) & 1)) { return false; }
+  const uint8_t flags = cascade(m);
+  if (flags & 2) {  // a second passed: timer flash from 4 s on, off above 5 s
+    if (seconds(m) == FLASH_ON) { m.wb(PLAYER + FLASH, 0); }
+    if (seconds(m) > FLASH_OFF) { m.wb(PLAYER + FLASH, OFF); }
+  }
+  if (!(flags & 1)) { return false; }
 
   // 0x28a96: out of play, timer cleared and stopped
   m.wb(PLAYER + SLOT, OUT_OF_LIST);
@@ -164,6 +201,7 @@ Step frame(Flow &f, Mem &m, bool start) {
     f.frame = 0;
   }
   f.frame++;
+  pulses(m);
   timer(m);
   if (f.intro != NO_INTRO) { introStep(f, m); }
   if (phase(m) != f.phase) { return WAIT; }  // time out or race start: from next frame on

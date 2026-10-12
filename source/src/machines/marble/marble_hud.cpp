@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "marble_rom.h"
+#include "marble_physics.h"
 
 // Port of tools/marble_hud.py (items, view, palette).
 
@@ -238,7 +239,92 @@ void palette(Grid &g, const Hud &h) {
   if (h.pal11 < 16) { g.pal[11] = marble_hud_pulse[h.pal11]; }
 }
 
+// player fields read by update
+static const uint8_t TIMER_F = 0x6a, FADE_F = 0x70, FLASH_F = 0x71, SCORE_F = 0xbc;
+static const uint8_t DEATHS_F = 0xd2, SKIP_F = 0xd8, FADE_SHIFT = 2, FLASH_SHIFT = 1;
+static const uint8_t PULSE_OFF = 0xff, SILLY_RACE = 4;
+static const uint16_t BANNER_LEAD = 60;      // banner before the first +5 s
+static const uint16_t PAL_LOAD = 4;          // race init to the palette load
+static const uint16_t BONUS_FROM = 3;        // race end frame of the bonus line
+static const uint16_t OUT_FROM = 2;          // time out frame of the box
+static const uint16_t FINAL_FROM = 11;       // final frame of the texts
+static const uint16_t TOP_AFTER = 2;         // game over frames with the top items (time out)
+static const uint16_t FINAL_AFTER = 3;       // game over frames with the final screen
+static const uint16_t PUSH_FROM = 5;         // game over frame of PUSH 1 PLAYER START (remake)
+
+int32_t clampS(int32_t v, int32_t hi) { return v > hi ? hi : v; }
+
 }  // namespace
+
+void update(Tracker &t, const marble_flow::Flow &f, const marble_physics::Mem &m, Hud &h) {
+  const uint32_t P = marble_physics::PLAYER;
+  const uint16_t ph = (uint16_t)marble_flow::phase(m);
+  if (ph != t.phase) {
+    t.before = t.phase;
+    t.phase = ph;
+    t.since = 0;
+    t.bonusDone = false;
+  }
+  if (t.since < UINT16_MAX) { t.since++; }
+  const uint16_t k = t.since;
+
+  h = Hud{};
+  h.score = m.rl(P + SCORE_F);
+  h.seconds = m.sw(P + TIMER_F);
+  h.deaths = (uint8_t)clampS(m.rw(P + DEATHS_F), UINT8_MAX);
+  h.race = (uint8_t)m.rw(marble_physics::RACE);
+  h.pal3 = h.pal11 = PULSE_OFF;
+  uint16_t s = 0;
+
+  // race intro: palette load, banner from 60 frames before the first +5 s
+  if (f.intro == 0) { t.loaded = false; }
+  if (f.intro != marble_flow::NO_INTRO) {
+    const uint16_t first = marble_flow::firstAdd(f);
+    const uint16_t lead = first > BANNER_LEAD ? first - BANNER_LEAD : 0;
+    if (f.intro >= (lead < PAL_LOAD ? lead : PAL_LOAD)) { t.loaded = true; }
+    if (f.intro < first) { t.base = h.seconds; }
+    if (f.intro >= lead) {
+      s |= INTRO | (h.race == SILLY_RACE ? SILLY : 0);
+      h.add = (uint8_t)(marble_flow::raceTime(h.race) - (h.seconds - t.base));
+    }
+  }
+  const bool shown = ph == marble_flow::RACE || ph == marble_flow::GAME_START ||
+                     ph == marble_flow::RACE_END || ph == marble_flow::TIME_OUT;
+  if (t.loaded && (shown || (ph == marble_flow::GAME_OVER && k < TOP_AFTER))) { s |= PAL | TOP; }
+
+  // race end: bonus line until the bonus is added, then nothing until the next banner
+  if (ph == marble_flow::RACE_END && !(s & INTRO)) {
+    if (h.score != t.score) { t.bonusDone = true; }
+    if (t.bonusDone) {
+      s = 0;
+    } else if (k >= BONUS_FROM) {
+      s |= BONUS | BONUS_PAL | PAL | TOP;
+      h.value = clampS(h.seconds, SECONDS_MAX) * 100;
+    }
+  }
+  if (ph == marble_flow::TIME_OUT && k >= OUT_FROM) { s |= OUT | PAL | TOP; }
+  if (ph == marble_flow::FINAL) {
+    s = PAL | (k >= FINAL_FROM ? FINAL : 0);
+    h.value = f.final > 0 ? f.final : 0;
+  }
+  if (ph == marble_flow::GAME_OVER && t.before == marble_flow::FINAL && k < FINAL_AFTER) { s = PAL | FINAL; }
+  if (ph == marble_flow::GAME_OVER && k >= PUSH_FROM) { s = PAL | PUSH; }
+  t.score = h.score;
+
+  // palette pulses: colours reload with the palette; the counters step before the read
+  if (!(s & PAL) || !(t.screen & PAL)) { t.pal3 = t.pal11 = PULSE_OFF; }
+  const uint8_t fade = m.rb(P + FADE_F), flash = m.rb(P + FLASH_F);
+  if (fade && fade != PULSE_OFF && !m.rb(P + SKIP_F)) { t.pal3 = ((fade - 1) & 0x3f) >> FADE_SHIFT; }
+  if (flash == PULSE_OFF) {
+    t.pal11 = PULSE_OFF;
+  } else if (flash) {
+    t.pal11 = ((flash - 1) & 0x1f) >> FLASH_SHIFT;
+  }
+  h.pal3 = t.pal3;
+  h.pal11 = t.pal11;
+  h.screen = s;
+  t.screen = s;
+}
 
 void build(Grid &g, const Hud &h) {
   if (g.valid && !memcmp(&g.shown, &h, sizeof(h))) { return; }

@@ -3,14 +3,18 @@
 
 #include <stdint.h>
 #include "marble_video.h"
+#include "marble_mem.h"
+#include "marble_flow.h"
 
 // HUD (MARBLE.md "HUD"; model tools/marble_hud.py): the arcade alpha layer texts in a 30 x 36
-// cell grid over the 240 x 288 view. The video core rebuilds the grid when the published Hud
-// changes (prepare_frame) and blends one grid row over each rendered strip (render_row).
+// cell grid over the 240 x 288 view. The emulation core derives the Hud of each frame from the
+// work RAM image and the flow sequencer (update, published in VideoState); the video core
+// rebuilds the grid when it changes (prepare_frame) and blends one grid row over each
+// rendered strip (render_row).
 //
-//   emulation core           video core
-//   Hud in VideoState  --->  build(grid, hud)  cells: alpha words, pal: RGB565
-//                            blend(grid, row)  8 lines over the strip, last (on top of MOs)
+//   emulation core                   video core
+//   update(tracker, flow, m, hud) -> build(grid, hud)  cells: alpha words, pal: RGB565
+//                                    blend(grid, row)  8 lines over the strip, last (on top)
 //
 // Items keep the arcade alpha positions moved by (dx, dy): top items 3 columns left (timer 6,
 // centred), banners and the final screen 6 left and 3 rows down; cells outside are clipped.
@@ -40,6 +44,23 @@ struct Grid {
   marble_video::Hud shown;     // state the grid shows
   bool valid;
 };
+
+// emulation core: what update keeps between frames (marble_hud.py hud_states)
+struct Tracker {
+  uint16_t phase;     // 0x400390 of the last frame
+  uint16_t since;     // frames since it changed (1 = first frame)
+  uint16_t before;    // the phase before
+  bool loaded;        // alpha palette loaded since the race init
+  bool bonusDone;     // race end: the bonus is added (alpha off until the next init)
+  uint32_t score;     // last frame's score
+  int16_t base;       // intro: seconds before the first +5 s
+  uint16_t screen;    // last frame's screen bits
+  uint8_t pal3, pal11;
+};
+
+// HUD state of the frame just run (after the flow and the logic tick)
+void update(Tracker &t, const marble_flow::Flow &f, const marble_physics::Mem &m,
+            marble_video::Hud &h);
 
 // rebuild g when h differs from the state it shows
 void build(Grid &g, const marble_video::Hud &h);

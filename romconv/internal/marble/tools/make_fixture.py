@@ -53,6 +53,9 @@ tick; the segment ends at the death the sim detects (its frame gap in the trace 
   make_fixture.py fwrite OUT FRAME_TRACE ...
                                             game flow: race end sequences, next race
                                             carry, time out (test_marble_flow/marble_flow.h)
+  make_fixture.py hwrite OUT FRAME_TRACE_DIR ...
+                                            HUD state per frame: time out run, race ends
+                                            (test_marble_flow/marble_hud_trace.h)
   make_fixture.py rwrite OUT               model runs from the remake race start, all races:
                                             stick input, goal crossing
                                             (test_marble_deaths/marble_start_trace.h)
@@ -1759,6 +1762,10 @@ def main(argv):
         return 0
     if len(argv) >= 4 and argv[1] == "tbwrite":
         cmd_tbwrite(argv[2], argv[3:])
+        return 0
+    if len(argv) >= 4 and argv[1] == "hwrite":
+        import marble_hud
+        marble_hud.write_fixture(argv[2], argv[3:])
         return 0
     if len(argv) >= 4 and argv[1] == "fwrite":
         import marble_flow

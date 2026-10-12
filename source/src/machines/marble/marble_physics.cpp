@@ -130,6 +130,7 @@ static const int16_t SCORE_STEP = 0xa0, SCORE_POINTS = 10;  // distance score 0x
 static const uint32_t SCORES = 0x23cd4, SCORE_TEXTS = 0x23cf6;  // 0x285b0: words, longs
 static const uint8_t SCORE_SHOWN = 0x68, SCORE_FLAG = 0x69, SCORE_TEXT_ON = 0x70;  // +0x68..
 static const uint8_t SCORE_TEXT = 0xd4, SCORE_WAIT = 0xd8;
+static const uint8_t PULSE_FLASH = 0x71;  // timer flash counter (marble_flow)
 static const int8_t WOBBLE_HI = 2, WOBBLE_LO = -0x16, WOBBLE_STEPS = 0x28;  // 0x25416
 static const uint16_t RNG_BYTE = 0x100;
 
@@ -988,6 +989,8 @@ void start_259b4(Mem &m, uint8_t race, uint32_t a2) {
   for (uint8_t o : longs) { m.wl(a2 + o, 0); }
   for (uint8_t o : bytes) { m.wb(a2 + o, 0); }
   m.wb(a2 + SLOT, 1);
+  m.wb(a2 + SCORE_TEXT_ON, 0xff);  // palette pulses off (0x26bee, 0x26c78)
+  m.wb(a2 + PULSE_FLASH, 0xff);
   if (race == RACE_AERIAL) {  // starts on surface 0x17
     m.wb(a2 + SURFACE, 0x17);
     m.wb(a2 + SURFACE_T, 0xff);

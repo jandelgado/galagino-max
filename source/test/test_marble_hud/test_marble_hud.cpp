@@ -10,6 +10,10 @@
 #define HAVE_ROM 1
 #include "../../src/machines/marble/marble_rom.h"
 #define ENABLE_MARBLE
+#include "../../src/emulation/lzma/LzmaDec.c"
+#include "../../src/emulation/arena.cpp"
+#include "../../src/machines/marble/marble_mem.cpp"
+#include "../../src/machines/marble/marble_flow.cpp"
 #include "../../src/machines/marble/marble_hud.cpp"
 #endif
 #include "marble_hud_fixture.h"
