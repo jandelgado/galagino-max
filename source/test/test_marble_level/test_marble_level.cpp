@@ -38,6 +38,7 @@ static uint32_t crc32(const uint8_t *p, size_t n, uint32_t crc = 0) {
 static const uint32_t OBJECT_MASKS_CRC = 0x710D10BC, DEATH_EDGES_CRC = 0x2DB1610B;
 static const uint32_t STEELIE_EDGES_CRC = 0xE923A280, SLINKY_EDGES_CRC = 0x63A9C6FE;
 static const uint32_t SLINKY_FIRST_HDR = 0x21a6a;  // lowest slinky frame header
+static const uint32_t BIRD_FIRST_HDR = 0x22452;    // lowest bird frame header (after slinkies)
 static const uint32_t ACID_EDGES_CRC = 0xFB6CB52D;
 static marble_level::Store store;
 
@@ -483,8 +484,9 @@ static void test_slinky_edges(void) {
   const marble_level::Level l = guardedLevel(store.load(RACE), MARBLE_DEATH_TILES);
   const MarbleSpriteSet &ds = marble_death_set;
   const uint8_t first = marble_physics::deathFrame(SLINKY_FIRST_HDR);  // acid frames before
+  const uint8_t end = marble_physics::deathFrame(BIRD_FIRST_HDR);      // bird frames after
   uint8_t big = first;
-  for (uint8_t f = first; f < ds.nframes; f++) {
+  for (uint8_t f = first; f < end; f++) {
     if (ds.frames[f].ncols > ds.frames[big].ncols) big = f;
   }
   const MarbleSpriteCol &c0 = ds.cols[ds.frames[big].first];
@@ -499,7 +501,7 @@ static void test_slinky_edges(void) {
       v.marbleAt = 0;
       const int16_t ox = x + v.sx, oy = y + v.sy;
       v.objs[0] = {big, SET_DEATH | SET_SLINKY, ox, oy, 0, 1};
-      v.objs[1] = {(uint8_t)(ds.nframes - 1), SET_DEATH | SET_SLINKY, (int16_t)(ox + 20), oy, 0, 0};
+      v.objs[1] = {(uint8_t)(end - 1), SET_DEATH | SET_SLINKY, (int16_t)(ox + 20), oy, 0, 0};
       v.masks[0] = {FULL_MASK, c0.x, c0.y};
       crc = crc32((const uint8_t *)&crc, sizeof(crc), checkRef(l, v));
     }

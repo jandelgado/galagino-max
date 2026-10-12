@@ -13,9 +13,9 @@ static const uint8_t COLS = 36;
 static const uint16_t WIDTH = COLS * 8;  // 288
 static const uint16_t MAX_ROWS = 145;    // beginner race; romconv checks
 static const uint16_t MAX_TILES = 896;   // beginner race; romconv checks
-// sprite tile buffer (32 B/tile): death set 449 (slinkies, acid included) + aerial set 535;
-// romconv checks
-static const uint16_t SPRITE_TILES = 984;
+// sprite tile buffer (32 B/tile): death set 484 (slinkies, acid, birds included) + aerial set
+// 535; romconv checks
+static const uint16_t SPRITE_TILES = 1019;
 
 struct Level {
   uint16_t rows;

@@ -955,6 +955,9 @@ SLINKY_LISTS = (0x20c18, 0x20c48, 0x20c6c, 0x20c90, 0x20cb4, 0x20cd8, 0x20d64, 0
 # acid animation lists (type 0x0e, set 6, 0x1d242): their 35 frames are in the shared death
 # set as well (set 6 palette equal in both acid races)
 ACID_LISTS = (0x20ea4, 0x20ec4, 0x20ee4, 0x20f24)
+# silly race bird animation lists (type 0x0f, set 7, 0x19a40/0x19baa/0x19d94): spawn, walk,
+# landing, carrying; their frames join the death set (palette set 7 of the silly race)
+BIRD_LISTS = (0x224ca, 0x224d6, 0x224e2, 0x22546)
 
 
 class Sprites:
@@ -1013,11 +1016,12 @@ class DeathSprites(Sprites):
     the shatter overlay entries 0x25fc2 reaches (+0x62 steps once per tick from shatter frame
     SHATTER_SHARDS + 1 to the list end), header frames only. The tiles also hold the sparkle
     star codes, consecutive. slinkies: also the slinky frames (Phase 4b-2), acid: the acid
-    frames (Phase 4b-3)."""
-    def __init__(self, slinkies=True, acid=True):
+    frames (Phase 4b-3), birds: the silly race bird frames (Phase 4b-4a)."""
+    def __init__(self, slinkies=True, acid=True, birds=True):
         hdrs = {h for a in DEATH_LISTS for h in anim_list(a)}
         if slinkies: hdrs |= {h for a in SLINKY_LISTS for h in anim_list(a)}
         if acid: hdrs |= {h for a in ACID_LISTS for h in anim_list(a)}
+        if birds: hdrs |= {h for a in BIRD_LISTS for h in anim_list(a)}
         self.shards = (len(anim_list(ms.ANIM_SHATTER)) - ms.SHATTER_SHARDS - 1) * SHATTER_TICKS
         hdrs |= set(anim_list(ms.ANIM_SHARDS)[:self.shards])
         self.race = None

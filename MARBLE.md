@@ -1156,6 +1156,20 @@ read acid tables too, so 4b-1/4b-2 prog blocks grew by 1044 B (all prog blocks +
   end), the random path lists 0x23d62-0x23d99, every path to its 0xff end, 0x1f07a, the
   animation lists.
 
+### Phase 4b-4a data (birds)
+
+Same converter run; flash 574 B booked to 4b-4a (prog blocks 34, bird tiles 344, frames 40,
+columns 120, header ids 20, palette 16).
+
+- The 10 bird frames (anim lists `marble_mo.BIRD_LISTS` 0x224ca, 0x224d6, 0x224e2, 0x22546,
+  MO set 7, 35 tiles) join the shared death set. Their headers (0x22452-0x224be) sort after
+  the slinky frames: enemy frames are acid, slinkies, birds by header address. Death set 140
+  frames, 484 tiles; `SPRITE_TILES` = 484 + 535 = 1019 (32608 B, Arena block B).
+- Palette: set 7 of the silly race (the only bird race), fifth row of `marble_death_pal`.
+- Program ROM blocks: collection replays the bird fixture and the bird race sweep
+  (`marble_bird.sweep`, all races); whole tables: 0x1f0ba, spawn cells 0x244f6, the animation
+  lists.
+
 ## Enemies
 
 Research: docs/superpowers/specs/2026-10-11-marble-enemies-research.md (steelie model) and
