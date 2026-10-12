@@ -174,12 +174,12 @@ def items(h, r):
         label = fin.rstrip("0123456789,")
         put(-7, 3, 13, 9, text(label.rstrip(), 5, False))
         put(-9, 3, 13, 9 + len(label), text(fin[len(label):], 5, False))
-        put(-7, 3, 15, 10, text("%2d" % h.seconds, 4, False))
+        put(-7, 3, 15, 10, text("%2d" % sec, 4, False))
         put(-7, 3, 15, 13, text(rom_str(r, S_SEC), 5, False))
         put(-9, 3, 15, 33, text("%6s" % commas(sec * 1000), 5, False))
         died = rom_str(r, S_DIED)
         put(-7, 3, 17, 7, text(died[:-1].rstrip(), 5, False))
-        put(-7, 3, 17, 12, text("%2d" % h.deaths, 4, False))
+        put(-7, 3, 17, 12, text("%2d" % min(h.deaths, 99), 4, False))
         put(-9, 3, 17, 32, text(died[-1:], 5, False))
         put(-9, 3, 17, 33, text("%6s" % commas(min(h.deaths, 20) * 1000), 5, False))
         put(-7, 3, 19, 23, text(rom_str(r, S_TOTAL), 5, False))
@@ -256,6 +256,31 @@ def glyph_codes(r):
 def glyph_rows(glyph):
     """8 rows, 2 bpp, left pixel in bits 15-14 (marble_hud_glyphs)."""
     return [sum(p << (14 - 2 * x) for x, p in enumerate(line)) for line in glyph]
+
+
+# remake layout cases (host test fixture): screen, score, value, seconds, race, add, deaths,
+# pal3, pal11 (marble_video::Hud field order)
+LAYOUT_CASES = (
+    (PAL | TOP, 1020, 0, 50, 0, 0, 0, 0xff, 0xff),
+    (PAL | TOP, 9999999, 0, 5, 0, 0, 0, 0xff, 0xff),       # 7 digit score, leading zero
+    (PAL | TOP, 0, 0, 150, 0, 0, 0, 0xff, 3),               # clamp 99, timer flash
+    (PAL | TOP, 0, 0, -1, 0, 0, 0, 0xff, 0xff),             # clamp 0
+    (PAL | TOP | INTRO, 0, 0, 0, 0, 60, 0, 0xff, 0xff),
+    (PAL | TOP | INTRO, 0, 0, 55, 1, 5, 0, 0xff, 0xff),    # one digit: leading space
+    (PAL | TOP | INTRO, 6020, 0, 84, 3, 30, 0, 0xff, 0xff),   # EXTRA TIME FOR
+    (PAL | TOP | INTRO | SILLY, 6020, 0, 78, 4, 20, 0, 0xff, 0xff),
+    (PAL | TOP | BONUS | BONUS_PALETTE, 1020, 5000, 50, 1, 0, 0, 7, 0xff),
+    (PAL | TOP | OUT, 140, 0, 0, 0, 0, 0, 0xff, 0xff),
+    (PAL | FIN, 46920, 88750, 69, 6, 0, 0, 0xff, 0xff),
+    (PAL | FIN, 9999999, 0, 150, 6, 0, 25, 0xff, 0xff),    # clamps: 99 s, 20 deaths
+    (PAL | PUSH, 140, 0, 0, 0, 0, 0, 0xff, 0xff),
+    (0, 1020, 0, 50, 0, 0, 0, 0xff, 0xff),                  # palette off: nothing shown
+)
+LAYOUT_FIELDS = ("screen", "score", "value", "seconds", "race", "add", "deaths", "pal3", "pal11")
+
+
+def layout_states():
+    return [Hud(**dict(zip(LAYOUT_FIELDS, c))) for c in LAYOUT_CASES]
 
 
 # --- MAME traces ------------------------------------------------------------------------

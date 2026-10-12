@@ -46,6 +46,18 @@ static const uint8_t SET_PAL = 0xf;
 // marble sprite top left relative to the player origin (sx, camera top + ARCADE_H - sy)
 static const int16_t MARBLE_X = -8, MARBLE_Y = -16;
 
+// HUD state (MARBLE.md "HUD"): marble_hud builds the alpha cells from it on the video core
+struct Hud {
+  uint16_t screen;  // marble_hud::Screen bits
+  uint32_t score;   // player +0xbc
+  int32_t value;    // bonus line points, final total left
+  int16_t seconds;  // player +0x6a
+  uint8_t race;     // race intro: race, seconds still to add
+  uint8_t add;
+  uint8_t deaths;   // final screen
+  uint8_t pal3, pal11;  // pulse table index of alpha colours 3 / 11, 0xff = ROM colour
+};
+
 // render input, published by the emulation core once per frame (Seqlock)
 struct VideoState {
   int16_t sx, sy;  // viewport origin in playfield pixels
@@ -59,8 +71,9 @@ struct VideoState {
   uint8_t n;       // objects
   uint8_t marbleAt;  // objects drawn before the marble, the rest on top
   uint8_t lift;    // tag 3 palette variant 0-3, 0xff none
+  Hud hud;
 };
-static_assert(sizeof(VideoState) <= 320, "VideoState limit");
+static_assert(sizeof(VideoState) <= 336, "VideoState limit");
 
 void clamp(VideoState &v, const marble_level::Level &l);
 

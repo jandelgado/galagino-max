@@ -1485,6 +1485,20 @@ def write_hud_fixture(rom):
         print(f"static const uint32_t MARBLE_HUD_FIX_MAP_CRC = 0x{crc(f'{len(gmap)}B', gmap):08x}u;", file=f)
         print(f"static const uint32_t MARBLE_HUD_FIX_PAL_CRC = 0x{crc('<32H', pal):08x}u;", file=f)
         print(f"static const uint32_t MARBLE_HUD_FIX_PULSE_CRC = 0x{crc('<16H', pulse):08x}u;", file=f)
+        rgb = lambda w: rgb888_to_rgb565_le(*md.irgb_hw(w))
+        print("// remake layout cases (tools/marble_hud.py LAYOUT_CASES): HUD state, CRC32 of the",
+              file=f)
+        print("// 36 x 30 grid words and of the 32 RGB565 colours", file=f)
+        print("struct MarbleHudCase { uint16_t screen; uint32_t score; int32_t value; int16_t seconds;",
+              file=f)
+        print("  uint8_t race, add, deaths, pal3, pal11; uint32_t grid_crc, pal_crc; };", file=f)
+        print("static const MarbleHudCase MARBLE_HUD_FIX_CASES[] = {", file=f)
+        for c, h in zip(hud.LAYOUT_CASES, hud.layout_states()):
+            g = [w for row in hud.view(h, rom) for w in row]
+            pal = [rgb(w) for w in hud.palette(h, rom)]
+            print("  { " + ", ".join(str(v) for v in c) + f", 0x{crc(f'<{len(g)}H', g):08x}u, "
+                  f"0x{crc('<32H', pal):08x}u }},", file=f)
+        print("};", file=f)
         pens = [p for line in s for p in line]
         print(f"static const uint32_t MARBLE_HUD_FIX_S_CRC = 0x{crc('64B', pens):08x}u;  // pens of 'S'", file=f)
 

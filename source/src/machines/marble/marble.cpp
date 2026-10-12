@@ -178,10 +178,12 @@ void marble::prepare_frame(void) {
     store.patch(patched);
   }
   clamp(video, *level);
+  marble_hud::build(hud, video.hud);
 }
 
 void marble::render_row(short row) {
   renderRow(*level, video, row, frame_buffer);
+  marble_hud::blend(hud, row, frame_buffer);
 }
 
 #ifdef LED_PIN

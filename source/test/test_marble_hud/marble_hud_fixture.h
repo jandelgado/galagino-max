@@ -5,4 +5,24 @@ static const uint32_t MARBLE_HUD_FIX_GLYPH_CRC = 0x27b19420u;
 static const uint32_t MARBLE_HUD_FIX_MAP_CRC = 0x49ad0fb9u;
 static const uint32_t MARBLE_HUD_FIX_PAL_CRC = 0xf006bb0eu;
 static const uint32_t MARBLE_HUD_FIX_PULSE_CRC = 0x0d7e97e3u;
+// remake layout cases (tools/marble_hud.py LAYOUT_CASES): HUD state, CRC32 of the
+// 36 x 30 grid words and of the 32 RGB565 colours
+struct MarbleHudCase { uint16_t screen; uint32_t score; int32_t value; int16_t seconds;
+  uint8_t race, add, deaths, pal3, pal11; uint32_t grid_crc, pal_crc; };
+static const MarbleHudCase MARBLE_HUD_FIX_CASES[] = {
+  { 3, 1020, 0, 50, 0, 0, 0, 255, 255, 0x040673b7u, 0xf006bb0eu },
+  { 3, 9999999, 0, 5, 0, 0, 0, 255, 255, 0xad1802d6u, 0xf006bb0eu },
+  { 3, 0, 0, 150, 0, 0, 0, 255, 3, 0x4e85da4bu, 0x176a3729u },
+  { 3, 0, 0, -1, 0, 0, 0, 255, 255, 0xa3e4f0fau, 0xf006bb0eu },
+  { 7, 0, 0, 0, 0, 60, 0, 255, 255, 0x58627ba5u, 0xf006bb0eu },
+  { 7, 0, 0, 55, 1, 5, 0, 255, 255, 0x8f2c15aau, 0xf006bb0eu },
+  { 7, 6020, 0, 84, 3, 30, 0, 255, 255, 0x293eef4cu, 0xf006bb0eu },
+  { 15, 6020, 0, 78, 4, 20, 0, 255, 255, 0xd2c60c43u, 0xf006bb0eu },
+  { 51, 1020, 5000, 50, 1, 0, 0, 7, 255, 0x091e8303u, 0xc48c2bedu },
+  { 67, 140, 0, 0, 0, 0, 0, 255, 255, 0xe0d52649u, 0xf006bb0eu },
+  { 129, 46920, 88750, 69, 6, 0, 0, 255, 255, 0xb6c7f434u, 0xf006bb0eu },
+  { 129, 9999999, 0, 150, 6, 0, 25, 255, 255, 0xbfed5415u, 0xf006bb0eu },
+  { 257, 140, 0, 0, 0, 0, 0, 255, 255, 0xe1923a7au, 0xf006bb0eu },
+  { 0, 1020, 0, 50, 0, 0, 0, 255, 255, 0x9f0882e0u, 0x758d6336u },
+};
 static const uint32_t MARBLE_HUD_FIX_S_CRC = 0x5f7d611du;  // pens of 'S'
