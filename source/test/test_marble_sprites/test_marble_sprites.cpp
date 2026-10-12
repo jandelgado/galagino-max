@@ -16,6 +16,7 @@
 #include "../../src/machines/marble/marble_mem.cpp"
 #include "../../src/machines/marble/marble_rng.cpp"
 #include "../../src/machines/marble/marble_physics.cpp"
+#include "../../src/machines/marble/marble_enemies.cpp"
 #include "../../src/machines/marble/marble_objects.cpp"
 #include "../../src/machines/marble/marble_occlusion.cpp"
 #include "../../src/machines/marble/marble_drawlist.cpp"

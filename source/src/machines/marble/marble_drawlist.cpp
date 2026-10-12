@@ -358,8 +358,10 @@ void insert(Mem &m, uint32_t obj, uint8_t type) {
 }
 
 // 0x18f46: entry of the object freed, later list bytes move up, END after the last
-void remove(Mem &m, uint32_t obj) {
-  const uint8_t type = m.rb(obj + S_TAG), idx = m.rb(obj + S_IDX);
+void remove(Mem &m, uint32_t obj) { remove(m, obj, m.rb(obj + S_TAG)); }
+
+void remove(Mem &m, uint32_t obj, uint8_t type) {
+  const uint8_t idx = m.rb(obj + S_IDX);
   uint32_t at = 0;
   for (; at < LIST_MAX && m.rb(LIST + at) != END; at++) {
     const uint32_t e = entry(m.rb(LIST + at));

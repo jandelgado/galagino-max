@@ -1244,6 +1244,17 @@ harness) drops the player or a steelie airborne at a position to provoke landing
 The draw list compare skips types 4 and 0x0e (slinkies, acid: in MAME, not modelled). No run
 covers a steelie occluded by terrain (steelie masks +0x38 stay 0 in every tick).
 
+C++ (`marble_enemies.{h,cpp}`, 1:1 port of `marble_enemy.py`): `marble_objects::cameraBands`
+(0x144e4) calls `marble_enemies::cameraBands` before the slot spawner, so the race start and
+every band step spawn steelies; `marble.cpp` restores the old camera long around it (0x13ee6
+order). `marble_physics::physics_121b8` is object generic: pair collision and the 0x1239c
+cell refresh for every object, zones and gravity for players only, non-player landing and
+loss in `marble_enemies`; `anim_25fc2` frees a shattered steelie and its draw list entry.
+Host test `test_marble_steelies`: fixture replay (player, both steelies, draw list), race
+sweep of all races (spawns at table bands, counts as `marble_enemy.sweep`: beginner 4/5,
+aerial 3/3, ultimate 2/1 spawns/removals), shatter end and race switch. Old fixtures stay
+exact with steelies always on (model check with `enable` forced).
+
 Steelie fixture `source/test/test_marble_steelies/marble_steelies_trace.h` (committed, derived
 numbers only), `make_fixture.py stwrite`: initial work RAM blocks (the drop applied), per tick
 `MarbleSteelieTick` (inputs, player as `MarbleDeathTick`, both steelies `MarbleSteelieObj

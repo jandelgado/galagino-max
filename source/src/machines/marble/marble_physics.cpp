@@ -1,5 +1,6 @@
 #include "marble_physics.h"
 #include "marble_drawlist.h"
+#include "marble_enemies.h"
 #include "marble_objects.h"
 #include "marble_occlusion.h"
 #include "marble_rng.h"
@@ -111,6 +112,9 @@ static const uint16_t PLAYER_SIZE = 0xe2, STEELIE_SIZE = 0x7c, SLINKY_SIZE = 0x6
 static const uint8_t STEELIE_N = 2, SLINKY_N = 4;
 static const uint8_t HIT_PLAYER = 1, HIT_STEELIE = 2, HIT_SLINKY = 4;
 static const int16_t SCORE_STEP = 0xa0, SCORE_POINTS = 10;  // distance score 0x26214
+static const uint32_t SCORES = 0x23cd4, SCORE_TEXTS = 0x23cf6;  // 0x285b0: words, longs
+static const uint8_t SCORE_SHOWN = 0x68, SCORE_FLAG = 0x69, SCORE_TEXT_ON = 0x70;  // +0x68..
+static const uint8_t SCORE_TEXT = 0xd4, SCORE_WAIT = 0xd8;
 static const uint16_t RNG_BYTE = 0x100;
 
 static const uint32_t FALL_VZ = 0xffffa000;        // -0x6000: vz when a fall starts
@@ -120,6 +124,7 @@ static const uint8_t DYN_INTERMEDIATE_N = 0x42;
 static const uint16_t SPAWN_RANGE = 0x300;         // max checkpoint distance (max + 3/8 min) * 16
 static const uint8_t NO_ZONE = 0xff;
 static const uint8_t STATE_ENEMY = 0xb;  // set by enemy update 0x19d94 (0x19e14), Phase 4
+static const uint8_t TYPE_STEELIE = 2;   // draw list type
 
 inline int32_t s32(int64_t v) { return (int32_t)(uint32_t)v; }
 inline int32_t add32(int32_t a, int32_t b) { return (int32_t)((uint32_t)a + (uint32_t)b); }
@@ -143,6 +148,7 @@ uint32_t scaleV(int32_t v, uint16_t k) { return (uint32_t)((s16(v >> 8) * s16(k)
 
 void terrain_1caba(Mem &m);
 void enter_25bae(Mem &m, uint32_t a2, State code);
+void proj_1b9cc(Mem &m, uint32_t a2, Refetch r);
 
 // 0x1bb50: derive cell / fraction fields from 0x400690/0x400692
 void derive_1bb50(Mem &m) {
@@ -710,7 +716,7 @@ void zones_1365c(Mem &m, uint32_t a2) {
   }
 }
 
-// 0x121b8: object physics update (player object only)
+// 0x121b8: object physics update (player, steelies)
 void physics_121b8(Mem &m, uint32_t a2) {
   m.wl(OLD_X, m.rl(a2 + PX));
   m.wl(OLD_Y, m.rl(a2 + PY));
@@ -721,8 +727,14 @@ void physics_121b8(Mem &m, uint32_t a2) {
   m.ww(CELL_X, 0xffff);
   posupd_1bab2(m, a2);
 
-  // more than 16 px below the terrain: embedded, lost (sounds 0x15884, 0x46)
+  // more than 16 px below the terrain: embedded, lost (sounds 0x15884, 0x46); a steelie is
+  // freed and scored
+  const bool pl = isPlayer(a2);
   if (s32((int64_t)height_1cc62(m) - m.sl(a2 + PZ)) > 0x100000) {
+    if (!pl) {
+      marble_enemies::remove_15bd0(m, a2, marble_enemies::SCORE, marble_enemies::CLEAR);
+      return;
+    }
     m.wb(a2 + DAMAGE, EMBEDDED);
     enter_25bae(m, a2, LOST);
     return;
@@ -755,9 +767,14 @@ void physics_121b8(Mem &m, uint32_t a2) {
   marble_objects::slots_29cce(m, a2);
   if (m.rb(a2 + SURFACE) == 0xa || m.rb(a2 + STATE) == LOST) { return; }
 
-  // 0x1bc88 object pair collision and enemy updates: not ported
-  zones_1365c(m, a2);
-  if (m.rb(a2 + STATE) == STATE_ENEMY) { return; }
+  // 0x1239c: cell refresh after slot hits, 0x1bc88 object pair collision; then the player
+  // only contacts (0x14e92 .. 0x19d94: other enemies, not ported) and zones
+  if (m.rb(HIT_X) || m.rb(HIT_Y)) { posupd_1bab2(m, a2); }
+  if (marble_enemies::pair_1bc88(m, a2)) { posupd_1bab2(m, a2); }
+  if (pl) {
+    zones_1365c(m, a2);
+    if (m.rb(a2 + STATE) == STATE_ENEMY) { return; }
+  }
 
   const int32_t h = height_1cc62(m);
   edge_160f6(m, a2, h);
@@ -772,8 +789,16 @@ void physics_121b8(Mem &m, uint32_t a2) {
       m.wl(a2 + VZ, 0);
       const int64_t fall = abs64(s32((int64_t)m.sl(a2 + GROUND_Z) - h)) >> 15;
       m.wl(a2 + PZ, (uint32_t)h);
-      land_25c74(m, a2, s16((int32_t)fall));
+      if (pl) {
+        land_25c74(m, a2, s16((int32_t)fall));
+      } else {
+        marble_enemies::land_25c74(m, a2, s16((int32_t)fall));
+      }
     } else if (s32((int64_t)m.sl(a2 + GROUND_Z) - m.sl(a2 + PZ)) > 0x800000) {
+      if (!pl) {  // fell more than 128 px: a steelie is freed and scored
+        marble_enemies::remove_15bd0(m, a2, marble_enemies::SCORE, marble_enemies::CLEAR);
+        return;
+      }
       m.wb(a2 + DAMAGE, FELL);  // fell more than 128 px: lost (sounds 0x15884, 0x46)
       enter_25bae(m, a2, LOST);
       return;
@@ -783,14 +808,14 @@ void physics_121b8(Mem &m, uint32_t a2) {
   }
 
   // 0x1b9cc projection, 0x1281c occlusion (0x1c014 surface dots: not ported)
-  project(m);
+  proj_1b9cc(m, a2, KEEP_CELL);
   marble_occlusion::enter(m, a2);
   edgepush_1706c(m, a2);
   if (m.rb(a2 + AIR)) { return; }
 
   const Friction fm = frictionMode(m.rb(a2 + SURFACE));
   if (fm != FR_NONE) { friction_25e7c(m, a2, fm); }
-  if (m.rw(ATTRACT) != 1) { gravity_25df6(m, a2); }
+  if (pl && m.rw(ATTRACT) != 1) { gravity_25df6(m, a2); }
 }
 
 // 0x26214: +0xc4 sums the friction table at the speed (>> 9); every SCORE_STEP scores
@@ -992,21 +1017,27 @@ void spawnPoint_262b2(Mem &m, uint32_t a2) {
   }
 }
 
-enum Refetch : uint8_t { KEEP_CELL, REFETCH };
-
-// 0x1b9cc (see marble_physics.h); REFETCH reloads the terrain cell first
-void proj_1b9cc(Mem &m, Refetch r) {
+// 0x1b9cc (see marble_physics.h, sx/sy) for object a2; REFETCH reloads the terrain cell
+void proj_1b9cc(Mem &m, uint32_t a2, Refetch r) {
   if (r == REFETCH) {
     m.ww(CELL_Y, 0xffff);
     m.ww(CELL_X, 0xffff);
   }
-  posupd_1bab2(m, PLAYER);
-  const uint32_t packed = (uint32_t)(uint16_t)sx(m) << 16 | (uint16_t)sy(m);
-  if (packed == m.rl(PLAYER + SCREEN) || packed == m.rl(PLAYER + SCREEN_OLD)) { return; }
+  posupd_1bab2(m, a2);
+  uint16_t z = m.rw(a2 + PZ);
+  const uint8_t c = m.rb(a2 + SURFACE);
+  if (c >= 0x2f && c <= 0x31 && (m.rb(a2 + PX + 1) & 1) && abs64(m.sl(a2 + VX)) > 0x4000) {
+    z += 2;  // bumpy surface: 2 px jitter
+  }
+  const int32_t xy = (int32_t)m.sw(a2 + PX) + m.sw(a2 + PY);
+  const uint16_t sxw = (uint16_t)(m.rw(a2 + PY) - m.rw(a2 + PX) + 0x88);
+  const uint16_t syw = (uint16_t)(m.rw(CAMERA) + z + 0x54 - (uint16_t)(xy >> 1));
+  const uint32_t packed = (uint32_t)sxw << 16 | syw;
+  if (packed == m.rl(a2 + SCREEN) || packed == m.rl(a2 + SCREEN_OLD)) { return; }
 
-  m.wl(PLAYER + SCREEN_OLD2, m.rl(PLAYER + SCREEN_OLD));
-  m.wl(PLAYER + SCREEN_OLD, m.rl(PLAYER + SCREEN));
-  m.wl(PLAYER + SCREEN, packed);
+  m.wl(a2 + SCREEN_OLD2, m.rl(a2 + SCREEN_OLD));
+  m.wl(a2 + SCREEN_OLD, m.rl(a2 + SCREEN));
+  m.wl(a2 + SCREEN, packed);
 }
 
 // 0x2591a: to the respawn point 0x262b2, z on the terrain, motion cleared, projected. Not
@@ -1025,7 +1056,7 @@ void respawn_2591a(Mem &m, uint32_t a2) {
   static const uint8_t bytes[] = {DIZZY_CNT, AIR, SURFACE};
   for (uint8_t o : longs) { m.wl(a2 + o, 0); }
   for (uint8_t o : bytes) { m.wb(a2 + o, 0); }
-  proj_1b9cc(m, KEEP_CELL);
+  proj_1b9cc(m, a2, KEEP_CELL);
 }
 
 // 0x25bae: state entry, velocity x/y cleared. BROKEN: shatter animation. LOST: respawn at
@@ -1096,9 +1127,14 @@ void anim_25fc2(Mem &m, uint32_t a2) {
     enter_25bae(m, a2, BROKEN);
     return;
   }
-  if (st == BROKEN) {  // +0x18 == OUT_OF_LIST: steelies only
+  if (st == BROKEN) {
     m.wb(a2 + SHARDS_ON, 0);
-    m.ww(a2 + STARS, 0);
+    if (isPlayer(a2)) { m.ww(a2 + STARS, 0); }  // +0xa4 is past a steelie record
+    if (m.rb(a2 + SLOT) == OUT_OF_LIST) {       // shattered steelie: off the draw list
+      m.wb(a2 + SLOT, 0);
+      marble_drawlist::remove(m, a2, TYPE_STEELIE);
+      return;
+    }
   }
   m.wb(a2 + DAMAGE, EMBEDDED);
   enter_25bae(m, a2, LOST);
@@ -1209,14 +1245,14 @@ void dizzy_2574c(Mem &m, uint32_t a2) {
 // 0x25824: shatter animation, projection, masks while visible
 void shatter_25824(Mem &m, uint32_t a2) {
   anim_25fc2(m, a2);
-  proj_1b9cc(m, REFETCH);
+  proj_1b9cc(m, a2, REFETCH);
   if (m.rb(a2 + VISIBLE)) { marble_occlusion::enter(m, a2); }
 }
 
 // 0x255c6: lost, the sparkle at the respawn point; once it ends the spot is checked again
 // (taken: respawn elsewhere), then ROLL
 void lost_255c6(Mem &m, uint32_t a2) {
-  proj_1b9cc(m, REFETCH);
+  proj_1b9cc(m, a2, REFETCH);
   bool done = orbit_13ade(m, a2);
   const bool check = done || m.sb(a2 + DAMAGE) < SPARKLE_LAST;
   if (check && blocked_17cb8(m, a2, m.sw(a2 + PX), m.sw(a2 + PY), RESPAWN_FREE)) {
@@ -1262,6 +1298,7 @@ void startRace(Mem &m, uint8_t race) {
   m.setRace(race);
   start_259b4(m, race, PLAYER);
   marble_drawlist::init(m);  // 0x28ca6: before the slot inserts of the level init
+  marble_enemies::init(m);
   marble_objects::init(m, race);
 
   // level init end 0x10fb8: time out event armed, its random byte
@@ -1278,7 +1315,35 @@ void tick(Mem &m, int8_t c6, int8_t c7) {
   object_253ec(m, a2);
 }
 
-void project(Mem &m) { proj_1b9cc(m, KEEP_CELL); }
+void project(Mem &m) { proj_1b9cc(m, PLAYER, KEEP_CELL); }
+void project(Mem &m, uint32_t obj, Refetch r) { proj_1b9cc(m, obj, r); }
+
+bool isPlayer(uint32_t obj) { return obj == PLAYER || obj == PLAYER + PLAYER_SIZE; }
+void move(Mem &m, uint32_t obj) { physics_121b8(m, obj); }
+void ground(Mem &m, uint32_t obj) { ground_253bc(m, obj); }
+void speedCap(Mem &m, uint32_t obj) { speedcap_26196(m, obj); }
+void enterState(Mem &m, uint32_t obj, State s) { enter_25bae(m, obj, s); }
+void animate(Mem &m, uint32_t obj) { anim_25fc2(m, obj); }
+
+int32_t floorZ(Mem &m, uint32_t obj) {
+  m.ww(CELL_Y, 0xffff);
+  m.ww(CELL_X, 0xffff);
+  posupd_1bab2(m, obj);
+  return height_1cc62(m);
+}
+
+// 0x285b0 (helper-285b0.ts): points 0x23cd4[k] via 0x28608 (+0xbc, flag 0x40039c), score
+// text 0x23cf6[k] shown (+0xd4, +0x68/+0x69/+0x70/+0xd8)
+void score(Mem &m, uint32_t player, uint8_t k) {
+  m.wl(player + SCORE, m.rl(player + SCORE) + (uint32_t)(int32_t)s16(m.romw(SCORES + 2 * k)));
+  const uint8_t bit = m.rb(player + PLAYER_NO) & 0x3f;
+  if (bit < 8) { m.wb(SCORED, m.rb(SCORED) | (uint8_t)(1u << bit)); }
+  m.wl(player + SCORE_TEXT, m.roml(SCORE_TEXTS + 4 * k));
+  m.wb(player + SCORE_TEXT_ON, 0);
+  m.wb(player + SCORE_SHOWN, 0);
+  m.wb(player + SCORE_FLAG, 0xff);
+  m.wb(player + SCORE_WAIT, 1);
+}
 
 }  // namespace marble_physics
 

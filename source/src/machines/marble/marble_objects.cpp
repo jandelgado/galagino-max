@@ -1,4 +1,5 @@
 #include "marble_objects.h"
+#include "marble_enemies.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -639,7 +640,9 @@ void slots_29cce(Mem &m, uint32_t a2) {
 void cameraBands(Mem &m, int16_t oldCam, int16_t newCam) {
   const int16_t top = (int16_t)m.romw(m.desc() + DESC_TOP);
   const int16_t a = (int16_t)(oldCam - top) >> 4, b = (int16_t)(newCam - top) >> 4;
-  if ((a & 0xff) != (b & 0xff)) { spawn_12dfa(m, a, b); }
+  if ((a & 0xff) == (b & 0xff)) { return; }
+  marble_enemies::cameraBands(m, a, b);  // 0x15a12 steelies before the slots
+  spawn_12dfa(m, a, b);
 }
 
 // 0x12fd0: per tick slot update: intermediate wave trigger, dynamic code reload (0x11ac2)

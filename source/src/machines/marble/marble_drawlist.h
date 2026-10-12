@@ -30,6 +30,7 @@ uint8_t build(const marble_physics::Mem &m, int16_t cam, int16_t cullMargin,
 void init(marble_physics::Mem &m);
 void insert(marble_physics::Mem &m, uint32_t obj, uint8_t type);
 void remove(marble_physics::Mem &m, uint32_t obj);  // type from obj +0x1f
+void remove(marble_physics::Mem &m, uint32_t obj, uint8_t type);  // enemies (no +0x1f type)
 void sort(marble_physics::Mem &m);
 
 }  // namespace marble_drawlist

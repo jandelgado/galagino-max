@@ -22,8 +22,10 @@
 //                             arcade. Call it where the physics does not run.
 //
 // Level object slots (marble_objects.h): 0x29cce runs inside the physics, startRace spawns
-// the first slots. Not ported (Phase 4): enemies and object collision, states 3, 5, 7-0xb,
-// the race timer (time out 0x1bbaa), sprite dots 0x1c014, zone hook 0x13966, sounds.
+// the first slots. Steelies (marble_enemies.h) run the same object physics: pair collision
+// 0x1bc88, non-player landing and loss go to marble_enemies. Not ported (Phase 4): other
+// enemies, states 3, 5, 7-0xb, the race timer (time out 0x1bbaa), sprite dots 0x1c014, zone
+// hook 0x13966, sounds.
 namespace marble_physics {
 
 static const uint32_t PLAYER = 0x400018;  // player 1 object
@@ -58,8 +60,29 @@ inline int16_t sy(const Mem &m) {
 }
 
 // 0x1b9cc: +0x1e/+0x20 (camera reads +0x20), older pairs +0x22, +0x26. A position equal to
-// one of the stored pairs is not written.
+// one of the stored pairs is not written. REFETCH reloads the terrain cell first.
+enum Refetch : uint8_t { KEEP_CELL, REFETCH };
 void project(Mem &m);
+void project(Mem &m, uint32_t obj, Refetch r);
+
+// Object helpers for the enemies (marble_enemies.cpp), ports named by ROM address:
+//   isPlayer(obj)            player 1 or 2 object
+//   move(m, obj)             0x121b8 object physics (players: zones, gravity too)
+//   ground(m, obj)           0x253bc ground surface code
+//   speedCap(m, obj)         0x26196 speed cap (players: distance score 0x26214)
+//   floorZ(m, obj)           0x1bab2 with the cell refetched, then 0x1cc62: floor z
+//   enterState(m, obj, s)    0x25bae state entry (BROKEN, LOST)
+//   animate(m, obj)          0x25fc2 animation step of +0x5a; a shattering steelie leaves
+//                            the draw list at the end
+//   score(m, player, k)      0x285b0 points entry k
+bool isPlayer(uint32_t obj);
+void move(Mem &m, uint32_t obj);
+void ground(Mem &m, uint32_t obj);
+void speedCap(Mem &m, uint32_t obj);
+int32_t floorZ(Mem &m, uint32_t obj);
+void enterState(Mem &m, uint32_t obj, State s);
+void animate(Mem &m, uint32_t obj);
+void score(Mem &m, uint32_t player, uint8_t k);
 
 }  // namespace marble_physics
 

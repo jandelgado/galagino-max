@@ -4,6 +4,7 @@
 
 #include "marble_camera.h"
 #include "marble_drawlist.h"
+#include "marble_enemies.h"
 #include "marble_objects.h"
 #include "marble_occlusion.h"
 #include "marble_physics.h"
@@ -69,8 +70,8 @@ void marble::beginRace(uint8_t n) {
 }
 
 // one 30 Hz logic tick: queued animation frame 0x1344c, camera 0x13ee6 with the band spawns
-// 0x144e4 before the player update (0x10fce), the slot update 0x12fd0, rng 0x118a4, then
-// the MO list 0x26f3e
+// 0x144e4 before the player update (0x10fce), steelies 0x158cc, the slot update 0x12fd0,
+// rng 0x118a4, then the MO list 0x26f3e
 void marble::logicTick(uint32_t keys) {
   int8_t c6 = 0, c7 = 0;
   if (!(keys & BUTTON_EXTRA)) { stick(keys, c6, c7); }  // EXTRA + UP/DOWN is volume
@@ -79,11 +80,19 @@ void marble::logicTick(uint32_t keys) {
   marble_objects::applyQueued(m);
 
   const int16_t oldCam = m.sw(marble_physics::CAMERA);
+  const uint32_t oldL = m.rl(marble_physics::CAMERA_L);
   marble_camera::tick(m);
   const int16_t newCam = m.sw(marble_physics::CAMERA);
-  if (newCam != oldCam) { marble_objects::cameraBands(m, oldCam, newCam); }
+  if (newCam != oldCam) {
+    // 0x13ee6 spawns before it stores the new camera: a new steelie projects with the old
+    const uint32_t newL = m.rl(marble_physics::CAMERA_L);
+    m.wl(marble_physics::CAMERA_L, oldL);
+    marble_objects::cameraBands(m, oldCam, newCam);
+    m.wl(marble_physics::CAMERA_L, newL);
+  }
 
   marble_physics::tick(m, c6, c7);
+  marble_enemies::update(m);
   marble_objects::update(m);
   marble_rng::rng(m, RNG_TICK);  // result unused
   marble_drawlist::sort(m);  // 0x26f3e head

@@ -15,6 +15,7 @@
 #include "../../src/machines/marble/marble_mem.cpp"
 #include "../../src/machines/marble/marble_rng.cpp"
 #include "../../src/machines/marble/marble_physics.cpp"
+#include "../../src/machines/marble/marble_enemies.cpp"
 #include "../../src/machines/marble/marble_objects.cpp"
 #include "../../src/machines/marble/marble_occlusion.cpp"
 #include "../../src/machines/marble/marble_drawlist.cpp"
@@ -86,14 +87,16 @@ static const char *diff(const Mem &m, const MarbleDeathTick &t) {
 }
 
 // One main loop tick as marble_sim.py main_tick: 0x400010 and the camera long are inputs (the
-// race timer is not run), then 0x1344c, band spawns, player 0x251de, slots 0x12fd0, rng.
+// race timer is not run), then 0x1344c, band spawns (before the camera store), player
+// 0x251de, steelies 0x158cc, slots 0x12fd0, rng.
 static void mainTick(Mem &m, int8_t c6, int8_t c7, uint32_t camera, uint32_t frames) {
   m.wl(marble_physics::FRAMES, frames);
   marble_objects::applyQueued(m);
   const uint16_t old = m.rw(marble_physics::CAMERA);
-  m.wl(marble_physics::CAMERA_L, camera);
   if ((uint16_t)camera != old) { marble_objects::cameraBands(m, old, (int16_t)camera); }
+  m.wl(marble_physics::CAMERA_L, camera);
   marble_physics::tick(m, c6, c7);
+  marble_enemies::update(m);
   marble_objects::update(m);
   marble_rng::rng(m, RNG_TICK);
 }
@@ -312,10 +315,17 @@ static void logicTick(Mem &m) {
   m.wl(marble_physics::FRAMES, m.rl(marble_physics::FRAMES) + 1);
   marble_objects::applyQueued(m);
   const int16_t oldCam = m.sw(marble_physics::CAMERA);
+  const uint32_t oldL = m.rl(marble_physics::CAMERA_L);
   marble_camera::tick(m);
   const int16_t newCam = m.sw(marble_physics::CAMERA);
-  if (newCam != oldCam) { marble_objects::cameraBands(m, oldCam, newCam); }
+  if (newCam != oldCam) {  // as marble.cpp: spawns before the camera store
+    const uint32_t newL = m.rl(marble_physics::CAMERA_L);
+    m.wl(marble_physics::CAMERA_L, oldL);
+    marble_objects::cameraBands(m, oldCam, newCam);
+    m.wl(marble_physics::CAMERA_L, newL);
+  }
   marble_physics::tick(m, 0, 0);
+  marble_enemies::update(m);
   marble_objects::update(m);
   marble_rng::rng(m, RNG_TICK);
   marble_drawlist::sort(m);
