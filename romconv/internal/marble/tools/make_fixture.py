@@ -1354,8 +1354,8 @@ def start_run(race, goal):
     """begin_race, then START_TICKS main_ticks with START_INPUT at the start camera, or (goal)
     the goal placement and GOAL_TICKS idle main_ticks. Returns (camera, crc per tick, crc
     after the start, states seen)."""
-    m = ms.Mem(ms.Terrain(race), bytearray(0x2000))
-    m.deaths = m.objects = m.sprites = True
+    import marble_enemy
+    m = marble_enemy.setup(ms.Mem(ms.Terrain(race), bytearray(0x2000)))  # all enemies, as the remake
     ms.begin_race(m, race)
     crc0 = start_crc(m)
     cam = place_goal(m, race) if goal else m.rl(0x40097c)

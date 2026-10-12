@@ -5,6 +5,7 @@
 #include "marble_slinkies.h"
 #include "marble_acid.h"
 #include "marble_birds.h"
+#include "marble_minis.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -331,6 +332,7 @@ void init(Mem &m) {
   slinkyInit(m);
   acidInit(m);
   birdInit(m);
+  miniInit(m);
 }
 
 // Spawn a steelie for every entry of 0x22706[race] whose band lo or hi is entered from
@@ -366,6 +368,7 @@ void cameraBands(Mem &m, int16_t oldBand, int16_t newBand) {
 }
 
 void sillyBands(Mem &m, int16_t oldBand, int16_t newBand) {
+  miniBands(m, s8((uint32_t)oldBand), s8((uint32_t)newBand));
   birdBands(m, s8((uint32_t)oldBand), s8((uint32_t)newBand));
 }
 
@@ -373,6 +376,7 @@ void update(Mem &m) {
   for (uint8_t i = 0; i < NSTEELIES; i++) { update_158f6(m, steelie(i)); }
   slinkies_1493c(m);
   acid_17230(m);
+  minis_1912c(m);
   birds_19baa(m);
 }
 

@@ -19,6 +19,7 @@
 #include "../../src/machines/marble/marble_slinkies.cpp"
 #include "../../src/machines/marble/marble_acid.cpp"
 #include "../../src/machines/marble/marble_birds.cpp"
+#include "../../src/machines/marble/marble_minis.cpp"
 #include "../../src/machines/marble/marble_objects.cpp"
 #include "../../src/machines/marble/marble_occlusion.cpp"
 #include "../../src/machines/marble/marble_drawlist.cpp"
@@ -545,15 +546,17 @@ static void test_start_and_goal(void) {
   }
 }
 
-// RNG consumers of the race start (0x10fb8 byte, random slot groups): model start_race on a
-// cleared work RAM gives 0x4003a6 = 0x0102, 0x400444 = 2, 0x40076c = 1 in every race
+// RNG consumers of the race start (0x10fb8 byte, random slot groups, the silly race minis):
+// model start_race on a cleared work RAM gives 0x4003a6 = 0x0102, 0x400444 = 2 in every race
+// but silly (0xcf09, 9; MAME 0x400444 = 9 as well), 0x40076c = 1
 static void test_race_start_rng(void) {
   static const uint32_t TIMEOUT_RND = 0x400444, TIMEOUT_ARMED = 0x40076c;
+  static const uint8_t SILLY = 4;
   for (uint8_t race = 0; race < RACES; race++) {
     beginRace(race);
     Mem m(ram, race);
-    TEST_ASSERT_EQUAL_HEX16(0x0102, m.rw(RNG));
-    TEST_ASSERT_EQUAL_HEX8(2, m.rb(TIMEOUT_RND));
+    TEST_ASSERT_EQUAL_HEX16(race == SILLY ? 0xcf09 : 0x0102, m.rw(RNG));
+    TEST_ASSERT_EQUAL_HEX8(race == SILLY ? 9 : 2, m.rb(TIMEOUT_RND));
     TEST_ASSERT_EQUAL_HEX8(1, m.rb(TIMEOUT_ARMED));
   }
 }

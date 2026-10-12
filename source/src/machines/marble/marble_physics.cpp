@@ -769,13 +769,14 @@ void physics_121b8(Mem &m, uint32_t a2) {
   if (m.rb(a2 + SURFACE) == 0xa || m.rb(a2 + STATE) == LOST) { return; }
 
   // 0x1239c: cell refresh after slot hits, 0x1bc88 object pair collision; then the player
-  // only contacts (slinkies 0x14e92, acid 0x175c8, birds 0x19d94; 0x1881c pistons and
-  // 0x1924e minis not ported) and zones; a carried player skips the zones
+  // only contacts (slinkies 0x14e92, acid 0x175c8, minis 0x1924e, birds 0x19d94; 0x1881c
+  // pistons not ported) and zones; a carried player skips the zones
   if (m.rb(HIT_X) || m.rb(HIT_Y)) { posupd_1bab2(m, a2); }
   if (marble_enemies::pair_1bc88(m, a2)) { posupd_1bab2(m, a2); }
   if (pl) {
     marble_enemies::contact_14e92(m, a2);
     if (marble_enemies::contact_175c8(m, a2)) { posupd_1bab2(m, a2); }
+    marble_enemies::contact_1924e(m, a2);
     marble_enemies::contact_19d94(m, a2);
     if (m.rb(a2 + STATE) == CARRIED) { return; }
     zones_1365c(m, a2);

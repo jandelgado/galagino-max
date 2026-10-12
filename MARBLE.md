@@ -285,7 +285,8 @@ Not ported: dots 0x1c014/0x25b40, zone hook 0x13966, time out 0x1bbaa (state 8; 
 race timer), +0xd8 wobble, sounds. Host test `test_marble_deaths`: the death fixture per
 tick (player fields, +0x5a, frame headers, masks, RNG; score, distance, death count at
 segment ends, from the traces); race start RNG; start fixture `marble_start_trace.h`
-(`make_fixture.py rwrite`, model only): per race beginRace + 60 ticks of stick input, and a
+(`make_fixture.py rwrite`, model only, all modelled enemies on since Phase 4b-4b: the silly
+start spawns the minis, which use the RNG): per race beginRace + 60 ticks of stick input, and a
 goal crossing (marble on the first goal line, 300 idle ticks: goal, out of play, one +0x57
 wrap), crc32 of player 1 (dots +0x74-+0xbb, +0xca zeroed) and 0x4003a6 per tick; every race
 kills the marble through the machine's start and tick path (200 px fall and 20 px embedded:
@@ -1721,6 +1722,14 @@ clear, birds, carry, mini respawn), b2, the tube traces t3/t5/t6 (297/297/373) a
 `$TMPDIR/mn` m1/m2 (marble in the field, kind 1 throughout: 346/345), m3 (placed on an acid
 mini: collected, 249), m4 (on a steelie mini: it flees, 242). Sweep: silly 2 spawns, 2
 clears, longest draw list 19 (minis and birds). Old commands stay exact with minis on.
+
+C++ (`marble_minis.{h,cpp}`, 1:1 port of `marble_mini.py`, internals in namespace
+`marble_minis`): `marble_enemies` forwards `init`, `sillyBands` (minis before the bird flag),
+`update` (after the acid) and `contact_1924e` (`physics_121b8`, players, before the birds).
+Host test `test_marble_minis`: fixture replay (player, minis, draw list in order, RNG), race
+sweep (all nine live exactly in the band; silly 2 spawns, 2 clears), a collect at the race
+start and a race switch. The race start RNG test expects silly 0xcf09 / 0x400444 = 9 (MAME:
+9).
 
 Mini fixture `source/test/test_marble_minis/marble_minis_trace.h` (`make_fixture.py
 mnwrite`): b1 702 (98 ticks, wander), m3 1000 (120, kind 1, collect), b1 1301 (98, respawn
