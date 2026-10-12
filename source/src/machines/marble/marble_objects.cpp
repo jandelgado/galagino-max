@@ -816,6 +816,153 @@ bool tubeWall(Mem &m, uint32_t a2, uint32_t s, uint8_t tag, int16_t d1, int16_t 
   return false;
 }
 
+// Aerial objects (Marble Love sub-29cce.ts runCatapult0A, runGate0B/0D, runBounce0C; MARBLE.md
+// "Aerial objects"): vacuum gates 0x0b/0x0d pull and catch the marble (CAUGHT), the catapult
+// 0x0a throws it, bounce boxes (TAG_CROWD) make it dizzy
+static const uint8_t TAG_CATAPULT = 0x0a, TAG_GATE_B = 0x0b, TAG_GATE_D = 0x0d;
+static const uint32_t GATE_OPEN_B = 0x22016, GATE_OPEN_D = 0x220a6;    // ANIM2 while sucking
+static const uint32_t GATE_CLOSE_B = 0x1d752, GATE_CLOSE_D = 0x1d798;  // 0x13892, 0x2563e
+static const uint32_t CATAPULT_SCRIPT = 0x1db80;
+static const uint16_t GATE_TOP = 0x3fc4;      // z word: the gate frame is above
+static const uint8_t CAUGHT_TICKS = 0x20;     // +0x57: length of CAUGHT
+static const uint8_t THROW_TICKS = 0x0f;      // +0x59: catapult TUBE state length
+static const uint32_t THROW_DZ = 0x30000, THROW_VZ = 0xa0000;
+static const uint16_t THROW_VX = 0x2000, THROW_VY = 0xa000;  // rng ranges
+static const int32_t THROW_VY0 = -0x25000;
+static const uint8_t BOX_DAMAGE = 0x3c, BOX_MARGIN = 3;
+static const uint8_t P_DIZZY_CNT = 0x56, P_ANIM = 0x5a, P_ANIM_5F = 0x5f, P_ANIM_60 = 0x60;
+static const uint32_t ANIM_DIZZY = 0x20faa;
+static const uint8_t ANIM_RATE = 2, EMBEDDED = 0x65;
+
+// x0 <= x < x1 and y0 <= y < y1
+inline bool within(int16_t x, int16_t y, int16_t x0, int16_t x1, int16_t y0, int16_t y1) {
+  return x0 <= x && x < x1 && y0 <= y && y < y1;
+}
+
+// 0x29cce distance: max + 3/8 min of |dx| * 16, |dy| * 16 (word)
+uint16_t distance(int16_t dx, int16_t dy) {
+  const uint16_t ax = (uint16_t)(absl(dx) << 4), ay = (uint16_t)(absl(dy) << 4);
+  return ax > ay ? (uint16_t)((ay >> 3) * 3 + ax) : (uint16_t)((ax >> 3) * 3 + ay);
+}
+
+// (dx, dy) / distance * 0x1000 (divs.w), 0 when the distance is 0
+void unit(int16_t dx, int16_t dy, int16_t &ux, int16_t &uy) {
+  const int32_t d = distance(dx, dy);
+  ux = d ? (int16_t)(((int32_t)dx << 16) / d) : 0;
+  uy = d ? (int16_t)(((int32_t)dy << 16) / d) : 0;
+}
+
+// the slot relative to the marble's position before the move
+void oldDelta(const Mem &m, uint32_t s, int16_t &d6, int16_t &a0) {
+  d6 = s16((uint32_t)(m.rw(s + PX) - m.rw(OLD_X)));
+  a0 = s16((uint32_t)(m.rw(s + PY) - m.rw(OLD_Y)));
+}
+
+// 0x29e22: on the idle arm (|d| < 8 px, no vertical speed) the marble is thrown (TUBE with
+// +0x58 the tag, the arm script runs); while the arm moves the marble keeps its old position.
+// Not ported: two players (the partner waits on the arm).
+void catapult(Mem &m, uint32_t a2, uint32_t s, int16_t d6, int16_t a0) {
+  if (!within(d6, a0, -7, 8, -7, 8) || m.rl(a2 + P_VZ)) { return; }
+  if (m.rl(s + ANIM) != m.rl(s + ANIM2) || m.rw(s + COUNT)) {
+    m.wl(a2 + P_PX, m.rl(OLD_X));
+    m.wl(a2 + P_PY, m.rl(OLD_Y));
+    return;
+  }
+
+  m.wl(a2 + P_PX, m.rl(s + PX));
+  m.wl(a2 + P_PY, m.rl(s + PY));
+  m.wl(a2 + P_PZ, m.rl(a2 + P_PZ) - THROW_DZ);
+  m.wl(a2 + P_VZ, THROW_VZ);
+  m.wl(a2 + P_VX, (uint32_t)((int32_t)marble_rng::rng(m, THROW_VX) - (THROW_VX >> 1)));
+  m.wl(a2 + P_VY, (uint32_t)(THROW_VY0 - (int32_t)marble_rng::rng(m, THROW_VY)));
+  m.wb(a2 + P_AIR, AIRBORNE);  // sound 0x15884
+  m.wb(a2 + P_STATE, marble_physics::TUBE);
+  m.wb(a2 + P_SURFACE, m.rb(s + TAG));
+  m.wb(a2 + P_SURFACE_T, THROW_TICKS);
+  m.wl(s + PC, CATAPULT_SCRIPT);
+  script_12896(m, s);
+}
+
+// gate frame (0x0b box; 0x0d transposed, ROM 0x2ae1a) below GATE_TOP: inside it before the
+// move too (0x0b box for both, 0x2ae42): lost; else both axes bounce. The arcade's 0x0d path
+// reads the old deltas from stale frame locals; computed here, as in the model.
+void gateFrame(Mem &m, uint32_t a2, uint32_t s, uint8_t tag, int16_t d6, int16_t a0) {
+  const int16_t fx = tag == TAG_GATE_B ? d6 : a0, fy = tag == TAG_GATE_B ? a0 : d6;
+  if (!within(fx, fy, -0xc, 0x1c, -8, 0x10) || m.rw(POS_Z) >= GATE_TOP) { return; }
+
+  int16_t pd6, pa0;
+  oldDelta(m, s, pd6, pa0);
+  if (within(pd6, pa0, -0xc, 0x1c, -8, 0x10) && m.rw(OLD_Z) < GATE_TOP) {
+    m.wb(a2 + P_DAMAGE, EMBEDDED);
+    marble_physics::enterState(m, a2, marble_physics::LOST);
+    return;
+  }
+  m.wb(HIT_X, 1);
+  m.wb(HIT_Y, 1);
+}
+
+// 0x2ab88 / 0x2ad20: while the gate sucks, its mouth pulls the marble to the centre (v += 4 x
+// the unit vector); in the centre it is caught (CAUGHT, +0x58 the slot number); else the frame
+void gate(Mem &m, uint32_t a2, uint32_t s, uint8_t tag, int16_t d6, int16_t a0) {
+  const bool b = tag == TAG_GATE_B;
+  if (!m.rb(s + STATE) || m.rl(s + ANIM2) != (b ? GATE_OPEN_B : GATE_OPEN_D)) { return; }
+
+  const bool mouth = b ? within(d6, a0, -0xc, 0x1c, -0x20, -8) : within(d6, a0, -0x20, -8, -0xc, 0x1c);
+  if (!mouth) {
+    gateFrame(m, a2, s, tag, d6, a0);
+    return;
+  }
+  const bool centre = b ? within(d6, a0, 0, 0x10, -0xf, -9) : within(d6, a0, -0xf, -9, 0, 0x10);
+  if (centre) {
+    m.wb(a2 + P_STATE, marble_physics::CAUGHT);
+    m.wb(a2 + P_DAMAGE, CAUGHT_TICKS);
+    m.wb(a2 + P_SURFACE, m.rb(s + IDX));
+    return;
+  }
+
+  int16_t ux, uy;
+  unit(b ? d6 - 8 : d6 + 0xc, b ? a0 + 0xc : a0 - 8, ux, uy);
+  m.wl(a2 + P_VX, m.rl(a2 + P_VX) + (uint32_t)((int32_t)ux << 2));
+  m.wl(a2 + P_VY, m.rl(a2 + P_VY) + (uint32_t)((int32_t)uy << 2));
+}
+
+// 0x2a9a2: the moving box's MO frame (bytes x, y, w, h at +4) widened by BOX_MARGIN: entering
+// it bounces both axes; already inside: pushed away from its centre, dizzy (0x25c74, fall 0)
+void bounceBox(Mem &m, uint32_t a2, uint32_t s, int16_t d6, int16_t a0) {
+  if (!m.rb(s + STATE)) { return; }
+
+  const uint32_t rec = gl(m, m.rl(s + ANIM));
+  const int16_t x0 = s8(m.romb(rec + 4)), y0 = s8(m.romb(rec + 5));
+  const int16_t x1 = x0 + s8(m.romb(rec + 6)), y1 = y0 + s8(m.romb(rec + 7));
+  const int16_t lx = -(x1 + BOX_MARGIN), hx = -(x0 - BOX_MARGIN);
+  const int16_t ly = -(y1 + BOX_MARGIN), hy = -(y0 - BOX_MARGIN);
+  if (!within(d6, a0, lx, hx, ly, hy)) { return; }
+
+  int16_t pd6, pa0;
+  oldDelta(m, s, pd6, pa0);
+  if (!within(pd6, pa0, lx, hx, ly, hy)) {
+    m.wb(HIT_Y, 1);
+    m.wb(HIT_X, 1);
+    return;
+  }
+
+  static const int16_t STRAIGHT = 0x1000;  // distance 0: pushed +x
+  const int16_t dx = d6 + 4, dy = a0 + 4;
+  int16_t ux = STRAIGHT, uy = 0;
+  if (distance(dx, dy)) { unit((int16_t)-dx, (int16_t)-dy, ux, uy); }
+  m.wl(a2 + P_VX, (uint32_t)((int32_t)ux << 6));
+  m.wl(a2 + P_VY, (uint32_t)((int32_t)uy << 6));
+  if (m.rb(a2 + P_STATE) != marble_physics::DIZZY) {  // sound 0x39
+    m.wb(a2 + P_ANIM_5F, 0);
+    m.wb(a2 + P_ANIM_60, ANIM_RATE);
+    m.wl(a2 + P_ANIM, ANIM_DIZZY);
+  }
+  m.wb(a2 + P_STATE, marble_physics::DIZZY);
+  marble_physics::land(m, a2, 0);
+  m.wb(a2 + P_DAMAGE, BOX_DAMAGE);
+  m.wb(a2 + P_DIZZY_CNT, 0);
+}
+
 // one slot against object a2 (0x29cce loop body); true: leave 0x29cce without the epilogue
 bool contact(Mem &m, uint32_t a2, uint32_t s, int32_t vx, int32_t vy) {
   const int16_t mcx = m.sw(CELL_X), mcy = m.sw(CELL_Y), mx = m.sw(POS_X), my = m.sw(POS_Y);
@@ -864,6 +1011,18 @@ bool contact(Mem &m, uint32_t a2, uint32_t s, int32_t vx, int32_t vy) {
     funnel_22(m, a2, s, d1, d2, z);
     return false;
   }
+  if (tag == TAG_CATAPULT) {
+    catapult(m, a2, s, d6, a0);
+    return false;
+  }
+  if (tag == TAG_CROWD) {
+    bounceBox(m, a2, s, d6, a0);
+    return false;
+  }
+  if (tag == TAG_GATE_B || tag == TAG_GATE_D) {
+    gate(m, a2, s, (uint8_t)tag, d6, a0);
+    return false;
+  }
 
   if (tag == TAG_POST) {  // round post: |d| < 3.5 px reflects both axes
     const uint16_t ax = (uint16_t)(absl(d6) << 4), ay = (uint16_t)(absl(a0) << 4);
@@ -884,7 +1043,8 @@ bool contact(Mem &m, uint32_t a2, uint32_t s, int32_t vx, int32_t vy) {
 
 // 0x29cce: collision with the level object slots. Ported: wall segments (0x1a-0x1f), round
 // posts (0x05, Marble Love sub-29cce.ts), cell rectangles that set the surface code +0x58,
-// the tubes 0x12-0x16 and 0x20-0x27. Not ported: 0x0a catapult, 0x0b/0x0d aerial gates, 0x0c.
+// the tubes 0x12-0x16 and 0x20-0x27, the aerial catapult 0x0a, gates 0x0b/0x0d and bounce
+// boxes 0x0c.
 void slots_29cce(Mem &m, uint32_t a2) {
   const int32_t vx = m.sl(a2 + P_VX), vy = m.sl(a2 + P_VY);
   m.wb(a2 + P_SURFACE, 0);
@@ -965,9 +1125,7 @@ void applyQueued(Mem &m) {
 uint32_t lastPatch(const Mem &m) { return m.rl(PATCHED); }
 
 // gates (aerial): their scripts restart on zone hooks
-static const uint8_t TAG_GATE_B = 0x0b, TAG_GATE_D = 0x0d;
 static const uint32_t GATE_WAIT_B = 0x1d766, GATE_WAIT_D = 0x1d7ac;    // 0x13966
-static const uint32_t GATE_CLOSE_B = 0x1d752, GATE_CLOSE_D = 0x1d798;  // 0x13892
 
 // 0x13966 slot part: zone wait slots of `zone` restart their script (gates from their wait
 // script; sounds 0x1ef42 not ported)
@@ -998,6 +1156,13 @@ void zone4_13892(Mem &m) {
     m.wl(a + PC, tag == TAG_GATE_B ? GATE_CLOSE_B : GATE_CLOSE_D);
     script_12896(m, a);
   }
+}
+
+// 0x2563e end: the gate that caught the marble closes (sound 0x1ef5a not ported)
+void closeGate(Mem &m, uint8_t slot) {
+  const uint32_t a = slotAddr(slot);
+  m.wl(a + PC, m.rb(a + TAG) == TAG_GATE_B ? GATE_CLOSE_B : GATE_CLOSE_D);
+  script_12896(m, a);
 }
 
 // level init 0x105a0-0x10614 (slot part): camera at the race top (silly: bottom), spawn the

@@ -22,6 +22,8 @@
 //       HIDDEN  inside a slinky (0x25812) until it sends the player LOST
 //       DISSOLVING  in acid (0x2584e): slides into it, dissolve animation, then LOST
 //       CARRIED  carried off by a bird (0x25876): orbit, then LOST
+//       CAUGHT  sucked into an aerial gate (0x2563e): stars 0x13d38, the gate closes, then
+//               LOST where it was caught
 //   project(m)                screen position 0x1b9cc of the player. The physics tail calls
 //                             it; ticks that return early keep the stored value, as in the
 //                             arcade. Call it where the physics does not run.
@@ -31,7 +33,7 @@
 // 0x1bc88, non-player landing and loss go to marble_enemies; the player's physics also runs
 // the slinky contact 0x14e92, the acid contact 0x175c8, the piston contact 0x1881c, the mini
 // contact 0x1924e and the bird contact 0x19d94; zone changes and respawns run the zone hook
-// 0x13966 (pistons 0x186ac, zone wait slots). Not ported (Phase 4): states 8, 0xa, the race
+// 0x13966 (pistons 0x186ac, zone wait slots). Not ported (Phase 4): state 8, the race
 // timer (time out 0x1bbaa), sprite dots 0x1c014, sounds.
 namespace marble_physics {
 
@@ -40,7 +42,7 @@ static const uint32_t PLAYER = 0x400018;  // player 1 object
 // player state +0x1a (handler table 0x254ba)
 enum State : uint8_t {
   ROLL = 0, DIZZY = 1, BROKEN = 2, TUBE = 3, LOST = 4, EATEN = 5, GOAL = 6, HIDDEN = 7,
-  DISSOLVING = 9,
+  DISSOLVING = 9, CAUGHT = 0xa,
   CARRIED = 0xb
 };
 static const uint8_t CARRIED_DAMAGE = 0x66;  // +0x57 a bird sets: orbit length of CARRIED
@@ -89,6 +91,7 @@ void project(Mem &m, uint32_t obj, Refetch r);
 //                            derived (0x1bb50), no fetch
 //   drag(m, obj)             0x25e7c mode 2: velocity friction of a pushed slinky
 //   enterState(m, obj, s)    0x25bae state entry (BROKEN, LOST, DISSOLVING)
+//   land(m, player, fall)    0x25c74 player landing: DIZZY, or broken by the damage +0x57
 //   blocked(m, obj, x, y, r) 0x17cb8: another live object near pixel (x, y), 0 if none
 //   animate(m, obj)          0x25fc2 animation step of +0x5a; a shattering steelie leaves
 //                            the draw list at the end
@@ -102,6 +105,7 @@ int32_t cellHeight(Mem &m, uint32_t obj);
 void cellScratch(Mem &m, int16_t x, int16_t y);
 void drag(Mem &m, uint32_t obj);
 void enterState(Mem &m, uint32_t obj, State s);
+void land(Mem &m, uint32_t player, int16_t fall);
 uint8_t blocked(Mem &m, uint32_t obj, int16_t x, int16_t y, uint16_t r);
 void animate(Mem &m, uint32_t obj);
 void score(Mem &m, uint32_t player, uint8_t k);

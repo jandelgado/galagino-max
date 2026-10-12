@@ -1388,8 +1388,68 @@ void carried_25876(Mem &m, uint32_t a2) {
   enter_25bae(m, a2, LOST);
 }
 
+// 0x13d38: 8 stars (code STAR_CODE + k) on the way from the screen position to the gate's
+// mouth and on into the gate (slot +0x4e, offset by the gate kind), moving one star step per
+// 2 ticks; first 4 to +0xa4, next 4 to +0x38. +0x57 counts down; true when it reaches 0.
+bool suck_13d38(Mem &m, uint32_t a2) {
+  static const uint32_t SLOT_LIST = 0x1f016;  // slot addresses by number (+0x58)
+  static const uint8_t G_TAG = 0x1f, G_SCREEN = 0x4e, GATE_D = 0x0d;
+  static const int16_t D_X = -5, B_X = 3, G_Y = 5, MOUTH_X = 0x1c, MOUTH_Y = -0xe;
+  static const int16_t STEPS_IN = 8, MOUTH_STEP = 4;  // star step: out of sight, at the mouth
+  const int16_t d2 = (int16_t)(0x20 - m.sb(a2 + DAMAGE));
+  m.wb(a2 + DAMAGE, m.rb(a2 + DAMAGE) - 1);
+
+  const uint32_t g = m.roml(SLOT_LIST + 4 * m.sb(a2 + SURFACE));
+  const bool d = m.rb(g + G_TAG) == GATE_D;
+  const int16_t gx = (int16_t)(m.sw(g + G_SCREEN) + (d ? D_X : B_X));
+  const int16_t gy = (int16_t)(m.sw(g + G_SCREEN + 2) + G_Y);
+  const int16_t ex = (int16_t)(gx + (d ? -MOUTH_X : MOUTH_X)), ey = (int16_t)(gy + MOUTH_Y);
+  const int16_t mx = m.sw(a2 + SCREEN), my = m.sw(a2 + SCREEN + 2);
+  const int16_t ax = (int16_t)(ex - mx), ay = (int16_t)(ey - my);  // marble to the mouth
+  const int16_t bx = (int16_t)(gx - ex), by = (int16_t)(gy - ey);  // mouth to the gate
+  for (uint8_t k = 0; k < STAR_SLOTS; k++) {
+    m.ww(a2 + MASKS + 6 * k, 0);
+    m.ww(a2 + STARS + 6 * k, 0);
+  }
+
+  uint8_t n = 0;
+  for (uint8_t k = 0; k < STAR_N; k++) {
+    const int16_t d1 = (int16_t)(d2 - 2 * k);
+    if (d1 >= STEPS_IN) { continue; }
+
+    int16_t x = mx, y = my;
+    if (d1 >= MOUTH_STEP) {
+      x = (int16_t)((((int32_t)(d1 - MOUTH_STEP) * bx) >> 2) + ex);
+      y = (int16_t)((((int32_t)(d1 - MOUTH_STEP) * by) >> 2) + ey);
+    } else if (d1 >= 0) {
+      x = (int16_t)((((int32_t)d1 * ax) >> 2) + mx);
+      y = (int16_t)((((int32_t)d1 * ay) >> 2) + my);
+    }
+    const uint32_t e = n < STAR_SLOTS ? a2 + STARS + 6 * n : a2 + MASKS + 6 * (n - STAR_SLOTS);
+    n++;
+    m.ww(e, STAR_CODE + k);
+    m.ww(e + 2, (uint16_t)(s8(m.romb(STAR_STEPS + 2 * k)) + x));
+    m.ww(e + 4, (uint16_t)(s8(m.romb(STAR_STEPS + 2 * k + 1)) + y));
+  }
+  m.wb(a2 + VISIBLE, 1);
+  return m.rb(a2 + DAMAGE) == 0;
+}
+
+// 0x2563e: sucked into an aerial gate: projection, stars; then the gate closes (sound 0x3c),
+// death count + 1, LOST where it was caught (no 0x25bae: no new respawn point)
+void caught_2563e(Mem &m, uint32_t a2) {
+  proj_1b9cc(m, a2, REFETCH);
+  if (!suck_13d38(m, a2)) { return; }
+
+  marble_objects::closeGate(m, m.rb(a2 + SURFACE));
+  m.wl(a2 + ANIM, 0);
+  m.wb(a2 + STATE, LOST);
+  m.ww(a2 + DEATHS, m.rw(a2 + DEATHS) + 1);
+  m.wb(a2 + DAMAGE, EMBEDDED);
+}
+
 // 0x253ec: handler of state +0x1a (table 0x254ba). Not ported: +0xd8 wobble (silly minis),
-// states 8, 0xa.
+// state 8.
 void object_253ec(Mem &m, uint32_t a2) {
   switch (m.rb(a2 + STATE)) {
     case ROLL: roll_256d2(m, a2); break;
@@ -1402,6 +1462,7 @@ void object_253ec(Mem &m, uint32_t a2) {
     case HIDDEN: hidden_25812(m, a2); break;
     case DISSOLVING: dissolve_2584e(m, a2); break;
     case CARRIED: carried_25876(m, a2); break;
+    case CAUGHT: caught_2563e(m, a2); break;
     default: break;
   }
 }
@@ -1437,6 +1498,7 @@ void move(Mem &m, uint32_t obj) { physics_121b8(m, obj); }
 void ground(Mem &m, uint32_t obj) { ground_253bc(m, obj); }
 void speedCap(Mem &m, uint32_t obj) { speedcap_26196(m, obj); }
 void enterState(Mem &m, uint32_t obj, State s) { enter_25bae(m, obj, s); }
+void land(Mem &m, uint32_t player, int16_t fall) { land_25c74(m, player, fall); }
 uint8_t blocked(Mem &m, uint32_t obj, int16_t x, int16_t y, uint16_t r) {
   return blocked_17cb8(m, obj, x, y, r);
 }

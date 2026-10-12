@@ -20,10 +20,11 @@
 //                                 restart their script
 //   zone4_13892(m)                aerial zone 4 entry: zone wait slots removed, open gates
 //                                 closed again
+//   closeGate(m, slot)            a gate that caught the marble (slot number) closes:
+//                                 close script restarted (end of player state 0xa)
 //
 // Per logic tick: applyQueued, camera tick + cameraBands, physics::tick, update.
-// Not ported (Phase 4): tags 0x0a-0x0d, 0x12-0x16, 0x20, 0x21, 0x25-0x27 (tubes, gates,
-// catapult): their contact is ignored; spawners of enemies other than steelies; MO graphics of moving parts.
+// Not ported: two-player catapult wait.
 namespace marble_objects {
 
 void init(marble_physics::Mem &m, uint8_t race);
@@ -34,6 +35,7 @@ void slots_29cce(marble_physics::Mem &m, uint32_t a2);
 uint32_t lastPatch(const marble_physics::Mem &m);
 void zoneScripts(marble_physics::Mem &m, uint8_t zone);
 void zone4_13892(marble_physics::Mem &m);
+void closeGate(marble_physics::Mem &m, uint8_t slot);
 
 }  // namespace marble_objects
 

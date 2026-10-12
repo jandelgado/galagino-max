@@ -1983,10 +1983,25 @@ steelie on the aerial course differs, also without aerial objects: open); a13 (p
 804, -156 and 1640: 840, 800; "60:12:0,250:0:0,60:2:-6") zone 10, two bounce box hits, dizzy,
 lost. All other ticks equal. Not seen: 0x0d catch, gate frame loss.
 
+C++: `marble_objects.cpp` (`catapult`, `gate`, `gateFrame`, `bounceBox`, `closeGate`),
+`marble_physics.cpp` (state `CAUGHT`: `caught_2563e`, `suck_13d38`; `land` public for the
+bounce box), `marble_drawlist.cpp` (stars in `CAUGHT`). Fixture
+`source/test/test_marble_aerial/marble_aerial_trace.h` (`make_fixture.py awrite`, all enemies,
+replay `marble_sim.py afixture`): a5, a8, a9 1341 (140 ticks each), a10 1341 (139), a13 1643
+(210). `test_replay_aerial` replays it, `test_gate_catch` and `test_catapult` run the a5 and
+a10 moves through the machine start path. Flash +2428 B.
+
+```sh
+T=$TMPDIR/t4c
+python3 romconv/internal/marble/tools/make_fixture.py awrite \
+  source/test/test_marble_aerial/marble_aerial_trace.h 3:$T/a5/trace.bin:1341:140 \
+  3:$T/a8/trace.bin:1341:140 3:$T/a9/trace.bin:1341:140 3:$T/a10/trace.bin:1341:139 \
+  3:$T/a13/trace.bin:1643:210
+```
+
 ## Open questions
 
-- Level objects: tags 0x0a-0x0d modelled, not ported to C++ (section Aerial objects); playfield
-  patch decode of tag 0x19 rows. Section
+- Level objects: playfield patch decode of tag 0x19 rows. Section
   Level objects. Slot sprites: section Level object sprites (masks over slot MOs behind the
   marble not seen in traces).
 - Aerial steelie differs from MAME a10 at frame 1629 (+0x08 vz -0x6000 in MAME, -0xc000 in the
@@ -1995,7 +2010,7 @@ lost. All other ticks equal. Not seen: 0x0d catch, gate frame loss.
   trace of a slinky pulling the marble (0x15316, octant 0x70-0xc0), of bird/piston hits
   or of a steelie occluded by terrain (masks +0x38).
 - Deaths (section Player states, deaths, RNG): states 1/2/4/5/7/9 modelled, 1/2/4/5/7
-  ported; 3 (tubes, catapult), 0xa (gate) and 0xb (birds) modelled. Not modelled: 8 (time
+  ported; 3 (tubes, catapult), 0xa (gate) and 0xb (birds) modelled and ported. Not modelled: 8 (time
   out, 0x258a8), practice landing markers (type 0x2a, 0x12532, score 0x285b0),
   the race timer and other vblank IRQ work, two players, the main loop countdowns
   0x400768 (sound only)/0x4003b8. Not ported to C++: dots 0x1c014 / 0x25b40.
