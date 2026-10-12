@@ -1170,6 +1170,20 @@ columns 120, header ids 20, palette 16).
   (`marble_bird.sweep`, all races); whole tables: 0x1f0ba, spawn cells 0x244f6, the animation
   lists.
 
+### Phase 4b-4b data (minis)
+
+Same converter run; flash 1141 B booked to 4b-4b (prog blocks 86, mini tiles 359, frames 208,
+columns 336, header ids 104, palettes 48).
+
+- The 52 mini frames (anim lists `marble_mo.MINI_LISTS`, MO sets 5/6/4) join the shared death
+  set. Their headers (0x2192a-0x21f66) sit around the slinky frames: enemy frame ids by
+  header address are acid, minis, slinkies, minis, birds (tests bound the slinky and acid
+  ranges by their last headers). Death set 192 frames, 515 tiles; `SPRITE_TILES` = 515 + 535
+  = 1050 (33600 B, Arena block B).
+- Palettes: silly race sets 5, 6, 4 (types 7, 8, 9) as `marble_death_pal` rows 5-7.
+- Program ROM blocks: collection replays the mini fixture and the mini race sweep; whole
+  tables: 0x1f096, step tables 0x244b6/0x244d6, cell bitmap 0x24496, the animation lists.
+
 ## Enemies
 
 Research: docs/superpowers/specs/2026-10-11-marble-enemies-research.md (steelie model) and

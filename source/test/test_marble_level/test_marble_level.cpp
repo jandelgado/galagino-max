@@ -38,7 +38,9 @@ static uint32_t crc32(const uint8_t *p, size_t n, uint32_t crc = 0) {
 static const uint32_t OBJECT_MASKS_CRC = 0x710D10BC, DEATH_EDGES_CRC = 0x2DB1610B;
 static const uint32_t STEELIE_EDGES_CRC = 0xE923A280, SLINKY_EDGES_CRC = 0x63A9C6FE;
 static const uint32_t SLINKY_FIRST_HDR = 0x21a6a;  // lowest slinky frame header
-static const uint32_t BIRD_FIRST_HDR = 0x22452;    // lowest bird frame header (after slinkies)
+static const uint32_t BIRD_FIRST_HDR = 0x22452;    // lowest bird frame header (the last enemy)
+static const uint32_t ACID_LAST_HDR = 0x2191e;     // highest acid frame header (minis follow)
+static const uint32_t SLINKY_LAST_HDR = 0x21cc2;   // highest slinky frame header (minis follow)
 static const uint32_t ACID_EDGES_CRC = 0xFB6CB52D;
 static const uint32_t BIRD_EDGES_CRC = 0x8BC88626;
 static marble_level::Store store;
@@ -176,7 +178,7 @@ static void test_object_sprites(void) {
   const marble_level::Level &l0 = store.load(0);
   // tile buffer of exactly the set's size: a read past it would hit the guard bytes
   const MarbleSpriteSet &set = marble_sprites[marble_sprite_race[0]];
-  static uint8_t guarded[32 * 531 + 64];
+  static uint8_t guarded[32 * MARBLE_SPRITE_MAX_TILES + 64];
   memset(guarded, 0xff, sizeof(guarded));
   memcpy(guarded, l0.sprites, 32u * set.ntiles);
   marble_level::Level l = l0;
@@ -485,7 +487,7 @@ static void test_slinky_edges(void) {
   const marble_level::Level l = guardedLevel(store.load(RACE), MARBLE_DEATH_TILES);
   const MarbleSpriteSet &ds = marble_death_set;
   const uint8_t first = marble_physics::deathFrame(SLINKY_FIRST_HDR);  // acid frames before
-  const uint8_t end = marble_physics::deathFrame(BIRD_FIRST_HDR);      // bird frames after
+  const uint8_t end = marble_physics::deathFrame(SLINKY_LAST_HDR) + 1;  // minis after
   uint8_t big = first;
   for (uint8_t f = first; f < end; f++) {
     if (ds.frames[f].ncols > ds.frames[big].ncols) big = f;
@@ -518,7 +520,7 @@ static void test_acid_edges(void) {
   static const uint8_t RACE = 2;
   const marble_level::Level l = guardedLevel(store.load(RACE), MARBLE_DEATH_TILES);
   const MarbleSpriteSet &ds = marble_death_set;
-  const uint8_t end = marble_physics::deathFrame(SLINKY_FIRST_HDR);  // acid frames before
+  const uint8_t end = marble_physics::deathFrame(ACID_LAST_HDR) + 1;  // minis after
   uint8_t big = MARBLE_DEATH_FRAMES;
   for (uint8_t f = MARBLE_DEATH_FRAMES; f < end; f++) {
     if (ds.frames[f].ncols > ds.frames[big].ncols) big = f;
