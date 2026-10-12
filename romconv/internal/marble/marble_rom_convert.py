@@ -31,6 +31,7 @@ import marble_sim as ms
 import marble_mo as mo
 import marble_enemy as me
 import marble_slinky as sl
+import marble_acid as ac
 import objects_data as od
 
 ROOT = os.path.join(md.HERE, "..", "..", "..")
@@ -43,6 +44,7 @@ SPRITE_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_sprites",
                               "marble_sprites_trace.h")
 STEELIE_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_steelies",
                                "marble_steelies_trace.h")
+ACID_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_acid", "marble_acid_trace.h")
 SLINKY_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_slinkies",
                               "marble_slinkies_trace.h")
 DEATH_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_deaths",
@@ -443,6 +445,66 @@ def slinky_runs(mem, terrains, full):
     return out
 
 
+def acid_runs(mem, terrains, full):
+    """Phase 4b-3: every acid fixture segment and the acid race sweep of every race (main tick
+    with all modelled enemies) on Mem class mem. Every acid frame drawn must be in the death
+    set. Returns crc32 of the work RAM per run."""
+    if not os.path.exists(ACID_FIXTURE):
+        fatal(f"marble: {ACID_FIXTURE} missing, run tools/make_fixture.py acwrite")
+
+    def check(m):
+        prog, ms.PROG = ms.PROG, full
+        try:
+            got = ac.tick_state(m)
+        finally:
+            ms.PROG = prog
+        for a_ in got[1:8]:
+            if a_[9] and a_[9] not in DEATH.ids:
+                fatal(f"marble: acid frame {a_[9]:05x} not in the death set")
+        return got
+
+    out = []
+    for seg in ac.load_acfixture(ACID_FIXTURE):
+        m = me.setup(ms.fixture_mem(seg, terrains[seg["race"]], mem))
+        for c6, c7, cam, frames, want in seg["ticks"]:
+            ms.main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
+            mo.boxes_and_sort(m)
+            if check(m) != want:
+                fatal("marble: acid fixture replay differs, run marble_acid.py acfixture")
+        out.append(zlib.crc32(bytes(m.ram)))
+    for n in range(md.LEVELS):
+        m = me.setup(mem(terrains[n], bytes(0x2000)))
+        ac.sweep(m, n)
+        check(m)
+        out.append(zlib.crc32(bytes(m.ram)))
+    return out
+
+
+def acid_bytes():
+    """Phase 4b-3 tables (whole): spawn table pointers and entries per race (0xff end), the
+    random path lists, every path up to its 0xff end, the acid pointer table, the animation
+    lists (0xffffffff end)."""
+    out = set(range(ac.SPAWN_TABLE, ac.SPAWN_TABLE + 4 * md.LEVELS))
+    out |= set(range(0x1f07a, 0x1f07a + 28))
+    out |= set(range(ac.SINGLE[0], ac.GROUP[1] + 24))
+    for a in mo.ACID_LISTS:
+        out |= set(range(a, a + 4 * len(mo.anim_list(a)) + 4))
+    paths = [ms.rom_l(t) for t in range(ac.SINGLE[0], ac.GROUP[1] + 24, 4)]
+    for race in range(md.LEVELS):
+        e = ms.rom_l(ac.SPAWN_TABLE + 4 * race)
+        while ms.PROG[e] != 0xff:
+            out |= set(range(e, e + 8))
+            if ms.rom_l(e + 2): paths.append(ms.rom_l(e + 2))
+            e += 8
+        out.add(e)
+    for p in paths:
+        q = p
+        while ms.PROG[q] != 0xff:
+            q += 4
+        out |= set(range(p, q + 1))
+    return out
+
+
 def slinky_bytes():
     """Phase 4b-2 tables (whole): spawn table pointers and entries per race (0xff end), every
     entry's waypoint list up to its 0xff end, the slinky pointer table, the animation lists
@@ -584,14 +646,16 @@ def prog_blocks(terrains):
     phase 3 blocks, phase 4a blocks): phase 2 = physics reads plus the Phase 2 tables, phase 3
     = phase 2 plus everything the object and occlusion runs read plus the Phase 3 tables, 4a =
     phase 3 plus the sprite runs and the Phase 4a tables, all = 4a plus the death runs and the
-    Phase 4b-0 tables, steelies = all plus the steelie runs and the Phase 4b-1 tables, all =
-    steelies plus the slinky runs and the Phase 4b-2 tables."""
+    Phase 4b-0 tables, steelies = all plus the steelie runs and the Phase 4b-1 tables,
+    slinkies = steelies plus the slinky runs and the Phase 4b-2 tables, all = slinkies plus
+    the acid runs and the Phase 4b-3 tables."""
     covered = table_bytes([t.desc for t in terrains])
     phase3 = phase3_bytes()      # before ms.PROG is replaced
     sprite_tab = sprite_bytes()
     death_tab = death_bytes()
     steelie_tab = steelie_bytes()
     slinky_tab = slinky_bytes()
+    acid_tab = acid_bytes()
     ms.EDGES = lambda race, ult, c, d: edge_lookup(EDGE_TABLES, race, ult, c, d)
     plain = ms.PROG
     ms.PROG = RecProg(plain)
@@ -609,6 +673,8 @@ def prog_blocks(terrains):
         want6 = set(RecProg.reads)
         ref7 = slinky_runs(RecMem, terrains, plain)
         want7 = set(RecProg.reads)
+        ref8 = acid_runs(RecMem, terrains, plain)
+        want8 = set(RecProg.reads)
     finally:
         ms.PROG = plain
         ms.EDGES = None
@@ -623,8 +689,11 @@ def prog_blocks(terrains):
                 for a, e in merge(want5 | covered | phase3 | sprite_tab | death_tab)]
     blocks4b1 = [(a, bytes(plain[a:e])) for a, e in
                  merge(want6 | covered | phase3 | sprite_tab | death_tab | steelie_tab)]
+    blocks4b2 = [(a, bytes(plain[a:e])) for a, e in
+                 merge(want7 | covered | phase3 | sprite_tab | death_tab | steelie_tab | slinky_tab)]
     allb = [(a, bytes(plain[a:e])) for a, e in
-            merge(want7 | covered | phase3 | sprite_tab | death_tab | steelie_tab | slinky_tab)]
+            merge(want8 | covered | phase3 | sprite_tab | death_tab | steelie_tab | slinky_tab
+                  | acid_tab)]
     dyn_only = want3 - covered - phase3
     if dyn_only:
         print(f"phase 3 runs read {len(dyn_only)} B outside the tables: "
@@ -646,8 +715,13 @@ def prog_blocks(terrains):
     if slinky_only:
         print(f"phase 4b-2 runs read {len(slinky_only)} B outside the tables: "
               + ", ".join(f"{a:05x}+{e - a}" for a, e in merge(slinky_only, 0)))
-    return (allb, p2, ref2 + ref3 + ref4 + ref5 + ref6 + ref7, blocks3, blocks4, blocks4b,
-            blocks4b1)
+    acid_only = want8 - want7 - covered - phase3 - sprite_tab - death_tab - steelie_tab \
+        - slinky_tab - acid_tab
+    if acid_only:
+        print(f"phase 4b-3 runs read {len(acid_only)} B outside the tables: "
+              + ", ".join(f"{a:05x}+{e - a}" for a, e in merge(acid_only, 0)))
+    return (allb, p2, ref2 + ref3 + ref4 + ref5 + ref6 + ref7 + ref8, blocks3, blocks4,
+            blocks4b, blocks4b1, blocks4b2)
 
 
 def mo_sprites(rom):
@@ -677,10 +751,10 @@ def c_words(w, indent="  "):
                       for k in range(0, len(w), 16))
 
 
-def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2):
+def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3):
     """Phase 2 data into marble_rom.h. Returns {item: flash bytes}; the prog blocks added by
     Phase 3 go to size3, by Phase 4a to size4, by Phase 4b-0 to size4b, by 4b-1 to size4b1,
-    by 4b-2 to size4b2."""
+    by 4b-2 to size4b2, by 4b-3 to size4b3."""
     size = {}
     global EDGE_TABLES
     terrains = [ms.Terrain(n) for n in range(md.LEVELS)]
@@ -757,7 +831,7 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2):
     size["terrain info"] = 6 * 32  # 32 bit pointers, padded
 
     BlockMem.records = {n: (r[3], r[2]) for n, r in enumerate(races)}
-    blocks, blocks2, ref, blocks3, blocks4, blocks4b, blocks4b1 = prog_blocks(terrains)
+    blocks, blocks2, ref, blocks3, blocks4, blocks4b, blocks4b1, blocks4b2 = prog_blocks(terrains)
     for n in range(md.LEVELS):
         recs, data = BlockMem.records[n]
         if any(not recs <= a < recs + len(data) for a in RecMem.slap.get(n, ())):
@@ -769,7 +843,7 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2):
         got = (physics_runs(BlockMem, terrains) + physics_runs(BlockMem, terrains, True)
                + object_runs(BlockMem, terrains) + sprite_runs(BlockMem, terrains)
                + death_runs(BlockMem, terrains, plain) + steelie_runs(BlockMem, terrains, plain)
-               + slinky_runs(BlockMem, terrains, plain))
+               + slinky_runs(BlockMem, terrains, plain) + acid_runs(BlockMem, terrains, plain))
     finally:
         ms.PROG = plain
         ms.EDGES = None
@@ -793,7 +867,8 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2):
     size4["prog blocks"] = flash(blocks4) - flash(blocks3)
     size4b["prog blocks"] = flash(blocks4b) - flash(blocks4)
     size4b1["prog blocks"] = flash(blocks4b1) - flash(blocks4b)
-    size4b2["prog blocks"] = flash(blocks) - flash(blocks4b1)
+    size4b2["prog blocks"] = flash(blocks4b2) - flash(blocks4b1)
+    size4b3["prog blocks"] = flash(blocks) - flash(blocks4b2)
 
     tiles, pal = mo_sprites(rom)
     first = [0xFF] * MO_CODES.stop
@@ -1079,14 +1154,25 @@ DEATH_SETS = (0, 2)   # MO palette sets of the death frames: player 1 (+0x19 = 0
 STEELIE_SET = 5       # a shattering steelie draws the shatter frames in set 5 (race palette)
 SLINKY_SET = 4        # slinky frames (death set), palette equal in the slinky races 1, 2, 5
 SLINKY_RACES = (1, 2, 5)
+ACID_SET = 6          # acid frames (death set), palette equal in the acid races 2, 5
+ACID_RACES = (2, 5)
 
 
-def emit_death(f, rom, size4b, size4b2):
+def race_pal(rom, st, races, what):
+    """Palette set st, pens 0-7 RGB565, equal in races (else fatal)."""
+    pal = {tuple(rgb888_to_rgb565_le(*md.palette(rom, n)[0x100 + st * 16 + pen])
+                 for pen in range(8)) for n in races}
+    if len(pal) != 1:
+        fatal(f"marble: {what} palette differs between the {what} races")
+    return pal.pop()
+
+
+def emit_death(f, rom, size4b, size4b2, size4b3):
     """Phase 4b-0: player death sprites of every race (MARBLE.md "Phase 4b-0 data"): tile set
     (sparkle stars included), frame table, palettes of sets 0 and 2. Phase 4b-2: the slinky
-    frames and their palette (set 4) join it."""
+    frames and their palette (set 4) join it, Phase 4b-3 the acid frames (set 6)."""
     ds = DEATH
-    sprite_check_codes(rom, ds, DEATH_SETS + (STEELIE_SET, SLINKY_SET))
+    sprite_check_codes(rom, ds, DEATH_SETS + (STEELIE_SET, SLINKY_SET, ACID_SET))
     first = ds.tile_of[mo.STAR_CODE]
     if any(ds.tile_of[mo.STAR_CODE + k] != first + k for k in range(mo.STARS)):
         fatal("marble: sparkle star tiles not consecutive")
@@ -1103,11 +1189,13 @@ def emit_death(f, rom, size4b, size4b2):
     emit_compressed(f, "marble_death_tiles", "unsigned char", "[32]", len(ds.tile_codes),
                     list(tiles))
     print(f"static const uint16_t MARBLE_DEATH_TILES = {len(ds.tile_codes)};", file=f)
-    nplayer = sum(1 for h in ds.hdrs if h < min(h for a in mo.SLINKY_LISTS for h in mo.anim_list(a)))
-    if any(ds.ids[h] < nplayer for a in mo.SLINKY_LISTS for h in mo.anim_list(a)):
-        fatal("marble: slinky frames not after the player death frames")
-    print("// Frame ids below MARBLE_DEATH_FRAMES are player death frames, the slinky frames follow.",
+    enemy = {h for a in mo.SLINKY_LISTS + mo.ACID_LISTS for h in mo.anim_list(a)}
+    nplayer = sum(1 for h in ds.hdrs if h < min(enemy))
+    if any(ds.ids[h] < nplayer for h in enemy):
+        fatal("marble: enemy frames not after the player death frames")
+    print("// Frame ids below MARBLE_DEATH_FRAMES are player death frames, the enemy frames (acid,",
           file=f)
+    print("// slinkies) follow.", file=f)
     print(f"static const uint8_t MARBLE_DEATH_FRAMES = {nplayer};", file=f)
     print(f"static const uint16_t MARBLE_STAR_CODE = 0x{mo.STAR_CODE:03x};", file=f)
     print(f"static const uint8_t MARBLE_STARS = {mo.STARS};", file=f)
@@ -1119,33 +1207,40 @@ def emit_death(f, rom, size4b, size4b2):
                         for pen in range(8)) for st in DEATH_SETS) for n in range(md.LEVELS)}
     if len(pals) != 1:
         fatal("marble: death frame palettes differ between races")
-    slinky = {tuple(rgb888_to_rgb565_le(*md.palette(rom, n)[0x100 + SLINKY_SET * 16 + pen])
-                    for pen in range(8)) for n in SLINKY_RACES}
-    if len(slinky) != 1:
-        fatal("marble: slinky palette differs between the slinky races")
+    slinky = race_pal(rom, SLINKY_SET, SLINKY_RACES, "slinky")
+    acid = race_pal(rom, ACID_SET, ACID_RACES, "acid")
     print("// Palette of the death set frames, set 0 (player frames, stars), set 2 (shatter",
           file=f)
-    print("// overlay), set 4 of the slinky races (slinkies), pens 0-7 as RGB565 byte swapped.",
+    print("// overlay), set 4 of the slinky races (slinkies), set 6 of the acid races (acid), pens",
           file=f)
-    print("static const uint16_t marble_death_pal[3][8] = {", file=f)
-    for row in pals.pop() + (slinky.pop(),):
+    print("// 0-7 as RGB565 byte swapped.", file=f)
+    print("static const uint16_t marble_death_pal[4][8] = {", file=f)
+    for row in pals.pop() + (slinky, acid):
         print("  {" + ",".join(f"0x{v:04x}" for v in row) + "},", file=f)
     print("};", file=f)
     packed = len(lzma_compress(tiles))
     print(f"death set: {len(ds.hdrs)} frame headers, {len(ds.tile_codes)} tiles (stars at "
           f"{first}), {len(tiles)} B raw (Arena), {packed} B LZMA, {len(pool)} columns "
           f"(of {sum(len(c) for c in ds.cols)})")
-    plain = mo.DeathSprites(slinkies=False)
+    plain = mo.DeathSprites(slinkies=False, acid=False)
     packed0 = len(lzma_compress(sprite_set(rom, plain)))
     pool0 = {tuple(plain.objs_cols(fid)) for fid in range(len(plain.cols))}
     cols0 = 6 * sum(len(c) for c in pool0)
+    sls = mo.DeathSprites(acid=False)
+    packed1 = len(lzma_compress(sprite_set(rom, sls)))
+    cols1 = 6 * sum(len(c) for c in {tuple(sls.objs_cols(fid)) for fid in range(len(sls.cols))})
     size4b.update({"tiles": packed0 + 16, "frames": 4 * len(plain.cols), "columns": cols0,
                    "header ids": 2 * len(plain.hdrs), "palette": 2 * 16, "set": 16})
-    size4b2.update({"slinky tiles": packed - packed0,
-                    "slinky frames": 4 * (len(ds.cols) - len(plain.cols)),
-                    "slinky columns": 6 * len(pool) - cols0,
-                    "slinky header ids": 2 * (len(ds.hdrs) - len(plain.hdrs)),
+    size4b2.update({"slinky tiles": packed1 - packed0,
+                    "slinky frames": 4 * (len(sls.cols) - len(plain.cols)),
+                    "slinky columns": cols1 - cols0,
+                    "slinky header ids": 2 * (len(sls.hdrs) - len(plain.hdrs)),
                     "slinky palette": 16})
+    size4b3.update({"acid tiles": packed - packed1,
+                    "acid frames": 4 * (len(ds.cols) - len(sls.cols)),
+                    "acid columns": 6 * len(pool) - cols1,
+                    "acid header ids": 2 * (len(ds.hdrs) - len(sls.hdrs)),
+                    "acid palette": 16})
 
 
 def main():
@@ -1175,13 +1270,13 @@ def main():
         for _, _, _, pal in levels:
             print("  { " + ", ".join(f"0x{v:04x}" for v in pal) + " },", file=f)
         print("};", file=f)
-        size3, size4, size4b, size4b1, size4b2 = {}, {}, {}, {}, {}
+        size3, size4, size4b, size4b1, size4b2, size4b3 = {}, {}, {}, {}, {}, {}
         SPRITES[:] = [mo.Sprites(n) for n in range(md.LEVELS)]
         DEATH = mo.DeathSprites()
-        size = emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2)
+        size = emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3)
         emit_objects(f, rom, levels, size3)
         emit_sprites(f, rom, size4, size4b1, size4b2)
-        emit_death(f, rom, size4b, size4b2)
+        emit_death(f, rom, size4b, size4b2, size4b3)
         print("#endif", file=f)
     total = sum(size.values())
     print("phase 2 flash: " + ", ".join(f"{k} {v}" for k, v in size.items()) + f", total {total} B")
@@ -1204,6 +1299,9 @@ def main():
     total4b2 = sum(size4b2.values())
     print("phase 4b-2 flash: " + ", ".join(f"{k} {v}" for k, v in size4b2.items())
           + f", total {total4b2} B")
+    total4b3 = sum(size4b3.values())
+    print("phase 4b-3 flash: " + ", ".join(f"{k} {v}" for k, v in size4b3.items())
+          + f", total {total4b3} B")
     os.makedirs(os.path.dirname(FIXTURE), exist_ok=True)
     with open(FIXTURE, "w") as f:
         print("// Generated by romconv/internal/marble/marble_rom_convert.py; do not edit.", file=f)

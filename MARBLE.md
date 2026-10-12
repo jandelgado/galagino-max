@@ -1138,6 +1138,24 @@ Same converter run; flash 3773 B (prog blocks 1412, slinky tiles 1355, frames 20
   lunge table 0x2255a (0x20 B). The runs also read slinky frame header bytes 0-7 (mask box,
   contact box, draw list box).
 
+### Phase 4b-3 data (acid)
+
+Same converter run; flash 1794 B booked to 4b-3 (prog blocks 510, acid tiles 428, frames 140,
+columns 630, header ids 70, palette 16); the steelie and slinky runs now run with acid on and
+read acid tables too, so 4b-1/4b-2 prog blocks grew by 1044 B (all prog blocks +1554 B).
+
+- The 35 acid frames (anim lists `marble_mo.ACID_LISTS` 0x20ea4, 0x20ec4, 0x20ee4, 0x20f24,
+  MO set 6, 69 tiles) join the shared death set. Their headers (0x21786-0x2191e) sort between
+  the player frames and the slinky frames: ids >= `MARBLE_DEATH_FRAMES` (44) are enemy frames,
+  acid first. Death set 130 frames, 449 tiles; `SPRITE_TILES` = 449 + 535 = 984 (31488 B,
+  Arena block B).
+- Palette: set 6 is equal in the acid races 2 and 5 (converter check), fourth row of
+  `marble_death_pal`.
+- Program ROM blocks: collection replays the acid fixture and the acid race sweep
+  (`marble_acid.sweep`, all races); whole tables: spawn table 0x23d4a (pointers, entries, 0xff
+  end), the random path lists 0x23d62-0x23d99, every path to its 0xff end, 0x1f07a, the
+  animation lists.
+
 ## Enemies
 
 Research: docs/superpowers/specs/2026-10-11-marble-enemies-research.md (steelie model) and

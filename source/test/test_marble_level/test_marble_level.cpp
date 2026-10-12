@@ -37,6 +37,7 @@ static uint32_t crc32(const uint8_t *p, size_t n, uint32_t crc = 0) {
 // render CRCs of the edge tests (the reference composite is the check, these catch changes)
 static const uint32_t OBJECT_MASKS_CRC = 0x710D10BC, DEATH_EDGES_CRC = 0x2DB1610B;
 static const uint32_t STEELIE_EDGES_CRC = 0xE923A280, SLINKY_EDGES_CRC = 0x63A9C6FE;
+static const uint32_t SLINKY_FIRST_HDR = 0x21a6a;  // lowest slinky frame header
 static marble_level::Store store;
 
 static void test_levels_match_decoder(void) {
@@ -480,8 +481,9 @@ static void test_slinky_edges(void) {
   static const uint8_t RACE = 5;
   const marble_level::Level l = guardedLevel(store.load(RACE), MARBLE_DEATH_TILES);
   const MarbleSpriteSet &ds = marble_death_set;
-  uint8_t big = MARBLE_DEATH_FRAMES;
-  for (uint8_t f = MARBLE_DEATH_FRAMES; f < ds.nframes; f++) {
+  const uint8_t first = marble_physics::deathFrame(SLINKY_FIRST_HDR);  // acid frames before
+  uint8_t big = first;
+  for (uint8_t f = first; f < ds.nframes; f++) {
     if (ds.frames[f].ncols > ds.frames[big].ncols) big = f;
   }
   const MarbleSpriteCol &c0 = ds.cols[ds.frames[big].first];
