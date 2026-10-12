@@ -320,6 +320,7 @@ class Mem:
         self.acid = False       # acid (marble_acid.enable): spawn, update, contact, state 9
         self.birds = False      # silly birds (marble_bird.enable): flag, update, contact, 0xb
         self.minis = False      # silly minis (marble_mini.enable): spawn/clear, update, contact
+        self.pistons = False    # aerial pistons (marble_piston.enable): arm, update, contact
     def _loc(self, a):
         a &= 0xffffff
         if a < 0x30000: return PROG, a, False
@@ -577,7 +578,7 @@ def edge_160f6(m, a2, h):
         else:
             continue
         mag = s8(m.rb(SPEED_TABLE + ti))
-        if best == -1 or mag > best:
+        if best == -1 or mag < best:                 # 0x165ec ble: the smallest (TS: largest)
             best = mag; bestv = cur
     if best == -1:
         m.wb(a2 + 0x36, 2); m.wl(a2 + 8, -0x6000 & 0xffffffff)
@@ -687,7 +688,6 @@ def physics_121b8(m, a2):
     slots_29cce(m, a2)
     if m.rb(a2 + 0x58) == 0xa or m.rb(a2 + 0x1a) == 4: return
     if m.pair and m.pair(m, a2): posupd_1bab2(m, a2)  # 0x1bc88 object pair collision
-    # 0x1881c/0x1924e/0x19d94: enemy contacts of the player, not ported
     if pl:
         if m.slinkies:
             import marble_slinky
@@ -695,6 +695,9 @@ def physics_121b8(m, a2):
         if m.acid:
             import marble_acid
             if marble_acid.contact_175c8(m, a2): posupd_1bab2(m, a2)
+        if m.pistons:
+            import marble_piston
+            if marble_piston.contact_1881c(m, a2): posupd_1bab2(m, a2)
         if m.minis:
             import marble_mini
             marble_mini.contact_1924e(m, a2)
@@ -1020,10 +1023,26 @@ def zones_1365c(m, a2):
                     else:
                         m.wl(a2, (m.sb(0x1eb2e + race) << 16) & 0xffffffff)
                         m.wl(a2 + 4, (m.sb(0x1eb34 + race) << 16) & 0xffffffff)
-                if m.rb(a2 + 0x1b) != d2: m.events.append(("zone", m.rb(a2 + 0x1b)))
+                elif m.rb(a2 + 0x1b) == 4 and race == 3: zone4_slots(m)
+                if m.rb(a2 + 0x1b) != d2:
+                    m.events.append(("zone", m.rb(a2 + 0x1b)))
+                    zone_hook_13966(m, a2)
                 return
         if m.rb(a0 + 3) == 0xff and m.rb(a0 + 4) == 0xff: return
         a0 += 6
+
+def zone4_slots(m):
+    """0x13892: aerial zone 4 entry: zone wait slots (state 4) removed, open gates (state 2,
+    tags 0x0b/0x0d) closed again (anim 0x1d752/0x1d798, script restart)."""
+    for i in range(SLOT_N):
+        s = slot(i)
+        if m.rb(s + 0x18) != 1: continue
+        if m.rb(s + 0x1a) == 4: slot_start_12f44(m, s, 1); continue
+        if m.rb(s + 0x1a) != 2 or m.rb(s + 0x1f) not in (0xb, 0xd): continue
+        m.wl(s + 0x36, 0x1d752 if m.rb(s + 0x1f) == 0xb else 0x1d798)
+        m.sounds.append(("1ef5a", m.rb(s + 0x1b)))
+        script_12896(m, s)
+
 
 # ---------------------------------------------------------------- sprite position, occlusion masks
 
@@ -1840,8 +1859,9 @@ def respawn_2591a(m, a2):
 
 
 def zone_hook_13966(m, a2):
-    """Zone entry effects of silly (4) and aerial (3): sound latches 0x40076a, aerial
-    pistons 0x186ac (not ported: event) and zone wait slots (tags 0x0b/0x0d) restarted."""
+    """Zone entry effects of silly (4) and aerial (3), from 0x1365c on a zone change and from
+    the respawn: sound latches 0x40076a, aerial pistons 0x186ac and zone wait slots (tags
+    0x0b/0x0d) restarted."""
     race = m.rw(0x400394); zone = m.rb(a2 + 0x1b); flags = 0x40076a
     if race == 4:
         if zone == 5 and not m.rb(flags) & 1:
@@ -1853,7 +1873,10 @@ def zone_hook_13966(m, a2):
         if not m.rb(flags) & 1: m.sounds.append(0xf); m.wb(flags, m.rb(flags) | 1)
     elif zone in (6, 7) and not m.rb(flags) & 2:
         m.sounds.append(0x12); m.wb(flags, m.rb(flags) | 2); m.ww(0x400768, 0x3c)
-    m.events.append(("unported", 0x186ac))
+    if m.pistons:
+        import marble_piston
+        marble_piston.arm_186ac(m)
+    else: m.events.append(("unported", 0x186ac))
     for i in range(SLOT_N):
         s = slot(i)
         if m.rb(s + 0x18) != 1 or m.rb(s + 0x1a) != 4 or m.rb(s + 0x1b) != zone: continue
@@ -2157,7 +2180,7 @@ def main_tick(m, c6, c7, camera, frame):
     if (camera & 0xffff) != old: camera_bands_144e4(m, old, camera & 0xffff)
     m.wl(0x40097c, camera)
     objects_251de(m)
-    # 0x189e2 practice markers, enemies 0x1493c .. 0x1844a: not ported
+    # 0x189e2 practice markers: not ported
     if m.enemies:
         import marble_enemy
         for a in STEELIES_ALL: marble_enemy.update_158f6(m, a)
@@ -2173,6 +2196,9 @@ def main_tick(m, c6, c7, camera, frame):
     if m.birds:
         import marble_bird
         marble_bird.update_19baa(m)
+    if m.pistons:
+        import marble_piston
+        marble_piston.update_1844a(m)
     slots_12fd0(m)
     rng_13a98(m, 0x100)
 

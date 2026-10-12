@@ -172,9 +172,14 @@ Tick (0x121b8, ported 1:1 in tools/marble_sim.py `physics_121b8`):
    (sound 0x42). Level object slots 0x29cce (below) can do the same.
 7. Zone lines 0x1365c (player): crossing a line sets +0x1b; zone 0xff = goal: state 6,
    v = (s8 0x1eb2e[race], s8 0x1eb34[race]) << 16 (practice stops if zone was 3/4).
+   Aerial zone 4 entry (0x13892): zone wait slots (state 4) removed, open gates 0x0b/0x0d
+   (state 2) reclosed (anim 0x1d752/0x1d798, script restart). A changed zone runs the zone
+   hook 0x13966 (section Pistons).
 8. Height h = 0x1cc62 at the new position. Edge 0x160f6: a lower neighbour edge starts
    teetering (+0x36 = 1, vz = -0x6000), z more than 6 px above h starts a fall (+0x36 =
-   2). |z - z_old| > 8 px with vz <= 0 also starts a fall (sound 0x45).
+   2). Teetering: of the edges in +0x37 the one with the smallest 0x2398c magnitude wins
+   (0x165ec `cmpa.w d2,a1; ble`; Marble Love keeps the largest), z += its height - magnitude
+   when positive (aerial piston pits, frame 1249 of `$TMPDIR/ps/p1`). |z - z_old| > 8 px with vz <= 0 also starts a fall (sound 0x45).
 9. Airborne: h >= z lands: z = h, vz = 0, fall = |+0x2a - h| >> 15 (half pixels) to
    0x25c74: state 1, +0x57 += fall (max 0x7f), +0x56 + (+0x57 - +0x56) / 2 > 0x1f breaks
    the marble (state 2). Falling more than 128 px below +0x2a (0x800000) = lost.
@@ -1802,10 +1807,69 @@ python3 romconv/internal/marble/tools/marble_sim.py tfixture \
   source/test/test_marble_deaths/marble_tubes_trace.h
 ```
 
+### Pistons in the main tick model (Phase 4b-5)
+
+Marble Love TS (`post-state-change-13966.ts`, `state-sub-186ac.ts`, `read-abs-long-1844a.ts`,
+`state-sub-1881c.ts`, `sprite-coords.ts` 0x18972, `sprite-derive.ts` 0x1bb28,
+`object-render-update-1365c.ts`), plus three facts from the disassembly: 0x121b8 refreshes the
+cell (0x1bab2) when 0x1881c returns 1 (0x123f8); 0x1365c clears / recloses aerial slots on a
+zone 4 entry (0x13892, see Marble physics 7); the launch sign quirk below. Model
+`tools/marble_piston.py`, `marble_piston.enable(m)` (`m.pistons`, on in `marble_enemy.setup`).
+
+Entry 0x401650 + 0x10 k: +0 k, +2 timer word (0xffff up), +4/+5 cell x/y, +6 top z word, +8
+anim cursor, +0xc screen (x, y words). 0x400760 armed, 0x400764 timer table of entries
+0x18-0x23. Cells: (69-71, 55-58) top 0x3fac, (69-71, 63-66) and (76-78, 74-77) top 0x3f98.
+
+- Zone hook 0x13966 (from 0x1365c on a zone change and from the respawn): silly sound latches,
+  aerial latches and 0x400768, 0x186ac, zone wait slots of the new zone restarted.
+- 0x186ac (race 3): a live player in zone 4/5 and 0x400760 clear arms: variant rng(4),
+  0x400764 = long 0x243e6[v], entry k timer word 0x242c6[k] (k < 0x18) or word k - 0x18 of
+  the variant table, cell bytes 0x24406/0x2442a, 0x1bb28 (cell * 8 into 0x400690/2 and
+  0x1bb50: leaves the last cell in the scratch the rest of the player's 0x121b8 reads), top
+  0x2444e; then 0x400764 = long 0x243f6[v], 0x400760 = 1. No such player and armed: pistons up
+  leave the draw list, timer/cell/top 0, 0x400760 = 0.
+- 0x1844a (race 3, armed; after the birds): timer >= 0 counts down, at <= 0 the piston rises
+  (+8 = 0x21342, timer 0xffff, draw list insert type 0x29); up: +8 += 4, at the list end
+  (13 frames) it drops (draw list removal, timer reload 0x242f6[k] or the variant table).
+  0x18972 for every piston up. One rng(2) per group (0-0xb, 0xc-0x17, 0x18-0x23) that rose
+  (sound pick).
+- 0x1881c (race 3, armed, players, after the acid): a piston up on the new cell (0x400697/9):
+  position back to 0x400684/8; the old cell the piston's and z word = top: launch (vz 0x70000,
+  z + 12 px, v = v / 2 +- 0x6000, +0x36 = 2, sound 0x45); else z - top < 12 px: v reversed.
+  The sign: 0x13a98 writes only the low word of d0 and 0x1881c tests the long, so the first
+  draw is always plus (d0 high word 0xffff from the loop), the second plus unless the new vx
+  high word and the draw are both 0.
+- Not modelled: sounds, 0x400768 countdown (0x117b2: sound 0x13, 0x40076a bit 2).
+
+Traces (`$TMPDIR/ps`, `$TMPDIR/st/run.sh`, race 3, place 900:520:428:-84:4, input
+`60:2:-2` from 950):
+
+| run | second place (frame 1361) / input from 1440 | content | free run |
+| --- | --- | --- | --- |
+| p1 | none | arming 1039 (zone 6 to 4), respawns, rise/drop | 348 ticks equal |
+| p3 | 564:452:-84:5 | marble on piston 4, launch 1585 | 167 ticks equal |
+| p4 | 564:452:-84:5, `40:4:-4` | launch 1493, bounce 1782 | 217 ticks equal |
+| p6 | 620:660:-120:5, `40:4:-4` | teardown 1490 with 10 up (zone 5 to 7) | 217 ticks equal |
+
+Piston fixture `source/test/test_marble_pistons/marble_pistons_trace.h` (`make_fixture.py
+pswrite`): p1 1001 (40 ticks, arming), p3 1575 (24, launch), p4 1483 (20, launch), p4 1770
+(12, bounce), p6 1478 (16, teardown).
+
+```sh
+S=$TMPDIR/ps
+python3 romconv/internal/marble/tools/make_fixture.py pswrite \
+  source/test/test_marble_pistons/marble_pistons_trace.h 3:$S/p1/trace.bin:1001:40 \
+  3:$S/p3/trace.bin:1575:24 3:$S/p4/trace.bin:1483:20 3:$S/p4/trace.bin:1770:12 \
+  3:$S/p6/trace.bin:1478:16
+python3 romconv/internal/marble/tools/marble_piston.py psfixture \
+  source/test/test_marble_pistons/marble_pistons_trace.h
+python3 romconv/internal/marble/tools/marble_piston.py pistons TRACE 3 FROM:TO
+```
+
 ## Open questions
 
-- Level objects: unported tags (0x0a-0x0d, tubes 0x12-0x16, 0x20, 0x21, 0x25-0x27), zone triggered
-  slots (state 4, 0x13966/0x13a1c, aerial), playfield patch decode of tag 0x19 rows. Section
+- Level objects: unported tags (0x0a-0x0d, tubes 0x12-0x16, 0x20, 0x21, 0x25-0x27), playfield
+  patch decode of tag 0x19 rows. Section
   Level objects. Slot sprites: section Level object sprites (masks over slot MOs behind the
   marble not seen in traces).
 - Enemies (section Enemies): two player target choices 0x15fe6 (steelies and slinkies), no
@@ -1814,11 +1878,9 @@ python3 romconv/internal/marble/tools/marble_sim.py tfixture \
 - Deaths (section Player states, deaths, RNG): states 1/2/4/5/7/9 modelled, 1/2/4/5/7
   ported. Not modelled: states 3 (catapult), 0xb (birds), 8 (time out, 0x258a8), 0xa (gate,
   0x13d38 writes +0x38), practice landing markers (type 0x2a, 0x12532, score 0x285b0),
-  aerial piston hook 0x186ac in 0x13966, the race timer and other vblank IRQ work, two
-  players, the main loop countdowns 0x400768/0x4003b8 (aerial deaths diverge once 0x13966
-  sets 0x400768 = 0x3c). Not ported to C++: zone hook 0x13966 (silly/aerial respawn: sound
-  latches, 0x400768, zone wait slot restart via the slot script 0x12896), dots 0x1c014 /
-  0x25b40.
+  the race timer and other vblank IRQ work, two players, the main loop countdowns
+  0x400768 (sound only)/0x4003b8. Not ported to C++: zone hook 0x13966 (until Phase 4b-5),
+  dots 0x1c014 / 0x25b40.
 - Goal (state 6, section Player states, deaths, RNG): the race end flow after it, and the
   +0x57 wrap (out of play again every 256 ticks) is unchecked against MAME. The camera
   ignores the marble (sy only from states 0/1/3/4/5).
