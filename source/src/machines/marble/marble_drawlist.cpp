@@ -248,9 +248,10 @@ void slotObjs(const Mem &m, Out &o, uint8_t type, uint8_t idx, int32_t top, int1
   if (f >= 0) { o.add((uint8_t)f, SET_SHADE, x, y); }
 }
 
-// player 1 fields
-enum : uint8_t { P_STATE = 0x1a, P_VISIBLE = 0x1c, P_SX = 0x1e, P_SY = 0x20, P_MASKS = 0x38,
-                 P_ANIM = 0x5a, P_SHARDS = 0x62, P_SHARDS_ON = 0x67, P_STARS = 0xa4 };
+// player 1 (and steelie) fields
+enum : uint8_t { P_SLOT = 0x18, P_STATE = 0x1a, P_VISIBLE = 0x1c, P_SX = 0x1e, P_SY = 0x20,
+                 P_MASKS = 0x38, P_ANIM = 0x5a, P_SHARDS = 0x62, P_SHARDS_ON = 0x67,
+                 P_STARS = 0xa4 };
 static const uint8_t ENTRY = 6, MASK_N = 5, STAR_N = 4;  // {code, x, y} entries
 static const uint16_t MASK_BIT = 0x4000;                 // mask entry, else sparkle star
 static const uint8_t ST_DISSOLVE = 9, ST_0A = 0xa, ST_0B = 0xb;
@@ -317,6 +318,38 @@ void player(const Mem &m, Out &o, int32_t top) {
 
   if (!m.rb(A + P_SHARDS_ON)) { return; }
   const uint32_t hdr = hdrOf(m, A + P_SHARDS);
+  if (hdr != NONE32) { o.add(marble_physics::deathFrame(hdr), SET_DEATH | SET_SHARDS, sx, y); }
+}
+
+// 0x2724c type 2 (steelie, Marble Love late-game-logic-26f3e.ts) at origin (sx, top + ARCADE_H
+// - sy), drawn while +0x1c: frame 0x21f36 (palette set 5) or, shattering, the death frame
+// rl(+0x5a) in set 5, its masks +0x38, the shatter overlay rl(+0x62) while +0x67
+void steelie(const Mem &m, Out &o, uint8_t idx, int32_t top) {
+  static const uint32_t FRAME = 0x21f36;
+  static const uint8_t SHATTERING = 2, SET_STEELIE = 5;
+  const uint32_t a = m.roml(ENEMIES + 4 * idx);
+  if (!m.rb(a + P_VISIBLE)) { return; }
+
+  const int16_t sx = m.sw(a + P_SX), sy = m.sw(a + P_SY);
+  const int16_t y = (int16_t)(top + ARCADE_H - sy);
+  if (m.rb(a + P_SLOT) == SHATTERING) {
+    const uint32_t hdr = hdrOf(m, a + P_ANIM);
+    if (hdr == NONE32) { return; }
+    o.add(marble_physics::deathFrame(hdr), SET_DEATH | SET_RACE5, sx, y);
+  } else {
+    o.add(m.spriteFrame(FRAME), SET_STEELIE, sx, y);
+  }
+
+  uint8_t *owner = o.last();
+  for (uint8_t i = 0; i < MASK_N && m.rw(a + P_MASKS + ENTRY * i); i++) {
+    const uint32_t e = a + P_MASKS + ENTRY * i;
+    const uint16_t code = m.rw(e);
+    const int16_t h = (((code >> 11) & 7) + 1) * 8;
+    o.mask(owner, code, (int16_t)(m.sw(e + 2) - sx), (int16_t)(sy - m.sw(e + 4) - h));
+  }
+
+  if (!m.rb(a + P_SHARDS_ON)) { return; }
+  const uint32_t hdr = hdrOf(m, a + P_SHARDS);
   if (hdr != NONE32) { o.add(marble_physics::deathFrame(hdr), SET_DEATH | SET_SHARDS, sx, y); }
 }
 
@@ -407,6 +440,7 @@ uint8_t build(const Mem &m, int16_t cam, int16_t cullMargin, VideoState &v) {
     if (type == T_TAG3 || type == T_TAG5 || type == T_TAG6) {
       slotObjs(m, o, type, idx, top, cullMargin, v.lift);
     }
+    if (type == T_ENEMY) { steelie(m, o, idx, top); }
   }
   v.n = o.n < OBJS ? o.n : OBJS;
   if (v.marbleAt > v.n) { v.marbleAt = v.n; }

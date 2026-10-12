@@ -26,16 +26,17 @@ struct Mask {
 static const uint8_t MASKS = 16;  // pool shared by the marble and the objects
 
 // Object sprite: frame id and palette set (MARBLE.md "Level object sprites"), origin in
-// playfield pixels, its masks masks[mask .. mask + nmask). Level objects: set 3, 5, 6, 7 of
-// the race's sprite set (8 = wave strip shade). SET_DEATH: frame of the death set, palette
-// marble_death_pal[set & SET_SHARDS]; with SET_STAR sparkle star `frame` (one tile at x, y).
+// playfield pixels, its masks masks[mask .. mask + nmask). Level objects and the steelie
+// frame: set 3, 5, 6, 7 of the race's sprite set (8 = wave strip shade). SET_DEATH: frame of
+// the death set, palette marble_death_pal[set & SET_SHARDS], with SET_RACE5 the race's set 5
+// palette (shattering steelie); with SET_STAR sparkle star `frame` (one tile at x, y).
 struct Obj {
   uint8_t frame, set;
   int16_t x, y;
   uint8_t mask, nmask;
 };
 static const uint8_t OBJS = 24;
-static const uint8_t SET_DEATH = 0x80, SET_STAR = 0x40, SET_SHARDS = 1;
+static const uint8_t SET_DEATH = 0x80, SET_STAR = 0x40, SET_RACE5 = 0x20, SET_SHARDS = 1;
 
 // marble sprite top left relative to the player origin (sx, camera top + ARCADE_H - sy)
 static const int16_t MARBLE_X = -8, MARBLE_Y = -16;

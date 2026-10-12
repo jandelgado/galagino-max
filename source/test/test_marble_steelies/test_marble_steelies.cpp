@@ -189,6 +189,115 @@ static void test_replay_steelies(void) {
   }
 }
 
+// ---------------------------------------------------------------- steelie objects
+
+// One MO as the published state draws it: race pixel top left, height, MO code (0 for a frame
+// column), palette set, hflip, priority (mask)
+struct DrawnMo {
+  int16_t x, top;
+  uint8_t h;
+  uint16_t code;
+  uint8_t set;
+  bool flip, mask;
+};
+
+static const uint8_t PAL_STEELIE = 5, PAL_SHARDS = 2;
+static const uint8_t MOS_MAX = 64;  // MOs of one steelie: frame, overlay, masks
+
+static uint8_t addCols(const MarbleSpriteSet &s, const marble_video::Obj &o, uint8_t pal,
+                       DrawnMo *out, uint8_t k) {
+  const MarbleSpriteFrame &f = s.frames[o.frame];
+  for (uint8_t c = 0; c < f.ncols && k < MOS_MAX; c++) {
+    const MarbleSpriteCol &col = s.cols[f.first + c];
+    out[k++] = {(int16_t)(o.x + col.x), (int16_t)(o.y + col.y), (uint8_t)(col.h & 0x7f), 0, pal,
+                (col.h & 0x80) != 0, false};
+  }
+  return k;
+}
+
+// MOs of steelie i in v: the objects at its origin (frame, shatter frame, overlay), each with
+// its masks
+static uint8_t steelieMos(const Mem &m, const marble_video::VideoState &v, uint8_t i, int16_t top,
+                          DrawnMo *out) {
+  using namespace marble_video;
+  const uint32_t a = steelie(i);
+  const int16_t ox = m.sw(a + SX), oy = (int16_t)(top + marble_video::ARCADE_H - m.sw(a + SY));
+  uint8_t k = 0;
+  for (uint8_t j = 0; j < v.n; j++) {
+    const Obj &o = v.objs[j];
+    if (o.x != ox || o.y != oy) { continue; }
+    if (o.set == PAL_STEELIE) {
+      k = addCols(marble_physics::spriteSet(v.level), o, PAL_STEELIE, out, k);
+    } else if (o.set == (SET_DEATH | SET_RACE5)) {
+      k = addCols(marble_physics::deathSet(), o, PAL_STEELIE, out, k);
+    } else if (o.set == (SET_DEATH | SET_SHARDS)) {
+      k = addCols(marble_physics::deathSet(), o, PAL_SHARDS, out, k);
+    } else {
+      continue;
+    }
+    for (uint8_t q = o.mask; q < o.mask + o.nmask && k < MOS_MAX; q++) {
+      const Mask &e = v.masks[q];
+      out[k++] = {(int16_t)(o.x + e.dx), (int16_t)(o.y + e.dy), (uint8_t)(((e.code >> 11) & 7) + 1),
+                  (uint16_t)(e.code & 0x7ff), 0, (e.code & 0x8000) != 0, true};
+    }
+  }
+  return k;
+}
+
+// MO RAM words of d (MO x = race x + 24, MO y counts up: top line = 256 - MO y - 8 h)
+static MarbleSteelieMo moWords(const DrawnMo &d, int16_t top) {
+  const uint16_t y = (uint16_t)(top + 256 - d.top - 8 * d.h);
+  const uint16_t x = (uint16_t)(d.x + 24);
+  return {(uint16_t)(((y << 5) & 0x3fe0) | (d.flip ? 0x8000 : 0) | (d.h - 1)),
+          (uint16_t)(d.code | d.set << 11), (uint16_t)(((x << 5) & 0x3fe0) | (d.mask ? 0x8000 : 0))};
+}
+
+// Published steelies (build) against the steelie MOs MAME emitted in every fixture tick: frame
+// 0x21f36, shatter frames and overlay (position, height, flip, palette set), masks
+static void test_steelie_objects(void) {
+  uint16_t frames = 0, shatter = 0;
+  for (uint8_t sg = 0; sg < MARBLE_STEELIES_SEGMENTS; sg++) {
+    const MarbleSteelieSegment &seg = marble_steelies_segments[sg];
+    loadRam(seg);
+    Mem m(ram, seg.race);
+    const int16_t descTop = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+
+    for (uint16_t k = 0; k < seg.nticks; k++) {
+      const MarbleSteelieTick &t = seg.ticks[k];
+      mainTick(m, t.c6, t.c7, t.camera, t.frames);
+      marble_video::VideoState v = {};
+      v.level = seg.race;  // marble.cpp publish() sets it, build() does not
+      const uint8_t total = marble_drawlist::build(m, (int16_t)t.camera, 24, v);
+      TEST_ASSERT_TRUE(total <= marble_video::OBJS);
+      const int16_t top = (int16_t)((int16_t)t.camera - descTop);
+
+      for (uint8_t i = 0; i < marble_enemies::NSTEELIES; i++) {
+        const MarbleSteelieObj &s = t.s[i];
+        char msg[120];
+        snprintf(msg, sizeof(msg), "segment %d tick %d steelie %d (live %d)", sg, k, i, s.live);
+        DrawnMo got[MOS_MAX];
+        const uint8_t n = steelieMos(m, v, i, top, got);
+        TEST_ASSERT_EQUAL_UINT8_MESSAGE(s.n, n, msg);
+        for (uint8_t j = 0; j < n; j++) {
+          const MarbleSteelieMo &e = seg.mos[s.first + j];
+          const MarbleSteelieMo w = moWords(got[j], top);
+          TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.w0, w.w0, msg);
+          TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.w2, w.w2, msg);
+          if (got[j].mask) {
+            TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.code, w.code, msg);
+          } else {
+            TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.code >> 11, got[j].set, msg);
+          }
+        }
+        frames += n && s.live == 1;
+        shatter += n && s.live == SHATTERING;
+      }
+    }
+  }
+  printf("steelie objects: %u ticks drawn, %u shattering\n", frames, shatter);
+  TEST_ASSERT_TRUE(frames > 0 && shatter > 0);
+}
+
 // machine race start (marble.cpp beginRace) on a cleared work RAM
 static void beginRace(uint8_t race) {
   memset(ram, 0, sizeof(ram));
@@ -248,6 +357,8 @@ static void test_race_sweep(void) {
           before[i] = m.rb(steelie(i) + SLOT);
         }
         mainTick(m, 0, 0, (uint32_t)(int32_t)cam, ++tick);
+        marble_video::VideoState v = {};
+        TEST_ASSERT_TRUE(marble_drawlist::build(m, cam, 24, v) <= marble_video::OBJS);
         for (uint8_t i = 0; i < marble_enemies::NSTEELIES; i++) {
           const uint8_t live = m.rb(steelie(i) + SLOT);
           if (!before[i] && live) {
@@ -321,6 +432,7 @@ int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   RUN_TEST(test_replay_steelies);
+  RUN_TEST(test_steelie_objects);
   RUN_TEST(test_race_sweep);
   RUN_TEST(test_shatter_and_switch);
 #else

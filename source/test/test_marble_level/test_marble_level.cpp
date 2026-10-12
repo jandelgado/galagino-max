@@ -36,6 +36,7 @@ static uint32_t crc32(const uint8_t *p, size_t n, uint32_t crc = 0) {
 #ifdef HAVE_ROM
 // render CRCs of the edge tests (the reference composite is the check, these catch changes)
 static const uint32_t OBJECT_MASKS_CRC = 0x710D10BC, DEATH_EDGES_CRC = 0x2DB1610B;
+static const uint32_t STEELIE_EDGES_CRC = 0xE923A280;
 static marble_level::Store store;
 
 static void test_levels_match_decoder(void) {
@@ -246,7 +247,11 @@ static void refObj(const marble_level::Level &l, const marble_video::VideoState 
   using namespace marble_video;
   const bool death = (o.set & SET_DEATH) != 0;
   const MarbleSpriteSet &s = death ? marble_death_set : marble_sprites[marble_sprite_race[v.level]];
-  const uint16_t *pal = death ? marble_death_pal[o.set & SET_SHARDS] : marble_sprite_pal[v.level][0];
+  // race palette sets 3, 5, 6, 7 are rows 0-3; a death frame with SET_RACE5 uses row 1
+  const uint8_t row = o.set == 5 ? 1 : o.set == 6 ? 2 : o.set == 7 ? 3 : 0;
+  const uint16_t *pal = death && (o.set & SET_RACE5) ? marble_sprite_pal[v.level][1]
+                        : death ? marble_death_pal[o.set & SET_SHARDS]
+                                : marble_sprite_pal[v.level][row];
   const MarbleSpriteCol star = {0, 0, 1, (uint16_t)(MARBLE_STAR_TILE + o.frame)};
   const bool isStar = death && (o.set & SET_STAR);
   const uint8_t ncols = isStar ? 1 : s.frames[o.frame].ncols;
@@ -426,6 +431,47 @@ static void test_death_edges(void) {
   TEST_ASSERT_EQUAL_HEX32(frameCrc(l, VideoState{0, 0, 1}), frameCrc(l, v));
 }
 
+// Steelies straddling every view edge: the steelie frame 0x21f36 (race set, palette set 5) with
+// a mask, a shattering steelie (largest death frame, race palette set 5, SET_RACE5) with a
+// mask and the overlay; the tile buffer ends after the race set (guard bytes)
+static void test_steelie_edges(void) {
+  using namespace marble_video;
+  static const uint8_t RACE = 1;
+  static const uint32_t STEELIE_FRAME = 0x21f36, FRAMES_BASE = 0x20000;
+  const MarbleSpriteSet &rs = marble_sprites[marble_sprite_race[RACE]];
+  const marble_level::Level l = guardedLevel(store.load(RACE), rs.ntiles);
+  uint8_t steelie = 0xff;
+  for (uint8_t f = 0; f < rs.nhdr; f++) {
+    if (FRAMES_BASE + 2 * (uint32_t)rs.addr[f] == STEELIE_FRAME) steelie = f;
+  }
+  TEST_ASSERT_NOT_EQUAL(0xff, steelie);
+  const MarbleSpriteSet &ds = marble_death_set;
+  uint8_t big = 0;
+  for (uint8_t f = 0; f < ds.nframes; f++) {
+    if (ds.frames[f].ncols > ds.frames[big].ncols) big = f;
+  }
+  uint32_t crc = 0;
+  for (int16_t x : EDGE_X) {
+    for (int16_t y : EDGE_Y) {
+      VideoState v = {};
+      v.level = RACE;
+      v.sx = 20;
+      v.sy = 40;
+      v.n = 3;
+      v.marbleAt = 0;
+      const int16_t ox = x + v.sx, oy = y + v.sy;
+      v.objs[0] = {steelie, 5, (int16_t)(ox - 30), oy, 0, 1};
+      v.objs[1] = {big, SET_DEATH | SET_RACE5, ox, oy, 1, 1};
+      v.objs[2] = {(uint8_t)(ds.nframes - 1), SET_DEATH | SET_SHARDS, ox, oy, 0, 0};
+      v.masks[0] = {FULL_MASK, -8, -8};
+      v.masks[1] = {FULL_MASK, ds.cols[ds.frames[big].first].x, ds.cols[ds.frames[big].first].y};
+      crc = crc32((const uint8_t *)&crc, sizeof(crc), checkRef(l, v));
+    }
+  }
+  printf("steelie edges crc %08x\n", (unsigned)crc);
+  TEST_ASSERT_EQUAL_HEX32(STEELIE_EDGES_CRC, crc);
+}
+
 // one object of `frame` (race `race`, palette set `set`) over a playfield whose pixel in column
 // x is kPf[x & 7]; every sprite tile byte is `fill` (two pens). base: without the object.
 static const uint8_t kPf[8] = {4, 20, 15, 31, 7, 0, 5, 9};
@@ -559,6 +605,7 @@ int main(int, char **) {
   RUN_TEST(test_object_masks);
   RUN_TEST(test_mask_pool);
   RUN_TEST(test_death_edges);
+  RUN_TEST(test_steelie_edges);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif

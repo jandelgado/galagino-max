@@ -1255,6 +1255,15 @@ sweep of all races (spawns at table bands, counts as `marble_enemy.sweep`: begin
 aerial 3/3, ultimate 2/1 spawns/removals), shatter end and race switch. Old fixtures stay
 exact with steelies always on (model check with `enable` forced).
 
+Drawing: `marble_drawlist::build` publishes type 2 at its list position as `marble_mo.other_mos`
+draws it, only while +0x1c (the arcade cull 0x1281c, also the masks' condition; the remake
+margin does not apply, as for the marble): frame 0x21f36 from the race set (`Obj::set` 5), or
+while shattering the death frame rl(+0x5a) with `SET_DEATH | SET_RACE5` (race palette set 5),
+the +0x38 masks right after it, the overlay rl(+0x62) (`SET_DEATH | SET_SHARDS`). Host tests:
+`test_steelie_objects` (every fixture tick: columns, palette sets, masks as MO words equal to
+MAME), `test_steelie_edges` (reference composite at every view edge, guarded tile buffer),
+object count of every sweep tick within `OBJS`. Flash after Phase 4b-1: 4080989 B (+7004).
+
 Steelie fixture `source/test/test_marble_steelies/marble_steelies_trace.h` (committed, derived
 numbers only), `make_fixture.py stwrite`: initial work RAM blocks (the drop applied), per tick
 `MarbleSteelieTick` (inputs, player as `MarbleDeathTick`, both steelies `MarbleSteelieObj
