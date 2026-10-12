@@ -1938,18 +1938,65 @@ python3 romconv/internal/marble/tools/marble_piston.py psfixture \
 python3 romconv/internal/marble/tools/marble_piston.py pistons TRACE 3 FROM:TO
 ```
 
+### Aerial objects (Phase 4c-2)
+
+Marble Love TS (`sub-29cce.ts` runCatapult0A, runGate0B/0D, runBounce0C,
+`refresh-frame-10fce.ts` JT[10], `slot-spawn-pattern-13d38.ts`); model
+`tools/marble_aerial.py` (`enable`, on in `marble_enemy.setup`). Aerial slots (objects table
+above): six gates at bands 3-30, each waiting (state 4) for its zone 30-35 (zone lines at the
+corridors, e.g. cells (31..35, 36) down: 30, x 38 right: 31, x 47 right: 32); catapult 0x0a at
+cell (63, 70), bands 16-37; four bounce boxes 0x0c (random group 0x1ded8, x cell 105, y
+102-108) waiting for zone 10 (x 99 right or y 99 down).
+
+- 0x0b / 0x0d gate (0x2ab88 / 0x2ad20): only while it sucks (slot +0x1a != 0, +0x46
+  0x22016 / 0x220a6). Mouth (0x0b: d6 -0x0c..0x1b, a0 -0x20..-9; 0x0d: d6 -0x20..-9, a0
+  -0x0c..0x1b): v += 4 x the unit vector (0x29cce distance measure, divs) to the centre (0x0b:
+  d6 - 8, a0 + 0xc; 0x0d: d6 + 0xc, a0 - 8); in the centre (0x0b: d6 0..0xf, a0 -0xf..-0xa;
+  0x0d transposed) caught: state 0xa, +0x57 0x20, +0x58 the slot number. Else the frame
+  (0x0b: d6 -0x0c..0x1b, a0 -8..0xf; 0x0d transposed, ROM 0x2ae1a; Marble Love has the 0x0b
+  box for both; MAME a9 bounces on the 0x0d frame) below z 0x3fc4: inside it before the move
+  (0x0b box for both gates, 0x2ae42): lost (+0x57 0x65, 0x25bae(4)); else both axes bounce.
+  The 0x0d path reads the old deltas from frame locals -0x12/-0x14 that only the 0x0b and
+  0x0c paths write (stale or stack garbage in the arcade); the model computes them.
+- State 0xa (0x2563e): projection, 0x13d38 stars (8, code 0x10b + k, +0xa4 first 4, +0x38
+  next 4: from the marble's screen position to the gate mouth to the gate, one star step per
+  2 ticks, offsets 0x1ef32), 32 ticks; then the gate script restarts (0x1d752 / 0x1d798,
+  sound 0x1ef5a[zone - 0x1e]), sound 0x3c, +0x5a 0, death count + 1, state 4 directly (no
+  0x25bae: the marble respawns where it was caught), +0x57 0x65.
+- 0x0a catapult (0x29e22): |d6|, |a0| < 8 and vz 0: arm busy (+0x3e != +0x46 or +0x1c):
+  old position; else thrown: slot position, z - 3 px, vz 10 px, vx rng(0x2000) - 0x1000, vy
+  -0x25000 - rng(0xa000), airborne, sound 0x15884, state 3 (+0x58 0x0a, +0x59 15), slot script
+  0x1db80 run at once. Two players (0x400396 == 2, partner on the arm): not modelled.
+- 0x0c bounce box (0x2a9a2, slot state != 0): box of the slot's MO frame (rl(+0x3e): bytes x,
+  y, w, h at +4) widened by 3 px; entering: both axes bounce; already inside: v = 64 x the
+  unit vector away from the centre (d6 + 4, a0 + 4), dizzy (anim 0x20faa, sound 0x39 unless
+  in state 1), 0x25c74 with fall 0, +0x57 0x3c, +0x56 0.
+- rng (0x13a98) reduces with a signed compare: rng(0xa000) returns 0x8000..0x9fff (the model
+  and C++ compared unsigned before; only the catapult passes n >= 0x8000).
+
+Check: `marble_aerial.py aerial TRACE 3 FROM:TO` (all enemies, `marble_piston.piston_diff`)
+on tick start traces `$TMPDIR/t4c` (run.sh as section "Tubes"): a5 (place 268, 290, -84,
+input 1350 "40:1:-7,60:7:2") 0x0b catch, state 0xa, respawn; a8 (300, 308, "150:9:0") pull,
+catch at the second gate; a9 (372, 308, "30:9:0,100:2:-6") 0x0d frame bounce, fall, lost;
+a10 (484, 560, -108, "30:9:0") catapult throw, landing, dizzy (equal to frame 1627; then a
+steelie on the aerial course differs, also without aerial objects: open); a13 (place 786,
+804, -156 and 1640: 840, 800; "60:12:0,250:0:0,60:2:-6") zone 10, two bounce box hits, dizzy,
+lost. All other ticks equal. Not seen: 0x0d catch, gate frame loss.
+
 ## Open questions
 
-- Level objects: unported tags (0x0a-0x0d), playfield
+- Level objects: tags 0x0a-0x0d modelled, not ported to C++ (section Aerial objects); playfield
   patch decode of tag 0x19 rows. Section
   Level objects. Slot sprites: section Level object sprites (masks over slot MOs behind the
   marble not seen in traces).
+- Aerial steelie differs from MAME a10 at frame 1629 (+0x08 vz -0x6000 in MAME, -0xc000 in the
+  model; steelie state 0x23 at (487, 394), pistons rising), also without the aerial objects.
 - Enemies (section Enemies): two player target choices 0x15fe6 (steelies and slinkies), no
   trace of a slinky pulling the marble (0x15316, octant 0x70-0xc0), of bird/piston hits
   or of a steelie occluded by terrain (masks +0x38).
 - Deaths (section Player states, deaths, RNG): states 1/2/4/5/7/9 modelled, 1/2/4/5/7
-  ported. Not modelled: states 3 (catapult), 0xb (birds), 8 (time out, 0x258a8), 0xa (gate,
-  0x13d38 writes +0x38), practice landing markers (type 0x2a, 0x12532, score 0x285b0),
+  ported; 3 (tubes, catapult), 0xa (gate) and 0xb (birds) modelled. Not modelled: 8 (time
+  out, 0x258a8), practice landing markers (type 0x2a, 0x12532, score 0x285b0),
   the race timer and other vblank IRQ work, two players, the main loop countdowns
   0x400768 (sound only)/0x4003b8. Not ported to C++: dots 0x1c014 / 0x25b40.
 - Goal (state 6, section Player states, deaths, RNG): the race end flow after it, and the

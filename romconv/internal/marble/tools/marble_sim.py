@@ -321,6 +321,7 @@ class Mem:
         self.birds = False      # silly birds (marble_bird.enable): flag, update, contact, 0xb
         self.minis = False      # silly minis (marble_mini.enable): spawn/clear, update, contact
         self.pistons = False    # aerial pistons (marble_piston.enable): arm, update, contact
+        self.aerial = False     # aerial objects (marble_aerial.enable): tags 0x0a-0x0d, state 0xa
     def _loc(self, a):
         a &= 0xffffff
         if a < 0x30000: return PROG, a, False
@@ -1031,6 +1032,9 @@ def slots_29cce(m, a2):
                 if x0 <= d6 < x1 and y0 <= a0 < y1 and (below is None or mz < below) \
                         and shape_1cd00(m, a2, s, k):
                     return                           # loss: no epilogue
+            elif 0x0a <= tag <= 0x0d and m.aerial:
+                import marble_aerial
+                marble_aerial.contact(m, a2, s, tag, d6, a0)
             elif tag not in NOOP:
                 m.events.append(("slot", hex(tag)))
         if m.rb(a2 + 0x58) not in KEEP58:
@@ -1322,7 +1326,7 @@ def rng_13a98(m, n):
     m.ww(0x4003a6, d0)
     if n == 0: return d0
     d0 &= (1 << k) - 1
-    while not n > s16(d0): d0 = (d0 - n) & 0xffff
+    while not s16(n) > s16(d0): d0 = (d0 - n) & 0xffff   # cmp.w, bgt: signed (n 0xa000)
     return d0
 
 
@@ -2205,6 +2209,9 @@ def object_253ec(m, a2):
     elif st == 0xb and m.birds:
         import marble_bird
         marble_bird.carried_25876(m, a2)
+    elif st == 0xa and m.aerial:
+        import marble_aerial
+        marble_aerial.caught_2563e(m, a2)
     elif st == 6:
         # goal 0x254d2 (Marble Love refresh-frame-10fce.ts JT[6]): physics, +0x57 (0x1e from
         # 0x1365c) counts down; at 0 out of play (+0x18 = 3), v = 0. +0x57 wraps to 0xff, so
