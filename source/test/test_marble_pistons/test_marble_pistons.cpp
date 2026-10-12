@@ -470,8 +470,9 @@ static void test_contact(void) {
   TEST_ASSERT_EQUAL_HEX32((uint32_t)V, m.rl(PLAYER + VX));
 }
 
-// Leaving zone 4/5 tears the table down: pistons up leave the draw list, timers, cells and
-// tops 0, 0x400760 0; a race switch with pistons up starts as from a cleared work RAM.
+// Leaving zone 4/5 tears the table down (zone change, respawn elsewhere): pistons up leave the
+// draw list, timers, cells and tops 0, 0x400760 0; a race switch with pistons up starts as
+// from a cleared work RAM.
 static void test_teardown_and_switch(void) {
   Mem m = armedAerial();
   untilUp(m, 0);
@@ -486,6 +487,17 @@ static void test_teardown_and_switch(void) {
     TEST_ASSERT_EQUAL_HEX16(0, m.rw(a + T_TOP));
     TEST_ASSERT_EQUAL_UINT8(0, m.rb(a + T_CX));
   }
+
+  // respawn outside zone 4/5 (lost on the lower bridge, zone 7): the zone hook tears down
+  Mem r = armedAerial();
+  untilUp(r, 0);
+  r.wl(PLAYER + PX, (uint32_t)(77 * 8 + 4) << 16);
+  r.wl(PLAYER + PY, (uint32_t)(83 * 8 + 4) << 16);
+  r.wb(PLAYER + ZONE, OTHER_ZONE);
+  marble_physics::enterState(r, PLAYER, marble_physics::LOST);
+  TEST_ASSERT_TRUE(r.rb(PLAYER + ZONE) != ARM_ZONE && r.rb(PLAYER + ZONE) != ARM_ZONE + 1);
+  TEST_ASSERT_EQUAL_UINT8(0, r.rb(ARMED));
+  for (uint8_t i = 0; i < NPISTONS; i++) { TEST_ASSERT_EQUAL_UINT8(0, listedCount(r, TYPE_PISTON, i)); }
 
   Mem up = armedAerial();
   untilUp(up, 0);
