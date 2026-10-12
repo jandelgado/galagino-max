@@ -32,7 +32,8 @@
 -- n = n-th listed frame; shots.txt maps them, shots.bin holds a trace record of each
 -- (frame end, the state the PNG shows).
 --
--- shots_pal.bin holds palette RAM 0xb00000-0xb007ff of each shot (same order).
+-- shots_pal.bin holds palette RAM 0xb00000-0xb007ff of each shot (same order), shots_alpha.bin
+-- alpha RAM 0xa03000-0xa03fff (HUD text layer, 64 x 32 words).
 -- $MARBLE_PLACE "frame:x:y:z[:zone],...": at that frame put player 1 at pixel (x, y), height
 -- z (z word - 0x4000, e.g. -120), velocity 0, last ground = there, optional zone +0x1b/+0x1d
 -- (teleport next to a level object for render checks; z from tools/marble_sim.py terrain).
@@ -106,6 +107,7 @@ local out = io.open(out_dir .. "/trace.bin", "wb")
 local shots = io.open(out_dir .. "/shots.txt", "w")
 local shots_bin = io.open(out_dir .. "/shots.bin", "wb")
 local shots_pal = io.open(out_dir .. "/shots_pal.bin", "wb")
+local shots_alpha = io.open(out_dir .. "/shots_alpha.bin", "wb")
 local f = 0
 local cnt = { 0, 0 }
 
@@ -199,12 +201,13 @@ SUB = emu.add_machine_frame_notifier(function()
     dump(0x400000, 0x2000, shots_bin)
     dump(0xa00000, 0x3000, shots_bin)
     dump(0xb00000, 0x800, shots_pal)
+    dump(0xa03000, 0x1000, shots_alpha)
   end
   if tick_frame and f >= START_FRAME then
     out:write("FRAM", string.pack(">I4", f))
     dump(0x400000, 0x2000)
   end
   if f == frames then
-    out:close(); shots:close(); shots_bin:close(); shots_pal:close(); manager.machine:exit()
+    out:close(); shots:close(); shots_bin:close(); shots_pal:close(); shots_alpha:close(); manager.machine:exit()
   end
 end)
