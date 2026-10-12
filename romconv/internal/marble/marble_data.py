@@ -244,6 +244,19 @@ def decode_level(r, n):
     return m
 
 
+# Intensity nibble -> scale of the 4 bit colour components (resistor ladder: intensity 1 is
+# already dark grey, 0 is off). The user's reference screenshot (aerial ramp 42, 33, 24 grey,
+# red 119/34/17) matches this table on every colour; the MAME 0.289 traces' linear intensity
+# (_irgb) makes those greys almost black. The remake uses this table.
+_INTENSITY = (0x0, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0x10, 0x11)
+
+
+def irgb_hw(raw):
+    """Display colour of a palette word: component * _INTENSITY[intensity], at most 255."""
+    i = _INTENSITY[(raw >> 12) & 15]
+    return tuple(min(255, ((raw >> s) & 15) * i) for s in (8, 4, 0))
+
+
 def _irgb(raw):
     """MAME IRGB_4444: 4 bit intensity scales 4 bit R, G, B."""
     i = (raw >> 12) & 15
@@ -252,14 +265,15 @@ def _irgb(raw):
     return c(raw >> 8), c(raw >> 4), c(raw)
 
 
-def palette(r, n):
-    """1024 RGB entries after the game loads palette set n (68010 0x26b2a)."""
+def palette(r, n, hw=False):
+    """1024 RGB entries after the game loads palette set n (68010 0x26b2a); hw: the remake's
+    display colours (irgb_hw), else MAME 0.289's (_irgb, for trace screenshots)."""
     pal = [0] * 1024
     for i in range(32):
         pal[i] = u16(r, PAL_ALPHA + 2 * i)
     for i in range(0xC3):
         pal[(u32(r, PAL_TARGETS + 4 * i) - 0xB00000) // 2] = u16(r, PAL_SETS + n * 0xC3 * 2 + 2 * i)
-    return [_irgb(p) for p in pal]
+    return [(irgb_hw if hw else _irgb)(p) for p in pal]
 
 
 PF_PALETTE = 0x200  # playfield colours: 0x200 + colour_set * 32 + pixel

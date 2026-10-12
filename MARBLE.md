@@ -17,7 +17,11 @@ TypeScript port named by ROM address. Facts below were read from the disassembly
   = bank 2 tiles 2048-4095 (149/151/153), 4 bpp with plane 3 empty.
 - Screen 336x240 ROT0 (set_raw 7.159 MHz, 456x262). The playfield used by races is 36
   tiles = 288 px wide, drawn from playfield RAM column 3 (0xa00006).
-- Palette: IRGB_4444, 1024 entries. Playfield colours 0x200 + colour_set * 32 + pixel,
+- Palette: IRGB_4444, 1024 entries. Display colour (converter `marble_data.irgb_hw`): each
+  4 bit component times the intensity table 0, 3, 4, ..., 0x11 (intensity 1 is dark grey,
+  e.g. the aerial ramp 0x1eee = 42 grey), as the user's reference screenshot shows on every
+  colour; MAME 0.289's linear intensity (`_irgb`, kept for trace screenshots) makes those
+  greys almost black. Playfield colours 0x200 + colour_set * 32 + pixel,
   motion objects 0x100 + set * 16 + pixel (verified visually for playfield only).
 
 ## Levels

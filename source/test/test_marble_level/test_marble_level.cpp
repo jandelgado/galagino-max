@@ -35,15 +35,15 @@ static uint32_t crc32(const uint8_t *p, size_t n, uint32_t crc = 0) {
 
 #ifdef HAVE_ROM
 // render CRCs of the edge tests (the reference composite is the check, these catch changes)
-static const uint32_t OBJECT_MASKS_CRC = 0x710D10BC, DEATH_EDGES_CRC = 0x2DB1610B;
-static const uint32_t STEELIE_EDGES_CRC = 0xE923A280, SLINKY_EDGES_CRC = 0x63A9C6FE;
+static const uint32_t OBJECT_MASKS_CRC = 0x7AD96428, DEATH_EDGES_CRC = 0x0C5E75EC;
+static const uint32_t STEELIE_EDGES_CRC = 0x9BB3FD96, SLINKY_EDGES_CRC = 0x738BFB1E;
 static const uint32_t SLINKY_FIRST_HDR = 0x21a6a;  // lowest slinky frame header
 static const uint32_t BIRD_FIRST_HDR = 0x22452;    // lowest bird frame header (the last enemy)
 static const uint32_t ACID_LAST_HDR = 0x2191e;     // highest acid frame header (minis follow)
 static const uint32_t SLINKY_LAST_HDR = 0x21cc2;   // highest slinky frame header (minis follow)
-static const uint32_t ACID_EDGES_CRC = 0xFB6CB52D;
-static const uint32_t BIRD_EDGES_CRC = 0x8BC88626;
-static const uint32_t MINI_EDGES_CRC = 0x2EC4DA29;
+static const uint32_t ACID_EDGES_CRC = 0xD02E0B30;
+static const uint32_t BIRD_EDGES_CRC = 0x0B801A33;
+static const uint32_t MINI_EDGES_CRC = 0x0041D2EB;
 static marble_level::Store store;
 
 static void test_levels_match_decoder(void) {
@@ -215,7 +215,7 @@ static void test_object_sprites(void) {
       crc = crc32((const uint8_t *)got, sizeof(got), crc);
     }
   }
-  TEST_ASSERT_EQUAL_HEX32(0xB832CBEA, crc);
+  TEST_ASSERT_EQUAL_HEX32(0x7418173B, crc);
 
   // frame id past the set and an unloaded tile buffer draw nothing
   marble_video::VideoState v = {};

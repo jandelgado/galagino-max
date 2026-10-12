@@ -90,7 +90,7 @@ def convert_level(rom, n):
         if len(tiles) > MAX_TILES:
             fatal(f"marble: race {n} patch tiles raise the tile set to {len(tiles)} > "
                   f"MAX_TILES {MAX_TILES}")
-    rgb = md.palette(rom, n)[md.PF_PALETTE:md.PF_PALETTE + 128]
+    rgb = md.palette(rom, n, True)[md.PF_PALETTE:md.PF_PALETTE + 128]
     pal = [rgb888_to_rgb565_le(*c) for c in rgb]
     return len(words), tiles, mapw, pal
 
@@ -879,7 +879,7 @@ def mo_sprites(rom):
     if len(sets) != 1:
         fatal("marble: marble motion objects use more than one palette set")
     cs = sets.pop()
-    pals = {tuple(md.palette(rom, n)[0x100 + cs * 16:0x110 + cs * 16]) for n in range(md.LEVELS)}
+    pals = {tuple(md.palette(rom, n, True)[0x100 + cs * 16:0x110 + cs * 16]) for n in range(md.LEVELS)}
     if len(pals) != 1:
         fatal("marble: motion object palette differs between races")
     return tiles, [rgb888_to_rgb565_le(*c) for c in pals.pop()]
@@ -1154,7 +1154,7 @@ def lift_palette(rom):
                 for k in range(n)]
         if dest != [LIFT_PAL_FIRST + k for k in range(4)]:
             fatal(f"marble: lift palette command {c} writes {dest}")
-        out.append([rgb888_to_rgb565_le(*md._irgb(ms.rom_w(d + 2 + 2 * k))) for k in range(4)])
+        out.append([rgb888_to_rgb565_le(*md.irgb_hw(ms.rom_w(d + 2 + 2 * k))) for k in range(4)])
     return out
 
 
@@ -1269,7 +1269,7 @@ def emit_sprites(f, rom, size4, size4b1, size4b2):
     print("// entry is black); the lift palette variants 0-3 (set 6 pens 1-4).", file=f)
     pals, shade = [], []
     for n in range(md.LEVELS):
-        rgb = md.palette(rom, n)
+        rgb = md.palette(rom, n, True)
         pals.append([[rgb888_to_rgb565_le(*rgb[0x100 + st * 16 + pen]) for pen in range(8)]
                      for st in mo.SETS])
         for e in range(0x300, 0x400):
@@ -1312,7 +1312,7 @@ MINI_SETS = (5, 6, 4)  # silly race minis of type 7, 8, 9 (death set rows 5, 6, 
 
 def race_pal(rom, st, races, what):
     """Palette set st, pens 0-7 RGB565, equal in races (else fatal)."""
-    pal = {tuple(rgb888_to_rgb565_le(*md.palette(rom, n)[0x100 + st * 16 + pen])
+    pal = {tuple(rgb888_to_rgb565_le(*md.palette(rom, n, True)[0x100 + st * 16 + pen])
                  for pen in range(8)) for n in races}
     if len(pal) != 1:
         fatal(f"marble: {what} palette differs between the {what} races")
@@ -1358,7 +1358,7 @@ def emit_death(f, rom, size4b, size4b2, size4b3, size4b4, size4b5):
     print(f"static const MarbleSpriteSet marble_death_set = {{ marble_sprite_frames_death, "
           f"marble_sprite_cols_death, marble_sprite_addr_death, {len(ds.hdrs)}, {len(ds.cols)}, "
           f"{len(ds.tile_codes)} }};", file=f)
-    pals = {tuple(tuple(rgb888_to_rgb565_le(*md.palette(rom, n)[0x100 + st * 16 + pen])
+    pals = {tuple(tuple(rgb888_to_rgb565_le(*md.palette(rom, n, True)[0x100 + st * 16 + pen])
                         for pen in range(8)) for st in DEATH_SETS) for n in range(md.LEVELS)}
     if len(pals) != 1:
         fatal("marble: death frame palettes differ between races")
