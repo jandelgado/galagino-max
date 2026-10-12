@@ -315,6 +315,7 @@ class Mem:
         self.land = None        # (marble_enemy.Enemies), None: not ported
         self.deaths = False     # arcade death paths (0x25bae, 0x25c74) and dots 0x1c014
         self.enemies = False    # steelies (marble_enemy.enable): spawn, update, pair, landing
+        self.slinkies = False   # slinkies (marble_slinky.enable): spawn, update, contact
     def _loc(self, a):
         a &= 0xffffff
         if a < 0x30000: return PROG, a, False
@@ -682,8 +683,11 @@ def physics_121b8(m, a2):
     slots_29cce(m, a2)
     if m.rb(a2 + 0x58) == 0xa or m.rb(a2 + 0x1a) == 4: return
     if m.pair and m.pair(m, a2): posupd_1bab2(m, a2)  # 0x1bc88 object pair collision
-    # 0x14e92/0x175c8/0x1881c/0x1924e/0x19d94: enemy contacts of the player, not ported
+    # 0x175c8/0x1881c/0x1924e/0x19d94: enemy contacts of the player, not ported
     if pl:
+        if m.slinkies:
+            import marble_slinky
+            marble_slinky.contact_14e92(m, a2)
         zones_1365c(m, a2)
         if m.rb(a2 + 0x1a) == 0xb: return
     h = height_1cc62(m)
@@ -986,20 +990,29 @@ def occlusion_264aa(m, a2, d3):
     height in tiles, bit 15 also hflip (span masks), bit 11 set, bits 0-10 MO code (bank
     lookup 0x0400 | code & 0x7ff). The MO builder turns them into priority MOs (pen 1 =
     playfield shows, the sprite under it is hidden). +0x1c = 0 when every column is covered."""
-    out = [a2 + 0x38]
+    base = a2 + (0x2c if d3 == 2 else 0x38)
+    out = [base]
     def emit(*words):
         for w in words:
             m.ww(out[0], w); out[0] += 2
-    for i in range(5): m.ww(a2 + 0x38 + 6 * i, 0)
+    for i in range(5): m.ww(base + 6 * i, 0)
     if d3 == 0:
         if m.rb(a2 + 0x58) and m.rb(a2 + 0x59) != 0xff and m.rb(a2 + 0x58) != 0xa \
                 and m.rb(a2 + 0x1a) not in (9, 0xb, 0xa):
             m.wb(a2 + 0x1c, 0); return
         if m.rb(a2 + 0x1a) in (4, 6, 0xa): return
     x = m.sl(a2 + 0xc); y = m.sl(a2 + 0x10)
-    sy = m.sw(a2 + 0x20); col = m.sw(a2 + 0x1e) >> 3
-    ncol, top = 3, 0xe
-    if d3 == 0 and m.rb(a2 + 0x1a) in (1, 2, 5, 9): ncol, top = 5, 0x20
+    if d3 == 2:                                      # slinky: box of its current frame
+        f = rom_l(m.rl(a2 + 0x58))
+        ncol = 5 if s8(PROG[f + 2]) > 2 else 3
+        top = s8(PROG[f + 3]) << 3
+        col = s16(s8(PROG[f]) + m.rw(a2 + 0x28)) >> 3
+        col += 1 if ncol == 3 else 2
+        sy = s16(s8(PROG[f + 1]) + m.rw(a2 + 0x2a))
+    else:
+        sy = m.sw(a2 + 0x20); col = m.sw(a2 + 0x1e) >> 3
+        ncol, top = 3, 0xe
+        if d3 == 0 and m.rb(a2 + 0x1a) in (1, 2, 5, 9): ncol, top = 5, 0x20
     top = s16(top + sy)                              # sprite top line (counting up)
     diag = s16((y >> 19) + (x >> 19) - 0x15)         # diagonal of the cell
     diag2 = s16(((x + y) >> 19) - 0x15)              # diagonal of the pixel sum
@@ -1022,7 +1035,7 @@ def occlusion_264aa(m, a2, d3):
         d = max(0, s8(PROG[shape + c - c0]) + diag)
         # explicit occluders per column and race (0x1ea2a): records of 5 words
         # (diagonal limit, depth, control, y, entry code)
-        tab = rom_l(0x1ea2a + 4 * c); sel = rom_w(tab + 2 * race)
+        tab = rom_l(0x1ea2a + 4 * c); sel = rom_w(tab + 2 * race) if d3 < 2 else 0
         done = False
         if sel:
             r = tab + 2 * sel
@@ -1079,6 +1092,7 @@ def occlusion_264aa(m, a2, d3):
             emit((rom_w(0x1ead2 + 2 * (y0 - y1)) + 0x8000) & 0xffff, c << 3,
                  (rom_w(0x1eaf4 + 2 * (y0 - y1)) + y1) & 0xffff)
     allm = (1 << ncol) - 1
+    if d3 == 2: return
     if covered & allm == allm or (d3 == 0 and ncol == 5 and covered & 0xe == 0xe):
         m.wb(a2 + 0x1c, 0)
 
@@ -1174,6 +1188,9 @@ def camera_bands_144e4(m, old, new):
     if m.enemies:
         import marble_enemy
         marble_enemy.spawn_15a12(m, a, b)
+    if m.slinkies:
+        import marble_slinky
+        marble_slinky.spawn_14c46(m, a, b)
     spawn_12dfa(m, a, b)
 
 
@@ -1927,6 +1944,18 @@ def object_253ec(m, a2):
                 m.wb(a2 + 0x57, 0x65); enter_25bae(m, a2, 4); done = False
         if done:
             m.wl(a2 + 4, 0); m.wl(a2, 0); m.wb(a2 + 0x1a, 0)
+    elif st == 5:
+        # eaten wobble 0x257ba (refresh-frame-10fce.ts JT[5]): a slinky holds the marble
+        # (0x14e92); +0x56 (50 from 0x14e92) counts down, then rolling again
+        anim_25fc2(m, a2); ground_253bc(m, a2); input_17f66(m, a2); physics_121b8(m, a2)
+        if m.rb(a2 + 0x1a) != 5: return
+        if m.rb(a2 + 0x56): m.wb(a2 + 0x56, m.rb(a2 + 0x56) - 1)
+        if m.rb(a2 + 0x56): return
+        sound_15884(m); m.wb(a2 + 0x1a, 0); m.wl(a2 + 0x5a, 0)
+        dots_1c014(m, a2)
+    elif st == 7:
+        # inside a slinky 0x25812 (JT[7]): hidden until the slinky's state 5 sends it lost
+        ground_253bc(m, a2); m.wb(a2 + 0x1c, 0)
     elif st == 6:
         # goal 0x254d2 (Marble Love refresh-frame-10fce.ts JT[6]): physics, +0x57 (0x1e from
         # 0x1365c) counts down; at 0 out of play (+0x18 = 3), v = 0. +0x57 wraps to 0xff, so
@@ -1981,6 +2010,9 @@ def main_tick(m, c6, c7, camera, frame):
     if m.enemies:
         import marble_enemy
         for a in STEELIES_ALL: marble_enemy.update_158f6(m, a)
+    if m.slinkies:
+        import marble_slinky
+        marble_slinky.update_1493c(m)
     slots_12fd0(m)
     rng_13a98(m, 0x100)
 

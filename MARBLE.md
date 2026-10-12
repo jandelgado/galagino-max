@@ -1290,17 +1290,119 @@ python3 romconv/internal/marble/tools/marble_enemy.py sfixture \
   source/test/test_marble_steelies/marble_steelies_trace.h   # replay, no trace needed
 ```
 
+### Slinkies in the main tick model (Phase 4b-2)
+
+Marble Love TS (`state-sub-14c46.ts`, `sub-14966.ts`, `helper-15148.ts`,
+`state-dispatch-15460.ts`, `state-sub-15670.ts`, `nearest-neighbor.ts` V2,
+`sprite-coords-jsr-150d0.ts`, `fun-264aa.ts` mode 2, `script-slot-bbox-test-14e92.ts`,
+`refresh-frame-10fce.ts` player states 5/7), except 0x14a28-0x14bba (not in the TS; ported
+from the disassembly by user ruling 2026-10-12, that block only). Model
+`tools/marble_slinky.py`, `marble_slinky.enable(m)` (`m.slinkies`): spawner 0x14c46 after
+0x15a12 in `camera_bands_144e4`, 0x1493c after the steelies, 0x14e92 for players in 0x121b8
+after 0x1bc88 (races 1/2/5), player states 5 (0x257ba) and 7 (0x25812) in `object_253ec`.
+
+Record 0x401302 + 0x60 k (table 0x1f006, +0x19 = k): v +0/+4, pos +0xc/+0x10/+0x14, +0x18
+live, +0x1a state, +0x1b zone, +0x1c/+0x20 marble velocity at a push, +0x24 tick, +0x25 ticks
+per frame (2 in states 0/4, else 1), +0x26 frame step (1, -1), +0x27 lunge tick, +0x28 screen
+(x, y words as slots), +0x2c masks (5 x {code, x, y}), +0x4a next waypoint, +0x4e waypoint
+list (4 byte records cell x, y, next record offset, pad; 0xff end), +0x52/+0x54 band, +0x56
+prey (index into 0x1eff6), +0x58 frame cursor, +0x5c anim list (ROM longs, -1 end).
+
+- Spawn 0x14c46: as 0x15a12 (highest free slot first; none free ends the scan; skip if a live
+  slinky has the same list +0x4e), position = first waypoint centre, z = 0x1bb08 + 0x1cc62(1),
+  state 0, anim 0x20c18, +0x26 = 1, +0x25 = 2, 0x150d0, draw list insert type 4. Removal: band
+  left, +0x18 = 0, 0x18f46. Tables: beginner 5-30, 5-31, 6-34 (zones 3, 3, 4), intermediate
+  1-24 x2 (zones 1, 2), ultimate 0-25 x2, 6-32 x2 (zones 4, 4, 5, 5).
+- Tick 0x14966: +0x24 += 1; at +0x25 the cursor steps by +0x26 records; at the list end (or
+  back at its start) it restarts, walking slinkies (states 0/3, step > 0) move by v, and the
+  state machine 0x15148 runs; state 2 runs it every tick. States 1/5/6 then run the lunge
+  0x14a28; always 0x150d0 (screen +0x28, masks 0x264aa mode 2 at +0x2c: box from the frame
+  header bytes 0-3, no explicit occluders 0x1ea2a, +0x1c untouched).
+- 0x15148: 0/3 walk (cell == list start and anim not idle: stop, idle anim, next = record
+  after it; cell == next waypoint: next = its successor; then aim 0x15460; walking: prey
+  search 0x15670), 1 chase (prey > 0x100 on an axis: 6; octant < 0x70: catch, prey position =
+  slinky, prey state 7, slinky 5, sound 0x33; < 0xc0: prey v = 0x400 * (d / octant) >> 4;
+  else and after the pull: 6), 2 pushed (0x25e7c mode 2 friction; v 0: 4; step changing the
+  ground height undone, up 1, down 4), 4: 1, 5/6: position snapped to the cell centre, 5 sends
+  the prey lost (0x15884, +0x57 = 0x65, 0x25bae(4)), then 3 with next = nearest waypoint
+  (0x14dec).
+- 0x15460 anim per state: 0/3 one axis step of 8 towards the next waypoint (x first when v x
+  is 0), anims 0x20c48/6c/90/b4, idle 0x20c18; 1 0x20cd8 (+0x27 = 0); 2 0x20d64 after the push
+  anim plays out (+0x26 -1 for the reverse half); 4 by the push velocity +0x1c/+0x20 0x20dd8/
+  e14/dec/e00; 5 0x20e28; 6 0x20d6c. Then cursor = list start, +0x24 = 0.
+- 0x15670 (walking): prey = the last rolling player (+0x18 1, same zone, |vx| + |vy| >
+  0xc000, on the ground, state 0/1/5, not prey of another chasing slinky); +0x56 = its number;
+  octant distance 0x180-0x280 (24-40 px): state 1. Two candidate players call 0x15fe6
+  (unported: `fail`).
+- Lunge 0x14a28 (+0x27 in 6..0x25, then +0x27 += 1 always): z = ground + s8 0x2255a[+0x27 -
+  6] << 16 (the slinky rears up). Prey live, same zone, on the ground at exactly this ground
+  height, state 0/1/5/7: v = d >> 4, then v += ((0x800 * (d / octant) >> 4) - v) >> 5 (d in
+  16.16, octant of the 1/16 px deltas, unsigned); else v = 0. Step by v, undone if the ground
+  height under the new cell differs.
+- Contact 0x14e92 (players, races 1/2/5, first hit only): marble box x/y +-3, z +0..+0xe vs
+  slinky box (frame header bytes 4-7, -4, -4, 8, 8 for an empty anim; z +0..+0x10). Slinky in
+  0/3: state 2, v = +0x1c/+0x20 = marble v. Chasing (1/6) its own prey: nothing more. Else
+  +0x56 = player (unless player or slinky in 5); marble back to 0x400684/0x400688, v = 0; not
+  in 5: +0x5f = 0, +0x60 = 2, +0x5a = 0x20fb6 (dizzy) or 0x20faa (sound 0x39); state 5, +0x56
+  = 0x32 unless already 5/7.
+- Player 5 (0x257ba): 0x25fc2, 0x253bc, 0x17f66, 0x121b8, then +0x56 counts down; at 0 state
+  0, +0x5a = 0, sound pair, dots 0x1c014. Player 7 (0x25812): 0x253bc, +0x1c = 0.
+- Marble Love catch test `dist1 > 0x70` contradicts its own quoted `ble` (catch below 0x70);
+  the model uses < 0x70 and matches every catch.
+
+Tick start traces (`$TMPDIR/sl`, `$TMPDIR/st/run.sh`, place at frame 900, input from 950 or
+1000):
+
+| run | race | place / input | content | free run |
+| --- | --- | --- | --- | --- |
+| b1 | 1 | 404:356:-120:3 | push, stop, chase, lunge, catch, player 5/7/4 | 399 ticks equal |
+| b3 | 1 | 420:380:-120:3, alternating rolls | push, eat | 498 ticks equal |
+| b6 | 1 | 404:396:-120:3, `120:2:3,300:-2:-3` | chase from walking (0x15670), lost prey 6, back 3 | 298 ticks equal |
+| b7 | 1 | 404:396:-120:3, `120:3:2,300:-3:-2` | chase, 6, push 23 ticks, catch | 298 ticks equal |
+| i1, i2 | 2 | 356:284:-64:1, 276:364:-64:2 | eat by each intermediate slinky | 398 ticks equal each |
+| u1 | 5 | 320:400:0:4 | eat, acid alongside | 398 ticks equal |
+
+Also equal: `slinky TRACE RACE` (0x1493c alone between snapshots) on 12 older traces (~6300
+ticks), spawns/removals of cam1/cam2/cam5 (`spawncheck`, 34 events), st/b1 and st/u1 with
+steelies. Old commands (fixture, objfixture, dfixture, sfixture, spritefixture) stay exact
+with slinkies forced on. Acid (type 0x0e, Phase 4b-3) shares the draw list sort: with acid
+entries in MAME's list the checks compare the list as a set.
+
+Slinky fixture `source/test/test_marble_slinkies/marble_slinkies_trace.h` (`make_fixture.py
+slwrite`): RAM blocks, per tick `MarbleSlinkyTick` (inputs, player, both steelies, the four
+slinkies `MarbleSlinkyObj {live, state, x, y, z, sx, sy, tick, next, prey, cursor, frame_hdr,
+mask[30]}`, MOs, draw list without acid).
+
+| segment | ticks | events |
+| --- | --- | --- |
+| beginner b7 1231 | 130 | chase, lost prey, push, stop, catch, player 5/7 |
+| beginner b6 1301 | 95 | lost prey, back, second chase, player lost |
+| intermediate i1 990 | 105 | stop, chase, catch, player 5/7/4, respawn |
+| ultimate u1 902 | 100 | catch, player 7/4, acid in the list |
+| beginner st/b1 1015 | 60 | steelies and three walking slinkies |
+
+```sh
+S=$TMPDIR
+python3 romconv/internal/marble/tools/make_fixture.py slwrite \
+  source/test/test_marble_slinkies/marble_slinkies_trace.h 1:$S/sl/b7/trace.bin:1231:130 \
+  1:$S/sl/b6/trace.bin:1301:95 2:$S/sl/i1/trace.bin:990:105 5:$S/sl/u1/trace.bin:902:100 \
+  1:$S/st/b1/trace.bin:1015:60
+python3 romconv/internal/marble/tools/marble_slinky.py slfixture \
+  source/test/test_marble_slinkies/marble_slinkies_trace.h
+python3 romconv/internal/marble/tools/marble_slinky.py slinkies TRACE RACE FROM:TO
+```
+
 ## Open questions
 
 - Level objects: unported tags (0x0a-0x0d, tubes 0x12-0x16, 0x20-0x27), zone triggered
   slots (state 4, 0x13966/0x13a1c, aerial), playfield patch decode of tag 0x19 rows. Section
   Level objects. Slot sprites: section Level object sprites (masks over slot MOs behind the
   marble not seen in traces).
-- Enemies (section Enemies): slinky states 1/5/6 (0x14a28-0x14bba, not in Marble Love), two
-  player target choice 0x15fe6, no trace of acid/bird/piston hits or of a steelie occluded by
-  terrain (masks +0x38).
-- Deaths (section Player states, deaths, RNG): states 1/2/4 modelled and ported. Not
-  modelled: states 3 (catapult), 5/7/9/0xb (enemies), 8 (time out, 0x258a8), 0xa (gate,
+- Enemies (section Enemies): two player target choices 0x15fe6 (steelies and slinkies), no
+  trace of a slinky pulling the marble (0x15316, octant 0x70-0xc0), of acid/bird/piston hits
+  or of a steelie occluded by terrain (masks +0x38).
+- Deaths (section Player states, deaths, RNG): states 1/2/4/5/7 modelled, 1/2/4 ported.
+  Not modelled: states 3 (catapult), 9/0xb (enemies), 8 (time out, 0x258a8), 0xa (gate,
   0x13d38 writes +0x38), practice landing markers (type 0x2a, 0x12532, score 0x285b0),
   aerial piston hook 0x186ac in 0x13966, the race timer and other vblank IRQ work, two
   players, the main loop countdowns 0x400768/0x4003b8 (aerial deaths diverge once 0x13966
