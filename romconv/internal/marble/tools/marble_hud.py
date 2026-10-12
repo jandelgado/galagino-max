@@ -353,9 +353,9 @@ def hud_states(fs):
     for i, h in enumerate(out):
         ph, k = h._ph, h._k
         if ph == RACE_END and not h.screen & INTRO:
-            # bonus frame: the score jump of min(s, 99) * 100 (0x118d2)
-            j = i - k + 1
-            while j < n and out[j]._ph == RACE_END and rl(ram[j], P + SCORE) == rl(ram[j - 1], P + SCORE):
+            # bonus frame: 0x118d2 sets +0x70 = 0 with the line (frame 3), 0xff with the points
+            j = i - k + 1 + 2
+            while j < n and out[j]._ph == RACE_END and rb(ram[j], P + ANIM1) != 0xff:
                 j += 1
             if k >= 3 and i < j:
                 h.screen |= BONUS | BONUS_PALETTE | PAL | TOP

@@ -292,9 +292,10 @@ void update(Tracker &t, const marble_flow::Flow &f, const marble_physics::Mem &m
                      ph == marble_flow::RACE_END || ph == marble_flow::TIME_OUT;
   if (t.loaded && (shown || (ph == marble_flow::GAME_OVER && k < TOP_AFTER))) { s |= PAL | TOP; }
 
-  // race end: bonus line until the bonus is added, then nothing until the next banner
+  // race end: bonus line until the bonus frame (0x118d2 sets +0x70 = 0 with the line, 0xff
+  // with the points, also when there are none), then nothing until the next banner
   if (ph == marble_flow::RACE_END && !(s & INTRO)) {
-    if (h.score != t.score) { t.bonusDone = true; }
+    if (k >= BONUS_FROM && m.rb(P + FADE_F) == PULSE_OFF) { t.bonusDone = true; }
     if (t.bonusDone) {
       s = 0;
     } else if (k >= BONUS_FROM) {
@@ -309,7 +310,6 @@ void update(Tracker &t, const marble_flow::Flow &f, const marble_physics::Mem &m
   }
   if (ph == marble_flow::GAME_OVER && t.before == marble_flow::FINAL && k < FINAL_AFTER) { s = PAL | FINAL; }
   if (ph == marble_flow::GAME_OVER && k >= PUSH_FROM) { s = PAL | PUSH; }
-  t.score = h.score;
 
   // palette pulses: colours reload with the palette; the counters step before the read
   if (!(s & PAL) || !(t.screen & PAL)) { t.pal3 = t.pal11 = PULSE_OFF; }

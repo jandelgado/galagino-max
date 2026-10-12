@@ -52,7 +52,6 @@ struct Tracker {
   uint16_t before;    // the phase before
   bool loaded;        // alpha palette loaded since the race init
   bool bonusDone;     // race end: the bonus is added (alpha off until the next init)
-  uint32_t score;     // last frame's score
   int16_t base;       // intro: seconds before the first +5 s
   uint16_t screen;    // last frame's screen bits
   uint8_t pal3, pal11;

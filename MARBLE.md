@@ -2088,7 +2088,8 @@ Items (arcade row, column, colour; o = opaque):
   row, `TIME TO FINISH` (races 0/1) or `EXTRA TIME FOR`, the race line (race name 5o, rest 4o),
   blank row; seconds still to add, two big digits cols 29-32 (5o, leading space). Silly race:
   rows 14-16 cols 6-36 (5o) `EVERYTHING YOU KNOW IS WRONG` between blank rows.
-- Race end (0x400390 = 3, from frame 3 until the bonus frame): rows 3-4 col 3 (0o) `BONUS FOR`,
+- Race end (0x400390 = 3, from frame 3 until the bonus frame, where 0x118d2 sets +0x70 = 0xff
+  with the points, also with 0 s left): rows 3-4 col 3 (0o) `BONUS FOR`,
   `TIME LEFT:` + min(s, 99) * 100 right aligned at col 19; drawn after the top items (covers the
   timer border cell at col 19). Then the alpha palette is off until the next race init + 4.
 - Time out (0x400390 = 4 from frame 2 until 2): rows 24-28 cols 13-28 (0o) `OUT OF TIME`,

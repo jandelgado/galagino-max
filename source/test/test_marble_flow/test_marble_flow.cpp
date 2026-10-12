@@ -191,7 +191,6 @@ static void startRaceEnd(Machine &mc, uint8_t race, int16_t seconds, uint32_t sc
   mc.flow.intro = marble_flow::NO_INTRO;
   mc.tracker.phase = marble_flow::RACE;
   mc.tracker.loaded = true;
-  mc.tracker.score = score;
   m.ww(marble_flow::GAME_STATE, marble_flow::RACE_END);
   marble_hud::update(mc.tracker, mc.flow, m, mc.hud);
 }
@@ -392,6 +391,26 @@ static void test_hud_race_ends(void) {
   }
 }
 
+// goal with 0 s left: no points, the bonus line still ends at the bonus frame (0x118d2)
+static void test_hud_bonus_zero(void) {
+  const MarbleHudRun &r = marble_hud_runs[1];  // practice race end
+  Machine mc;
+  startRaceEnd(mc, r.race, 0, r.score, r.deaths, r.frames0);
+  uint16_t shown = 0, after = 0;
+  for (int d = 1; d < 200 && mc.flow.race == r.race; d++) {
+    runFrame(mc, false);
+    if (mc.hud.screen & marble_hud::BONUS) {
+      shown++;
+      after = 0;
+    } else if (shown) {
+      after++;
+    }
+  }
+  TEST_ASSERT_TRUE(shown > 0);
+  TEST_ASSERT_TRUE_MESSAGE(after > 0, "bonus line until the next race");
+  TEST_ASSERT_EQUAL_UINT32(r.score, Mem(ram, mc.race).rl(PLAYER + SCORE));
+}
+
 // after game over: PUSH 1 PLAYER START until START, then the new game's race init
 static void test_hud_push_start(void) {
   Machine mc;
@@ -415,6 +434,7 @@ int main(int, char **) {
   RUN_TEST(test_replay_bonus);
   RUN_TEST(test_hud_time_out);
   RUN_TEST(test_hud_race_ends);
+  RUN_TEST(test_hud_bonus_zero);
   RUN_TEST(test_hud_push_start);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
