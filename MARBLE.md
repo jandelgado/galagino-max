@@ -1386,6 +1386,20 @@ steelies. Old commands (fixture, objfixture, dfixture, sfixture, spritefixture) 
 with slinkies forced on. Acid (type 0x0e, Phase 4b-3) shares the draw list sort: with acid
 entries in MAME's list the checks compare the list as a set.
 
+C++ (`marble_slinkies.{h,cpp}`, 1:1 port of `marble_slinky.py`, internals in namespace
+`marble_slinkies`: the host tests compile every module into one unit, where the steelie
+constants of `marble_enemies.cpp` would hide same-named slinky ones): `marble_enemies` forwards
+`init`, `cameraBands` (after the steelies), `update` (after the steelies) and
+`contact_14e92`, which `physics_121b8` calls for players after the pair collision.
+`marble_physics` gains states `EATEN` (0x257ba) and `HIDDEN` (0x25812), `cellHeight`
+(0x1bb08 + 0x1cc62(1)) and `drag` (0x25e7c mode 2); `marble_occlusion::slinky` is 0x264aa
+mode 2. `marble_enemy.setup` (model) turns slinkies on too, so the steelie fixture RAM blocks
+hold the slinky records (fixture regenerated). Host test `test_marble_slinkies`: fixture
+replay (player, steelies, slinkies, draw list), race sweep (spawns at table bands, counts as
+`marble_slinky.sweep`: beginner 9/9, intermediate 6/6, ultimate 8/10, most live 3/2/4), a
+slinky eating the still marble in each slinky race (5, 7, 4, then rolling) and a race switch
+while the player is held.
+
 Slinky fixture `source/test/test_marble_slinkies/marble_slinkies_trace.h` (`make_fixture.py
 slwrite`): RAM blocks, per tick `MarbleSlinkyTick` (inputs, player, both steelies, the four
 slinkies `MarbleSlinkyObj {live, state, x, y, z, sx, sy, tick, next, prey, cursor, frame_hdr,

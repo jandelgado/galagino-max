@@ -2,6 +2,7 @@
 #include "marble_drawlist.h"
 #include "marble_occlusion.h"
 #include "marble_physics.h"
+#include "marble_slinkies.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -325,6 +326,7 @@ void update_158f6(Mem &m, uint32_t a2) {
 
 void init(Mem &m) {
   for (uint8_t i = 0; i < NSTEELIES; i++) { m.wb(steelie(i) + IDX, i); }
+  slinkyInit(m);
 }
 
 // Spawn a steelie for every entry of 0x22706[race] whose band lo or hi is entered from
@@ -355,10 +357,12 @@ void cameraBands(Mem &m, int16_t oldBand, int16_t newBand) {
     const int16_t lo = m.sw(s + BAND_LO), hi = m.sw(s + BAND_HI);
     if ((a == lo && b < lo) || (a == hi && b > hi)) { remove_15bd0(m, s, NO_SCORE, CLEAR); }
   }
+  slinkyBands(m, a, b);
 }
 
 void update(Mem &m) {
   for (uint8_t i = 0; i < NSTEELIES; i++) { update_158f6(m, steelie(i)); }
+  slinkies_1493c(m);
 }
 
 // 0x1bc88: a2 against P1, P2 and (beginner, aerial, ultimate) the steelies. Overlap 7 px x/y,

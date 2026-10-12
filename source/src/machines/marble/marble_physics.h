@@ -16,22 +16,27 @@
 //       DIZZY   animation 0x25fc2, as ROLL, countdown
 //       BROKEN  shatter animation 0x25fc2, projection, masks; ends in LOST
 //       LOST    respawned at entry (0x2591a); sparkle 0x13ade, then ROLL
+//       EATEN   held by a slinky: animation 0x25fc2, as ROLL, countdown
 //       GOAL    physics, countdown, then out of play
+//       HIDDEN  inside a slinky (0x25812) until it sends the player LOST
 //   project(m)                screen position 0x1b9cc of the player. The physics tail calls
 //                             it; ticks that return early keep the stored value, as in the
 //                             arcade. Call it where the physics does not run.
 //
 // Level object slots (marble_objects.h): 0x29cce runs inside the physics, startRace spawns
 // the first slots. Steelies (marble_enemies.h) run the same object physics: pair collision
-// 0x1bc88, non-player landing and loss go to marble_enemies. Not ported (Phase 4): other
-// enemies, states 3, 5, 7-0xb, the race timer (time out 0x1bbaa), sprite dots 0x1c014, zone
+// 0x1bc88, non-player landing and loss go to marble_enemies; the player's physics also runs
+// the slinky contact 0x14e92. Not ported (Phase 4): other enemies, states 3, 8-0xb, the race
+// timer (time out 0x1bbaa), sprite dots 0x1c014, zone
 // hook 0x13966, sounds.
 namespace marble_physics {
 
 static const uint32_t PLAYER = 0x400018;  // player 1 object
 
 // player state +0x1a (handler table 0x254ba)
-enum State : uint8_t { ROLL = 0, DIZZY = 1, BROKEN = 2, LOST = 4, EATEN = 5, GOAL = 6 };
+enum State : uint8_t {
+  ROLL = 0, DIZZY = 1, BROKEN = 2, LOST = 4, EATEN = 5, GOAL = 6, HIDDEN = 7
+};
 
 void startRace(Mem &m, uint8_t race);
 void tick(Mem &m, int8_t c6, int8_t c7);
@@ -71,6 +76,9 @@ void project(Mem &m, uint32_t obj, Refetch r);
 //   ground(m, obj)           0x253bc ground surface code
 //   speedCap(m, obj)         0x26196 speed cap (players: distance score 0x26214)
 //   floorZ(m, obj)           0x1bab2 with the cell refetched, then 0x1cc62: floor z
+//   cellHeight(m, obj)       0x1bb08 + 0x1cc62(1): x/y words to the cell scratch, cell
+//                            fetched, floor z (the z word scratch is left alone)
+//   drag(m, obj)             0x25e7c mode 2: velocity friction of a pushed slinky
 //   enterState(m, obj, s)    0x25bae state entry (BROKEN, LOST)
 //   animate(m, obj)          0x25fc2 animation step of +0x5a; a shattering steelie leaves
 //                            the draw list at the end
@@ -80,6 +88,8 @@ void move(Mem &m, uint32_t obj);
 void ground(Mem &m, uint32_t obj);
 void speedCap(Mem &m, uint32_t obj);
 int32_t floorZ(Mem &m, uint32_t obj);
+int32_t cellHeight(Mem &m, uint32_t obj);
+void drag(Mem &m, uint32_t obj);
 void enterState(Mem &m, uint32_t obj, State s);
 void animate(Mem &m, uint32_t obj);
 void score(Mem &m, uint32_t player, uint8_t k);

@@ -768,10 +768,11 @@ void physics_121b8(Mem &m, uint32_t a2) {
   if (m.rb(a2 + SURFACE) == 0xa || m.rb(a2 + STATE) == LOST) { return; }
 
   // 0x1239c: cell refresh after slot hits, 0x1bc88 object pair collision; then the player
-  // only contacts (0x14e92 .. 0x19d94: other enemies, not ported) and zones
+  // only contacts (slinkies 0x14e92; 0x175c8 .. 0x19d94: other enemies, not ported) and zones
   if (m.rb(HIT_X) || m.rb(HIT_Y)) { posupd_1bab2(m, a2); }
   if (marble_enemies::pair_1bc88(m, a2)) { posupd_1bab2(m, a2); }
   if (pl) {
+    marble_enemies::contact_14e92(m, a2);
     zones_1365c(m, a2);
     if (m.rb(a2 + STATE) == STATE_ENEMY) { return; }
   }
@@ -1279,15 +1280,36 @@ void goal_254d2(Mem &m, uint32_t a2) {
   m.wl(a2 + VX, 0);
 }
 
+// 0x257ba: held by a slinky (0x14e92 set +0x56 = 50), the roll with the eaten animation;
+// back to ROLL when +0x56 runs out (sound 0x15884; dots 0x1c014 not ported)
+void eaten_257ba(Mem &m, uint32_t a2) {
+  anim_25fc2(m, a2);
+  roll_256d2(m, a2);
+  if (m.rb(a2 + STATE) != EATEN) { return; }
+
+  if (m.rb(a2 + DIZZY_CNT)) { m.wb(a2 + DIZZY_CNT, m.rb(a2 + DIZZY_CNT) - 1); }
+  if (m.rb(a2 + DIZZY_CNT)) { return; }
+  m.wb(a2 + STATE, ROLL);
+  m.wl(a2 + ANIM, 0);
+}
+
+// 0x25812: inside a slinky, hidden until the slinky sends it LOST
+void hidden_25812(Mem &m, uint32_t a2) {
+  ground_253bc(m, a2);
+  m.wb(a2 + VISIBLE, 0);
+}
+
 // 0x253ec: handler of state +0x1a (table 0x254ba). Not ported: +0xd8 wobble (silly minis),
-// states 3, 5, 7-0xb.
+// states 3, 8-0xb.
 void object_253ec(Mem &m, uint32_t a2) {
   switch (m.rb(a2 + STATE)) {
     case ROLL: roll_256d2(m, a2); break;
     case DIZZY: dizzy_2574c(m, a2); break;
     case BROKEN: shatter_25824(m, a2); break;
     case LOST: lost_255c6(m, a2); break;
+    case EATEN: eaten_257ba(m, a2); break;
     case GOAL: goal_254d2(m, a2); break;
+    case HIDDEN: hidden_25812(m, a2); break;
     default: break;
   }
 }
@@ -1324,6 +1346,16 @@ void ground(Mem &m, uint32_t obj) { ground_253bc(m, obj); }
 void speedCap(Mem &m, uint32_t obj) { speedcap_26196(m, obj); }
 void enterState(Mem &m, uint32_t obj, State s) { enter_25bae(m, obj, s); }
 void animate(Mem &m, uint32_t obj) { anim_25fc2(m, obj); }
+
+int32_t cellHeight(Mem &m, uint32_t obj) {
+  m.ww(POS_X, m.rw(obj + PX));
+  m.ww(POS_Y, m.rw(obj + PY));
+  derive_1bb50(m);
+  terrain_1caba(m);
+  return height_1cc62(m);
+}
+
+void drag(Mem &m, uint32_t obj) { friction_25e7c(m, obj, FR_2); }
 
 int32_t floorZ(Mem &m, uint32_t obj) {
   m.ww(CELL_Y, 0xffff);

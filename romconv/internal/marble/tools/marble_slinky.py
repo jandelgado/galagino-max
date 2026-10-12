@@ -467,8 +467,7 @@ def cmd_slinky(trace, race):
 def setup(m):
     """main_tick model with deaths, slots, sprites, draw list, steelies and slinkies."""
     import marble_enemy
-    marble_enemy.setup(m); enable(m)
-    return m
+    return marble_enemy.setup(m)
 
 
 def slinky_mos(m, i):

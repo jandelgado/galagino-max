@@ -370,9 +370,11 @@ def cmd_spawncheck(trace, race):
 
 
 def setup(m):
-    """main_tick model with deaths, slots, sprites, draw list and steelies."""
-    import marble_mo
+    """main_tick model with deaths, slots, sprites, draw list, steelies and slinkies (the
+    arcade runs both; fixture RAM blocks then hold the slinky records too)."""
+    import marble_mo, marble_slinky
     m.deaths = m.objects = m.sprites = True; m.drawlist = marble_mo.DrawList(); enable(m)
+    marble_slinky.enable(m)
     return m
 
 

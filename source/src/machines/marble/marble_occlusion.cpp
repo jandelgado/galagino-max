@@ -26,9 +26,13 @@ enum : uint8_t {
   STATE = 0x1a,
   VISIBLE = 0x1c,
   SX = 0x1e, SY = 0x20,
+  SLINKY_SCREEN = 0x28,        // slinky: screen x, y words
+  SLINKY_MASKS = 0x2c,
   MASKS = 0x38,
+  SLINKY_FRAME = 0x58,         // slinky: frame cursor (long, into a frame header list)
   SURFACE = 0x58, SURFACE_T = 0x59,
 };
+enum Kind : uint8_t { PLAYER_MASKS, OBJECT_MASKS, SLINKY_BOX };
 enum : uint8_t { ST_DIZZY = 1, ST_BROKEN = 2, ST_LOST = 4, ST_GOAL = 6, ST_5 = 5, ST_9 = 9,
                  ST_A = 0xa, ST_B = 0xb };
 
@@ -93,9 +97,11 @@ uint16_t vertexHeight_177f8(const Mem &m, int32_t d, int32_t col, int16_t k) {
 // 0x264aa: up to 5 entries (code, x, y) at +0x38, one per 8 px screen column under the
 // sprite. Entry code: bit 15 hflip, bit 14 always 1, bits 11-13 height - 1 in
 // tiles, bits 0-10 MO code. The MO builder turns them into priority MOs (pen 1 =
-// playfield shows). +0x1c = 0 when every column is covered. d3: 0 player, 1 other.
-void occlusion_264aa(Mem &m, uint32_t a2, uint8_t d3) {
-  uint32_t out = a2 + MASKS;
+// playfield shows). +0x1c = 0 when every column is covered. d3: 0 player, 1 other, 2 slinky
+// (entries at +0x2c, box from the frame header, no explicit occluders, +0x1c untouched).
+void occlusion_264aa(Mem &m, uint32_t a2, Kind d3) {
+  const uint32_t base = a2 + (d3 == SLINKY_BOX ? SLINKY_MASKS : MASKS);
+  uint32_t out = base;
   auto emit = [&](uint16_t code, uint16_t x, uint16_t y) {
     m.ww(out, code);
     m.ww(out + 2, x);
@@ -103,10 +109,10 @@ void occlusion_264aa(Mem &m, uint32_t a2, uint8_t d3) {
     out += 6;
   };
 
-  for (uint8_t i = 0; i < COLS; i++) { m.ww(a2 + MASKS + 6 * i, 0); }
+  for (uint8_t i = 0; i < COLS; i++) { m.ww(base + 6 * i, 0); }
 
   const uint8_t st = m.rb(a2 + STATE);
-  if (d3 == 0) {
+  if (d3 == PLAYER_MASKS) {
     const uint8_t sf = m.rb(a2 + SURFACE);
     if (sf && m.rb(a2 + SURFACE_T) != 0xff && sf != ST_A && st != ST_9 && st != ST_B &&
         st != ST_A) {
@@ -117,13 +123,21 @@ void occlusion_264aa(Mem &m, uint32_t a2, uint8_t d3) {
   }
 
   const int32_t x = m.sl(a2 + PX), y = m.sl(a2 + PY);
-  const int16_t sy = m.sw(a2 + SY);
-  const int32_t col = m.sw(a2 + SX) >> 3;
-
-  int32_t ncol = 3, top = 0xe;
-  if (d3 == 0 && (st == ST_DIZZY || st == ST_BROKEN || st == ST_5 || st == ST_9)) {
-    ncol = 5;
-    top = 0x20;
+  int16_t sy;
+  int32_t col, ncol = 3, top = 0xe;
+  if (d3 == SLINKY_BOX) {  // frame header bytes: x, y offset, width (columns), height (tiles)
+    const uint32_t f = m.roml(m.rl(a2 + SLINKY_FRAME));
+    if (s8(m.romb(f + 2)) > 2) { ncol = 5; }
+    top = s8(m.romb(f + 3)) * 8;
+    col = (s16(s8(m.romb(f)) + m.rw(a2 + SLINKY_SCREEN)) >> 3) + (ncol == 3 ? 1 : 2);
+    sy = s16(s8(m.romb(f + 1)) + m.rw(a2 + SLINKY_SCREEN + 2));
+  } else {
+    sy = m.sw(a2 + SY);
+    col = m.sw(a2 + SX) >> 3;
+    if (d3 == PLAYER_MASKS && (st == ST_DIZZY || st == ST_BROKEN || st == ST_5 || st == ST_9)) {
+      ncol = 5;
+      top = 0x20;
+    }
   }
   top = s16(top + sy);  // sprite top line (counting up)
 
@@ -168,7 +182,7 @@ void occlusion_264aa(Mem &m, uint32_t a2, uint8_t d3) {
     // explicit occluders per column and race: records of 5 words (diagonal limit, depth,
     // control, y, entry code)
     const uint32_t tab = m.roml(OCCLUDERS + 4 * c);
-    const uint16_t sel = m.romw(tab + 2 * race);
+    const uint16_t sel = d3 == SLINKY_BOX ? 0 : m.romw(tab + 2 * race);
     bool done = false;
     if (sel) {
       uint32_t r = tab + 2 * sel;
@@ -249,9 +263,10 @@ void occlusion_264aa(Mem &m, uint32_t a2, uint8_t d3) {
     }
   }
 
+  if (d3 == SLINKY_BOX) { return; }
   if (ncol < 0) { ncol = 0; }  // c0 above 0x24: no columns
   const uint32_t all = (1u << ncol) - 1;
-  if ((covered & all) == all || (d3 == 0 && ncol == COLS && (covered & 0xe) == 0xe)) {
+  if ((covered & all) == all || (d3 == PLAYER_MASKS && ncol == COLS && (covered & 0xe) == 0xe)) {
     m.wb(a2 + VISIBLE, 0);
   }
 }
@@ -265,8 +280,10 @@ void enter(Mem &m, uint32_t obj) {
   if (sy <= -16 || sy >= 0x100) { return; }
 
   m.wb(obj + VISIBLE, 1);
-  occlusion_264aa(m, obj, isPlayer(obj) ? 0 : 1);
+  occlusion_264aa(m, obj, isPlayer(obj) ? PLAYER_MASKS : OBJECT_MASKS);
 }
+
+void slinky(Mem &m, uint32_t obj) { occlusion_264aa(m, obj, SLINKY_BOX); }
 
 }  // namespace marble_occlusion
 

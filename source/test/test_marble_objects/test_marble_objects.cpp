@@ -12,6 +12,7 @@
 #include "../../src/machines/marble/marble_rng.cpp"
 #include "../../src/machines/marble/marble_physics.cpp"
 #include "../../src/machines/marble/marble_enemies.cpp"
+#include "../../src/machines/marble/marble_slinkies.cpp"
 #include "../../src/machines/marble/marble_drawlist.h"
 
 // the draw list is not under test here: no-op hooks
