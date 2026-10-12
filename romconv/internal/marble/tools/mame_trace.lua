@@ -42,6 +42,8 @@
 -- $MARBLE_TICK=frame: one record per frame from the start button frame on, magic "FRAM",
 -- frame (u32 BE), work RAM 0x400000-0x401fff only (game flow: race intro, bonus and time
 -- out run in the main loop's blocking waits, no main loop top there).
+-- $MARBLE_ALPHA=1 (with MARBLE_TICK=frame): alpha.bin, per FRAM record alpha RAM
+-- 0xa03000-0xa03fff + palette 0xb00000-0xb0003f (alpha colours), 0x1040 bytes.
 -- $MARBLE_RACE_UNTIL: the race tap forces $MARBLE_LEVEL only before this frame (default
 -- always); later writes of 0x400394 pass (race end loads the next race).
 -- $MARBLE_POKE "frame:addr:byte,...": at that frame write the byte (hex address and value).
@@ -66,6 +68,7 @@ local cam_sy = tonumber(os.getenv("MARBLE_CAMERA_SY") or "0")
 local tick_start = os.getenv("MARBLE_TICK") == "start"
 local tick_frame = os.getenv("MARBLE_TICK") == "frame"
 local race_until = tonumber(os.getenv("MARBLE_RACE_UNTIL") or "-1")
+local alpha_on = os.getenv("MARBLE_ALPHA") == "1"
 
 local RACE = 0x400394
 local LOOP_ADDR, LOOP_PC = 0x4003f0, 0x11804   -- addq.b #1,0x4003f0 at the main loop top
@@ -104,6 +107,7 @@ local ports = manager.machine.ioport.ports
 local coin = ports[":1820"].fields["Coin 1"]
 local start = ports[":F60000"].fields["1 Player Start"]
 local out = io.open(out_dir .. "/trace.bin", "wb")
+local alpha = alpha_on and io.open(out_dir .. "/alpha.bin", "wb")
 local shots = io.open(out_dir .. "/shots.txt", "w")
 local shots_bin = io.open(out_dir .. "/shots.bin", "wb")
 local shots_pal = io.open(out_dir .. "/shots_pal.bin", "wb")
@@ -206,8 +210,11 @@ SUB = emu.add_machine_frame_notifier(function()
   if tick_frame and f >= START_FRAME then
     out:write("FRAM", string.pack(">I4", f))
     dump(0x400000, 0x2000)
+    if alpha then dump(0xa03000, 0x1000, alpha); dump(0xb00000, 0x40, alpha) end
   end
   if f == frames then
-    out:close(); shots:close(); shots_bin:close(); shots_pal:close(); shots_alpha:close(); manager.machine:exit()
+    out:close(); shots:close(); shots_bin:close(); shots_pal:close(); shots_alpha:close()
+    if alpha then alpha:close() end
+    manager.machine:exit()
   end
 end)

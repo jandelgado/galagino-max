@@ -2068,6 +2068,61 @@ python3 romconv/internal/marble/tools/make_fixture.py tbwrite \
   source/test/test_marble_flow/marble_bonus_trace.h 1:$T/s8t/trace.bin:1351:120
 ```
 
+## HUD
+
+Phase 3b (plan docs/superpowers/plans/2026-10-12-marble-hud.md). Alpha layer (atarisy1.cpp):
+RAM 0xa03000, 64 x 32 words, word bits 0-9 code, 10-12 colour, 13 opaque (pen 0 drawn, else
+transparent); font `136032.104.f5` (atarisy1.zip, 512 glyphs, 2bpp, `anlayout`); palette entries
+0-31 (colour * 4 + pen), ROM 0x1FBD0. Visible columns 3-38 (column 39 holds the last column of
+the big final score). Codes 0x00-0x7f small font, ASCII (`' '` = 0); 0x100-0x17f big font:
+digit d = 2x2 tiles 0x100 + 4d, space digit wide (0x13c), comma one column (0x13c over 0x16e),
+big letters proportional (tile runs captured from MAME, the BIOS tables 0x72ac/0x0ccc are not
+read). Texts: ROM strings (`tools/marble_hud.py` S_*), number formats from the captures.
+
+Items (arcade row, column, colour; o = opaque):
+- Top (race init + 4 until the bonus / time out end): `_____` row 0 col 3 (7), `SCORE` row 1
+  col 3 (0o), score row 2 col 3 with commas (0o); timer rows 1-2 cols 19-22, clamp(seconds,
+  0..99) two big digits with leading zero (2o; 0x286EE clamps at 99), border 0x5f row 0,
+  0x5e row 3, 0xdf col 23, corners 0xff / 0x1b (7).
+- Race intro (first +5 s - 60 frames until the race starts): rows 8-11 cols 8-33 (4o): blank
+  row, `TIME TO FINISH` (races 0/1) or `EXTRA TIME FOR`, the race line (race name 5o, rest 4o),
+  blank row; seconds still to add, two big digits cols 29-32 (5o, leading space). Silly race:
+  rows 14-16 cols 6-36 (5o) `EVERYTHING YOU KNOW IS WRONG` between blank rows.
+- Race end (0x400390 = 3, from frame 3 until the bonus frame): rows 3-4 col 3 (0o) `BONUS FOR`,
+  `TIME LEFT:` + min(s, 99) * 100 right aligned at col 19; drawn after the top items (covers the
+  timer border cell at col 19). Then the alpha palette is off until the next race init + 4.
+- Time out (0x400390 = 4 from frame 2 until 2): rows 24-28 cols 13-28 (0o) `OUT OF TIME`,
+  `GAME OVER` between blank rows; top items until 2 + 2, then the attract mode (Phase 6).
+- Final (0x400390 = 6 from frame 11 until game over + 3; palette on from frame 2, playfield
+  black, bouncing marble MOs not modelled): big `CONGRATULATIONS!` rows 2-3 col 6 (4),
+  `YOU HAVE COMPLETED` / `THE ULTIMATE RACE!` rows 7-8 col 12 (5), rows 13-19 bonus lines
+  (labels 5, seconds and deaths 4, values right aligned at col 38; TOTAL = final bonus left),
+  big `FINAL` rows 22-23 col 4, `SCORE:` rows 24-25 col 12, score right aligned at col 39 (4).
+
+Palette (32 IRGB words): ROM 0x1FBD0 from the race init + 4 (with the intro banner at the
+latest), all 0 during the level loads. Race end 0x118d2: entries 0, 4, 8, 12 = 0 (boxes black),
+9, 13 = 0xafff, 29 = 0 until the bonus frame. Pulses (vblank, before the race timer; table
+0x20b34 = 0x20b74, 16 words f00f..ffff..f00f): entry 3 = table[(+0x70 - 1) >> 2] while +0x70 !=
+0xff and +0xd8 = 0 (score fade: 0x118d2 sets +0x70 = 0), entry 11 = table[(+0x71 - 1) >> 1]
+(timer flash: 0x28a96 sets +0x71 = 0 when a second passes to 4 s, 0xff and entry 11 = f00f
+above 5 s, at the time out and in 0x118d2). Entries stay until written again (sticky).
+
+Validation: `marble_hud.py check` on frame traces with `MARBLE_ALPHA=1` (practice time out
+p0, goals g0-g5 as in "Game flow", g5 placed at 1350): HUD state from work RAM (`hud_states`),
+alpha cells (visible content) and palette equal to MAME in every frame within +-1 frame
+(7 runs, 17407 frames).
+
+Remake layout (30 x 36 cells, `view`): top items 3 columns left (timer 6, centred), banners and
+the final screen 6 columns left and 3 rows down (arcade screen centred in the 288 lines); final
+labels 7, values 9 columns left; cells outside are clipped (the `!` of `CONGRATULATIONS!`, the
+last blank of the silly banner). After game over the remake shows `PUSH 1 PLAYER START`
+(row 24 col 8) until START.
+
+```sh
+T=$TMPDIR/hud/a   # tools/mame_trace.lua MARBLE_TICK=frame MARBLE_ALPHA=1, runs p0 g0-g5
+python3 romconv/internal/marble/tools/marble_hud.py check $T/p0 $T/g?
+```
+
 ## Open questions
 
 - Level objects: playfield patch decode of tag 0x19 rows. Section
@@ -2085,6 +2140,6 @@ python3 romconv/internal/marble/tools/make_fixture.py tbwrite \
   only)/0x4003b8. Not ported to C++: dots 0x1c014 / 0x25b40.
 - Goal (state 6): the camera ignores the marble (sy only from states 0/1/3/4/5).
 - Game flow (section Game flow): the 0x16a20 time out summary and 0x18a88 final screen are
-  frame counts only (texts: Phase 3b); the race intro scroll in, the bonus palette flashes
-  (0x26b66, +0x71) and the attract mode / high score entry (Phase 6) are not ported.
+  frame counts only (texts and palette pulses: section HUD); the race intro scroll in and the
+  attract mode / high score entry (Phase 6) are not ported.
 - Object/enemy scripts, Phase 4. Sound command protocol, Phase 5.
