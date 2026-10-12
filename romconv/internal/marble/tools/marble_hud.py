@@ -231,6 +231,33 @@ def palette(h, r):
     return pal
 
 
+STRINGS = {   # remake string name -> ROM address
+    "you": S_YOU, "the": S_THE, "bonus_fin": S_BONUS_FIN, "sec": S_SEC, "died": S_DIED,
+    "total": S_TOTAL, "blank26": S_BLANK26, "time_to": S_TIME_TO, "extra": S_EXTRA,
+    "wrong": S_WRONG, "blank31": S_BLANK31, "bonus_for": S_BONUS_FOR, "time_left": S_TIME_LEFT,
+    "out": S_OUT, "over": S_OVER, "push": S_PUSH,
+}
+BORDER_CODES = (0x5f, 0x5e, 0xdf, 0xff, 0x1b)
+CODES = 0x180                  # marble_hud_glyph entries (codes 0-0x17f)
+NO_GLYPH = 0xff                # blank: code 0, empty glyphs
+
+
+def glyph_codes(r):
+    """Every alpha code a HUD item can show, ascending."""
+    strs = [rom_str(r, a) for a in STRINGS.values()]
+    strs += [rom_str(r, S_RACES + RACE_STRIDE * k) for k in range(len(S_NAMES))]
+    codes = {ord(ch) for t in strs + ["0123456789,-SCORE"] for ch in t if ch != " "}
+    codes |= set(BORDER_CODES)
+    codes |= {0x100 + k for k in range(40)} | {BLANK, COMMA_LO, COLON}
+    codes |= {c for top, bot in BIG.values() for c in top + bot}
+    return sorted(codes)
+
+
+def glyph_rows(glyph):
+    """8 rows, 2 bpp, left pixel in bits 15-14 (marble_hud_glyphs)."""
+    return [sum(p << (14 - 2 * x) for x, p in enumerate(line)) for line in glyph]
+
+
 # --- MAME traces ------------------------------------------------------------------------
 
 A_REC, T_REC = 0x1040, 8 + 0x2000
