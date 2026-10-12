@@ -34,7 +34,8 @@ static const uint32_t TAG3_GLOBALS[3] = {0x40044a, 0x40044e, 0x400452};
 
 enum Type : uint8_t {
   T_FREE = 0, T_PLAYER = 1, T_ENEMY = 2, T_TAG3 = 3, T_ENEMY4 = 4, T_TAG5 = 5, T_TAG6 = 6,
-  T_ENEMY7 = 7, T_ENEMY9 = 9, T_ENEMY_E = 0xe, T_ENEMY_F = 0xf, T_SLOT_LAST = 0xd,
+  T_ENEMY7 = 7, T_ENEMY9 = 9, T_CATAPULT = 0xa, T_GATE_B = 0xb, T_BOX = 0xc, T_GATE_D = 0xd,
+  T_ENEMY_E = 0xe, T_ENEMY_F = 0xf, T_SLOT_LAST = 0xd,
   T_29 = 0x29, T_2A = 0x2a, T_2C = 0x2c
 };
 
@@ -209,7 +210,8 @@ inline uint32_t hdrOf(const Mem &m, uint32_t p) { return rdl(m, rdl(m, p)); }
 void slotObjs(const Mem &m, Out &o, uint8_t type, uint8_t idx, int32_t top, int16_t margin,
               uint8_t &lift) {
   static const int16_t LO = -0x40;                 // sy + 0x10 above this is culled
-  static const int16_t HI_TAG5 = 0x100, HI_TAG3 = 0x160, HI_TAG6 = 0x140;
+  static const int16_t HI_TAG5 = 0x100, HI_TAG3 = 0x160, HI_TAG6 = 0x140, HI_CATAPULT = 0x120;
+  static const int16_t LO_GATE = -0x20, HI_GATE = 0x100;   // gates and bounce boxes
   static const int16_t SCREEN_H = 240;
   static const uint16_t X_BIAS = 0x18, Y_BIAS = 0x10;
 
@@ -235,6 +237,20 @@ void slotObjs(const Mem &m, Out &o, uint8_t type, uint8_t idx, int32_t top, int1
     uint32_t i = ((int32_t)(m.rl(a + S_FRAME) - m.rl(a + S_ANIM2)) >> 3) & 0xffff;
     if (m.rl(a + S_ANIM2) == TAG3_LIST2) { i += 7; }
     if (own != NONE32 && i < TAG3_FRAMES) { lift = m.romb(TAG3_PAL + i); }
+    return;
+  }
+
+  if (type == T_CATAPULT) {
+    if (cy <= LO - margin || cy >= HI_CATAPULT + margin) { return; }
+    one(m, o, hdrOf(m, a + S_FRAME), SET_LIFT, x, y);
+    return;
+  }
+
+  // gates (set 3) and bounce boxes (set 7). Not drawn: the gates' two priority MOs (code
+  // 0x500) that hide the marble in the gate mouth
+  if (type >= T_GATE_B && type <= T_GATE_D) {
+    if (cy <= LO_GATE - margin || cy >= HI_GATE + margin) { return; }
+    one(m, o, hdrOf(m, a + S_FRAME), type == T_BOX ? SET_GLOBAL : SET_FLAG, x, y);
     return;
   }
 
@@ -531,7 +547,8 @@ uint8_t build(const Mem &m, int16_t cam, int16_t cullMargin, VideoState &v) {
       v.marbleAt = o.n < OBJS ? o.n : OBJS;
       player(m, o, top);
     }
-    if (type == T_TAG3 || type == T_TAG5 || type == T_TAG6) {
+    if (type == T_TAG3 || type == T_TAG5 || type == T_TAG6 ||
+        (type >= T_CATAPULT && type <= T_GATE_D)) {
       slotObjs(m, o, type, idx, top, cullMargin, v.lift);
     }
     if (type == T_ENEMY) { steelie(m, o, idx, top); }

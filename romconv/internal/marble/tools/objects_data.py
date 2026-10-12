@@ -28,10 +28,11 @@ def scripts_of(race):
     for lo, hi, sc in ents:
         roots += [rom_l(0x1ded8 + 4 * k) for k in range(16)] if sc == 0 else [sc]
     if race == 2: roots.append(0x1d854)              # wave, spawned by 0x12fd0
-    if race == 3:                                    # aerial scripts set without a jump:
-        roots += [0x1d766, 0x1d7ac,                  # gate wait (0x13966 zone hook)
-                  0x1d752, 0x1d798,                  # gate close (0x13892, 0x2563e)
-                  0x1db80]                           # catapult throw (0x29e22)
+    if race == 3:                                    # aerial scripts entered by pc (mode 0
+        roots += [(0x1d766, 0, 0x0b, None), (0x1d7ac, 0, 0x0d, None),  # slots), with their
+                  (0x1d752, 0, 0x0b, None), (0x1d798, 0, 0x0d, None),  # tag: gate wait
+                  (0x1db80, 0, 0x0a, None)]          # (0x13966), close (0x13892, 0x2563e),
+                                                     # catapult throw (0x29e22)
     return ents, roots
 
 
@@ -39,7 +40,7 @@ def walk(roots, patch=None):
     """Script bytes, animation lists (pointer, frame stride), tags. patch: optional set,
     receives (list pointer, column, row) of mode 1 slots (op 0 and ops 12/13 lists)."""
     code, anims, tags, seen = set(), set(), set(), set()
-    todo = [(r, 0, 0, None) for r in roots]
+    todo = [r if isinstance(r, tuple) else (r, 0, 0, None) for r in roots]  # (pc, mode, tag, row)
     while todo:
         pc, mode, tag, crow = todo.pop()
         loops = {}

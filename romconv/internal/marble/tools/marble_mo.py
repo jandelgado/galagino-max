@@ -41,7 +41,7 @@ LIST, LIST_END = 0x4003bc, 0x4003dc     # draw list bytes, 0xff end
 RECTS = 0x1f0e2                         # long per list byte -> 14 byte entry (type, index, box)
 ENTRIES, ENTRY_SIZE, NENTRIES = 0x4001dc, 14, 31    # entry k = ENTRIES + 14 k (RECTS[k])
 LIST_MAX = 0x1f                         # list bytes before the sentinel limit (0x18e6c)
-SLOT_TYPES = (3, 5, 6)                  # level object slot tags drawn by 0x26f3e (in scope)
+SLOT_TYPES = (3, 5, 6, 10, 11, 12, 13)  # level object slot tags drawn by 0x26f3e
 
 
 class Ram:
@@ -793,7 +793,7 @@ def race_frames(race):
         if tag not in SLOT_TYPES or mode == 1: continue
         hs = []
         while rom_l(lst + stride * len(hs)) != 0xffffffff: hs.append(rom_l(lst + stride * len(hs)))
-        orm = {3: 0x3000, 5: 0x1800, 6: None}[tag]
+        orm = {3: 0x3000, 5: 0x1800, 6: None, 10: 0x3000, 11: 0x1800, 12: 0x3800, 13: 0x1800}[tag]
         out[(tag, lst, orm)] = hs
         if tag == 3:
             for g in TAG3_GLOBALS:
@@ -967,12 +967,17 @@ MINI_LISTS = (0x21f72, 0x21f7a, 0x21f8a, 0x21a62, 0x21efe, 0x219b2, 0x21a32, 0x2
 PISTON_LISTS = (0x21342,)
 
 
+SHARED_SETS = ((2, 3),)  # races drawn from one sprite set (intermediate waves, aerial objects)
+
+
 class Sprites:
     """Level object sprite data of one race (MARBLE.md "Level object sprites"): frame ids
     (sorted header addresses, then the wave strip entries), columns, tile codes. The
     converter emits it, the publish model and the fixture use the same ids."""
     def __init__(self, race, steelies=True):
-        fr = race_frames(race)
+        fr = {}
+        for r in next((g for g in SHARED_SETS if race in g), (race,)):
+            fr.update(race_frames(r))
         self.race = race
         self.hdrs = sorted({h for hs in fr.values() for h in hs if h != NONE32}
                            | ({STEELIE_FRAME} if steelies else set()))
@@ -1069,6 +1074,12 @@ def slot_objs(m, sp, typ, idx, top, margin):
         i = ((m.rl(a + 0x42) - m.rl(a + 0x46)) >> 3) & 0xffff
         if m.rl(a + 0x46) == 0x21192: i += 7
         return out, (ms.PROG[TAG3_PAL + i] if own != NONE32 and i < TAG3_FRAMES else NO_VARIANT)
+    if typ == 10:                                    # catapult arm
+        if cy <= -0x40 - margin or cy >= 0x120 + margin: return [], NO_VARIANT
+        return one(hdr_of(a + 0x42), 6), NO_VARIANT
+    if typ in (11, 12, 13):                          # gates (set 3), bounce boxes (set 7); the
+        if cy <= -0x20 - margin or cy >= 0x100 + margin: return [], NO_VARIANT   # gates' two
+        return one(hdr_of(a + 0x42), 7 if typ == 12 else 3), NO_VARIANT  # priority MOs: not drawn
     # tag 6
     if cy <= -0x40 - margin or cy >= 0x140 + margin: return [], NO_VARIANT
     p42, p46 = m.rl(a + 0x42), m.rl(a + 0x46)
@@ -1114,11 +1125,14 @@ def expand(sp, objs, top):
 
 
 def mo_cols(lst):
-    """mo_list_26f3e slot entries -> the same column tuples (shade: set 0)."""
+    """mo_list_26f3e slot entries -> the same column tuples (shade: set 0). The gates' two
+    priority MOs (code 0x500: hide earlier MOs in the gate mouth) are not drawn by the remake
+    (its masks hide only their owner) and left out."""
     out = []
     for _, typ, _, mos in lst:
         if typ not in SLOT_TYPES: continue
         for w0, code, w2 in mos:
+            if typ in (11, 13) and w2 & 0x8000: continue
             h = (w0 & 15) + 1
             out.append(((w2 >> 5) & 0x1ff, (-((w0 >> 5) & 0x1ff) - 256 - 8 * h) & 0x1ff, h,
                         w0 >> 15, code & 0x7ff, 0 if w2 & 0x8000 else (code >> 11) & 7,

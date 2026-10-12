@@ -632,12 +632,18 @@ Drawn slot tags (0x26f3e type = tag; per race from the spawn data, `marble_mo.py
 | practice | 5 goal flags (2) | (576, 512/544), z -36 | list 0x212fe, 4 frames, set 3 |
 | beginner | 3 lift (1, mode 2), 5 flags (2) | lift cell (61, 56), z -120 | lists 0x21156/0x21192 (7 records, 4 frames) set 6; 3 global parts 0x211fe/0x2121e, 0x2126e, 0x212b2 set 7 |
 | intermediate | 6 wave (zone 9/10 spawn, 2 seen at once), 5 flags (2) | wave start cell (81, 77) | lists 0x2222e, 0x22266, 0x2227a (35 frames) set 7 (frame header >= 0x220ee) or 5 |
-| aerial | 5 flags (2); 0x0a-0x0d out of scope | | |
+| aerial | 5 flags (2), 0x0a catapult (1), 0x0b/0x0d gates (6), 0x0c bounce boxes (4) | gates bands 3-30, catapult cell (63, 70), boxes x cell 105 | catapult set 6, gates set 3, boxes set 7; gate lists from the pc-entered scripts 0x1d766/0x1d7ac/0x1d752/0x1d798 |
 | silly | 5 flags (2) | (152/184, 144) | |
 | ultimate | 5 flags (5) | (704-736, 704-784), z -32 | |
 
-Types 10-13 (aerial catapult, gates, bounce box) are drawn too (not checked). Tags >= 0x10
-are skipped by 0x26f3e.
+Types 10-13 (aerial catapult, gates, bounce box): 0x26f3e culls 10 at d4 <= -0x40 or >=
+0x120 (frame | 0x3000), 11-13 at d4 <= -0x20 or >= 0x100 (11/13 | 0x1800, 12 | 0x3800); a
+gate (11/13) adds two priority MOs code 0x500 height 7 (x = d5 - 8 + 8k, y = d4 - 0x40 (0x0d:
++ 4) +- 4k, 0x0d hflip) that hide earlier MOs in its mouth. `marble_mo.slot_mos` equals MAME
+MO RAM on the aerial traces a5, a8, a9, a10, a13 (17425 slot draws). The remake draws the
+frames (sprite set 2, shared by intermediate and aerial, `SHARED_SETS`); the priority MOs are
+not drawn (remake masks hide only their owner), so the marble shows over a gate mouth. Tags
+>= 0x10 are skipped by 0x26f3e.
 
 Per slot (screen position sx = +0x4e high word, sy = low word, as 0x1b9cc; MO frame header
 h = rl(rl(+0x42))): d5 = sx + 0x18 (tag 5: 0x17), d4 = sy + 0x10; culled when d4 <= -0x40 or
