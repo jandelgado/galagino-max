@@ -147,10 +147,12 @@ static void test_replay_deaths(void) {
   }
 }
 
-// Silly race tubes (marble_tubes_trace.h): the marble rolled into the funnel 0x22 is lifted,
-// drops out of a pipe exit (state TUBE), bounces off the exit walls 0x23/0x24. The RNG word
-// is an input per tick (the minis, not ported, use it in MAME).
+// Tubes (marble_tubes_trace.h): silly funnel 0x22 lift, drop out of a pipe exit (state TUBE),
+// exit walls 0x23/0x24; beginner holes and entries 0x12-0x14 and walls 0x15/0x16, intermediate
+// 0x20/0x21, ultimate 0x25-0x27. The RNG word is an input per tick (the minis, not ported, use
+// it in MAME).
 static void test_replay_tubes(void) {
+  uint16_t tube = 0;
   for (uint8_t s = 0; s < MARBLE_TUBES_SEGMENTS; s++) {
     const MarbleTubeSegment &seg = marble_tubes_segments[s];
     memset(ram, 0, sizeof(ram));
@@ -161,7 +163,6 @@ static void test_replay_tubes(void) {
     Mem m(ram, seg.race);
     marble_drawlist::init(m);  // the fixture has no draw list; slot inserts need one
 
-    uint16_t tube = 0;
     for (uint16_t k = 0; k < seg.nticks; k++) {
       const MarbleTubeTick &t = seg.ticks[k];
       m.ww(RNG, t.rng_in);
@@ -180,8 +181,8 @@ static void test_replay_tubes(void) {
                k, bad, marble_physics::state(m), t.state);
       TEST_FAIL_MESSAGE(msg);
     }
-    TEST_ASSERT_TRUE_MESSAGE(tube > 0, "no TUBE ticks");
   }
+  TEST_ASSERT_TRUE_MESSAGE(tube > 0, "no TUBE ticks");
 }
 
 // ---------------------------------------------------------------- player objects
@@ -619,6 +620,56 @@ static void test_silly_funnel(void) {
   TEST_ASSERT_EQUAL_UINT32(score + TUBE_POINTS, m.rl(PLAYER + SCORE));
 }
 
+// Through the machine start path: the marble put next to a tube entry (MAME runs b1, b2, i1,
+// u1), left until the camera has scrolled there (the tube slots spawn by camera band), then
+// pushed in: it leaves by one of the entry's exits (TUBE) and rolls again with the tube's
+// points (0x285b0 entry 9 for 0x12, else 5)
+struct TubeRun {
+  uint8_t race;
+  int16_t x, y;
+  int8_t c6, c7;
+  int16_t ex0, ex1, ey0, ey1;  // exits (ex0, ey0), (ex1, ey1)
+  uint8_t points;
+};
+static const TubeRun TUBE_RUNS[] = {
+    {1, 470, 612, 2, 7, 0x20c, 0x204, 0x264, 0x264, 9},  // 0x12 hole
+    {1, 644, 650, -6, 2, 0x29c, 0x29c, 0x2e4, 0x2dc, 5},  // 0x13 entry
+    {2, 590, 648, 2, 7, 0x26c, 0x26c, 0x254, 0x25c, 5},   // 0x20 hole
+    {5, 172, 256, 2, 7, 0xf0, 0xf0, 0x100, 0x140, 5},     // 0x25 hole
+};
+
+static void test_tube_runs(void) {
+  static const uint16_t SETTLE = 400, TICKS = 300;
+  static const uint32_t SCORES = 0x23cd4;  // 0x285b0 points per entry (words)
+  for (const TubeRun &r : TUBE_RUNS) {
+    beginRace(r.race);
+    Mem m(ram, r.race);
+    m.wl(PLAYER + PX, (uint32_t)r.x << 16);
+    m.wl(PLAYER + PY, (uint32_t)r.y << 16);
+    m.wl(PLAYER + PZ, (uint32_t)marble_physics::cellHeight(m, PLAYER));
+    m.wl(PLAYER + GROUND_Z, m.rl(PLAYER + PZ));
+    for (uint16_t k = 0; k < SETTLE; k++) { logicTick(m); }
+
+    char msg[40];
+    snprintf(msg, sizeof(msg), "race %d tube at %d, %d", r.race, r.x, r.y);
+    uint16_t k = 0;
+    while (marble_physics::state(m) != marble_physics::TUBE && k++ < TICKS) {
+      inputTick(m, r.c6, r.c7);
+    }
+    TEST_ASSERT_EQUAL_UINT8_MESSAGE(marble_physics::TUBE, marble_physics::state(m), msg);
+    const int16_t x = m.sw(PLAYER + PX), y = m.sw(PLAYER + PY);
+    TEST_ASSERT_TRUE_MESSAGE((x == r.ex0 && y == r.ey0) || (x == r.ex1 && y == r.ey1), msg);
+
+    const uint32_t score = m.rl(PLAYER + SCORE);
+    while (marble_physics::state(m) == marble_physics::TUBE && k++ < TICKS) {
+      inputTick(m, 0, 0);
+    }
+    TEST_ASSERT_EQUAL_UINT8_MESSAGE(marble_physics::ROLL, marble_physics::state(m), msg);
+    const int16_t points = (int16_t)m.romw(SCORES + 2 * r.points);
+    TEST_ASSERT_EQUAL_UINT32_MESSAGE(score + (uint32_t)points, m.rl(PLAYER + SCORE), msg);
+  }
+}
+
 // FIRE while dead: the next race starts from a dying marble in state 0, no stars or death
 // frame left
 static void test_race_switch_dead(void) {
@@ -668,6 +719,7 @@ int main(int, char **) {
   RUN_TEST(test_replay_deaths);
   RUN_TEST(test_replay_tubes);
   RUN_TEST(test_silly_funnel);
+  RUN_TEST(test_tube_runs);
   RUN_TEST(test_player_objects);
   RUN_TEST(test_race_start_rng);
   RUN_TEST(test_start_and_goal);

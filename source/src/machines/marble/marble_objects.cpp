@@ -560,32 +560,81 @@ void setSurface(Mem &m, uint32_t a2, uint8_t tag) {
 inline int32_t absl(int32_t v) { return v < 0 ? -v : v; }
 
 // contact of the player (a2) with one slot s, in the order of the model
-// Silly race tubes (Marble Love sub-29cce.ts runTube22 / runTube23Or24, helper-1cd00.ts):
-// 0x22 is the funnel by the start, 0x23/0x24 the two pipe exits it drops the marble from.
-static const uint8_t TAG_FUNNEL = 0x22, TAG_EXIT_A = 0x23, TAG_EXIT_B = 0x24;
+// Tubes (Marble Love sub-29cce.ts runTube12..runTube26Or27, helper-1cd00.ts). An entry
+// teleports the marble to a fixed exit (the second exit if 0x17cb8 finds the first taken),
+// state TUBE: holes 0x12 (beginner), 0x20 (intermediate), 0x25 (ultimate), entries 0x13/0x14
+// (beginner), the silly funnel 0x22. The other tube tags are walls (shape 0x1cd00).
+static const uint8_t TAG_HOLE_B = 0x12, TAG_ENTRY_A = 0x13, TAG_ENTRY_B = 0x14;
+static const uint8_t TAG_HOLE_I = 0x20, TAG_FUNNEL = 0x22, TAG_HOLE_U = 0x25;
 static const uint32_t SHAPES = 0x24c5e;       // 0x1cd00 shape pointers: 16 byte plane entries
-static const uint8_t SHAPE_EXIT = 5;          // pipe exit walls
+static const uint8_t SHAPE_RIM = 0, SHAPE_ENTRY = 2;  // hole rims, 0x13/0x14 mouth walls
 static const uint32_t POS_Z = 0x400694, OLD_Z = 0x40068c;  // word: z of POS_X/Y; long
 static const uint8_t P_VZ = 0x08, P_PX = 0x0c, P_PY = 0x10, P_AIR = 0x36, P_DAMAGE = 0x57;
 static const uint8_t P_STATE = 0x1a, P_GROUND_Z = 0x2a;
 static const uint8_t AIRBORNE = 2, FELL = 0x64;  // +0x36; +0x57 at the LOST entry
 static const uint16_t FUNNEL_FLOOR = 0x3f74, FUNNEL_DROP = 0x3f94;  // z words
 static const uint16_t EXIT_X0 = 0x2dc, EXIT_X1 = 0x2ac, EXIT_Y = 0x2b0, EXIT_FREE = 0x70;
-static const uint32_t EXIT_VY = 0xfffc0000;   // -4 px per tick
+static const uint32_t EXIT_V = 0x40000, EXIT_VY = 0xfffc0000;  // 4 px per tick, -4 px
 static const uint8_t EXIT_TICKS = 0x12;       // TUBE state length
 static const uint32_t LIFT_Z = 0x20000, LIFT_VZ = 0x9000;
 static const int32_t SHAPE_NEAR = 0x400, FALL_LOSS = 0x100000;  // plane distance; 16 px
 
-// 0x22 drop: marble at (x, y) on its cell floor (also OLD_Z), surface = the slot tag, TUBE
-// (sounds 0x15884, 0x36)
-void tubeExit(Mem &m, uint32_t a2, uint32_t s, uint16_t x, uint16_t y) {
+// Tube walls: shape k when the slot is within d6/a0 px (cells: d1/d2) and the marble below z
+// (0: any z)
+struct TubeWall {
+  uint8_t tag;
+  bool cells;
+  int8_t x0, x1, y0, y1;  // x0 <= d < x1
+  uint16_t below;
+  uint8_t shape;
+};
+static const TubeWall TUBE_WALLS[] = {
+    {0x15, false, -0x18, 0x28, -0x18, 0x28, 0x3f40, 1},
+    {0x16, false, -0x10, 0x20, -0x10, 0x18, 0, 3},
+    {0x21, true, -1, 4, -1, 3, 0x3f60, 4},
+    {0x23, false, -0x10, 0x20, -0x18, 0x28, 0, 5},
+    {0x24, false, -0x10, 0x20, -0x18, 0x28, 0, 5},
+    {0x26, false, -0x18, 0x28, -0x18, 0x28, 0, 6},
+    {0x27, false, -0x18, 0x28, -0x18, 0x28, 0, 6},
+};
+
+// Holes 0x12 / 0x20 by z word: above `entry` the hole acts, at or above `walls` its rim
+// (shape 0), at or above `stop` the marble stops (drops), below it leaves by the exit
+struct TubeHole {
+  uint8_t tag;
+  uint16_t entry, walls, stop;
+};
+static const TubeHole TUBE_HOLES[] = {
+    {TAG_HOLE_B, 0x3f40, 0x3f78, 0x3f60},
+    {TAG_HOLE_I, 0x3f80, 0x3fb0, 0x3fa0},
+};
+
+enum ExitZ { KEEP_OLD_Z, SET_OLD_Z };  // OLD_Z: the 0x22 funnel only
+enum ExitTag { KEEP_TAG, SET_TAG };    // 0x12 keeps the surface its hole cells set
+
+// teleport: marble at (x, y) on its cell floor, surface = the slot tag, TUBE (sounds 0x15884
+// and 0x35 / 0x36)
+void tubeExit(Mem &m, uint32_t a2, uint32_t s, uint16_t x, uint16_t y, ExitZ oz = SET_OLD_Z,
+              ExitTag tag = SET_TAG) {
   m.wl(a2 + P_PX, (uint32_t)x << 16);
   m.wl(a2 + P_PY, (uint32_t)y << 16);
   const uint32_t z = (uint32_t)marble_physics::floorZ(m, a2);
   m.wl(a2 + P_PZ, z);
-  m.wl(OLD_Z, z);
-  m.wb(a2 + P_SURFACE, m.rb(s + TAG));
+  if (oz == SET_OLD_Z) { m.wl(OLD_Z, z); }
+  if (tag == SET_TAG) { m.wb(a2 + P_SURFACE, m.rb(s + TAG)); }
   m.wb(a2 + P_STATE, marble_physics::TUBE);
+}
+
+// exit y (or x) a, b if a is taken by another object near (x, y)
+uint16_t freeExit(Mem &m, uint32_t a2, int16_t x, int16_t y, uint16_t a, uint16_t b) {
+  return marble_physics::blocked(m, a2, x, y, EXIT_FREE) ? b : a;
+}
+
+void launch(Mem &m, uint32_t a2, uint32_t vx, uint32_t vy) {
+  m.wb(a2 + P_AIR, 0);
+  m.wb(a2 + P_SURFACE_T, EXIT_TICKS);
+  m.wl(a2 + P_VX, vx);
+  m.wl(a2 + P_VY, vy);
 }
 
 // 0x22 funnel: on the cell before the slot cell a marble above FUNNEL_DROP drops out of an
@@ -694,6 +743,79 @@ uint8_t shape_1cd00(Mem &m, uint32_t a2, uint32_t s, uint8_t k) {
   }
 }
 
+// 0x12 / 0x20 hole over cells d1 -2..2, d2 -1..4 of the slot; 1: the marble is lost
+uint8_t tubeHole(Mem &m, uint32_t a2, uint32_t s, const TubeHole &h, int16_t d1, int16_t d2,
+                 uint16_t z) {
+  if (d1 < -2 || d1 >= 3 || d2 < -1 || d2 >= 5 || z <= h.entry) { return 0; }
+
+  if (0 <= d1 && 0 <= d2 && d2 < 4) { setSurface(m, a2, h.tag); }
+  if (z >= h.walls) { return shape_1cd00(m, a2, s, SHAPE_RIM); }
+  if (d1 < 0) { return 0; }
+  if (z >= h.stop) {
+    m.wl(a2 + P_VY, 0);
+    m.wl(a2 + P_VX, 0);
+    return 0;
+  }
+
+  if (h.tag == TAG_HOLE_I) {  // out of the intermediate exit, upwards
+    launch(m, a2, 0, EXIT_VY);
+    tubeExit(m, a2, s, 0x26c, freeExit(m, a2, 0x26c, 0x254, 0x254, 0x25c), KEEP_OLD_Z);
+    return 0;
+  }
+  if (!marble_physics::isPlayer(a2)) {  // a steelie falls through
+    marble_enemies::remove_15bd0(m, a2, marble_enemies::SCORE, marble_enemies::CLEAR);
+    return 0;
+  }
+  launch(m, a2, EXIT_V, 0);
+  tubeExit(m, a2, s, freeExit(m, a2, 0x20c, 0x264, 0x20c, 0x204), 0x264, KEEP_OLD_Z, KEEP_TAG);
+  return 0;
+}
+
+// 0x13 / 0x14 beginner: rolling onto the slot row leaves by the exit below; else mouth walls
+uint8_t tubeEntry(Mem &m, uint32_t a2, uint32_t s, int16_t d1, int16_t d2, int16_t d6,
+                  int16_t a0) {
+  if (d6 < -0x18 || d6 >= 0x20 || a0 < -0x10 || a0 >= 0x18) { return 0; }
+  if (d2 != 0 || d1 < 0 || d1 >= 3) { return shape_1cd00(m, a2, s, SHAPE_ENTRY); }
+
+  m.wb(a2 + P_SURFACE_T, EXIT_TICKS);
+  const uint16_t y = freeExit(m, a2, 0x29c, 0x2e4, 0x2e4, 0x2dc);
+  m.wl(a2 + P_VX, 0);
+  m.wl(a2 + P_VY, EXIT_V);
+  tubeExit(m, a2, s, 0x29c, y, KEEP_OLD_Z);
+  return 0;
+}
+
+// 0x25 ultimate hole (cells 0..1 of the slot, below 0x3fe0): out of one of two exits
+void tubeHoleU(Mem &m, uint32_t a2, uint32_t s, int16_t d1, int16_t d2, uint16_t z) {
+  static const uint16_t BOTTOM = 0x3fe0, X = 0xf0, Y0 = 0x100, Y1 = 0x140;
+  if (d1 < 0 || d1 > 1 || d2 < 0 || d2 > 1 || z >= BOTTOM) { return; }
+
+  m.wb(a2 + P_AIR, 0);  // sound 0x46
+  m.wb(a2 + P_SURFACE_T, EXIT_TICKS);
+  const bool first = marble_rng::rng(m, 2) != 0;
+  const uint16_t a = first ? Y0 : Y1, b = first ? Y1 : Y0;
+  const uint16_t y = freeExit(m, a2, X, a, a, b);
+  m.wl(a2 + P_VX, EXIT_V);
+  m.wl(a2 + P_VY, 0);
+  tubeExit(m, a2, s, X, y, KEEP_OLD_Z);
+}
+
+// tube wall tags: true (and the result in lost) when tag is one
+bool tubeWall(Mem &m, uint32_t a2, uint32_t s, uint8_t tag, int16_t d1, int16_t d2, int16_t d6,
+              int16_t a0, uint8_t &lost) {
+  for (const TubeWall &w : TUBE_WALLS) {
+    if (w.tag != tag) { continue; }
+
+    const int16_t dx = w.cells ? d1 : d6, dy = w.cells ? d2 : a0;
+    lost = 0;
+    if (dx < w.x0 || dx >= w.x1 || dy < w.y0 || dy >= w.y1) { return true; }
+    if (w.below && m.rw(POS_Z) >= w.below) { return true; }
+    lost = shape_1cd00(m, a2, s, w.shape);
+    return true;
+  }
+  return false;
+}
+
 // one slot against object a2 (0x29cce loop body); true: leave 0x29cce without the epilogue
 bool contact(Mem &m, uint32_t a2, uint32_t s, int32_t vx, int32_t vy) {
   const int16_t mcx = m.sw(CELL_X), mcy = m.sw(CELL_Y), mx = m.sw(POS_X), my = m.sw(POS_Y);
@@ -727,13 +849,20 @@ bool contact(Mem &m, uint32_t a2, uint32_t s, int32_t vx, int32_t vy) {
     return false;
   }
 
-  if (tag == TAG_FUNNEL) {
-    funnel_22(m, a2, s, d1, d2, m.rw(POS_Z));
+  const uint16_t z = m.rw(POS_Z);
+  for (const TubeHole &h : TUBE_HOLES) {
+    if (h.tag == tag) { return tubeHole(m, a2, s, h, d1, d2, z) != 0; }
+  }
+  uint8_t lost;
+  if (tubeWall(m, a2, s, (uint8_t)tag, d1, d2, d6, a0, lost)) { return lost != 0; }
+  if (tag == TAG_ENTRY_A || tag == TAG_ENTRY_B) { return tubeEntry(m, a2, s, d1, d2, d6, a0) != 0; }
+  if (tag == TAG_HOLE_U) {
+    tubeHoleU(m, a2, s, d1, d2, z);
     return false;
   }
-  if (tag == TAG_EXIT_A || tag == TAG_EXIT_B) {
-    if (d6 < -0x10 || d6 >= 0x20 || a0 < -0x18 || a0 >= 0x28) { return false; }
-    return shape_1cd00(m, a2, s, SHAPE_EXIT) != 0;
+  if (tag == TAG_FUNNEL) {
+    funnel_22(m, a2, s, d1, d2, z);
+    return false;
   }
 
   if (tag == TAG_POST) {  // round post: |d| < 3.5 px reflects both axes
@@ -755,8 +884,7 @@ bool contact(Mem &m, uint32_t a2, uint32_t s, int32_t vx, int32_t vy) {
 
 // 0x29cce: collision with the level object slots. Ported: wall segments (0x1a-0x1f), round
 // posts (0x05, Marble Love sub-29cce.ts), cell rectangles that set the surface code +0x58,
-// the silly race tubes 0x22-0x24. Not ported: 0x0a catapult, 0x0b/0x0d aerial gates, 0x0c,
-// tubes 0x12-0x16, 0x20, 0x21, 0x25-0x27.
+// the tubes 0x12-0x16 and 0x20-0x27. Not ported: 0x0a catapult, 0x0b/0x0d aerial gates, 0x0c.
 void slots_29cce(Mem &m, uint32_t a2) {
   const int32_t vx = m.sl(a2 + P_VX), vy = m.sl(a2 + P_VY);
   m.wb(a2 + P_SURFACE, 0);

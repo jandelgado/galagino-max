@@ -526,7 +526,7 @@ sound 0x42), 0x0a catapult, 0x0b/0x0d
 aerial gates (may set state 4), 0x0c bounce box, 0x10/0x17/0x18/0x2d-0x3b surface cells
 (+0x58), 0x12-0x16 and 0x20-0x27 tubes (teleport to fixed exits, state 3, blocked check
 0x17cb8, shape test 0x1cd00, rng; some return without the bounce epilogue), 0x1a-0x1f
-walls. Ported: 0x05, surfaces, walls, silly tubes 0x22-0x24 (section "Silly race tubes").
+walls. Ported: 0x05, surfaces, walls, all tubes 0x12-0x16 and 0x20-0x27 (section "Tubes").
 
 Validation (`marble_sim.py slots TRACE RACE`: slots, dynamic codes and slot globals never
 copied from the trace after the first race snapshot; camera long and enemy scratch are):
@@ -537,7 +537,7 @@ driven, intermediate 3 + 1 camera driven (physics segment 528), silly 2, ultimat
 camera driven, aerial 1 short (camera traces: `MARBLE_CAMERA=800:1600` in
 mame_trace.lua, spawns and removals over the whole race, beginner 46 and ultimate 37
 dynamic code changes). The second aerial trace differs only where gates 0x0b/0x0d act.
-Not covered by a trace: the intermediate wave (tag 6), zone triggers, tube tags.
+Not covered by a trace: the intermediate wave (tag 6), zone triggers (tubes: section "Tubes").
 
 ## Occlusion
 
@@ -1780,7 +1780,39 @@ python3 romconv/internal/marble/tools/marble_mini.py mnfixture \
 python3 romconv/internal/marble/tools/marble_mini.py minis TRACE RACE FROM:TO
 ```
 
-### Silly race tubes
+### Tubes
+
+Marble Love TS (`sub-29cce.ts` runTube12 .. runTube26Or27, `helper-1cd00.ts`). Mode 1 slots,
+spawned by camera band (beginner bands 20-47 / 31-64, intermediate 23-50, ultimate 0-12/15).
+An entry teleports the marble to a fixed exit (second exit if 0x17cb8 finds the first taken,
+radius 0x70), +0x59 0x12, state 3, sounds 0x15884 and 0x35 (0x22: 0x36). Positions are slot
+cells; d1/d2 = slot cell - marble cell, d6/a0 = slot px - marble px, z = marble z word.
+
+| tag | race, slot cell, z | acts | exit |
+| --- | --- | --- | --- |
+| 0x12 | beginner (64, 78), 0x3f88 | hole: d1 -2..2, d2 -1..4, z > 0x3f40; surface 0x12 on d1 0..2, d2 0..3; z >= 0x3f78 rim shape 0; d1 >= 0: z >= 0x3f60 v = 0 (drops), else exit (+0x58 kept; a steelie: 0x15bd0) | x 0x20c (0x204), y 0x264, v (4 px, 0) |
+| 0x13, 0x14 | beginner (81, 86), (87, 86), 0x3f30 | d6 -0x18..0x1f, a0 -0x10..0x17: d2 0 and d1 0..2 exit, else mouth walls shape 2 | x 0x29c, y 0x2e4 (0x2dc), v (0, 4 px) |
+| 0x15 | beginner (67, 78), 0x3f30 | d6, a0 -0x18..0x27, z < 0x3f40: shape 1 | |
+| 0x16 | beginner (84, 94), 0x3f00 | d6 -0x10..0x1f, a0 -0x10..0x17: shape 3 | |
+| 0x20 | intermediate (78, 82), 0x3fc0 | as 0x12 with z levels 0x3f80, 0x3fb0, 0x3fa0; no steelie case | x 0x26c, y 0x254 (0x25c), v (0, -4 px) |
+| 0x21 | intermediate (78, 75), 0x3f44 | d1 -1..3, d2 -1..2, z < 0x3f60: shape 4 | |
+| 0x25 | ultimate (23, 32), 0x4000 | d1, d2 0..1, z < 0x3fe0: exit (sound 0x46) | x 0xf0, y 0x100 / 0x140 by rng(2), v (4 px, 0) |
+| 0x26, 0x27 | ultimate (31, 32), (31, 40), 0x4000 | d6, a0 -0x18..0x27: shape 6 | |
+| 0x22-0x24 | silly | below | |
+
+A shape that loses the marble (0x1cd00 result 1) leaves 0x29cce without its epilogue. Points
+at the end of state 3: 0x12 entry 9, the other entries 5 (2000).
+
+Check: `marble_sim.py deaths TRACE RACE 1340:2200` and `marble_piston.py pistons` (all
+enemies) on tick start traces `$TMPDIR/t4c` (`MARBLE_PLACE` at frame 900 next to the tube,
+input from 1350 after the camera scrolled there): b1/b4/b6/b8 0x12 (rim, stop, exit, lost
+behind 0x15), b2/b5/b7 0x13/0x14 exits and 0x16, b3 a 0x14 mouth wall bounce, i1/i2 0x20 and
+0x21, u1/u2 0x25 and 0x26/0x27: all ticks equal. Shape plane hits in these traces: one (shape
+2); shapes 0, 1, 3, 4, 6 are only crossed without a hit (same 0x1cd00 code as the silly exits,
+12 hits).
+
+#### Silly race tubes
+
 
 Marble Love TS (`sub-29cce.ts` runTube22, runTube23Or24, runTubeTeleport, `helper-1cd00.ts`,
 `refresh-frame-10fce.ts` JT[3]). Three mode 1 slots spawn at the silly race start: 0x22 funnel
@@ -1810,16 +1842,19 @@ frame 1650 the race timer warning (+0x71, vblank) differs, not modelled. The 16 
 is not covered by a trace.
 
 Tube fixture `source/test/test_marble_deaths/marble_tubes_trace.h` (`make_fixture.py
-twrite`, death fixture format plus `rng_in`): t3 904 (296 ticks), t6 904 (372 ticks). C++
-(`marble_objects.cpp` `funnel_22`, `shape_1cd00`; `marble_physics` state `TUBE`, `blocked`):
-`test_replay_tubes` replays it, `test_silly_funnel` rolls the marble from the funnel floor to
-an exit through the machine start path. Flash +1800 B.
+twrite`, death fixture format plus `rng_in`, all enemies run; a `.h` spec keeps that file's
+segments): silly t3 904 (296 ticks), t6 904 (372 ticks); b1 1440 (110), b2 1429 (40), b3
+1429 (30), b5 1469 (50), i1 1416 (50), u1 1375 (50). C++ (`marble_objects.cpp` `funnel_22`,
+`tubeHole`, `tubeEntry`, `tubeHoleU`, `tubeWall`, `shape_1cd00`; `marble_physics` state
+`TUBE`, `blocked`): `test_replay_tubes` replays it, `test_silly_funnel` and `test_tube_runs`
+(0x12, 0x13, 0x20, 0x25) roll the marble into a tube through the machine start path. Flash
++1800 B (silly), +1160 B (other tubes).
 
 ```sh
-S=$TMPDIR/tu
-python3 romconv/internal/marble/tools/make_fixture.py twrite \
-  source/test/test_marble_deaths/marble_tubes_trace.h 4:$S/t3/trace.bin:904:296 \
-  4:$S/t6/trace.bin:904:372
+T=$TMPDIR/t4c; H=source/test/test_marble_deaths/marble_tubes_trace.h; cp $H $T/old.h
+python3 romconv/internal/marble/tools/make_fixture.py twrite $H $T/old.h \
+  1:$T/b1/trace.bin:1440:110 1:$T/b2/trace.bin:1429:40 1:$T/b3/trace.bin:1429:30 \
+  1:$T/b5/trace.bin:1469:50 2:$T/i1/trace.bin:1416:50 5:$T/u1/trace.bin:1375:50
 python3 romconv/internal/marble/tools/marble_sim.py tfixture \
   source/test/test_marble_deaths/marble_tubes_trace.h
 ```
@@ -1905,7 +1940,7 @@ python3 romconv/internal/marble/tools/marble_piston.py pistons TRACE 3 FROM:TO
 
 ## Open questions
 
-- Level objects: unported tags (0x0a-0x0d, tubes 0x12-0x16, 0x20, 0x21, 0x25-0x27), playfield
+- Level objects: unported tags (0x0a-0x0d), playfield
   patch decode of tag 0x19 rows. Section
   Level objects. Slot sprites: section Level object sprites (masks over slot MOs behind the
   marble not seen in traces).
