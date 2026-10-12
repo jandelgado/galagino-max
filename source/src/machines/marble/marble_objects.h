@@ -16,6 +16,10 @@
 //   update(m)                     per logic tick slot update (0x12fd0)
 //   slots_29cce(m, a2)            object a2 against the slots, from the physics (0x29cce)
 //   lastPatch(m)                  record of the last playfield patch (mode 1 slots), 0 = none
+//   zoneScripts(m, zone)          zone hook 0x13966 slot part: zone wait slots of the zone
+//                                 restart their script
+//   zone4_13892(m)                aerial zone 4 entry: zone wait slots removed, open gates
+//                                 closed again
 //
 // Per logic tick: applyQueued, camera tick + cameraBands, physics::tick, update.
 // Not ported (Phase 4): tags 0x0a-0x0d, 0x12-0x16, 0x20, 0x21, 0x25-0x27 (tubes, gates,
@@ -28,6 +32,8 @@ void applyQueued(marble_physics::Mem &m);
 void update(marble_physics::Mem &m);
 void slots_29cce(marble_physics::Mem &m, uint32_t a2);
 uint32_t lastPatch(const marble_physics::Mem &m);
+void zoneScripts(marble_physics::Mem &m, uint8_t zone);
+void zone4_13892(marble_physics::Mem &m);
 
 }  // namespace marble_objects
 

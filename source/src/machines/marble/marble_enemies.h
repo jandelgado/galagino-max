@@ -16,6 +16,8 @@
 // They walk down the course, land and carry the marble off.
 // Phase 4b-4b: silly race minis (marble_minis.cpp), 9 records of 0x28 bytes at 0x401890.
 // They wander a field by the start, follow or flee the player there and can be collected.
+// Phase 4b-5: aerial race pistons (marble_pistons.cpp), 36 entries of 0x10 bytes at 0x401650.
+// A player in zone 4/5 arms them; they rise in timed groups and launch or bounce the marble.
 //
 //   init(m)                     race start: steelie, slinky, acid, bird, mini numbers +0x19
 //                               (set at boot in the arcade)
@@ -25,13 +27,17 @@
 //                               minis spawn / clear, bird spawning flag 0x400762
 //   update(m)                   per logic tick after the player: both steelies (0x158cc), then
 //                               the slinkies (0x1493c), the acid (0x17230), the minis
-//                               (0x1912c), the birds (0x19baa)
+//                               (0x1912c), the birds (0x19baa), the pistons (0x1844a)
 //   contact_14e92(m, a2)        player a2 against the slinkies, from the player's physics
 //   contact_175c8(m, a2)        player a2 against the acid, right after; true if it dissolves
 //                               (the caller refreshes its cell)
 //   target_176d2(m, a2)         dissolving player a2 slides into its acid
 //   contact_1924e(m, a2)        player a2 against the minis (silly race), after the acid
 //   contact_19d94(m, a2)        player a2 against the birds (silly race), after the minis
+//   arm_186ac(m)                aerial race, from the zone hook 0x13966: a live player in
+//                               zone 4/5 arms the pistons, none tears them down
+//   contact_1881c(m, a2)        player a2 against the pistons up, after the acid; true if
+//                               one matched (the caller refreshes its cell)
 //   pair_1bc88(m, a2)           object a2 against the player and steelies, from the physics;
 //                               true if it collided (the caller refreshes its cell)
 //   land_25c74(m, a2, fall)     non-player landing: stunned, shatters on a high fall
@@ -53,6 +59,9 @@ static const uint8_t NBIRDS = 10;
 static const uint32_t MINIS = 0x401890;
 static const uint16_t MINI_SIZE = 0x28;
 static const uint8_t NMINIS = 9;
+static const uint32_t PISTONS = 0x401650;
+static const uint16_t PISTON_SIZE = 0x10;
+static const uint8_t NPISTONS = 36;
 
 enum Score : uint8_t { NO_SCORE, SCORE };
 enum Clear : uint8_t { KEEP, CLEAR };
@@ -67,6 +76,8 @@ bool contact_175c8(marble_physics::Mem &m, uint32_t a2);
 void target_176d2(marble_physics::Mem &m, uint32_t a2);
 void contact_1924e(marble_physics::Mem &m, uint32_t a2);
 void contact_19d94(marble_physics::Mem &m, uint32_t a2);
+void arm_186ac(marble_physics::Mem &m);
+bool contact_1881c(marble_physics::Mem &m, uint32_t a2);
 void land_25c74(marble_physics::Mem &m, uint32_t a2, int16_t fall);
 void remove_15bd0(marble_physics::Mem &m, uint32_t a2, Score s, Clear c);
 

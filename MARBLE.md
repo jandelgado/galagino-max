@@ -1869,14 +1869,25 @@ Traces (`$TMPDIR/ps`, `$TMPDIR/st/run.sh`, race 3, place 900:520:428:-84:4, inpu
 | p6 | 620:660:-120:5, `40:4:-4` | teardown 1490 with 10 up (zone 5 to 7) | 217 ticks equal |
 
 Piston fixture `source/test/test_marble_pistons/marble_pistons_trace.h` (`make_fixture.py
-pswrite`): p1 1001 (40 ticks, arming), p3 1575 (24, launch), p4 1483 (20, launch), p4 1770
+pswrite`): p1 1001 (40 ticks, arming), p1 1241 (10, teeter at a piston pit), p3 1575 (24, launch), p4 1483 (20, launch), p4 1770
 (12, bounce), p6 1478 (16, teardown).
+
+C++ (`marble_pistons.{h,cpp}`, 1:1 port of `marble_piston.py`, internals in namespace
+`marble_pistons`): `marble_enemies` forwards `arm_186ac`, `contact_1881c` and runs 0x1844a
+after the birds. `marble_physics` gains the zone hook 0x13966 (`zoneHook_13966`, from
+`zones_1365c` on a zone change and from the respawn), the 0x1881c call with the cell refresh,
+the teeter fix and `cellScratch` (0x1bb28); `marble_objects` the slot parts `zoneScripts`
+(0x13966) and `zone4_13892`. A piston's draw list index sits at +0 (the list reads +0x19 of
+the object, so the port passes entry - 0x19). Host test `test_marble_pistons`: fixture replay
+(player, cell scratch, pistons, draw list in order, RNG), race sweep (never armed without a
+zone change), the arming scratch, launch / bounce / wall / down cases of 0x1881c, teardown
+and a race switch with pistons up.
 
 ```sh
 S=$TMPDIR/ps
 python3 romconv/internal/marble/tools/make_fixture.py pswrite \
   source/test/test_marble_pistons/marble_pistons_trace.h 3:$S/p1/trace.bin:1001:40 \
-  3:$S/p3/trace.bin:1575:24 3:$S/p4/trace.bin:1483:20 3:$S/p4/trace.bin:1770:12 \
+  3:$S/p1/trace.bin:1241:10 3:$S/p3/trace.bin:1575:24 3:$S/p4/trace.bin:1483:20 3:$S/p4/trace.bin:1770:12 \
   3:$S/p6/trace.bin:1478:16
 python3 romconv/internal/marble/tools/marble_piston.py psfixture \
   source/test/test_marble_pistons/marble_pistons_trace.h
@@ -1896,8 +1907,7 @@ python3 romconv/internal/marble/tools/marble_piston.py pistons TRACE 3 FROM:TO
   ported. Not modelled: states 3 (catapult), 0xb (birds), 8 (time out, 0x258a8), 0xa (gate,
   0x13d38 writes +0x38), practice landing markers (type 0x2a, 0x12532, score 0x285b0),
   the race timer and other vblank IRQ work, two players, the main loop countdowns
-  0x400768 (sound only)/0x4003b8. Not ported to C++: zone hook 0x13966 (until Phase 4b-5),
-  dots 0x1c014 / 0x25b40.
+  0x400768 (sound only)/0x4003b8. Not ported to C++: dots 0x1c014 / 0x25b40.
 - Goal (state 6, section Player states, deaths, RNG): the race end flow after it, and the
   +0x57 wrap (out of play again every 256 ticks) is unchecked against MAME. The camera
   ignores the marble (sy only from states 0/1/3/4/5).

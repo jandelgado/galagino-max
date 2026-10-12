@@ -68,6 +68,8 @@ static const uint32_t SCORED = 0x40039c;                     // bit per player: 
 static const uint32_t TIMEOUT_RND = 0x400444;                // race start random byte
 static const uint32_t BLOCK_HIT = 0x40046a;                  // long: index 0x17cb8 found
 static const uint32_t TIMEOUT_ARMED = 0x40076c;              // time out event 0x1bbaa armed
+static const uint32_t ZONE_SOUNDS = 0x40076a;                // zone hook sound latches
+static const uint32_t MODE3_TIMER = 0x400768;                // word: aerial sound countdown
 static const uint32_t STEELIES = 0x4009a4, SLINKIES = 0x401302;
 
 // program ROM tables
@@ -122,6 +124,7 @@ static const uint16_t RNG_BYTE = 0x100;
 static const uint32_t FALL_VZ = 0xffffa000;        // -0x6000: vz when a fall starts
 static const uint8_t RACE_PRACTICE = 0, RACE_BEGINNER = 1, RACE_INTERMEDIATE = 2;
 static const uint8_t RACE_AERIAL = 3, RACE_SILLY = 4, RACE_ULTIMATE = 5;
+static const uint8_t ZONE_SLOTS = 4;  // aerial zone whose entry resets its slots (0x13892)
 static const uint8_t DYN_INTERMEDIATE_N = 0x42;
 static const uint16_t SPAWN_RANGE = 0x300;         // max checkpoint distance (max + 3/8 min) * 16
 static const uint8_t NO_ZONE = 0xff;
@@ -521,8 +524,9 @@ void edge_160f6(Mem &m, uint32_t a2, int32_t h) {
       continue;
     }
 
+    // 0x165ec `cmpa.w d2,a1; ble`: the smallest magnitude wins (Marble Love: the largest)
     const int8_t mag = s8(m.romb(TEETER_LIFT + ti));
-    if (best == -1 || mag > best) {
+    if (best == -1 || mag < best) {
       best = mag;
       bestv = cur;
     }
@@ -672,7 +676,34 @@ void land_25c74(Mem &m, uint32_t a2, int16_t fall) {
   m.wl(a2 + ANIM, ANIM_DIZZY);  // sound 0x39
 }
 
-// 0x1365c: zone lines (checkpoint zone +0x1b, goal zone 0xff)
+// 0x13966: zone hook (respawn and zone change): silly and aerial sound latches (sounds not
+// ported), aerial 0x400768 and pistons 0x186ac, zone wait slots of the new zone restarted
+void zoneHook_13966(Mem &m, uint32_t a2) {
+  static const uint8_t SILLY_A = 5, SILLY_B = 6, AERIAL_A = 0x14, AERIAL_B = 6, AERIAL_C = 7;
+  static const uint16_t MODE3_TICKS = 0x3c;
+  const uint16_t race = m.rw(RACE);
+  const uint8_t zone = m.rb(a2 + ZONE), flags = m.rb(ZONE_SOUNDS);
+  if (race == RACE_SILLY) {
+    if (zone == SILLY_A && !(flags & 1)) {
+      m.wb(ZONE_SOUNDS, flags | 1);  // sound 0x15
+    } else if (zone == SILLY_B && !(flags & 2)) {
+      m.wb(ZONE_SOUNDS, flags | 2);  // sound 0x16
+    }
+  }
+  if (race != RACE_AERIAL) { return; }
+
+  if (zone == AERIAL_A && !(flags & 1)) {
+    m.wb(ZONE_SOUNDS, flags | 1);  // sound 0xf
+  } else if ((zone == AERIAL_B || zone == AERIAL_C) && !(flags & 2)) {
+    m.wb(ZONE_SOUNDS, flags | 2);  // sound 0x12
+    m.ww(MODE3_TIMER, MODE3_TICKS);
+  }
+  marble_enemies::arm_186ac(m);
+  marble_objects::zoneScripts(m, zone);
+}
+
+// 0x1365c: zone lines (checkpoint zone +0x1b, goal zone 0xff); aerial zone 4 entry resets its
+// slots (0x13892); a changed zone runs the zone hook 0x13966
 void zones_1365c(Mem &m, uint32_t a2) {
   const uint16_t race = m.rw(RACE);
   uint32_t a0 = m.roml(ZONE_LISTS + 4 * race);
@@ -709,7 +740,10 @@ void zones_1365c(Mem &m, uint32_t a2) {
             m.wl(a2 + VX, (uint32_t)(int32_t)s8(m.romb(GOAL_VX + race)) << 16);
             m.wl(a2 + VY, (uint32_t)(int32_t)s8(m.romb(GOAL_VY + race)) << 16);
           }
+        } else if (m.rb(a2 + ZONE) == ZONE_SLOTS && race == RACE_AERIAL) {
+          marble_objects::zone4_13892(m);
         }
+        if (m.rb(a2 + ZONE) != d2) { zoneHook_13966(m, a2); }
         return;
       }
     }
@@ -769,13 +803,14 @@ void physics_121b8(Mem &m, uint32_t a2) {
   if (m.rb(a2 + SURFACE) == 0xa || m.rb(a2 + STATE) == LOST) { return; }
 
   // 0x1239c: cell refresh after slot hits, 0x1bc88 object pair collision; then the player
-  // only contacts (slinkies 0x14e92, acid 0x175c8, minis 0x1924e, birds 0x19d94; 0x1881c
-  // pistons not ported) and zones; a carried player skips the zones
+  // only contacts (slinkies 0x14e92, acid 0x175c8, pistons 0x1881c, minis 0x1924e, birds
+  // 0x19d94) and zones; a carried player skips the zones
   if (m.rb(HIT_X) || m.rb(HIT_Y)) { posupd_1bab2(m, a2); }
   if (marble_enemies::pair_1bc88(m, a2)) { posupd_1bab2(m, a2); }
   if (pl) {
     marble_enemies::contact_14e92(m, a2);
     if (marble_enemies::contact_175c8(m, a2)) { posupd_1bab2(m, a2); }
+    if (marble_enemies::contact_1881c(m, a2)) { posupd_1bab2(m, a2); }
     marble_enemies::contact_1924e(m, a2);
     marble_enemies::contact_19d94(m, a2);
     if (m.rb(a2 + STATE) == CARRIED) { return; }
@@ -1063,6 +1098,7 @@ void respawn_2591a(Mem &m, uint32_t a2) {
   for (uint8_t o : longs) { m.wl(a2 + o, 0); }
   for (uint8_t o : bytes) { m.wb(a2 + o, 0); }
   proj_1b9cc(m, a2, KEEP_CELL);
+  zoneHook_13966(m, a2);
 }
 
 // 0x25bae: state entry, velocity x/y cleared. BROKEN: shatter animation. LOST: respawn at
@@ -1405,6 +1441,12 @@ uint8_t blocked(Mem &m, uint32_t obj, int16_t x, int16_t y, uint16_t r) {
   return blocked_17cb8(m, obj, x, y, r);
 }
 void animate(Mem &m, uint32_t obj) { anim_25fc2(m, obj); }
+
+void cellScratch(Mem &m, int16_t x, int16_t y) {
+  m.ww(POS_X, (uint16_t)x);
+  m.ww(POS_Y, (uint16_t)y);
+  derive_1bb50(m);
+}
 
 int32_t cellHeight(Mem &m, uint32_t obj) {
   m.ww(POS_X, m.rw(obj + PX));

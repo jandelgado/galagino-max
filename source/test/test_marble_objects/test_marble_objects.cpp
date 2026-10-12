@@ -16,6 +16,7 @@
 #include "../../src/machines/marble/marble_acid.cpp"
 #include "../../src/machines/marble/marble_birds.cpp"
 #include "../../src/machines/marble/marble_minis.cpp"
+#include "../../src/machines/marble/marble_pistons.cpp"
 #include "../../src/machines/marble/marble_drawlist.h"
 
 // the draw list is not under test here: no-op hooks

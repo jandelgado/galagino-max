@@ -6,6 +6,7 @@
 #include "marble_acid.h"
 #include "marble_birds.h"
 #include "marble_minis.h"
+#include "marble_pistons.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -378,6 +379,7 @@ void update(Mem &m) {
   acid_17230(m);
   minis_1912c(m);
   birds_19baa(m);
+  pistons_1844a(m);
 }
 
 // 0x1bc88: a2 against P1, P2 and (beginner, aerial, ultimate) the steelies. Overlap 7 px x/y,

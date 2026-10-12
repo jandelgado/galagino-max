@@ -836,6 +836,42 @@ void applyQueued(Mem &m) {
 
 uint32_t lastPatch(const Mem &m) { return m.rl(PATCHED); }
 
+// gates (aerial): their scripts restart on zone hooks
+static const uint8_t TAG_GATE_B = 0x0b, TAG_GATE_D = 0x0d;
+static const uint32_t GATE_WAIT_B = 0x1d766, GATE_WAIT_D = 0x1d7ac;    // 0x13966
+static const uint32_t GATE_CLOSE_B = 0x1d752, GATE_CLOSE_D = 0x1d798;  // 0x13892
+
+// 0x13966 slot part: zone wait slots of `zone` restart their script (gates from their wait
+// script; sounds 0x1ef42 not ported)
+void zoneScripts(Mem &m, uint8_t zone) {
+  for (uint8_t i = 0; i < SLOT_N; i++) {
+    const uint32_t a = slotAddr(i);
+    if (m.rb(a + ACTIVE) != 1 || m.rb(a + STATE) != ST_ZONE || m.rb(a + ZONE) != zone) {
+      continue;
+    }
+    if (m.rb(a + TAG) == TAG_GATE_B) { m.wl(a + PC, GATE_WAIT_B); }
+    if (m.rb(a + TAG) == TAG_GATE_D) { m.wl(a + PC, GATE_WAIT_D); }
+    script_12896(m, a);
+  }
+}
+
+// 0x13892 (aerial zone 4 entry): zone wait slots removed, open gates (state 2) closed again
+// (sounds 0x1ef5a not ported)
+void zone4_13892(Mem &m) {
+  for (uint8_t i = 0; i < SLOT_N; i++) {
+    const uint32_t a = slotAddr(i);
+    if (m.rb(a + ACTIVE) != 1) { continue; }
+    if (m.rb(a + STATE) == ST_ZONE) {
+      slot_start_12f44(m, a, SPAWN_REMOVE);
+      continue;
+    }
+    const uint8_t tag = m.rb(a + TAG);
+    if (m.rb(a + STATE) != ST_ANIM2 || (tag != TAG_GATE_B && tag != TAG_GATE_D)) { continue; }
+    m.wl(a + PC, tag == TAG_GATE_B ? GATE_CLOSE_B : GATE_CLOSE_D);
+    script_12896(m, a);
+  }
+}
+
 // level init 0x105a0-0x10614 (slot part): camera at the race top (silly: bottom), spawn the
 // bands the camera enters from 0x19 px outside (0x144e4), one slot update (0x12fd0), then
 // 0x1344c

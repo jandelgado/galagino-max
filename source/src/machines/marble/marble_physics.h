@@ -29,10 +29,10 @@
 // Level object slots (marble_objects.h): 0x29cce runs inside the physics, startRace spawns
 // the first slots. Steelies (marble_enemies.h) run the same object physics: pair collision
 // 0x1bc88, non-player landing and loss go to marble_enemies; the player's physics also runs
-// the slinky contact 0x14e92, the acid contact 0x175c8 and the bird contact 0x19d94. Not
-// ported (Phase 4): other enemies, states 8, 0xa, the race
-// timer (time out 0x1bbaa), sprite dots 0x1c014, zone
-// hook 0x13966, sounds.
+// the slinky contact 0x14e92, the acid contact 0x175c8, the piston contact 0x1881c, the mini
+// contact 0x1924e and the bird contact 0x19d94; zone changes and respawns run the zone hook
+// 0x13966 (pistons 0x186ac, zone wait slots). Not ported (Phase 4): states 8, 0xa, the race
+// timer (time out 0x1bbaa), sprite dots 0x1c014, sounds.
 namespace marble_physics {
 
 static const uint32_t PLAYER = 0x400018;  // player 1 object
@@ -85,6 +85,8 @@ void project(Mem &m, uint32_t obj, Refetch r);
 //   floorZ(m, obj)           0x1bab2 with the cell refetched, then 0x1cc62: floor z
 //   cellHeight(m, obj)       0x1bb08 + 0x1cc62(1): x/y words to the cell scratch, cell
 //                            fetched, floor z (the z word scratch is left alone)
+//   cellScratch(m, x, y)     0x1bb28: pixel x/y words to the cell scratch, cell and fraction
+//                            derived (0x1bb50), no fetch
 //   drag(m, obj)             0x25e7c mode 2: velocity friction of a pushed slinky
 //   enterState(m, obj, s)    0x25bae state entry (BROKEN, LOST, DISSOLVING)
 //   blocked(m, obj, x, y, r) 0x17cb8: another live object near pixel (x, y), 0 if none
@@ -97,6 +99,7 @@ void ground(Mem &m, uint32_t obj);
 void speedCap(Mem &m, uint32_t obj);
 int32_t floorZ(Mem &m, uint32_t obj);
 int32_t cellHeight(Mem &m, uint32_t obj);
+void cellScratch(Mem &m, int16_t x, int16_t y);
 void drag(Mem &m, uint32_t obj);
 void enterState(Mem &m, uint32_t obj, State s);
 uint8_t blocked(Mem &m, uint32_t obj, int16_t x, int16_t y, uint16_t r);
