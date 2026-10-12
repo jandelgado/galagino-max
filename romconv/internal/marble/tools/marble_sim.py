@@ -314,6 +314,7 @@ class Mem:
         self.pair = None        # 0x1bc88 object pair collision and non-player landing hooks
         self.land = None        # (marble_enemy.Enemies), None: not ported
         self.deaths = False     # arcade death paths (0x25bae, 0x25c74) and dots 0x1c014
+        self.enemies = False    # steelies (marble_enemy.enable): spawn, update, pair, landing
     def _loc(self, a):
         a &= 0xffffff
         if a < 0x30000: return PROG, a, False
@@ -655,7 +656,9 @@ def physics_121b8(m, a2):
     m.ww(0x400698, 0xffff); m.ww(0x400696, 0xffff)
     posupd_1bab2(m, a2)
     if s32(height_1cc62(m) - m.sl(a2 + 0x14)) > 0x100000:
-        m.events.append("embedded"); m.wb(a2 + 0x57, 0x65)
+        m.events.append("embedded")
+        if not pl and m.enemies: lose_np(m, a2); return
+        m.wb(a2 + 0x57, 0x65)
         if m.deaths: sound_15884(m); m.sounds.append(0x46); enter_25bae(m, a2, 4)
         else: m.wb(a2 + 0x1a, 4)
         return
@@ -697,7 +700,9 @@ def physics_121b8(m, a2):
             m.events.append(("land", s16(fall)))
             (land_25c74 if pl or not m.land else m.land)(m, a2, s16(fall))
         elif s32(m.sl(a2 + 0x2a) - m.sl(a2 + 0x14)) > 0x800000:
-            m.events.append("fell"); m.wb(a2 + 0x57, 0x64)
+            m.events.append("fell")
+            if not pl and m.enemies: lose_np(m, a2); return
+            m.wb(a2 + 0x57, 0x64)
             if m.deaths: sound_15884(m); m.sounds.append(0x46); enter_25bae(m, a2, 4)
             else: m.wb(a2 + 0x1a, 4)
             return
@@ -712,6 +717,12 @@ def physics_121b8(m, a2):
     fm = friction_mode(m.rb(a2 + 0x58))
     if fm != -1: friction_25e7c(m, a2, fm)
     if pl and m.rw(0x400390) != 1: gravity_25df6(m, a2)
+
+
+def lose_np(m, a2):
+    """Non-player embedded or fallen (helper-121b8.ts): 0x15bd0(a2, 1, 1), slot freed."""
+    import marble_enemy
+    marble_enemy.remove_15bd0(m, a2, 1, 1)
 
 
 # 0x26196 / 0x261bc: speed cap
@@ -738,6 +749,18 @@ def distance_score(m, a2, n):
         m.ww(a2 + 0xc4, m.rw(a2 + 0xc4) - 0xa0)
         m.wl(a2 + 0xbc, m.rl(a2 + 0xbc) + 10)
         m.wb(0x40039c, m.rb(0x40039c) | (1 << m.rb(a2 + 0x19)))
+
+
+SCORES, SCORE_TEXTS = 0x23cd4, 0x23cf6   # 0x285b0: points (words), score text (longs)
+
+
+def score_285b0(m, a2, k):
+    """0x285b0 (helper-285b0.ts): player a2 scores points k (0x28608: +0xbc, flag 0x40039c),
+    +0xd4 = its score text, +0x68/+0x69/+0x70/+0xd8 show it."""
+    m.wl(a2 + 0xbc, (m.rl(a2 + 0xbc) + s16(rom_w(SCORES + 2 * k))) & 0xffffffff)
+    m.wb(0x40039c, m.rb(0x40039c) | ((1 << (m.rb(a2 + 0x19) & 0x3f)) & 0xff))
+    m.wl(a2 + 0xd4, rom_l(SCORE_TEXTS + 4 * k))
+    m.wb(a2 + 0x70, 0); m.wb(a2 + 0x68, 0); m.wb(a2 + 0x69, 0xff); m.wb(a2 + 0xd8, 1)
 
 
 # 0x17f66: input -> velocity
@@ -1143,11 +1166,15 @@ def spawn_12dfa(m, old, new):
 
 
 def camera_bands_144e4(m, old, new):
-    """Camera move: band = (camera - descriptor +0x10) >> 4. Enemy spawners 0x15a12,
-    0x14c46, 0x17346 and the aerial extras are not modelled."""
+    """Camera move: band = (camera - descriptor +0x10) >> 4. Steelie spawner 0x15a12 (m.enemies),
+    then the slots 0x12dfa; 0x14c46, 0x17346 and the aerial extras are not modelled."""
     top = m.sw(m.t.desc + 0x10)
     a = s16(old - top) >> 4; b = s16(new - top) >> 4
-    if (a & 0xff) != (b & 0xff): spawn_12dfa(m, a, b)
+    if (a & 0xff) == (b & 0xff): return
+    if m.enemies:
+        import marble_enemy
+        marble_enemy.spawn_15a12(m, a, b)
+    spawn_12dfa(m, a, b)
 
 
 def anim_render_13334(m, a):
@@ -1515,6 +1542,7 @@ SPAWN_X, SPAWN_Y, SPAWN_ZONE = 0x400462, 0x400466, 0x400472
 BLOCK_HIT = 0x40046a        # index of the object 0x17cb8 found
 CHECKPOINTS = 0x1ef1a       # per race: (cx, cy, zone, pad), 0xff end
 STEELIES, STEELIE_SIZE = 0x4009a4, 0x7c
+STEELIES_ALL = (STEELIES, STEELIES + STEELIE_SIZE)
 SLINKIES, SLINKY_SIZE = 0x401302, 0x60
 
 
@@ -1943,11 +1971,14 @@ def main_tick(m, c6, c7, camera, frame):
     m.wl(0x400010, frame)
     m.wb(P + 0xc6, c6); m.wb(P + 0xc7, c7)
     anim_apply_1344c(m)                              # 0x13ee6: 0x1344c, camera, 0x144e4
-    old = m.rw(0x40097e)
-    m.wl(0x40097c, camera)
+    old = m.rw(0x40097e)                             # 0x144e4 runs before the camera store
     if (camera & 0xffff) != old: camera_bands_144e4(m, old, camera & 0xffff)
+    m.wl(0x40097c, camera)
     objects_251de(m)
-    # 0x189e2 practice markers, enemies 0x158cc .. 0x1844a: not ported
+    # 0x189e2 practice markers, enemies 0x1493c .. 0x1844a: not ported
+    if m.enemies:
+        import marble_enemy
+        for a in STEELIES_ALL: marble_enemy.update_158f6(m, a)
     slots_12fd0(m)
     rng_13a98(m, 0x100)
 

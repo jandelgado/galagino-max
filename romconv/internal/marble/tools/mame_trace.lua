@@ -36,6 +36,9 @@
 -- $MARBLE_PLACE "frame:x:y:z[:zone],...": at that frame put player 1 at pixel (x, y), height
 -- z (z word - 0x4000, e.g. -120), velocity 0, last ground = there, optional zone +0x1b/+0x1d
 -- (teleport next to a level object for render checks; z from tools/marble_sim.py terrain).
+-- $MARBLE_DROP "frame:obj:x:y:z,...": at that frame drop object obj (hex work RAM address,
+-- 400018 player 1, 4009a4/400a20 steelies) airborne at pixel (x, y), height z (as above),
+-- velocity 0, fall start +0x2a = z: falls onto what is below (steelie shatter/stun, breaks).
 -- usage (absolute script path, scratch dir):
 --   MARBLE_OUT=$PWD MARBLE_LEVEL=0 MARBLE_FRAMES=1500 MARBLE_INPUT=120:0:0,60:4:0 \
 --   SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy mame marble -rompath romszip -video none \
@@ -59,6 +62,10 @@ local TICK_ADDR = 0x400684
 local PLAYER_X = 0x400024
 local COIN_FRAME, START_FRAME = 300, 400
 
+local drops = {}
+for fr, obj, x, y, z in (os.getenv("MARBLE_DROP") or ""):gmatch("(%d+):(%x+):(%-?%d+):(%-?%d+):(%-?%d+)") do
+  drops[tonumber(fr)] = { tonumber(obj, 16), tonumber(x), tonumber(y), tonumber(z) }
+end
 local places = {}
 for fr, x, y, z, zone in (os.getenv("MARBLE_PLACE") or ""):gmatch("(%d+):(%-?%d+):(%-?%d+):(%-?%d+):?(%d*)") do
   places[tonumber(fr)] = { tonumber(x), tonumber(y), tonumber(z), tonumber(zone) }
@@ -141,6 +148,14 @@ SUB = emu.add_machine_frame_notifier(function()
     mem:write_u16(P + 0x32, p[1] >> 3); mem:write_u16(P + 0x34, p[2] >> 3)
     mem:write_u8(P + 0x36, 0)
     if p[4] then mem:write_u8(P + 0x1b, p[4]); mem:write_u8(P + 0x1d, p[4]) end
+  end
+  local d = drops[f]
+  if d then
+    local O = d[1]
+    for o = 0, 8, 4 do mem:write_u32(O + o, 0) end
+    mem:write_u32(O + 0xc, d[2] << 16); mem:write_u32(O + 0x10, d[3] << 16)
+    mem:write_u32(O + 0x14, (d[4] + 0x4000) << 16); mem:write_u32(O + 0x2a, (d[4] + 0x4000) << 16)
+    mem:write_u8(O + 0x36, 2)
   end
   local d0, d1 = input_delta(f)
   cnt[1] = cnt[1] + d0

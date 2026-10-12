@@ -1177,6 +1177,79 @@ python3 romconv/internal/marble/tools/marble_enemy.py spawn TRACE RACE
 # camera driven silly race: MARBLE_CAMERA=800:1700 MARBLE_CAMERA_SY=240 (mame_trace.lua)
 ```
 
+### Steelies in the main tick model (Phase 4b-1)
+
+All from Marble Love TS, checked against MAME tick start traces. `marble_enemy.enable(m)`
+(`m.enemies`) adds to `marble_sim.main_tick`: the spawner 0x15a12 in `camera_bands_144e4`
+before the slots, 0x158cc for both steelies after the players, 0x1bc88 inside 0x121b8 and the
+non-player landing 0x25c74. `marble_enemy.setup(m)` turns on deaths, slots, sprites, the draw
+list and steelies; the steelie checks run `marble_mo.boxes_and_sort` (0x26f3e head) after
+each tick.
+
+- Camera order (`refresh-helper-13ee6.ts`): 0x144e4 runs with the old camera long still in
+  0x40097c, the new one is stored after it. A steelie spawned in the tick projects (0x1b9cc)
+  with the old camera. `main_tick` follows this.
+- Spawn 0x15a12 (`scroll-sub-15a12.ts`): per entry of 0x22706[race] the free slot search runs
+  first (highest free of 0x1effe; none free ends the scan), then "no live steelie with this
+  node list" (ROM long entry +2; the TS reads it from work RAM, a TS bug) and the band rule.
+  Init: +0x6e = +0x72 = node list, +0x1b zone, +0x76/+0x78 band (0x2276e: hi - 16), position
+  node centre (cell << 19 + 0x40000), z = 0x1cc62, state 0x20, +0x6c = 0xffff, masks cleared,
+  0x1b9cc, draw list insert type 2 (index +0x19). Then removals of steelies whose band range
+  is left (0x15bd0(a, 0, 1)).
+- Non-player embedded (> 16 px below the floor) or fallen (> 128 px) in 0x121b8
+  (`helper-121b8.ts`): 0x15bd0(a2, 1, 1), no 0x25bae.
+- 0x15bd0 (`state-sub-15bd0.ts`): clear: +0x18 = 0, draw list removal 0x18f46 (type 2); score:
+  0x285b0(player, 3) for every player not in +0x18 0/2. 0x285b0 (`helper-285b0.ts`): +0xbc +=
+  s16 0x23cd4[k] (0x28608, flag 0x40039c), +0xd4 = 0x23cf6[k], +0x68 = 0, +0x69 = 0xff,
+  +0x70 = 0, +0xd8 = 1.
+- Shattering steelie (+0x18 == 2, `sub-158f6.ts`): 0x25fc2, 0x1b9cc with the refetch flag =
+  low byte of the steelie address (nonzero for both), 0x1281c. At the list end 0x25fc2 sets
+  +0x18 = 0 and removes the draw list entry.
+
+Tick start traces (`mame_trace.lua` `MARBLE_TICK=start`, scratch `$TMPDIR/st`, place 900 and
+input `en/inp1.txt` from 1000 unless noted). `MARBLE_DROP "frame:obj:x:y:z"` (new, test
+harness) drops the player or a steelie airborne at a position to provoke landings.
+
+| run | race | parameters | content | free run |
+| --- | --- | --- | --- | --- |
+| b0 | 1 | place 300:284:-82:1 | first steelie, patrol, hunt | 746 ticks equal |
+| b1 | 1 | place 465:545:-120:7 | spawn, 2 collisions, chase/hunt/return | 745 ticks equal |
+| a1 | 3 | place 520:428:-84:4 | spawn, collision, chase/return | equal until pistons (frame 1077) |
+| u1 | 5 | place 644:660:-32:9 | spawn, collisions, player deaths | 735 ticks equal |
+| d1 | 1 | b1, drop 1155 player 459:552:-110 | player breaks the steelie, shatter, removal, score | 272 ticks equal |
+| d2 | 1 | b1, drop 1155 steelie 459:552:-80 | steelie lands 40 px, shatters | 272 ticks equal |
+| d3 | 1 | b1, drop 1155 steelie 459:552:-104 | steelie lands, shatters | 272 ticks equal |
+| d4 | 1 | b1, drop 1299 steelie 493:528:-110 | steelie breaks the player, stun 0x24 | 200 ticks equal |
+
+The draw list compare skips types 4 and 0x0e (slinkies, acid: in MAME, not modelled). No run
+covers a steelie occluded by terrain (steelie masks +0x38 stay 0 in every tick).
+
+Steelie fixture `source/test/test_marble_steelies/marble_steelies_trace.h` (committed, derived
+numbers only), `make_fixture.py stwrite`: initial work RAM blocks (the drop applied), per tick
+`MarbleSteelieTick` (inputs, player as `MarbleDeathTick`, both steelies `MarbleSteelieObj
+{live, mode, vis, x, y, z, sx, sy, anim, frame_hdr, shard_hdr, anger, node, mask[30]}`, MOs,
+the draw list in link order).
+
+| segment | ticks | events |
+| --- | --- | --- |
+| beginner b1 1015 | 120 | spawn, 2 collisions, chase/hunt/return |
+| beginner d1 1155 | 70 | player breaks the steelie, shatter 63, removal, player dizzy |
+| beginner d2 1155 | 85 | steelie lands, shatter 64, removal |
+| beginner d4 1299 | 60 | steelie breaks the player (state 2), stun |
+| ultimate u1 1031 | 120 | spawn, chase, player lost and respawn |
+| aerial a1 965 | 55 | spawn, collision, chase/return |
+
+```sh
+S=$TMPDIR/st
+python3 romconv/internal/marble/tools/make_fixture.py stwrite \
+  source/test/test_marble_steelies/marble_steelies_trace.h 1:$S/b1/trace.bin:1015:120 \
+  1:$S/d1/trace.bin:1155:70:400018:459:552:-110 1:$S/d2/trace.bin:1155:85:4009a4:459:552:-80 \
+  1:$S/d4/trace.bin:1299:60:4009a4:493:528:-110 5:$S/u1/trace.bin:1031:120 \
+  3:$S/a1/trace.bin:965:55
+python3 romconv/internal/marble/tools/marble_enemy.py sfixture \
+  source/test/test_marble_steelies/marble_steelies_trace.h   # replay, no trace needed
+```
+
 ## Open questions
 
 - Level objects: unported tags (0x0a-0x0d, tubes 0x12-0x16, 0x20-0x27), zone triggered
@@ -1184,7 +1257,8 @@ python3 romconv/internal/marble/tools/marble_enemy.py spawn TRACE RACE
   Level objects. Slot sprites: section Level object sprites (masks over slot MOs behind the
   marble not seen in traces).
 - Enemies (section Enemies): slinky states 1/5/6 (0x14a28-0x14bba, not in Marble Love), two
-  player target choice 0x15fe6, no trace of steelie landing/shatter or acid/bird/piston hits.
+  player target choice 0x15fe6, no trace of acid/bird/piston hits or of a steelie occluded by
+  terrain (masks +0x38).
 - Deaths (section Player states, deaths, RNG): states 1/2/4 modelled and ported. Not
   modelled: states 3 (catapult), 5/7/9/0xb (enemies), 8 (time out, 0x258a8), 0xa (gate,
   0x13d38 writes +0x38), practice landing markers (type 0x2a, 0x12532, score 0x285b0),

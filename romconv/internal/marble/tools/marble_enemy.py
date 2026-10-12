@@ -9,6 +9,15 @@ nearest-neighbor.ts) on the work RAM image of marble_sim.Mem. Facts: MARBLE.md "
                                        snapshot, steelie records byte for byte
   marble_enemy.py spawn TRACE RACE     enemy spawns/removals of the camera band spawners
                                        0x15a12 / 0x14c46 / 0x17346 seen in a trace
+  marble_enemy.py spawncheck TRACE RACE  model spawner 0x15a12 over the trace camera ==
+                                       the steelie slots of the next snapshot
+  marble_enemy.py steelies TRACE RACE FROM:TO[:OBJ:X:Y:Z] ...
+                                       free run of marble_sim.main_tick with steelies from a
+                                       tick start snapshot (MARBLE_TICK=start; OBJ hex: the
+                                       trace's MARBLE_DROP at FROM): player, both steelie
+                                       records, draw list (without slinky/acid), steelie MOs,
+                                       RNG equal to MAME every tick
+  marble_enemy.py sfixture FILE        replay test_marble_steelies/marble_steelies_trace.h
 """
 import os
 import sys
@@ -136,9 +145,15 @@ def ai_182ba(m, a2):
 
 
 def remove_15bd0(m, a2, score, clear):
-    """clear: slot free + draw list removal 0x18f46; score: 0x285b0(player, 3) (not modelled)."""
-    if clear: m.wb(a2 + 0x18, 0); m.events.append(("enemy removed", a2))
-    if score: m.events.append(("score", 3))
+    """clear: slot free + draw list removal 0x18f46; score: 0x285b0(player, 3) for every
+    player in play (state-sub-15bd0.ts)."""
+    if clear:
+        m.wb(a2 + 0x18, 0); m.events.append(("enemy removed", a2))
+        if m.drawlist: m.drawlist.remove(m, 2, m.rb(a2 + 0x19))
+    if not score: return
+    m.events.append(("score", 3))
+    for a in ms.players(m):
+        if m.rb(a + 0x18) not in (0, 2): ms.score_285b0(m, a, 3)
 
 
 def land_np_25c74(m, a2, fall):
@@ -147,15 +162,50 @@ def land_np_25c74(m, a2, fall):
     d4 = min(s8(m.rb(a2 + 0x57)) + fall, 0x7f); m.wb(a2 + 0x57, d4)
     v = (m.rb(a2 + 0x56) + fall) & 0xff; m.wb(a2 + 0x56, v)
     if s8(v) > 0x50 or fall > 0x1f:
-        remove_15bd0(m, a2, 1, 0); m.wb(a2 + 0x18, 2); broken_25bae(m, a2)
+        remove_15bd0(m, a2, 1, 0); m.wb(a2 + 0x18, 2); ms.enter_25bae(m, a2, 2)
 
 
-def broken_25bae(m, a2):
-    """0x25bae(obj, 2): shatter animation list 0x20fde (+0x5a), 2 ticks per frame."""
+SPAWN_TABLE = 0x22706                  # per race: 8 byte entries lo, hi, node list, zone, pad
+SPAWN_HI16 = 0x2276e                   # beginner start entry: hi - 16
+
+
+def init_15a12(m, a2, e):
+    """Steelie at the first node of entry e's list, patrol, angry timer off, in the draw list."""
+    nodes = rom_l(e + 2)
+    m.wl(a2 + 0x6e, nodes); m.wl(a2 + 0x72, nodes); m.wb(a2 + 0x1b, PROG[e + 6])
+    m.ww(a2 + 0x76, s8(PROG[e]) & 0xffff); m.ww(a2 + 0x78, s8(PROG[e + 1]) & 0xffff)
+    if nodes == SPAWN_HI16: m.ww(a2 + 0x78, (m.rw(a2 + 0x78) - 0x10) & 0xffff)
+    m.wl(a2 + 0xc, ((s8(PROG[nodes]) << 19) + 0x40000) & 0xffffffff)
+    m.wl(a2 + 0x10, ((s8(PROG[nodes + 1]) << 19) + 0x40000) & 0xffffffff)
+    m.ww(0x400698, 0xffff); m.ww(0x400696, 0xffff)
+    ms.posupd_1bab2(m, a2)
+    m.wl(a2 + 0x14, ms.height_1cc62(m) & 0xffffffff)
     m.wl(a2 + 4, 0); m.wl(a2, 0)
-    if m.rb(a2 + 0x1a) == 6: m.wb(a2 + 0x18, 3)
-    m.wb(a2 + 0x5f, 0); m.wb(a2 + 0x60, 2); m.wl(a2 + 0x5a, 0x20fde); m.wb(a2 + 0x56, 2)
-    m.wb(a2 + 0x1a, 2); m.events.append(("broken", a2)); m.sounds.append("25bae case 2")
+    m.wb(a2 + 0x18, 1); m.wb(a2 + 0x36, 0); m.wb(a2 + 0x1a, PATROL)
+    m.wl(a2 + 0x22, 0); m.wl(a2 + 0x1e, 0); m.ww(a2 + 0x6c, 0xffff)
+    m.wb(a2 + 0x67, 0); m.wb(a2 + 0x56, 0); m.wb(a2 + 0x58, 0)
+    for i in range(5): m.ww(a2 + 0x38 + 6 * i, 0)
+    ms.proj_1b9cc(m, a2)
+    if m.drawlist: m.drawlist.insert(m, 2, m.rb(a2 + 0x19))
+
+
+def spawn_15a12(m, old, new):
+    """Camera band step (0x144e4): spawn a steelie for every entry of 0x22706[race] whose lo or
+    hi band is entered from outside [lo, hi] and whose node list no live steelie has (free
+    slot = highest free index, 0x1599a); then remove steelies whose band range is left."""
+    old = s8(old); new = s8(new)
+    e = rom_l(SPAWN_TABLE + 4 * m.rw(0x400394))
+    while PROG[e] != 0xff:
+        free = [a for a in STEELIES if not m.rb(a + 0x18)]
+        if not free: break
+        lo, hi = s8(PROG[e]), s8(PROG[e + 1])
+        taken = any(m.rb(a + 0x18) and m.rl(a + 0x72) == rom_l(e + 2) for a in STEELIES)
+        if not taken and new in (lo, hi) and not lo <= old <= hi: init_15a12(m, free[-1], e)
+        e += 8
+    for a in STEELIES:
+        if not m.rb(a + 0x18): continue
+        lo, hi = m.sw(a + 0x76), m.sw(a + 0x78)
+        if (old == lo and new < lo) or (old == hi and new > hi): remove_15bd0(m, a, 0, 1)
 
 
 def pair_1bc88(m, a2):
@@ -198,7 +248,7 @@ def pair_1bc88(m, a2):
         m.events.append(("pair", hex(a2), hex(a3)))
         if dz < 0 or m.rb(a2 + 0x36) == 0: continue
         if not pb: remove_15bd0(m, a3, 1, 0); m.wb(a3 + 0x18, 2)
-        broken_25bae(m, a3)
+        ms.enter_25bae(m, a3, 2)
     return hit
 
 
@@ -219,18 +269,24 @@ def update_158f6(m, a2):
     if m.rb(a2 + 0x1a) == STUN:
         if m.rb(a2 + 0x56): m.wb(a2 + 0x56, m.rb(a2 + 0x56) - 1)
         if not m.rb(a2 + 0x56): enter23_160d4(m, a2)
-    elif m.rb(a2 + 0x18) == 2:
-        m.events.append(("shatter anim", a2)); return     # 0x25fc2, 0x1b9cc, 0x1281c
+    elif m.rb(a2 + 0x18) == 2:                         # shattering (sub-158f6.ts block 3)
+        m.events.append(("shatter anim", a2))
+        ms.anim_25fc2(m, a2)
+        ms.proj_1b9cc(m, a2, refetch=(a2 & 0xff) != 0)  # flag = low byte of the pushed a2
+        ms.enter_1281c(m, a2)
+        return
     ms.ground_253bc(m, a2)
     ai_182ba(m, a2)
     ms.physics_121b8(m, a2)
-    for e in list(m.events):
-        if e in ("embedded", "fell"):                   # non-player: 0x15bd0(a2, 1, 1)
-            m.events.append(("steelie lost", a2))
+
+
+def enable(m):
+    """Steelies on: band spawns, 0x158cc update in main_tick, 0x1bc88, non-player landing."""
+    m.enemies = True; m.pair = hook; m.land = land_np_25c74
 
 
 def mem(t, r):
-    m = ms.Mem(t, r); m.sprites = True; m.pair = hook; m.land = land_np_25c74
+    m = ms.Mem(t, r); m.sprites = True; enable(m)
     return m
 
 
@@ -291,8 +347,214 @@ def cmd_spawn(trace, race):
         for o in out[:24]: print("   ", o)
 
 
+def cmd_spawncheck(trace, race):
+    """0x15a12 over the trace camera: from each snapshot, the band step to the next snapshot's
+    camera gives the steelie slots (+0x18 live, +0x72 node list) of the next snapshot."""
+    t = ms.Terrain(race); n = bad = 0
+    top = s16(rom_w(rom_l(0x2be00 + 4 * race) + 0x10))
+    for (fr, r, _), (fr2, r2, _) in zip(trace, trace[1:]):
+        a = (ms.tw(r, 0x40097e) - top) >> 4; b = (ms.tw(r2, 0x40097e) - top) >> 4
+        if (a & 0xff) == (b & 0xff) or ms.tw(r, 0x400390) == 1: continue
+        m = mem(t, r)
+        spawn_15a12(m, a, b)
+        n += 1
+        for s in STEELIES:
+            got = (m.rb(s + 0x18) != 0, m.rl(s + 0x72) if m.rb(s + 0x18) else 0)
+            want = (ms.tb(r2, s + 0x18) != 0, ms.tl(r2, s + 0x72) & 0xffffffff if ms.tb(r2, s + 0x18) else 0)
+            if got[0] == want[0] and got[1] == want[1]: continue
+            bad += 1
+            if bad <= 10:
+                print("frame %d band %d->%d steelie %06x: got %s want %s" % (fr2, a, b, s, got, want))
+    print("spawncheck race %d: %d band steps, %d differ" % (race, n, bad))
+    return bad == 0
+
+
+def setup(m):
+    """main_tick model with deaths, slots, sprites, draw list and steelies."""
+    import marble_mo
+    m.deaths = m.objects = m.sprites = True; m.drawlist = marble_mo.DrawList(); enable(m)
+    return m
+
+
+def steelie_mem(t, ram):
+    return setup(ms.Mem(t, ram))
+
+
+def drawn(m):
+    """Draw list in link order as (type, index)."""
+    out = []
+    for k in range(31):
+        e = m.rb(0x4003bc + k)
+        if e == 0xff: break
+        out.append((m.rb(0x4001dc + 14 * e), m.rb(0x4001dd + 14 * e)))
+    return out
+
+
+def steelie_mos(m, i):
+    """MOs of steelie i if it is in the draw list."""
+    import marble_mo
+    return marble_mo.other_mos(m, 2, i) if (2, i) in drawn(m) else []
+
+
+def ref_steelie_mos(r, v, i):
+    """MO words of steelie i in the MO bank the snapshot shows built."""
+    import marble_mo
+    words, _ = marble_mo.mo_ram(r, v)
+    k = 0
+    for _, typ, idx, mos in marble_mo.mo_list_26f3e(marble_mo.Ram(r)):
+        if typ == 2 and idx == i: return words[k:k + len(mos)]
+        k += len(mos)
+    return []
+
+
+def steelie_diff(m, r2, v2):
+    """death_diff plus both steelie records, the draw list order and the steelie MOs."""
+    out = ms.death_diff(m, r2, v2)
+    for i, a in enumerate(STEELIES):
+        o = a - 0x400000
+        out += ["s%d+%02x %02x/%02x" % (i, k, m.ram[o + k], r2[o + k])
+                for k in range(STEELIE_SIZE) if m.ram[o + k] != r2[o + k]]
+        if steelie_mos(m, i) != ref_steelie_mos(r2, v2, i): out.append("steelie %d MOs" % i)
+    later = (4, 0xe)                                 # slinkies, acid: later sub-phases
+    want = [e for e in drawn(ms.Mem(m.t, r2)) if e[0] not in later]
+    got = [e for e in drawn(m) if e[0] not in later]
+    if got != want: out.append("draw list %s/%s" % (got, want))
+    return out
+
+
+def drop(m, obj, x, y, z):
+    """mame_trace.lua MARBLE_DROP: obj airborne at pixel (x, y), height z, velocity 0."""
+    for o in (0, 4, 8): m.wl(obj + o, 0)
+    m.wl(obj + 0xc, x << 16 & 0xffffffff); m.wl(obj + 0x10, y << 16 & 0xffffffff)
+    m.wl(obj + 0x14, (z + 0x4000) << 16); m.wl(obj + 0x2a, (z + 0x4000) << 16)
+    m.wb(obj + 0x36, 2)
+
+
+def steelie_segment(trace, race, start, end, drops=()):
+    """Free run from the first live snapshot after start; drops (obj, x, y, z) are applied to
+    it first (the trace's MARBLE_DROP at frame start)."""
+    import marble_mo
+    t = ms.Terrain(race)
+    i0 = next(k for k, x in enumerate(trace) if x[0] > start and ms.live_race(x[1]))
+    m = steelie_mem(t, trace[i0][1])
+    for d in drops: drop(m, *d)
+    run = [x for x in trace[i0:] if x[0] <= end]
+    n = 0; modes = {}
+    for (fr, r, v), (fr2, r2, v2) in zip(run, run[1:]):
+        m.events = []; m.sounds = []
+        ms.main_tick(m, *ms.death_inputs(r, r2))
+        marble_mo.boxes_and_sort(m)                  # 0x26f3e head
+        n += 1
+        for a in STEELIES:
+            if m.rb(a + 0x18): k = hex(m.rb(a + 0x1a)); modes[k] = modes.get(k, 0) + 1
+        d = steelie_diff(m, r2, v2)
+        if d:
+            print("steelies race %d: tick %d (frame %d) differs: %s %s"
+                  % (race, n, fr2, "; ".join(d[:10]), [e for e in m.events if e != "slot"][:8]))
+            return False
+    print("steelies race %d: frames %d-%d, %d ticks equal, steelie ticks per mode %s"
+          % (race, run[0][0], run[-1][0], n, modes))
+    return True
+
+
+FRAME = 0x21f36                        # steelie frame (set 5)
+
+
+def steelie_obj(m, i):
+    """Steelie fixture check values: +0x18, +0x1a, +0x1c, x, y, z, sx, sy, +0x5a, the drawn
+    frame header (FRAME, rl(+0x5a) while shattering, 0 if not drawn), the overlay header
+    (rl(+0x62) when +0x67), anger +0x6c, node +0x6e, masks +0x38 (30 bytes), its MOs."""
+    a = STEELIES[i]; o = a - 0x400000
+    shown = m.rb(a + 0x18) and m.rb(a + 0x1c) and (2, i) in drawn(m)
+    hdr = (m.rl(m.rl(a + 0x5a)) if m.rb(a + 0x18) == 2 else FRAME) if shown else 0
+    shard = m.rl(m.rl(a + 0x62)) if shown and m.rb(a + 0x67) else 0
+    return (m.rb(a + 0x18), m.rb(a + 0x1a), m.rb(a + 0x1c), m.sl(a + 0xc), m.sl(a + 0x10),
+            m.sl(a + 0x14), m.sw(a + 0x1e), m.sw(a + 0x20), m.rl(a + 0x5a), hdr, shard,
+            m.rw(a + 0x6c), m.rl(a + 0x6e), bytes(m.ram[o + 0x38:o + 0x56]),
+            tuple(steelie_mos(m, i)))
+
+
+def tick_state(m):
+    """Steelie fixture values of one tick: player (marble_sim.death_state), both steelies,
+    the draw list in link order (type, index)."""
+    return (ms.death_state(m), steelie_obj(m, 0), steelie_obj(m, 1), tuple(drawn(m)))
+
+
+def load_sfixture(path):
+    """Segments of source/test/test_marble_steelies/marble_steelies_trace.h (make_fixture.py
+    stwrite): [{"race", "frame", "ram", "ticks": [(c6, c7, camera, frames, tick_state)]}]."""
+    import re
+    text = open(path).read()
+    num = lambda s: [int(v, 0) for v in re.findall(r"-?0x[0-9a-fA-F]+|-?\d+", s)]
+    arrays = {name: body for name, body in
+              re.findall(r"static const \w+ (\w+)\[\] = \{(.*?)\n?\};", text, re.S)}
+    segs = []
+    for race, frame, nram, ramname, nticks, tickname, nmos, moname, nlist, listname in re.findall(
+            r"\{ *(\d+), *(\d+), *(\d+), *(\w+), *(\d+), *(\w+), *(\d+), *(\w+), *(\d+), *(\w+) *\}",
+            arrays["marble_steelies_segments"]):
+        ram = [(int(addr, 0), bytes(num(arrays[data]))) for addr, _, data in
+               re.findall(r"\{ *(0x[0-9a-f]+), *(\d+), *(\w+) *\}", arrays[ramname])]
+        mw = num(arrays[moname]); lw = num(arrays[listname])
+        mos = [tuple(mw[k:k + 3]) for k in range(0, len(mw), 3)]
+        pairs = [tuple(lw[k:k + 2]) for k in range(0, len(lw), 2)]
+        v = num(arrays[tickname]); w = 4 + 43 + 2 * 45 + 2
+        assert len(v) == w * int(nticks)
+        ticks = []
+        for k in range(0, len(v), w):
+            t = v[k:k + w]
+            c6, c7, cam, frames = t[:4]
+            p = t[4:47]
+            player = tuple(p[:10]) + (bytes(p[10:40]), p[40], tuple(mos[p[42]:p[42] + p[41]]))
+            objs = []
+            for j in range(2):
+                q = t[47 + 45 * j:92 + 45 * j]
+                objs.append(tuple(q[:13]) + (bytes(q[13:43]), tuple(mos[q[44]:q[44] + q[43]])))
+            n, first = t[137:139]
+            ticks.append((c6, c7, cam, frames, (player, objs[0], objs[1],
+                                                tuple(pairs[first:first + n]))))
+        segs.append({"race": int(race), "frame": int(frame), "ram": ram, "ticks": ticks})
+    return segs
+
+
+def replay_sfixture(seg, m):
+    """Run every steelie fixture tick on m (main_tick + 0x26f3e sort); index of the first
+    tick that differs, or None."""
+    import marble_mo
+    setup(m)
+    for k, (c6, c7, cam, frames, want) in enumerate(seg["ticks"]):
+        ms.main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
+        marble_mo.boxes_and_sort(m)
+        if tick_state(m) != want: return k
+    return None
+
+
+def cmd_sfixture(path):
+    ok = True
+    for seg in load_sfixture(path):
+        bad = replay_sfixture(seg, ms.fixture_mem(seg, ms.Terrain(seg["race"])))
+        print("steelies fixture race %d frame %d: %d ticks, %s" % (seg["race"], seg["frame"],
+              len(seg["ticks"]), "exact" if bad is None else "differs at tick %d" % bad))
+        ok &= bad is None
+    return ok
+
+
+def cmd_steelies(trace, race, segs):
+    """Free runs of main_tick with steelies from tick start snapshots, segments
+    FROM:TO[:OBJ:X:Y:Z] (OBJ hex: a MARBLE_DROP at frame FROM)."""
+    ok = True
+    for seg in segs:
+        f = seg.split(":")
+        drops = [(int(f[2], 16), int(f[3]), int(f[4]), int(f[5]))] if len(f) > 2 else []
+        ok &= steelie_segment(trace, race, int(f[0]), int(f[1]), drops)
+    return ok
+
+
 def main(argv):
     cmd = argv[1]
+    if cmd == "sfixture": return 0 if cmd_sfixture(argv[2]) else 1
+    if cmd == "steelies":
+        return 0 if cmd_steelies(ms.load_trace(argv[2]), int(argv[3]), argv[4:]) else 1
+    if cmd == "spawncheck": return 0 if cmd_spawncheck(ms.load_trace(argv[2]), int(argv[3])) else 1
     if cmd == "steelie": return 0 if cmd_steelie(ms.load_trace(argv[2]), int(argv[3])) else 1
     if cmd == "spawn": cmd_spawn(ms.load_trace(argv[2]), int(argv[3])); return 0
     print(__doc__); return 2
