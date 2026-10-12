@@ -946,14 +946,19 @@ def strip_cols(i):
     return [(8 + 8 * k, -0x40 + yo + 4 * k, h, 0, w & 0x7ff) for k in range(4)]
 
 
+# steelie MO frame (type 2, set 5): in every race set (4 tiles), so races keep sharing sets
+STEELIE_FRAME = 0x21f36
+
+
 class Sprites:
     """Level object sprite data of one race (MARBLE.md "Level object sprites"): frame ids
     (sorted header addresses, then the wave strip entries), columns, tile codes. The
     converter emits it, the publish model and the fixture use the same ids."""
-    def __init__(self, race):
+    def __init__(self, race, steelies=True):
         fr = race_frames(race)
         self.race = race
-        self.hdrs = sorted({h for hs in fr.values() for h in hs if h != NONE32})
+        self.hdrs = sorted({h for hs in fr.values() for h in hs if h != NONE32}
+                           | ({STEELIE_FRAME} if steelies else set()))
         self.ids = {h: i for i, h in enumerate(self.hdrs)}
         self.strip = len(self.hdrs)
         self.cols = [frame_cols(h) for h in self.hdrs]

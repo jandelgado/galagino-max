@@ -1100,6 +1100,26 @@ python3 romconv/internal/marble/tools/marble_sim.py dfixture \
   source/test/test_marble_deaths/marble_deaths_trace.h   # replay, no trace needed
 ```
 
+### Phase 4b-1 data (steelies)
+
+Same converter run; flash 849 B (converter prints it: prog blocks 646, sprite sets 203).
+
+- Steelie frame 0x21f36 (2 columns, 4 tiles, set 5) is in every race sprite set, not only
+  beginner/aerial/ultimate: races keep sharing sets (3 sets: practice/silly/ultimate,
+  beginner, intermediate/aerial). Only in aerial it would split aerial from intermediate
+  (+6.4 KB). Largest set 535 tiles, `SPRITE_TILES` = 219 + 535 = 754 (24128 B Arena).
+- A shattering steelie draws the death set's shatter frames with set 5 (code | 0x2800): the
+  converter checks that set 5 looks up the same tiles as sets 0/2; colours come from the
+  race's set 5 palette (`marble_sprite_pal`), no new palette. Overlay +0x62: set 2 as the
+  player.
+- Program ROM blocks: collection replays the steelie fixture and the steelie race sweep
+  (`marble_enemy.sweep`, all races); whole tables: spawn table 0x22706 (pointers, entries,
+  0xff end), every entry's node list to its 0xff 0xff end, 0x1eff6, 0x1effe, pair list
+  0x24ac6, push table 0x24ad6 (8 bytes), score entry k = 3 of 0x23cd4/0x23cf6. The sweep's
+  0x1b12a boxes of slinky/acid entries in the fixture's start RAM read their frame headers
+  (blocks only, the remake draws none).
+- The sprite fixture was regenerated (`swrite`, same specs): only frame ids shifted.
+
 ## Enemies
 
 Research: docs/superpowers/specs/2026-10-11-marble-enemies-research.md (steelie model) and

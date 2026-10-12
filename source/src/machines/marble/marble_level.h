@@ -13,8 +13,8 @@ static const uint8_t COLS = 36;
 static const uint16_t WIDTH = COLS * 8;  // 288
 static const uint16_t MAX_ROWS = 145;    // beginner race; romconv checks
 static const uint16_t MAX_TILES = 896;   // beginner race; romconv checks
-// sprite tile buffer (32 B/tile): death set 219 + intermediate set 531; romconv checks
-static const uint16_t SPRITE_TILES = 750;
+// sprite tile buffer (32 B/tile): death set 219 + aerial set 535; romconv checks
+static const uint16_t SPRITE_TILES = 754;
 
 struct Level {
   uint16_t rows;
@@ -37,7 +37,7 @@ static const uint8_t NO_PATCH = 0xff;
 uint8_t patchIndex(uint32_t record);
 
 // Arena buffers for the largest level, allocated once; load() unpacks into them
-// (90 KB: map 10440 B and tiles 57344 B in one Arena block, sprite tiles 24000 B in the
+// (90 KB: map 10440 B and tiles 57344 B in one Arena block, sprite tiles 24128 B in the
 // other).
 class Store {
 public:

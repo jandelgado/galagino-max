@@ -538,6 +538,48 @@ def cmd_sfixture(path):
     return ok
 
 
+def sweep(m, race):
+    """Race sweep with steelies on a cleared RAM (setup(m) done): the remake race start
+    (marble_sim.begin_race), then main_tick + 0x26f3e sort per camera step of
+    marble_mo.race_sweep (top to bottom, back, again; silly reversed), player idle. Checks
+    every steelie spawn/removal against the spawn table bands. Returns (per tick (live
+    steelies, draw list), spawns, removals)."""
+    import marble_mo
+    ms.begin_race(m, race)
+    top, rng = ms.rom_w(m.t.desc + 0x10), ms.rom_w(m.t.desc + 0x12)
+    cams = list(range(top, top + rng + 1, marble_mo.SWEEP_STEP))
+    if race == 4: cams.reverse()
+    cams = cams + cams[::-1] + cams
+    out, spawns, removals = [], 0, 0
+    for k, cam in enumerate(cams):
+        before = [(m.rb(a + 0x18), m.rl(a + 0x72)) for a in STEELIES]
+        old = m.sw(0x40097e)
+        ms.main_tick(m, 0, 0, cam & 0xffffffff, k + 1)
+        marble_mo.boxes_and_sort(m)
+        lst = drawn(m)
+        for i, a in enumerate(STEELIES):
+            live = m.rb(a + 0x18)
+            if not before[i][0] and live:
+                spawns += 1
+                band = s16(cam - top) >> 4
+                if band not in (m.sw(a + 0x76), m.sw(a + 0x78) + (16 if m.rl(a + 0x72) == SPAWN_HI16 else 0)):
+                    raise SystemExit("race %d cam %d: steelie %d spawned at band %d" % (race, cam, i, band))
+            if before[i][0] and not live: removals += 1
+            if bool(live) != ((2, i) in lst):
+                raise SystemExit("race %d cam %d: steelie %d live %d, draw list %s" % (race, cam, i, live, lst))
+        out.append((tuple(m.rb(a + 0x18) for a in STEELIES), tuple(lst)))
+    return out, spawns, removals
+
+
+def cmd_sweep():
+    for race in range(6):
+        m = setup(ms.Mem(ms.Terrain(race), bytes(0x2000)))
+        out, sp, rm = sweep(m, race)
+        print("sweep race %d: %d ticks, %d spawns, %d removals, most live %d" % (
+            race, len(out), sp, rm, max(sum(1 for v in o[0] if v) for o in out)))
+    return True
+
+
 def cmd_steelies(trace, race, segs):
     """Free runs of main_tick with steelies from tick start snapshots, segments
     FROM:TO[:OBJ:X:Y:Z] (OBJ hex: a MARBLE_DROP at frame FROM)."""
@@ -552,6 +594,7 @@ def cmd_steelies(trace, race, segs):
 def main(argv):
     cmd = argv[1]
     if cmd == "sfixture": return 0 if cmd_sfixture(argv[2]) else 1
+    if cmd == "sweep": return 0 if cmd_sweep() else 1
     if cmd == "steelies":
         return 0 if cmd_steelies(ms.load_trace(argv[2]), int(argv[3]), argv[4:]) else 1
     if cmd == "spawncheck": return 0 if cmd_spawncheck(ms.load_trace(argv[2]), int(argv[3])) else 1

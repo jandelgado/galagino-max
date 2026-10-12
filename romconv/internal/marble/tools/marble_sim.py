@@ -1429,6 +1429,8 @@ def objects_init(m, race):
     m.ww(0x400768, 0xffff); m.wb(0x40076a, 0)
     # slot number +0x19: set once at boot by the slot array init (state of a cleared RAM here)
     for i in range(SLOT_N): m.wb(SLOTS + i * SLOT_SIZE + 0x19, i)
+    if m.enemies:                                    # steelie numbers, set at boot as well
+        for i, a in enumerate(STEELIES_ALL): m.wb(a + 0x19, i)
     cam = rom_w(desc + 0x10) + (rom_w(desc + 0x12) if race == 4 else 0)
     m.wl(0x40097c, cam)
     if race == 2:
