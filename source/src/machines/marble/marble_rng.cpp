@@ -23,7 +23,7 @@ uint16_t rng(marble_physics::Mem &m, uint16_t n) {
   if (n == 0) { return d0; }
 
   d0 &= (uint16_t)((1u << k) - 1);
-  while (!(n > (int16_t)d0)) { d0 = (uint16_t)(d0 - n); }
+  while (!((int16_t)n > (int16_t)d0)) { d0 = (uint16_t)(d0 - n); }  // cmp.w, bgt: signed
   return d0;
 }
 

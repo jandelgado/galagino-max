@@ -104,6 +104,26 @@ static void test_dyn_init(void) {
     }
   }
 }
+
+// 0x13a98 reduces with a signed compare (cmp.w, bgt): for n >= 0x8000 (the catapult's
+// rng(0xa000)) the result lies in 0x8000..n-1 (MAME a10: vy -0x25000 - 0x8f4a). Values from
+// marble_sim.py rng_13a98: seed, n, result, seed after.
+static void test_rng_signed(void) {
+  static const uint16_t CASES[][4] = {
+      {0x1234, 0xa000, 0x8cf1, 0x4cf1}, {0x1234, 0x2000, 0x133c, 0x133c},
+      {0x8f00, 0xa000, 0x9e3c, 0x1e3c}, {0xbeef, 0xa000, 0x829a, 0xa29a},
+      {0xbeef, 0x0100, 0x0045, 0xdf45}, {0x5a5a, 0xa000, 0x81b6, 0x81b6},
+      {0xffff, 0xa000, 0x9fff, 0xffff}, {0x0001, 0x0002, 0x0000, 0x0004},
+  };
+  static const uint32_t STATE = 0x4003a6;
+  memset(ram, 0, sizeof(ram));
+  marble_physics::Mem m(ram, 0);
+  for (const uint16_t *c : CASES) {
+    m.ww(STATE, c[0]);
+    TEST_ASSERT_EQUAL_HEX16(c[2], marble_rng::rng(m, c[1]));
+    TEST_ASSERT_EQUAL_HEX16(c[3], m.rw(STATE));
+  }
+}
 #endif
 
 int main(int, char **) {
@@ -111,6 +131,7 @@ int main(int, char **) {
 #ifdef HAVE_ROM
   RUN_TEST(test_replay_trace);
   RUN_TEST(test_dyn_init);
+  RUN_TEST(test_rng_signed);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif
