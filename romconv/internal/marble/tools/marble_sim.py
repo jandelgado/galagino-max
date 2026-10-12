@@ -317,6 +317,7 @@ class Mem:
         self.enemies = False    # steelies (marble_enemy.enable): spawn, update, pair, landing
         self.slinkies = False   # slinkies (marble_slinky.enable): spawn, update, contact
         self.acid = False       # acid (marble_acid.enable): spawn, update, contact, state 9
+        self.birds = False      # silly birds (marble_bird.enable): flag, update, contact, 0xb
     def _loc(self, a):
         a &= 0xffffff
         if a < 0x30000: return PROG, a, False
@@ -692,8 +693,11 @@ def physics_121b8(m, a2):
         if m.acid:
             import marble_acid
             if marble_acid.contact_175c8(m, a2): posupd_1bab2(m, a2)
-        zones_1365c(m, a2)
+        if m.birds:
+            import marble_bird
+            marble_bird.contact_19d94(m, a2)
         if m.rb(a2 + 0x1a) == 0xb: return
+        zones_1365c(m, a2)
     h = height_1cc62(m)
     edge_160f6(m, a2, h)
     dz = abs(s32(m.sl(a2 + 0x14) - m.sl(0x40068c)))
@@ -993,13 +997,15 @@ def occlusion_264aa(m, a2, d3):
     at +0x38, one per 8 px screen column under the sprite. Entry code: bits 12-15 MO
     height in tiles, bit 15 also hflip (span masks), bit 11 set, bits 0-10 MO code (bank
     lookup 0x0400 | code & 0x7ff). The MO builder turns them into priority MOs (pen 1 =
-    playfield shows, the sprite under it is hidden). +0x1c = 0 when every column is covered."""
-    base = a2 + (0x2c if d3 == 2 else 0x38)
+    playfield shows, the sprite under it is hidden). +0x1c = 0 when every column is covered.
+    d3 2 slinky (+0x2c, frame box), 3 bird (+0x26, 3 entries, screen +0x20): no explicit
+    occluders, +0x1c untouched."""
+    base = a2 + {2: 0x2c, 3: 0x26}.get(d3, 0x38)
     out = [base]
     def emit(*words):
         for w in words:
             m.ww(out[0], w); out[0] += 2
-    for i in range(5): m.ww(base + 6 * i, 0)
+    for i in range(3 if d3 == 3 else 5): m.ww(base + 6 * i, 0)
     if d3 == 0:
         if m.rb(a2 + 0x58) and m.rb(a2 + 0x59) != 0xff and m.rb(a2 + 0x58) != 0xa \
                 and m.rb(a2 + 0x1a) not in (9, 0xb, 0xa):
@@ -1013,6 +1019,10 @@ def occlusion_264aa(m, a2, d3):
         col = s16(s8(PROG[f]) + m.rw(a2 + 0x28)) >> 3
         col += 1 if ncol == 3 else 2
         sy = s16(s8(PROG[f + 1]) + m.rw(a2 + 0x2a))
+    elif d3 == 3:                                    # bird (disassembly 0x264aa, A1 = a2)
+        col = s16(m.rw(a2 + 0x20) + 3) >> 3
+        sy = s16(m.rw(a2 + 0x22) - 8)
+        ncol, top = 3, 0x10
     else:
         sy = m.sw(a2 + 0x20); col = m.sw(a2 + 0x1e) >> 3
         ncol, top = 3, 0xe
@@ -1096,7 +1106,7 @@ def occlusion_264aa(m, a2, d3):
             emit((rom_w(0x1ead2 + 2 * (y0 - y1)) + 0x8000) & 0xffff, c << 3,
                  (rom_w(0x1eaf4 + 2 * (y0 - y1)) + y1) & 0xffff)
     allm = (1 << ncol) - 1
-    if d3 == 2: return
+    if d3 >= 2: return
     if covered & allm == allm or (d3 == 0 and ncol == 5 and covered & 0xe == 0xe):
         m.wb(a2 + 0x1c, 0)
 
@@ -1200,6 +1210,9 @@ def camera_bands_144e4(m, old, new):
         import marble_acid
         marble_acid.spawn_17346(m, a, b)
     spawn_12dfa(m, a, b)
+    if m.birds and m.rw(0x400394) == 4:
+        import marble_bird
+        marble_bird.band_flag_144e4(m, a, b)
 
 
 def anim_render_13334(m, a):
@@ -1460,6 +1473,8 @@ def objects_init(m, race):
         for i in range(4): m.wb(SLINKIES + SLINKY_SIZE * i + 0x19, i)
     if m.acid:                                       # acid numbers (0x1f07a order)
         for i in range(7): m.wb(0x401482 + 0x42 * i + 0x19, i)
+    if m.birds:                                      # bird numbers (0x1f0ba order)
+        for i in range(10): m.wb(0x4019f8 + 0x38 * i + 0x19, i)
     cam = rom_w(desc + 0x10) + (rom_w(desc + 0x12) if race == 4 else 0)
     m.wl(0x40097c, cam)
     if race == 2:
@@ -1971,6 +1986,9 @@ def object_253ec(m, a2):
     elif st == 9 and m.acid:
         import marble_acid
         marble_acid.dissolve_2584e(m, a2)
+    elif st == 0xb and m.birds:
+        import marble_bird
+        marble_bird.carried_25876(m, a2)
     elif st == 6:
         # goal 0x254d2 (Marble Love refresh-frame-10fce.ts JT[6]): physics, +0x57 (0x1e from
         # 0x1365c) counts down; at 0 out of play (+0x18 = 3), v = 0. +0x57 wraps to 0xff, so
@@ -2031,6 +2049,9 @@ def main_tick(m, c6, c7, camera, frame):
     if m.acid:
         import marble_acid
         marble_acid.update_17230(m)
+    if m.birds:
+        import marble_bird
+        marble_bird.update_19baa(m)
     slots_12fd0(m)
     rng_13a98(m, 0x100)
 

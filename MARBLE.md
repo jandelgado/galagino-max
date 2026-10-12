@@ -1552,6 +1552,81 @@ python3 romconv/internal/marble/tools/marble_acid.py acids TRACE RACE FROM:TO
 python3 romconv/internal/marble/tools/marble_acid.py spawncheck TRACE RACE [mid]
 ```
 
+### Birds in the main tick model (Phase 4b-4a)
+
+Marble Love TS (`scroll-range-144e4.ts` mode 4, `state-sub-19baa.ts`, `state-sub-19a40.ts`,
+`marble-cell-dispatch-19e42.ts`, `bbox-hit-test-19d94.ts`, `refresh-frame-10fce.ts` JT[11]),
+except 0x264aa mode 3 (TS no-op; ported from the disassembly by user ruling 2026-10-12, that
+block only). Model `tools/marble_bird.py`, `marble_bird.enable(m)` (`m.birds`, on in
+`marble_enemy.setup`): 0x400762 in `camera_bands_144e4` after the slot spawner (silly race),
+0x19baa after the acid, 0x19d94 for players in 0x121b8 after 0x175c8 (then state 0xb leaves
+0x121b8 before the zones 0x1365c), player state 0xb (0x25876) in `object_253ec`.
+
+Record 0x4019f8 + 0x38 k (table 0x1f0ba, +0x19 = k): v +4 (y only), pos +0xc/+0x10/+0x14, +0x18
+live, +0x1a state (0 walk, 1 stand, 2 landed or carrying), +0x1b anim loops left, +0x1c anim
+cursor (ROM longs, -1 end), +0x20 screen (x, y words as slots), +0x24 tick, +0x25 ticks per
+frame, +0x26 masks (3 x {code, x, y}).
+
+- Flag 0x400762 (0x144e4, silly race): set when the band enters 3-0x1b, cleared when it
+  leaves (signed band bytes). Level init clears it. Birds already live keep walking.
+- Spawn 0x19a40 (0x19baa, flag set and 0x400010 & 7 == 0): two passes over the 5 cells of
+  0x244f6 (x, y bytes: 57-63, 55-63, 49-58, 47-58, 41-58), at most one spawn per pass. A cell
+  spawns if at most pass-many live birds stand in its x column (one: only if it is 4+ cells
+  below the spawn row); lowest free slot, none free ends the scan. Init: cell centre (<< 19 +
+  0x40000), z 0x3fd8, state 1, +0x25 8, anim 0x224ca, v -4 px, 0x19e42, draw list insert type
+  0x0f.
+- Tick 0x19baa: +0x24 += 1; at +0x25 the cursor steps; at the list end a bird not in state 2
+  walks again (anim 0x224d6, state 0, +0x1b -= 1; at 0: v -2 px and no bird ahead in its
+  column: +0x25 1, v -4 px, +0x1b rng(2) + 4; else +0x25 4, v -2 px, +0x1b rng(2) + 1); a bird
+  in state 2 is removed (0x18f46). Walking (state 0): y += v; terrain (0x1bb08 + 0x1cc62(1))
+  above z: y back to the 4 px grid of the old y, anim 0x224e2, +0x25 1, state 2 (landed).
+  Always 0x19e42.
+- 0x19e42: screen +0x20 (the 0x150d0 maths), masks 0x264aa mode 3 at cells x 0x29/0x31/0x39
+  with y >= 0x34, else the 3 entries cleared.
+- 0x264aa mode 3 (disassembly, A1 = bird): entries at +0x26 (3 cleared), 3 columns, column =
+  (+0x20 + 3) asr 3, sy = +0x22 - 8, top = sy + 0x10; then the slinky path (no explicit
+  occluders, +0x1c untouched).
+- Contact 0x19d94 (players, silly race, every walking bird, no height test): marble point
+  0x400690/0x400692 in [x - 6, x + 6) x [y - 4, y + 8): bird state 2, anim 0x22546, +0x25 4;
+  player state 0xb, +0x57 0x66, sound 0x3e.
+- Player 0xb (0x25876): 0x1b9cc(1), orbit 0x13ade (radius grows, `orbit_13ade` state 0xb
+  branch); at its end +0x57 = 0x65, 0x25bae(4) (lost, respawn).
+- Minis share the RNG and the draw list; their band (0x1d-0x38) does not overlap the bird
+  band. The traces below are compared only while no mini is live (minis: Phase 4b-4b).
+
+Checks: `birds` free runs below (masks of 0x264aa mode 3 included: 434 mask entries); the
+sweep (all races, all modelled enemies): silly 32 spawns / 23 removals, most live 10, flag
+only in the band. Old commands stay exact with birds on.
+
+Tick start traces (`$TMPDIR/bd`, `$TMPDIR/st/run.sh`, no input; minis live before frame 1132
+and again after 1363):
+
+| run | race | place | content | free run |
+| --- | --- | --- | --- | --- |
+| b1 | 4 | 900:444:470:-44 | spawns, walk, landings, carry, orbit, respawn, removals | 115 ticks equal |
+| b2 | 4 | 900:420:470:-50 (rolls to 461) | same, another bird carries | 114 ticks equal |
+
+Bird fixture `source/test/test_marble_birds/marble_birds_trace.h` (`make_fixture.py bdwrite`):
+RAM blocks, per tick `MarbleBirdTick` (inputs, player as `MarbleDeathTick`, the ten birds
+`MarbleBirdObj {live, state, x, y, z, sx, sy, tick, loops, cursor, frame_hdr, mask[18]}` with
+their MOs, 0x400762, the draw list in order).
+
+| segment | ticks | events |
+| --- | --- | --- |
+| silly b1 1132 | 115 | spawns, walk, landings (masks), carry 36, lost 24, respawn, removals |
+| silly b2 1180 | 60 | carry by bird 0, lost, respawn, 9 birds live |
+
+```sh
+S=$TMPDIR/bd
+python3 romconv/internal/marble/tools/make_fixture.py bdwrite \
+  source/test/test_marble_birds/marble_birds_trace.h 4:$S/b1/trace.bin:1132:115 \
+  4:$S/b2/trace.bin:1180:60
+python3 romconv/internal/marble/tools/marble_bird.py bdfixture \
+  source/test/test_marble_birds/marble_birds_trace.h
+python3 romconv/internal/marble/tools/marble_bird.py birds TRACE RACE FROM:TO
+python3 romconv/internal/marble/tools/marble_bird.py sweep
+```
+
 ## Open questions
 
 - Level objects: unported tags (0x0a-0x0d, tubes 0x12-0x16, 0x20-0x27), zone triggered
