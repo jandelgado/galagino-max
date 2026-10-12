@@ -524,15 +524,14 @@ def bird_runs(mem, terrains, full):
 
 
 def tube_runs(mem, terrains, full):
-    """Silly race tubes: every tube fixture segment (main tick, the RNG word an input); the
+    """Tubes: every tube fixture segment (main tick with all enemies, the RNG word an input); the
     check values read the program ROM full, as death_runs. Returns crc32 of the work RAM per
     segment."""
     if not os.path.exists(TUBE_FIXTURE):
         fatal(f"marble: {TUBE_FIXTURE} missing, run tools/make_fixture.py twrite")
     out = []
     for seg in ms.load_dfixture(TUBE_FIXTURE, True):
-        m = ms.fixture_mem(seg, terrains[seg["race"]], mem)
-        m.deaths = m.objects = m.sprites = True
+        m = me.setup(ms.fixture_mem(seg, terrains[seg["race"]], mem))
         for c6, c7, cam, frames, rng, want in seg["ticks"]:
             m.ww(0x4003a6, rng)
             ms.main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
