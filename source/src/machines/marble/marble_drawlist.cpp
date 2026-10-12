@@ -353,6 +353,29 @@ void steelie(const Mem &m, Out &o, uint8_t idx, int32_t top) {
   if (hdr != NONE32) { o.add(marble_physics::deathFrame(hdr), SET_DEATH | SET_SHARDS, sx, y); }
 }
 
+// 0x2724c type 4 (slinky, late-game-logic-26f3e.ts) at origin (+0x28, top + ARCADE_H - +0x2a),
+// culled as the arcade (-0x20 < sy + 0x10 < 0x100, widened by margin): the death set frame
+// rl(+0x58) in the slinky palette, its masks +0x2c
+void slinky(const Mem &m, Out &o, uint8_t idx, int32_t top, int16_t margin) {
+  static const int16_t LO = -0x20, HI = 0x100, Y_BIAS = 0x10;
+  static const uint8_t SCREEN = 0x28, MASKS = 0x2c, CURSOR = 0x58;
+  const uint32_t a = m.roml(ENEMIES4 + 4 * idx);
+  const int16_t sx = m.sw(a + SCREEN), sy = m.sw(a + SCREEN + 2);
+  const int16_t cy = s16((uint16_t)(sy + Y_BIAS));
+  if (cy <= LO - margin || cy >= HI + margin) { return; }
+  const uint32_t hdr = hdrOf(m, a + CURSOR);
+  if (hdr == NONE32) { return; }
+  o.add(marble_physics::deathFrame(hdr), SET_DEATH | SET_SLINKY, sx, (int16_t)(top + ARCADE_H - sy));
+
+  uint8_t *owner = o.last();
+  for (uint8_t i = 0; i < MASK_N && m.rw(a + MASKS + ENTRY * i); i++) {
+    const uint32_t e = a + MASKS + ENTRY * i;
+    const uint16_t code = m.rw(e);
+    const int16_t h = (((code >> 11) & 7) + 1) * 8;
+    o.mask(owner, code, (int16_t)(m.sw(e + 2) - sx), (int16_t)(sy - m.sw(e + 4) - h));
+  }
+}
+
 }  // namespace
 
 // 0x28ca6 list part: entries free, list empty; the player (type 1) is the first entry
@@ -441,6 +464,7 @@ uint8_t build(const Mem &m, int16_t cam, int16_t cullMargin, VideoState &v) {
       slotObjs(m, o, type, idx, top, cullMargin, v.lift);
     }
     if (type == T_ENEMY) { steelie(m, o, idx, top); }
+    if (type == T_ENEMY4) { slinky(m, o, idx, top, cullMargin); }
   }
   v.n = o.n < OBJS ? o.n : OBJS;
   if (v.marbleAt > v.n) { v.marbleAt = v.n; }

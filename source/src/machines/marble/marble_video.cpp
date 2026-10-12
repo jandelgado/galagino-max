@@ -135,7 +135,7 @@ void drawObj(const Level &l, const VideoState &v, const Obj &o, int y0, uint16_t
   Paint p = {nullptr, nullptr, o.set == SET_SHADE};
   if (death) {
     p.pal = (o.set & SET_RACE5) ? marble_sprite_pal[v.level][1]
-                                : marble_death_pal[o.set & SET_SHARDS];
+                                : marble_death_pal[o.set & SET_PAL];
   } else if (!p.shade) {
     const uint8_t k = o.set == 3 ? 0 : o.set == 5 ? 1 : o.set == 6 ? 2 : 3;
     p.pal = marble_sprite_pal[v.level][k];

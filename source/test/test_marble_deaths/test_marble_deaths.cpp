@@ -548,11 +548,13 @@ static void test_race_switch_dead(void) {
       }
       logicTick(n);
       TEST_ASSERT_EQUAL_UINT8(marble_physics::ROLL, marble_physics::state(n));
-      marble_video::VideoState v = {};  // no death object left
+      marble_video::VideoState v = {};  // no player death object left (slinkies share the set)
       marble_drawlist::build(n, n.sw(marble_physics::CAMERA), 24, v);
       TEST_ASSERT_EQUAL_UINT8(marble_video::SHOWN, v.marble);
       for (uint8_t i = 0; i < v.n; i++) {
-        TEST_ASSERT_FALSE(v.objs[i].set & marble_video::SET_DEATH);
+        const uint8_t set = v.objs[i].set;
+        TEST_ASSERT_FALSE((set & marble_video::SET_DEATH) &&
+                          (set & marble_video::SET_PAL) != marble_video::SET_SLINKY);
       }
     }
   }

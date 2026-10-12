@@ -253,14 +253,27 @@ static void test_draw_list(void) {
       const MarbleSprTick &t = seg.ticks[k];
       VideoState v;
       replayTick(m, k ? &seg.ticks[k - 1] : nullptr, t, v);
-      const uint8_t n = v.n, at = v.marbleAt, lift = v.lift;
 
-      // level objects have no masks; the marble's masks are the only pool entries
-      bool same = n == t.n && at == t.marble_at && lift == t.variant && v.mask == 0 &&
+      // level objects only: the fixture leaves out the slinkies (start RAM entries, not
+      // updated here); their masks come before the marble's in the pool
+      uint8_t n = 0, at = v.marbleAt, pool = 0;
+      const Obj *lvl[marble_video::OBJS];
+      for (uint8_t i = 0; i < v.n; i++) {
+        if (v.objs[i].set == (marble_video::SET_DEATH | marble_video::SET_SLINKY)) {
+          at -= i < v.marbleAt;
+          pool += v.objs[i].nmask;
+          continue;
+        }
+        lvl[n++] = &v.objs[i];
+      }
+      const uint8_t lift = v.lift;
+
+      // level objects have no masks; the marble's masks are the other pool entries
+      bool same = n == t.n && at == t.marble_at && lift == t.variant && v.mask == pool &&
                   v.nmask <= 5;
       for (uint8_t i = 0; same && i < n; i++) {
         const MarbleSprObj &o = seg.objs[t.first + i];
-        const Obj &g = v.objs[i];
+        const Obj &g = *lvl[i];
         same = g.frame == o.frame && g.set == o.set && g.x == o.x && g.y == o.y && !g.nmask;
       }
       if (same) { continue; }

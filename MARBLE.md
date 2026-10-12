@@ -1400,6 +1400,17 @@ replay (player, steelies, slinkies, draw list), race sweep (spawns at table band
 slinky eating the still marble in each slinky race (5, 7, 4, then rolling) and a race switch
 while the player is held.
 
+Drawing: `marble_drawlist::build` publishes type 4 at its list position as
+`marble_mo.other_mos` draws it: origin +0x28 (x) and camera top + 240 - +0x2a, culled as the
+arcade (-0x20 < sy + 0x10 < 0x100) widened by the remake margin, frame rl(+0x58) from the death
+set with `SET_DEATH | SET_SLINKY` (`marble_death_pal` row 2), the +0x2c masks right after it.
+The player in state 5 draws its +0x5a frame as in state 1; in state 7 +0x1c is 0 (hidden).
+Host tests: `test_slinky_objects` (every fixture tick at the arcade cull: columns, palette set
+4, masks as MO words equal to MAME; 1355 drawn slinky ticks, 35 mask MOs),
+`test_slinky_edges` (reference composite at every view edge, guarded tile buffer). The
+sprite fixture test compares level objects only (its start RAM holds slinky entries it does
+not update). Flash after Phase 4b-2: 4090209 B (+9220 over 4b-1: data 3773, code ~5.4 KB).
+
 Slinky fixture `source/test/test_marble_slinkies/marble_slinkies_trace.h` (`make_fixture.py
 slwrite`): RAM blocks, per tick `MarbleSlinkyTick` (inputs, player, both steelies, the four
 slinkies `MarbleSlinkyObj {live, state, x, y, z, sx, sy, tick, next, prey, cursor, frame_hdr,
