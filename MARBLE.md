@@ -1509,6 +1509,15 @@ Tick start traces (`$TMPDIR/ac`, `$TMPDIR/st/run.sh`, no input):
 | ia | 2 | 1500:530:550:-64:6, 1640:516:548:-64:6 | single spawn, group spawn, hit, dissolve, respawn | 296 ticks equal |
 | ua | 5 | 900:320:400:0:4, 1150:380:316:0:4 | slinky eat with acid, dissolve, respawn | 396 ticks equal |
 
+C++ (`marble_acid.{h,cpp}`, 1:1 port of `marble_acid.py`, internals in namespace
+`marble_acid`): `marble_enemies` forwards `init`, `cameraBands` (after the slinkies), `update`
+(after the slinkies), `contact_175c8` (`physics_121b8` calls it for players after
+`contact_14e92`, a hit refreshes the cell) and `target_176d2`. `marble_physics` gains state
+`DISSOLVING` (0x2584e) and its 0x25bae entry. Host test `test_marble_acid`: fixture replay
+(player, acid, draw list in order), race sweep (spawns at table bands, counts as
+`marble_acid.sweep`), a dissolve on the first acid of each acid race (9, 4, then rolling) and
+a race switch while dissolving.
+
 Acid fixture `source/test/test_marble_acid/marble_acid_trace.h` (`make_fixture.py acwrite`):
 RAM blocks, per tick `MarbleAcidTick` (inputs, player as `MarbleDeathTick`, the seven acids
 `MarbleAcidObj {live, x, y, z, sx, sy, tick, path, cursor, frame_hdr}` with their MOs, the

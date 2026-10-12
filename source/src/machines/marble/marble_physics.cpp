@@ -85,6 +85,7 @@ static const uint32_t STEPS = 0x24b3a;             // vertex walk of 0x1caba
 // animation lists of +0x5a (long frame headers, LIST_END), shatter overlay +0x62
 static const uint32_t ANIM_DIZZY = 0x20faa, ANIM_DIZZY_LOOP = 0x20fb6, ANIM_DIZZY_END = 0x20fd2;
 static const uint32_t ANIM_SHATTER = 0x20fde, ANIM_SHARDS = 0x215f6;
+static const uint32_t ANIM_DISSOLVE = 0x21062;     // state 9 (acid)
 static const uint32_t SINE = 0x1eda2;              // 0x4000 = 1, quarter turn QUARTER entries
 static const uint32_t STAR_STEPS = 0x1ef32;        // 8 x (s8 dx, s8 dy)
 
@@ -92,6 +93,7 @@ static const uint32_t LIST_END = 0xffffffff;
 static const uint32_t SHATTER_BYTES = 0x80;        // 32 entries
 static const uint16_t SHATTER_SHARDS = 9;          // shatter frame that starts the overlay
 static const uint8_t ANIM_RATE = 2;                // ticks per frame
+static const uint8_t DISSOLVE_RATE = 4;            // ticks per dissolve frame
 static const uint8_t DIZZY_LOOPS = 6;              // +0x56 above: loop list, else end list
 static const uint8_t OUT_OF_LIST = 2, OUT_OF_PLAY = 3;  // +0x18: 2 also off the draw list
 static const uint8_t SHATTER_CNT = 2;              // +0x56 in state 2 (0, 1: other lists)
@@ -768,11 +770,13 @@ void physics_121b8(Mem &m, uint32_t a2) {
   if (m.rb(a2 + SURFACE) == 0xa || m.rb(a2 + STATE) == LOST) { return; }
 
   // 0x1239c: cell refresh after slot hits, 0x1bc88 object pair collision; then the player
-  // only contacts (slinkies 0x14e92; 0x175c8 .. 0x19d94: other enemies, not ported) and zones
+  // only contacts (slinkies 0x14e92, acid 0x175c8; 0x1881c .. 0x19d94: other enemies, not
+  // ported) and zones
   if (m.rb(HIT_X) || m.rb(HIT_Y)) { posupd_1bab2(m, a2); }
   if (marble_enemies::pair_1bc88(m, a2)) { posupd_1bab2(m, a2); }
   if (pl) {
     marble_enemies::contact_14e92(m, a2);
+    if (marble_enemies::contact_175c8(m, a2)) { posupd_1bab2(m, a2); }
     zones_1365c(m, a2);
     if (m.rb(a2 + STATE) == STATE_ENEMY) { return; }
   }
@@ -1076,6 +1080,13 @@ void enter_25bae(Mem &m, uint32_t a2, State code) {
     m.wb(a2 + STATE, BROKEN);
     return;
   }
+  if (code == DISSOLVING) {
+    m.wb(a2 + ANIM_5F, 0);
+    m.wb(a2 + ANIM_60, DISSOLVE_RATE);
+    m.wl(a2 + ANIM, ANIM_DISSOLVE);
+    m.wb(a2 + STATE, DISSOLVING);
+    return;
+  }
 
   respawn_2591a(m, a2);
   m.wl(a2 + ANIM, 0);
@@ -1299,8 +1310,17 @@ void hidden_25812(Mem &m, uint32_t a2) {
   m.wb(a2 + VISIBLE, 0);
 }
 
+// 0x2584e: dissolving in acid: slides into it (0x176d2), dissolve animation (list end: LOST),
+// projection, masks
+void dissolve_2584e(Mem &m, uint32_t a2) {
+  marble_enemies::target_176d2(m, a2);
+  anim_25fc2(m, a2);
+  proj_1b9cc(m, a2, REFETCH);
+  marble_occlusion::enter(m, a2);
+}
+
 // 0x253ec: handler of state +0x1a (table 0x254ba). Not ported: +0xd8 wobble (silly minis),
-// states 3, 8-0xb.
+// states 3, 8, 0xa, 0xb.
 void object_253ec(Mem &m, uint32_t a2) {
   switch (m.rb(a2 + STATE)) {
     case ROLL: roll_256d2(m, a2); break;
@@ -1310,6 +1330,7 @@ void object_253ec(Mem &m, uint32_t a2) {
     case EATEN: eaten_257ba(m, a2); break;
     case GOAL: goal_254d2(m, a2); break;
     case HIDDEN: hidden_25812(m, a2); break;
+    case DISSOLVING: dissolve_2584e(m, a2); break;
     default: break;
   }
 }

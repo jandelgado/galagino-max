@@ -19,6 +19,7 @@
 //       EATEN   held by a slinky: animation 0x25fc2, as ROLL, countdown
 //       GOAL    physics, countdown, then out of play
 //       HIDDEN  inside a slinky (0x25812) until it sends the player LOST
+//       DISSOLVING  in acid (0x2584e): slides into it, dissolve animation, then LOST
 //   project(m)                screen position 0x1b9cc of the player. The physics tail calls
 //                             it; ticks that return early keep the stored value, as in the
 //                             arcade. Call it where the physics does not run.
@@ -26,7 +27,8 @@
 // Level object slots (marble_objects.h): 0x29cce runs inside the physics, startRace spawns
 // the first slots. Steelies (marble_enemies.h) run the same object physics: pair collision
 // 0x1bc88, non-player landing and loss go to marble_enemies; the player's physics also runs
-// the slinky contact 0x14e92. Not ported (Phase 4): other enemies, states 3, 8-0xb, the race
+// the slinky contact 0x14e92 and the acid contact 0x175c8. Not ported (Phase 4): other
+// enemies, states 3, 8, 0xa, 0xb, the race
 // timer (time out 0x1bbaa), sprite dots 0x1c014, zone
 // hook 0x13966, sounds.
 namespace marble_physics {
@@ -35,7 +37,7 @@ static const uint32_t PLAYER = 0x400018;  // player 1 object
 
 // player state +0x1a (handler table 0x254ba)
 enum State : uint8_t {
-  ROLL = 0, DIZZY = 1, BROKEN = 2, LOST = 4, EATEN = 5, GOAL = 6, HIDDEN = 7
+  ROLL = 0, DIZZY = 1, BROKEN = 2, LOST = 4, EATEN = 5, GOAL = 6, HIDDEN = 7, DISSOLVING = 9
 };
 
 void startRace(Mem &m, uint8_t race);
@@ -79,7 +81,7 @@ void project(Mem &m, uint32_t obj, Refetch r);
 //   cellHeight(m, obj)       0x1bb08 + 0x1cc62(1): x/y words to the cell scratch, cell
 //                            fetched, floor z (the z word scratch is left alone)
 //   drag(m, obj)             0x25e7c mode 2: velocity friction of a pushed slinky
-//   enterState(m, obj, s)    0x25bae state entry (BROKEN, LOST)
+//   enterState(m, obj, s)    0x25bae state entry (BROKEN, LOST, DISSOLVING)
 //   animate(m, obj)          0x25fc2 animation step of +0x5a; a shattering steelie leaves
 //                            the draw list at the end
 //   score(m, player, k)      0x285b0 points entry k

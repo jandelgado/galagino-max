@@ -18,6 +18,7 @@
 #include "../../src/machines/marble/marble_physics.cpp"
 #include "../../src/machines/marble/marble_enemies.cpp"
 #include "../../src/machines/marble/marble_slinkies.cpp"
+#include "../../src/machines/marble/marble_acid.cpp"
 #include "../../src/machines/marble/marble_objects.cpp"
 #include "../../src/machines/marble/marble_occlusion.cpp"
 #include "../../src/machines/marble/marble_drawlist.cpp"
