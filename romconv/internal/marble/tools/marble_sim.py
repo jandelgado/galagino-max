@@ -319,6 +319,7 @@ class Mem:
         self.slinkies = False   # slinkies (marble_slinky.enable): spawn, update, contact
         self.acid = False       # acid (marble_acid.enable): spawn, update, contact, state 9
         self.birds = False      # silly birds (marble_bird.enable): flag, update, contact, 0xb
+        self.minis = False      # silly minis (marble_mini.enable): spawn/clear, update, contact
     def _loc(self, a):
         a &= 0xffffff
         if a < 0x30000: return PROG, a, False
@@ -694,6 +695,9 @@ def physics_121b8(m, a2):
         if m.acid:
             import marble_acid
             if marble_acid.contact_175c8(m, a2): posupd_1bab2(m, a2)
+        if m.minis:
+            import marble_mini
+            marble_mini.contact_1924e(m, a2)
         if m.birds:
             import marble_bird
             marble_bird.contact_19d94(m, a2)
@@ -1302,6 +1306,9 @@ def camera_bands_144e4(m, old, new):
         import marble_acid
         marble_acid.spawn_17346(m, a, b)
     spawn_12dfa(m, a, b)
+    if m.minis and m.rw(0x400394) == 4:
+        import marble_mini
+        marble_mini.band_144e4(m, a, b)
     if m.birds and m.rw(0x400394) == 4:
         import marble_bird
         marble_bird.band_flag_144e4(m, a, b)
@@ -1565,6 +1572,8 @@ def objects_init(m, race):
         for i in range(4): m.wb(SLINKIES + SLINKY_SIZE * i + 0x19, i)
     if m.acid:                                       # acid numbers (0x1f07a order)
         for i in range(7): m.wb(0x401482 + 0x42 * i + 0x19, i)
+    if m.minis:                                      # mini numbers (0x1f096 order)
+        for i in range(9): m.wb(0x401890 + 0x28 * i + 0x19, i)
     if m.birds:                                      # bird numbers (0x1f0ba order)
         for i in range(10): m.wb(0x4019f8 + 0x38 * i + 0x19, i)
     cam = rom_w(desc + 0x10) + (rom_w(desc + 0x12) if race == 4 else 0)
@@ -2158,6 +2167,9 @@ def main_tick(m, c6, c7, camera, frame):
     if m.acid:
         import marble_acid
         marble_acid.update_17230(m)
+    if m.minis:
+        import marble_mini
+        marble_mini.update_1912c(m)
     if m.birds:
         import marble_bird
         marble_bird.update_19baa(m)

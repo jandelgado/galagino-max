@@ -1606,7 +1606,8 @@ frame, +0x26 masks (3 x {code, x, y}).
 - Player 0xb (0x25876): 0x1b9cc(1), orbit 0x13ade (radius grows, `orbit_13ade` state 0xb
   branch); at its end +0x57 = 0x65, 0x25bae(4) (lost, respawn).
 - Minis share the RNG and the draw list; their band (0x1d-0x38) does not overlap the bird
-  band. The traces below are compared only while no mini is live (minis: Phase 4b-4b).
+  band. The bird traces below were compared while no mini was live; since Phase 4b-4b the
+  `minis` check runs them whole.
 
 Checks: `birds` free runs below (masks of 0x264aa mode 3 included: 434 mask entries); the
 sweep (all races, all modelled enemies): silly 32 spawns / 23 removals, most live 10, flag
@@ -1660,6 +1661,65 @@ python3 romconv/internal/marble/tools/marble_bird.py bdfixture \
   source/test/test_marble_birds/marble_birds_trace.h
 python3 romconv/internal/marble/tools/marble_bird.py birds TRACE RACE FROM:TO
 python3 romconv/internal/marble/tools/marble_bird.py sweep
+```
+
+### Minis in the main tick model (Phase 4b-4b)
+
+Marble Love TS (`scroll-range-144e4.ts` mode 4, `array-9-init-and-dispatch-18ffa.ts`,
+`array-9-clear-and-dispatch.ts`, `refresh-helper-1912c.ts`, `object-type-dispatch-194ba.ts`,
+`state-sub-1960e.ts`, `sub-19692.ts`, `state-sub-198bc.ts`, `sub-19976.ts`, `sub-1937c.ts`,
+`helper-1924e.ts`, `sprite-coords.ts` 0x199d6), except 0x1973c (TS calls 0x198bc directly) and
+0x1953e (TS writes one list per type) from the disassembly by user ruling 2026-10-12. Model
+`tools/marble_mini.py`, `marble_mini.enable(m)` (`m.minis`, on in `marble_enemy.setup`): band
+spawn/clear in `camera_bands_144e4` before the bird flag, 0x1912c after the acid, 0x1924e for
+players in 0x121b8 after 0x175c8 (before 0x19d94).
+
+Record 0x401890 + 0x28 k (table 0x1f096, +0x19 = k): v +0/+4, pos +0xc/+0x10/+0x14 (z
+0x3f6e), +0x18 live, +0x1a kind (0 wander, 1 player near, 2 collected), +0x1b steps, +0x1c
+anim cursor, +0x20 screen, +0x24 tick, +0x25 type 7 steelie / 8 slinky / 9 acid (draw type,
+palette sets 5/6/4), +0x26 direction (16ths, 0x10 stuck).
+
+- Band (0x144e4 mode 4): entering 0x1d-0x38 spawns all nine (0x18ffa, not while one is live;
+  the silly race start is in the band), leaving clears them (0x190ee).
+- 0x18ffa: types 7, 7, 7, 8, 8, 8, 9, 9, 9; position (rng(0x20) * 4 + 0x2ca, rng(0x20) * 4 +
+  0x2d2) until 0x1937c is free; kind 0, v 0, 0x194ba, 0x199d6, draw list insert.
+- 0x1937c: blocked by another live, not collected mini within 12 px on both axes or a set bit
+  of the 16 x 16 cell bitmap 0x24496 (from cell 0x59, 0x5a; outside counts as set).
+- 0x1912c: kind 1 for every mini not collected while a player stands on z word 0x3f6e in
+  zone 1 (the mini field floor), else 0. Ticker +0x24 (every tick in kind 1, else every 3rd);
+  steelie: pos += v, every 4th step 0x194ba (collected: anim steps, list end 0x194ba); the
+  others: anim steps, at the list end pos += v and 0x194ba. Always 0x199d6.
+- 0x194ba: kind 0: 0x1960e (steelie direction += rng(5) - 2; others rng(2) * 8 (+4 when vx !=
+  0), rng(4) == 0 stops an acid), 0x19692 (12 tries, turn 1 or 4); kind 1: 0x1973c (nearest
+  player by octant distance below 0x140; steelie away from it in 16ths by axis ratio and
+  quadrant, others one axis towards it), 0x198bc (9 tries, the back direction skipped); then
+  0x1953e: walk anim steelie 0x21f72, slinky/acid by v (y > 0, y < 0, x > 0, x < 0, still:
+  0x219b2/0x21e3e, 0x21a32/0x21eb6, 0x2197a/0x21d4e, 0x219ea/0x21dc6, 0x2194e/0x21f06). Kind 2:
+  anim 0x21f8a / 0x21a62 / 0x21efe.
+- 0x19976: step = table words 0x244b6/0x244d6 << 8 for direction +0x26; v = step (steelie /
+  4). The turn routines keep the position, so only v changes.
+- 0x1924e (players in zone 1): |marble - mini| below 4 px (steelie 5) on both axes: kind 2, v
+  0, 0x194ba, anim 0x21efe (acid) / 0x21f7a (steelie), race time +3 s (+0x6a), points
+  0x285b0(14) and 500 (0x28608).
+
+Checks: `minis` free runs (no RNG input) equal on b1 (702-898: 98 ticks; 904-1499: 296, mini
+clear, birds, carry, mini respawn), b2, the tube traces t3/t5/t6 (297/297/373) and
+`$TMPDIR/mn` m1/m2 (marble in the field, kind 1 throughout: 346/345), m3 (placed on an acid
+mini: collected, 249), m4 (on a steelie mini: it flees, 242). Sweep: silly 2 spawns, 2
+clears, longest draw list 19 (minis and birds). Old commands stay exact with minis on.
+
+Mini fixture `source/test/test_marble_minis/marble_minis_trace.h` (`make_fixture.py
+mnwrite`): b1 702 (98 ticks, wander), m3 1000 (120, kind 1, collect), b1 1301 (98, respawn
+with birds live), t6 904 (100, tube).
+
+```sh
+python3 romconv/internal/marble/tools/make_fixture.py mnwrite \
+  source/test/test_marble_minis/marble_minis_trace.h 4:$TMPDIR/bd/b1/trace.bin:702:98 \
+  4:$TMPDIR/mn/m3/trace.bin:1000:120 4:$TMPDIR/bd/b1/trace.bin:1301:98 \
+  4:$TMPDIR/tu/t6/trace.bin:904:100
+python3 romconv/internal/marble/tools/marble_mini.py mnfixture \
+  source/test/test_marble_minis/marble_minis_trace.h
+python3 romconv/internal/marble/tools/marble_mini.py minis TRACE RACE FROM:TO
 ```
 
 ### Silly race tubes
