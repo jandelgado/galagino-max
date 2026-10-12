@@ -254,7 +254,7 @@ enum : uint8_t { P_SLOT = 0x18, P_STATE = 0x1a, P_VISIBLE = 0x1c, P_SX = 0x1e, P
                  P_STARS = 0xa4 };
 static const uint8_t ENTRY = 6, MASK_N = 5, STAR_N = 4;  // {code, x, y} entries
 static const uint16_t MASK_BIT = 0x4000;                 // mask entry, else sparkle star
-static const uint8_t ST_DISSOLVE = 9, ST_0A = 0xa, ST_0B = 0xb;
+static const uint8_t ST_DISSOLVE = 9, ST_0A = 0xa;
 
 // player state drawn from the animation frame +0x5a
 inline bool frameState(uint8_t st) {
@@ -270,8 +270,8 @@ void star(Out &o, uint16_t code, int16_t x, int16_t y, int32_t top) {
 }
 
 // 0x2724c (type 1) of player 1 at origin (sx, top + ARCADE_H - sy): the marble with its masks,
-// or the death frame with its masks, sparkle stars (+0xa4, star entries of +0x38) and the
-// shatter overlay as objects. Dots 0x1c014 are not ported.
+// or the death frame with its masks, sparkle stars (+0xa4, star entries of +0x38; LOST and
+// CARRIED) and the shatter overlay as objects. Dots 0x1c014 are not ported.
 void player(const Mem &m, Out &o, int32_t top) {
   static const uint32_t A = marble_physics::PLAYER;
   VideoState &v = o.v;
@@ -291,12 +291,12 @@ void player(const Mem &m, Out &o, int32_t top) {
       o.add(marble_physics::deathFrame(hdr), SET_DEATH, sx, y);
       owner = o.last();
     }
-  } else if (st == marble_physics::LOST) {
+  } else if (st == marble_physics::LOST || st == marble_physics::CARRIED) {
     for (uint8_t i = 0; i < STAR_N && m.rw(A + P_STARS + ENTRY * i); i++) {
       const uint32_t e = A + P_STARS + ENTRY * i;
       star(o, m.rw(e), m.sw(e + 2), m.sw(e + 4), top);
     }
-  } else if (st != ST_0A && st != ST_0B) {
+  } else if (st != ST_0A) {
     v.marble = SHOWN;
     owner = &v.nmask;
     ox = MARBLE_X;
@@ -391,6 +391,29 @@ void acid(const Mem &m, Out &o, uint8_t idx, int32_t top, int16_t margin) {
   o.add(marble_physics::deathFrame(hdr), SET_DEATH | SET_ACID, sx, (int16_t)(top + ARCADE_H - sy));
 }
 
+// 0x2724c type 0x0f (silly race bird, late-game-logic-26f3e.ts) at origin (+0x20, top +
+// ARCADE_H - +0x22), culled as the arcade (-0x10 < sy + 0x10 < 0x100, widened by margin): the
+// death set frame rl(+0x1c) in the bird palette, its masks +0x26
+void bird(const Mem &m, Out &o, uint8_t idx, int32_t top, int16_t margin) {
+  static const int16_t LO = -0x10, HI = 0x100, Y_BIAS = 0x10;
+  static const uint8_t CURSOR = 0x1c, SCREEN = 0x20, MASKS = 0x26, NMASKS = 3;
+  const uint32_t a = m.roml(ENEMIES_F + 4 * idx);
+  const int16_t sx = m.sw(a + SCREEN), sy = m.sw(a + SCREEN + 2);
+  const int16_t cy = s16((uint16_t)(sy + Y_BIAS));
+  if (cy <= LO - margin || cy >= HI + margin) { return; }
+  const uint32_t hdr = hdrOf(m, a + CURSOR);
+  if (hdr == NONE32) { return; }
+  o.add(marble_physics::deathFrame(hdr), SET_DEATH | SET_BIRD, sx, (int16_t)(top + ARCADE_H - sy));
+
+  uint8_t *owner = o.last();
+  for (uint8_t i = 0; i < NMASKS && m.rw(a + MASKS + ENTRY * i); i++) {
+    const uint32_t e = a + MASKS + ENTRY * i;
+    const uint16_t code = m.rw(e);
+    const int16_t h = (((code >> 11) & 7) + 1) * 8;
+    o.mask(owner, code, (int16_t)(m.sw(e + 2) - sx), (int16_t)(sy - m.sw(e + 4) - h));
+  }
+}
+
 }  // namespace
 
 // 0x28ca6 list part: entries free, list empty; the player (type 1) is the first entry
@@ -481,6 +504,7 @@ uint8_t build(const Mem &m, int16_t cam, int16_t cullMargin, VideoState &v) {
     if (type == T_ENEMY) { steelie(m, o, idx, top); }
     if (type == T_ENEMY4) { slinky(m, o, idx, top, cullMargin); }
     if (type == T_ENEMY_E) { acid(m, o, idx, top, cullMargin); }
+    if (type == T_ENEMY_F) { bird(m, o, idx, top, cullMargin); }
   }
   v.n = o.n < OBJS ? o.n : OBJS;
   if (v.marbleAt > v.n) { v.marbleAt = v.n; }

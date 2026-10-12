@@ -1630,6 +1630,17 @@ Host test `test_marble_birds`: fixture replay (player, birds, masks, 0x400762, d
 order), race sweep (flag against the band, counts as `marble_bird.sweep`), a carry on the b1
 spot (CARRIED, LOST, then rolling) and a race switch while carried.
 
+Drawing: `marble_drawlist::build` publishes type 0x0f at its list position as
+`marble_mo.other_mos` draws it: origin +0x20 (x) and camera top + 240 - +0x22, culled as the
+arcade (-0x10 < sy + 0x10 < 0x100) widened by the remake margin, frame rl(+0x1c) from the death
+set with `SET_DEATH | SET_BIRD` (`SET_PAL` widened to 3 bits, `marble_death_pal` row 4), the
++0x26 masks right after it. A carried player (state 0xb) draws its orbit stars as state 4; the
+first carried tick shows the surface dots in MAME (0x1c014, not in the remake). Host tests:
+`test_bird_objects` (every fixture tick at the arcade cull: columns, palette set 7, masks as MO
+words equal to MAME; 639 drawn bird ticks, 208 mask MOs; orbit stars in 72 carried ticks),
+`test_bird_edges` (reference composite at every view edge, guarded tile buffer). Flash after
+Phase 4b-4a: 4097997 B (+2524 over 4b-3); VideoState unchanged (304 B).
+
 Bird fixture `source/test/test_marble_birds/marble_birds_trace.h` (`make_fixture.py bdwrite`):
 RAM blocks, per tick `MarbleBirdTick` (inputs, player as `MarbleDeathTick`, the ten birds
 `MarbleBirdObj {live, state, x, y, z, sx, sy, tick, loops, cursor, frame_hdr, mask[18]}` with

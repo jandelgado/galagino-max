@@ -40,6 +40,7 @@ static const uint32_t STEELIE_EDGES_CRC = 0xE923A280, SLINKY_EDGES_CRC = 0x63A9C
 static const uint32_t SLINKY_FIRST_HDR = 0x21a6a;  // lowest slinky frame header
 static const uint32_t BIRD_FIRST_HDR = 0x22452;    // lowest bird frame header (after slinkies)
 static const uint32_t ACID_EDGES_CRC = 0xFB6CB52D;
+static const uint32_t BIRD_EDGES_CRC = 0x8BC88626;
 static marble_level::Store store;
 
 static void test_levels_match_decoder(void) {
@@ -541,6 +542,39 @@ static void test_acid_edges(void) {
   TEST_ASSERT_EQUAL_HEX32(ACID_EDGES_CRC, crc);
 }
 
+// Birds straddling every view edge: the largest bird frame (death set, bird palette) with a
+// mask, the last bird frame beside it; the tile buffer ends after the death set (guard bytes)
+static void test_bird_edges(void) {
+  using namespace marble_video;
+  static const uint8_t RACE = 4;
+  const marble_level::Level l = guardedLevel(store.load(RACE), MARBLE_DEATH_TILES);
+  const MarbleSpriteSet &ds = marble_death_set;
+  const uint8_t first = marble_physics::deathFrame(BIRD_FIRST_HDR);  // the last enemy frames
+  uint8_t big = first;
+  for (uint8_t f = first; f < ds.nframes; f++) {
+    if (ds.frames[f].ncols > ds.frames[big].ncols) big = f;
+  }
+  const MarbleSpriteCol &c0 = ds.cols[ds.frames[big].first];
+  uint32_t crc = 0;
+  for (int16_t x : EDGE_X) {
+    for (int16_t y : EDGE_Y) {
+      VideoState v = {};
+      v.level = RACE;
+      v.sx = 20;
+      v.sy = 40;
+      v.n = 2;
+      v.marbleAt = 0;
+      const int16_t ox = x + v.sx, oy = y + v.sy;
+      v.objs[0] = {big, SET_DEATH | SET_BIRD, ox, oy, 0, 1};
+      v.objs[1] = {(uint8_t)(ds.nframes - 1), SET_DEATH | SET_BIRD, (int16_t)(ox + 20), oy, 0, 0};
+      v.masks[0] = {FULL_MASK, c0.x, c0.y};
+      crc = crc32((const uint8_t *)&crc, sizeof(crc), checkRef(l, v));
+    }
+  }
+  printf("bird edges crc %08x\n", (unsigned)crc);
+  TEST_ASSERT_EQUAL_HEX32(BIRD_EDGES_CRC, crc);
+}
+
 // one object of `frame` (race `race`, palette set `set`) over a playfield whose pixel in column
 // x is kPf[x & 7]; every sprite tile byte is `fill` (two pens). base: without the object.
 static const uint8_t kPf[8] = {4, 20, 15, 31, 7, 0, 5, 9};
@@ -677,6 +711,7 @@ int main(int, char **) {
   RUN_TEST(test_steelie_edges);
   RUN_TEST(test_slinky_edges);
   RUN_TEST(test_acid_edges);
+  RUN_TEST(test_bird_edges);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif

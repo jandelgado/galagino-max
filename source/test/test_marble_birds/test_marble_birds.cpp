@@ -184,6 +184,143 @@ static void test_replay_birds(void) {
   }
 }
 
+// ---------------------------------------------------------------- bird objects
+
+// One MO as the published state draws it: race pixel top left, height, MO code (0 for a frame
+// column), hflip, priority (mask)
+struct DrawnMo {
+  int16_t x, top;
+  uint8_t h;
+  uint16_t code;
+  bool flip, mask;
+};
+
+static const uint8_t PAL_BIRD = 7;  // MO palette set of the bird frames
+static const uint8_t MOS_MAX = 16;  // MOs of one bird: frame columns, masks
+
+// bird j live with the same screen position and frame as bird i (drawn as the same object)
+static bool twin(const Mem &m, uint8_t i, uint8_t j) {
+  const uint32_t a = bird(i), b = bird(j);
+  return m.rb(b + SLOT) && listedCount(m, TYPE_BIRD, j) &&
+         m.rl(b + B_SCREEN) == m.rl(a + B_SCREEN) &&
+         m.roml(m.rl(b + B_ANIM)) == m.roml(m.rl(a + B_ANIM));
+}
+
+// MOs of bird i in v: its object (frame rl(+0x1c)) at the origin (+0x20, top + ARCADE_H -
+// +0x22) and its masks; birds on the same spot with the same frame are told apart by index
+static uint8_t birdMos(const Mem &m, const marble_video::VideoState &v, uint8_t i, int16_t top,
+                       DrawnMo *out) {
+  using namespace marble_video;
+  const uint32_t a = bird(i);
+  if (!m.rb(a + SLOT)) { return 0; }
+  const int16_t ox = m.sw(a + B_SCREEN);
+  const int16_t oy = (int16_t)(top + ARCADE_H - m.sw(a + B_SCREEN + 2));
+  const MarbleSpriteSet &ds = marble_physics::deathSet();
+  const uint8_t frame = marble_physics::deathFrame(m.roml(m.rl(a + B_ANIM)));
+  uint8_t skip = 0;
+  for (uint8_t j = 0; j < i; j++) { skip += twin(m, i, j); }
+  uint8_t k = 0;
+  for (uint8_t j = 0; j < v.n; j++) {
+    const Obj &o = v.objs[j];
+    if (o.x != ox || o.y != oy || o.set != (SET_DEATH | SET_BIRD) || o.frame != frame) {
+      continue;
+    }
+    if (skip) {
+      skip--;
+      continue;
+    }
+    const MarbleSpriteFrame &f = ds.frames[o.frame];
+    for (uint8_t c = 0; c < f.ncols && k < MOS_MAX; c++) {
+      const MarbleSpriteCol &col = ds.cols[f.first + c];
+      out[k++] = {(int16_t)(o.x + col.x), (int16_t)(o.y + col.y), (uint8_t)(col.h & 0x7f), 0,
+                  (col.h & 0x80) != 0, false};
+    }
+    for (uint8_t q = o.mask; q < o.mask + o.nmask && k < MOS_MAX; q++) {
+      const Mask &e = v.masks[q];
+      out[k++] = {(int16_t)(o.x + e.dx), (int16_t)(o.y + e.dy), (uint8_t)(((e.code >> 11) & 7) + 1),
+                  (uint16_t)(e.code & 0x7ff), (e.code & 0x8000) != 0, true};
+    }
+    break;
+  }
+  return k;
+}
+
+// MO RAM words of d (MO x = race x + 24, MO y counts up: top line = 256 - MO y - 8 h)
+static MarbleBirdMo moWords(const DrawnMo &d, int16_t top) {
+  const uint16_t y = (uint16_t)(top + 256 - d.top - 8 * d.h);
+  const uint16_t x = (uint16_t)(d.x + 24);
+  return {(uint16_t)(((y << 5) & 0x3fe0) | (d.flip ? 0x8000 : 0) | (d.h - 1)),
+          (uint16_t)(d.code | (d.mask ? 0 : PAL_BIRD << 11)),
+          (uint16_t)(((x << 5) & 0x3fe0) | (d.mask ? 0x8000 : 0))};
+}
+
+static uint8_t starCount(const marble_video::VideoState &v) {
+  uint8_t n = 0;
+  for (uint8_t j = 0; j < v.n; j++) { n += (v.objs[j].set & marble_video::SET_STAR) != 0; }
+  return n;
+}
+
+// player MOs of tick t that are sparkle stars (the remake has no surface dots 0x1c014)
+static uint8_t starMos(const MarbleBirdSegment &seg, const MarbleBirdTick &t) {
+  uint8_t n = 0;
+  for (uint8_t j = 0; j < t.n; j++) {
+    const uint16_t code = seg.mos[t.first + j].code & 0x7ff;
+    n += code >= MARBLE_STAR_CODE && code < MARBLE_STAR_CODE + MARBLE_STARS;
+  }
+  return n;
+}
+
+// Published birds (build at the arcade cull) against the bird MOs MAME emitted in every fixture
+// tick: frame columns (position, height, flip, palette set 7), masks; a carried player draws
+// its orbit stars (one object per star MO)
+static void test_bird_objects(void) {
+  uint16_t drawn = 0, masked = 0, carried = 0;
+  for (uint8_t sg = 0; sg < MARBLE_BIRD_SEGMENTS; sg++) {
+    const MarbleBirdSegment &seg = marble_bird_segments[sg];
+    loadRam(seg);
+    Mem m(ram, seg.race);
+    const int16_t descTop = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+
+    for (uint16_t k = 0; k < seg.nticks; k++) {
+      const MarbleBirdTick &t = seg.ticks[k];
+      mainTick(m, t.c6, t.c7, t.camera, t.frames);
+      marble_video::VideoState v = {};
+      v.level = seg.race;
+      TEST_ASSERT_TRUE(marble_drawlist::build(m, (int16_t)t.camera, 0, v) <= marble_video::OBJS);
+      const int16_t top = (int16_t)((int16_t)t.camera - descTop);
+      if (marble_physics::state(m) == marble_physics::CARRIED) {
+        TEST_ASSERT_EQUAL_UINT8_MESSAGE(starMos(seg, t), starCount(v), "orbit stars");
+        carried++;
+      }
+
+      for (uint8_t i = 0; i < marble_enemies::NBIRDS; i++) {
+        const MarbleBirdObj &s = t.b[i];
+        char msg[120];
+        snprintf(msg, sizeof(msg), "segment %d tick %d bird %d (state %d)", sg, k, i, s.state);
+        DrawnMo got[MOS_MAX];
+        const uint8_t n = birdMos(m, v, i, top, got);
+        TEST_ASSERT_EQUAL_UINT8_MESSAGE(s.n, n, msg);
+        for (uint8_t j = 0; j < n; j++) {
+          const MarbleBirdMo &e = seg.mos[s.first + j];
+          const MarbleBirdMo w = moWords(got[j], top);
+          TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.w0, w.w0, msg);
+          TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.w2, w.w2, msg);
+          if (got[j].mask) {
+            TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.code, w.code, msg);
+            masked++;
+          } else {
+            TEST_ASSERT_EQUAL_HEX16_MESSAGE(e.code >> 11, PAL_BIRD, msg);
+          }
+        }
+        drawn += n != 0;
+      }
+    }
+  }
+  printf("bird objects: %u bird ticks drawn, %u mask MOs, %u carried ticks\n", drawn, masked,
+         carried);
+  TEST_ASSERT_TRUE(drawn > 0 && masked > 0 && carried > 0);
+}
+
 // ---------------------------------------------------------------- race start path
 
 // machine race start (marble.cpp beginRace) on a cleared work RAM
@@ -342,6 +479,7 @@ int main(int argc, char **argv) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   RUN_TEST(test_replay_birds);
+  RUN_TEST(test_bird_objects);
   RUN_TEST(test_race_sweep);
   RUN_TEST(test_carry_and_switch);
 #endif
