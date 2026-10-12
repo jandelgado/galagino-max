@@ -38,7 +38,7 @@ tick; the segment ends at the death the sim detects (its frame gap in the trace 
   make_fixture.py pswrite OUT RACE:TRACE:FRAME:TICKS ...
                                             aerial piston segments of tick start traces
                                             (test_marble_pistons/marble_pistons_trace.h)
-  make_fixture.py twrite OUT RACE:TRACE:FRAME:TICKS ...
+  make_fixture.py twrite OUT RACE:TRACE:FRAME:TICKS|KEEP.h ...
                                             silly tube segments, RNG as input
                                             (test_marble_deaths/marble_tubes_trace.h)
   make_fixture.py bdwrite OUT RACE:TRACE:FRAME:TICKS ...
@@ -435,11 +435,16 @@ def cmd_swrite(out, specs):
 
 def death_run(t, trace, i, n, rng_in=False):
     """Death model (marble_sim.main_tick) from tick start snapshot i for n ticks, inputs
-    only from the trace; every tick must equal the next snapshot. rng_in: the RNG word of
-    each snapshot is an input too (silly race start: the unported minis use the RNG).
-    Returns (ticks, reads); a tick is (c6, c7, camera, frames[, rng], death_state)."""
+    only from the trace; every tick must equal the next snapshot. rng_in (tube fixture): the
+    RNG word of each snapshot is an input too (silly race start: minis), all enemies run
+    (marble_enemy.setup, as the C++ main tick). Returns (ticks, reads); a tick is (c6, c7,
+    camera, frames[, rng], death_state)."""
+    import marble_enemy as me
     m = RecMem(t, trace[i][1])
-    m.deaths = m.objects = m.sprites = True
+    if rng_in:
+        me.setup(m)
+    else:
+        m.deaths = m.objects = m.sprites = True
     ticks = []
     for (fr, r, v), (fr2, r2, v2) in zip(trace[i:i + n], trace[i + 1:i + n + 1]):
         inp = ms.death_inputs(r, r2)
@@ -474,12 +479,13 @@ DEATH_HEADER = ("Death", "marble_death", "marble_deaths", "MARBLE_DEATHS", "dwri
     "// lost (4), respawn. marble_sim.py main_tick reproduces them from the initial work RAM",
     "// blocks and the inputs alone. Derived numbers only. Replay check:"))
 TUBE_HEADER = ("Tube", "marble_tube", "marble_tubes", "MARBLE_TUBES", "twrite", "tfixture", (
-    "// Marble silly race tube host test: MAME tick start traces (tools/mame_trace.lua",
-    "// MARBLE_TICK=start, MARBLE_PLACE on the funnel floor, stick input): funnel 0x22 lift and",
-    "// drop out of a pipe exit (state 3), pipe exit walls 0x23/0x24 (shape 0x1cd00), lost,",
-    "// respawn. marble_sim.py main_tick reproduces them from the initial work RAM blocks and",
-    "// the inputs alone (the RNG word is an input: the minis are not ported). Derived numbers",
-    "// only. Replay check:"))
+    "// Marble tube host test: MAME tick start traces (tools/mame_trace.lua MARBLE_TICK=start,",
+    "// MARBLE_PLACE next to a tube, stick input). Silly: funnel 0x22 lift and drop out of a",
+    "// pipe exit (state 3), pipe exit walls 0x23/0x24 (shape 0x1cd00), lost, respawn. Beginner",
+    "// 0x12 hole, 0x13/0x14 entries (one mouth wall bounce), walls 0x15/0x16; intermediate",
+    "// 0x20 hole, walls 0x21; ultimate 0x25 hole, walls 0x26/0x27. marble_sim.py main_tick",
+    "// reproduces them from the initial work RAM blocks and the inputs alone (the RNG word is",
+    "// an input: the minis are not ported). Derived numbers only. Replay check:"))
 
 
 def write_deaths(out, segs, hdr, rng_in=False):
@@ -583,7 +589,12 @@ def cmd_dwrite(out, specs):
 
 
 def cmd_twrite(out, specs):
-    write_deaths(out, death_segments(specs, True), TUBE_HEADER, True)
+    """A spec ending in .h keeps the segments of that tube fixture (traces gone from $TMPDIR)."""
+    segs = []
+    for spec in specs:
+        segs += (ms.load_dfixture(spec, True) if spec.endswith(".h")
+                 else death_segments([spec], True))
+    write_deaths(out, segs, TUBE_HEADER, True)
 
 
 # ---------------------------------------------------------------- steelies fixture

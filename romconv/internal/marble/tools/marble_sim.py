@@ -809,10 +809,10 @@ def ground_253bc(m, a):
         m.wl(a + 0x2a, m.rl(a + 0x14)); m.wb(a + 0x1d, m.rb(a + 0x1b))
 
 # 0x29cce: collision with level object slots (0x400a9c, 25 x 0x56). Ported: wall
-# segments (tags 0x1a-0x1f), round posts (0x05, Marble Love sub-29cce.ts, no trace contact)
-# and cell rectangles that set the surface code +0x58. Not ported (MARBLE.md "Level
-# objects"): 0x0a catapult, 0x0b/0x0d aerial gates, 0x0c, tubes 0x12-0x16 and 0x20-0x27
-# (some return from 0x29cce early, skipping the bounce epilogue).
+# segments (tags 0x1a-0x1f), round posts (0x05, Marble Love sub-29cce.ts, no trace contact),
+# cell rectangles that set the surface code +0x58 and the tubes 0x12-0x16, 0x20-0x27 (a lost
+# marble returns from 0x29cce early, skipping the bounce epilogue). Not ported (MARBLE.md
+# "Level objects"): 0x0a catapult, 0x0b/0x0d aerial gates, 0x0c.
 WALLS = {  # tag: (along x?, along range, perp range, end ranges)
     0x1b: (True, (-8, 0x20), (-0xc, 0), ((-8, 0), (0x18, 0x20))),
     0x1c: (True, (-8, 0x20), (-8, 4), ((-8, 0), (0x18, 0x20))),
@@ -832,22 +832,86 @@ NOOP = {0x6, 0x7, 0x8, 0x9, 0xe, 0xf, 0x11, 0x19, 0x28, 0x29, 0x2a, 0x2b, 0x2c}
 KEEP58 = {0, 0x10, 0x3b, 0x17, 0x18, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x2d, 0x2e, 0x38, 0x39, 0x3a, 0x2f, 0x30, 0x31}
 QUIET = {0x10, 0x17, 0x18, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37}
 
-# Silly race tubes (Marble Love sub-29cce.ts runTube22/runTube23Or24, helper-1cd00.ts):
-# 0x22 funnel at the start (marble lifted, then dropped out of one of two pipe exits),
-# 0x23/0x24 the pipe exits (3D shape collision 0x1cd00, shape 5)
+# Tubes (Marble Love sub-29cce.ts runTube12..runTube26Or27, helper-1cd00.ts). An entry
+# (0x12 beginner, 0x13/0x14 beginner, 0x20 intermediate, 0x22 silly funnel, 0x25 ultimate)
+# teleports the marble to a fixed exit (the second exit if 0x17cb8 finds the first taken),
+# state 3; the other tags are tube walls (3D shape collision 0x1cd00, shape index k).
 SHAPES = 0x24c5e            # 0x1cd00 shape pointers (7 longs): 16 byte plane entries
 TUBE_EXITS = (0x2dc, 0x2ac)  # 0x22 exit x words (y 0x2b0), first by rng(2), the other if blocked
+TUBE_WALLS = {  # tag: (d6 range, a0 range, z word below or None, shape)
+    0x15: ((-0x18, 0x28), (-0x18, 0x28), 0x3f40, 1),
+    0x16: ((-0x10, 0x20), (-0x10, 0x18), None, 3),
+    0x23: ((-0x10, 0x20), (-0x18, 0x28), None, 5), 0x24: ((-0x10, 0x20), (-0x18, 0x28), None, 5),
+    0x26: ((-0x18, 0x28), (-0x18, 0x28), None, 6), 0x27: ((-0x18, 0x28), (-0x18, 0x28), None, 6),
+}
+TUBE_HOLES = {  # tag: (z above: entry, z at or above: walls shape 0/4, at or above: stop, exit)
+    0x12: (0x3f40, 0x3f78, 0x3f60, 0),
+    0x20: (0x3f80, 0x3fb0, 0x3fa0, 0),
+}
 
 
-def tube_exit(m, a2, s, x, y):
-    """0x22 teleport: marble at (x, y), z of its cell floor (also 0x40068c), +0x58 = the
-    slot tag, state 3 (+0x59 ticks), sounds 0x15884 and 0x36."""
+def tube_exit(m, a2, s, x, y, sound=0x36, global_z=True, tag=True):
+    """Teleport: marble at (x, y), z of its cell floor (global_z: also 0x40068c), tag: +0x58
+    = the slot tag, state 3 (+0x59 ticks), sounds 0x15884 and sound."""
     m.wl(a2 + 0xc, (x & 0xffff) << 16); m.wl(a2 + 0x10, (y & 0xffff) << 16)
     posupd_1bab2(m, a2)
     z = height_1cc62(m) & 0xffffffff
-    m.wl(a2 + 0x14, z); m.wl(0x40068c, z)
-    m.wb(a2 + 0x58, m.rb(s + 0x1f)); m.wb(a2 + 0x1a, 3)
-    m.sounds.append(0x36); m.events.append(("tube", hex(m.rb(s + 0x1f))))
+    m.wl(a2 + 0x14, z)
+    if global_z: m.wl(0x40068c, z)
+    if tag: m.wb(a2 + 0x58, m.rb(s + 0x1f))
+    m.wb(a2 + 0x1a, 3)
+    m.sounds.append(sound); m.events.append(("tube", hex(m.rb(s + 0x1f))))
+
+
+def tube_hole(m, a2, s, tag, d1, d2, z):
+    """0x12 / 0x20: a hole over cells d1 -2..2, d2 -1..4 of the slot. In cells 0..2 / 0..3
+    the surface is the tag; above the wall level shape 0 (1: lost); between the stop level
+    and it the marble stops (it drops); below the stop level it leaves by the exit."""
+    if not (-2 <= d1 < 3 and -1 <= d2 < 5) or z <= TUBE_HOLES[tag][0]: return 0
+    _, walls, stop, _ = TUBE_HOLES[tag]
+    if 0 <= d1 < 3 and 0 <= d2 < 4: m.wb(a2 + 0x58, tag); m.wb(a2 + 0x59, 0xff)
+    if z >= walls: return shape_1cd00(m, a2, s, 0)
+    if d1 < 0: return 0
+    if z >= stop:
+        m.wl(a2 + 4, 0); m.wl(a2, 0); return 0
+    if tag == 0x12:
+        if not is_player(a2):
+            import marble_enemy
+            marble_enemy.remove_15bd0(m, a2, 1, 1); return 0
+        m.wb(a2 + 0x36, 0); m.wb(a2 + 0x59, 0x12)
+        x = 0x204 if blocked_17cb8(m, a2, 0x20c, 0x264, 0x70) else 0x20c
+        m.wl(a2, 0x40000); m.wl(a2 + 4, 0)
+        tube_exit(m, a2, s, x, 0x264, 0x35, False, False)
+        return 0
+    m.wb(a2 + 0x36, 0); m.wb(a2 + 0x59, 0x12)
+    m.wl(a2, 0); m.wl(a2 + 4, 0xfffc0000)
+    y = 0x25c if blocked_17cb8(m, a2, 0x26c, 0x254, 0x70) else 0x254
+    tube_exit(m, a2, s, 0x26c, y, 0x35, False)
+    return 0
+
+
+def tube_13(m, a2, s, d1, d2, d6, a0):
+    """0x13 / 0x14 beginner: entering the slot row (d2 0, d1 0..2) leaves by the exit at
+    (0x29c, 0x2e4) (0x2dc if taken) with v = 4 px down; else the mouth walls, shape 2."""
+    if not (-0x18 <= d6 < 0x20 and -0x10 <= a0 < 0x18): return 0
+    if d2 == 0 and 0 <= d1 < 3:
+        m.wb(a2 + 0x59, 0x12)
+        y = 0x2dc if blocked_17cb8(m, a2, 0x29c, 0x2e4, 0x70) else 0x2e4
+        m.wl(a2, 0); m.wl(a2 + 4, 0x40000)
+        tube_exit(m, a2, s, 0x29c, y, 0x35, False)
+        return 0
+    return shape_1cd00(m, a2, s, 2)
+
+
+def tube_25(m, a2, s, d1, d2, z):
+    """0x25 ultimate: on cells 0..1 of the slot below 0x3fe0 the marble leaves by an exit
+    at x 0xf0, y 0x100 or 0x140 (rng(2), the other if taken), v = 4 px right."""
+    if not (0 <= d1 <= 1 and 0 <= d2 <= 1) or z >= 0x3fe0: return
+    m.wb(a2 + 0x36, 0); m.sounds.append(0x46); m.wb(a2 + 0x59, 0x12)
+    a, b = (0x100, 0x140) if rng_13a98(m, 2) else (0x140, 0x100)
+    y = b if blocked_17cb8(m, a2, 0xf0, a, 0x70) else a
+    m.wl(a2, 0x40000); m.wl(a2 + 4, 0)
+    tube_exit(m, a2, s, 0xf0, y, 0x35, False)
 
 
 def tube_22(m, a2, s, d1, d2, z):
@@ -953,8 +1017,19 @@ def slots_29cce(m, a2):
                 if -0x12 < d1 <= 0 and d2 == 0: m.wb(a2 + 0x58, tag); m.wb(a2 + 0x59, 0xff)
             elif tag == 0x22:
                 tube_22(m, a2, s, d1, d2, mz)
-            elif tag in (0x23, 0x24):
-                if -0x10 <= d6 < 0x20 and -0x18 <= a0 < 0x28 and shape_1cd00(m, a2, s, 5):
+            elif tag in TUBE_HOLES:
+                if tube_hole(m, a2, s, tag, d1, d2, mz): return  # loss: no epilogue
+            elif tag in (0x13, 0x14):
+                if tube_13(m, a2, s, d1, d2, d6, a0): return
+            elif tag == 0x25:
+                tube_25(m, a2, s, d1, d2, mz)
+            elif tag == 0x21:                        # intermediate tube walls, by cell
+                if -1 <= d1 < 4 and -1 <= d2 < 3 and mz < 0x3f60 and shape_1cd00(m, a2, s, 4):
+                    return
+            elif tag in TUBE_WALLS:
+                (x0, x1), (y0, y1), below, k = TUBE_WALLS[tag]
+                if x0 <= d6 < x1 and y0 <= a0 < y1 and (below is None or mz < below) \
+                        and shape_1cd00(m, a2, s, k):
                     return                           # loss: no epilogue
             elif tag not in NOOP:
                 m.events.append(("slot", hex(tag)))
@@ -2720,8 +2795,12 @@ def load_dfixture(path, rng_in=False):
 
 def replay_dfixture(seg, m, rng_in=False):
     """Run every death fixture tick on m (rng_in: tube fixture, RNG word set before each
-    tick); index of the first tick that differs, or None."""
-    m.deaths = m.objects = m.sprites = True
+    tick, all enemies run); index of the first tick that differs, or None."""
+    if rng_in:
+        import marble_enemy
+        marble_enemy.setup(m)
+    else:
+        m.deaths = m.objects = m.sprites = True
     for k, tick in enumerate(seg["ticks"]):
         c6, c7, cam, frames = tick[:4]
         if rng_in: m.ww(0x4003a6, tick[4])
