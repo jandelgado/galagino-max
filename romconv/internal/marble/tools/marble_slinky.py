@@ -625,9 +625,51 @@ def cmd_slfixture(path):
     return ok
 
 
+def sweep(m, race):
+    """Race sweep with steelies and slinkies (setup(m) done) on a cleared RAM: the remake race
+    start, then main_tick + 0x26f3e sort per camera step of marble_mo.race_sweep, player
+    idle. Checks every slinky spawn against its table bands and the draw list. Returns (per
+    tick (live slinkies, draw list), spawns, removals)."""
+    import marble_enemy, marble_mo
+    ms.begin_race(m, race)
+    top, rng = ms.rom_w(m.t.desc + 0x10), ms.rom_w(m.t.desc + 0x12)
+    cams = list(range(top, top + rng + 1, marble_mo.SWEEP_STEP))
+    if race == 4: cams.reverse()
+    cams = cams + cams[::-1] + cams
+    out, spawns, removals = [], 0, 0
+    for k, cam in enumerate(cams):
+        before = [m.rb(a + 0x18) for a in SLINKIES]
+        ms.main_tick(m, 0, 0, cam & 0xffffffff, k + 1)
+        marble_mo.boxes_and_sort(m)
+        lst = marble_enemy.drawn(m)
+        for i, a in enumerate(SLINKIES):
+            live = m.rb(a + 0x18)
+            if not before[i] and live:
+                spawns += 1
+                band = s16(cam - top) >> 4
+                if band not in (m.sw(a + 0x52), m.sw(a + 0x54)):
+                    raise SystemExit("race %d cam %d: slinky %d spawned at band %d" % (race, cam, i, band))
+            if before[i] and not live: removals += 1
+            if bool(live) != ((4, i) in lst):
+                raise SystemExit("race %d cam %d: slinky %d live %d, draw list %s" % (race, cam, i, live, lst))
+        out.append((tuple(m.rb(a + 0x18) for a in SLINKIES), tuple(lst)))
+    return out, spawns, removals
+
+
+def cmd_sweep():
+    for race in range(6):
+        m = setup(ms.Mem(ms.Terrain(race), bytes(0x2000)))
+        out, sp, rm = sweep(m, race)
+        print("sweep race %d: %d ticks, %d spawns, %d removals, most live %d, longest list %d" % (
+            race, len(out), sp, rm, max(sum(1 for v in o[0] if v) for o in out),
+            max(len(o[1]) for o in out)))
+    return True
+
+
 def main(argv):
     cmd = argv[1]
     if cmd == "spawncheck": return 0 if cmd_spawncheck(ms.load_trace(argv[2]), int(argv[3])) else 1
+    if cmd == "sweep": return 0 if cmd_sweep() else 1
     if cmd == "slfixture": return 0 if cmd_slfixture(argv[2]) else 1
     if cmd == "slinkies":
         return 0 if cmd_slinkies(ms.load_trace(argv[2]), int(argv[3]), argv[4:]) else 1

@@ -948,6 +948,10 @@ def strip_cols(i):
 
 # steelie MO frame (type 2, set 5): in every race set (4 tiles), so races keep sharing sets
 STEELIE_FRAME = 0x21f36
+# slinky animation lists (type 4, set 4, 0x15460): their 51 frames (161 tiles) are in the
+# shared death set (one copy for the three slinky races, set 4 palette equal in all three)
+SLINKY_LISTS = (0x20c18, 0x20c48, 0x20c6c, 0x20c90, 0x20cb4, 0x20cd8, 0x20d64, 0x20d6c,
+                0x20dd8, 0x20dec, 0x20e00, 0x20e14, 0x20e28)
 
 
 class Sprites:
@@ -1005,9 +1009,10 @@ class DeathSprites(Sprites):
     """Player death frames of every race (MARBLE.md "Phase 4b-0 data"): the +0x5a lists and
     the shatter overlay entries 0x25fc2 reaches (+0x62 steps once per tick from shatter frame
     SHATTER_SHARDS + 1 to the list end), header frames only. The tiles also hold the sparkle
-    star codes, consecutive."""
-    def __init__(self):
+    star codes, consecutive. slinkies: also the slinky frames (Phase 4b-2)."""
+    def __init__(self, slinkies=True):
         hdrs = {h for a in DEATH_LISTS for h in anim_list(a)}
+        if slinkies: hdrs |= {h for a in SLINKY_LISTS for h in anim_list(a)}
         self.shards = (len(anim_list(ms.ANIM_SHATTER)) - ms.SHATTER_SHARDS - 1) * SHATTER_TICKS
         hdrs |= set(anim_list(ms.ANIM_SHARDS)[:self.shards])
         self.race = None

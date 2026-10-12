@@ -1120,6 +1120,24 @@ Same converter run; flash 849 B (converter prints it: prog blocks 646, sprite se
   (blocks only, the remake draws none).
 - The sprite fixture was regenerated (`swrite`, same specs): only frame ids shifted.
 
+### Phase 4b-2 data (slinkies)
+
+Same converter run; flash 3773 B (prog blocks 1412, slinky tiles 1355, frames 204, columns
+684, header ids 102, palette 16).
+
+- The 51 slinky frames (13 animation lists `marble_mo.SLINKY_LISTS`, 161 tiles, MO set 4)
+  join the shared death set, after the player death frames (frame ids >=
+  `MARBLE_DEATH_FRAMES` = 44): one copy instead of one per race set (in all three race sets
+  they cost 8180 B; only in the slinky races they would split shared sets). Death set 95
+  frames, 380 tiles; `SPRITE_TILES` = 380 + 535 = 915 (29280 B Arena).
+- Palette: set 4 is equal in the slinky races 1, 2, 5 (converter check), so it is a third
+  row of `marble_death_pal` (fixed, not per race).
+- Program ROM blocks: collection replays the slinky fixture and the slinky race sweep
+  (`marble_slinky.sweep`, all races); whole tables: spawn table 0x2257a (pointers, entries,
+  0xff end), every entry's waypoint list to its 0xff end, 0x1f006, the animation lists, the
+  lunge table 0x2255a (0x20 B). The runs also read slinky frame header bytes 0-7 (mask box,
+  contact box, draw list box).
+
 ## Enemies
 
 Research: docs/superpowers/specs/2026-10-11-marble-enemies-research.md (steelie model) and

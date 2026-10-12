@@ -396,8 +396,8 @@ static void test_death_edges(void) {
   using namespace marble_video;
   const marble_level::Level l = guardedLevel(store.load(1), MARBLE_DEATH_TILES);
   const MarbleSpriteSet &s = marble_death_set;
-  uint8_t big = 0;  // frame with the most columns
-  for (uint8_t f = 0; f < s.nframes; f++) {
+  uint8_t big = 0;  // player death frame with the most columns
+  for (uint8_t f = 0; f < MARBLE_DEATH_FRAMES; f++) {
     if (s.frames[f].ncols > s.frames[big].ncols) big = f;
   }
   const MarbleSpriteCol &c0 = s.cols[s.frames[big].first];
@@ -412,7 +412,7 @@ static void test_death_edges(void) {
       v.marbleAt = 0;
       const int16_t ox = x + v.sx, oy = y + v.sy;
       v.objs[0] = {big, SET_DEATH, ox, oy, 0, 1};
-      v.objs[1] = {(uint8_t)(s.nframes - 1), SET_DEATH | SET_SHARDS, ox, oy, 0, 0};
+      v.objs[1] = {(uint8_t)(MARBLE_DEATH_FRAMES - 1), SET_DEATH | SET_SHARDS, ox, oy, 0, 0};
       v.objs[2] = {0, SET_DEATH | SET_STAR, (int16_t)(ox - 6), (int16_t)(oy + 4), 0, 0};
       v.objs[3] = {MARBLE_STARS - 1, SET_DEATH | SET_STAR, (int16_t)(ox + 30), oy, 0, 0};
       v.masks[0] = {FULL_MASK, c0.x, c0.y};
@@ -447,7 +447,7 @@ static void test_steelie_edges(void) {
   TEST_ASSERT_NOT_EQUAL(0xff, steelie);
   const MarbleSpriteSet &ds = marble_death_set;
   uint8_t big = 0;
-  for (uint8_t f = 0; f < ds.nframes; f++) {
+  for (uint8_t f = 0; f < MARBLE_DEATH_FRAMES; f++) {
     if (ds.frames[f].ncols > ds.frames[big].ncols) big = f;
   }
   uint32_t crc = 0;
@@ -462,7 +462,7 @@ static void test_steelie_edges(void) {
       const int16_t ox = x + v.sx, oy = y + v.sy;
       v.objs[0] = {steelie, 5, (int16_t)(ox - 30), oy, 0, 1};
       v.objs[1] = {big, SET_DEATH | SET_RACE5, ox, oy, 1, 1};
-      v.objs[2] = {(uint8_t)(ds.nframes - 1), SET_DEATH | SET_SHARDS, ox, oy, 0, 0};
+      v.objs[2] = {(uint8_t)(MARBLE_DEATH_FRAMES - 1), SET_DEATH | SET_SHARDS, ox, oy, 0, 0};
       v.masks[0] = {FULL_MASK, -8, -8};
       v.masks[1] = {FULL_MASK, ds.cols[ds.frames[big].first].x, ds.cols[ds.frames[big].first].y};
       crc = crc32((const uint8_t *)&crc, sizeof(crc), checkRef(l, v));
