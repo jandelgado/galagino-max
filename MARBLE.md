@@ -1194,6 +1194,23 @@ columns 336, header ids 104, palettes 48).
 - Program ROM blocks: collection replays the mini fixture and the mini race sweep; whole
   tables: 0x1f096, step tables 0x244b6/0x244d6, cell bitmap 0x24496, the animation lists.
 
+### Phase 4b-5 data (pistons)
+
+Same converter run; flash 635 B booked to 4b-5 (prog blocks 528, piston tiles 43, frames 16,
+columns 24, header ids 8, palette 16).
+
+- The 4 piston frames (anim list 0x21342, headers 0x21312-0x21336, MO set 4) join the shared
+  death set. Their headers sort before the player death frames, so they take ids 0-3:
+  `MARBLE_DEATH_FIRST` (4) is the first player frame id, `MARBLE_DEATH_FRAMES` (44) the
+  player frame count (the death set header table must stay sorted, `deathFrame` searches
+  it). Death set 196 frames, 525 tiles; `SPRITE_TILES` = 525 + 535 = 1060 (33920 B, Arena
+  block B).
+- Palette: aerial set 4 equals no other row: `marble_death_pal` row 8 (`SET_PISTON`),
+  `SET_PAL` widened to 4 bits.
+- Program ROM blocks: collection replays the piston fixture and the piston race sweep; whole
+  tables: timers 0x242c6/0x242f6, variant pointers 0x243e6/0x243f6 and their 8 tables,
+  cells 0x24406/0x2442a, tops 0x2444e, the animation list.
+
 ## Enemies
 
 Research: docs/superpowers/specs/2026-10-11-marble-enemies-research.md (steelie model) and

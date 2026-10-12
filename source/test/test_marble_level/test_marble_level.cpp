@@ -397,14 +397,17 @@ static void test_mask_pool(void) {
   TEST_ASSERT_EQUAL_MEMORY(refImg, gotImg, sizeof(gotImg));
 }
 
+// end of the player death frame ids (the piston frames come before them)
+static const uint8_t PLAYER_END = MARBLE_DEATH_FIRST + MARBLE_DEATH_FRAMES;
+
 // Death set frames (largest shatter frame, overlay palette) and stars straddling every view
 // edge, with a mask; the tile buffer ends after the death tiles (guard bytes)
 static void test_death_edges(void) {
   using namespace marble_video;
   const marble_level::Level l = guardedLevel(store.load(1), MARBLE_DEATH_TILES);
   const MarbleSpriteSet &s = marble_death_set;
-  uint8_t big = 0;  // player death frame with the most columns
-  for (uint8_t f = 0; f < MARBLE_DEATH_FRAMES; f++) {
+  uint8_t big = MARBLE_DEATH_FIRST;  // player death frame with the most columns
+  for (uint8_t f = MARBLE_DEATH_FIRST; f < PLAYER_END; f++) {
     if (s.frames[f].ncols > s.frames[big].ncols) big = f;
   }
   const MarbleSpriteCol &c0 = s.cols[s.frames[big].first];
@@ -419,7 +422,7 @@ static void test_death_edges(void) {
       v.marbleAt = 0;
       const int16_t ox = x + v.sx, oy = y + v.sy;
       v.objs[0] = {big, SET_DEATH, ox, oy, 0, 1};
-      v.objs[1] = {(uint8_t)(MARBLE_DEATH_FRAMES - 1), SET_DEATH | SET_SHARDS, ox, oy, 0, 0};
+      v.objs[1] = {(uint8_t)(PLAYER_END - 1), SET_DEATH | SET_SHARDS, ox, oy, 0, 0};
       v.objs[2] = {0, SET_DEATH | SET_STAR, (int16_t)(ox - 6), (int16_t)(oy + 4), 0, 0};
       v.objs[3] = {MARBLE_STARS - 1, SET_DEATH | SET_STAR, (int16_t)(ox + 30), oy, 0, 0};
       v.masks[0] = {FULL_MASK, c0.x, c0.y};
@@ -453,8 +456,8 @@ static void test_steelie_edges(void) {
   }
   TEST_ASSERT_NOT_EQUAL(0xff, steelie);
   const MarbleSpriteSet &ds = marble_death_set;
-  uint8_t big = 0;
-  for (uint8_t f = 0; f < MARBLE_DEATH_FRAMES; f++) {
+  uint8_t big = MARBLE_DEATH_FIRST;
+  for (uint8_t f = MARBLE_DEATH_FIRST; f < PLAYER_END; f++) {
     if (ds.frames[f].ncols > ds.frames[big].ncols) big = f;
   }
   uint32_t crc = 0;
@@ -469,7 +472,7 @@ static void test_steelie_edges(void) {
       const int16_t ox = x + v.sx, oy = y + v.sy;
       v.objs[0] = {steelie, 5, (int16_t)(ox - 30), oy, 0, 1};
       v.objs[1] = {big, SET_DEATH | SET_RACE5, ox, oy, 1, 1};
-      v.objs[2] = {(uint8_t)(MARBLE_DEATH_FRAMES - 1), SET_DEATH | SET_SHARDS, ox, oy, 0, 0};
+      v.objs[2] = {(uint8_t)(PLAYER_END - 1), SET_DEATH | SET_SHARDS, ox, oy, 0, 0};
       v.masks[0] = {FULL_MASK, -8, -8};
       v.masks[1] = {FULL_MASK, ds.cols[ds.frames[big].first].x, ds.cols[ds.frames[big].first].y};
       crc = crc32((const uint8_t *)&crc, sizeof(crc), checkRef(l, v));
@@ -522,8 +525,8 @@ static void test_acid_edges(void) {
   const marble_level::Level l = guardedLevel(store.load(RACE), MARBLE_DEATH_TILES);
   const MarbleSpriteSet &ds = marble_death_set;
   const uint8_t end = marble_physics::deathFrame(ACID_LAST_HDR) + 1;  // minis after
-  uint8_t big = MARBLE_DEATH_FRAMES;
-  for (uint8_t f = MARBLE_DEATH_FRAMES; f < end; f++) {
+  uint8_t big = PLAYER_END;
+  for (uint8_t f = PLAYER_END; f < end; f++) {
     if (ds.frames[f].ncols > ds.frames[big].ncols) big = f;
   }
   uint32_t crc = 0;
@@ -600,7 +603,9 @@ static void test_mini_edges(void) {
           v.sy = 40;
           v.n = 1;
           v.marbleAt = 0;
-          v.objs[0] = {f, (uint8_t)(SET_DEATH | (SET_MINI + f % 3)), (int16_t)(x + v.sx),
+          // palette by the id the frame had before the piston frames (MARBLE_DEATH_FIRST)
+          const uint8_t pal = (uint8_t)(SET_MINI + (f - MARBLE_DEATH_FIRST) % 3);
+          v.objs[0] = {f, (uint8_t)(SET_DEATH | pal), (int16_t)(x + v.sx),
                        (int16_t)(y + v.sy), 0, 0};
           crc = crc32((const uint8_t *)&crc, sizeof(crc), checkRef(l, v));
         }
