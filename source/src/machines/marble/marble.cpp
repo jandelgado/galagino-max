@@ -43,7 +43,7 @@ static void stick(uint32_t keys, int8_t &c6, int8_t &c7) {
 
 void marble::reset() {
   machineBase::reset();
-  prev_keys = 0;
+  prev_keys = ~0u;  // the menu's START/FIRE is still held: no title START until released
   patchRec = 0;
   view.patch = video.patch = marble_level::NO_PATCH;
   game_started = 1;  // no boot phase
