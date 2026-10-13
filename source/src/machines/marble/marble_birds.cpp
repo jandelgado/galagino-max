@@ -4,6 +4,7 @@
 #include "marble_occlusion.h"
 #include "marble_physics.h"
 #include "marble_rng.h"
+#include "marble_sound.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -255,6 +256,7 @@ void contact(Mem &m, uint32_t a2) {
     if (left > mx || s16(left + BOX) <= mx || top > my || s16(top + BOX) <= my) { continue; }
 
     m.wb(s + STATE, DONE);
+    marble_sound::send(m, marble_sound::SND_CARRIED);
     m.wl(s + ANIM, ANIM_CARRY);
     m.wb(s + TICKS, TICKS_CARRY);
     m.wb(s + TICK, 0);

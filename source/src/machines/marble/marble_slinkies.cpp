@@ -3,6 +3,7 @@
 #include "marble_drawlist.h"
 #include "marble_occlusion.h"
 #include "marble_physics.h"
+#include "marble_sound.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -327,7 +328,8 @@ void chase_15316(Mem &m, uint32_t a2) {
   }
 
   const uint16_t d = octant(ax, ay);
-  if (d < CATCH) {  // sound 0x33
+  if (d < CATCH) {
+    marble_sound::send(m, marble_sound::SND_CAUGHT);
     m.wl(o + PX, m.rl(a2 + PX));
     m.wl(o + PY, m.rl(a2 + PY));
     m.wb(o + P_STATE, marble_physics::HIDDEN);
@@ -508,7 +510,8 @@ void hit(Mem &m, uint32_t a2, uint32_t s) {
   m.wl(a2 + VY, 0);
   m.wl(a2 + VX, 0);
   const uint8_t pst = m.rb(a2 + P_STATE);
-  if (pst != marble_physics::EATEN) {  // sound 0x39 unless dizzy
+  if (pst != marble_physics::EATEN) {
+    marble_sound::send(m, marble_sound::SND_DIZZY);
     m.wb(a2 + P_ANIM_5F, 0);
     m.wb(a2 + P_ANIM_60, 2);
     m.wl(a2 + P_ANIM, pst == marble_physics::DIZZY ? EAT_DIZZY : EAT_ROLL);

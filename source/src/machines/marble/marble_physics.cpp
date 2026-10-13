@@ -5,6 +5,7 @@
 #include "marble_objects.h"
 #include "marble_occlusion.h"
 #include "marble_rng.h"
+#include "marble_sound.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -395,6 +396,7 @@ void walls_1b5c2(Mem &m, uint32_t a2) {
 
   // bounce: restore the axis position (sound 0x42)
   if (s32(d3) != d3i) {
+    marble_sound::send(m, marble_sound::SND_BOUNCE);
     m.wb(HIT_X, 1);
     m.wl(a2 + PX, m.rl(OLD_X));
     m.wl(a2 + VX, (uint32_t)d3);
@@ -424,6 +426,7 @@ void startFall(Mem &m, uint32_t a2) {
   m.ww(a2 + EDGE_CX, m.rw(CELL_X));
   m.ww(a2 + EDGE_CY, m.rw(CELL_Y));
   m.wl(a2 + VZ, FALL_VZ);
+  marble_sound::send(m, marble_sound::SND_FALL);
 }
 
 // 0x160f6: edge teetering / leaving the ground
@@ -464,7 +467,7 @@ void edge_160f6(Mem &m, uint32_t a2, int32_t h) {
     if (m.rb(a2 + AIR) != AIRBORNE) {
       m.wb(a2 + AIR, ON_GROUND);
       m.wl(a2 + VZ, 0);
-      if (s32((int64_t)m.sl(a2 + PZ) - h) > 0x60000) { startFall(m, a2); }  // sound 0x45
+      if (s32((int64_t)m.sl(a2 + PZ) - h) > 0x60000) { startFall(m, a2); }
     }
   }
 
@@ -546,8 +549,9 @@ void edge_160f6(Mem &m, uint32_t a2, int32_t h) {
   }
 
   if (best == -1) {
-    m.wb(a2 + AIR, AIRBORNE);  // sound 0x45
+    m.wb(a2 + AIR, AIRBORNE);
     m.wl(a2 + VZ, FALL_VZ);
+    marble_sound::send(m, marble_sound::SND_FALL);
     return;
   }
   const int32_t diff = s16(bestv) - best;
@@ -686,7 +690,8 @@ void land_25c74(Mem &m, uint32_t a2, int16_t fall) {
   if (prev == DIZZY) { return; }
   m.wb(a2 + ANIM_5F, 0);
   m.wb(a2 + ANIM_60, ANIM_RATE);
-  m.wl(a2 + ANIM, ANIM_DIZZY);  // sound 0x39
+  m.wl(a2 + ANIM, ANIM_DIZZY);
+  marble_sound::send(m, marble_sound::SND_DIZZY);
 }
 
 // 0x13966: zone hook (respawn and zone change): silly and aerial sound latches (sounds not
@@ -841,7 +846,7 @@ void physics_121b8(Mem &m, uint32_t a2) {
   const int32_t h = height_1cc62(m);
   edge_160f6(m, a2, h);
 
-  // z changed more than 8 px on a flat surface code: start a fall (sound 0x45)
+  // z changed more than 8 px on a flat surface code: start a fall
   const int64_t dz = abs64(s32((int64_t)m.sl(a2 + PZ) - m.sl(OLD_Z)));
   if (dz > 0x80000 && m.rb(a2 + SURFACE) == 0 && m.sl(a2 + VZ) <= 0) { startFall(m, a2); }
 
@@ -1132,7 +1137,8 @@ void enter_25bae(Mem &m, uint32_t a2, State code) {
   m.wl(a2 + VX, 0);
   if (m.rb(a2 + STATE) == GOAL) { m.wb(a2 + SLOT, OUT_OF_PLAY); }
 
-  if (code == BROKEN) {  // sound 0x38
+  if (code == BROKEN) {
+    marble_sound::send(m, marble_sound::SND_BREAK);
     m.wb(a2 + ANIM_5F, 0);
     m.wb(a2 + ANIM_60, ANIM_RATE);
     m.wl(a2 + ANIM, ANIM_SHATTER);
@@ -1149,6 +1155,8 @@ void enter_25bae(Mem &m, uint32_t a2, State code) {
   }
 
   respawn_2591a(m, a2);
+  const bool embedded = m.rb(a2 + DAMAGE) == EMBEDDED;
+  marble_sound::send(m, embedded ? marble_sound::SND_LOST_EMBEDDED : marble_sound::SND_LOST);
   m.wl(a2 + ANIM, 0);
   m.wb(a2 + STATE, LOST);
   m.ww(a2 + DEATHS, m.rw(a2 + DEATHS) + 1);
@@ -1175,7 +1183,8 @@ void anim_25fc2(Mem &m, uint32_t a2) {
   if (m.sb(a2 + ANIM_60) > m.sb(a2 + ANIM_5F)) { return; }
   m.wb(a2 + ANIM_5F, 0);
   m.wl(a2 + ANIM, m.rl(a2 + ANIM) + 4);
-  if (st == BROKEN && shatterIdx(m.rl(a2 + ANIM)) == SHATTER_SHARDS) {  // sound 0x5f
+  if (st == BROKEN && shatterIdx(m.rl(a2 + ANIM)) == SHATTER_SHARDS) {
+    marble_sound::send(m, marble_sound::SND_SHARDS);
     m.wl(a2 + SHARDS, ANIM_SHARDS);
     m.wb(a2 + SHARD_TICK, 0);
     m.wb(a2 + SHARDS_ON, 1);
@@ -1301,7 +1310,7 @@ void countdown_2574c(Mem &m, uint32_t a2) {
 }
 
 // 0x256d2: roll; a pending time bonus (+0xcb, 0x1bbaa) on the ground starts it
-// (disassembly 0x256d2-0x25730, sound 0x53 not ported)
+// (disassembly 0x256d2-0x25730)
 void roll_256d2(Mem &m, uint32_t a2) {
   const uint8_t s = m.rb(a2 + SURFACE);
   const bool plain = s == 0 || s == BONUS_SURFACE_A || s == BONUS_SURFACE_B;
@@ -1310,6 +1319,7 @@ void roll_256d2(Mem &m, uint32_t a2) {
     m.wb(a2 + DAMAGE, BONUS_SECONDS);
     m.wb(a2 + BONUS_EVENT, 0);
     m.wb(a2 + STATE, TIME_BONUS);
+    marble_sound::send(m, marble_sound::SND_TIME_BONUS);
     m.wl(a2 + BONUS_ANIM, ANIM_BONUS);
     m.wb(a2 + BONUS_TICK, 0);
     m.wb(a2 + BONUS_ON, 1);
@@ -1421,7 +1431,7 @@ void dissolve_2584e(Mem &m, uint32_t a2) {
 // 0x1c014 not ported); +0x59 counts down, then points (0x12: 9; 0x13, 0x14, 0x20, 0x22,
 // 0x25: 5), surface and the older screen pairs +0x22/+0x26 cleared, ROLL
 void tube_25514(Mem &m, uint32_t a2) {
-  static const uint8_t TUBE_12 = 0x12, POINTS_12 = 9, POINTS_TUBE = 5;
+  static const uint8_t TUBE_12 = 0x12, POINTS_12 = 9, POINTS_TUBE = 5, CATAPULT = 0x0a;
   proj_1b9cc(m, a2, REFETCH);
   marble_occlusion::enter(m, a2);
   const uint8_t t = m.rb(a2 + SURFACE);
@@ -1434,7 +1444,9 @@ void tube_25514(Mem &m, uint32_t a2) {
     score(m, a2, POINTS_12);
   } else if (t == 0x13 || t == 0x14 || t == 0x20 || t == 0x22 || t == 0x25) {
     score(m, a2, POINTS_TUBE);
-  }  // 0x0a catapult: sound 0x45
+  } else if (t == CATAPULT) {
+    marble_sound::send(m, marble_sound::SND_FALL);
+  }
   m.wb(a2 + SURFACE, 0);
   m.wl(a2 + SCREEN_OLD2, 0);
   m.wl(a2 + SCREEN_OLD, 0);

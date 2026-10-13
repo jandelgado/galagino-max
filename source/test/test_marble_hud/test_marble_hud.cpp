@@ -13,6 +13,7 @@
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
 #include "../../src/machines/marble/marble_mem.cpp"
+#include "../../src/machines/marble/marble_sound.cpp"
 #include "../../src/machines/marble/marble_rng.cpp"
 #include "../../src/machines/marble/marble_particles.cpp"
 #include "../../src/machines/marble/marble_flow.cpp"

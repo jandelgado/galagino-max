@@ -7,6 +7,7 @@
 #include "marble_birds.h"
 #include "marble_minis.h"
 #include "marble_pistons.h"
+#include "marble_sound.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -423,7 +424,10 @@ bool pair_1bc88(Mem &m, uint32_t a2) {
     m.wl(a3 + VX, (uint32_t)(m.sl(a3 + VX) + bx));
     m.wl(a3 + VY, (uint32_t)(m.sl(a3 + VY) + by));
 
-    // steelies: angry the first time, stunned, back to the nearest node (sound 0x32 / 0x37)
+    // steelies: angry the first time, stunned, back to the nearest node; sound 0x37 when two
+    // players collide
+    marble_sound::send(m, pa && pb ? marble_sound::SND_PLAYERS_HIT
+                                   : marble_sound::SND_STEELIE_HIT);
     const uint32_t objs[] = {a2, a3};
     const bool players[] = {pa, pb};
     for (uint8_t k = 0; k < 2; k++) {

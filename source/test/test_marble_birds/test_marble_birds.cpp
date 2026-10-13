@@ -15,6 +15,7 @@
 #include "../../src/machines/marble/marble_rom.h"
 #define ENABLE_MARBLE
 #include "../../src/machines/marble/marble_mem.cpp"
+#include "../../src/machines/marble/marble_sound.cpp"
 #include "../../src/machines/marble/marble_rng.cpp"
 #include "../../src/machines/marble/marble_physics.cpp"
 #include "../../src/machines/marble/marble_enemies.cpp"

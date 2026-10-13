@@ -15,6 +15,15 @@
 namespace marble_sound {
 
 static const uint32_t SKIP = 0x4003b8;  // word: 0x158ac sends nothing while set
+
+// arcade command bytes the remake sends (MARBLE.md "Sound")
+enum Cmd : uint8_t {
+  SND_STOP = 0x00, SND_TIME_OUT = 0x09, SND_JUMP = 0x31, SND_STEELIE_HIT = 0x32,
+  SND_CAUGHT = 0x33, SND_PLAYERS_HIT = 0x37, SND_BREAK = 0x38, SND_DIZZY = 0x39,
+  SND_LOST_EMBEDDED = 0x3c, SND_LOST = 0x3d, SND_CARRIED = 0x3e, SND_TIME_OUT_JINGLE = 0x3f,
+  SND_BOUNCE = 0x42, SND_FALL = 0x45, SND_LAUNCH = 0x45, SND_TIME_BONUS = 0x53,
+  SND_DISSOLVE = 0x5e, SND_SHARDS = 0x5f, SND_GAME_OVER = 0x61
+};
 static const uint8_t QUEUE = 8;
 
 struct Sound {

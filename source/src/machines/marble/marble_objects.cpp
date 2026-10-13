@@ -6,6 +6,7 @@
 #include "marble_drawlist.h"
 #include "marble_physics.h"
 #include "marble_rng.h"
+#include "marble_sound.h"
 
 // 1:1 port of the level object part of tools/marble_sim.py (function names and order as
 // there). Integer semantics of the 68010: word results wrap at 16 bits, long results at 32
@@ -24,6 +25,17 @@ using marble_physics::DESC_TOP;
 using marble_physics::DESC_RANGE;
 using marble_physics::s8;
 using marble_physics::s16;
+
+// 0x12d32: a free gate slot sends the sound of its zone, ROM tables 0x1ef42 (zones 0x18-0x1d)
+// and 0x1ef5a (0x1e-0x25), contiguous
+static void gateSound(Mem &m, int8_t zone) {
+  static const int8_t FIRST = 0x18;
+  static const uint8_t SOUNDS[] = {0x47, 0x49, 0x4b, 0x4d, 0x4f, 0x51, 0x48,
+                                   0x4a, 0x4c, 0x4e, 0x50, 0x52, 0x2f, 0x30};
+  const int16_t i = zone - FIRST;
+  if (i < 0 || i >= (int16_t)sizeof(SOUNDS)) { return; }
+  marble_sound::send(m, SOUNDS[i]);
+}
 
 namespace {
 
@@ -332,10 +344,11 @@ void script_12896(Mem &m, uint32_t a) {
 
             const int16_t dx = s16((uint32_t)(s32(m.rl(p + PX) - m.rl(a + PX)) >> 19));
             const int16_t dy = s16((uint32_t)(s32(m.rl(p + PY) - m.rl(a + PY)) >> 19));
-            if (0 <= dx && dx < 3 && 0 <= dy && dy < 3) { hit = true; }  // sound 0x31
+            if (0 <= dx && dx < 3 && 0 <= dy && dy < 3) { hit = true; }
           }
         }
         if (hit) {
+          marble_sound::send(m, marble_sound::SND_JUMP);
           m.wl(a + PC, gl(m, m.rl(a + PC)));
         } else {
           m.wl(a + PC, m.rl(a + PC) + 2);
@@ -394,7 +407,8 @@ void script_12896(Mem &m, uint32_t a) {
           }
         }
         const uint32_t pc = m.rl(a + PC);
-        if (free) {  // sound 0x1ef5a
+        if (free) {
+          gateSound(m, s8(m.rb(a + ZONE)));
           m.wl(a + PC, gl(m, pc));
         } else {
           m.wl(a + PC, pc + 4);
@@ -952,7 +966,8 @@ void bounceBox(Mem &m, uint32_t a2, uint32_t s, int16_t d6, int16_t a0) {
   if (distance(dx, dy)) { unit((int16_t)-dx, (int16_t)-dy, ux, uy); }
   m.wl(a2 + P_VX, (uint32_t)((int32_t)ux << 6));
   m.wl(a2 + P_VY, (uint32_t)((int32_t)uy << 6));
-  if (m.rb(a2 + P_STATE) != marble_physics::DIZZY) {  // sound 0x39
+  if (m.rb(a2 + P_STATE) != marble_physics::DIZZY) {
+    marble_sound::send(m, marble_sound::SND_DIZZY);
     m.wb(a2 + P_ANIM_5F, 0);
     m.wb(a2 + P_ANIM_60, ANIM_RATE);
     m.wl(a2 + P_ANIM, ANIM_DIZZY);
@@ -982,7 +997,8 @@ bool contact(Mem &m, uint32_t a2, uint32_t s, int32_t vx, int32_t vy) {
     if ((w.e0a < al && al < w.e0b && v < 0) || (w.e1a < al && al < w.e1b && v > 0)) {
       m.wb(w.alongX ? HIT_X : HIT_Y, 1);
     }
-    m.wb(w.alongX ? HIT_Y : HIT_X, 1);  // sound 0x42
+    m.wb(w.alongX ? HIT_Y : HIT_X, 1);
+    marble_sound::send(m, marble_sound::SND_BOUNCE);
     return false;
   }
 
@@ -1029,7 +1045,8 @@ bool contact(Mem &m, uint32_t a2, uint32_t s, int32_t vx, int32_t vy) {
     const uint16_t dist = ax > ay ? (uint16_t)((ay >> 3) * 3 + ax) : (uint16_t)((ax >> 3) * 3 + ay);
     if (dist < 0x38) {
       m.wb(HIT_Y, 1);
-      m.wb(HIT_X, 1);  // sound 0x42
+      m.wb(HIT_X, 1);
+      marble_sound::send(m, marble_sound::SND_BOUNCE);
     }
   } else if (tag == TAG_ROW_LO) {
     if (d1 == 0 && -0x12 < d2 && d2 <= 0) { setSurface(m, a2, tag); }

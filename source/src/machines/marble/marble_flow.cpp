@@ -2,6 +2,7 @@
 #include "marble_particles.h"
 #include "marble_physics.h"
 #include "marble_rng.h"
+#include "marble_sound.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -53,6 +54,8 @@ static const uint8_t FINAL_FIRST = 10, FINAL_STEP_FRAMES = 2;
 static const int32_t FINAL_STEP = 250;
 static const uint16_t FINAL_END = 272;          // last step to game over (0x5a + 0xb4 waits)
 
+// race music commands (MAME: 0x62, then this one about 60 frames into the intro)
+static const uint8_t RACE_MUSIC[6] = {0x08, 0x0a, 0x0c, 0x0e, 0x14, 0x18};
 static const uint16_t TIME_OUT_FRAMES = 182;    // 0x16a20 summary
 
 // attract (MARBLE.md "Attract"): game over to the title, title segment
@@ -164,6 +167,7 @@ void startParts(Flow &f, Mem &m, uint8_t count, uint8_t mode) {
 void gameOver(Mem &m) {
   marble_particles::clear(m);
   m.ww(GAME_STATE, GAME_OVER);
+  marble_sound::send(m, marble_sound::SND_GAME_OVER);
 }
 
 // FINAL: marbles, the final bonus in 250 point steps, then game over
@@ -236,6 +240,8 @@ bool timer(Mem &m) {
   m.wb(PLAYER + TICKS, STOPPED);
   m.wb(PLAYER + FLASH, 0xff);
   m.ww(GAME_STATE, TIME_OUT);
+  marble_sound::send(m, marble_sound::SND_TIME_OUT);
+  marble_sound::send(m, marble_sound::SND_TIME_OUT_JINGLE);
   return true;
 }
 
@@ -302,6 +308,8 @@ void raceLoaded(Flow &f, Mem &m) {
   m.ww(GAME_STATE, f.fresh ? GAME_START : RACE_END);
   f.phase = phase(m);
   f.intro = 0;
+  marble_sound::send(m, marble_sound::SND_STOP);
+  marble_sound::send(m, RACE_MUSIC[f.race]);
 }
 
 }  // namespace marble_flow

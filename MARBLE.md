@@ -2272,7 +2272,15 @@ MODE=log NOCOIN=1 OUT=$D/g0 MARBLE_LEVEL=0 MARBLE_PLACE=900:604:492:-36 \
 Remake: `romconv/internal/marble/marble_sid.py` builds the jingles and effects as songs of
 the C64 player (appended to the payload, song table entries, a silent song, a 6502 stub that
 starts an effect on slot 1 / voice 0 over the music); `marble_sound.{h,cpp}` maps commands to
-song and effect requests; `marble::renderSid` plays them on SidPlayer.
+song and effect requests; `marble::renderSid` plays them on SidPlayer. The logic sends the
+arcade bytes at the ported sites (jump, bounce, fall, dizzy, break, shards, lost, steelie hit,
+slinky catch, bird, acid, piston launch, time bonus, gate table), the flow at a race load (0x00
+and the race music, no intro delay), time out (0x09, 0x3f) and game over (0x61). Converted:
+16 effects (`EFFECTS` in marble_sid.py) and the 0x3f jingle; the race end pieces 0x17/0x18,
+0x10, 0x16, 0x1a-0x1e, the aerial gate tones 0x47-0x52 and 0x5d/0x60 are ignored. Flash: 6860 B
+(build 2026-10-13, compressed SID file 5532 B). Host test `test_marble_sound` (songs without
+strays, effect over the music keeps voices 1-2, command mapping; SOUND_WAV_DIR=dir writes
+listening WAVs), `test_marble_flow` (race music, time out jingle, break sound).
 
 ## Open questions
 

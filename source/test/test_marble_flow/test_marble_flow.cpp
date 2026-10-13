@@ -14,6 +14,7 @@
 #include "../../src/machines/marble/marble_rom.h"
 #define ENABLE_MARBLE
 #include "../../src/machines/marble/marble_mem.cpp"
+#include "../../src/machines/marble/marble_sound.cpp"
 #include "../../src/machines/marble/marble_rng.cpp"
 #include "../../src/machines/marble/marble_physics.cpp"
 #include "../../src/machines/marble/marble_enemies.cpp"
@@ -35,6 +36,7 @@
 #include "marble_bonus_trace.h"
 #include "marble_flow_trace.h"
 #include "marble_hud_trace.h"
+#include "../test_marble_sound/marble_sound_fixture.h"
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -574,12 +576,54 @@ static void test_title_cycles(void) {
     TEST_ASSERT_EQUAL_UINT8(marble_particles::TITLE_COUNT, parts(mc));
   }
 }
+static marble_sound::Sound flowSound;
+
+// a race load requests the race's song; the time out of a new game plays the 0x3f jingle
+static void test_race_music(void) {
+  for (uint8_t race = 0; race < 6; race++) {
+    Flow f = {};
+    f.race = race;
+    marble_sound::reset(flowSound);
+    loadRace(f);
+    marble_sound::step(flowSound);
+    TEST_ASSERT_EQUAL_MESSAGE(race + 1, flowSound.music & 0xff, "race music");
+  }
+  Machine mc;
+  marble_sound::reset(flowSound);
+  newGame(mc);
+  marble_sound::step(flowSound);
+  TEST_ASSERT_EQUAL(1, flowSound.music & 0xff);
+  uint16_t k = 0;
+  while (runFrame(mc, false) != marble_flow::TIME_OUT && k < 6000) {
+    marble_sound::step(flowSound);
+    k++;
+  }
+  marble_sound::step(flowSound);
+  TEST_ASSERT_EQUAL(MARBLE_SONG_3F, flowSound.music & 0xff);
+}
+
+// the logic's sound sites reach the effect requests: a breaking marble sends 0x38
+static void test_break_sound(void) {
+  Flow f = {};
+  marble_sound::reset(flowSound);
+  loadRace(f);
+  marble_sound::step(flowSound);
+  const uint16_t before = flowSound.effect;
+  Mem m(ram, 0);
+  marble_physics::enterState(m, PLAYER, marble_physics::BROKEN);
+  marble_sound::step(flowSound);
+  TEST_ASSERT_EQUAL((before >> 8) + 1, flowSound.effect >> 8);
+  TEST_ASSERT_EQUAL(marble_sound_cmds[marble_sound::SND_BREAK].arg, flowSound.effect & 0xff);
+}
+
 #endif
 
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   RUN_TEST(test_time_out);
+  RUN_TEST(test_race_music);
+  RUN_TEST(test_break_sound);
   RUN_TEST(test_race_ends);
   RUN_TEST(test_carry);
   RUN_TEST(test_replay_bonus);

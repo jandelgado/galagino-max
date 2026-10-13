@@ -3,6 +3,7 @@
 #include "marble_drawlist.h"
 #include "marble_physics.h"
 #include "marble_rng.h"
+#include "marble_sound.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -274,6 +275,7 @@ bool contact(Mem &m, uint32_t a2) {
     if (!overlap(s16(wx - BOX_XY), s16(wx + BOX_XY), x0, s16(x0 + b[2]))) { continue; }
     if (!overlap(s16(wy - BOX_XY), s16(wy + BOX_XY), y0, s16(y0 + b[3]))) { continue; }
     marble_physics::enterState(m, a2, marble_physics::DISSOLVING);
+    marble_sound::send(m, marble_sound::SND_DISSOLVE);
     m.wb(a2 + P_ACID, i);
     m.wb(s + TICKS, HIT_TICKS);
     return true;

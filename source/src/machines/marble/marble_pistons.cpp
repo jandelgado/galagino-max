@@ -3,6 +3,7 @@
 #include "marble_drawlist.h"
 #include "marble_physics.h"
 #include "marble_rng.h"
+#include "marble_sound.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -209,7 +210,8 @@ bool contact_1881c(Mem &m, uint32_t a2) {
         m.wl(a2 + o, (uint32_t)((m.sl(a2 + o) >> 1) + (plus ? LAUNCH_DV : -LAUNCH_DV)));
         hi = m.rw(a2 + o);
       }
-      m.wb(a2 + P_AIR, AIRBORNE);  // sound 0x45
+      m.wb(a2 + P_AIR, AIRBORNE);
+      marble_sound::send(m, marble_sound::SND_LAUNCH);
     } else if (s16(m.rw(a2 + PZ)) - s16(m.rw(e + TOP)) < WALL) {
       m.wl(a2 + VX, 0u - m.rl(a2 + VX));
       m.wl(a2 + VY, 0u - m.rl(a2 + VY));
