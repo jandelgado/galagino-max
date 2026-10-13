@@ -30,13 +30,14 @@ static void test_midscreen_rewrite_splits_slot(void) {
       s[k++] = out[i];
     }
   TEST_ASSERT_EQUAL_INT(2, k);
-  // lines [16,132) show the old content, [132,240) the new one
+  // MAME draws the write line with the old content:
+  // lines [16,133) show the old content, [133,240) the new one
   const Sprite &olds = s[0].code == 20 ? s[0] : s[1];
   const Sprite &news = s[0].code == 20 ? s[1] : s[0];
   TEST_ASSERT_EQUAL_UINT8(VIS_TOP, olds.top);
-  TEST_ASSERT_EQUAL_UINT8(132, olds.end);
+  TEST_ASSERT_EQUAL_UINT8(133, olds.end);
   TEST_ASSERT_EQUAL_UINT8(10, olds.x);
-  TEST_ASSERT_EQUAL_UINT8(132, news.top);
+  TEST_ASSERT_EQUAL_UINT8(133, news.top);
   TEST_ASSERT_EQUAL_UINT8(240, news.end);
   TEST_ASSERT_EQUAL_UINT8(77, news.code);
   TEST_ASSERT_EQUAL_UINT8(50, news.x);

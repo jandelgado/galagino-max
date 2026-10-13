@@ -69,6 +69,8 @@ private:
   uint8_t main_read_io(uint16_t addr);
   void sn_write(int chip, uint8_t data);
   void publish_video();
+  void build_cmaps(uint8_t bank);
+  void blit_sprite(short row, const tp84_hw::Sprite &s);
 
   m6809_state main_cpu, sub_cpu;
   tp84_hw::SpriteBands bands;
@@ -83,6 +85,15 @@ private:
   uint16_t snd_cycles = 0;        // Z80 cycle counter mod 16384 for the 0x8000 timer
 
   const uint8_t *main_rom = nullptr, *sub_rom = nullptr, *audio_rom = nullptr;
+  const uint16_t (*tiles)[8] = nullptr;
+  const uint8_t (*sprite_gfx)[16][8] = nullptr;
+  const uint16_t *rgb = nullptr;
+  const uint8_t *lut = nullptr;
+
+  uint16_t cmap_tiles[16][4];     // current bank, char colors
+  uint16_t cmap_sprites[16][16];  // current bank, sprite colors
+  uint16_t sprite_opaque[16];     // bit p set = pen p opaque
+  int16_t cmap_bank = -1;         // bank cmap_* were built for
 };
 
 #endif

@@ -36,15 +36,17 @@ struct SpriteBands {
     retired_n = 0;
   }
 
-  // A visible-line change retires the slot's content for [start, line).
+  // A visible-line change retires the slot's content for [start, line]:
+  // MAME update_partial(vpos) draws the write line with the old content.
   // Retire list full: old content is lost, current content never.
   void write(uint8_t off, uint8_t val, uint8_t line) {
     if (ram[off] == val) return;
     const uint8_t slot = off >> 2;
     if (line >= VIS_TOP && line < VIS_END) {
-      if (line > start[slot] && retired_n < MAX_SPRITES - SLOTS)
-        retired[retired_n++] = make(slot, start[slot], line);
-      start[slot] = line;
+      const uint8_t from = line + 1;    // first line with the new content, <= VIS_END
+      if (from > start[slot] && retired_n < MAX_SPRITES - SLOTS)
+        retired[retired_n++] = make(slot, start[slot], from);
+      start[slot] = from;
     }
     ram[off] = val;
   }

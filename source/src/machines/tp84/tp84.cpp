@@ -14,6 +14,10 @@ tp84::tp84()
   main_rom = tp84_rom_main.data();
   sub_rom = tp84_rom_sub.data();
   audio_rom = tp84_rom_audio.data();
+  tiles = tp84_tiles.data();
+  sprite_gfx = tp84_sprites.data();
+  rgb = tp84_rgb.data();
+  lut = tp84_lut.data();
 }
 
 void tp84::reset() {
@@ -26,6 +30,7 @@ void tp84::reset() {
   soundlatch = snd_irq_pend = 0;
   memset(sn_last_reg, 0, sizeof(sn_last_reg));
   snd_cycles = 0;
+  cmap_bank = -1;
 
   m6809_reset(&main_cpu);
   main_cpu.rom_direct = main_rom;     // must follow m6809_reset()
@@ -206,7 +211,126 @@ void tp84::run_frame(void) {
   publish_video();
 }
 
-// Task 4
-void tp84::publish_video() { }
-void tp84::prepare_frame(void) { }
-void tp84::render_row(short row) { }
+// ---- Video ----
+
+// Latch everything render reads at line 240, where MAME draws the frame
+// when no sprite write forced a partial update.
+void tp84::publish_video() {
+  vblank.publish([this](VideoState &v) {
+    static const uint8_t cols[4] = {0, 1, 30, 31};
+    memcpy(v.bg_vram, &memory[TP84_BG_VRAM], 0x400);
+    memcpy(v.bg_cram, &memory[TP84_BG_CRAM], 0x400);
+    for (int ty = 0; ty < 32; ty++) {
+      for (int i = 0; i < 4; i++) {
+        v.hud_vram[ty][i] = memory[TP84_FG_VRAM + ty * 32 + cols[i]];
+        v.hud_cram[ty][i] = memory[TP84_FG_CRAM + ty * 32 + cols[i]];
+      }
+    }
+    v.scroll_x = scroll_x;
+    v.scroll_y = scroll_y;
+    v.palette_bank = palette_bank;
+    v.n_sprites = bands.finish(v.sprites);
+  });
+}
+
+// Char pen: rgb[0x80 | j<<4 | lut[(b & 0x18)<<3 | c<<2 | p]],
+// sprite pen: rgb[j<<4 | lut[0x100 | c<<4 | p]], nibble 0 transparent.
+void tp84::build_cmaps(uint8_t bank) {
+  const uint8_t j = bank & 7;
+  const uint16_t cbase = (bank & 0x18) << 3;
+  for (int c = 0; c < 16; c++)
+    for (int p = 0; p < 4; p++)
+      cmap_tiles[c][p] = rgb[0x80 | (j << 4) | (lut[cbase | (c << 2) | p] & 0x0F)];
+  for (int c = 0; c < 16; c++) {
+    sprite_opaque[c] = 0;
+    for (int p = 0; p < 16; p++) {
+      const uint8_t n = lut[0x100 | (c << 4) | p] & 0x0F;
+      cmap_sprites[c][p] = rgb[(j << 4) | n];
+      if (n) sprite_opaque[c] |= 1 << p;
+    }
+  }
+  cmap_bank = bank;
+}
+
+void tp84::prepare_frame(void) {
+  vblank.read(video);
+  if (video.palette_bank != cmap_bank) build_cmaps(video.palette_bank);
+}
+
+// One galagino line of a tilemap. idx = ty * stride + col: bg passes the
+// full 32x32 map (stride 32, col = tile x), the HUD its 4 saved columns
+// (stride 4). xin = x inside the tile, tm_y0 = tilemap y of column 0
+// (native Y 239). Columns walk native Y down.
+static inline void IRAM_ATTR tile_line(uint16_t *dst, const uint8_t *vram, const uint8_t *cram,
+    uint8_t stride, uint8_t col, const uint16_t (*tiles)[8], const uint16_t (*cmap)[4],
+    uint8_t xin, uint8_t tm_y0) {
+  uint8_t ty = tm_y0 >> 3;
+  int k0 = 7 - (tm_y0 & 7);
+  int c = 0;
+  while (c < 224) {
+    const uint16_t idx = ty * stride + col;
+    const uint8_t attr = cram[idx];
+    const uint16_t code = ((attr & 0x30) << 4) | vram[idx];
+    const uint16_t bits = tiles[code][(attr & 0x40) ? 7 - xin : xin];  // bit6 flipX: native x
+    const uint16_t *pal = cmap[attr & 0x0F];
+    const bool flip_y = attr & 0x80;                                    // bit7 flipY: native y
+    for (int k = k0; k < 8 && c < 224; k++, c++) {
+      const int kk = flip_y ? 7 - k : k;
+      dst[c] = pal[(bits >> (2 * kk)) & 3];
+    }
+    k0 = 0;
+    ty = (ty - 1) & 31;
+  }
+}
+
+// Strip row 2..33 = native X 8*(row-2) .. +7; column c = native Y 239 - c.
+void IRAM_ATTR tp84::render_row(short row) {
+  if (row < 2 || row >= 34 || !game_started) return;   // frame_buffer arrives cleared
+  const bool hud = row < 4 || row >= 32;               // native X 0-15 / 240-255
+  for (int l = 0; l < 8; l++) {
+    const uint8_t nx = 8 * (row - 2) + l;
+    uint16_t *dst = frame_buffer + l * 224;
+    if (hud) {                                         // fg, not scrolled, opaque
+      const uint8_t tx = nx >> 3;                      // 0, 1, 30 or 31
+      tile_line(dst, &video.hud_vram[0][0], &video.hud_cram[0][0], 4,
+                tx < 2 ? tx : tx - 28, tiles, cmap_tiles, nx & 7, 239);
+    } else {
+      const uint8_t tm_x = nx + video.scroll_x;
+      tile_line(dst, video.bg_vram, video.bg_cram, 32, tm_x >> 3, tiles, cmap_tiles,
+                tm_x & 7, (uint8_t)(239 + video.scroll_y));
+    }
+  }
+  if (hud) return;                                     // fg covers sprites there
+  for (uint8_t i = 0; i < video.n_sprites; i++) blit_sprite(row, video.sprites[i]);
+}
+
+// Native box X [x, x+16), Y [y, y+16), clipped to the slot's band
+// [top, end) and visible Y 16..239. No wrap (MAME transmask clips).
+void IRAM_ATTR tp84::blit_sprite(short row, const tp84_hw::Sprite &s) {
+  const int x = s.x, y = 240 - (int)s.sy;
+  const int r0 = 8 * row - 16, r1 = r0 + 8;            // native X range of this strip
+  const int xa = x > r0 ? x : r0, xb = (x + 16) < r1 ? (x + 16) : r1;
+  if (xa >= xb) return;
+  int ya = y, yb = y + 16;
+  if (ya < s.top) ya = s.top;
+  if (yb > s.end) yb = s.end;
+  if (ya < 16) ya = 16;
+  if (yb > 240) yb = 240;
+  if (ya >= yb) return;
+
+  const uint8_t (*gfx)[8] = sprite_gfx[s.code];
+  const uint8_t color = s.attr & 0x0F;
+  const uint16_t *pal = cmap_sprites[color];
+  const uint16_t opaque = sprite_opaque[color];
+  const bool flip_x = !(s.attr & 0x40), flip_y = s.attr & 0x80;
+
+  for (int X = xa; X < xb; X++) {
+    const int i = flip_x ? 15 - (X - x) : X - x;
+    uint16_t *dst = frame_buffer + (X - r0) * 224;
+    for (int Y = ya; Y < yb; Y++) {
+      const int j = flip_y ? 15 - (Y - y) : Y - y;
+      const uint8_t p = (gfx[j][i >> 1] >> ((i & 1) << 2)) & 0x0F;
+      if (opaque & (1 << p)) dst[239 - Y] = pal[p];
+    }
+  }
+}
