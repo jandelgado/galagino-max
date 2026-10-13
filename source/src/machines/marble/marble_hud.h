@@ -5,6 +5,7 @@
 #include "marble_video.h"
 #include "marble_mem.h"
 #include "marble_flow.h"
+#include "marble_hiscore.h"
 
 // HUD (MARBLE.md "HUD"; model tools/marble_hud.py): the arcade alpha layer texts in a 30 x 36
 // cell grid over the 240 x 288 view. The emulation core derives the Hud of each frame from the
@@ -13,7 +14,7 @@
 // rendered strip (render_row).
 //
 //   emulation core                   video core
-//   update(tracker, flow, m, hud) -> build(grid, hud)  cells: alpha words, pal: RGB565
+//   update(tracker, flow, m, hud) -> build(grid, hud, table)  cells: alpha words, pal: RGB565
 //                                    blend(grid, row)  8 lines over the strip, last (on top)
 //
 // Items keep the arcade alpha positions moved by (dx, dy): top items 3 columns left (timer 6,
@@ -31,7 +32,7 @@ enum Screen : uint16_t {
   BONUS_PAL = 1 << 5,  // 0x118d2 colours (black boxes)
   OUT = 1 << 6,        // out of time, game over
   FINAL = 1 << 7,      // final screen (playfield black)
-  PUSH = 1 << 8,       // game over, wait for START
+  TITLE = 1 << 9,      // attract title: high score table, coin and copyright lines
 };
 
 // alpha word: bits 0-9 code, 10-12 colour, 13 opaque (pen 0 drawn)
@@ -61,8 +62,9 @@ struct Tracker {
 void update(Tracker &t, const marble_flow::Flow &f, const marble_physics::Mem &m,
             marble_video::Hud &h);
 
-// rebuild g when h differs from the state it shows
-void build(Grid &g, const marble_video::Hud &h);
+// rebuild g when h differs from the state it shows; the title reads table t (h.table is its
+// version)
+void build(Grid &g, const marble_video::Hud &h, const marble_hiscore::Table &t);
 
 // grid row `row` (strip of 8 lines, OUT_W pixels each) over dst
 void blend(const Grid &g, int row, uint16_t *dst);

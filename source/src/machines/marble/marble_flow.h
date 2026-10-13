@@ -11,24 +11,25 @@
 //
 //   newGame             RACE (0)                    RACE_END (3)
 //   race 0 ---> intro: +5 s steps ---> timer, ticks ---> bonus: seconds * 100, level load
-//                 ^                      | timer out       |            |
-//                 |                      v                 | next race  | after ultimate
-//                 +---- START ---- GAME_OVER (2) <----     v            v
-//                                        ^       TIME_OUT (4)    FINAL (6): 20000 + 1000 *
-//                                        +------------------------ seconds - 1000 * deaths
+//     ^                                  | timer out       |            |
+//     |                                  v                 | next race  | after ultimate
+//   START -- ATTRACT (1) <-- GAME_OVER (2) <----           v            v
+//     title: 3 marbles,        ^             TIME_OUT (4)    FINAL (6): 20000 + 1000 *
+//     table, 600 frames        +------------------------- seconds - 1000 * deaths, 28 marbles
 //
 //   frame(f, m, start)  one 60 Hz frame: race timer, sequencer. Returns LOGIC (race on: the
 //                       machine runs its logic tick when due), START_RACE (load race f.race:
 //                       c = carry(f, m), cleared RAM, restore(m, c), startRace, then
 //                       raceLoaded), or WAIT.
-//   newGame(f)          practice race next frame (boot, START after game over)
+//   newGame(f)          practice race next frame (START in the title or after game over)
+//   attract(f, m)       the title from the next frame on (boot, 7 frames after game over)
 //
 // marble_physics::tick (0x251de) sets RACE_END once all players are out of play (goal).
 namespace marble_flow {
 
 static const uint32_t GAME_STATE = 0x400390;  // word
 
-// 0x400390 values (0x1101e); the remake waits for START in GAME_OVER (no attract mode yet)
+// 0x400390 values (0x1101e); ATTRACT shows only the title for now (demo race: Phase 6b)
 enum Phase : uint16_t {
   RACE = 0, ATTRACT = 1, GAME_OVER = 2, RACE_END = 3, TIME_OUT = 4, GAME_START = 5, FINAL = 6
 };
@@ -43,6 +44,7 @@ struct Flow {
   uint8_t race;    // race to load / running
   bool fresh;      // new game: nothing carried
   int32_t final;   // final bonus points still to add
+  uint8_t partMode, partFill;  // marble_particles init mode and palette fill of the marbles
 };
 static const uint16_t NO_INTRO = 0xffff;
 
@@ -55,7 +57,11 @@ struct Carry {
   uint32_t frames;   // 0x400010
 };
 
+// title (MARBLE.md "Attract"): marbles from ATTRACT frame TITLE_AT for TITLE_LEN frames
+static const uint16_t TITLE_AT = 7, TITLE_LEN = 600;
+
 void newGame(Flow &f);
+void attract(Flow &f, marble_physics::Mem &m);
 uint8_t raceTime(uint8_t race);       // intro: seconds races 0/1 set, later races add
 uint16_t firstAdd(const Flow &f);     // intro frames from the race init to the first +5 s
 Step frame(Flow &f, marble_physics::Mem &m, bool start);

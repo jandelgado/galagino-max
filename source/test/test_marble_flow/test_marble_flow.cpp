@@ -26,9 +26,12 @@
 #include "../../src/machines/marble/marble_occlusion.cpp"
 #include "../../src/machines/marble/marble_drawlist.cpp"
 #include "../../src/machines/marble/marble_camera.cpp"
+#include "../../src/machines/marble/marble_particles.cpp"
 #include "../../src/machines/marble/marble_flow.cpp"
+#include "../../src/machines/marble/marble_hiscore.cpp"
 #include "../../src/machines/marble/marble_hud.cpp"
 #endif
+#include "../test_marble_attract/marble_attract_trace.h"
 #include "marble_bonus_trace.h"
 #include "marble_flow_trace.h"
 #include "marble_hud_trace.h"
@@ -163,7 +166,7 @@ static void test_time_out(void) {
   TEST_ASSERT_EQUAL_UINT16(marble_flow::GAME_OVER, marble_flow::phase(m));
 
   for (k = 0; k < 100; k++) { runFrame(mc, false); }
-  TEST_ASSERT_EQUAL_UINT16(marble_flow::GAME_OVER, marble_flow::phase(m));
+  TEST_ASSERT_EQUAL_UINT16(marble_flow::ATTRACT, marble_flow::phase(m));  // the title
   runFrame(mc, true);
   runFrame(mc, false);
   TEST_ASSERT_EQUAL_UINT16(marble_flow::GAME_START, marble_flow::phase(Mem(ram, mc.race)));
@@ -412,16 +415,164 @@ static void test_hud_bonus_zero(void) {
 }
 
 // after game over: PUSH 1 PLAYER START until START, then the new game's race init
-static void test_hud_push_start(void) {
+// --- title (MARBLE.md "Attract") ------------------------------------------------------
+
+static const uint32_t PART_SLOTS = 0x400a9c;
+static const uint8_t PART_STRIDE = 10;
+static const uint16_t TITLE_LEN = 600, TITLE_GAP = 6 + 7;  // MAME: tail to segment, lead
+static const uint16_t GAME_OVER_TITLE = 14;                 // MAME: game over to title
+
+static uint8_t parts(const Machine &mc) { return marble_particles::count(Mem(ram, mc.race)); }
+
+// crc32 of the particle slots (marble_attract.py fwrite)
+static uint32_t partsCrc(uint8_t n) {
+  const uint8_t *p = ram + (PART_SLOTS - marble_physics::RAM_BASE);
+  uint32_t crc = ~0u;
+  for (uint16_t i = 0; i < n * PART_STRIDE; i++) {
+    crc ^= p[i];
+    for (uint8_t k = 0; k < 8; k++) { crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1))); }
+  }
+  return ~crc;
+}
+
+// frames until the title's particles show (0: never within limit)
+static uint16_t untilTitle(Machine &mc, uint16_t limit) {
+  for (uint16_t n = 1; n <= limit; n++) {
+    runFrame(mc, false);
+    if (parts(mc)) { return n; }
+  }
+  return 0;
+}
+
+static const MarblePartsRun &mameRun(const char *trace, uint32_t frame) {
+  for (const MarblePartsRun &r : marble_parts_runs) {
+    if (!strcmp(r.trace, trace) && r.frame == frame) { return r; }
+  }
+  TEST_FAIL_MESSAGE("no MAME particle run");
+  return marble_parts_runs[0];
+}
+
+static void attract(Machine &mc) {
+  mc = Machine{};
+  memset(ram, 0, sizeof(ram));
+  Mem m(ram, 0);
+  marble_flow::attract(mc.flow, m);
+}
+
+// boot into the title: 3 marbles from frame 7 for 600 frames, title cells meanwhile (stage
+// 0, 1, 2 on the first frames), then again after the MAME segment gap
+static void test_title_boot(void) {
+  Machine mc;
+  attract(mc);
+  TEST_ASSERT_EQUAL_UINT16(7, untilTitle(mc, 100));
+  TEST_ASSERT_EQUAL_UINT8(marble_particles::TITLE_COUNT, parts(mc));
+  TEST_ASSERT_EQUAL_HEX16(marble_hud::PAL | marble_hud::TITLE, mc.hud.screen);
+  TEST_ASSERT_EQUAL_UINT8(0, mc.hud.stage);
+  runFrame(mc, false);
+  TEST_ASSERT_EQUAL_UINT8(1, mc.hud.stage);
+  for (uint16_t n = 2; n < TITLE_LEN; n++) {
+    runFrame(mc, false);
+    TEST_ASSERT_TRUE(parts(mc) == marble_particles::TITLE_COUNT && (mc.hud.screen & marble_hud::TITLE));
+  }
+  runFrame(mc, false);
+  TEST_ASSERT_EQUAL_UINT8(0, parts(mc));
+  TEST_ASSERT_EQUAL_HEX16(0, mc.hud.screen);
+  TEST_ASSERT_EQUAL_UINT16(TITLE_GAP, untilTitle(mc, 100));
+  TEST_ASSERT_EQUAL(marble_flow::ATTRACT, marble_flow::phase(Mem(ram, mc.race)));
+}
+
+// practice time out: game over with one rng(0x100) (the RNG stands still otherwise, as in
+// MAME p0: 0x0dc3 -> 0x8739), the title 14 frames later; marbles from that RNG equal MAME's
+// (test_marble_attract), here MAME p0's RNG gives its slots
+static void test_gameover_to_title(void) {
   Machine mc;
   newGame(mc);
   uint16_t n = 0;
-  while (runFrame(mc, false) != marble_flow::GAME_OVER && n < 5000) { n++; }
-  for (n = 0; n < 10; n++) { runFrame(mc, false); }
-  TEST_ASSERT_EQUAL_HEX16(marble_hud::PAL | marble_hud::PUSH, mc.hud.screen);
-  runFrame(mc, true);
-  runFrame(mc, false);
-  TEST_ASSERT_EQUAL_HEX16(0, mc.hud.screen);  // level load: nothing shows
+  uint16_t before = 0;
+  while (runFrame(mc, false) != marble_flow::GAME_OVER && n < 5000) {
+    before = Mem(ram, mc.race).rw(RNG);
+    n++;
+  }
+  uint8_t tmp[marble_physics::RAM_SIZE] = {};
+  Mem t(tmp, 0);
+  t.ww(RNG, before);
+  marble_rng::rng(t, 0x100);
+
+  uint16_t rng = 0;
+  for (n = 1; n <= 100 && !parts(mc); n++) {
+    rng = Mem(ram, mc.race).rw(RNG);
+    runFrame(mc, false);
+  }
+  TEST_ASSERT_EQUAL_UINT16(GAME_OVER_TITLE, n - 1);
+  TEST_ASSERT_EQUAL_HEX16(t.rw(RNG), rng);
+
+  const MarblePartsRun &run = mameRun("p0", 4586);
+  Mem m(ram, mc.race);
+  m.ww(RNG, run.rng);
+  marble_particles::init(m, run.count, run.mode);
+  for (uint16_t k = 0; k < 10; k++) {
+    TEST_ASSERT_EQUAL_HEX32(run.crc[k], partsCrc(run.count));
+    runFrame(mc, false);
+  }
+}
+
+// final screen: 28 marbles (palette fill, then init) 3 frames after 0x400390 = 6 from that
+// frame's RNG (MAME g5 frame 1422), cleared at game over, then the title
+static void test_final_to_title(void) {
+  Machine mc = {};
+  memset(ram, 0, sizeof(ram));
+  mc.race = 5;
+  Mem m(ram, mc.race);
+  const MarblePartsRun &run = mameRun("g5", 1422);
+  m.ww(RNG, run.rng);
+  m.ww(marble_flow::GAME_STATE, marble_flow::FINAL);
+  m.wb(PLAYER + TICKS, TIMER_STOPPED);  // the race end stopped the timer
+  mc.flow.phase = marble_flow::FINAL;
+  mc.flow.intro = marble_flow::NO_INTRO;
+  mc.flow.final = 1000;
+  for (uint8_t k = 0; k < 3; k++) { runFrame(mc, false); }
+  TEST_ASSERT_EQUAL_UINT8(marble_particles::FINAL_COUNT, parts(mc));
+  for (uint16_t k = 0; k < 20; k++) {
+    TEST_ASSERT_EQUAL_HEX32(run.crc[k], partsCrc(run.count));
+    runFrame(mc, false);
+  }
+  uint16_t n = 0;
+  while (runFrame(mc, false) != marble_flow::GAME_OVER && n < 2000) { n++; }
+  TEST_ASSERT_EQUAL_UINT8(0, parts(mc));
+  TEST_ASSERT_EQUAL_UINT16(GAME_OVER_TITLE, untilTitle(mc, 100));
+  TEST_ASSERT_EQUAL_UINT8(marble_particles::TITLE_COUNT, parts(mc));
+}
+
+// START on the first, a middle and the last title frame: a clean practice race follows
+static void test_title_start_clean(void) {
+  static const uint16_t AT[] = {1, 300, TITLE_LEN};
+  for (uint16_t at : AT) {
+    Machine mc;
+    attract(mc);
+    untilTitle(mc, 100);
+    for (uint16_t k = 1; k < at; k++) { runFrame(mc, false); }
+    runFrame(mc, true);
+    runFrame(mc, false);  // loads practice
+    TEST_ASSERT_EQUAL(marble_flow::GAME_START, marble_flow::phase(Mem(ram, mc.race)));
+    TEST_ASSERT_EQUAL_UINT8(0, parts(mc));
+    TEST_ASSERT_FALSE(mc.hud.screen & marble_hud::TITLE);
+    TEST_ASSERT_EQUAL_UINT32(0, Mem(ram, mc.race).rl(PLAYER + SCORE));
+  }
+}
+
+// title, START, time out, title: three times, the same title each time
+static void test_title_cycles(void) {
+  Machine mc;
+  attract(mc);
+  for (uint8_t cycle = 0; cycle < 3; cycle++) {
+    TEST_ASSERT_TRUE(untilTitle(mc, 100) > 0);
+    runFrame(mc, true);
+    uint16_t n = 0;
+    while (runFrame(mc, false) != marble_flow::GAME_OVER && n < 5000) { n++; }
+    TEST_ASSERT_TRUE(n < 5000);
+    TEST_ASSERT_EQUAL_UINT16(GAME_OVER_TITLE, untilTitle(mc, 100));
+    TEST_ASSERT_EQUAL_UINT8(marble_particles::TITLE_COUNT, parts(mc));
+  }
 }
 #endif
 
@@ -435,7 +586,11 @@ int main(int, char **) {
   RUN_TEST(test_hud_time_out);
   RUN_TEST(test_hud_race_ends);
   RUN_TEST(test_hud_bonus_zero);
-  RUN_TEST(test_hud_push_start);
+  RUN_TEST(test_title_boot);
+  RUN_TEST(test_gameover_to_title);
+  RUN_TEST(test_final_to_title);
+  RUN_TEST(test_title_start_clean);
+  RUN_TEST(test_title_cycles);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif

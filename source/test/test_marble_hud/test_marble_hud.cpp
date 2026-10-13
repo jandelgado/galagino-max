@@ -13,7 +13,10 @@
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
 #include "../../src/machines/marble/marble_mem.cpp"
+#include "../../src/machines/marble/marble_rng.cpp"
+#include "../../src/machines/marble/marble_particles.cpp"
 #include "../../src/machines/marble/marble_flow.cpp"
+#include "../../src/machines/marble/marble_hiscore.cpp"
 #include "../../src/machines/marble/marble_hud.cpp"
 #endif
 #include "marble_hud_fixture.h"
@@ -72,7 +75,21 @@ static Hud hudOf(const MarbleHudCase &c) {
   h.deaths = c.deaths;
   h.pal3 = c.pal3;
   h.pal11 = c.pal11;
+  h.stage = c.stage;
+  h.table = c.tcase;
   return h;
+}
+
+// title table of a layout case (marble_hud.py layout_table)
+static marble_hiscore::Table tableOf(uint8_t tcase) {
+  marble_hiscore::Table t = {};
+  marble_hiscore::defaults(t);
+  if (tcase) {
+    memcpy(t.e[0].initials, "   ", 3);
+    t.e[0].score = 9999999;
+  }
+  t.version = tcase;
+  return t;
 }
 
 // grid rows as text on failure: printable codes, '#' opaque blank, '?' other glyphs
@@ -96,7 +113,7 @@ static void test_layout(void) {
   const int n = sizeof(MARBLE_HUD_FIX_CASES) / sizeof(MARBLE_HUD_FIX_CASES[0]);
   for (int k = 0; k < n; k++) {
     const MarbleHudCase &c = MARBLE_HUD_FIX_CASES[k];
-    marble_hud::build(grid, hudOf(c));
+    marble_hud::build(grid, hudOf(c), tableOf(c.tcase));
     const uint32_t cells = crc32(grid.cells, sizeof(grid.cells));
     if (cells != c.grid_crc) {
       printf("case %d screen 0x%x\n", k, c.screen);
@@ -109,23 +126,41 @@ static void test_layout(void) {
 
 // an unchanged state does not rebuild (prepare_frame calls build every frame)
 static void test_no_rebuild(void) {
+  const marble_hiscore::Table t = tableOf(0);
   const Hud h = hudOf(MARBLE_HUD_FIX_CASES[0]);
-  marble_hud::build(grid, h);
+  marble_hud::build(grid, h, t);
   grid.cells[20][5] = 0x1234;
-  marble_hud::build(grid, h);
+  marble_hud::build(grid, h, t);
   TEST_ASSERT_EQUAL_HEX16(0x1234, grid.cells[20][5]);
 
   Hud other = h;
   other.score++;
-  marble_hud::build(grid, other);
+  marble_hud::build(grid, other, t);
   TEST_ASSERT_EQUAL_HEX16(0, grid.cells[20][5]);
+}
+
+// a table write (new version) rebuilds the title
+static void test_title_rebuild(void) {
+  marble_hiscore::Table t = tableOf(0);
+  Hud h = {};
+  h.screen = marble_hud::PAL | marble_hud::TITLE;
+  h.stage = 2;
+  h.table = t.version;
+  marble_hud::build(grid, h, t);
+  const uint32_t before = crc32(grid.cells, sizeof(grid.cells));
+  t.e[0].score = 9999999;
+  t.version++;
+  h.table = t.version;
+  marble_hud::build(grid, h, t);
+  TEST_ASSERT_NOT_EQUAL(before, crc32(grid.cells, sizeof(grid.cells)));
 }
 
 // blend: opaque cell writes every pixel (pen 0 too), transparent cell only pens 1-3, rows
 // without text and a palette off state leave the strip alone
 static void test_blend(void) {
+  const marble_hiscore::Table t = tableOf(0);
   Hud h = hudOf(MARBLE_HUD_FIX_CASES[0]);  // top items: '_' row 0 (colour 7), SCORE row 1
-  marble_hud::build(grid, h);
+  marble_hud::build(grid, h, t);
 
   static uint16_t strip[marble_video::OUT_W * 8];
   const uint16_t BG = 0x5a5a;
@@ -150,7 +185,7 @@ static void test_blend(void) {
   for (uint16_t p : strip) { TEST_ASSERT_EQUAL_HEX16(BG, p); }
 
   h.screen = 0;  // palette off
-  marble_hud::build(grid, h);
+  marble_hud::build(grid, h, t);
   marble_hud::blend(grid, 1, strip);
   for (uint16_t p : strip) { TEST_ASSERT_EQUAL_HEX16(BG, p); }
 }
@@ -164,6 +199,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_palette);
   RUN_TEST(test_layout);
   RUN_TEST(test_no_rebuild);
+  RUN_TEST(test_title_rebuild);
   RUN_TEST(test_blend);
 #else
   printf("marble_rom.h missing: run romconv ./convert.sh marble\n");

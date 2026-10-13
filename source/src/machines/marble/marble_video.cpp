@@ -182,6 +182,11 @@ void drawObj(const Level &l, const VideoState &v, const Obj &o, int y0, uint16_t
 
 }  // namespace
 
+void renderParts(const VideoState &v, int row, uint16_t *dst) {
+  const uint8_t n = v.nparts < PARTS ? v.nparts : PARTS;
+  for (uint8_t i = 0; i < n; i++) { drawPart(v, v.parts[i], row * 8, dst); }
+}
+
 void clamp(VideoState &v, const Level &l) {
   const int16_t maxy = l.rows * 8 - OUT_H;
   if (v.sx < 0) { v.sx = 0; }
@@ -220,8 +225,7 @@ void renderRow(const Level &l, const VideoState &v, int row, uint16_t *dst) {
   }
 
   if (v.nparts) {  // bouncing marbles in view pixels, no objects
-    const uint8_t n = v.nparts < PARTS ? v.nparts : PARTS;
-    for (uint8_t i = 0; i < n; i++) { drawPart(v, v.parts[i], row * 8, strip); }
+    renderParts(v, row, strip);
     return;
   }
 

@@ -37,7 +37,7 @@ RACE_TIME = (60, 60, 35, 30, 20, 20)
 S_YOU, S_THE, S_BONUS_FIN, S_SEC, S_DIED, S_TOTAL = 0x230a0, 0x230b4, 0x230c8, 0x230e8, 0x230f8, 0x23114
 S_BLANK26, S_TIME_TO, S_EXTRA, S_RACES, S_WRONG, S_BLANK31 = 0x2317c, 0x23198, 0x231ec, 0x23224, 0x232ec, 0x2330c
 S_NAMES = (0x2332c, 0x23336, 0x23340, 0x2334e, 0x23356, 0x2335c)
-S_BONUS_FOR, S_TIME_LEFT, S_OUT, S_OVER, S_PUSH = 0x233ae, 0x233c0, 0x2370a, 0x2371c, 0x23004
+S_BONUS_FOR, S_TIME_LEFT, S_OUT, S_OVER = 0x233ae, 0x233c0, 0x2370a, 0x2371c
 RACE_STRIDE = 0x1c
 
 PULSE = 0x20b34                # 16 words, the same at 0x20b74 (timer flash)
@@ -62,7 +62,7 @@ BIG = {   # captured from MAME (alpha RAM, final screen)
 }
 
 # screen bits
-PAL, TOP, INTRO, SILLY, BONUS, BONUS_PALETTE, OUT, FIN, PUSH = (1 << k for k in range(9))
+PAL, TOP, INTRO, SILLY, BONUS, BONUS_PALETTE, OUT, FIN = (1 << k for k in range(8))
 TITLE = 1 << 9
 
 
@@ -163,8 +163,6 @@ def items(h, r):
         for row, t in ((24, blank), (25, rom_str(r, S_OUT)), (26, blank), (27, rom_str(r, S_OVER)),
                        (28, blank)):
             put(-6, 3, row, 13, text(t, 0, True))
-    if s & PUSH:
-        put(-6, 3, 24, 8, text(rom_str(r, S_PUSH), 0, False))
     if s & FIN:
         sec = min(h.seconds, 99)
         cong = BIG["CONGRATULATIONS!"]
@@ -269,7 +267,7 @@ STRINGS = {   # remake string name -> ROM address
     "you": S_YOU, "the": S_THE, "bonus_fin": S_BONUS_FIN, "sec": S_SEC, "died": S_DIED,
     "total": S_TOTAL, "blank26": S_BLANK26, "time_to": S_TIME_TO, "extra": S_EXTRA,
     "wrong": S_WRONG, "blank31": S_BLANK31, "bonus_for": S_BONUS_FOR, "time_left": S_TIME_LEFT,
-    "out": S_OUT, "over": S_OVER, "push": S_PUSH, "trouble": S_TROUBLE, "coin": S_COIN,
+    "out": S_OUT, "over": S_OVER, "trouble": S_TROUBLE, "coin": S_COIN,
     "credits": S_CREDITS, "copyright": S_COPYRIGHT,
 }
 BORDER_CODES = (0x5f, 0x5e, 0xdf, 0xff, 0x1b)
@@ -308,14 +306,34 @@ LAYOUT_CASES = (
     (PAL | TOP | OUT, 140, 0, 0, 0, 0, 0, 0xff, 0xff),
     (PAL | FIN, 46920, 88750, 69, 6, 0, 0, 0xff, 0xff),
     (PAL | FIN, 9999999, 0, 150, 6, 0, 25, 0xff, 0xff),    # clamps: 99 s, 20 deaths
-    (PAL | PUSH, 140, 0, 0, 0, 0, 0, 0xff, 0xff),
     (0, 1020, 0, 50, 0, 0, 0, 0xff, 0xff),                  # palette off: nothing shown
+    (PAL | TITLE, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0, 0),      # title first frame: table only
+    (PAL | TITLE, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 1, 0),      # + copyright
+    (PAL | TITLE, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 2, 0),
+    (PAL | TITLE, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 9, 1),      # 7 digit score, blank initials
 )
-LAYOUT_FIELDS = ("screen", "score", "value", "seconds", "race", "add", "deaths", "pal3", "pal11")
+LAYOUT_FIELDS = ("screen", "score", "value", "seconds", "race", "add", "deaths", "pal3", "pal11",
+                 "stage", "tcase")
+# title table of a layout case: 0 ROM defaults, 1 defaults with entry 1 = (blanks, 9,999,999)
+TABLE_CASES = 2
+BIG_ENTRY = ("   ", 9999999)
 
 
-def layout_states():
-    return [Hud(**dict(zip(LAYOUT_FIELDS, c))) for c in LAYOUT_CASES]
+def layout_table(r, tcase):
+    import marble_attract
+    t = marble_attract.defaults(r)
+    return [BIG_ENTRY] + t[1:] if tcase else t
+
+
+def layout_states(r=None):
+    out = []
+    for c in LAYOUT_CASES:
+        c = tuple(c) + (0, 0)[len(c) - len(LAYOUT_FIELDS) + 2:]
+        h = Hud(**dict(zip(LAYOUT_FIELDS, c)))
+        if h.screen & TITLE:
+            h.table = layout_table(r or md.load(), h.tcase)
+        out.append(h)
+    return out
 
 
 # --- MAME traces ------------------------------------------------------------------------

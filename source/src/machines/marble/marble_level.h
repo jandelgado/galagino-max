@@ -9,6 +9,7 @@
 namespace marble_level {
 
 static const uint8_t LEVELS = 6;
+static const uint8_t TITLE = LEVELS;  // the attract title playfield (logo), loaded as a level
 static const uint8_t COLS = 36;
 static const uint16_t WIDTH = COLS * 8;  // 288
 static const uint16_t MAX_ROWS = 145;    // beginner race; romconv checks

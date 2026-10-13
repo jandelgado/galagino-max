@@ -38,6 +38,8 @@ private:
   void loadRace();
   void logicTick(uint32_t keys);
   void publish(void);
+  void titleView();
+  void publishTail(marble_physics::Mem &m);
   void buildObjs(marble_physics::Mem &m);
 
   Seqlock<marble_video::VideoState> vblank;
@@ -54,6 +56,9 @@ private:
   uint8_t race = 0;
   marble_flow::Flow flow = {};
   marble_hud::Tracker tracker = {};
+  // high score table: written on the emulation core only outside the title (6c), read by
+  // the video core's title grid
+  marble_hiscore::Table table = {};
   uint32_t patchRec = 0;   // lastPatch record that view.patch was mapped from
   bool odd = false;        // frame without a logic tick
 };

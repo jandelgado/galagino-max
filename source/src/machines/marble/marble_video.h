@@ -65,6 +65,8 @@ struct Hud {
   uint8_t add;
   uint8_t deaths;   // final screen
   uint8_t pal3, pal11;  // pulse table index of alpha colours 3 / 11, 0xff = ROM colour
+  uint8_t table;   // title: high score table version (marble_hiscore::Table)
+  uint8_t stage;   // title: frames since it started, clamped (drawn over 3 frames)
 };
 
 // render input, published by the emulation core once per frame (Seqlock)
@@ -92,8 +94,11 @@ static_assert(sizeof(VideoState) <= 336, "VideoState limit");
 void clamp(VideoState &v, const marble_level::Level &l);
 
 // 8 display lines of strip `row` (0..35), OUT_W pixels each, into dst: playfield, objects
-// before marbleAt, marble and masks, the other objects
+// before marbleAt, marble and masks, the other objects (bouncing marbles instead when nparts)
 void renderRow(const marble_level::Level &l, const VideoState &v, int row, uint16_t *dst);
+
+// the bouncing marbles of strip `row` over dst
+void renderParts(const VideoState &v, int row, uint16_t *dst);
 
 }  // namespace marble_video
 

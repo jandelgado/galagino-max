@@ -1,5 +1,7 @@
 #include "marble_flow.h"
+#include "marble_particles.h"
 #include "marble_physics.h"
+#include "marble_rng.h"
 
 #ifdef ENABLE_MARBLE
 
@@ -52,6 +54,12 @@ static const int32_t FINAL_STEP = 250;
 static const uint16_t FINAL_END = 272;          // last step to game over (0x5a + 0xb4 waits)
 
 static const uint16_t TIME_OUT_FRAMES = 182;    // 0x16a20 summary
+
+// attract (MARBLE.md "Attract"): game over to the title, title segment
+static const uint16_t GAME_OVER_ATTRACT = 7;    // 0x400390 = 2 to 1
+static const uint16_t GAME_OVER_RNG = 0x100;    // one rng(0x100) at the game over
+static const uint16_t TITLE_TAIL = 6;           // title end to the next segment
+static const uint16_t FINAL_PARTS = 3;          // 0x400390 = 6 to the final screen marbles
 
 // palette pulses (0x26bee score fade, 0x26c78 timer flash): counters wrap above these
 static const int8_t FADE_WRAP = 0x3f, FLASH_WRAP = 0x1f;
@@ -146,8 +154,23 @@ Step raceEnd(Flow &f, Mem &m) {
   return START_RACE;
 }
 
-// FINAL: the final bonus in 250 point steps, then game over
+// marbles: palette fill and init with the RNG of this frame
+void startParts(Flow &f, Mem &m, uint8_t count, uint8_t mode) {
+  f.partMode = mode;
+  f.partFill = marble_particles::init(m, count, mode);
+}
+
+// game over: from FINAL and TIME_OUT; the final screen marbles go
+void gameOver(Mem &m) {
+  marble_particles::clear(m);
+  m.ww(GAME_STATE, GAME_OVER);
+}
+
+// FINAL: marbles, the final bonus in 250 point steps, then game over
 void finalStep(Flow &f, Mem &m) {
+  if (f.frame == FINAL_PARTS && !marble_particles::count(m)) {
+    startParts(f, m, marble_particles::FINAL_COUNT, marble_particles::FINAL_MODE);
+  }
   if (f.final > 0) {
     if (f.frame < FINAL_FIRST || (f.frame - FINAL_FIRST) % FINAL_STEP_FRAMES) { return; }
     f.final -= FINAL_STEP;
@@ -155,10 +178,34 @@ void finalStep(Flow &f, Mem &m) {
     if (f.final <= 0) { f.frame = 0; }  // count FINAL_END from the last step
     return;
   }
-  if (f.frame == FINAL_END) { m.ww(GAME_STATE, GAME_OVER); }
+  if (f.frame == FINAL_END) { gameOver(m); }
+}
+
+// ATTRACT: title segments until START (the demo race of each segment: Phase 6b)
+Step attractStep(Flow &f, Mem &m, bool start) {
+  if (start) {
+    newGame(f);
+    return WAIT;
+  }
+  if (f.frame == TITLE_AT) {
+    startParts(f, m, marble_particles::TITLE_COUNT, marble_particles::TITLE_MODE);
+  }
+  if (f.frame == TITLE_AT + TITLE_LEN) { marble_particles::clear(m); }
+  if (f.frame == TITLE_AT + TITLE_LEN + TITLE_TAIL) { f.frame = 0; }  // next segment
+  return WAIT;
 }
 
 }  // namespace
+
+void attract(Flow &f, Mem &m) {
+  marble_particles::clear(m);
+  m.ww(GAME_STATE, ATTRACT);
+  f.phase = ATTRACT;
+  f.frame = 0;
+  f.intro = NO_INTRO;
+  f.fresh = false;
+  f.final = 0;
+}
 
 void newGame(Flow &f) {
   f.phase = GAME_START;
@@ -201,6 +248,8 @@ Step frame(Flow &f, Mem &m, bool start) {
     f.frame = 0;
   }
   f.frame++;
+  if (marble_particles::count(m)) { marble_particles::bounce(m); }  // inits come below
+  if (f.phase == ATTRACT) { return attractStep(f, m, start); }
   pulses(m);
   timer(m);
   if (f.intro != NO_INTRO) { introStep(f, m); }
@@ -211,10 +260,15 @@ Step frame(Flow &f, Mem &m, bool start) {
     case RACE_END: return f.intro == NO_INTRO ? raceEnd(f, m) : WAIT;
     case FINAL: finalStep(f, m); return WAIT;
     case TIME_OUT:
-      if (f.frame == TIME_OUT_FRAMES) { m.ww(GAME_STATE, GAME_OVER); }
+      if (f.frame == TIME_OUT_FRAMES) { gameOver(m); }
       return WAIT;
     case GAME_OVER:
-      if (start) { newGame(f); }
+      if (f.frame == 1) { marble_rng::rng(m, GAME_OVER_RNG); }
+      if (start) {
+        newGame(f);
+      } else if (f.frame == GAME_OVER_ATTRACT) {
+        attract(f, m);
+      }
       return WAIT;
     default: return WAIT;
   }

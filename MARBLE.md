@@ -2055,7 +2055,8 @@ s8t (173 ticks equal, player MOs too).
 Remake: `marble_flow.{h,cpp}` (sequencer, timer, carry), `marble_physics.cpp` (goal points,
 timer stop, 0x1bbaa, state 8, 0x251de tail, score wobble 0x25416), `marble.cpp`
 (`run_frame` calls `marble_flow::frame` every frame; logic ticks only in LOGIC; `loadRace`).
-Game over: START (EXTRA) or FIRE starts a new game at practice (no attract mode). Host test
+Game over: START (EXTRA) or FIRE starts a new game at practice, else the title follows
+(section Attract). Host test
 `test_marble_flow`: time out from a new game, race ends (MAME offsets +-1, values exact),
 carry runs (crc of the model run), time bonus segment (`marble_bonus_trace.h`).
 
@@ -2116,8 +2117,7 @@ alpha cells (visible content) and palette equal to MAME in every frame within +-
 Remake layout (30 x 36 cells, `view`): top items 3 columns left (timer 6, centred), banners and
 the final screen 6 columns left and 3 rows down (arcade screen centred in the 288 lines); final
 labels 7, values 9 columns left; cells outside are clipped (the `!` of `CONGRATULATIONS!`, the
-last blank of the silly banner). After game over the remake shows `PUSH 1 PLAYER START`
-(row 24 col 8, from game over frame 5) until START.
+last blank of the silly banner). Game over leads to the title (section Attract).
 
 Remake: `marble_flow` steps the pulse counters every frame before the race timer (0x26bee,
 0x26c78), the timer flash on/off (0x28a96 at 4 s / above 5 s) and the 0x118d2 counter writes
@@ -2179,6 +2179,15 @@ frame traces (`mame_trace.lua MARBLE_ATTRACT=1`).
   px - 8 and px, MO y = py + 16 (top line 224 - py); written into the bank not shown, so the
   screen shows the previous frame. Remake view: x = MO x - 48, y = 248 - py.
 
+Remake: `marble_flow` ATTRACT runs title segments only (lead 7, title 600, tail 6; the demo
+race is 6b): boot and game over + 7 enter it, START starts practice; game over consumes one
+rng(0x100); FINAL inits the 28 marbles at frame 3, game over clears them. `marble_particles`
+(init, bounce, view positions in a VideoState union with the objects), `marble_hiscore`
+(table, ROM defaults once), the title playfield as level `marble_level::TITLE`, `marble_hud`
+TITLE (table read on the video core; version byte in Hud). Host tests: `test_marble_attract`
+(data, MAME particle runs, clip, defaults), `test_marble_flow` (boot, game over and final to
+the title, START, cycles), `test_marble_hud` (title layout cases, table rebuild).
+
 Validation: `marble_attract.py check` on frame traces a0 (boot attract, 9000 frames), p0
 (practice time out to the title), g5 (ultimate goal, final screen, entry, title): particle slots
 every frame exact, MOs, palette fill, title cells (+-1 frame) and palettes, game over RNG,
@@ -2207,6 +2216,6 @@ python3 romconv/internal/marble/tools/marble_attract.py logo $TMPDIR/attract
   only)/0x4003b8. Not ported to C++: dots 0x1c014 / 0x25b40.
 - Goal (state 6): the camera ignores the marble (sy only from states 0/1/3/4/5).
 - Game flow (section Game flow): the 0x16a20 time out summary and 0x18a88 final screen are
-  frame counts only (texts and palette pulses: section HUD); the race intro scroll in and the
-  attract mode / high score entry (Phase 6) are not ported.
+  frame counts only (texts and palette pulses: section HUD); the race intro scroll in, the
+  attract demo race (6b) and the high score entry (6c) are not ported.
 - Object/enemy scripts, Phase 4. Sound command protocol, Phase 5.

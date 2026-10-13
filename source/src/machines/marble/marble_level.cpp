@@ -7,6 +7,7 @@
 #include "marble_rom.h"
 
 static_assert(MARBLE_SPRITE_MAX_TILES == marble_level::SPRITE_TILES, "sprite tile buffer");
+static_assert(MARBLE_TITLE_LEVEL == marble_level::TITLE, "title level index");
 
 namespace marble_level {
 

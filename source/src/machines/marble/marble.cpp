@@ -8,6 +8,7 @@
 #include "marble_flow.h"
 #include "marble_objects.h"
 #include "marble_occlusion.h"
+#include "marble_particles.h"
 #include "marble_physics.h"
 #include "marble_rng.h"
 
@@ -46,13 +47,17 @@ void marble::reset() {
   patchRec = 0;
   view.patch = video.patch = marble_level::NO_PATCH;
   game_started = 1;  // no boot phase
-  marble_flow::newGame(flow);
   tracker = {};
-  loadRace();
+  race = 0;
+  memset(memory, 0, marble_physics::RAM_SIZE);
+  Mem m(memory, race);
+  marble_flow::attract(flow, m);  // the title first, as the arcade's attract mode
+  publish();
 }
 
 void marble::start() {
   store.init();  // guarded, start() runs twice
+  marble_hiscore::defaults(table);  // once
 }
 
 // race flow.race on a cleared work RAM image with what a race keeps (timer, score, RNG),
@@ -111,9 +116,24 @@ void marble::buildObjs(Mem &m) {
   marble_drawlist::build(m, m.sw(marble_physics::CAMERA), MARBLE_CULL_MARGIN, view);
 }
 
+// title view: the logo playfield, no marble
+void marble::titleView() {
+  view.level = marble_level::TITLE;
+  view.sx = PAN / 2;
+  view.sy = 0;
+  view.marble = HIDDEN;
+  view.nmask = 0;
+  view.patch = marble_level::NO_PATCH;
+}
+
 // view and marble sprite position from the work RAM image
 void marble::publish(void) {
   Mem m(memory, race);
+  if (marble_flow::phase(m) == marble_flow::ATTRACT) {
+    titleView();
+    publishTail(m);
+    return;
+  }
   // projection of the last tick (+0x1e/+0x20), as the arcade MO list and the masks use it
   const int16_t sx = m.sw(PLAYER + 0x1e), sy = m.sw(PLAYER + 0x20);
   const int16_t top = marble_camera::top(m);
@@ -132,7 +152,19 @@ void marble::publish(void) {
     patchRec = rec;
     view.patch = marble_level::patchIndex(rec);
   }
+  publishTail(m);
+}
+
+// marbles of the title / final screen, HUD, then the vblank latch
+void marble::publishTail(Mem &m) {
+  if (marble_particles::count(m)) {
+    marble_particles::publish(m, flow.partMode, flow.partFill, view);
+  } else if (view.nparts) {
+    view.nparts = 0;
+    view.n = 0;  // objects of the next logic tick
+  }
   marble_hud::update(tracker, flow, m, view.hud);
+  view.hud.table = table.version;
   vblank.publish([this](VideoState &s) { s = view; });
 }
 
@@ -141,7 +173,7 @@ void marble::run_frame(void) {
   const uint32_t pressed = keys & ~prev_keys;
   prev_keys = keys;
 
-  // START (EXTRA) or FIRE starts a new game after game over
+  // START (EXTRA) or FIRE starts a new game in the title or after game over
   const bool start = pressed & (BUTTON_EXTRA | BUTTON_FIRE);
   Mem m(memory, race);
   const marble_flow::Step step = marble_flow::frame(flow, m, start);
@@ -180,12 +212,13 @@ void marble::prepare_frame(void) {
     store.patch(patched);
   }
   clamp(video, *level);
-  marble_hud::build(hud, video.hud);
+  marble_hud::build(hud, video.hud, table);
 }
 
 void marble::render_row(short row) {
-  if (video.hud.screen & marble_hud::FINAL) {  // final screen: texts on black
+  if (video.hud.screen & marble_hud::FINAL) {  // final screen: marbles and texts on black
     memset(frame_buffer, 0, marble_video::OUT_W * 8 * sizeof(uint16_t));
+    renderParts(video, row, frame_buffer);
   } else {
     renderRow(*level, video, row, frame_buffer);
   }

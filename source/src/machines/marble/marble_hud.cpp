@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "marble_rom.h"
+#include "marble_particles.h"
 #include "marble_physics.h"
 
 // Port of tools/marble_hud.py (items, view, palette).
@@ -225,6 +226,32 @@ void finalScreen(Grid &g, const Hud &h) {
   s.big(24, 40 - bigWidth(buf), buf, BANNER, CLEAR);
 }
 
+// title (MARBLE.md "Attract"): drawn over 3 frames as the arcade, table, copyright, coin line
+static const int8_t COIN_DX = -2, CREDITS_DX = -7;
+static const uint8_t TITLE_TABLE_ROW = 11, TABLE_COL = 13, SCORE_W = 9;
+
+void title(Grid &g, const Hud &h, const marble_hiscore::Table &t) {
+  const Put p = {g, BANNER_DX, BANNER_DY};
+  p.text(9, 15, marble_s_trouble, NAME, CLEAR);
+  for (uint8_t k = 0; k < marble_hiscore::ENTRIES; k++) {
+    // " #1 C R   14,500": rank right aligned in 3, initials, score right aligned in 9
+    char rank[8], score[16], line[32];
+    snprintf(rank, sizeof(rank), "#%u", (unsigned)(k + 1));
+    snprintf(line, sizeof(line), "%3s %.3s%s", rank, t.e[k].initials,
+             commas(score, t.e[k].score, SCORE_W));
+    p.text(TITLE_TABLE_ROW + k, TABLE_COL, line, BANNER, CLEAR);
+  }
+  if (h.stage < 1) { return; }
+
+  p.text(29, 12, marble_s_copyright, BANNER, CLEAR);
+  if (h.stage < 2) { return; }
+
+  Put{g, COIN_DX, BANNER_DY}.text(28, 3, marble_s_coin, NAME, CLEAR);
+  char credits[sizeof(marble_s_credits) + 8];
+  snprintf(credits, sizeof(credits), "%s0    ", marble_s_credits);  // credits always 0
+  Put{g, CREDITS_DX, BANNER_DY}.text(28, 24, credits, NAME, CLEAR);
+}
+
 void palette(Grid &g, const Hud &h) {
   if (!(h.screen & PAL)) {
     memset(g.pal, 0, sizeof(g.pal));
@@ -250,7 +277,7 @@ static const uint16_t OUT_FROM = 2;          // time out frame of the box
 static const uint16_t FINAL_FROM = 11;       // final frame of the texts
 static const uint16_t TOP_AFTER = 2;         // game over frames with the top items (time out)
 static const uint16_t FINAL_AFTER = 3;       // game over frames with the final screen
-static const uint16_t PUSH_FROM = 5;         // game over frame of PUSH 1 PLAYER START (remake)
+static const uint8_t TITLE_STAGES = 3;
 
 int32_t clampS(int32_t v, int32_t hi) { return v > hi ? hi : v; }
 
@@ -309,7 +336,11 @@ void update(Tracker &t, const marble_flow::Flow &f, const marble_physics::Mem &m
     h.value = f.final > 0 ? f.final : 0;
   }
   if (ph == marble_flow::GAME_OVER && t.before == marble_flow::FINAL && k < FINAL_AFTER) { s = PAL | FINAL; }
-  if (ph == marble_flow::GAME_OVER && k >= PUSH_FROM) { s = PAL | PUSH; }
+  if (ph == marble_flow::ATTRACT && marble_particles::count(m)) {  // the title
+    s = PAL | TITLE;
+    const uint16_t since = f.frame - marble_flow::TITLE_AT;
+    h.stage = (uint8_t)(since < TITLE_STAGES ? since : TITLE_STAGES - 1);
+  }
 
   // palette pulses: colours reload with the palette; the counters step before the read
   if (!(s & PAL) || !(t.screen & PAL)) { t.pal3 = t.pal11 = PULSE_OFF; }
@@ -326,7 +357,7 @@ void update(Tracker &t, const marble_flow::Flow &f, const marble_physics::Mem &m
   t.screen = s;
 }
 
-void build(Grid &g, const Hud &h) {
+void build(Grid &g, const Hud &h, const marble_hiscore::Table &t) {
   if (g.valid && !memcmp(&g.shown, &h, sizeof(h))) { return; }
   g.valid = true;
   g.shown = h;
@@ -339,8 +370,8 @@ void build(Grid &g, const Hud &h) {
   if (h.screen & INTRO) { intro(g, h); }
   if (h.screen & BONUS) { bonus(g, h); }
   if (h.screen & OUT) { out(g); }
-  if (h.screen & PUSH) { Put{g, BANNER_DX, BANNER_DY}.text(24, 8, marble_s_push, TEXT, CLEAR); }
   if (h.screen & FINAL) { finalScreen(g, h); }
+  if (h.screen & TITLE) { title(g, h, t); }
 }
 
 void blend(const Grid &g, int row, uint16_t *dst) {
