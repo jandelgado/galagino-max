@@ -28,6 +28,13 @@ static_assert(TP84_RAM_END <= RAMSIZE, "tp84 RAM exceeds memory[]");
 #define TP84_Z80_STEPS_LINE  20    // circusc calibration: ~5000 Z80 instr/frame
 #define TP84_Z80_CYCLES_LINE 233   // 3.58 MHz / 60 / 256, for the 0x8000 timer
 
+// Poll loop skip: polls with no write by that CPU in between = spinning
+#define TP84_MAIN_SPIN     3       // main reads of 0x523A (task loop 83AF)
+#define TP84_SUB_SPIN      4       // sub reads of 0x2000 (beam loop F104)
+#define TP84_SUB_SPIN_END  0xE0    // beam loop exits once line + 0x20 carries
+#define TP84_SND_SPIN      2       // Z80 reads of 0x8000 in one line (01F4/01FD)
+#define TP84_SND_LOOP      4       // instructions per Z80 timer loop
+
 #define TP84_SND_PLAYER_DIE  0x13  // soundlatch: player ship explodes (MAME probe)
 #define TP84_LED_FLASH_FRAMES 30
 
@@ -90,6 +97,7 @@ private:
   uint8_t soundlatch = 0, snd_irq_pend = 0;
   uint8_t sn_last_reg[3] = {0, 0, 0};
   uint16_t snd_cycles = 0;        // Z80 cycle counter mod 16384 for the 0x8000 timer
+  uint8_t main_polls = 0, sub_polls = 0, snd_polls = 0;  // polls since the CPU's last write
   volatile uint8_t led_flash = 0; // set by the emulation core
 
   const uint8_t *main_rom = nullptr, *sub_rom = nullptr, *audio_rom = nullptr;

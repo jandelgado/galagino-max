@@ -30,6 +30,7 @@ void tp84::reset() {
   soundlatch = snd_irq_pend = 0;
   memset(sn_last_reg, 0, sizeof(sn_last_reg));
   snd_cycles = 0;
+  main_polls = sub_polls = snd_polls = 0;
   cmap_bank = -1;
   led_flash = 0;
 
@@ -59,12 +60,20 @@ unsigned char IRAM_ATTR tp84::m6809_read(m6809_state *s, uint16_t addr) {
     if ((addr & 0xF800) == 0x8000) return memory[TP84_SHARED + (addr & 0x7FF)];
     if (addr >= 0x67A0 && addr < 0x6800) return bands.ram[addr - 0x67A0];
     if ((addr & 0xF800) == 0x6000) return memory[TP84_SUB_RAM + (addr & 0x7FF)];
-    if (addr == 0x2000) return line;          // beam position
+    if (addr == 0x2000) {                     // beam position
+      sub_polls++;
+      return line;
+    }
     return 0xFF;
   }
   if (addr >= 0x8000) return main_rom[addr - 0x8000];
   if (addr >= 0x4000 && addr < 0x5000) return memory[addr - 0x4000];
-  if ((addr & 0xF800) == 0x5000) return memory[TP84_SHARED + (addr & 0x7FF)];
+  if ((addr & 0xF800) == 0x5000) {
+    if (addr == 0x523A) {                     // task queue pointer, idle loop only
+      main_polls++;
+    }
+    return memory[TP84_SHARED + (addr & 0x7FF)];
+  }
   return main_read_io(addr);
 }
 
@@ -96,7 +105,12 @@ uint8_t tp84::main_read_io(uint16_t addr) {
 
 void IRAM_ATTR tp84::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if (s == &sub_cpu) {
-    if ((addr & 0xF800) == 0x8000) { memory[TP84_SHARED + (addr & 0x7FF)] = val; return; }
+    sub_polls = 0;
+    if ((addr & 0xF800) == 0x8000) {
+      memory[TP84_SHARED + (addr & 0x7FF)] = val;
+      main_polls = 0;                                    // may post a main task
+      return;
+    }
     if (addr >= 0x67A0 && addr < 0x6800) { bands.write(addr - 0x67A0, val, line); return; }
     if ((addr & 0xF800) == 0x6000) { memory[TP84_SUB_RAM + (addr & 0x7FF)] = val; return; }
     if (addr == 0x4000) {
@@ -105,6 +119,7 @@ void IRAM_ATTR tp84::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
     }
     return;                                              // 0x0000 watchdog
   }
+  main_polls = 0;
   if (addr >= 0x4000 && addr < 0x5000) { memory[addr - 0x4000] = val; return; }
   if ((addr & 0xF800) == 0x5000) { memory[TP84_SHARED + (addr & 0x7FF)] = val; return; }
   switch (addr) {
@@ -133,11 +148,15 @@ unsigned char tp84::rdZ80(unsigned short Addr) {
   if (Addr < 0x4000) return 0x00;                        // unpopulated ROM socket
   if ((Addr & 0xE000) == 0x4000) return memory[TP84_SND_RAM + (Addr & 0x3FF)];
   if ((Addr & 0xE000) == 0x6000) return soundlatch;
-  if ((Addr & 0xE000) == 0x8000) return snd_cycles >> 10; // (cycles / 1024) & 0x0F
+  if ((Addr & 0xE000) == 0x8000) {                      // (cycles / 1024) & 0x0F
+    snd_polls++;
+    return snd_cycles >> 10;
+  }
   return 0xFF;
 }
 
 void tp84::wrZ80(unsigned short Addr, unsigned char Value) {
+  snd_polls = 0;
   if ((Addr & 0xE000) == 0x4000) { memory[TP84_SND_RAM + (Addr & 0x3FF)] = Value; return; }
   switch (Addr) {
     case 0xC001: sn_write(0, Value); return;
@@ -183,9 +202,21 @@ void tp84::sn_write(int chip, uint8_t data) {
 // One frame = 256 beam lines from vblank (line 240) to the next vblank.
 // Per line: both 6809s ~100 cycles, Z80 20 instructions. The sub CPU polls
 // the beam (0x2000) to multiplex sprites, so the beam advances per line.
+//
+// Poll loop skip (~half of all CPU time). Both 6809 poll loops reload
+// their state from RAM each pass, so polls with no write by that CPU in
+// between repeat until something external changes; the CPU then stops,
+// its remaining cycles are dropped:
+// - main task loop: wakes on a sub write to shared RAM (seen next line,
+//   as without the skip: sub runs after main) or the frame IRQ.
+// - sub beam loop (empty sprite queues): wakes at line 0xE0, its exit.
+// The Z80 timer only changes between lines, so a second timer poll in a
+// line spins to the line end; whole timer loops are dropped, the loop
+// phase is kept (bit-exact).
 void tp84::run_frame(void) {
   if (main_irq_enable) m6809_irq(&main_cpu);
   if (sub_irq_mask) m6809_irq(&sub_cpu);
+  main_polls = sub_polls = 0;                            // let both CPUs take the IRQ
   bands.beginFrame();
 
   int main_debt = 0, sub_debt = 0;
@@ -194,16 +225,33 @@ void tp84::run_frame(void) {
 
     main_debt += TP84_CYCLES_LINE;
     while (main_debt > 0) {
+      if (main_polls >= TP84_MAIN_SPIN) {
+        main_debt = 0;
+        break;
+      }
       int c = m6809_step(&main_cpu, 4);
       main_debt -= (c > 0) ? c : 1;
     }
     sub_debt += TP84_CYCLES_LINE;
     while (sub_debt > 0) {
+      if (sub_polls >= TP84_SUB_SPIN && line < TP84_SUB_SPIN_END) {
+        sub_debt = 0;
+        break;
+      }
       int c = m6809_step(&sub_cpu, 4);
       sub_debt -= (c > 0) ? c : 1;
     }
 
-    for (int i = 0; i < TP84_Z80_STEPS_LINE; i++) StepZ80(&cpu[0]);
+    snd_polls = 0;
+    for (int left = TP84_Z80_STEPS_LINE; left > 0; left--) {
+      if (snd_polls >= TP84_SND_SPIN) {
+        left %= TP84_SND_LOOP;
+        if (!left) {
+          break;
+        }
+      }
+      StepZ80(&cpu[0]);
+    }
     snd_cycles = (snd_cycles + TP84_Z80_CYCLES_LINE) & 0x3FFF;
     if (snd_irq_pend && (cpu[0].IFF & IFF_1)) {
       IntZ80(&cpu[0], INT_RST38);
