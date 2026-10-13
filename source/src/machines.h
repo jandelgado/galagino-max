@@ -849,7 +849,7 @@ machineInfo machines[] = {
 #ifdef ENABLE_TP84
   { []() -> machineBase* { return new tp84(); }, tp84::logo,
 #ifdef LED_PIN
-    machineBase::defaultMenuLeds,
+    tp84::menuLeds,
 #endif
     MCH_TP84 },
 #endif

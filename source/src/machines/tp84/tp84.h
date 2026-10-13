@@ -28,6 +28,9 @@ static_assert(TP84_RAM_END <= RAMSIZE, "tp84 RAM exceeds memory[]");
 #define TP84_Z80_STEPS_LINE  20    // circusc calibration: ~5000 Z80 instr/frame
 #define TP84_Z80_CYCLES_LINE 233   // 3.58 MHz / 60 / 256, for the 0x8000 timer
 
+#define TP84_SND_PLAYER_DIE  0x13  // soundlatch: player ship explodes (MAME probe)
+#define TP84_LED_FLASH_FRAMES 30
+
 class tp84 : public machineBase {
 protected:
   Asset<unsigned char, COMPRESSED> tp84_rom_main;
@@ -55,6 +58,10 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
+#ifdef LED_PIN
+  static void menuLeds(CRGB *leds);
+  void gameLeds(CRGB *leds) override;
+#endif
   static const Logo &logo(void) { return tp84_logo; }
 
 private:
@@ -83,6 +90,7 @@ private:
   uint8_t soundlatch = 0, snd_irq_pend = 0;
   uint8_t sn_last_reg[3] = {0, 0, 0};
   uint16_t snd_cycles = 0;        // Z80 cycle counter mod 16384 for the 0x8000 timer
+  volatile uint8_t led_flash = 0; // set by the emulation core
 
   const uint8_t *main_rom = nullptr, *sub_rom = nullptr, *audio_rom = nullptr;
   const uint16_t (*tiles)[8] = nullptr;

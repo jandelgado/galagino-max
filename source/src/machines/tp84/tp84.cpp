@@ -31,6 +31,7 @@ void tp84::reset() {
   memset(sn_last_reg, 0, sizeof(sn_last_reg));
   snd_cycles = 0;
   cmap_bank = -1;
+  led_flash = 0;
 
   m6809_reset(&main_cpu);
   main_cpu.rom_direct = main_rom;     // must follow m6809_reset()
@@ -113,7 +114,10 @@ void IRAM_ATTR tp84::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
       if (!main_irq_enable) main_cpu.irq_pending = 0;
       return;
     case 0x3800: snd_irq_pend = 1; return;
-    case 0x3A00: soundlatch = val; return;
+    case 0x3A00:
+      soundlatch = val;
+      if (val == TP84_SND_PLAYER_DIE) led_flash = TP84_LED_FLASH_FRAMES;
+      return;
     case 0x3C00: scroll_x = val; return;
     case 0x3E00: scroll_y = val; return;
   }
@@ -334,3 +338,22 @@ void IRAM_ATTR tp84::blit_sprite(short row, const tp84_hw::Sprite &s) {
     }
   }
 }
+
+#ifdef LED_PIN
+// logo colors: navy with a silver center, red while the player dies
+void tp84::gameLeds(CRGB *leds) {
+  if (led_flash) {
+    led_flash--;
+    for (int i = 0; i < NUM_LEDS; i++) leds[i] = CRGB(0xaf0000);
+    return;
+  }
+  for (int i = 0; i < NUM_LEDS; i++)
+    leds[i] = (i == NUM_LEDS / 2) ? CRGB(0xbdbdbd) : CRGB(0x0e0050);
+}
+
+void tp84::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[7] = {CRGB(0xaf0000), CRGB(0xd2d200), CRGB(0xbdbdbd),
+      CRGB(0xbdbdbd), CRGB(0xbdbdbd), CRGB(0xd2d200), CRGB(0xaf0000)};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
+}
+#endif
