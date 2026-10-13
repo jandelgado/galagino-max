@@ -57,6 +57,7 @@ GAMES = [
     "theglob",
     "timeplt",
     "todruaga",
+    "tp84",
     "turtles",
     "tutankhm",
     "vanvan",
