@@ -25,6 +25,10 @@ static const uint32_t ULT_COL = 0x40045c;   // word: ultimate race frame * 0x90
 static const uint32_t DYN = 0x40076e;       // 128 dynamic terrain codes (words)
 static const uint32_t CAMERA_L = 0x40097c;  // camera long (0x13ee6)
 static const uint32_t CAMERA = 0x40097e;    // camera word (low word of CAMERA_L)
+// BIOS message slot 0 (0x12a, attract demo banners): string chain long (0: none), state byte,
+// frames shown word, frames counted word
+static const uint32_t MSG_CHAIN = 0x401f04, MSG_STATE = 0x401f1c, MSG_FRAMES = 0x401f20;
+static const uint32_t MSG_COUNT = 0x401f28;
 
 // terrain descriptor (Mem::desc()) fields, program ROM
 static const uint32_t DESC_TOP = 0x10, DESC_RANGE = 0x12, DESC_CELL = 0x14, DESC_END = 0x18;

@@ -911,16 +911,96 @@ void speedcap_26196(Mem &m, uint32_t a2) {
   m.wl(a2 + VY, scaleV(m.sl(a2 + VY), q));
 }
 
+// attract demo (MARBLE.md "Demo race"): waypoint lists, banners
+static const uint32_t BANNERS = 0x242aa;        // long per banner: alpha string chain
+static const uint16_t BANNER_FRAMES = 0x5a;     // BIOS 0x12a: frames shown
+static const int32_t WAYPOINT_BIAS = 0x40000;   // record cell to its centre, 16.16
+static const uint16_t WAYPOINT_NEAR = 0x20;     // |delta| >> 12 below: passed
+static const uint16_t SLOW_BELOW = 0x40;        // distance below: speed SLOW_SPEED
+static const int32_t SLOW_SPEED = 0xc000;
+static const int32_t FALL_STEP = -0x6000, FALL_MAX = -0x50000;  // airborne vz
+
+// 0x12a (BIOS, state-machine-schedule.ts scheduleStateMachine1): message slot 0 shows banner
+// b's chain for BANNER_FRAMES frames; marble_flow erases it
+void banner_12a(Mem &m, uint8_t b) {
+  m.wl(MSG_CHAIN, m.roml(BANNERS + 4 * b));
+  m.wb(MSG_STATE, 1);
+  m.ww(MSG_FRAMES, BANNER_FRAMES);
+  m.ww(MSG_COUNT, 0);
+}
+
+// 68k divs.w: low word of d / q, d unchanged on overflow
+int32_t divsw(int32_t d, uint16_t q) {
+  const int32_t v = d / s16(q);
+  if (v < -0x8000 || v > 0x7fff) { return d; }
+  return (int32_t)(((uint32_t)d & 0xffff0000) | (uint16_t)v);
+}
+
+// 0x1815a: pass the records within reach (banner, list end), then ease +0x00/+0x04 towards
+// the next record's cell centre at its speed, gravity when airborne, speed cap
+void waypoint_1815a(Mem &m, uint32_t a2) {
+  int32_t d2, d3, d5;
+  uint16_t d4, d6;
+  for (;;) {
+    uint32_t a3 = m.rl(WAYPOINT);
+    if (!m.romb(a3)) { return; }
+
+    d2 = s32((int64_t)(s8(m.romb(a3)) * (1 << 19)) - m.sl(a2 + PX) + WAYPOINT_BIAS);
+    d3 = s32((int64_t)(s8(m.romb(a3 + 1)) * (1 << 19)) - m.sl(a2 + PY) + WAYPOINT_BIAS);
+    d5 = s8(m.romb(a3 + 2)) * (1 << 16);
+    d4 = (uint16_t)(abs64(d2) >> 12);
+    d6 = (uint16_t)(abs64(d3) >> 12);
+    if (d4 >= WAYPOINT_NEAR || d6 >= WAYPOINT_NEAR) { break; }
+
+    if (s8(m.romb(a3 + 3)) >= 0) { banner_12a(m, m.romb(a3 + 3)); }
+    a3 += 4;
+    if (!m.romb(a3)) {
+      m.ww(WAYPOINTS_END, 1);
+      m.wb(a2 + TIMER_TICKS, 0xff);  // timer stopped
+    }
+    m.wl(WAYPOINT, a3);
+  }
+
+  const uint16_t lo = d4 <= d6 ? d4 : d6, hi = d4 <= d6 ? d6 : d4;
+  const uint16_t d1 = (uint16_t)((lo >> 3) * 3 + hi);
+  if (d1) {
+    d2 = divsw(d2, d1);
+    d3 = divsw(d3, d1);
+  } else {
+    d2 = (int32_t)((uint32_t)d2 & 0xffff0000);
+    d3 = (int32_t)((uint32_t)d3 & 0xffff0000);
+  }
+  if (d1 < SLOW_BELOW) { d5 = SLOW_SPEED; }
+  const int16_t k = s16(d5 >> 8);
+  d2 = (k * s16(d2)) >> 4;
+  d3 = (k * s16(d3)) >> 4;
+  m.wl(a2 + VX, add32(m.sl(a2 + VX), s32((int64_t)d2 - m.sl(a2 + VX)) >> 3));
+  m.wl(a2 + VY, add32(m.sl(a2 + VY), s32((int64_t)d3 - m.sl(a2 + VY)) >> 3));
+  if (m.rb(a2 + AIR)) {
+    int64_t vz = (int64_t)m.sl(a2 + VZ) + FALL_STEP;
+    if (vz < FALL_MAX) { vz = FALL_MAX; }
+    m.wl(a2 + VZ, (uint32_t)vz);
+  }
+  speedcap_26196(m, a2);
+}
+
+bool inAttract(const Mem &m) { return m.rw(marble_flow::GAME_STATE) == marble_flow::ATTRACT; }
+
 // surface codes where 0x17f66 lets the trackball steer
 bool steerSurface(uint8_t c) {
   return c == 0 || c == 0x3b || c == 0x2d || c == 0x2e || (c >= 0x38 && c <= 0x3a) ||
          (c >= 0x2f && c <= 0x31);
 }
 
-// 0x17f66: input -> velocity
+// 0x17f66: input -> velocity (attract: the waypoint driver)
 void input_17f66(Mem &m, uint32_t a2) {
   const uint8_t slot = m.rb(a2 + SLOT);
   if (slot == 2 || slot == 3) { return; }
+
+  if (inAttract(m)) {
+    waypoint_1815a(m, a2);
+    return;
+  }
 
   const uint8_t st = m.rb(a2 + STATE);
   if (m.rb(a2 + AIR) != AIRBORNE && steerSurface(m.rb(a2 + SURFACE))) {
@@ -1387,9 +1467,10 @@ void bonus_258a8(Mem &m, uint32_t a2) {
   marble_occlusion::enter(m, a2);
 }
 
-// 0x254d2: goal, physics until +0x57 counts to 0, then out of play. Not ported: attract
-// 0x1815a.
+// 0x254d2: goal, physics until +0x57 counts to 0, then out of play; the attract demo
+// steers on (0x1815a)
 void goal_254d2(Mem &m, uint32_t a2) {
+  if (inAttract(m)) { waypoint_1815a(m, a2); }
   physics_121b8(m, a2);
   m.wb(a2 + DAMAGE, m.rb(a2 + DAMAGE) - 1);
   if (m.rb(a2 + DAMAGE) || m.rb(a2 + SLOT) == OUT_OF_LIST) { return; }

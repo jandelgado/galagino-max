@@ -34,7 +34,8 @@ struct Sound {
 
 // no song, queue empty; the audio core sees a new music request (song 0: silence)
 void reset(Sound &s);
-// 0x158ac: queue cmd for the next step(); dropped while SKIP is set or the queue is full
+// 0x158ac: queue cmd for the next step(); dropped while SKIP is set, in attract mode or when
+// the queue is full
 void send(const marble_physics::Mem &m, uint8_t cmd);
 void step(Sound &s);
 uint8_t queued();

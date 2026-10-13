@@ -25,6 +25,9 @@
 //       CARRIED  carried off by a bird (0x25876): orbit, then LOST
 //       CAUGHT  sucked into an aerial gate (0x2563e): stars 0x13d38, the gate closes, then
 //               LOST where it was caught
+//   demoStart(m, race)        attract demo race (0x400390 = 1): waypoint cursor of the race;
+//                             ROLL and GOAL steer by 0x1815a instead of the trackball
+//   demoEnded(m)              the demo's waypoint list is done (0x40075a)
 //   project(m)                screen position 0x1b9cc of the player. The physics tail calls
 //                             it; ticks that return early keep the stored value, as in the
 //                             arcade. Call it where the physics does not run.
@@ -50,6 +53,13 @@ static const uint8_t CARRIED_DAMAGE = 0x66;  // +0x57 a bird sets: orbit length 
 
 void startRace(Mem &m, uint8_t race);
 void tick(Mem &m, int8_t c6, int8_t c7);
+
+// attract demo (MARBLE.md "Demo race")
+static const uint32_t WAYPOINTS = 0x1d364;      // long per demo race: first record
+static const uint32_t WAYPOINT = 0x400446;      // long: cursor, record (x, y, speed, banner)
+static const uint32_t WAYPOINTS_END = 0x40075a;  // word: 1 once the cursor reached the end
+inline void demoStart(Mem &m, uint8_t race) { m.wl(WAYPOINT, m.roml(WAYPOINTS + 4 * race)); }
+inline bool demoEnded(const Mem &m) { return m.rw(WAYPOINTS_END) == 1; }
 
 // position, 16.16 pixels; z high word = height
 inline int32_t x(const Mem &m) { return m.sl(PLAYER + 0x0c); }

@@ -2,6 +2,7 @@
 
 #ifdef ENABLE_MARBLE
 
+#include "marble_flow.h"
 #include "marble_rom.h"
 
 namespace marble_sound {
@@ -19,6 +20,7 @@ void reset(Sound &s) {
 
 void send(const marble_physics::Mem &m, uint8_t cmd) {
   if (m.rw(SKIP) || count == QUEUE) { return; }
+  if (marble_flow::phase(m) == marble_flow::ATTRACT) { return; }  // MAME: attract is silent
   queue[count++] = cmd;
 }
 

@@ -33,6 +33,7 @@
 #include "../../src/machines/marble/marble_hud.cpp"
 #endif
 #include "../test_marble_attract/marble_attract_trace.h"
+#include "marble_demo_trace.h"
 #include "marble_bonus_trace.h"
 #include "marble_flow_trace.h"
 #include "marble_hud_trace.h"
@@ -111,6 +112,7 @@ struct Machine {
   Flow flow;
   bool odd;
   uint8_t race;
+  uint16_t ticks;  // logic ticks run
   marble_hud::Tracker tracker;
   marble_video::Hud hud;
 };
@@ -125,7 +127,10 @@ static marble_flow::Phase runFrame(Machine &mc, bool start) {
   }
   if (step == marble_flow::LOGIC) {
     mc.odd = !mc.odd;
-    if (!mc.odd) { logicTick(m); }
+    if (!mc.odd) {
+      logicTick(m);
+      mc.ticks++;
+    }
   }
   const Mem after(ram, mc.race);
   marble_hud::update(mc.tracker, mc.flow, after, mc.hud);  // marble.cpp publish
@@ -421,7 +426,7 @@ static void test_hud_bonus_zero(void) {
 
 static const uint32_t PART_SLOTS = 0x400a9c;
 static const uint8_t PART_STRIDE = 10;
-static const uint16_t TITLE_LEN = 600, TITLE_GAP = 6 + 7;  // MAME: tail to segment, lead
+static const uint16_t TITLE_LEN = 600, TITLE_TAIL = 6;  // MAME: title end to the next segment
 static const uint16_t GAME_OVER_TITLE = 14;                 // MAME: game over to title
 
 static uint8_t parts(const Machine &mc) { return marble_particles::count(Mem(ram, mc.race)); }
@@ -479,7 +484,11 @@ static void test_title_boot(void) {
   runFrame(mc, false);
   TEST_ASSERT_EQUAL_UINT8(0, parts(mc));
   TEST_ASSERT_EQUAL_HEX16(0, mc.hud.screen);
-  TEST_ASSERT_EQUAL_UINT16(TITLE_GAP, untilTitle(mc, 100));
+  for (uint16_t n = 1; n < TITLE_TAIL; n++) { runFrame(mc, false); }
+  TEST_ASSERT_EQUAL(marble_flow::NO_DEMO, mc.flow.demo);
+  runFrame(mc, false);  // MAME: the next segment 6 frames after the title, a demo race
+  TEST_ASSERT_EQUAL(marble_flow::DEMO_LOAD, mc.flow.demo);
+  TEST_ASSERT_EQUAL_HEX16(marble_hud::BLACK, mc.hud.screen);
   TEST_ASSERT_EQUAL(marble_flow::ATTRACT, marble_flow::phase(Mem(ram, mc.race)));
 }
 
@@ -616,6 +625,176 @@ static void test_break_sound(void) {
   TEST_ASSERT_EQUAL(marble_sound_cmds[marble_sound::SND_BREAK].arg, flowSound.effect & 0xff);
 }
 
+// --- attract demo race (MARBLE.md "Demo race") ------------------------------------------
+
+static const uint32_t WAYPOINT = 0x400446;
+static const uint32_t PRACTICE_WAYPOINTS = 0x2419e;
+static const uint8_t BANNER_FRAMES = 90;
+
+struct DemoRun {
+  const MarbleDemoTick *ticks;
+  uint16_t n;
+  const MarbleDemoBanner *banners;
+  uint8_t nbanners;
+  uint16_t rng;
+};
+static const DemoRun DEMO_RUNS[2] = {
+    {MARBLE_DEMO0_TICKS, sizeof(MARBLE_DEMO0_TICKS) / sizeof(MarbleDemoTick), MARBLE_DEMO0_BANNERS,
+     sizeof(MARBLE_DEMO0_BANNERS) / sizeof(MarbleDemoBanner), MARBLE_DEMO0_RNG},
+    {MARBLE_DEMO1_TICKS, sizeof(MARBLE_DEMO1_TICKS) / sizeof(MarbleDemoTick), MARBLE_DEMO1_BANNERS,
+     sizeof(MARBLE_DEMO1_BANNERS) / sizeof(MarbleDemoBanner), MARBLE_DEMO1_RNG},
+};
+
+static uint32_t demoKeyCrc(void) {
+  uint32_t crc = ~0u;
+  for (uint8_t k : MARBLE_DEMO_KEY) {
+    crc ^= ram[PLAYER - marble_physics::RAM_BASE + k];
+    for (uint8_t b = 0; b < 8; b++) { crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1))); }
+  }
+  return ~crc;
+}
+
+// frames until the flow's demo part is d (0: not within limit)
+static uint16_t untilDemo(Machine &mc, marble_flow::Demo d, uint16_t limit) {
+  for (uint16_t n = 1; n <= limit; n++) {
+    runFrame(mc, false);
+    if (mc.flow.demo == d) { return n; }
+  }
+  return 0;
+}
+
+// one demo race from its segment start (DEMO_LOAD) against the MAME demo of the race: load
+// and intro frames, per tick the player, cursor and RNG, banners for 90 frames, the title
+// 11 frames after the waypoint list end
+static void checkDemo(Machine &mc, uint8_t race) {
+  const DemoRun &r = DEMO_RUNS[race];
+  char msg[64];
+  TEST_ASSERT_EQUAL_UINT8(race, mc.flow.race);
+  for (uint16_t n = 1; n < MARBLE_DEMO_LOAD[race]; n++) {
+    runFrame(mc, false);
+    TEST_ASSERT_EQUAL_HEX16(marble_hud::BLACK, mc.hud.screen);
+  }
+  Mem(ram, mc.race).ww(RNG, r.rng);  // MAME's RNG at the race init: equal ticks
+  runFrame(mc, false);
+  TEST_ASSERT_EQUAL(marble_flow::DEMO_INTRO, mc.flow.demo);
+  TEST_ASSERT_EQUAL_UINT8(race, mc.race);
+  TEST_ASSERT_EQUAL(marble_flow::ATTRACT, marble_flow::phase(Mem(ram, mc.race)));
+
+  mc.ticks = 0;
+  TEST_ASSERT_EQUAL_UINT16(MARBLE_DEMO_START[race], untilDemo(mc, marble_flow::DEMO_RUN, 10));
+  TEST_ASSERT_EQUAL_UINT16(1, mc.ticks);
+  TEST_ASSERT_EQUAL_INT16(60, Mem(ram, mc.race).sw(PLAYER + TIMER));
+  static uint8_t shown[2000];  // HUD banner per frame since the first tick
+  static uint16_t tickFrame[600];
+  uint16_t frame = 0;
+  for (uint16_t k = 0;;) {
+    const Mem m(ram, mc.race);
+    const MarbleDemoTick &t = r.ticks[k];
+    snprintf(msg, sizeof(msg), "race %u tick %u", race, k);
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(t.x, m.rw(PLAYER + 0x0c), msg);
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(t.y, m.rw(PLAYER + 0x10), msg);
+    TEST_ASSERT_EQUAL_UINT8_MESSAGE(t.state, m.rb(PLAYER + 0x1a), msg);
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(t.cursor, m.rl(WAYPOINT) & 0xffff, msg);
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(t.rng, m.rw(RNG), msg);
+    TEST_ASSERT_EQUAL_HEX32_MESSAGE(t.crc, demoKeyCrc(), msg);
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(marble_hud::PAL | marble_hud::TOP | marble_hud::DEMO,
+                                    mc.hud.screen, msg);
+    tickFrame[k] = frame;
+    shown[frame] = mc.hud.banner;
+    if (++k == r.n) { break; }
+
+    const uint16_t ticks = mc.ticks;
+    while (mc.ticks == ticks) {
+      runFrame(mc, false);
+      shown[++frame] = mc.hud.banner;
+    }
+  }
+
+  // each banner from its tick for 90 frames (the last one until the demo ends), then none
+  for (uint8_t b = 0; b < r.nbanners; b++) {
+    const uint16_t from = tickFrame[r.banners[b].tick];
+    snprintf(msg, sizeof(msg), "race %u banner %u", race, b);
+    for (uint16_t f = from; f < from + BANNER_FRAMES && f <= frame; f++) {
+      TEST_ASSERT_EQUAL_UINT8_MESSAGE(r.banners[b].banner, shown[f], msg);
+    }
+    if (from + BANNER_FRAMES <= frame) {
+      TEST_ASSERT_EQUAL_UINT8_MESSAGE(marble_video::NO_BANNER, shown[from + BANNER_FRAMES], msg);
+    }
+  }
+  TEST_ASSERT_EQUAL_UINT16(MARBLE_DEMO_TITLE_AFTER_END, untilTitle(mc, 100));
+  TEST_ASSERT_EQUAL_UINT16(r.n, mc.ticks);  // no ticks after the list end
+}
+
+// title, practice demo, title, beginner demo, title, practice demo
+static void test_demo_races(void) {
+  Machine mc;
+  attract(mc);
+  for (uint8_t k = 0; k < 3; k++) {
+    TEST_ASSERT_TRUE(untilDemo(mc, marble_flow::DEMO_LOAD, 1000) > 0);
+    checkDemo(mc, k & 1);
+  }
+}
+
+// START in the level load, the intro, the race and after the waypoint list end: a clean
+// practice race with its music
+static void test_demo_start_clean(void) {
+  static const marble_flow::Demo PART[] = {marble_flow::DEMO_LOAD, marble_flow::DEMO_INTRO,
+                                           marble_flow::DEMO_RUN, marble_flow::DEMO_RUN,
+                                           marble_flow::DEMO_END};
+  static const uint16_t AFTER[] = {10, 1, 1, 300, 2};
+  for (uint8_t k = 0; k < sizeof(PART) / sizeof(PART[0]); k++) {
+    Machine mc;
+    attract(mc);
+    for (uint8_t d = 0; d <= 1; d++) {  // the beginner demo: its race is left over
+      TEST_ASSERT_TRUE(untilDemo(mc, marble_flow::DEMO_LOAD, 1000) > 0);
+      if (d == 0) { TEST_ASSERT_TRUE(untilDemo(mc, marble_flow::NO_DEMO, 2000) > 0); }
+    }
+    TEST_ASSERT_TRUE(untilDemo(mc, PART[k], 2000) > 0);
+    for (uint16_t n = 1; n < AFTER[k]; n++) { runFrame(mc, false); }
+    marble_sound::step(flowSound);
+    runFrame(mc, true);
+    runFrame(mc, false);  // loads practice
+    const Mem m(ram, mc.race);
+    TEST_ASSERT_EQUAL(marble_flow::GAME_START, marble_flow::phase(m));
+    TEST_ASSERT_EQUAL_UINT8(0, mc.race);
+    TEST_ASSERT_EQUAL(marble_flow::NO_DEMO, mc.flow.demo);
+    TEST_ASSERT_EQUAL_UINT32(0, m.rl(PLAYER + SCORE));
+    TEST_ASSERT_EQUAL_UINT32(0, m.rl(marble_physics::MSG_CHAIN));
+    TEST_ASSERT_FALSE(mc.hud.screen & (marble_hud::DEMO | marble_hud::BLACK));
+    marble_sound::step(flowSound);
+    TEST_ASSERT_EQUAL(1, flowSound.music & 0xff);  // practice music
+  }
+}
+
+// the waypoint driver needs 0x400390 = 1: a race with a cursor set rolls as without
+static void test_demo_gate(void) {
+  Machine mc;
+  newGame(mc);
+  while (runFrame(mc, false) != marble_flow::RACE) {}
+  static uint8_t start[marble_physics::RAM_SIZE];
+  memcpy(start, ram, sizeof(ram));
+  const Machine at = mc;
+  for (uint16_t n = 0; n < 200; n++) { runFrame(mc, false); }
+  const uint32_t want = demoKeyCrc();
+
+  memcpy(ram, start, sizeof(ram));
+  mc = at;
+  Mem(ram, mc.race).wl(WAYPOINT, PRACTICE_WAYPOINTS);
+  for (uint16_t n = 0; n < 200; n++) { runFrame(mc, false); }
+  TEST_ASSERT_EQUAL_HEX32(want, demoKeyCrc());
+  TEST_ASSERT_EQUAL_HEX32(PRACTICE_WAYPOINTS, Mem(ram, mc.race).rl(WAYPOINT));
+}
+
+// attract sends no sound: title and a whole demo race
+static void test_demo_silent(void) {
+  Machine mc;
+  attract(mc);
+  marble_sound::step(flowSound);
+  TEST_ASSERT_TRUE(untilDemo(mc, marble_flow::DEMO_LOAD, 1000) > 0);
+  TEST_ASSERT_TRUE(untilDemo(mc, marble_flow::NO_DEMO, 2000) > 0);
+  TEST_ASSERT_EQUAL_UINT8(0, marble_sound::queued());
+}
+
 #endif
 
 int main(int, char **) {
@@ -635,6 +814,10 @@ int main(int, char **) {
   RUN_TEST(test_final_to_title);
   RUN_TEST(test_title_start_clean);
   RUN_TEST(test_title_cycles);
+  RUN_TEST(test_demo_races);
+  RUN_TEST(test_demo_start_clean);
+  RUN_TEST(test_demo_gate);
+  RUN_TEST(test_demo_silent);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif

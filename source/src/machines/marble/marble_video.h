@@ -67,7 +67,9 @@ struct Hud {
   uint8_t pal3, pal11;  // pulse table index of alpha colours 3 / 11, 0xff = ROM colour
   uint8_t table;   // title: high score table version (marble_hiscore::Table)
   uint8_t stage;   // title: frames since it started, clamped (drawn over 3 frames)
+  uint8_t banner;  // attract demo: banner shown (marble_banners), NO_BANNER none
 };
+static const uint8_t NO_BANNER = 0xff;
 
 // render input, published by the emulation core once per frame (Seqlock)
 struct VideoState {

@@ -149,7 +149,7 @@ void marble::titleView() {
 // view and marble sprite position from the work RAM image
 void marble::publish(void) {
   Mem m(memory, race);
-  if (marble_flow::phase(m) == marble_flow::ATTRACT) {
+  if (marble_flow::phase(m) == marble_flow::ATTRACT && !marble_flow::demoShown(flow)) {
     titleView();
     publishTail(m);
     return;
@@ -258,7 +258,8 @@ void marble::prepare_frame(void) {
 }
 
 void marble::render_row(short row) {
-  if (video.hud.screen & marble_hud::FINAL) {  // final screen: marbles and texts on black
+  // final screen: marbles and texts on black; demo level load: black
+  if (video.hud.screen & (marble_hud::FINAL | marble_hud::BLACK)) {
     memset(frame_buffer, 0, marble_video::OUT_W * 8 * sizeof(uint16_t));
     renderParts(video, row, frame_buffer);
   } else {

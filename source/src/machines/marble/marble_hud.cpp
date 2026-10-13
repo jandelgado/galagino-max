@@ -252,6 +252,43 @@ void title(Grid &g, const Hud &h, const marble_hiscore::Table &t) {
   Put{g, CREDITS_DX, BANNER_DY}.text(28, 24, credits, NAME, CLEAR);
 }
 
+// attract demo (MARBLE.md "Demo race"): coin box fitted from the arcade's 36 columns (lines
+// colour 6, texts opaque), the banner of the BIOS message slot (string chain lines)
+static const int8_t BOX_DX = -3, CREDITS_BOX_DX = -5;
+static const uint8_t BOX_LINE = 6, BOX_LINE_W = 15, BOX_GAP_W = 6;
+
+void demo(Grid &g, const Hud &h) {
+  const Put p = {g, BOX_DX, BANNER_DY};
+  const Put c = {g, CREDITS_BOX_DX, BANNER_DY};
+  const uint16_t line = UNDERLINE | BOX_LINE << 10;
+  p.repeat(27, 3, BOX_LINE_W, line);
+  c.repeat(27, 24, BOX_LINE_W, line);
+  p.text(28, 3, marble_s_coin, NAME, SOLID);
+  p.repeat(28, 18, BOX_GAP_W, line);
+  char credits[sizeof(marble_s_credits) + 8];
+  snprintf(credits, sizeof(credits), "%s0    ", marble_s_credits);  // credits always 0
+  c.text(28, 24, credits, NAME, SOLID);
+  Put{g, BANNER_DX, BANNER_DY}.text(29, 12, marble_s_copyright, BANNER, SOLID);
+  if (h.banner >= sizeof(marble_banners) / sizeof(marble_banners[0])) { return; }
+
+  const MarbleBanner &b = marble_banners[h.banner];
+  for (uint8_t k = 0; k < b.count; k++) {
+    const MarbleBannerLine &l = marble_banner_lines[b.first + k];
+    int x = l.col + BANNER_DX;  // 6 left as the other banners, kept inside the view
+    if (x > COLS - MARBLE_BANNER_W) { x = COLS - MARBLE_BANNER_W; }
+    if (x < 0) { x = 0; }
+    Put{g, (int8_t)(x - l.col), BANNER_DY}.text(l.row, l.col, l.text, NAME, SOLID);
+  }
+}
+
+// banner number of a message slot chain, NO_BANNER for none
+uint8_t bannerOf(uint32_t chain) {
+  for (uint8_t k = 0; k < sizeof(marble_banners) / sizeof(marble_banners[0]); k++) {
+    if (chain && marble_banners[k].chain == chain) { return k; }
+  }
+  return marble_video::NO_BANNER;
+}
+
 void palette(Grid &g, const Hud &h) {
   if (!(h.screen & PAL)) {
     memset(g.pal, 0, sizeof(g.pal));
@@ -296,6 +333,7 @@ void update(Tracker &t, const marble_flow::Flow &f, const marble_physics::Mem &m
   const uint16_t k = t.since;
 
   h = Hud{};
+  h.banner = marble_video::NO_BANNER;
   h.score = m.rl(P + SCORE_F);
   h.seconds = m.sw(P + TIMER_F);
   h.deaths = (uint8_t)clampS(m.rw(P + DEATHS_F), UINT8_MAX);
@@ -341,6 +379,11 @@ void update(Tracker &t, const marble_flow::Flow &f, const marble_physics::Mem &m
     const uint16_t since = f.frame - marble_flow::TITLE_AT;
     h.stage = (uint8_t)(since < TITLE_STAGES ? since : TITLE_STAGES - 1);
   }
+  if (ph == marble_flow::ATTRACT && f.demo == marble_flow::DEMO_LOAD) { s = BLACK; }
+  if (ph == marble_flow::ATTRACT && f.demo >= marble_flow::DEMO_RUN) {  // ROM colours (MAME)
+    s = PAL | TOP | DEMO;
+    h.banner = bannerOf(m.rl(marble_physics::MSG_CHAIN));
+  }
 
   // palette pulses: colours reload with the palette; the counters step before the read
   if (!(s & PAL) || !(t.screen & PAL)) { t.pal3 = t.pal11 = PULSE_OFF; }
@@ -353,6 +396,7 @@ void update(Tracker &t, const marble_flow::Flow &f, const marble_physics::Mem &m
   }
   h.pal3 = t.pal3;
   h.pal11 = t.pal11;
+  if (s & DEMO) { h.pal3 = h.pal11 = PULSE_OFF; }
   h.screen = s;
   t.screen = s;
 }
@@ -372,6 +416,7 @@ void build(Grid &g, const Hud &h, const marble_hiscore::Table &t) {
   if (h.screen & OUT) { out(g); }
   if (h.screen & FINAL) { finalScreen(g, h); }
   if (h.screen & TITLE) { title(g, h, t); }
+  if (h.screen & DEMO) { demo(g, h); }
 }
 
 void blend(const Grid &g, int row, uint16_t *dst) {

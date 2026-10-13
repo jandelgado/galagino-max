@@ -78,6 +78,7 @@ static Hud hudOf(const MarbleHudCase &c) {
   h.pal11 = c.pal11;
   h.stage = c.stage;
   h.table = c.tcase;
+  h.banner = c.banner;
   return h;
 }
 

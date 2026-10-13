@@ -18,7 +18,8 @@
 //                                    blend(grid, row)  8 lines over the strip, last (on top)
 //
 // Items keep the arcade alpha positions moved by (dx, dy): top items 3 columns left (timer 6,
-// centred), banners and the final screen 6 left and 3 rows down; cells outside are clipped.
+// centred), banners and the final screen 6 left and 3 rows down (demo banners kept inside the
+// 30 columns); cells outside are clipped.
 namespace marble_hud {
 
 static const uint8_t ROWS = 36, COLS = 30;
@@ -33,6 +34,8 @@ enum Screen : uint16_t {
   OUT = 1 << 6,        // out of time, game over
   FINAL = 1 << 7,      // final screen (playfield black)
   TITLE = 1 << 9,      // attract title: high score table, coin and copyright lines
+  DEMO = 1 << 10,      // attract demo race: coin box, banner (Hud.banner)
+  BLACK = 1 << 11,     // playfield black, nothing drawn (attract demo level load)
 };
 
 // alpha word: bits 0-9 code, 10-12 colour, 13 opaque (pen 0 drawn)

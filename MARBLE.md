@@ -2179,8 +2179,8 @@ frame traces (`mame_trace.lua MARBLE_ATTRACT=1`).
   px - 8 and px, MO y = py + 16 (top line 224 - py); written into the bank not shown, so the
   screen shows the previous frame. Remake view: x = MO x - 48, y = 248 - py.
 
-Remake: `marble_flow` ATTRACT runs title segments only (lead 7, title 600, tail 6; the demo
-race is 6b): boot and game over + 7 enter it, START starts practice; game over consumes one
+Remake: `marble_flow` ATTRACT runs title segments (lead 7, title 600, tail 6), each followed
+by a demo race (section Demo race): boot and game over + 7 enter it, START starts practice; game over consumes one
 rng(0x100); FINAL inits the 28 marbles at frame 3, game over clears them. `marble_particles`
 (init, bounce, view positions in a VideoState union with the objects), `marble_hiscore`
 (table, ROM defaults once), the title playfield as level `marble_level::TITLE`, `marble_hud`
@@ -2210,7 +2210,8 @@ state-machine-schedule.ts and string-render.ts (banners); timing fitted to MAME 
   stays 1. From the segment change: level load (black) 59 / 84 frames to the race init (slot
   1, 0x400010 = 1), first logic tick and timer start (60 s, ticks 5) 3 / 4 frames later, then
   the race runs (score, timer, enemies) until the waypoint list ends (0x40075a = 1, timer
-  stopped by +0x6e = 0xff: practice tick 476, beginner 376), title marbles 11 frames later.
+  stopped by +0x6e = 0xff: practice tick 477, beginner 378; a MAME tick can span the list
+  end frame and the next), title marbles 11 frames later.
   0x400010 counts the ticks: 3 in the first. Paths do not depend on the RNG.
 - 0x17f66 (after the slot 2/3 skip) and goal 0x254d2 (before 0x121b8) call 0x1815a while
   0x400390 == 1 instead of the trackball. Cursor 0x400446 = long 0x1d364 + race * 4 (0x2419e
@@ -2226,10 +2227,23 @@ state-machine-schedule.ts and string-render.ts (banners); timing fitted to MAME 
 - MAME ticks take 1-3 frames in the beginner demo (resync at 2 frames average): remake ticks
   every 2 frames, banners +-1 frame.
 
+Remake: `marble_flow` Demo parts after each title (`Flow.demo`, races alternate from practice
+by `Flow.demos`): DEMO_LOAD (HUD `BLACK`, 59 / 84 frames), the race load with 0x400390 = 1
+(`raceLoaded`: no carry, 0x400010 = 2, cursor `marble_physics::demoStart`, no sound),
+DEMO_INTRO (3 / 4 frames, then 60 s and the first tick), DEMO_RUN (logic ticks every 2
+frames, BIOS message slot erase after 90 frames) until `demoEnded`, DEMO_END (HUD `DEMO`
+4 more frames), then the title at its frame 1. `marble_physics` 0x1815a in 0x17f66 and
+0x254d2 while 0x400390 == 1. `marble_hud` DEMO: race top items, coin box (36 arcade columns
+fitted into 30), banner 6 columns left kept inside the view; ROM colours. `marble_sound::send`
+drops everything in attract. Host tests `test_marble_flow`: `test_demo_races` (title,
+practice, title, beginner, title, practice demo; per tick player, cursor, RNG and key CRC
+equal MAME, banners 90 frames, title 11 frames after the list end), `test_demo_start_clean`,
+`test_demo_gate`, `test_demo_silent`; `test_marble_hud` demo layout cases.
+
 Validation: `marble_demo.py check` (timeline per segment exact; the remake's demo race start,
 cleared RAM + race start + cursor, replayed with the traced camera: per tick player fields,
 cursor, list end, RNG equal to MAME in all 7 demos of a0 and p0; banners +-1 frame).
-`marble_demo.py fwrite` writes `test_marble_demo/marble_demo_trace.h`.
+`marble_demo.py fwrite` writes `test_marble_flow/marble_demo_trace.h`.
 
 ```sh
 python3 romconv/internal/marble/tools/marble_demo.py check $T/a0 $T/p0
@@ -2335,6 +2349,6 @@ listening WAVs), `test_marble_flow` (race music, time out jingle, break sound).
   only)/0x4003b8. Not ported to C++: dots 0x1c014 / 0x25b40.
 - Goal (state 6): the camera ignores the marble (sy only from states 0/1/3/4/5).
 - Game flow (section Game flow): the 0x16a20 time out summary and 0x18a88 final screen are
-  frame counts only (texts and palette pulses: section HUD); the race intro scroll in, the
-  attract demo race (6b) and the high score entry (6c) are not ported.
+  frame counts only (texts and palette pulses: section HUD); the race intro scroll in and
+  the high score entry (6c) are not ported.
 - Object/enemy scripts, Phase 4.

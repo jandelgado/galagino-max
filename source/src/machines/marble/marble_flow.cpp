@@ -16,6 +16,10 @@ namespace {
 
 using marble_physics::Mem;
 using marble_physics::PLAYER;
+using marble_physics::MSG_CHAIN;
+using marble_physics::MSG_COUNT;
+using marble_physics::MSG_FRAMES;
+using marble_physics::MSG_STATE;
 
 // player fields
 enum : uint8_t {
@@ -63,6 +67,15 @@ static const uint16_t GAME_OVER_ATTRACT = 7;    // 0x400390 = 2 to 1
 static const uint16_t GAME_OVER_RNG = 0x100;    // one rng(0x100) at the game over
 static const uint16_t TITLE_TAIL = 6;           // title end to the next segment
 static const uint16_t FINAL_PARTS = 3;          // 0x400390 = 6 to the final screen marbles
+
+// attract demo race (MARBLE.md "Demo race"), frames; index: demo race (practice, beginner)
+static const uint8_t DEMO_RACES = 2;
+static const uint8_t DEMO_LOAD_FRAMES[DEMO_RACES] = {59, 84};  // segment to the race init
+static const uint8_t DEMO_START[DEMO_RACES] = {3, 4};  // race init to the first tick, timer
+static const uint8_t DEMO_SECONDS = 60;
+static const uint8_t DEMO_HUD_END = 5;          // waypoint list end to the title
+static const uint16_t DEMO_TITLE_FRAME = 1;     // title frame at the demo end: marbles 6 later
+static const uint32_t DEMO_FRAMES = 2;          // 0x400010 at the race init (first tick: 3)
 
 // palette pulses (0x26bee score fade, 0x26c78 timer flash): counters wrap above these
 static const int8_t FADE_WRAP = 0x3f, FLASH_WRAP = 0x1f;
@@ -185,17 +198,60 @@ void finalStep(Flow &f, Mem &m) {
   if (f.frame == FINAL_END) { gameOver(m); }
 }
 
-// ATTRACT: title segments until START (the demo race of each segment: Phase 6b)
+// BIOS message slot 0 (vblank): a banner goes after its frames
+void messageStep(Mem &m) {
+  if (m.rb(MSG_STATE) != 1) { return; }
+
+  const uint16_t n = m.rw(MSG_COUNT) + 1;
+  m.ww(MSG_COUNT, n);
+  if (n < m.rw(MSG_FRAMES)) { return; }
+  m.wl(MSG_CHAIN, 0);
+  m.wb(MSG_STATE, 0);
+}
+
+// demo race of the segment: level load, intro, logic ticks until the waypoint list ends
+Step demoStep(Flow &f, Mem &m) {
+  if (f.demo == DEMO_LOAD) { return f.frame == DEMO_LOAD_FRAMES[f.race] ? START_RACE : WAIT; }
+
+  timer(m);
+  messageStep(m);
+  if (f.demo == DEMO_INTRO) {
+    if (f.frame != DEMO_START[f.race]) { return WAIT; }
+    m.ww(PLAYER + TIMER, DEMO_SECONDS);
+    m.wb(PLAYER + TICKS, TICKS_START);
+    f.demo = DEMO_RUN;
+    return LOGIC;
+  }
+  if (f.demo == DEMO_RUN) {
+    if (!marble_physics::demoEnded(m)) { return LOGIC; }
+    f.demo = DEMO_END;
+    f.frame = 1;
+    return WAIT;
+  }
+  if (f.frame == DEMO_HUD_END) {  // DEMO_END: the title, its marbles where MAME shows them
+    f.demo = NO_DEMO;
+    f.frame = DEMO_TITLE_FRAME;
+  }
+  return WAIT;
+}
+
+// ATTRACT: title, then a demo race, until START
 Step attractStep(Flow &f, Mem &m, bool start) {
   if (start) {
     newGame(f);
     return WAIT;
   }
+  if (f.demo != NO_DEMO) { return demoStep(f, m); }
+
   if (f.frame == TITLE_AT) {
     startParts(f, m, marble_particles::TITLE_COUNT, marble_particles::TITLE_MODE);
   }
   if (f.frame == TITLE_AT + TITLE_LEN) { marble_particles::clear(m); }
-  if (f.frame == TITLE_AT + TITLE_LEN + TITLE_TAIL) { f.frame = 0; }  // next segment
+  if (f.frame == TITLE_AT + TITLE_LEN + TITLE_TAIL) {  // next segment: a demo race
+    f.demo = DEMO_LOAD;
+    f.race = f.demos++ % DEMO_RACES;
+    f.frame = 0;
+  }
   return WAIT;
 }
 
@@ -209,6 +265,8 @@ void attract(Flow &f, Mem &m) {
   f.intro = NO_INTRO;
   f.fresh = false;
   f.final = 0;
+  f.demo = NO_DEMO;
+  f.demos = 0;
 }
 
 void newGame(Flow &f) {
@@ -218,6 +276,7 @@ void newGame(Flow &f) {
   f.race = 0;
   f.fresh = true;
   f.final = 0;
+  f.demo = NO_DEMO;
 }
 
 uint8_t raceTime(uint8_t race) { return RACE_TIME[race <= LAST_RACE ? race : LAST_RACE]; }
@@ -284,7 +343,7 @@ Carry carry(const Flow &f, const Mem &m) {
   Carry c = {};
   c.rng = m.rw(RNG);
   c.frames = m.rl(marble_physics::FRAMES);
-  if (f.fresh) { return c; }
+  if (f.fresh || f.demo != NO_DEMO) { return c; }
 
   for (uint8_t k = 0; k < TIMER_BYTES; k++) { c.timer[k] = m.rb(PLAYER + TIMER + k); }
   c.score = m.rl(PLAYER + SCORE);
@@ -300,11 +359,20 @@ void restore(Mem &m, const Carry &c) {
   m.ww(PLAYER + DEATHS, c.deaths);
 }
 
-// race init (0x10504 player part): the timer waits for the intro; races 0/1 start from 0 s
+// race init (0x10504 player part): the timer waits for the intro; races 0/1 start from 0 s.
+// Attract demo: 0x400390 stays 1, the waypoint driver steers, no intro, no sound
 void raceLoaded(Flow &f, Mem &m) {
   if (f.race < 2) { m.ww(PLAYER + TIMER, 0); }
   m.wb(PLAYER + TENTHS, TENTHS_START);
   m.wb(PLAYER + TICKS, STOPPED);
+  if (f.demo == DEMO_LOAD) {
+    m.ww(GAME_STATE, ATTRACT);
+    m.wl(marble_physics::FRAMES, DEMO_FRAMES);
+    marble_physics::demoStart(m, f.race);
+    f.demo = DEMO_INTRO;
+    f.frame = 0;
+    return;
+  }
   m.ww(GAME_STATE, f.fresh ? GAME_START : RACE_END);
   f.phase = phase(m);
   f.intro = 0;
