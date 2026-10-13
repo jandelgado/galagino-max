@@ -119,7 +119,8 @@ enum {
   MCH_SPACDUEL,
   MCH_BERZERK,
   MCH_GRAVITAR,
-  MCH_MARBLE
+  MCH_MARBLE,
+  MCH_TP84
 };
 
 // one inst at 3Mhz ~ 500k inst/sec = 500000/60 inst per frame
