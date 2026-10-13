@@ -70,19 +70,22 @@ commando::commando()
     commando_cmap_tiles(commando_cmap_tiles_blob),
     commando_cmap_sprites(commando_cmap_sprites_blob),
     commando_cmap_chars(commando_cmap_chars_blob),
-    commando_tiles(commando_tiles_blob),
+    commando_tiles_a(commando_tiles_a_blob),
+    commando_tiles_b(commando_tiles_b_blob),
     commando_sid(commando_sid_blob),
     commando_sound(commando_sound_blob) {
-  // largest first: block A rom + sprites0, B sprites1 + 2 + chars + sound
-  rom = commando_rom.data();
+  // this order only: block A sprites0 + tiles_a + cmaps + tune RAM,
+  // B sprites2 + tiles_b
   sprite_banks[0] = commando_sprites0.data();
-  sprite_banks[1] = commando_sprites1.data();
+  tiles_a = commando_tiles_a.data();
   sprite_banks[2] = commando_sprites2.data();
-  chars = commando_chars.data();
+  tiles_b = commando_tiles_b.data();
   cmap_tiles = commando_cmap_tiles.data();
   cmap_sprites = commando_cmap_sprites.data();
   cmap_chars = commando_cmap_chars.data();
-  tiles = commando_tiles.data();
+  sprite_banks[1] = commando_sprites1.data();
+  rom = commando_rom.data();
+  chars = commando_chars.data();
   sound_rom = commando_sound.data();
 
   // skip fully transparent chars (most of the text layer) per tile
@@ -374,7 +377,8 @@ void commando::blit_bg_line(uint16_t *dst, int tx) {
   for (int u = 0; u < WIDTH; ty += 16) {
     const int trow = (ty >> 4) & 31;
     const uint8_t attr = attrs[trow];
-    const uint32_t *tile = tiles[codes[trow] + ((attr & 0xc0) << 2)];
+    const uint16_t code = codes[trow] + ((attr & 0xc0) << 2);
+    const uint32_t *tile = code < TILES_A ? tiles_a[code] : tiles_b[code - TILES_A];
     const unsigned short *colors = cmap_tiles[attr & 15];
     const int gy = (attr & ATTR_FLIPX) ? px : 15 - px;
 
