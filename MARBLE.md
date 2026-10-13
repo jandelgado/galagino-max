@@ -2138,6 +2138,58 @@ python3 romconv/internal/marble/tools/make_fixture.py hwrite \
   source/test/test_marble_flow/marble_hud_trace.h $T/p0 $T/g?
 ```
 
+## Attract
+
+Phase 6a (plan docs/superpowers/plans/2026-10-13-marble-title.md). Research: Marble Love TS
+particle-init-18cd2.ts, particle-bounce.ts, palette-rng-fill-26cfa.ts,
+high-score-defaults.ts, hi-score-decode-41c8.ts, late-game-logic-26f3e.ts (type 0x2c),
+mode2-init-11452-async.ts (segments); timing, layout, logo map and logo palette fitted to MAME
+frame traces (`mame_trace.lua MARBLE_ATTRACT=1`).
+
+- Sequencer (0x400390 = 1, segment byte 0x4003e4, demo mode 0x400394 alternating 0/1): boot
+  runs 305 frames, then each segment is a demo race (6b), then the title. Title: particles
+  (0x4003e2 != 0) for 600 frames, alpha palette off 1 frame later, cells cleared 2 later,
+  next segment 6 frames after the title end; title starts 6 frames after the demo's alpha
+  clear (1332 -> 1338). Game over without high score entry (0x400390 = 2 at G, one
+  rng(0x100) at G): 0x400390 = 1 segment 0 at G + 7, title at G + 14. Game over with entry:
+  6c (entry particles 6, mode 0; the title after the entry runs 299 frames).
+- Title cells (alpha, transparent): `TROUBLEMAKERS` row 9 col 15 (colour 5, ROM 0x235a8); table
+  rows 11-20 from col 13 (colour 4): rank right aligned in 3 (`#1`), space, 3 initials, score
+  with commas right aligned in 9; `@ 1984 ATARI GAMES` row 29 col 12 (4, 0x22f04); `1 COIN PER
+  PLAY` row 28 col 3 (5, 0x22f6c), `CREDITS:  0` + 4 spaces row 28 col 24 (5, 0x22ff8). Drawn
+  over 3 frames: header and table (last cell one frame late), then the copyright, then the
+  coin line. Alpha palette ROM 0x1FBD0. Remake: dx -6, dy 3 (coin line dx -2, credits -7).
+- Table: RAM 0x401e74 + 0x1e, 10 x 5 B (24 bit score, initials radix 40 word: space, A-Z,
+  0-9, `:;<`); cold boot defaults ROM 0x1eea0 (10 x 8 B: long score, 3 ASCII initials):
+  C R 14,500 down to DAR 10,000 by 500.
+- Logo: playfield RAM rows 2-7, columns 11-30 (= screen columns 8-27), words 0x0f84-0x0fd0
+  (`marble_attract.LOGO`: border rows, three text rows of consecutive tiles), colour set 0.
+  Playfield set 0 = palette set 0 with 13 words from ROM 0x20aca at pens 2, 4, ..., 14, 18,
+  ..., 28. Remake: map columns 8-27, rows 5-10 (view sy 0).
+- Particles (0x400a9c, 10 B: x, y in 1/16 px, vx, vy, mode word; count 0x4003e2): init
+  0x18cd2(count, mode): per particle x = (rng(256) + 0x24) << 4, y = (rng(128) + 0x30) << 4,
+  vx/vy = rng(96) - 0x30 then +-0x10 away from 0, mode < 0x80: mode << 11, 0xff: rng(8) << 11,
+  else rng(2) << 11. Mode 0xff first runs the palette fill 0x26cfa: MO colour set k pens 1-5 =
+  0xafff, 0xcfc0 and 3 words of variant rng(2) from ROM 0x20bb4 + 12k (+6). Bounce 0x18dca
+  every frame from the frame after the init: move, reflect at x 8..0x148 / y 0..0xe0 px,
+  commit only inside. Title: 3 particles, mode 0x80 (blue / red), MO colours of palette set
+  0. Final screen: 28 particles mode 0xff, init 3 frames after 0x400390 = 6 from that
+  frame's RNG (fill, then init), until game over.
+- Particle MOs (0x26f3e type 0x2c): two 8 x 16 halves, codes mode | 1 and mode | 3, MO x =
+  px - 8 and px, MO y = py + 16 (top line 224 - py); written into the bank not shown, so the
+  screen shows the previous frame. Remake view: x = MO x - 48, y = 248 - py.
+
+Validation: `marble_attract.py check` on frame traces a0 (boot attract, 9000 frames), p0
+(practice time out to the title), g5 (ultimate goal, final screen, entry, title): particle slots
+every frame exact, MOs, palette fill, title cells (+-1 frame) and palettes, game over RNG,
+sequencer counts. `marble_attract.py logo` on attract shots: logo words and palette.
+
+```sh
+T=$TMPDIR/attr   # run.sh: mame_trace.lua MARBLE_TICK=frame MARBLE_ALPHA=1 (MARBLE_ATTRACT=1 for a0)
+python3 romconv/internal/marble/tools/marble_attract.py check $T/p0 $T/g5 $T/a0
+python3 romconv/internal/marble/tools/marble_attract.py logo $TMPDIR/attract
+```
+
 ## Open questions
 
 - Level objects: playfield patch decode of tag 0x19 rows. Section

@@ -43,7 +43,10 @@
 -- frame (u32 BE), work RAM 0x400000-0x401fff only (game flow: race intro, bonus and time
 -- out run in the main loop's blocking waits, no main loop top there).
 -- $MARBLE_ALPHA=1 (with MARBLE_TICK=frame): alpha.bin, per FRAM record alpha RAM
--- 0xa03000-0xa03fff + palette 0xb00000-0xb0003f (alpha colours), 0x1040 bytes.
+-- 0xa03000-0xa03fff + palette 0xb00000-0xb0003f (alpha colours) + motion object RAM
+-- 0xa02000-0xa023ff (banks 0 and 1) + palette 0xb00200-0xb003ff (MO colours), 0x1640 bytes.
+-- $MARBLE_ATTRACT=1: no coin, no start, race writes pass (attract mode from boot); with
+-- MARBLE_TICK=frame the FRAM records start at $MARBLE_ATTRACT_FROM (default 0).
 -- $MARBLE_RACE_UNTIL: the race tap forces $MARBLE_LEVEL only before this frame (default
 -- always); later writes of 0x400394 pass (race end loads the next race).
 -- $MARBLE_POKE "frame:addr:byte,...": at that frame write the byte (hex address and value).
@@ -69,6 +72,8 @@ local tick_start = os.getenv("MARBLE_TICK") == "start"
 local tick_frame = os.getenv("MARBLE_TICK") == "frame"
 local race_until = tonumber(os.getenv("MARBLE_RACE_UNTIL") or "-1")
 local alpha_on = os.getenv("MARBLE_ALPHA") == "1"
+local attract = os.getenv("MARBLE_ATTRACT") == "1"
+local attract_from = tonumber(os.getenv("MARBLE_ATTRACT_FROM") or "0")
 
 local RACE = 0x400394
 local LOOP_ADDR, LOOP_PC = 0x4003f0, 0x11804   -- addq.b #1,0x4003f0 at the main loop top
@@ -135,6 +140,7 @@ end
 
 -- taps must stay referenced, else they are garbage collected
 RACE_TAP = mem:install_write_tap(RACE, RACE + 1, "race", function(offset, data, mask)
+  if attract then return data end
   if race_until < 0 or f < race_until then return level end
   return data
 end)
@@ -170,8 +176,10 @@ end
 
 SUB = emu.add_machine_frame_notifier(function()
   f = f + 1
-  coin:set_value((f >= COIN_FRAME and f < COIN_FRAME + 10) and 1 or 0)
-  start:set_value((f >= START_FRAME and f < START_FRAME + 10) and 1 or 0)
+  if not attract then
+    coin:set_value((f >= COIN_FRAME and f < COIN_FRAME + 10) and 1 or 0)
+    start:set_value((f >= START_FRAME and f < START_FRAME + 10) and 1 or 0)
+  end
   local p = places[f]
   if p then
     local P = 0x400018
@@ -207,10 +215,13 @@ SUB = emu.add_machine_frame_notifier(function()
     dump(0xb00000, 0x800, shots_pal)
     dump(0xa03000, 0x1000, shots_alpha)
   end
-  if tick_frame and f >= START_FRAME then
+  if tick_frame and f >= (attract and attract_from or START_FRAME) then
     out:write("FRAM", string.pack(">I4", f))
     dump(0x400000, 0x2000)
-    if alpha then dump(0xa03000, 0x1000, alpha); dump(0xb00000, 0x40, alpha) end
+    if alpha then
+      dump(0xa03000, 0x1000, alpha); dump(0xb00000, 0x40, alpha)
+      dump(0xa02000, 0x400, alpha); dump(0xb00200, 0x200, alpha)
+    end
   end
   if f == frames then
     out:close(); shots:close(); shots_bin:close(); shots_pal:close(); shots_alpha:close()

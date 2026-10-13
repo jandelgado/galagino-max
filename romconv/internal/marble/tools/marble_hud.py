@@ -285,19 +285,29 @@ def layout_states():
 
 # --- MAME traces ------------------------------------------------------------------------
 
-A_REC, T_REC = 0x1040, 8 + 0x2000
+T_REC = 8 + 0x2000
+# alpha.bin record: alpha RAM 0x1000 + alpha palette 0x40 (traces before 2026-10-13), then
+# MO RAM 0x400 + MO palette 0x200 (mame_trace.lua since 2026-10-13)
+A_REC_OLD, A_REC = 0x1040, 0x1640
 
 
-def frames(d):
-    """[(frame, work RAM, alpha words, palette words)] of a trace dir."""
+def frames(d, mo=False):
+    """[(frame, work RAM, alpha words, palette words[, MO words, MO palette words])] of a
+    trace dir; mo=True needs the 2026-10-13 record format."""
     t = open(os.path.join(d, "trace.bin"), "rb").read()
     a = open(os.path.join(d, "alpha.bin"), "rb").read()
+    n = len(t) // T_REC
+    size = len(a) // n if n else A_REC
+    assert size in (A_REC_OLD, A_REC) and not (mo and size != A_REC), (d, size)
     out = []
-    for i in range(len(t) // T_REC):
+    for i in range(n):
         rec = t[i * T_REC:(i + 1) * T_REC]
-        al = a[i * A_REC:(i + 1) * A_REC]
-        out.append((struct.unpack(">I", rec[4:8])[0], rec[8:], struct.unpack(">2048H", al[:0x1000]),
-                    struct.unpack(">32H", al[0x1000:])))
+        al = a[i * size:(i + 1) * size]
+        r = (struct.unpack(">I", rec[4:8])[0], rec[8:], struct.unpack(">2048H", al[:0x1000]),
+             struct.unpack(">32H", al[0x1000:0x1040]))
+        if mo:
+            r += (struct.unpack(">512H", al[0x1040:0x1440]), struct.unpack(">256H", al[0x1440:]))
+        out.append(r)
     return out
 
 
