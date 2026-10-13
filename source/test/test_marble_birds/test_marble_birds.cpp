@@ -481,6 +481,8 @@ static void test_carry_and_switch(void) {
 int main(int argc, char **argv) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  Arena::init();
+  marble_physics::loadRom();
   RUN_TEST(test_replay_birds);
   RUN_TEST(test_bird_objects);
   RUN_TEST(test_race_sweep);

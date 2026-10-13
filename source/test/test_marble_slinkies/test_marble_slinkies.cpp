@@ -486,6 +486,8 @@ static void test_eat_and_switch(void) {
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  Arena::init();
+  marble_physics::loadRom();
   RUN_TEST(test_replay_slinkies);
   RUN_TEST(test_slinky_objects);
   RUN_TEST(test_race_sweep);

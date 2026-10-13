@@ -437,6 +437,8 @@ static void test_shatter_and_switch(void) {
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  Arena::init();
+  marble_physics::loadRom();
   RUN_TEST(test_replay_steelies);
   RUN_TEST(test_steelie_objects);
   RUN_TEST(test_race_sweep);

@@ -7,6 +7,8 @@
 #if __has_include("../../src/machines/marble/marble_rom.h")
 #define HAVE_ROM 1
 #define ENABLE_MARBLE
+#include "../../src/emulation/lzma/LzmaDec.c"
+#include "../../src/emulation/arena.cpp"
 #include "../../src/machines/marble/marble_mem.cpp"
 #include "../../src/machines/marble/marble_sound.cpp"
 #include "../../src/machines/marble/marble_rng.cpp"
@@ -130,6 +132,8 @@ static void test_rng_signed(void) {
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  Arena::init();
+  marble_physics::loadRom();
   RUN_TEST(test_replay_trace);
   RUN_TEST(test_dyn_init);
   RUN_TEST(test_rng_signed);

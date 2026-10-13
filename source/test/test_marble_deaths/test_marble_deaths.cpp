@@ -717,6 +717,8 @@ static void test_race_switch_dead(void) {
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  Arena::init();
+  marble_physics::loadRom();
   RUN_TEST(test_replay_deaths);
   RUN_TEST(test_replay_tubes);
   RUN_TEST(test_silly_funnel);

@@ -313,6 +313,8 @@ static void test_draw_list(void) {
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  Arena::init();
+  marble_physics::loadRom();
   RUN_TEST(test_tiles_decode);
   RUN_TEST(test_frames_in_range);
   RUN_TEST(test_death_set);

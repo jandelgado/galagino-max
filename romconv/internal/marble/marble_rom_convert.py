@@ -1046,11 +1046,14 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, size4b
     print("// Terrain per race: 10 bit vertex index (54 bytes per diagonal pair, fields MSB first,",
           file=f)
     print("// field = column, +22 on odd diagonals, field 43 not stored = 0) into codes[];", file=f)
-    print("// record codes 0x0001-0x07ff read records[code + quadrant]; bases[] per diagonal.",
+    print("// record codes 0x0001-0x07ff read records[code + quadrant]. packed unpacks to the",
           file=f)
-    print("struct MarbleTerrainInfo {\n  const uint8_t *index; uint16_t pairs;\n"
+    print("// base height words per diagonal (maxd, little endian), then the index (pairs * 54).",
+          file=f)
+    print("struct MarbleTerrainInfo {\n  FlashAsset<unsigned char, COMPRESSED> packed; "
+          "uint16_t pairs;\n"
           "  const uint16_t *codes; uint16_t ncodes;\n  const uint8_t *records;\n"
-          "  const uint16_t *bases; uint16_t maxd;\n  uint16_t nrecords; uint32_t desc;\n"
+          "  uint16_t maxd;\n  uint16_t nrecords; uint32_t desc;\n"
           "  const uint16_t *edges; uint8_t nedges;\n};",
           file=f)
     # edge lists: marble_edge_lists[marble_edge_off[col]...] of the table of race and scroll
@@ -1086,10 +1089,15 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, size4b
               file=f)
     size3["edge lists"] = len(pool) + 2 * sum(len(r) * 36 for r in offs.values()) + 6 * 8
     code_names = {}
+    unpacked = 0
     for n, (index, codes, records, _, bases) in enumerate(races):
-        print(f"static const uint8_t marble_terrain_index_{n}[] = {{\n{c_bytes(index)}\n}};",
-              file=f)
-        size["terrain index"] = size.get("terrain index", 0) + len(index)
+        if len(bases) != terrains[n].maxd or len(index) != terrains[n].maxd // 2 * PAIR_BYTES:
+            fatal(f"marble: race {n} bases/index do not match its {terrains[n].maxd} diagonals")
+        raw = struct.pack(f"<{len(bases)}H", *bases) + index
+        unpacked = max(unpacked, len(raw))
+        emit_compressed(f, f"marble_terrain_{n}", "unsigned char", "", len(raw), list(raw))
+        size["terrain index + bases"] = (size.get("terrain index + bases", 0)
+                                         + len(lzma_compress(raw)))
         key = tuple(codes)
         if key not in code_names:
             code_names[key] = f"marble_terrain_codes_{n}"
@@ -1097,16 +1105,15 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, size4b
             size["terrain codes"] = size.get("terrain codes", 0) + 2 * len(codes)
         print(f"static const uint8_t marble_terrain_records_{n}[] = {{\n{c_bytes(records)}\n}};",
               file=f)
-        print(f"static const uint16_t marble_terrain_bases_{n}[] = {{\n{c_words(bases)}\n}};",
-              file=f)
         size["terrain records"] = size.get("terrain records", 0) + len(records)
-        size["terrain bases"] = size.get("terrain bases", 0) + 2 * len(bases)
+    print("// bytes of the largest unpacked race terrain (Arena buffer)", file=f)
+    print(f"static const uint16_t MARBLE_TERRAIN_MAX = {unpacked};", file=f)
     print("static const MarbleTerrainInfo marble_terrain[6] = {", file=f)
     for n, (index, codes, records, _, bases) in enumerate(races):
         t = terrains[n]
-        print(f"  {{ marble_terrain_index_{n}, {len(index) // PAIR_BYTES}, "
+        print(f"  {{ marble_terrain_{n}_blob, {len(index) // PAIR_BYTES}, "
               f"{code_names[tuple(codes)]}, {len(codes)}, marble_terrain_records_{n}, "
-              f"marble_terrain_bases_{n}, {t.maxd}, {len(records)}, 0x{t.desc:05x}, "
+              f"{t.maxd}, {len(records)}, 0x{t.desc:05x}, "
               f"marble_edge_off_{n}, {len(offs[n])} }},", file=f)
     print("};", file=f)
     size["terrain info"] = 6 * 32  # 32 bit pointers, padded
@@ -1138,15 +1145,19 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, size4b
           file=f)
     print("// sorted). Records and terrain come from marble_terrain; any other ROM address is a",
           file=f)
-    print("// porting error.", file=f)
-    print("struct MarbleProgBlock { uint32_t addr; uint16_t len; const uint8_t *data; };", file=f)
-    for k, (a, data) in enumerate(blocks):
-        print(f"static const uint8_t marble_prog_{a:05x}[] = {{\n{c_bytes(data)}\n}};", file=f)
+    print("// porting error. Block k is at off in marble_prog (all blocks joined).", file=f)
+    print("struct MarbleProgBlock { uint32_t addr; uint16_t len; uint16_t off; };", file=f)
+    joined = b"".join(data for _, data in blocks)
+    if len(joined) > 0xffff:
+        fatal("marble: prog blocks too long for 16 bit offsets")
+    emit_compressed(f, "marble_prog", "unsigned char", "", len(joined), list(joined))
     print(f"static const MarbleProgBlock marble_prog_blocks[{len(blocks)}] = {{", file=f)
+    off = 0
     for a, data in blocks:
-        print(f"  {{ 0x{a:05x}, {len(data)}, marble_prog_{a:05x} }},", file=f)
+        print(f"  {{ 0x{a:05x}, {len(data)}, {off} }},", file=f)
+        off += len(data)
     print(f"}};\nstatic const uint8_t MARBLE_PROG_BLOCKS = {len(blocks)};", file=f)
-    flash = lambda bl: sum(len(d) for _, d in bl) + 8 * len(bl)
+    flash = lambda bl: len(lzma_compress(b"".join(d for _, d in bl))) + 8 * len(bl)
     size["prog blocks"] = flash(blocks2)
     size3["prog blocks"] = flash(blocks3) - flash(blocks2)
     size4["prog blocks"] = flash(blocks4) - flash(blocks3)

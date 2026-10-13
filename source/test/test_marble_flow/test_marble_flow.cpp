@@ -800,6 +800,8 @@ static void test_demo_silent(void) {
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  Arena::init();
+  marble_physics::loadRom();
   RUN_TEST(test_time_out);
   RUN_TEST(test_race_music);
   RUN_TEST(test_break_sound);

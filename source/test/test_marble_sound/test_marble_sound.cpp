@@ -43,7 +43,6 @@ static uint32_t crc32(const uint8_t *p, size_t n) {
 
 static void load() {
   if (!file) {
-    Arena::init();
     static Asset<unsigned char, COMPRESSED> sid(marble_sid_blob);
     file = sid.data();
   }
@@ -218,6 +217,8 @@ static void test_queue_overflow_drops(void) {
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  Arena::init();
+  marble_physics::loadRom();
   RUN_TEST(test_file_matches_converter);
   RUN_TEST(test_songs_stay_inside);
   RUN_TEST(test_effect_keeps_music_voices);

@@ -763,6 +763,7 @@ int main(int, char **) {
 #ifdef HAVE_ROM
   Arena::init();
   store.init();
+  marble_physics::loadRom();
   RUN_TEST(test_levels_match_decoder);
   RUN_TEST(test_sprite_buffer_layout);
   RUN_TEST(test_store_reuses_buffers);

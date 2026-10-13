@@ -246,6 +246,8 @@ static void test_catapult(void) {
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  Arena::init();
+  marble_physics::loadRom();
   RUN_TEST(test_replay_aerial);
   RUN_TEST(test_gate_catch);
   RUN_TEST(test_catapult);

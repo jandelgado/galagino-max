@@ -22,6 +22,7 @@
 class marble : public machineBase
 {
 public:
+  marble();
   signed char machineType() override { return MCH_MARBLE; }
   const int renderWidth()  override { return marble_video::OUT_W; }
   const int renderBuffer() override { return marble_video::OUT_W * 2 * 8; }

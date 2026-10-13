@@ -49,6 +49,13 @@ static void stick(uint32_t keys, int8_t &c6, int8_t &c7) {
   c6 = (int8_t)b;
 }
 
+// Arena is first fit: the level buffers first, block A must keep map + tiles together. The
+// ROM here, not in start(): reset() runs first and already builds a Mem.
+marble::marble() {
+  store.init();
+  marble_physics::loadRom();
+}
+
 void marble::reset() {
   machineBase::reset();
   marble_sound::reset(sound);
@@ -65,7 +72,6 @@ void marble::reset() {
 }
 
 void marble::start() {
-  store.init();  // guarded, start() runs twice
   marble_hiscore::defaults(table);  // once
 
   // after the level buffers: Arena is first fit, block A must keep map + tiles together

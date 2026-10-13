@@ -196,6 +196,8 @@ static void test_blend(void) {
 int main(int argc, char **argv) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  Arena::init();
+  marble_physics::loadRom();
   RUN_TEST(test_glyphs);
   RUN_TEST(test_glyph_pixels);
   RUN_TEST(test_palette);

@@ -435,6 +435,8 @@ static void test_dissolve_and_switch(void) {
 int main(int argc, char **argv) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  Arena::init();
+  marble_physics::loadRom();
   RUN_TEST(test_replay_acid);
   RUN_TEST(test_acid_objects);
   RUN_TEST(test_race_sweep);

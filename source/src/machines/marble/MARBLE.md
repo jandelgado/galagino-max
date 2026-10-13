@@ -1,9 +1,9 @@
 # Marble Madness (Atari 1984) reverse engineering notes
 
 Basis for a galagino remake: graphics, levels and music come from the ROM, the logic is
-reimplemented in C++ (no 68010 emulation). Plan: docs/superpowers/plans/2026-10-11-marble.md.
-Reference: Marble Love (github.com/magno73/marble-love, MIT), a function-by-function
-TypeScript port named by ROM address. Facts below were read from the disassembly
+reimplemented in C++ (no 68010 emulation). The game logic is ported from Marble Love
+(https://github.com/magno73/marble-love, MIT), a function-by-function TypeScript port of
+the arcade ROM, named by ROM address. Facts below were read from the disassembly
 (capstone, romconv/internal/marble/tools) unless marked otherwise.
 
 ## ROM (MAME `marble`, set 1, atari/atarisy1.cpp)
@@ -770,13 +770,17 @@ terrain`). Flash: 45937 B (terrain 38870, program ROM blocks 4237, marble sprite
 
 Terrain, `marble_terrain[race]` (`MarbleTerrainInfo`):
 
-- `index`, `pairs`: 10 bit vertex index, 54 bytes per diagonal pair (pair p = d >> 1),
+- `packed`, `pairs`: LZMA blob, unpacks to `bases` then `index` (below). `Mem::setRace`
+  unpacks it into one Arena buffer (`MARBLE_TERRAIN_MAX` bytes, the largest race) when the
+  race changes; a `Mem` of another race then fails. Flash 11971 B instead of 35438 B.
+- `index`: 10 bit vertex index, 54 bytes per diagonal pair (pair p = d >> 1),
   fields MSB first, field f at bit 10 * f, f = column (0-21) + 22 on odd diagonals.
   Field 43 is not stored: index 0.
 - `codes`, `ncodes`: code table (descriptor +0x26, `Terrain.codes`), races 1-5 share one.
 - `records`, `nrecords`: descriptor +0x00 records from offset 0 to the 0xffffffff end;
   record code c (0x0001-0x07ff), quadrant q: `records[c + q]`.
-- `bases`, `maxd`: base height word per diagonal (`Terrain.bases`), diagonal count.
+- `bases` (little endian words), `maxd`: base height word per diagonal (`Terrain.bases`),
+  diagonal count.
 - `desc`: 68010 address of the level descriptor (start cells +0x14, camera +0x10/+0x12).
 
 `Terrain.index(d, f)` = `(be16(index + 54 * (d >> 1) + 10 * f / 8) >> (6 - 10 * f % 8)) &
@@ -792,7 +796,10 @@ Terrain, `marble_terrain[race]` (`MarbleTerrainInfo`):
 | silly | 238 | 6426 | shared | 192 | 476 |
 | ultimate | 200 | 5400 | shared | 44 | 400 |
 
-Program ROM, `marble_prog_blocks[MARBLE_PROG_BLOCKS]` (`MarbleProgBlock {addr, len, data}`,
+Program ROM, `marble_prog_blocks[MARBLE_PROG_BLOCKS]` (`MarbleProgBlock {addr, len, off}`,
+block bytes at `off` in `marble_prog`, all blocks joined in one LZMA blob that
+`marble_physics::loadRom()` unpacks to the Arena once per machine; flash 7.8 KB instead of
+20.3 KB),
 sorted): every byte below 0x30000 that `marble_sim.py` reads in `tick()` and `start_259b4`
 (recorded over all fixture ticks and the start of all 6 races) plus the whole tables:
 0x24b3a vertex steps, 0x1ed62 drop, 0x23d40 edge push, 0x2398c teeter, 0x1eef8 friction,
@@ -1222,8 +1229,7 @@ columns 24, header ids 8, palette 16).
 
 ## Enemies
 
-Research: docs/superpowers/specs/2026-10-11-marble-enemies-research.md (steelie model) and
-2026-10-11-marble-enemies-research-b.md (interaction, RNG, plan basis). Model:
+Model:
 `tools/marble_enemy.py` (steelie update and 0x1bc88, Marble Love ports by address).
 
 | array | count x size | draw type, ptr table | races (max live) |
@@ -2010,7 +2016,7 @@ python3 romconv/internal/marble/tools/make_fixture.py awrite \
 
 ## Game flow
 
-Phase 3a (plan docs/superpowers/plans/2026-10-12-marble-flow.md). Research: Marble Love TS
+Phase 3a. Research: Marble Love TS
 game-tick-timers.ts, timer-cascade.ts, object-scan-dispatch-251de.ts,
 main-loop-init-1101e.ts, player-slot-iter-118d2.ts, main-loop-init-10504.ts,
 level-intro-banner-resume.ts (fitted to MAME captures, not a port), state-sub-18a88.ts,
@@ -2071,7 +2077,7 @@ python3 romconv/internal/marble/tools/make_fixture.py tbwrite \
 
 ## HUD
 
-Phase 3b (plan docs/superpowers/plans/2026-10-12-marble-hud.md). Alpha layer (atarisy1.cpp):
+Phase 3b. Alpha layer (atarisy1.cpp):
 RAM 0xa03000, 64 x 32 words, word bits 0-9 code, 10-12 colour, 13 opaque (pen 0 drawn, else
 transparent); font `136032.104.f5` (atarisy1.zip, 512 glyphs, 2bpp, `anlayout`); palette entries
 0-31 (colour * 4 + pen), ROM 0x1FBD0. Visible columns 3-38 (column 39 holds the last column of
@@ -2140,7 +2146,7 @@ python3 romconv/internal/marble/tools/make_fixture.py hwrite \
 
 ## Attract
 
-Phase 6a (plan docs/superpowers/plans/2026-10-13-marble-title.md). Research: Marble Love TS
+Phase 6a. Research: Marble Love TS
 particle-init-18cd2.ts, particle-bounce.ts, palette-rng-fill-26cfa.ts,
 high-score-defaults.ts, hi-score-decode-41c8.ts, late-game-logic-26f3e.ts (type 0x2c),
 mode2-init-11452-async.ts (segments); timing, layout, logo map and logo palette fitted to MAME
@@ -2201,7 +2207,7 @@ python3 romconv/internal/marble/tools/marble_attract.py logo $TMPDIR/attract
 
 ### Demo race
 
-Phase 6b (plan docs/superpowers/plans/2026-10-13-marble-demo.md). Research: Marble Love TS
+Phase 6b. Research: Marble Love TS
 waypoint-list-step-1815a.ts, object-step-17f66.ts, refresh-frame-10fce.ts (goal state 6),
 state-machine-schedule.ts and string-render.ts (banners); timing fitted to MAME frame traces.
 
@@ -2251,7 +2257,7 @@ python3 romconv/internal/marble/tools/marble_demo.py check $T/a0 $T/p0
 
 ## Sound
 
-Phase 5 (plan docs/superpowers/plans/2026-10-13-marble-sound.md). Arcade: a 6502 at 1.79 MHz
+Phase 5. Arcade: a 6502 at 1.79 MHz
 runs the sound program (32 KB, 136033.421/422) and drives a YM2151 (music and almost all
 effects) and a POKEY (a few effects). The 68010 sends one command byte per event through the
 latch 0xfe0001 (0x158ac, nothing while the word 0x4003b8 is set). The remake emulates none of
@@ -2331,6 +2337,95 @@ and the race music, no intro delay), time out (0x09, 0x3f) and game over (0x61).
 (build 2026-10-13, compressed SID file 5532 B). Host test `test_marble_sound` (songs without
 strays, effect over the music keeps voices 1-2, command mapping; SOUND_WAV_DIR=dir writes
 listening WAVs), `test_marble_flow` (race music, time out jingle, break sound).
+
+## Flash compression and Arena
+
+LZMA data is packed by romconv (`asset_emit.py`: 1 properties byte, raw LZMA1 stream). The
+firmware unpacks it with `Asset::decodeInto()` into fixed Arena buffers, reserved once per
+machine instance. Marble never uses the `Asset::data()` cache: a pointer cached in a static
+dangles after the Arena reset of the next machine switch. Every unpack mallocs the 5.5 KB LZMA
+probability table and frees it before returning.
+
+| Data | n | Raw | LZMA | Unpacked | Core | Buffer |
+| --- | --- | --- | --- | --- | --- | --- |
+| level tiles `marble_tiles[n]` | 7 | 301440 | 41667 | level change | video | `store.pixels` |
+| level maps `marble_maps[n]` | 7 | 55368 | 13188 | level change | video | `store.map` |
+| terrain `marble_terrain[r].packed` | 6 | 35438 | 11971 | race change | emulation | `terrainBuf` |
+| sprite sets `marble_sprite_tiles[s]` | 3 | 29408 | 7128 | set change | video | `store.sprites` |
+| program ROM `marble_prog_blob` | 1 | 20291 | 7838 | once, ctor | main | `prog` |
+| SID tune `marble_sid_blob` | 1 | 14332 | 5532 | once, `start()` | main | SID file |
+| death tiles `marble_death_tiles_blob` | 1 | 16800 | 4377 | first level | video | `store.sprites` |
+| logo `marble_logo_blob` | 1 | 10784 | 1381 | menu | main | logo pool |
+
+Terrain and program ROM were plain flash arrays until 2026-10-13 (35.6 KB more flash). Still
+plain, read in place: terrain codes, records and edge lists, sprite columns and frames,
+palettes, MO tiles, mask tiles, HUD glyphs, patches.
+
+Arena (`Arena::CAPACITY` 182000 B, two 91000 B blocks, first fit):
+
+```text
+ flash (LZMA)                     Arena (RAM, reserved once per machine)
+ ----------------                 ---------------------------------------------
+ marble_maps[n]     -- video -->  store.map      10440   ┐ block A, must be
+ marble_tiles[n]    -- video -->  store.pixels   57344   ┘ together
+ death + sprite[s]  -- video -->  store.sprites  39904     block B
+ marble_prog        -- ctor  -->  prog           20291     block A
+ marble_terrain[r]  -- emu   -->  terrainBuf      6902     block B (one race)
+ marble_sid         -- start -->  SID file       14332     block B
+                                  SID RAM        15360     block B
+                                  total 164573 / 182000 (A 88075, B 76498)
+```
+
+Allocation order matters (first fit): the constructor reserves the level buffers first, so map
+and tiles share block A, then `marble_physics::loadRom()`. The ROM is unpacked in the
+constructor, not in `start()`, because `reset()` runs before `start()` and already builds a
+`Mem`. `start()` adds the SID buffers.
+
+```cpp
+marble::marble() {
+  store.init();
+  marble_physics::loadRom();
+}
+```
+
+Physics data (`marble_mem.cpp`) lives in file statics, filled per machine instance:
+
+- `prog`: all program ROM blocks joined (`marble_prog`). `MarbleProgBlock {addr, len, off}`:
+  block bytes at `prog + off`. `Mem::romb` binary-searches the blocks, any other address fails.
+- `terrainBuf`: one race, `MARBLE_TERRAIN_MAX` (6902) bytes, the largest race (silly):
+  `[bases: maxd words, little endian][index: pairs * 54 bytes]`.
+- `loadedRace`: race in `terrainBuf`, `NO_RACE` after `loadRom()`.
+
+```cpp
+void Mem::setRace(uint8_t race) {
+  if (race >= RACES) { fail("race", race); }
+  if (!terrainBuf) { fail("ROM not loaded, race", race); }
+  terrain = &marble_terrain[race];
+  this->race = race;
+  if (race == loadedRace) { return; }
+
+  // once per race start: about 6 KB LZMA
+  const Asset<unsigned char, COMPRESSED> t(terrain->packed);
+  t.decodeInto(terrainBuf);
+  loadedRace = race;
+}
+```
+
+`Mem` (`marble_mem.h`) is a cheap view built per use, `Mem(memory, race)`, 103 call sites
+(mostly tests). Members: work RAM pointer, the race's `MarbleTerrainInfo` (flash) and race.
+Accessors:
+
+- work RAM 0x400000-0x401fff, big endian: `rb/rw/rl`, signed `sb/sw/sl`, `wb/ww/wl`.
+- program ROM: `romb/romw/roml` from `prog`.
+- terrain: `maxd`, `base(d)`, `vertexCode(d, f)` (from `terrainBuf`), `record(code, q)`,
+  `desc`, `edgeFrom(col, d)` (flash).
+- sprites: `spriteFrame(hdr)`, `stripFrame(i)`.
+
+The terrain buffer holds one race: `base` and `vertexCode` call `checkRace()`, which fails if
+`race != loadedRace` (a `Mem` built before a switch to another race). Terrain is unpacked only
+on the emulation core (`run_frame`, `loadRace`) and once in `reset()` before the emulation task
+starts, so no core reads it during an unpack. Host tests call `Arena::init()` and
+`marble_physics::loadRom()` in `main()`.
 
 ## Open questions
 

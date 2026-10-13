@@ -4,23 +4,52 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "../../emulation/arena.h"
 #include "../../emulation/asset.h"
 #include "marble_rom.h"
 
 namespace marble_physics {
 
 static const uint8_t RACES = 6;
+static const uint8_t NO_RACE = 0xff;
 static const uint8_t PAIR_BYTES = 54;  // 44 fields of 10 bits per diagonal pair
 static const uint8_t FIELDS = 44;      // field 43 (column 21, odd diagonal) not stored
+
+// Arena buffers of loadRom(): physics reads them every tick, flash keeps them LZMA packed
+static uint8_t *prog = nullptr;         // marble_prog: all program ROM blocks
+static uint8_t *terrainBuf = nullptr;   // bases of loadedRace (maxd words), then its index
+static uint8_t loadedRace = NO_RACE;
 
 void fail(const char *what, uint32_t addr) {
   printf("marble physics: %s access at %06x\n", what, (unsigned)addr);
   abort();
 }
 
+void loadRom() {
+  const Asset<unsigned char, COMPRESSED> p(marble_prog_blob);
+  prog = Arena::alloc<uint8_t>(p.size());
+  p.decodeInto(prog);
+
+  terrainBuf = Arena::alloc(MARBLE_TERRAIN_MAX, alignof(uint16_t));
+  loadedRace = NO_RACE;
+}
+
 void Mem::setRace(uint8_t race) {
   if (race >= RACES) { fail("race", race); }
+  if (!terrainBuf) { fail("ROM not loaded, race", race); }
   terrain = &marble_terrain[race];
+  this->race = race;
+  if (race == loadedRace) { return; }
+
+  // once per race start: about 6 KB LZMA
+  const Asset<unsigned char, COMPRESSED> t(terrain->packed);
+  t.decodeInto(terrainBuf);
+  loadedRace = race;
+}
+
+// the terrain buffer holds one race: a Mem of the race before a switch must not read it
+void Mem::checkRace() const {
+  if (race != loadedRace) { fail("terrain of unloaded race", race); }
 }
 
 uint8_t Mem::romb(uint32_t a) const {
@@ -32,7 +61,7 @@ uint8_t Mem::romb(uint32_t a) const {
   }
   if (lo) {
     const MarbleProgBlock &b = marble_prog_blocks[lo - 1];
-    if (a - b.addr < b.len) { return b.data[a - b.addr]; }
+    if (a - b.addr < b.len) { return prog[b.off + a - b.addr]; }
   }
   fail("ROM", a);
 }
@@ -87,7 +116,8 @@ int16_t Mem::stripFrame(int16_t i) const {
 
 uint16_t Mem::base(int16_t d) const {
   if (d < 0 || d >= terrain->maxd) { fail("terrain base", (uint16_t)d); }
-  return terrain->bases[d];
+  checkRace();
+  return ((const uint16_t *)terrainBuf)[d];
 }
 
 // 10 bit fields MSB first, field f at bit 10 * f of the pair (0x1a9cc layout).
@@ -95,9 +125,12 @@ uint16_t Mem::vertexCode(int16_t d, int16_t f) const {
   if (d < 0 || d >= terrain->maxd) { fail("terrain diagonal", (uint16_t)d); }
   if (f < 0 || f >= FIELDS) { fail("terrain field", (uint16_t)f); }
 
+  checkRace();
+
   uint16_t idx = 0;
   if (f < FIELDS - 1) {
-    const uint8_t *p = terrain->index + PAIR_BYTES * (d >> 1) + 10 * f / 8;
+    const uint8_t *index = terrainBuf + 2 * terrain->maxd;
+    const uint8_t *p = index + PAIR_BYTES * (d >> 1) + 10 * f / 8;
     idx = ((p[0] << 8 | p[1]) >> (6 - 10 * f % 8)) & 0x3ff;
   }
   if (idx >= terrain->ncodes) { fail("terrain code index", idx); }

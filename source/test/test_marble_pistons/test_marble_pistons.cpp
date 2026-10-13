@@ -517,6 +517,8 @@ static void test_teardown_and_switch(void) {
 int main(int argc, char **argv) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  Arena::init();
+  marble_physics::loadRom();
   RUN_TEST(test_replay_pistons);
   RUN_TEST(test_piston_objects);
   RUN_TEST(test_race_sweep);

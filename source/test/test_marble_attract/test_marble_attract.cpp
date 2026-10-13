@@ -170,6 +170,7 @@ int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   Arena::init();
+  marble_physics::loadRom();
   RUN_TEST(test_hiscore_defaults);
   RUN_TEST(test_title_level);
   RUN_TEST(test_particle_data);

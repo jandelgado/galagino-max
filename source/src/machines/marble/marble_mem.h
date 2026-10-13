@@ -38,9 +38,14 @@ inline int16_t s16(uint32_t v) { return (int16_t)v; }
 
 [[noreturn]] void fail(const char *what, uint32_t addr);
 
+// Unpacks the program ROM blocks to the Arena and reserves the terrain buffer. Once per
+// machine instance, before the first Mem: the buffers die with the Arena.
+void loadRom();
+
 class Mem {
 public:
   Mem(uint8_t *ram, uint8_t race) : ram(ram) { setRace(race); }
+  // unpacks the race terrain into the shared buffer unless loaded: Mems of another race fail
   void setRace(uint8_t race);
 
   uint8_t rb(uint32_t a) const { return ram[off(a)]; }
@@ -80,8 +85,11 @@ private:
     return (uint16_t)(a - RAM_BASE);
   }
 
+  void checkRace() const;
+
   uint8_t *ram;
   const MarbleTerrainInfo *terrain = nullptr;
+  uint8_t race = 0;
 };
 
 // sprite set of level n (races share sets), for the renderer
