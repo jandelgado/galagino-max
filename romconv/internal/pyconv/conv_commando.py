@@ -12,8 +12,8 @@ run("internal/unpack.py", "commando.zip")
 info("Commando CPU code (encrypted opcodes, decrypted at run time)")
 run("internal/romconv.py", "-c", "commando_rom", "./roms/cm04.9m", "./roms/cm03.8m", OUT + "commando_rom.h")
 
-info("Commando sound CPU code (plain, runs from flash: Arena is full)")
-run("internal/romconv.py", "commando_sound", "./roms/cm02.9f", OUT + "commando_sound.h")
+info("Commando sound CPU code")
+run("internal/romconv.py", "-c", "commando_sound", "./roms/cm02.9f", OUT + "commando_sound.h")
 
 info("Commando Tiles")
 run("internal/tileconv.py", "commando_chars", "./roms/vt01.5d", OUT + "commando_chars.h")
@@ -33,13 +33,14 @@ info("Commando C64 SID music")
 run_in_workdir("commando_sid_convert.py")
 
 # Arena residents (bytes): rom, sprites 3 x 256 x 128, chars 1024 x 16,
-# cmaps (128 + 64 + 64) x 2, SID tune RAM window (commando.h TUNE_RAM_SIZE)
-ARENA = {"rom": 49152, "sprites": 3 * 32768, "chars": 16384, "cmaps": 512, "tune_ram": 4096}
+# cmaps (128 + 64 + 64) x 2, SID tune RAM window (commando.h TUNE_RAM_SIZE), sound
+ARENA = {"rom": 49152, "sprites": 3 * 32768, "chars": 16384, "cmaps": 512, "tune_ram": 4096,
+         "sound": 16384}
 total = sum(ARENA.values())
 for name, size in ARENA.items():
     info(f"  arena {name:9s} {size:6d}")
-info(f"  arena total     {total:6d} of 182000")
-if total >= 182000:
+info(f"  arena total     {total:6d} of 201500")
+if total >= 201500:
     fatal("Commando assets exceed Arena::CAPACITY")
 
 info("--- Success ---")

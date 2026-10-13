@@ -97,12 +97,12 @@ class zaxxon : public machineBase
 protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char[8][8], COMPRESSED> zaxxon_bgtiles;
-  Asset<unsigned char[8][8], COMPRESSED> zaxxon_chartiles;
+  Asset<unsigned char[8][8], PLAIN> zaxxon_chartiles;
   Asset<unsigned short, COMPRESSED> zaxxon_palette;
   Asset<unsigned char, COMPRESSED> zaxxon_fgcolor_codes;
   Asset<unsigned char, PLAIN> zaxxon_rom_main;  // compresses worst: flash
   Asset<unsigned char[32][32], COMPRESSED> zaxxon_spritetiles;
-  Asset<unsigned short, PLAIN> zaxxon_tilemap_code;
+  Asset<unsigned short, COMPRESSED> zaxxon_tilemap_code;
   Asset<unsigned char, COMPRESSED> zaxxon_tilemap_color;
 public:
   zaxxon();

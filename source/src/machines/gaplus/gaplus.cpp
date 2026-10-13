@@ -16,7 +16,10 @@ gaplus::gaplus()
   cmap_tiles(gaplus_colormap_tiles),
   cmap_prio(gaplus_colormap_tiles_prio),
   cmap_sprites(gaplus_colormap_sprites.data()),
-  sprites(gaplus_sprites.data()) { }
+  sprites(gaplus_sprites.data()) {
+  // triggered by the emulated CPU: unpack now, not mid-frame
+  gaplus_sample_bang.data();
+}
 
 void gaplus::reset() {
   machineBase::reset();
@@ -174,7 +177,7 @@ void IRAM_ATTR gaplus::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if ((addr & 0xFFF0) == 0x6820) {
     unsigned char off = addr & 0x0F;
     if (off == 9 && val >= 0x0F) {
-      snd_bang.start(gaplus_sample_bang.data(), gaplus_sample_bang.size());
+      snd_bang.start(gaplus_sample_bang.data(), gaplus_sample_bang_samples);
     }
     customio3_ram[off] = val;
     return;

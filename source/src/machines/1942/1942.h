@@ -27,7 +27,7 @@ protected:
   Asset<unsigned char, PLAIN> _1942_rom_cpu1;
   Asset<unsigned char, COMPRESSED> _1942_rom_cpu1_b0;
   Asset<unsigned char, PLAIN> _1942_rom_cpu1_b1;
-  Asset<unsigned char, PLAIN> _1942_rom_cpu1_b2;
+  Asset<unsigned char, COMPRESSED> _1942_rom_cpu1_b2;
   Asset<unsigned char, COMPRESSED> _1942_rom_cpu2;
   Asset<uint32_t[32], COMPRESSED> _1942_sprites;
   Asset<unsigned short[32][8], COMPRESSED> _1942_colormap_tiles;

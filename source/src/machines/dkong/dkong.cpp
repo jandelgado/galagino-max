@@ -18,7 +18,14 @@ dkong::dkong()
     dkong_rom_cpu1(dkong_rom_cpu1_blob),
     dkong_rom_cpu2(dkong_rom_cpu2_blob),
     dkong_sprites(dkong_sprites_blob),
-    dkong_tilemap(dkong_tilemap_blob) { }
+    dkong_tilemap(dkong_tilemap_blob),
+    dkong_samples{ {dkong_sample_walk0_blob}, {dkong_sample_walk1_blob}, {dkong_sample_walk2_blob},
+                   {dkong_sample_jump_blob}, {dkong_sample_stomp_blob}, {dkong_sample_fall_blob} } {
+  // triggered by the emulated CPU: unpack now, not mid-frame
+  for (const auto &sample : dkong_samples) {
+    sample.data();
+  }
+}
 
 void dkong::reset() {
   machineBase::reset();
@@ -200,23 +207,24 @@ void dkong::run_frame(void) {
 }
 
 void dkong::trigger_sound(char snd) {
-  static const FlashAsset<unsigned char, PLAIN> *const samples[] = {
-    &dkong_sample_walk0_blob, &dkong_sample_walk1_blob, &dkong_sample_walk2_blob,
-    &dkong_sample_jump_blob, &dkong_sample_stomp_blob, &dkong_sample_fall_blob
+  // decoded sample count per dkong_samples entry
+  static const uint32_t counts[] = {
+    dkong_sample_walk0_samples, dkong_sample_walk1_samples, dkong_sample_walk2_samples,
+    dkong_sample_jump_samples, dkong_sample_stomp_samples, dkong_sample_fall_samples
   };
-  const FlashAsset<unsigned char, PLAIN> *sample;
+  uint8_t i;
 
   switch (snd) {
     case 0:
       // walk0, walk1 and walk2 are variants
-      sample = samples[random() % 3];
+      i = random() % 3;
       break;
-    case 1: sample = samples[3]; break;  // jump
-    case 2: sample = samples[4]; break;  // stomp
-    case 4: sample = samples[5]; break;  // fall
+    case 1: i = 3; break;  // jump
+    case 2: i = 4; break;  // stomp
+    case 4: i = 5; break;  // fall
     default: return;
   }
-  dkong_sample[snd].start(sample->data, sample->count);
+  dkong_sample[snd].start(dkong_samples[i].data(), counts[i]);
 }
 
 void dkong::prepare_frame(void) {

@@ -35,9 +35,7 @@ if __name__ == "__main__":
 
     # main CPU: two 16 KB ROMs at 0x0000 and 0x4000
     main = b"".join(read_rom(name, 0x4000) for name in rom_set["main"])
-    # PLAIN: compresses worst, so it leaves the Arena to the 16x16 sprites
-    create_output_file(main, senjyo_sets.out_header(game, "main_cpu_rom"), f"{game}_main_cpu_rom",
-                       compress=False)
+    create_output_file(main, senjyo_sets.out_header(game, "main_cpu_rom"), f"{game}_main_cpu_rom")
 
     # sound CPU: one 8 KB ROM at 0x0000
     sub = read_rom(rom_set["sub"], 0x2000)

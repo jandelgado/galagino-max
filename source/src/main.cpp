@@ -76,9 +76,28 @@ bool doReset = false;
 // defined in Esp.cpp
 uint32_t ESP_getFlashChipId(void);
 
+#ifdef HEAP_PROBE
+#include <esp_heap_caps.h>
+// heap totals plus per region (DRAM blocks, see arena.h)
+static void heapProbeDump(const char *tag) {
+  printf("PROBE %s free=%u largest=%u minfree=%u\n", tag,
+         heap_caps_get_free_size(MALLOC_CAP_8BIT),
+         heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
+         heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
+  heap_caps_print_heap_info(MALLOC_CAP_8BIT);
+}
+#endif
+
 void setup() {
+#ifdef HEAP_PROBE
+  delay(500);  // serial monitor attaches after reset
+  heapProbeDump("before-arena");
+#endif
   // before anything fragments the heap
   Arena::init();
+#ifdef HEAP_PROBE
+  heapProbeDump("after-arena");
+#endif
 
   #if CONFIG_IDF_TARGET_ESP32S3
   delay(2000); // USB delay
@@ -275,6 +294,40 @@ static void switchTo(int8_t index) {
   printf("switchTo(%d) Heap: Free=%d MaxAlloc=%d MinFree=%d\n", index, ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
 }
 
+// HEAP_PROBE build: runs every machine PROBE_GAME_MS and reports Arena
+// and heap use, to size the Arena. True if it switched machines.
+static bool heapProbeStep() {
+#ifdef HEAP_PROBE
+  static const uint32_t PROBE_GAME_MS = 5000;
+  static int8_t probeIndex = -1;
+  static uint32_t probeStart = 0;
+
+  if (currentMachine && millis() - probeStart <= PROBE_GAME_MS) {
+    return false;
+  }
+
+  if (currentMachine) {
+    printf("PROBE game=%d type=%d arena=%u free=%u largest=%u minfree=%u\n", probeIndex,
+           machines[probeIndex].type, Arena::bytesUsed(),
+           heap_caps_get_free_size(MALLOC_CAP_8BIT),
+           heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
+           heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
+  }
+  probeIndex++;
+  if (probeIndex == machinesCount) {
+    heapProbeDump("end");
+    probeIndex = 0;
+  }
+
+  switchTo(SHOW_MENU);  // menu dtor resets the Arena
+  switchTo(probeIndex);
+  probeStart = millis();
+  return true;
+#else
+  return false;
+#endif
+}
+
 // Idle game for too long: back to the menu with the next game preselected,
 // menu attract then starts it.
 static bool attractGameTimeout() {
@@ -300,7 +353,10 @@ void updateAudioVideo(void) {
 
   // First frame, not setup(): the machine's task would starve its
   // watchdog while BOOT_SELFTEST runs.
-  if (!currentMachine) {
+  if (heapProbeStep()) {
+    // probe build: the probe picks the machine
+  }
+  else if (!currentMachine) {
     switchTo(machinesCount == 1 ? 0 : SHOW_MENU);
   }
   else if (doReset || attractGameTimeout()) {

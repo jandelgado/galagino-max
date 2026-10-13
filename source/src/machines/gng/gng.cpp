@@ -81,17 +81,17 @@ gng::gng()
     gng_bank(gng_bank_blob),
     gng_sound(gng_sound_blob),
     gng_sid(gng_sid_blob) {
-  // largest first, this order only: block A sprites0 + 1 + sound + tile
-  // map, B sprites2 + bank + chars + tune RAM
+  // largest first, this order only: block B tiles + tune RAM, A sprites0
+  // + 1 + sound + tile map
+  tiles = gng_tiles.data();
   sprite_banks[0] = gng_sprites0.data();
   sprite_banks[1] = gng_sprites1.data();
   sprite_banks[2] = gng_sprites2.data();
-  bank_rom = gng_bank.data();
   sound_rom = gng_sound.data();
-  chars = gng_chars.data();
   tile_map = gng_tile_map.data();
+  bank_rom = gng_bank.data();
+  chars = gng_chars.data();
   rom = gng_rom.data();
-  tiles = gng_tiles.data();
 
   // skip fully transparent chars (most of the text layer) per tile
   for (uint16_t c = 0; c < gng_chars.size(); c++) {

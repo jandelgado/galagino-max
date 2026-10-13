@@ -3,7 +3,7 @@ import sys
 import os
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from asset_emit import emit_plain
+from asset_emit import emit_compressed
 
 # --- Configurazione per Bomb Jack (Background) ---
 INPUT_ROM_FILES = ["../../roms/06_l08t.bin", "../../roms/07_n08t.bin", "../../roms/08_r08t.bin"]
@@ -97,18 +97,11 @@ def write_header(chars):
     with open(OUTPUT_HEADER_FILE, "w") as f:
         f.write(f"// File generato automaticamente per il background di Bomb Jack.\n")
         f.write(f"// Dati decodificati seguendo la logica C funzionante.\n")
-        f.write(f"// RAM budget: kept PLAIN/flash-resident, not zlib-compressed --\n")
-        f.write(f"// used every frame, not worth a permanent heap-decompressed copy.\n")
-        rows = []
+        flat = []
         for c in chars:
-            vals = []
             for y in range(TILE_HEIGHT):
-                val1, val2 = dump_row_to_ulong_pair(c[y])
-                vals.append(hex(val1))
-                vals.append(hex(val2))
-            rows.append("  { " + ",".join(vals) + " }")
-        body = ",\n".join(rows)
-        emit_plain(f, OUTPUT_ARRAY_NAME, "uint32_t", "[%d]" % (TILE_HEIGHT * 2), NUM_TILES, body)
+                flat.extend(dump_row_to_ulong_pair(c[y]))
+        emit_compressed(f, OUTPUT_ARRAY_NAME, "uint32_t", "[%d]" % (TILE_HEIGHT * 2), NUM_TILES, flat)
 
     print(f"\nProcesso completato! Il file '{OUTPUT_HEADER_FILE}' è stato creato.")
 

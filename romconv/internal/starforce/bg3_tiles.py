@@ -3,7 +3,7 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from asset_emit import emit_compressed
+from asset_emit import emit_plain
 from convutil import fatal
 import senjyo_sets
 
@@ -157,8 +157,14 @@ def write_c_array_packed(tiles_data):
                         pixel_value = row[x]
                         packed_int |= pixel_value << (BPP * (7 - x_in_chunk))
                     flat.append(packed_int)
-        emit_compressed(f_c, C_ARRAY_NAME, "uint32_t",
-                         "[%d][%d]" % (height, chunks_per_row), NUM_TILES, flat)
+        # PLAIN: the smallest bg layer leaves the Arena to the main CPU ROM,
+        # which compresses worse
+        rows = ["{" + ",".join("0x%08X" % v for v in flat[i:i + chunks_per_row]) + "}"
+                for i in range(0, len(flat), chunks_per_row)]
+        body = ",\n".join("  {" + ",".join(rows[t * height:(t + 1) * height]) + "}"
+                           for t in range(NUM_TILES))
+        emit_plain(f_c, C_ARRAY_NAME, "uint32_t",
+                   "[%d][%d]" % (height, chunks_per_row), NUM_TILES, body)
     print(f"File '{OUTPUT_C_FILE}' generato con successo!")
 def generate_preview_png(tiles_data):
     if not tiles_data:

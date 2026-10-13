@@ -73,7 +73,7 @@ commando::commando()
     commando_tiles(commando_tiles_blob),
     commando_sid(commando_sid_blob),
     commando_sound(commando_sound_blob) {
-  // largest first: block A rom + sprites0, B sprites1 + 2 + chars
+  // largest first: block A rom + sprites0, B sprites1 + 2 + chars + sound
   rom = commando_rom.data();
   sprite_banks[0] = commando_sprites0.data();
   sprite_banks[1] = commando_sprites1.data();

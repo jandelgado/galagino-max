@@ -31,7 +31,7 @@ protected:
   Asset<unsigned short[4], COMPRESSED> commando_cmap_chars;
   Asset<uint32_t[32], PLAIN> commando_tiles;
   Asset<unsigned char, PLAIN> commando_sid;
-  Asset<unsigned char, PLAIN> commando_sound;
+  Asset<unsigned char, COMPRESSED> commando_sound;
 
 public:
   commando();
