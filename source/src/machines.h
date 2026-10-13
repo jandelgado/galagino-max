@@ -112,6 +112,10 @@
   #include "machines/gng/gng.h"
 #endif
 
+#ifdef ENABLE_TP84
+  #include "machines/tp84/tp84.h"
+#endif
+
 #ifdef ENABLE_MOONCRESTA
   #include "machines/mooncresta/mooncresta.h"
 #endif
@@ -841,6 +845,13 @@ machineInfo machines[] = {
     gng::menuLeds,
 #endif
     MCH_GNG },
+#endif
+#ifdef ENABLE_TP84
+  { []() -> machineBase* { return new tp84(); }, tp84::logo,
+#ifdef LED_PIN
+    machineBase::defaultMenuLeds,
+#endif
+    MCH_TP84 },
 #endif
 };
 
