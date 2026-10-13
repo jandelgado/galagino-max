@@ -11,8 +11,15 @@
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
 #include "../../src/machines/marble/marble_rom.h"
+#include "../../src/machines/marble/marble_level.cpp"
+#include "../../src/machines/marble/marble_mem.cpp"
+#include "../../src/machines/marble/marble_rng.cpp"
+#include "../../src/machines/marble/marble_video.cpp"
+#include "../../src/machines/marble/marble_particles.cpp"
+#include "../../src/machines/marble/marble_hiscore.cpp"
 #endif
 #include "marble_attract_fixture.h"
+#include "marble_attract_trace.h"
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -70,6 +77,87 @@ static void test_particle_data(void) {
                           crc32(marble_mo_tiles[marble_mo_code_first[1]], 4 * 64));
 }
 
+using marble_physics::Mem;
+using marble_video::VideoState;
+static uint8_t ram[marble_physics::RAM_SIZE];
+static const uint32_t PARTS = 0x400a9c, RNG = 0x4003a6;
+static const uint8_t STRIDE = 10;
+
+// MAME particle runs (title, final screen, entry): init from the RNG word, then one bounce
+// per frame, slots equal every frame
+static void test_particles_trace(void) {
+  for (const MarblePartsRun &run : marble_parts_runs) {
+    memset(ram, 0, sizeof(ram));
+    Mem m(ram, 0);
+    m.ww(RNG, run.rng);
+    marble_particles::init(m, run.count, run.mode);
+    for (uint16_t k = 0; k < run.frames; k++) {
+      if (k) { marble_particles::bounce(m); }
+      char msg[48];
+      snprintf(msg, sizeof(msg), "%s frame %u", run.trace, (unsigned)(run.frame + k));
+      const uint8_t *slots = ram + (PARTS - marble_physics::RAM_BASE);
+      TEST_ASSERT_EQUAL_HEX32_MESSAGE(run.crc[k], crc32(slots, run.count * STRIDE), msg);
+    }
+  }
+}
+
+// particle at slot position (x, y) in pixels, colour mode word c
+static void place(Mem &m, uint8_t i, int16_t x, int16_t y, uint8_t c) {
+  const uint32_t a = PARTS + i * STRIDE;
+  m.ww(a, (uint16_t)(x << 4));
+  m.ww(a + 2, (uint16_t)(y << 4));
+  m.ww(a + 8, (uint16_t)(c << 11));
+}
+
+// particles at the bounce limits (x 8 / 0x148, y 0 / 0xe0; x limits are outside the 240 px
+// view): view positions as the MO mapping (x - 56, 248 - y), every strip renders inside the
+// buffer; a marble inside the view shows
+static void test_particles_clip(void) {
+  memset(ram, 0, sizeof(ram));
+  Mem m(ram, 0);
+  m.wb(0x4003e2, 4);
+  place(m, 0, 8, 0, 0);
+  place(m, 1, 0x148, 0xe0, 1);
+  place(m, 2, 0x80, 0xe0, 0);  // inside: view (72, 24)
+  place(m, 3, 0x148, 0, 1);
+  static VideoState v;
+  memset(&v, 0, sizeof(v));
+  marble_particles::publish(m, marble_particles::TITLE_MODE, 0, v);
+  TEST_ASSERT_EQUAL_UINT8(4, v.nparts);
+  TEST_ASSERT_EQUAL_UINT8(0, v.n);
+  TEST_ASSERT_EQUAL_INT16(8 - 56, v.parts[0].x);
+  TEST_ASSERT_EQUAL_INT16(248, v.parts[0].y);
+  TEST_ASSERT_EQUAL_INT16(0x148 - 56, v.parts[1].x);
+  TEST_ASSERT_EQUAL_INT16(248 - 0xe0, v.parts[1].y);
+
+  static marble_level::Store store;
+  store.init();
+  const marble_level::Level &l = store.load(MARBLE_TITLE_LEVEL);
+  static uint16_t buf[marble_video::OUT_W * 8 + 64];
+  bool drawn = false;
+  for (int row = 0; row < 36; row++) {
+    for (int k = 0; k < 64; k++) { buf[marble_video::OUT_W * 8 + k] = 0xbeef; }
+    marble_video::renderRow(l, v, row, buf);
+    for (int k = 0; k < 64; k++) { TEST_ASSERT_EQUAL_HEX16(0xbeef, buf[marble_video::OUT_W * 8 + k]); }
+    for (int k = 0; k < marble_video::OUT_W * 8 && row * 8 >= 248 - 0xe0 && row * 8 < 248 - 0xe0 + 16; k++) {
+      if (buf[k] == marble_part_title_pal[0][1] || buf[k] == marble_part_title_pal[0][3]) { drawn = true; }
+    }
+  }
+  TEST_ASSERT_TRUE(drawn);
+}
+
+// defaults load once: a second call keeps an edited table
+static void test_defaults_once(void) {
+  static marble_hiscore::Table t;
+  memset(&t, 0, sizeof(t));
+  marble_hiscore::defaults(t);
+  TEST_ASSERT_EQUAL_UINT32(marble_hiscore_defaults[0].score, t.e[0].score);
+  TEST_ASSERT_EQUAL_MEMORY(marble_hiscore_defaults[9].initials, t.e[9].initials, 3);
+  t.e[0].score = 1;
+  marble_hiscore::defaults(t);
+  TEST_ASSERT_EQUAL_UINT32(1, t.e[0].score);
+}
+
 // title strings and the '#' of the table ranks have glyphs
 static void test_title_glyphs(void) {
   TEST_ASSERT_NOT_EQUAL(MARBLE_HUD_NO_GLYPH, marble_hud_glyph['#']);
@@ -81,10 +169,14 @@ static void test_title_glyphs(void) {
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  Arena::init();
   RUN_TEST(test_hiscore_defaults);
   RUN_TEST(test_title_level);
   RUN_TEST(test_particle_data);
   RUN_TEST(test_title_glyphs);
+  RUN_TEST(test_particles_trace);
+  RUN_TEST(test_particles_clip);
+  RUN_TEST(test_defaults_once);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif

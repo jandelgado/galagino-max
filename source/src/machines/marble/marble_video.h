@@ -46,6 +46,15 @@ static const uint8_t SET_PAL = 0xf;
 // marble sprite top left relative to the player origin (sx, camera top + ARCADE_H - sy)
 static const int16_t MARBLE_X = -8, MARBLE_Y = -16;
 
+// Bouncing marble of the title and the final screen (MARBLE.md "Attract"): top left of the
+// left 8 x 16 half (MO code 1) in view pixels, the right half (code 3) 8 px right; colour =
+// mode word >> 11 (palette set)
+struct Part {
+  int16_t x, y;
+  uint8_t colour;
+};
+static const uint8_t PARTS = 28;  // final screen
+
 // HUD state (MARBLE.md "HUD"): marble_hud builds the alpha cells from it on the video core
 struct Hud {
   uint16_t screen;  // marble_hud::Screen bits
@@ -66,11 +75,16 @@ struct VideoState {
   int16_t mx, my;  // marble sprite top left (MO 0x05) in playfield pixels
   uint8_t mask, nmask;  // marble masks in the pool
   Mask masks[MASKS];
-  Obj objs[OBJS];  // object sprites, back to front
+  union {
+    Obj objs[OBJS];    // object sprites, back to front (n)
+    Part parts[PARTS];  // bouncing marbles instead (nparts, then n = 0)
+  };
   uint8_t patch;   // last playfield patch, index into marble_patches (NO_PATCH = none)
   uint8_t n;       // objects
   uint8_t marbleAt;  // objects drawn before the marble, the rest on top
   uint8_t lift;    // tag 3 palette variant 0-3, 0xff none
+  uint8_t nparts;  // bouncing marbles in parts
+  uint8_t partMode, partFill;  // marble_particles mode; palette fill variant bit per colour
   Hud hud;
 };
 static_assert(sizeof(VideoState) <= 336, "VideoState limit");

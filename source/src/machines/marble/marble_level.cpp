@@ -25,7 +25,7 @@ const Level &Store::load(uint8_t n) {
     const Asset<unsigned char[32], COMPRESSED> d(marble_death_tiles_blob);
     d.decodeInto(sprites);
   }
-  const uint8_t set = marble_sprite_race[n];  // races share sets
+  const uint8_t set = n < LEVELS ? marble_sprite_race[n] : sprSet;  // races share sets
   if (set != sprSet) {
     const Asset<unsigned char[32], COMPRESSED> s(marble_sprite_tiles[set]);
     s.decodeInto(sprites + MARBLE_DEATH_TILES);

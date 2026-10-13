@@ -5,6 +5,7 @@
 #include <string.h>
 #include "../../emulation/asset.h"
 #include "marble_mem.h"
+#include "marble_particles.h"
 #include "marble_rom.h"
 
 namespace marble_video {
@@ -68,6 +69,30 @@ void drawMarble(const VideoState &v, int y, uint16_t *dst) {
       const int x = x0 + k;
       if (px[k] && x >= 0 && x < OUT_W && !(hide & (0x80 >> k))) {
         dst[x] = marble_mo_palette[px[k]];
+      }
+    }
+  }
+}
+
+// Bouncing marble lines of strip y0 (marble MO codes 1 and 3, 2 tiles each), clipped
+void drawPart(const VideoState &v, const Part &p, int y0, uint16_t *strip) {
+  static const uint8_t HALVES[2] = {1, 3};
+  if (p.y >= y0 + 8 || p.y + MARBLE_H <= y0) { return; }
+
+  const uint16_t *pal = v.partMode == marble_particles::FINAL_MODE
+                            ? marble_part_fill_pal[p.colour & 7][(v.partFill >> (p.colour & 7)) & 1]
+                            : marble_part_title_pal[p.colour & 1];
+  for (int line = 0; line < 8; line++) {
+    const int ty = y0 + line - p.y;
+    if (ty < 0 || ty >= MARBLE_H) { continue; }
+
+    uint16_t *dst = strip + line * OUT_W;
+    for (uint8_t h = 0; h < 2; h++) {
+      const uint8_t *px = marble_mo_tiles[marble_mo_code_first[HALVES[h]] + (ty >> 3)] + (ty & 7) * 8;
+      const int x0 = p.x + h * 8;
+      for (int k = 0; k < 8; k++) {
+        const int x = x0 + k;
+        if (px[k] && x >= 0 && x < OUT_W) { dst[x] = pal[px[k]]; }
       }
     }
   }
@@ -192,6 +217,12 @@ void renderRow(const Level &l, const VideoState &v, int row, uint16_t *dst) {
       n += end - (x & 7);
       x = (x & ~7) + end;
     }
+  }
+
+  if (v.nparts) {  // bouncing marbles in view pixels, no objects
+    const uint8_t n = v.nparts < PARTS ? v.nparts : PARTS;
+    for (uint8_t i = 0; i < n; i++) { drawPart(v, v.parts[i], row * 8, strip); }
+    return;
   }
 
   // objects behind the marble, the marble, objects in front (link order)
