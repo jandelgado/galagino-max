@@ -178,6 +178,9 @@ PROG_TABLES = (
     (0x1699c, 0x16),  # practice, beginner, ultimate dynamic codes: first animation frame
     (0x1b908, 0x1c),  # (0x13628: slot, count, words)
     (0x24e4e, 0xe4),
+    (0x1d364, 0x08),  # attract demo 0x1815a: waypoint list per demo race (practice, beginner)
+    (0x2419e, 0x88),  # the two waypoint lists, 0 terminated
+    (0x242aa, 0x1c),  # banner string chain per banner (BIOS 0x12a message)
 )
 DESC_BYTES = 0x2e  # descriptor fields +0x00..+0x2d
 MO_CODES = range(0x01, 0x2e)  # particle half 0x01-0x02, marble body 0x03-0x06, 0x07, dots 0x0d-0x2d
@@ -1587,6 +1590,29 @@ def emit_attract(f, rom, size6a):
     size6a["particle tiles"] = 2 * 64
 
 
+def emit_demo(f, rom, size6b):
+    print("\n// ---- Phase 6b: attract demo (MARBLE.md \"Demo race\", tools/marble_demo.py)", file=f)
+    print("// Banners: string chain (0x242aa) lines in arcade alpha rows/columns, colour 5 opaque",
+          file=f)
+    print("struct MarbleBannerLine { uint8_t row, col; const char *text; };", file=f)
+    print("struct MarbleBanner { uint32_t chain; uint8_t first, count; };", file=f)
+    lines, banners = [], []
+    for b in range(7):
+        chain = md.u32(rom, hud.BANNERS + 4 * b)
+        ls = hud.chain(rom, chain)
+        banners.append((chain, len(lines), len(ls)))
+        lines += ls
+    print(f"static const MarbleBannerLine marble_banner_lines[{len(lines)}] = {{", file=f)
+    for row, col, t in lines:
+        print(f"  {{ {row}, {col}, \"{t}\" }},", file=f)
+    print("};", file=f)
+    print(f"static const MarbleBanner marble_banners[{len(banners)}] = {{", file=f)
+    print("  " + ", ".join(f"{{ 0x{c:06x}, {a}, {n} }}" for c, a, n in banners) + "\n};", file=f)
+    print(f"static const uint8_t MARBLE_BANNER_W = {hud.BANNER_W};", file=f)
+    size6b["banners"] = len(lines) * (8 + hud.BANNER_W + 1) + len(banners) * 8
+    size6b["waypoints"] = 8 + 0x88 + 0x1c
+
+
 def write_attract_fixture(rom, title):
     crc = lambda fmt, v: zlib.crc32(struct.pack(fmt, *v))
     rows, tiles, mapw, pal = title
@@ -1628,13 +1654,13 @@ def write_hud_fixture(rom):
         print("// 1 = blank initials 9,999,999)", file=f)
         print("struct MarbleHudCase { uint16_t screen; uint32_t score; int32_t value; int16_t seconds;",
               file=f)
-        print("  uint8_t race, add, deaths, pal3, pal11, stage, tcase; uint32_t grid_crc, pal_crc; };",
+        print("  uint8_t race, add, deaths, pal3, pal11, stage, tcase, banner; uint32_t grid_crc, pal_crc; };",
               file=f)
         print("static const MarbleHudCase MARBLE_HUD_FIX_CASES[] = {", file=f)
         for c, h in zip(hud.LAYOUT_CASES, hud.layout_states(rom)):
             g = [w for row in hud.view(h, rom) for w in row]
             pal = [rgb(w) for w in hud.palette(h, rom)]
-            c = tuple(c) + (0, 0)[len(c) - 9:]
+            c = tuple(getattr(h, n) for n in hud.LAYOUT_FIELDS)
             print("  { " + ", ".join(str(v) for v in c) + f", 0x{crc(f'<{len(g)}H', g):08x}u, "
                   f"0x{crc('<32H', pal):08x}u }},", file=f)
         print("};", file=f)
@@ -1801,6 +1827,8 @@ def main():
         size6a = {"title map + tiles": len(lzma_compress(struct.pack(f"<{len(title[2])}H", *title[2])))
                   + len(lzma_compress(bytes(p for t in title[1] for p in t))), "title palette": 256}
         emit_attract(f, rom, size6a)
+        size6b = {}
+        emit_demo(f, rom, size6b)
         size5 = {}
         emit_sound(f, size5)
         print("#endif", file=f)
@@ -1808,6 +1836,8 @@ def main():
     write_attract_fixture(rom, title)
     print("phase 6a (title) flash: " + ", ".join(f"{k} {v}" for k, v in size6a.items())
           + f", total {sum(size6a.values())} B")
+    print("phase 6b (demo) flash: " + ", ".join(f"{k} {v}" for k, v in size6b.items())
+          + f", total {sum(size6b.values())} B")
     total5 = sum(size5.values())
     print("phase 5 (sound) flash: " + ", ".join(f"{k} {v}" for k, v in size5.items())
           + f", total {total5} B")

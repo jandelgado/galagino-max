@@ -64,6 +64,8 @@ BIG = {   # captured from MAME (alpha RAM, final screen)
 # screen bits
 PAL, TOP, INTRO, SILLY, BONUS, BONUS_PALETTE, OUT, FIN = (1 << k for k in range(8))
 TITLE = 1 << 9
+DEMO = 1 << 10   # attract demo race: coin box, banner (Hud.banner)
+NO_BANNER = 0xff
 
 
 def font():
@@ -115,6 +117,7 @@ class Hud:
         self.race, self.add, self.deaths = 0, 0, 0
         self.pal3 = self.pal11 = 0xff   # pulse table index, 0xff = ROM colour
         self.table, self.stage = (), 0     # title: [(initials, score)], frames since start
+        self.banner = NO_BANNER            # demo: banner number (0x242aa), NO_BANNER none
         self.__dict__.update(kw)
 
     def key(self):
@@ -195,6 +198,8 @@ def items(h, r):
         put(-10, 3, 25, 40 - len(bot), bot)
     if s & TITLE:
         out += title_items(h.table, r, min(h.stage, TITLE_STAGES - 1))
+    if s & DEMO:
+        out += demo_items(h.banner, r)
     return out
 
 
@@ -225,6 +230,45 @@ def title_items(table, r, stage=TITLE_STAGES - 1):
     if stage >= 2:
         put(-2, 3, 28, 3, text(rom_str(r, S_COIN), 5, False))
         put(-7, 3, 28, 24, text(rom_str(r, S_CREDITS) + "0" + " " * 4, 5, False))
+    return out
+
+
+# --- attract demo (Phase 6b, MARBLE.md "Demo race"): coin box fitted to MAME, banners ----
+BANNERS = 0x242aa   # long per banner: string chain (col, row, string, marker 2 = next, next)
+BANNER_W = 13       # every banner line
+
+
+def chain(r, a):
+    """Alpha string chain -> [(row, col, text)] (render-string-chain, rotation 0)."""
+    out = []
+    while True:
+        col, row = md._rom(r, a, 2)
+        out.append((row, col, rom_str(r, md.u32(r, a + 2))))
+        if md._rom(r, a + 6, 1)[0] <= 1:
+            return out
+        a = md.u32(r, a + 8)
+
+
+def banner_dx(col):
+    """Banner move into the view: 6 columns left as the other banners, kept inside."""
+    return max(0, min(col - 6, VIEW_COLS - BANNER_W)) - col
+
+
+def demo_items(banner, r):
+    """(dx, dy, row, col, words) of the demo: coin box (rows 27-29, colour 6 lines, colour 5
+    and 4 opaque texts; the 36 arcade columns cut to 30), the banner (colour 5 opaque)."""
+    out = []
+    put = lambda dx, dy, row, col, ws: out.append((dx, dy, row, col, ws))
+    line = word(0x5f, 6, False)
+    put(-3, 3, 27, 3, [line] * 15)
+    put(-5, 3, 27, 24, [line] * 15)
+    put(-3, 3, 28, 3, text(rom_str(r, S_COIN), 5, True))
+    put(-3, 3, 28, 18, [line] * 6)
+    put(-5, 3, 28, 24, text(rom_str(r, S_CREDITS) + "0" + " " * 4, 5, True))
+    put(-6, 3, 29, 12, text(rom_str(r, S_COPYRIGHT), 4, True))
+    if banner != NO_BANNER:
+        for row, col, t in chain(r, md.u32(r, BANNERS + 4 * banner)):
+            put(banner_dx(col), 3, row, col, text(t, 5, True))
     return out
 
 
@@ -279,6 +323,7 @@ def glyph_codes(r):
     """Every alpha code a HUD item can show, ascending."""
     strs = [rom_str(r, a) for a in STRINGS.values()]
     strs += [rom_str(r, S_RACES + RACE_STRIDE * k) for k in range(len(S_NAMES))]
+    strs += [t for b in range(7) for _, _, t in chain(r, md.u32(r, BANNERS + 4 * b))]
     codes = {ord(ch) for t in strs + ["0123456789,-SCORE#", RADIX[1:27]] for ch in t if ch != " "}
     codes |= set(BORDER_CODES)
     codes |= {0x100 + k for k in range(40)} | {BLANK, COMMA_LO, COLON}
@@ -311,9 +356,15 @@ LAYOUT_CASES = (
     (PAL | TITLE, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 1, 0),      # + copyright
     (PAL | TITLE, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 2, 0),
     (PAL | TITLE, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 9, 1),      # 7 digit score, blank initials
+    (PAL | TOP | DEMO, 1330, 0, 45, 0, 0, 0, 0xff, 0xff, 0, 0, NO_BANNER),  # coin box
+    (PAL | TOP | DEMO, 0, 0, 60, 0, 0, 0, 0xff, 0xff, 0, 0, 0),   # banner clipped right
+    (PAL | TOP | DEMO, 80, 0, 58, 0, 0, 0, 0xff, 0xff, 0, 0, 1),  # clipped left
+    (PAL | TOP | DEMO, 300, 0, 46, 0, 0, 0, 0xff, 0xff, 0, 0, 3),  # 5 lines
+    (PAL | TOP | DEMO, 300, 0, 46, 1, 0, 0, 0xff, 0xff, 0, 0, 6),
 )
 LAYOUT_FIELDS = ("screen", "score", "value", "seconds", "race", "add", "deaths", "pal3", "pal11",
-                 "stage", "tcase")
+                 "stage", "tcase", "banner")
+LAYOUT_DEFAULTS = (0, 0, NO_BANNER)  # stage, tcase, banner
 # title table of a layout case: 0 ROM defaults, 1 defaults with entry 1 = (blanks, 9,999,999)
 TABLE_CASES = 2
 BIG_ENTRY = ("   ", 9999999)
@@ -328,7 +379,7 @@ def layout_table(r, tcase):
 def layout_states(r=None):
     out = []
     for c in LAYOUT_CASES:
-        c = tuple(c) + (0, 0)[len(c) - len(LAYOUT_FIELDS) + 2:]
+        c = tuple(c) + LAYOUT_DEFAULTS[len(c) - len(LAYOUT_FIELDS) + len(LAYOUT_DEFAULTS):]
         h = Hud(**dict(zip(LAYOUT_FIELDS, c)))
         if h.screen & TITLE:
             h.table = layout_table(r or md.load(), h.tcase)
