@@ -23,8 +23,9 @@ using marble_physics::PLAYER;
 // keyboard trackball speed. Screen right: c7 = c6 = -k; down: c7 = +k, c6 = -k.
 #define MARBLE_STICK_K 9
 
-// the extended PSID file (marble_sid.py), unpacked into Arena by the first start()
-static Asset<unsigned char, COMPRESSED> sid_file(marble_sid_blob);
+// the extended PSID file (marble_sid.py). Only decodeInto() is used: data() would cache an
+// Arena pointer in this static, stale after the Arena reset of the next machine switch
+static const Asset<unsigned char, COMPRESSED> sid_file(marble_sid_blob);
 // C64 0x0700-0x0aff (player frame counter and reads) live in tune RAM at MARBLE_SID_ALIAS
 static const uint16_t SID_ALIAS_FROM = 0x0700, SID_ALIAS_SIZE = 0x400;
 
@@ -70,7 +71,9 @@ void marble::start() {
   // after the level buffers: Arena is first fit, block A must keep map + tiles together
   if (!tune_loaded) {
     tune_loaded = true;
-    tune_ok = psidParse(sid_file.data(), MARBLE_SID_SIZE, &tune) &&
+    uint8_t *file = Arena::alloc<uint8_t>(MARBLE_SID_SIZE);  // tune.payload points into it
+    sid_file.decodeInto(file);
+    tune_ok = psidParse(file, MARBLE_SID_SIZE, &tune) &&
               player.load(tune, Arena::alloc<uint8_t>(MARBLE_SID_RAM), MARBLE_SID_RAM);
     if (tune_ok) { player.alias(SID_ALIAS_FROM, MARBLE_SID_ALIAS, SID_ALIAS_SIZE); }
     if (!tune_ok) { printf("marble: Marble_Madness.sid is not a supported PSID\n"); }
