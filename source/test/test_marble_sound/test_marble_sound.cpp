@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <initializer_list>
 #include <unity.h>
 
 // Marble sound (MARBLE.md "Sound"): the extended C64 tune (songs, effect stub) on SidPlayer.
@@ -15,6 +16,8 @@
 #include "../../src/emulation/arena.cpp"
 #include "../../src/emulation/asset.h"
 #include "../../src/machines/marble/marble_rom.h"
+#include "../../src/machines/marble/marble_mem.cpp"
+#include "../../src/machines/marble/marble_sound.cpp"
 #include "marble_sound_fixture.h"
 #endif
 
@@ -153,6 +156,63 @@ static void test_wav_dump(void) {
     writeWav(path, out, 3 * 24000);
   }
 }
+using marble_physics::Mem;
+static uint8_t work[marble_physics::RAM_SIZE];
+static marble_sound::Sound snd;
+
+static void fresh() { memset(work, 0, sizeof(work)); marble_sound::reset(snd); }
+static void sendStep(uint8_t c) { marble_sound::send(Mem(work, 0), c); marble_sound::step(snd); }
+
+static void test_race_music(void) {
+  fresh();
+  const uint16_t r = snd.music >> 8;
+  sendStep(0x0a);
+  TEST_ASSERT_EQUAL(2, snd.music & 0xff);
+  TEST_ASSERT_EQUAL(r + 1, snd.music >> 8);
+  sendStep(0x0a);  // same piece: no restart
+  TEST_ASSERT_EQUAL(r + 1, snd.music >> 8);
+  sendStep(0x00);  // stop: the silent song (effects stay possible)
+  TEST_ASSERT_EQUAL(MARBLE_SID_SILENT, snd.music & 0xff);
+}
+
+static void test_unknown_keeps_music(void) {
+  fresh();
+  sendStep(0x08);
+  const uint16_t m = snd.music, e = snd.effect;
+  for (uint8_t c : {0x10, 0x16, 0x1a, 0x3a, 0x3b, 0x62, 0x03, 0x07, 0x09, 0xff}) {
+    sendStep(c);
+    TEST_ASSERT_EQUAL_HEX16(m, snd.music);
+    TEST_ASSERT_EQUAL_HEX16(e, snd.effect);
+  }
+}
+
+static void test_jingle_and_effect(void) {
+  fresh();
+  sendStep(0x3f);
+  TEST_ASSERT_EQUAL(MARBLE_SONG_3F, snd.music & 0xff);
+  const uint16_t e = snd.effect;
+  sendStep(0x31);
+  TEST_ASSERT_EQUAL(MARBLE_FX_31, snd.effect & 0xff);
+  TEST_ASSERT_EQUAL((e >> 8) + 1, snd.effect >> 8);
+  sendStep(0x31);  // again: a new request (restart)
+  TEST_ASSERT_EQUAL((e >> 8) + 2, snd.effect >> 8);
+}
+
+static void test_skip_word_drops(void) {
+  fresh();
+  Mem m(work, 0);
+  m.ww(marble_sound::SKIP, 1);
+  marble_sound::send(m, 0x0a);
+  TEST_ASSERT_EQUAL(0, marble_sound::queued());
+}
+
+static void test_queue_overflow_drops(void) {
+  fresh();
+  for (int i = 0; i < 20; i++) { marble_sound::send(Mem(work, 0), 0x31); }
+  TEST_ASSERT_EQUAL(marble_sound::QUEUE, marble_sound::queued());
+  marble_sound::step(snd);
+  TEST_ASSERT_EQUAL(0, marble_sound::queued());
+}
 #endif
 
 int main(int, char **) {
@@ -164,6 +224,11 @@ int main(int, char **) {
   RUN_TEST(test_effect_plays);
   RUN_TEST(test_effect_restart);
   RUN_TEST(test_wav_dump);
+  RUN_TEST(test_race_music);
+  RUN_TEST(test_unknown_keeps_music);
+  RUN_TEST(test_jingle_and_effect);
+  RUN_TEST(test_skip_word_drops);
+  RUN_TEST(test_queue_overflow_drops);
 #endif
   return UNITY_END();
 }
