@@ -37,6 +37,7 @@ import marble_mini as mn
 import marble_piston as pp
 import objects_data as od
 import marble_hud as hud
+import marble_attract as att
 
 ROOT = os.path.join(md.HERE, "..", "..", "..")
 OUT = os.path.join(ROOT, "source", "src", "machines", "marble", "marble_rom.h")
@@ -59,6 +60,8 @@ PISTON_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_pistons",
 SLINKY_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_slinkies",
                               "marble_slinkies_trace.h")
 HUD_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_hud", "marble_hud_fixture.h")
+ATTRACT_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_attract",
+                               "marble_attract_fixture.h")
 DEATH_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_deaths",
                              "marble_deaths_trace.h")
 
@@ -102,6 +105,37 @@ def convert_level(rom, n):
     return len(words), tiles, mapw, pal
 
 
+TITLE_ROWS = 36   # title playfield: one screen, logo at rows 5-10 (MARBLE.md "Attract")
+TITLE_TOP, TITLE_LEFT = 5, 8
+
+
+def convert_title(rom):
+    """Title playfield as a level: the logo words (marble_attract.LOGO) in a black map; ROM
+    tiles, playfield set 0 = the logo palette."""
+    local, tiles, mapw = {}, [], []
+
+    def tile_word(w):
+        code, cs, flip = md.pf_lookup(rom, w)
+        if cs:
+            fatal(f"marble: title word {w:04x} uses colour set {cs}")
+        if code not in local:
+            local[code] = len(tiles)
+            tiles.append(md.pf_tile(rom, code))
+        return local[code] | (0x8000 if flip else 0)
+
+    blank = tile_word(0)
+    if any(tiles[blank & 0x3ff]):
+        fatal("marble: playfield word 0 is not a blank tile")
+    for row in range(TITLE_ROWS):
+        for col in range(md.COLS):
+            y, x = row - TITLE_TOP, col - TITLE_LEFT
+            inside = 0 <= y < len(att.LOGO) and 0 <= x < len(att.LOGO[0])
+            mapw.append(tile_word(att.LOGO[y][x]) if inside else blank)
+    rgb = [md.irgb_hw(w) for w in att.logo_palette(rom)]
+    pal = [rgb888_to_rgb565_le(*c) for c in rgb] + [0] * 96
+    return TITLE_ROWS, tiles, mapw, pal
+
+
 def frame_crc(rows, tiles, mapw, pal, sx, sy):
     """Reference for marble_video::renderRow, 240x288 frame as little-endian uint16."""
     out = bytearray()
@@ -141,7 +175,7 @@ PROG_TABLES = (
     (0x24e4e, 0xe4),
 )
 DESC_BYTES = 0x2e  # descriptor fields +0x00..+0x2d
-MO_CODES = range(0x03, 0x2e)  # marble body 0x03-0x06, 0x07, surface dots 0x0d-0x2d
+MO_CODES = range(0x01, 0x2e)  # particle half 0x01-0x02, marble body 0x03-0x06, 0x07, dots 0x0d-0x2d
 
 
 def terrain_race(rom_terrain):
@@ -1473,6 +1507,68 @@ def emit_hud(f, rom, size3b):
     size3b["palettes"] = 2 * (32 + 16)
 
 
+def particle_palettes(rom):
+    """RGB565 pens 0-5 of the particle colours: title sets 0/1 (palette set 0), palette fill
+    variants per set (0x26cfa)."""
+    rgb = lambda w: rgb888_to_rgb565_le(*md.irgb_hw(w))
+    raw = att.title_mo_palette(rom)
+    title = [[0] + [rgb(raw[0x100 + cs * 16 + pen]) for pen in range(1, 6)] for cs in range(2)]
+    fill = []
+    for cs in range(8):
+        variants = []
+        for v in range(2):
+            pal = att.fill_palette(rom, [v] * 8)
+            variants.append([0] + [rgb(pal[0x100 + cs * 16 + pen]) for pen in range(1, 6)])
+        fill.append(variants)
+    return title, fill
+
+
+def emit_attract(f, rom, size6a):
+    print("\n// ---- Phase 6a: title (MARBLE.md \"Attract\", tools/marble_attract.py)", file=f)
+    print("// High score table defaults (ROM 0x1eea0), table order", file=f)
+    print("struct MarbleHiscore { char initials[4]; uint32_t score; };", file=f)
+    print("static const MarbleHiscore marble_hiscore_defaults[10] = {", file=f)
+    for ini, sc in att.defaults(rom):
+        print(f"  {{ \"{ini}\", {sc} }},", file=f)
+    print("};", file=f)
+    title, fill = particle_palettes(rom)
+    print("// Particle colours (MO codes mode | 1, mode | 3): pens 0-5 RGB565; title mode words",
+          file=f)
+    print("// 0/1 (palette set 0), final screen sets 0-7 x palette fill variant (0x26cfa)", file=f)
+    print("static const uint16_t marble_part_title_pal[2][6] = {", file=f)
+    for p in title:
+        print("  { " + ", ".join(f"0x{v:04x}" for v in p) + " },", file=f)
+    print("};", file=f)
+    print("static const uint16_t marble_part_fill_pal[8][2][6] = {", file=f)
+    for vs in fill:
+        print("  { " + ", ".join("{ " + ", ".join(f"0x{v:04x}" for v in p) + " }" for p in vs)
+              + " },", file=f)
+    print("};", file=f)
+    size6a["hiscore defaults"] = 80
+    size6a["particle palettes"] = 2 * (len(title) * 6 + 16 * 6)
+    size6a["particle tiles"] = 2 * 64
+
+
+def write_attract_fixture(rom, title):
+    crc = lambda fmt, v: zlib.crc32(struct.pack(fmt, *v))
+    rows, tiles, mapw, pal = title
+    tpal, fill = particle_palettes(rom)
+    hs = b"".join(ini.encode() + b"\0" + struct.pack("<I", sc) for ini, sc in att.defaults(rom))
+    part = b"".join(md.mo_tile(rom, md.mo_lookup(rom, c)[0]) for c in (1, 2, 3, 4))
+    with open(ATTRACT_FIXTURE, "w") as f:
+        print("// Generated by romconv/internal/marble/marble_rom_convert.py; do not edit.", file=f)
+        print("// Counts and CRC32s only, no ROM data (tools/marble_attract.py).", file=f)
+        print(f"static const uint16_t MARBLE_ATT_FIX_TITLE_ROWS = {rows};", file=f)
+        print(f"static const uint16_t MARBLE_ATT_FIX_TITLE_TILES = {len(tiles)};", file=f)
+        print(f"static const uint32_t MARBLE_ATT_FIX_MAP_CRC = 0x{crc(f'<{len(mapw)}H', mapw):08x}u;", file=f)
+        print(f"static const uint32_t MARBLE_ATT_FIX_TILES_CRC = 0x{zlib.crc32(bytes(p for t in tiles for p in t)):08x}u;", file=f)
+        print(f"static const uint32_t MARBLE_ATT_FIX_PAL_CRC = 0x{crc('<32H', pal[:32]):08x}u;", file=f)
+        print(f"static const uint32_t MARBLE_ATT_FIX_HISCORE_CRC = 0x{zlib.crc32(hs):08x}u;", file=f)
+        print(f"static const uint32_t MARBLE_ATT_FIX_TITLE_PART_CRC = 0x{crc('<12H', [v for p in tpal for v in p]):08x}u;", file=f)
+        print(f"static const uint32_t MARBLE_ATT_FIX_FILL_CRC = 0x{crc('<96H', [v for vs in fill for p in vs for v in p]):08x}u;", file=f)
+        print(f"static const uint32_t MARBLE_ATT_FIX_PART_TILES_CRC = 0x{zlib.crc32(part):08x}u;", file=f)
+
+
 def write_hud_fixture(rom):
     codes, rows, gmap, pal, pulse, _ = hud_data(rom)
     crc = lambda fmt, v: zlib.crc32(struct.pack(fmt, *v))
@@ -1621,6 +1717,7 @@ def main():
     global DEATH
     rom = md.load()
     levels = [convert_level(rom, n) for n in range(md.LEVELS)]
+    title = convert_title(rom)
     if max(len(l[1]) for l in levels) > MAX_TILES:
         fatal(f"marble: a tile set exceeds MAX_TILES {MAX_TILES}")
     if max(l[0] for l in levels) != MAX_ROWS or max(len(l[1]) for l in levels) != MAX_TILES:
@@ -1630,18 +1727,21 @@ def main():
         print("// Generated by romconv/internal/marble/marble_rom_convert.py; do not edit.", file=f)
         print("#ifndef MARBLE_ROM_H\n#define MARBLE_ROM_H\n#include <stdint.h>", file=f)
         print("struct MarbleLevelInfo { uint16_t rows; uint16_t tiles; };", file=f)
-        print("static const MarbleLevelInfo marble_levels[6] = {", file=f)
-        print("  " + ", ".join(f"{{ {r}, {len(t)} }}" for r, t, _, _ in levels) + "\n};", file=f)
-        for n, (rows, tiles, mapw, _) in enumerate(levels):
+        print(f"static const uint8_t MARBLE_TITLE_LEVEL = {md.LEVELS};  // the title playfield",
+              file=f)
+        print("static const MarbleLevelInfo marble_levels[7] = {", file=f)
+        print("  " + ", ".join(f"{{ {r}, {len(t)} }}" for r, t, _, _ in levels + [title])
+              + "\n};", file=f)
+        for n, (rows, tiles, mapw, _) in enumerate(levels + [title]):
             emit_compressed(f, f"marble_l{n}_map", "unsigned short", "", len(mapw), mapw)
             emit_compressed(f, f"marble_l{n}_tiles", "unsigned char", "[64]", len(tiles),
                             [p for t in tiles for p in t])
-        print("static const FlashAsset<unsigned short, COMPRESSED> marble_maps[6] = { "
-              + ", ".join(f"marble_l{n}_map_blob" for n in range(md.LEVELS)) + " };", file=f)
-        print("static const FlashAsset<unsigned char[64], COMPRESSED> marble_tiles[6] = { "
-              + ", ".join(f"marble_l{n}_tiles_blob" for n in range(md.LEVELS)) + " };", file=f)
-        print("static const unsigned short marble_pf_palette[6][128] = {", file=f)
-        for _, _, _, pal in levels:
+        print("static const FlashAsset<unsigned short, COMPRESSED> marble_maps[7] = { "
+              + ", ".join(f"marble_l{n}_map_blob" for n in range(md.LEVELS + 1)) + " };", file=f)
+        print("static const FlashAsset<unsigned char[64], COMPRESSED> marble_tiles[7] = { "
+              + ", ".join(f"marble_l{n}_tiles_blob" for n in range(md.LEVELS + 1)) + " };", file=f)
+        print("static const unsigned short marble_pf_palette[7][128] = {", file=f)
+        for _, _, _, pal in levels + [title]:
             print("  { " + ", ".join(f"0x{v:04x}" for v in pal) + " },", file=f)
         print("};", file=f)
         size3, size4, size4b, size4b1, size4b2, size4b3, size4b4, size4b5, size4b6 = \
@@ -1655,8 +1755,14 @@ def main():
         emit_death(f, rom, size4b, size4b2, size4b3, size4b4, size4b5, size4b6)
         size3b = {}
         emit_hud(f, rom, size3b)
+        size6a = {"title map + tiles": len(lzma_compress(struct.pack(f"<{len(title[2])}H", *title[2])))
+                  + len(lzma_compress(bytes(p for t in title[1] for p in t))), "title palette": 256}
+        emit_attract(f, rom, size6a)
         print("#endif", file=f)
     write_hud_fixture(rom)
+    write_attract_fixture(rom, title)
+    print("phase 6a (title) flash: " + ", ".join(f"{k} {v}" for k, v in size6a.items())
+          + f", total {sum(size6a.values())} B")
     total = sum(size.values())
     print("phase 2 flash: " + ", ".join(f"{k} {v}" for k, v in size.items()) + f", total {total} B")
     if total > FLASH_BUDGET:

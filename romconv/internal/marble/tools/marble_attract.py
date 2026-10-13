@@ -121,7 +121,6 @@ def mos(m):
 # --- high score table --------------------------------------------------------------------
 DEFAULTS = 0x1eea0           # 10 x 8 B: long score (low 24 bits), 3 ASCII initials, 0
 TABLE = 0x401e74 + 0x1e      # RAM: 10 x 5 B: 24 bit score, radix 40 initials word
-RADIX = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:;<"
 
 
 def defaults(r):
@@ -139,35 +138,7 @@ def ram_table(m):
         a = TABLE + 5 * k
         sc = m.rb(a) << 16 | m.rb(a + 1) << 8 | m.rb(a + 2)
         w = m.rb(a + 3) << 8 | m.rb(a + 4)
-        out.append((RADIX[w // 1600 % 40] + RADIX[w // 40 % 40] + RADIX[w % 40], sc))
-    return out
-
-
-# --- title alpha (arcade rows/cols/colours from MAME, remake moves dx/dy) ---------------
-S_TROUBLE, S_COIN, S_CREDITS, S_COPYRIGHT = 0x235a8, 0x22f6c, 0x22ff8, 0x22f04
-
-
-def table_line(rank, initials, score):
-    """16 cells from arcade column 13: rank right aligned in 3, initials, score in 9."""
-    return "%3s %s%9s" % ("#%d" % rank, initials, "{:,}".format(score))
-
-
-TITLE_STAGES = 3  # the title draws over 3 frames: table, copyright, coin line
-
-
-def title_items(table, r, stage=TITLE_STAGES - 1):
-    """(dx, dy, row, col, words) of the title, colour 5 / 4, transparent; stage = frames
-    since the title started (0: header and table, 1: + copyright, 2: + coin line)."""
-    out = []
-    put = lambda dx, dy, row, col, ws: out.append((dx, dy, row, col, ws))
-    put(-6, 3, 9, 15, mh.text(mh.rom_str(r, S_TROUBLE), 5, False))
-    for k, (ini, sc) in enumerate(table):
-        put(-6, 3, 11 + k, 13, mh.text(table_line(k + 1, ini, sc), 4, False))
-    if stage >= 1:
-        put(-6, 3, 29, 12, mh.text(mh.rom_str(r, S_COPYRIGHT), 4, False))
-    if stage >= 2:
-        put(-2, 3, 28, 3, mh.text(mh.rom_str(r, S_COIN), 5, False))
-        put(-7, 3, 28, 24, mh.text(mh.rom_str(r, S_CREDITS) + "0" + " " * 4, 5, False))
+        out.append((mh.RADIX[w // 1600 % 40] + mh.RADIX[w // 40 % 40] + mh.RADIX[w % 40], sc))
     return out
 
 
@@ -253,8 +224,8 @@ def check_trace(d, r):
         bw = bank_words(mo, bank)
         if not (n and not n0) and not all(w in bw for w in mos(m)): errs.append((f, "mos"))
         if phase == ATTRACT and n == TITLE_COUNT:
-            stage = min(f - runs[-1][0], TITLE_STAGES - 1)
-            want_title[f] = ({k: w for k, w in cells(title_items(ram_table(Ram(ram)), r, stage))
+            stage = min(f - runs[-1][0], mh.TITLE_STAGES - 1)
+            want_title[f] = ({k: w for k, w in cells(mh.title_items(ram_table(Ram(ram)), r, stage))
                               if w & 0x3ff}, len(runs) - 1)
     # title cells: equal to MAME within +-1 frame of each frame the title shows
     fby = {x[0]: x for x in fs}

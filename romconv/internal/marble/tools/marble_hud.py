@@ -63,6 +63,7 @@ BIG = {   # captured from MAME (alpha RAM, final screen)
 
 # screen bits
 PAL, TOP, INTRO, SILLY, BONUS, BONUS_PALETTE, OUT, FIN, PUSH = (1 << k for k in range(9))
+TITLE = 1 << 9
 
 
 def font():
@@ -113,6 +114,7 @@ class Hud:
         self.screen, self.score, self.seconds, self.value = 0, 0, 0, 0
         self.race, self.add, self.deaths = 0, 0, 0
         self.pal3 = self.pal11 = 0xff   # pulse table index, 0xff = ROM colour
+        self.table, self.stage = (), 0     # title: [(initials, score)], frames since start
         self.__dict__.update(kw)
 
     def key(self):
@@ -193,6 +195,38 @@ def items(h, r):
         top, bot = big_digits(commas(h.score), 4)
         put(-10, 3, 24, 40 - len(top), top)
         put(-10, 3, 25, 40 - len(bot), bot)
+    if s & TITLE:
+        out += title_items(h.table, r, min(h.stage, TITLE_STAGES - 1))
+    return out
+
+
+RADIX = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:;<"  # initials (radix 40 word)
+
+# --- title (Phase 6a, MARBLE.md "Attract"): arcade rows/cols/colours from MAME ----------
+S_TROUBLE, S_COIN, S_CREDITS, S_COPYRIGHT = 0x235a8, 0x22f6c, 0x22ff8, 0x22f04
+
+
+def table_line(rank, initials, score):
+    """16 cells from arcade column 13: rank right aligned in 3, initials, score in 9."""
+    return "%3s %s%9s" % ("#%d" % rank, initials, "{:,}".format(score))
+
+
+TITLE_STAGES = 3  # the title draws over 3 frames: table, copyright, coin line
+
+
+def title_items(table, r, stage=TITLE_STAGES - 1):
+    """(dx, dy, row, col, words) of the title, colour 5 / 4, transparent; stage = frames
+    since the title started (0: header and table, 1: + copyright, 2: + coin line)."""
+    out = []
+    put = lambda dx, dy, row, col, ws: out.append((dx, dy, row, col, ws))
+    put(-6, 3, 9, 15, text(rom_str(r, S_TROUBLE), 5, False))
+    for k, (ini, sc) in enumerate(table):
+        put(-6, 3, 11 + k, 13, text(table_line(k + 1, ini, sc), 4, False))
+    if stage >= 1:
+        put(-6, 3, 29, 12, text(rom_str(r, S_COPYRIGHT), 4, False))
+    if stage >= 2:
+        put(-2, 3, 28, 3, text(rom_str(r, S_COIN), 5, False))
+        put(-7, 3, 28, 24, text(rom_str(r, S_CREDITS) + "0" + " " * 4, 5, False))
     return out
 
 
@@ -235,7 +269,8 @@ STRINGS = {   # remake string name -> ROM address
     "you": S_YOU, "the": S_THE, "bonus_fin": S_BONUS_FIN, "sec": S_SEC, "died": S_DIED,
     "total": S_TOTAL, "blank26": S_BLANK26, "time_to": S_TIME_TO, "extra": S_EXTRA,
     "wrong": S_WRONG, "blank31": S_BLANK31, "bonus_for": S_BONUS_FOR, "time_left": S_TIME_LEFT,
-    "out": S_OUT, "over": S_OVER, "push": S_PUSH,
+    "out": S_OUT, "over": S_OVER, "push": S_PUSH, "trouble": S_TROUBLE, "coin": S_COIN,
+    "credits": S_CREDITS, "copyright": S_COPYRIGHT,
 }
 BORDER_CODES = (0x5f, 0x5e, 0xdf, 0xff, 0x1b)
 CODES = 0x180                  # marble_hud_glyph entries (codes 0-0x17f)
@@ -246,7 +281,7 @@ def glyph_codes(r):
     """Every alpha code a HUD item can show, ascending."""
     strs = [rom_str(r, a) for a in STRINGS.values()]
     strs += [rom_str(r, S_RACES + RACE_STRIDE * k) for k in range(len(S_NAMES))]
-    codes = {ord(ch) for t in strs + ["0123456789,-SCORE"] for ch in t if ch != " "}
+    codes = {ord(ch) for t in strs + ["0123456789,-SCORE#", RADIX[1:27]] for ch in t if ch != " "}
     codes |= set(BORDER_CODES)
     codes |= {0x100 + k for k in range(40)} | {BLANK, COMMA_LO, COLON}
     codes |= {c for top, bot in BIG.values() for c in top + bot}
