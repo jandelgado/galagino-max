@@ -23,7 +23,6 @@ tp84::tp84()
 void tp84::reset() {
   machineBase::reset();               // clears memory[], mutes SN chips, resets Z80
   bands.reset();
-  memset(&video, 0, sizeof(video));
   line = 0;
   main_irq_enable = sub_irq_mask = 0;
   palette_bank = scroll_x = scroll_y = 0;
@@ -108,7 +107,8 @@ void IRAM_ATTR tp84::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
     sub_polls = 0;
     if ((addr & 0xF800) == 0x8000) {
       memory[TP84_SHARED + (addr & 0x7FF)] = val;
-      main_polls = 0;                                    // may post a main task
+      // conservative wake: sub never writes 0x5740-0x577F/0x523A, frame IRQ is the real wake
+      main_polls = 0;
       return;
     }
     if (addr >= 0x67A0 && addr < 0x6800) { bands.write(addr - 0x67A0, val, line); return; }
@@ -207,8 +207,8 @@ void tp84::sn_write(int chip, uint8_t data) {
 // their state from RAM each pass, so polls with no write by that CPU in
 // between repeat until something external changes; the CPU then stops,
 // its remaining cycles are dropped:
-// - main task loop: wakes on a sub write to shared RAM (seen next line,
-//   as without the skip: sub runs after main) or the frame IRQ.
+// - main task loop: wakes on the frame IRQ. A sub write to shared RAM also
+//   wakes it (conservative: the sub never writes 0x5740-0x577F/0x523A).
 // - sub beam loop (empty sprite queues): wakes at line 0xE0, its exit.
 // The Z80 timer only changes between lines, so a second timer poll in a
 // line spins to the line end; whole timer loops are dropped, the loop
