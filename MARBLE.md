@@ -2199,6 +2199,81 @@ python3 romconv/internal/marble/tools/marble_attract.py check $T/p0 $T/g5 $T/a0
 python3 romconv/internal/marble/tools/marble_attract.py logo $TMPDIR/attract
 ```
 
+## Sound
+
+Phase 5 (plan docs/superpowers/plans/2026-10-13-marble-sound.md). Arcade: a 6502 at 1.79 MHz
+runs the sound program (32 KB, 136033.421/422) and drives a YM2151 (music and almost all
+effects) and a POKEY (a few effects). The 68010 sends one command byte per event through the
+latch 0xfe0001 (0x158ac, nothing while the word 0x4003b8 is set). The remake emulates none of
+this: music, jingles and effects are songs of the C64 tune's own player.
+
+Commands (MAME, `tools/mame_sound.lua`; practice race, music stopped with 0x00 before each):
+
+- 0x00 stops the music, 0x02 does not; 0x03 every frame and 0x07 every 16 frames are silent.
+  Attract mode sends no sound.
+- New game (0x400390 = 5): 0x02, 0x00, 0x62, then the race music: 0x08 practice, 0x0a
+  beginner, 0x0c intermediate, 0x0e aerial, 0x14 silly, 0x18 ultimate (about 60 frames after
+  0x62). Goal: 0x3a, 0x3b, 0x2f (goal sound) at the crossing; race end (0x400390 = 3): 0x3a,
+  0x3b, 41 frames later 0x18 (practice) / 0x17 (ultimate), then the next race music (roles
+  of 0x17/0x18 at the race end open). Time out (= 4): 0x09, 0x3f (time out jingle: a 6 note
+  chord and a rising arpeggio, about 290 frames), 0x3a, 0x3b. Game over (= 2): 0x61.
+- Multi-channel pieces with open roles: 0x10, 0x16, 0x1a-0x1e. YM effects (mostly channels
+  5-7): 0x1f-0x39, 0x3c-0x3e, 0x41-0x43, 0x45, 0x47-0x5c. POKEY effects: 0x5d, 0x5e (acid),
+  0x5f, 0x60. No output: 0x09, 0x0b, 0x0d, 0x0f, 0x11-0x13, 0x15, 0x17, 0x19, 0x3a, 0x3b,
+  0x40, 0x44, 0x46, 0x48, 0x4a, 0x4c, 0x4e, 0x50, 0x52, 0x61-0x7f.
+- Gate tables: ROM 0x1ef5a = 0x48, 0x4a, 0x4c, 0x4e, 0x50, 0x52, 0x2f, 0x30; 0x1ef42 = 0x47,
+  0x49, 0x4b, 0x4d, 0x4f, 0x51 (aerial gates, key-on / key-off pairs on music channels).
+- Goal lines (zone 0xff, list per race at 0x1eb16, 6 byte entries x, y, end, zone a, zone b,
+  cells of 8 px, x < 0: horizontal line y from |x| to end): practice y 63, x 72-79 (also y 68
+  and x 71); beginner y 108, x 110-113; intermediate y 100, x 93-94; aerial y 103, x
+  113-116; silly y 17, x 19-22; ultimate x 87, y 88-90.
+
+C64 tune: HVSC `GAMES/M-R/Marble_Madness.sid` (romszip, 12798 B, PSID v2, NTSC, VBI, load
+0x2700 in the payload, init 0x3e00, play 0x3e40, payload to 0x587f, 6 songs, HVSC lengths
+0:16 0:56 1:20 0:55 0:21 0:52). No published source of its player exists (Will Harvey,
+Sandcastle); disassembled here:
+
+- Song table 0x3dc0 (word per song, 32 entries). init(A = song) clears the SID, resets the
+  slots (0x3081), registers the descriptor (0x3090) and starts slot 0 (0x316b).
+- Descriptor: 4 byte id, tempo lo, hi, volume 0x7f, track count, voice mask (bit per SID
+  voice: the music uses 0x06, voices 1-2), priority (0x80), track pointers, track lengths.
+- Track events, 2 bytes: note `nn dd` (MIDI note number, 0x3c = C4 = 261.6 Hz; dd & 0x3f
+  indexes the duration table 0x29f8; bit 7: the next event at once; bit 6: the gate goes on
+  through the next event of the same note), `80 dd` rest, `81 i` instrument, `84 v` volume,
+  `87`/`88` transpose add/set, `89`/`8a`/`8e` tempo, `8b n` / `8c` repeat, `8d`/`8f` volume
+  scale, `ff` end. The gate is the summed duration - 1 frame.
+- Timing: every frame the current duration value is added to a phase, an event fires when
+  it reaches 0x3f48000 / tempo. Tempo 0x3840: duration index k (0-7) = 2^(7-k) frames.
+- Slots (s = 0, 1): count 0x2728, virtual voices in use 0x2727, tempo word 0x2730 + 2s,
+  volume 0x272e + s, tracks 0x272c + s, first virtual voice 0x2734 + s, voice mask 0x273a + s,
+  priority 0x273c + s; virtual voice v: track pointer 0x2768 + 2v, length 0x2778 + 2v.
+- Instruments 0x397a, 8 bytes: pulse width, SR, AD, filter cutoff, filter control, waveform;
+  0-14 used (12, 13 noise), 15-31 free. Note-on (0x3c91) takes a free voice of the mask or
+  steals one of lower priority. SID register shadow 0x38df-0x38f7, copied to 0xd400 every
+  frame.
+- RAM outside the payload: 0x0750/0x0751 (frame counter), reads of 0x0aab/0x0ac7.
+
+Capture (`tools/mame_sound.lua`, MODE=capture): per command a file `cmd_XX.txt` with
+`init ym|pokey <reg> <val>` (registers before the command), `ym|pokey <t> <reg> <val>` (t in
+60 Hz frames since the command) and `game <t> <cmd> 0` (the game's own command, the
+converter cuts there); MODE=log logs the main CPU's commands and 0x400390 changes, NOCOIN=1
+when `mame_trace.lua` runs alongside (wrapper `dofile`s both).
+
+```sh
+# effects WIN=150, jingle candidates WIN=600; 24 / 4 commands per run (the practice race
+# times out after about 3980 frames)
+MODE=capture OUT=$D/out CMDS=1f,20,... WIN=150 FRAMES=5200 ... -autoboot_script $R/romconv/internal/marble/tools/mame_sound.lua
+(cd $D/out && python3 -m zipfile -c $R/romszip/marble_sound.zip cmd_*.txt)
+# goal: practice crossing y 63
+MODE=log NOCOIN=1 OUT=$D/g0 MARBLE_LEVEL=0 MARBLE_PLACE=900:604:492:-36 \
+  MARBLE_PLACE_V=900:0:131072 MARBLE_RACE_UNTIL=1000 ... -autoboot_script $D/both.lua
+```
+
+Remake: `romconv/internal/marble/marble_sid.py` builds the jingles and effects as songs of
+the C64 player (appended to the payload, song table entries, a silent song, a 6502 stub that
+starts an effect on slot 1 / voice 0 over the music); `marble_sound.{h,cpp}` maps commands to
+song and effect requests; `marble::renderSid` plays them on SidPlayer.
+
 ## Open questions
 
 - Level objects: playfield patch decode of tag 0x19 rows. Section
@@ -2218,4 +2293,4 @@ python3 romconv/internal/marble/tools/marble_attract.py logo $TMPDIR/attract
 - Game flow (section Game flow): the 0x16a20 time out summary and 0x18a88 final screen are
   frame counts only (texts and palette pulses: section HUD); the race intro scroll in, the
   attract demo race (6b) and the high score entry (6c) are not ported.
-- Object/enemy scripts, Phase 4. Sound command protocol, Phase 5.
+- Object/enemy scripts, Phase 4.
