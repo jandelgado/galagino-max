@@ -2199,6 +2199,42 @@ python3 romconv/internal/marble/tools/marble_attract.py check $T/p0 $T/g5 $T/a0
 python3 romconv/internal/marble/tools/marble_attract.py logo $TMPDIR/attract
 ```
 
+### Demo race
+
+Phase 6b (plan docs/superpowers/plans/2026-10-13-marble-demo.md). Research: Marble Love TS
+waypoint-list-step-1815a.ts, object-step-17f66.ts, refresh-frame-10fce.ts (goal state 6),
+state-machine-schedule.ts and string-render.ts (banners); timing fitted to MAME frame traces.
+
+- Each segment after the title (0x4003e4 + 1) runs a demo race, practice and beginner in turn
+  (boot: practice first; after game over the title comes first, then practice). 0x400390
+  stays 1. From the segment change: level load (black) 59 / 84 frames to the race init (slot
+  1, 0x400010 = 1), first logic tick and timer start (60 s, ticks 5) 3 / 4 frames later, then
+  the race runs (score, timer, enemies) until the waypoint list ends (0x40075a = 1, timer
+  stopped by +0x6e = 0xff: practice tick 476, beginner 376), title marbles 11 frames later.
+  0x400010 counts the ticks: 3 in the first. Paths do not depend on the RNG.
+- 0x17f66 (after the slot 2/3 skip) and goal 0x254d2 (before 0x121b8) call 0x1815a while
+  0x400390 == 1 instead of the trackball. Cursor 0x400446 = long 0x1d364 + race * 4 (0x2419e
+  practice, 20 records; 0x241f2 beginner, 12), record (x, y, speed, banner) bytes, 0 ends:
+  target (x << 19) + 0x40000 in 16.16; within 32 units of +0x0c/+0x10 the record is passed
+  (several per call), else the velocity eases towards the target scaled by speed << 8 (0xc0
+  near), +0x08 gravity when airborne, speed cap 0x26196.
+- Banner byte >= 0: BIOS 0x12a(0x5a, 0x3400, long 0x242aa + 4 b) draws the alpha string chain
+  (entry: col, row, string long, marker byte (2 = next), next long) in colour 5 opaque and
+  erases it 90 frames later (message slot 0: chain 0x401f04, state 0x401f1c). Practice 0
+  `FINISH RACE IN THIS TIME`, 1 `WARNING: CLIFFS!`, 2 `AVOID DELAYS`, 3 `BONUS FOR REMAINING
+  TIME`; beginner 0, 4, 5, 6.
+- MAME ticks take 1-3 frames in the beginner demo (resync at 2 frames average): remake ticks
+  every 2 frames, banners +-1 frame.
+
+Validation: `marble_demo.py check` (timeline per segment exact; the remake's demo race start,
+cleared RAM + race start + cursor, replayed with the traced camera: per tick player fields,
+cursor, list end, RNG equal to MAME in all 7 demos of a0 and p0; banners +-1 frame).
+`marble_demo.py fwrite` writes `test_marble_demo/marble_demo_trace.h`.
+
+```sh
+python3 romconv/internal/marble/tools/marble_demo.py check $T/a0 $T/p0
+```
+
 ## Sound
 
 Phase 5 (plan docs/superpowers/plans/2026-10-13-marble-sound.md). Arcade: a 6502 at 1.79 MHz

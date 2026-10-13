@@ -786,9 +786,75 @@ def score_285b0(m, a2, k):
     m.wb(a2 + 0x70, 0); m.wb(a2 + 0x68, 0); m.wb(a2 + 0x69, 0xff); m.wb(a2 + 0xd8, 1)
 
 
-# 0x17f66: input -> velocity
+# attract demo (Marble Love waypoint-list-step-1815a.ts, state-machine-schedule.ts)
+WAYPOINTS = 0x1d364      # per demo race (0x400394): long, first waypoint record
+WAYPOINT = 0x400446      # long: cursor, record (cell x, cell y, speed, banner)
+WAYPOINTS_END = 0x40075a  # word: 1 when the cursor reached the list end
+BANNERS = 0x242aa        # long per banner: alpha string chain
+MSG_CHAIN, MSG_STATE, MSG_FRAMES, MSG_ATTR = 0x401f04, 0x401f1c, 0x401f20, 0x401f14
+BANNER_FRAMES, BANNER_ATTR = 0x5a, 0x3400
+
+
+def divs_w(d, q):
+    """68k divs.w: low word of d / q, d unchanged on overflow."""
+    v = int(s32(d) / s16(q))
+    return d if not -0x8000 <= v <= 0x7fff else (d & 0xffff0000) | (v & 0xffff)
+
+
+def banner_12a(m, b):
+    """BIOS 0x12a (scheduleStateMachine1): message slot 0 shows chain 0x242aa[b] for 90
+    frames (0x5a) in colour attribute 0x3400; the frame step erases it (marble_demo.py)."""
+    m.wl(MSG_CHAIN, rom_l(BANNERS + 4 * b))
+    m.wb(MSG_STATE, 1)
+    m.ww(MSG_FRAMES, BANNER_FRAMES)
+    m.ww(MSG_ATTR, BANNER_ATTR)
+
+
+def waypoint_1815a(m, a2):
+    """0x1815a: steer +0x00/+0x04 towards the record at the cursor; records within 32 units
+    (4 px) are passed (banner, list end: 0x40075a = 1, timer stopped +0x6e = 0xff)."""
+    while True:
+        a3 = m.rl(WAYPOINT)
+        if PROG[a3] == 0: return
+        d2 = s32((s8(PROG[a3]) << 19) - m.sl(a2 + 0xc) + 0x40000)
+        d3 = s32((s8(PROG[a3 + 1]) << 19) - m.sl(a2 + 0x10) + 0x40000)
+        d5 = s8(PROG[a3 + 2]) << 16
+        d4 = (abs(d2) >> 12) & 0xffff; d6 = (abs(d3) >> 12) & 0xffff
+        if d4 >= 0x20 or d6 >= 0x20: break
+        if s8(PROG[a3 + 3]) >= 0: banner_12a(m, PROG[a3 + 3])
+        a3 += 4
+        if PROG[a3] == 0:
+            m.ww(WAYPOINTS_END, 1); m.wb(a2 + 0x6e, 0xff)
+        m.wl(WAYPOINT, a3)
+    lo, hi = (d4, d6) if d4 <= d6 else (d6, d4)
+    d1 = ((lo >> 3) * 3 + hi) & 0xffff
+    if d1 == 0:
+        d2 &= 0xffff0000; d3 &= 0xffff0000
+    else:
+        d2 = divs_w(d2 & 0xffffffff, d1); d3 = divs_w(d3 & 0xffffffff, d1)
+    if d1 < 0x40: d5 = 0xc000
+    k = s16(d5 >> 8)
+    d2 = s32(k * s16(d2)) >> 4
+    d3 = s32(k * s16(d3)) >> 4
+    m.wl(a2, (m.sl(a2) + (s32(d2 - m.sl(a2)) >> 3)) & 0xffffffff)
+    m.wl(a2 + 4, (m.sl(a2 + 4) + (s32(d3 - m.sl(a2 + 4)) >> 3)) & 0xffffffff)
+    if m.rb(a2 + 0x36):
+        vz = m.sl(a2 + 8) - 0x6000
+        m.wl(a2 + 8, max(vz, -0x50000) & 0xffffffff)
+    speedcap_26196(m, a2)
+
+
+def demo_start(m, race):
+    """Attract demo race start: the waypoint cursor of the race."""
+    m.wl(WAYPOINT, rom_l(WAYPOINTS + 4 * race))
+
+
+# 0x17f66: input -> velocity (attract: the waypoint driver)
 def input_17f66(m, a2):
     if m.rb(a2 + 0x18) in (2, 3): return
+    if m.rw(0x400390) == 1:
+        waypoint_1815a(m, a2)
+        return
     c = m.rb(a2 + 0x58)
     if m.rb(a2 + 0x36) != 2 and c in (0, 0x3b, 0x2d, 0x2e, 0x38, 0x39, 0x3a, 0x2f, 0x30, 0x31):
         d3 = s8(m.rb(a2 + 0xc7)) * 0x160
@@ -2243,7 +2309,7 @@ def object_253ec(m, a2):
         # goal 0x254d2 (Marble Love refresh-frame-10fce.ts JT[6]): physics, +0x57 (0x1e from
         # 0x1365c) counts down; at 0 out of play (+0x18 = 3), v = 0. +0x57 wraps to 0xff, so
         # this repeats every 256 ticks while state 6 lasts.
-        if m.rw(0x400390) == 1: m.events.append(("unported", 0x1815a))   # attract
+        if m.rw(0x400390) == 1: waypoint_1815a(m, a2)   # attract demo
         physics_121b8(m, a2)
         m.wb(a2 + 0x57, m.rb(a2 + 0x57) - 1)
         if m.rb(a2 + 0x57) == 0 and m.rb(a2 + 0x18) != 2:
