@@ -12,6 +12,8 @@
 #include "marble_mem.h"
 #include "marble_flow.h"
 #include "marble_hud.h"
+#include "marble_sound.h"
+#include "../../emulation/sidplayer.h"
 
 // Marble Madness (Atari 1984). Not emulated: graphics, levels and music come from the
 // ROM, the game is reimplemented (MARBLE.md). One player game: race timer, six races, time
@@ -29,6 +31,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
+  void renderSid(int16_t *out, int n) override;
   static const Logo &logo(void) { return marble_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
@@ -61,6 +64,14 @@ private:
   marble_hiscore::Table table = {};
   uint32_t patchRec = 0;   // lastPatch record that view.patch was mapped from
   bool odd = false;        // frame without a logic tick
+
+  // sound: commands on the emulation core, the C64 tune on the audio core
+  marble_sound::Sound sound = {};
+  SidPlayer player;
+  PsidInfo tune = {};
+  bool tune_loaded = false, tune_ok = false;  // start(): unpacked once
+  uint16_t music_seen = 0, effect_seen = 0;   // audio core
+  bool sid_on = false;                        // audio core
 };
 
 #endif // ENABLE_MARBLE

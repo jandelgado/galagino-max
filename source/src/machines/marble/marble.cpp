@@ -11,6 +11,8 @@
 #include "marble_particles.h"
 #include "marble_physics.h"
 #include "marble_rng.h"
+#include "marble_rom.h"
+#include "../../emulation/asset.h"
 
 using namespace marble_video;
 using marble_physics::Mem;
@@ -20,6 +22,11 @@ using marble_physics::PLAYER;
 // Stick as trackball (MARBLE.md "Logic tick"): counter delta per tick, k = 9 is about MAME's
 // keyboard trackball speed. Screen right: c7 = c6 = -k; down: c7 = +k, c6 = -k.
 #define MARBLE_STICK_K 9
+
+// the extended PSID file (marble_sid.py), unpacked into Arena by the first start()
+static Asset<unsigned char, COMPRESSED> sid_file(marble_sid_blob);
+// C64 0x0700-0x0aff (player frame counter and reads) live in tune RAM at MARBLE_SID_ALIAS
+static const uint16_t SID_ALIAS_FROM = 0x0700, SID_ALIAS_SIZE = 0x400;
 
 static const uint16_t RNG_TICK = 0x100;   // main loop rng(0x100) 0x118a4
 // Remake view is 24 lines taller above and below the arcade screen: object culls move out
@@ -43,6 +50,7 @@ static void stick(uint32_t keys, int8_t &c6, int8_t &c7) {
 
 void marble::reset() {
   machineBase::reset();
+  marble_sound::reset(sound);
   prev_keys = ~0u;  // the menu's START/FIRE is still held: no title START until released
   patchRec = 0;
   view.patch = video.patch = marble_level::NO_PATCH;
@@ -58,6 +66,15 @@ void marble::reset() {
 void marble::start() {
   store.init();  // guarded, start() runs twice
   marble_hiscore::defaults(table);  // once
+
+  // after the level buffers: Arena is first fit, block A must keep map + tiles together
+  if (!tune_loaded) {
+    tune_loaded = true;
+    tune_ok = psidParse(sid_file.data(), MARBLE_SID_SIZE, &tune) &&
+              player.load(tune, Arena::alloc<uint8_t>(MARBLE_SID_RAM), MARBLE_SID_RAM);
+    if (tune_ok) { player.alias(SID_ALIAS_FROM, MARBLE_SID_ALIAS, SID_ALIAS_SIZE); }
+    if (!tune_ok) { printf("marble: Marble_Madness.sid is not a supported PSID\n"); }
+  }
 }
 
 // race flow.race on a cleared work RAM image with what a race keeps (timer, score, RNG),
@@ -179,6 +196,7 @@ void marble::run_frame(void) {
   const marble_flow::Step step = marble_flow::frame(flow, m, start);
   if (step == marble_flow::START_RACE) {
     loadRace();
+    marble_sound::step(sound);
     return;
   }
 
@@ -192,6 +210,27 @@ void marble::run_frame(void) {
     }
   }
   publish();
+  marble_sound::step(sound);
+}
+
+// audio core: song requests start a C64 song (0: silence), effect requests run the stub
+void marble::renderSid(int16_t *out, int n) {
+  const uint16_t music = sound.music, effect = sound.effect;
+  if (tune_ok && music != music_seen) {
+    music_seen = music;
+    sid_on = (music & 0xff) != 0;
+    if (sid_on) { player.start(music & 0xff); }
+  }
+  if (tune_ok && sid_on && effect != effect_seen) {
+    effect_seen = effect;
+    player.jsr(MARBLE_SID_FX_STUB, effect & 0xff);
+  }
+  if (!sid_on) {
+    effect_seen = effect;  // no effect replays when a song starts later
+    memset(out, 0, n * sizeof(*out));
+    return;
+  }
+  player.render(out, n);
 }
 
 void marble::prepare_frame(void) {
