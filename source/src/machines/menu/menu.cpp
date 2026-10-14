@@ -449,6 +449,7 @@ const char *mchName(signed char machineType) {
     case MCH_DEFENDER:      return "Defender";
     case MCH_ROBOTRON:      return "Robotron: 2084";
     case MCH_JOUST:         return "Joust";
+    case MCH_SELFTEST:      return "Self Test";
     case MCH_CIRCUSC:       return "Circus Charlie";
     case MCH_ROCNROPE:      return "Roc'n Rope";
     case MCH_TODRUAGA:      return "Tower of Druaga";

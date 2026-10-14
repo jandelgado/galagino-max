@@ -354,7 +354,7 @@ void Audio::transmit() {
     // render the next audio chunk if data has actually been sent
     if (machineType == MCH_COMMANDO || machineType == MCH_CBDASH || machineType == MCH_GNG)
       sid_ay_render_buffer();
-    else if (machineType == MCH_BUBLBOBL || machineType == MCH_MARBLE)
+    else if (machineType == MCH_BUBLBOBL || machineType == MCH_MARBLE || machineType == MCH_SELFTEST)
       sid_render_buffer();
     else if (AY > 0)
       ay_render_buffer();
@@ -397,23 +397,6 @@ void Audio::transmit() {
     else if(machineType == MCH_DEFENDER || machineType == MCH_ROBOTRON || machineType == MCH_JOUST)
       dac_render_buffer();
   } while(bytesOut);
-}
-
-void Audio::transmit(void (*render)(int16_t *out, int n)) {
-  // same scheme as transmit(): queue the rendered chunk, render the next
-  size_t bytesOut = 0;
-  do {
-    i2s_write(I2S_NUM_0, snd_buffer, sizeof(snd_buffer), &bytesOut, 0);
-    if (!bytesOut) {
-      return;
-    }
-
-    int16_t samples[64];
-    render(samples, 64);
-    for (int i = 0; i < 64; i++) {
-      valueToBuffer(i, samples[i]);
-    }
-  } while (bytesOut);
 }
 
 void Audio::vanguard_render_buffer(void) {

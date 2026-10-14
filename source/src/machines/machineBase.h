@@ -123,7 +123,8 @@ enum {
   MCH_TP84,
   MCH_DEFENDER,
   MCH_ROBOTRON,
-  MCH_JOUST
+  MCH_JOUST,
+  MCH_SELFTEST
 };
 
 // one inst at 3Mhz ~ 500k inst/sec = 500000/60 inst per frame
