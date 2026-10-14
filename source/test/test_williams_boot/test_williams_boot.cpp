@@ -67,7 +67,7 @@ static uint32_t frameHash() {
 // Arena filled once, in the machine's order (assets, RAM, scanout); every
 // test builds a fresh board on the same buffers. Never Arena::reset() here:
 // the static assets live in it.
-static DefenderBoard *bootDefender() {
+static DefenderBoard *bootDefender(unsigned int action = BOARD_KEY_EXTRA) {
   static uint8_t *ram = nullptr, *a = nullptr, *b = nullptr;
   static const uint8_t *main = nullptr, *banked = nullptr, *snd = nullptr;
   if (!ram) {
@@ -83,7 +83,7 @@ static DefenderBoard *bootDefender() {
     b = Arena::alloc(Scanout::BUF_BYTES);
   }
   delete board;
-  DefenderBoard *d = new DefenderBoard(ram, a, b, main, banked, snd, BOARD_KEY_EXTRA);
+  DefenderBoard *d = new DefenderBoard(ram, a, b, main, banked, snd, action);
   board = d;
   d->bindMemory(cmos, soundRam);
   d->reset();
@@ -123,8 +123,8 @@ void test_unmapped_bank_reads_zero(void) {
 }
 
 // coin, start, then push left: the board reverses the ship (RAM 0xa0bb -3)
-void test_defender_stick_reverses_ship(void) {
-  bootDefender();
+static void coinStartReverse(unsigned int action) {
+  bootDefender(action);
   while (!board->booted()) {
     board->runFrame();
   }
@@ -145,6 +145,11 @@ void test_defender_stick_reverses_ship(void) {
   TEST_ASSERT_EQUAL_HEX8(0xfd, board->ramByte(DefenderControls::RAM_DIRECTION));
 }
 
+void test_defender_stick_reverses_ship(void) { coinStartReverse(BOARD_KEY_EXTRA); }
+
+// COIN pin builds: START is also the action key (smart bomb pulse)
+void test_defender_start_action_key_starts(void) { coinStartReverse(BOARD_KEY_START); }
+
 void test_arena_fits_with_assets_first(void) {
   bootDefender();
   TEST_ASSERT_TRUE(Arena::bytesUsed() <= Arena::CAPACITY);
@@ -157,6 +162,7 @@ int main(int, char **) {
   RUN_TEST(test_defender_boot_reaches_attract);
   RUN_TEST(test_unmapped_bank_reads_zero);
   RUN_TEST(test_defender_stick_reverses_ship);
+  RUN_TEST(test_defender_start_action_key_starts);
   RUN_TEST(test_arena_fits_with_assets_first);
 #endif
   return UNITY_END();

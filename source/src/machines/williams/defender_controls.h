@@ -15,6 +15,10 @@ public:
   static const uint8_t UP = 0x01;                                    // IN1
   static const int PULSE_FRAMES = 4;
 
+  // pulse starts one frame after the action edge: with START as action
+  // key, START1 and SMART_BOMB rising together lose the game start
+  static const int PULSE_DELAY = 1;
+
   // ship direction in RAM: +3 facing right, -3 facing left (MAME probe
   // 2026-10-14: toggles with each Reverse press, constant otherwise)
   static const uint16_t RAM_DIRECTION = 0xa0bb;
@@ -44,7 +48,7 @@ public:
     const bool action = keys & actionKey;
     if (action && !actionLast) {
       pulseBits = (left || right) ? HYPERSPACE : SMART_BOMB;
-      pulse = PULSE_FRAMES;
+      pulse = PULSE_FRAMES + PULSE_DELAY;
     }
     actionLast = action;
     if (keys & BOARD_KEY_A) {
@@ -54,8 +58,10 @@ public:
       in0 |= SMART_BOMB;
     }
     if (pulse > 0) {
+      if (pulse <= PULSE_FRAMES) {
+        in0 |= pulseBits;
+      }
       pulse--;
-      in0 |= pulseBits;
     }
     return in0 | (in1 << 8);
   }

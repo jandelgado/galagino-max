@@ -38,8 +38,16 @@ void test_action_edge_smart_bomb_pulse(void) {
   TEST_ASSERT_EQUAL(DefenderControls::PULSE_FRAMES, frames);
 }
 
+// edge frame carries no pulse: START1 (same button) must rise first
+void test_action_pulse_starts_frame_late(void) {
+  DefenderControls c;
+  TEST_ASSERT_FALSE(c.update(ACTION, false, ACTION) & DefenderControls::SMART_BOMB);
+  TEST_ASSERT_TRUE(c.update(ACTION, false, ACTION) & DefenderControls::SMART_BOMB);
+}
+
 void test_action_with_direction_hyperspace(void) {
   DefenderControls c;
+  c.update(ACTION | BOARD_KEY_LEFT, true, ACTION);
   const uint16_t v = c.update(ACTION | BOARD_KEY_LEFT, true, ACTION);
   TEST_ASSERT_TRUE(v & DefenderControls::HYPERSPACE);
   TEST_ASSERT_FALSE(v & DefenderControls::SMART_BOMB);
@@ -68,6 +76,7 @@ int main(int, char **) {
   RUN_TEST(test_push_against_facing_reverses);
   RUN_TEST(test_up_down_fire);
   RUN_TEST(test_action_edge_smart_bomb_pulse);
+  RUN_TEST(test_action_pulse_starts_frame_late);
   RUN_TEST(test_action_with_direction_hyperspace);
   RUN_TEST(test_bomb_active_during_pulse_only);
   RUN_TEST(test_facing_from_ram);
