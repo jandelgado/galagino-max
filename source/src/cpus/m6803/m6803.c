@@ -30,7 +30,7 @@ uint8_t m6803_internal_ram[128];
 
 static uint8_t mem_read(m6803_state *s, uint16_t addr) {
     /* Internal I/O registers 0x0000-0x001F */
-    if (addr <= 0x001F) {
+    if (!s->mode6800 && addr <= 0x001F) {
         switch (addr) {
             case 0x00: return s->port1_ddr;
             case 0x01: return s->port2_ddr;
@@ -59,7 +59,7 @@ static uint8_t mem_read(m6803_state *s, uint16_t addr) {
         }
     }
     /* Internal RAM 0x0080-0x00FF */
-    if (addr >= 0x0080 && addr <= 0x00FF)
+    if (!s->mode6800 && addr >= 0x0080 && addr <= 0x00FF)
         return m6803_internal_ram[addr - 0x0080];
 
     /* External memory */
@@ -70,7 +70,7 @@ static uint8_t mem_read(m6803_state *s, uint16_t addr) {
 
 static void mem_write(m6803_state *s, uint16_t addr, uint8_t val) {
     /* Internal I/O registers */
-    if (addr <= 0x001F) {
+    if (!s->mode6800 && addr <= 0x001F) {
         switch (addr) {
             case 0x00: s->port1_ddr = val; break;
             case 0x01: s->port2_ddr = val; break;
@@ -95,7 +95,7 @@ static void mem_write(m6803_state *s, uint16_t addr, uint8_t val) {
         return;
     }
     /* Internal RAM */
-    if (addr >= 0x0080 && addr <= 0x00FF) {
+    if (!s->mode6800 && addr >= 0x0080 && addr <= 0x00FF) {
         m6803_internal_ram[addr - 0x0080] = val;
         return;
     }
@@ -353,6 +353,7 @@ static void op_daa(m6803_state *s) {
  * ============================================================ */
 
 void m6803_reset(m6803_state *s) {
+    s->mode6800 = 0;
     s->A = 0; s->B = 0;
     s->X = 0;
     s->SP = 0x00FF;
@@ -704,4 +705,42 @@ int m6803_step(m6803_state *s) {
         /* Unknown opcode — treat as NOP */
         return 2;
     }
+}
+
+/* ============================================================
+ * 6800/6808 mode (Williams sound board)
+ * ============================================================ */
+
+/* MAME m6800.cpp cycles_6800, XX (illegal) = 4 */
+static const uint8_t cycles_6800[256] = {
+    4, 2, 4, 4, 4, 4, 2, 2, 4, 4, 2, 2, 2, 2, 2, 2,
+    2, 2, 4, 4, 4, 4, 2, 2, 4, 2, 4, 2, 4, 4, 4, 4,
+    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 4,10, 4, 4, 9,12,
+    2, 4, 4, 2, 2, 4, 2, 2, 2, 2, 2, 4, 2, 2, 4, 2,
+    2, 4, 4, 2, 2, 4, 2, 2, 2, 2, 2, 4, 2, 2, 4, 2,
+    7, 4, 4, 7, 7, 4, 7, 7, 7, 7, 7, 4, 7, 7, 4, 7,
+    6, 4, 4, 6, 6, 4, 6, 6, 6, 6, 6, 4, 6, 6, 3, 6,
+    2, 2, 2, 4, 2, 2, 2, 3, 2, 2, 2, 2, 3, 8, 3, 4,
+    3, 3, 3, 4, 3, 3, 3, 4, 3, 3, 3, 3, 4, 6, 4, 5,
+    5, 5, 5, 4, 5, 5, 5, 6, 5, 5, 5, 5, 6, 8, 6, 7,
+    4, 4, 4, 4, 4, 4, 4, 5, 4, 4, 4, 4, 5, 9, 5, 6,
+    2, 2, 2, 4, 2, 2, 2, 3, 2, 2, 2, 2, 4, 4, 3, 4,
+    3, 3, 3, 4, 3, 3, 3, 4, 3, 3, 3, 3, 4, 4, 4, 5,
+    5, 5, 5, 4, 5, 5, 5, 6, 5, 5, 5, 5, 4, 4, 6, 7,
+    4, 4, 4, 4, 4, 4, 4, 5, 4, 4, 4, 4, 4, 4, 5, 6
+};
+
+void m6800_reset(m6803_state *s) {
+    m6803_reset(s);
+    s->mode6800 = 1;
+    s->PC = read16(s, 0xFFFE);  /* re-read without the 6803 internal map */
+}
+
+int m6800_step(m6803_state *s) {
+    /* IRQ entry and WAI execute no opcode: keep the core's count */
+    const int executes = !s->wai_state && !(s->irq_pending && !(s->CC & M6803_CC_I));
+    const uint8_t op = mem_read(s, s->PC);
+    const int cycles = m6803_step(s);
+    return executes ? cycles_6800[op] : cycles;
 }
