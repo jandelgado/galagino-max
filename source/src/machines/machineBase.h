@@ -120,7 +120,10 @@ enum {
   MCH_BERZERK,
   MCH_GRAVITAR,
   MCH_MARBLE,
-  MCH_TP84
+  MCH_TP84,
+  MCH_DEFENDER,
+  MCH_ROBOTRON,
+  MCH_JOUST
 };
 
 // one inst at 3Mhz ~ 500k inst/sec = 500000/60 inst per frame

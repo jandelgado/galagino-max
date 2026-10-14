@@ -115,6 +115,9 @@
 #ifdef ENABLE_TP84
   #include "machines/tp84/tp84.h"
 #endif
+#ifdef ENABLE_DEFENDER
+  #include "machines/defender/defender.h"
+#endif
 
 #ifdef ENABLE_MOONCRESTA
   #include "machines/mooncresta/mooncresta.h"
@@ -852,6 +855,13 @@ machineInfo machines[] = {
     tp84::menuLeds,
 #endif
     MCH_TP84 },
+#endif
+#ifdef ENABLE_DEFENDER
+  { []() -> machineBase* { return new defender(); }, defender::logo,
+#ifdef LED_PIN
+    defender::menuLeds,
+#endif
+    MCH_DEFENDER },
 #endif
 };
 

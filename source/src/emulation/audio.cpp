@@ -393,6 +393,8 @@ void Audio::transmit() {
       bzone_render_buffer();
     else if(machineType == MCH_BERZERK)
       berzerk_render_buffer();
+    else if(machineType == MCH_DEFENDER || machineType == MCH_ROBOTRON || machineType == MCH_JOUST)
+      dac_render_buffer();
   } while(bytesOut);
 }
 
@@ -629,6 +631,16 @@ void Audio::berzerk_render_buffer(void) {
   for (int i = 0; i < 64; i++) {
     const int32_t v = samples[i] >> MIX_SHIFT;
     valueToBuffer(i, v > SAMPLE_MAX ? SAMPLE_MAX : (v < -SAMPLE_MAX ? -SAMPLE_MAX : v));
+  }
+}
+
+// Williams sound board: 6808 DAC samples produced on the emulation core
+void Audio::dac_render_buffer(void) {
+  static int dc = 0;
+  for (int i = 0; i < 64; i++) {
+    const int s = currentMachine->renderDrumSample();
+    dc += (s - dc) >> 7;  // high-pass: the DAC idles at an arbitrary level
+    valueToBuffer(i, s - dc);
   }
 }
 

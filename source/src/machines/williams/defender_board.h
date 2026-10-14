@@ -9,6 +9,7 @@
 class DefenderBoard : public WilliamsBoard {
 public:
   static const BoardConfig CONFIG;
+  bool smartBomb() const { return controls.bombActive(); }
   DefenderBoard(uint8_t *ram, uint8_t *scanA, uint8_t *scanB, const uint8_t *mainRom,
                 const uint8_t *bankedRom, const uint8_t *soundRom, unsigned int actionKey);
 

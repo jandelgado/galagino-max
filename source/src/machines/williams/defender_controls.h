@@ -20,6 +20,8 @@ public:
   static const uint16_t RAM_DIRECTION = 0xa0bb;
   static bool facingLeft(uint8_t direction) { return direction & 0x80; }
 
+  bool bombActive() const { return pulse > 0 && pulseBits == SMART_BOMB; }
+
   uint16_t update(unsigned int keys, bool facesLeft, unsigned int actionKey) {
     uint8_t in0 = 0, in1 = 0;
     if (keys & BOARD_KEY_FIRE) {

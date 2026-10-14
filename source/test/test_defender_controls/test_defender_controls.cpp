@@ -45,6 +45,18 @@ void test_action_with_direction_hyperspace(void) {
   TEST_ASSERT_FALSE(v & DefenderControls::SMART_BOMB);
 }
 
+void test_bomb_active_during_pulse_only(void) {
+  DefenderControls c;
+  c.update(ACTION, false, ACTION);
+  TEST_ASSERT_TRUE(c.bombActive());
+  for (int i = 0; i < DefenderControls::PULSE_FRAMES; i++) {
+    c.update(0, false, ACTION);
+  }
+  TEST_ASSERT_FALSE(c.bombActive());
+  c.update(ACTION | BOARD_KEY_LEFT, false, ACTION);  // hyperspace, not a bomb
+  TEST_ASSERT_FALSE(c.bombActive());
+}
+
 void test_facing_from_ram(void) {
   TEST_ASSERT_FALSE(DefenderControls::facingLeft(0x03));  // +3: right
   TEST_ASSERT_TRUE(DefenderControls::facingLeft(0xfd));   // -3: left
@@ -57,6 +69,7 @@ int main(int, char **) {
   RUN_TEST(test_up_down_fire);
   RUN_TEST(test_action_edge_smart_bomb_pulse);
   RUN_TEST(test_action_with_direction_hyperspace);
+  RUN_TEST(test_bomb_active_during_pulse_only);
   RUN_TEST(test_facing_from_ram);
   return UNITY_END();
 }
