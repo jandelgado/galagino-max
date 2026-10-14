@@ -121,6 +121,9 @@
 #ifdef ENABLE_ROBOTRON
   #include "machines/robotron/robotron.h"
 #endif
+#ifdef ENABLE_JOUST
+  #include "machines/joust/joust.h"
+#endif
 
 #ifdef ENABLE_MOONCRESTA
   #include "machines/mooncresta/mooncresta.h"
@@ -872,6 +875,13 @@ machineInfo machines[] = {
     robotron::menuLeds,
 #endif
     MCH_ROBOTRON },
+#endif
+#ifdef ENABLE_JOUST
+  { []() -> machineBase* { return new joust(); }, joust::logo,
+#ifdef LED_PIN
+    joust::menuLeds,
+#endif
+    MCH_JOUST },
 #endif
 };
 

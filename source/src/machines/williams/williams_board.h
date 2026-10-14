@@ -55,6 +55,7 @@ protected:
   virtual void installRomWindow() = 0;          // rom_direct after m6809_reset
   virtual void frameInputs() {}                 // once per frame, before the CPU runs
   uint8_t in2();
+  bool piaCb2(uint8_t index) const { return pia[index].cb2(); }
   uint8_t videoCounter() const;
   uint8_t piaRead(uint8_t index, uint8_t reg);
   void piaWrite(uint8_t index, uint8_t reg, uint8_t val);

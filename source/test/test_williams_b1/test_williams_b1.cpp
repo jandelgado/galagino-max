@@ -9,12 +9,17 @@
 #include "../../src/machines/robotron/robotron_rom.h"
 #include "../../src/machines/williams/williams_palette.h"
 #endif
+#if __has_include("../../src/machines/joust/joust_rom.h") && defined(HAVE_ROBOTRON)
+#define HAVE_JOUST 1
+#include "../../src/machines/joust/joust_rom.h"
+#endif
 #include "../../src/cpus/m6803/m6803.c"
 #include "../../src/cpus/m6809/m6809.c"
 #include "../../src/machines/williams/williams_sound.cpp"
 #include "../../src/machines/williams/williams_board.cpp"
 #include "../../src/machines/williams/b1_board.cpp"
 #include "../../src/machines/williams/robotron_board.h"
+#include "../../src/machines/williams/joust_board.h"
 
 // Boots the blitter board games (Robotron, Joust) through the board layer
 // on the real ROMs (romconv headers, skipped without them); PPM frames to
@@ -119,10 +124,44 @@ void test_robotron_boot_reaches_attract(void) {
 }
 #endif
 
+#ifdef HAVE_JOUST
+static JoustBoard *bootJoust() {
+  arena();
+  static Asset<unsigned char, COMPRESSED> m(joust_rom_main_blob);
+  static Asset<unsigned char, COMPRESSED> s(joust_rom_sound_blob);
+  delete board;
+  JoustBoard *j = new JoustBoard(ram, scanA, scanB, m.data(), s.data());
+  board = j;
+  j->bindMemory(cmos, soundRam);
+  j->reset();
+  return j;
+}
+
+void test_joust_boot_reaches_attract(void) {
+  bootJoust();
+  runAttract("joust");
+}
+
+// CB2 high selects player 1 (INP1): left 0x01, flap 0x04; low = player 2
+void test_joust_mux(void) {
+  JoustBoard *j = bootJoust();
+  while (!j->booted()) {
+    j->runFrame();
+  }
+  j->setKeys(BOARD_KEY_LEFT | BOARD_KEY_FIRE);
+  TEST_ASSERT_EQUAL_HEX8(0x05, j->in0ForTest(true) & 0x0f);
+  TEST_ASSERT_EQUAL_HEX8(0x00, j->in0ForTest(false) & 0x0f);
+}
+#endif
+
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROBOTRON
   RUN_TEST(test_robotron_boot_reaches_attract);
+#endif
+#ifdef HAVE_JOUST
+  RUN_TEST(test_joust_boot_reaches_attract);
+  RUN_TEST(test_joust_mux);
 #endif
   return UNITY_END();
 }
