@@ -194,6 +194,13 @@ void setup() {
 
   // permanent buffers: largest first, so none has to fit a hole
   memory = (uint8_t *)malloc(RAMSIZE);
+  if (!memory) {
+    // DRAM statics grew (e.g. a new global): the heap block left after
+    // the Arena is smaller than RAMSIZE
+    printf("fatal: malloc(RAMSIZE=%d) failed, MaxAlloc=%d Free=%d\n", RAMSIZE,
+           ESP.getMaxAllocHeap(), ESP.getFreeHeap());
+    abort();
+  }
   frame_buffer = (unsigned short*)malloc(240 * 8 * 2);
   sprite_buffer = (sprite_S*)malloc(128 * sizeof(sprite_S));
   audio.init();
