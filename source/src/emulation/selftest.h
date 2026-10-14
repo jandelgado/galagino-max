@@ -10,7 +10,8 @@
 #endif
 
 #ifdef BOOT_SELFTEST
-// arcade style boot screen: title, hardware info lines, crosshatch.
+// arcade style boot screen: title, hardware info lines, crosshatch that
+// splits into a red/green anaglyph to a beating SID tone.
 // sequence defined by PHASES in selftest.cpp
 static constexpr uint16_t SELFTEST_WIDTH = 224;
 
@@ -22,6 +23,9 @@ bool selftest_tick();
 
 // draw strip `row` of the self-test screen into the cleared frame buffer
 void selftest_render_row(uint16_t *frame_buffer, uint8_t row);
+
+// next n audio samples of the self-test tone, +-Sid::SAMPLE_MAX
+void selftest_render_audio(int16_t *out, int n);
 
 #ifdef LED_PIN
 // LED color of the current phase, off once the self-test is over

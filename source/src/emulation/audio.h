@@ -48,6 +48,8 @@ public:
   void start(machineBase *machineBase);
   void stop();
   void transmit();
+  // no machine (boot self-test): samples from render, +-512
+  void transmit(void (*render)(int16_t *out, int n));
   void volumeUpDown(bool up, bool down);
   void mute(int m);
 

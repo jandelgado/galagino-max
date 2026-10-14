@@ -232,6 +232,11 @@ static void selftestFrame(void) {
     memset(frame_buffer, 0, SELFTEST_WIDTH * 8 * sizeof(uint16_t));
     selftest_render_row(frame_buffer, row);
     video.write(frame_buffer, SELFTEST_WIDTH * 8);
+
+    // 6 times per frame, as updateAudioVideo()
+    if (row % 6 == 5) {
+      audio.transmit(selftest_render_audio);
+    }
   }
 
   const uint32_t dt = millis() - t0;
@@ -252,6 +257,9 @@ void loop(void) {
       selftestFrame();
       return;
     }
+
+    // DMA would loop the last tone chunk until a machine starts
+    audio.stop();
   }
 #endif
 

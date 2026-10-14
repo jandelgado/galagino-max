@@ -9,6 +9,7 @@
 #include <esp_image_format.h>
 #include <stdarg.h>
 #include "hud.h"
+#include "sid.h"
 
 // delay between info lines
 static constexpr uint32_t LINE_MS = 150;
@@ -120,35 +121,143 @@ static void draw_games(const Draw &d) {
   draw_text(d, LINE_GAMES, counting);
 }
 
-// Namco style test grid: lines every 16 px plus right and bottom border.
+// anaglyph: two grid copies, red moved up-left, green moved down-right,
+// fading from white. overlaps stay light (red | green)
+static constexpr uint32_t FADE_ONE = 256;
+static constexpr int32_t ANAGLYPH_SHIFT = 2;  // px per copy at full fade
+static constexpr uint8_t RED[3] = { 31, 0, 0 };     // RGB565 components
+static constexpr uint8_t GREEN[3] = { 0, 63, 14 };  // teal, as 3D glasses
+static constexpr uint8_t WHITE[3] = { 31, 63, 31 };
+
+// RGB565, byte swapped like the frame buffer
+static uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
+  const uint16_t c = (uint16_t)((r << 11) | (g << 5) | b);
+  return (uint16_t)((c >> 8) | (c << 8));
+}
+
+// white faded towards `to` by fade (0..FADE_ONE)
+static uint16_t fade_white(const uint8_t to[3], uint32_t fade) {
+  uint8_t c[3];
+  for (uint8_t i = 0; i < 3; i++) {
+    c[i] = (uint8_t)(WHITE[i] - (WHITE[i] - to[i]) * fade / FADE_ONE);
+  }
+  return rgb565(c[0], c[1], c[2]);
+}
+
+// OR screen line y of a grid copy moved up-left by `shift` (down-right if
+// negative) into p. Namco style grid: lines every 16 px plus right and
+// bottom border
+static void grid_line(uint16_t *p, int32_t y, int32_t shift, uint16_t color) {
+  const int32_t W = SELFTEST_WIDTH;
+  const int32_t gy = y + shift;  // grid line drawn at screen y
+  if (gy < 0 || gy >= HEIGHT) {
+    return;
+  }
+
+  if (gy % GRID == 0 || gy == HEIGHT - 1) {
+    const int32_t from = shift < 0 ? -shift : 0;
+    const int32_t to = shift > 0 ? W - shift : W;
+    for (int32_t x = from; x < to; x++) {
+      p[x] |= color;
+    }
+    return;
+  }
+
+  auto column = [&](int32_t gx) {
+    const int32_t x = gx - shift;
+    if (x >= 0 && x < W) {
+      p[x] |= color;
+    }
+  };
+  for (int32_t gx = 0; gx < W; gx += GRID) {
+    column(gx);
+  }
+  column(W - 1);
+}
+
+// crosshatch split into anaglyph copies by fade (0 = white grid).
 // clears the strip first, so it hides earlier phases
-static void crosshatch(const Draw &d) {
+static void crosshatch(const Draw &d, uint32_t fade) {
   memset(d.frame_buffer, 0, SELFTEST_WIDTH * ROW_LINES * sizeof(uint16_t));
 
+  const int32_t shift = (ANAGLYPH_SHIFT * fade + FADE_ONE / 2) / FADE_ONE;
+  const uint16_t red = fade_white(RED, fade);
+  const uint16_t green = fade_white(GREEN, fade);
+
   for (uint8_t line = 0; line < ROW_LINES; line++) {
-    const uint16_t y = d.row * ROW_LINES + line;
     uint16_t *p = d.frame_buffer + line * SELFTEST_WIDTH;
-
-    if (y % GRID == 0 || y == HEIGHT - 1) {
-      for (uint16_t x = 0; x < SELFTEST_WIDTH; x++) {
-        p[x] = HUD_WHITE;
-      }
-      continue;
-    }
-
-    for (uint16_t x = 0; x < SELFTEST_WIDTH; x += GRID) {
-      p[x] = HUD_WHITE;
-    }
-    p[SELFTEST_WIDTH - 1] = HUD_WHITE;
+    const int32_t y = d.row * ROW_LINES + line;
+    grid_line(p, y, shift, red);
+    grid_line(p, y, -shift, green);
   }
 }
 
+static void anaglyph(const Draw &d) {
+  crosshatch(d, d.ms < d.duration ? d.ms * FADE_ONE / d.duration : FADE_ONE);
+}
+
+// tone: Commando.sid subtune 11 pulse voice, doubled. The second voice
+// detunes while the grid splits, its beat speeds up from 0 to ~6 Hz.
+// 1 SID frequency unit = 0.0587 Hz (PAL)
+static constexpr uint16_t TONE_FREQ = 0x0700;   // 105 Hz
+static constexpr uint16_t TONE_DETUNE = 100;    // at phase end
+static constexpr uint32_t TONE_RELEASE_MS = 300; // SR release 8
+static constexpr uint8_t TONE_SR = 0xf8;         // full sustain, release 8
+
+// Sid registers, voice v at v * VOICE_REGS
+enum SidReg : uint8_t { FREQ_LO, FREQ_HI, PW_LO, PW_HI, CTRL, AD, SR, VOICE_REGS };
+static constexpr uint8_t MODE_VOL = 0x18;
+static constexpr uint8_t VOL_MAX = 0x0f;
+static constexpr uint8_t CTRL_GATE = 0x01, CTRL_PULSE = 0x40;
+
+static Sid sid;
+
+static void sid_voice(uint8_t v, uint8_t reg, uint8_t val) {
+  sid.write(v * VOICE_REGS + reg, val);
+}
+
+static void sid_freq(uint8_t v, uint16_t freq) {
+  sid_voice(v, FREQ_LO, freq & 0xff);
+  sid_voice(v, FREQ_HI, freq >> 8);
+}
+
+// pulse widths of subtune 11, gate off at the start
+static void tone_setup() {
+  static const uint16_t PULSE_WIDTH[2] = { 0x280, 0x400 };
+
+  sid.reset();
+  sid.write(MODE_VOL, VOL_MAX);
+  for (uint8_t v = 0; v < 2; v++) {
+    sid_freq(v, TONE_FREQ);
+    sid_voice(v, PW_LO, PULSE_WIDTH[v] & 0xff);
+    sid_voice(v, PW_HI, PULSE_WIDTH[v] >> 8);
+    sid_voice(v, AD, 0x00);
+    sid_voice(v, SR, TONE_SR);
+  }
+}
+
+// gate on at phase start, released to end silent with the phase
+static void anaglyph_tone(uint32_t ms, uint32_t duration) {
+  sid_freq(1, TONE_FREQ + TONE_DETUNE * ms / duration);
+
+  const bool gate = ms + TONE_RELEASE_MS < duration;
+  const uint8_t ctrl = gate ? CTRL_PULSE | CTRL_GATE : CTRL_PULSE;
+  sid_voice(0, CTRL, ctrl);
+  sid_voice(1, CTRL, ctrl);
+}
+
+void selftest_render_audio(int16_t *out, int n) {
+  sid.render(out, n);
+}
+
 typedef void (*DrawFn)(const Draw &d);
+typedef void (*ToneFn)(uint32_t ms, uint32_t duration);
 
 struct Phase {
   uint32_t ms;   // duration
   uint32_t led;  // 0xRRGGBB or LED_KEEP
   DrawFn draw;
+  ToneFn tone;   // once per frame while the phase runs, optional
 };
 
 static constexpr uint32_t LED_KEEP = 0xFFFFFFFF;  // keep the previous color
@@ -169,7 +278,8 @@ static const Phase PHASES[] = {
   { LINE_MS, LED_KEEP,  [](const Draw &d) { draw_line(d, LINE_FLASH); } },
   { 750,     LED_KEEP,  [](const Draw &d) { draw_games(d); } },
   { 300,     LED_KEEP,  [](const Draw &d) { draw_line(d, LINE_NUNCHUCK); } },
-  { 1000,    LED_WHITE, [](const Draw &d) { crosshatch(d); } },
+  { 1000,    LED_WHITE, [](const Draw &d) { crosshatch(d, 0); } },
+  { 2000,    LED_KEEP,  anaglyph, anaglyph_tone },
 };
 static constexpr uint8_t PHASE_COUNT = sizeof(PHASES) / sizeof(PHASES[0]);
 
@@ -187,6 +297,7 @@ void selftest_begin(Input *input, uint8_t games) {
   (void)input;
 #endif
 
+  tone_setup();
   start_ms = millis();
 }
 
@@ -194,15 +305,22 @@ bool selftest_tick() {
   frame_ms = millis() - start_ms;
 
   // current phase
-  uint32_t phase_end = 0;
+  uint32_t phase_start = 0;
   for (phase = 0; phase < PHASE_COUNT; phase++) {
-    phase_end += PHASES[phase].ms;
-    if (frame_ms < phase_end) {
+    if (frame_ms < phase_start + PHASES[phase].ms) {
       break;
     }
+    phase_start += PHASES[phase].ms;
   }
 
-  return phase < PHASE_COUNT;
+  if (phase == PHASE_COUNT) {
+    return false;
+  }
+
+  if (PHASES[phase].tone) {
+    PHASES[phase].tone(frame_ms - phase_start, PHASES[phase].ms);
+  }
+  return true;
 }
 
 #ifdef LED_PIN
