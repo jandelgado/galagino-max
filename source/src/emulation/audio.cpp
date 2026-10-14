@@ -6,6 +6,7 @@
 #endif
 
 #include "ima_adpcm.h"
+#include "dc_block.h"
 using ima_adpcm::ima_adpcm_decode;
 
 void Audio::init() {
@@ -636,11 +637,11 @@ void Audio::berzerk_render_buffer(void) {
 
 // Williams sound board: 6808 DAC samples produced on the emulation core
 void Audio::dac_render_buffer(void) {
-  static int dc = 0;
+  static const int32_t SAMPLE_MAX = 511;  // valueToBuffer() wraps beyond
+  static DcBlock dc;
   for (int i = 0; i < 64; i++) {
-    const int s = currentMachine->renderDrumSample();
-    dc += (s - dc) >> 7;  // high-pass: the DAC idles at an arbitrary level
-    valueToBuffer(i, s - dc);
+    const int32_t v = dc.filter(currentMachine->renderDrumSample());
+    valueToBuffer(i, v > SAMPLE_MAX ? SAMPLE_MAX : (v < -SAMPLE_MAX ? -SAMPLE_MAX : v));
   }
 }
 

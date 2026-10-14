@@ -38,7 +38,9 @@ protected:
 
 private:
   static const int TOP_ROW = 24;    // (288 - 240) / 2
-  static const int DAC_VOLUME = 4;  // 8 bit DAC -> +-512 mix range
+  // 8 bit DAC -> +-256: the DC blocked swing doubles when a sound starts
+  // from a DAC resting at 0 or 255 (test_williams_sound)
+  static const int DAC_VOLUME = 2;
   static const int PENS = 16;
   static const uint16_t CMOS_OFS = 0x0000, SOUND_RAM_OFS = 0x0400;  // memory[]
 

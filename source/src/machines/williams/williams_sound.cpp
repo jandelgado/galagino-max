@@ -18,6 +18,7 @@ void WilliamsSound::reset() {
   pia.setInputs(0xff, 0xff);
   budget = 0;
   outPhase = 0;
+  dacArea = 0;
   dacValue = 0x80;
   wr = rd = 0;
   memset(&cpu, 0, sizeof(cpu));
@@ -54,19 +55,33 @@ void WilliamsSound::step() {
     cpu.irq_pending = 0;
   }
 
+  const uint8_t held = dacValue;  // a DAC write lands at the end of the step
   const int cycles = m6800_step(&cpu);
   budget -= cycles * (int32_t)MAIN_HZ;
 
-  // 24 kHz output clock
-  outPhase += cycles * OUT_HZ;
-  while (outPhase >= SOUND_HZ) {
-    outPhase -= SOUND_HZ;
-    const uint16_t next = (wr + 1) & (RING - 1);
-    if (next != rd) {  // full: drop, the audio core is behind
-      ring[wr] = dacValue;
-      wr = next;
-    }
+  // 24 kHz output: the DAC level averaged over each sample period. The
+  // sound ROM rewrites the DAC up to every 18 cycles (50 kHz); taking one
+  // value per period would alias that into the audible band.
+  uint32_t phase = cycles * OUT_HZ;
+  while (outPhase + phase >= SOUND_HZ) {
+    const uint32_t part = SOUND_HZ - outPhase;
+    phase -= part;
+    outPhase = 0;
+    dacArea += held * part;
+    push((dacArea + SOUND_HZ / 2) / SOUND_HZ);
+    dacArea = 0;
   }
+  outPhase += phase;
+  dacArea += held * phase;
+}
+
+void WilliamsSound::push(uint8_t v) {
+  const uint16_t next = (wr + 1) & (RING - 1);
+  if (next == rd) {
+    return;  // full: drop, the audio core is behind
+  }
+  ring[wr] = v;
+  wr = next;
 }
 
 int WilliamsSound::sample() {

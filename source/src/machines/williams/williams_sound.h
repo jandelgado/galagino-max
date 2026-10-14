@@ -29,6 +29,7 @@ private:
   static const uint16_t RAM_END = 0x0100;
 
   void step();
+  void push(uint8_t v);
   static uint8_t read(uint16_t addr);
   static void write(uint16_t addr, uint8_t val);
   static WilliamsSound *active;  // m6803 callbacks carry no context
@@ -40,6 +41,7 @@ private:
   uint8_t *ram = nullptr;
   int32_t budget = 0;       // 6808 cycles owed, in units of 1 / MAIN_HZ
   uint32_t outPhase = 0;    // 24 kHz sample clock, in units of 1 / SOUND_HZ
+  uint32_t dacArea = 0;     // DAC level x outPhase units since the last sample
   uint8_t dacValue = 0x80;
   volatile uint8_t ring[RING];
   volatile uint16_t wr = 0, rd = 0;

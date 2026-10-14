@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 #include <unity.h>
 #if __has_include("../../src/machines/defender/defender_rom.h")
@@ -9,6 +10,7 @@
 #endif
 #include "../../src/cpus/m6803/m6803.c"
 #include "../../src/machines/williams/williams_sound.cpp"
+#include "../../src/emulation/dc_block.h"
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -41,6 +43,33 @@ void test_command_during_masked_irq(void) {
   TEST_ASSERT_EQUAL(0, ram[0x10]);
   snd.run(5000);       // past CLI
   TEST_ASSERT_TRUE(ram[0x10] > 0);
+}
+
+// The 24 kHz output is the DAC level averaged over each sample period, not
+// the level at one instant: a DAC toggled far above 24 kHz must not alias.
+// ROM at 0xff00 (PIA port A = DAC):
+//   ff00 LDAA #$FF; STAA $0400 (DDRA out); LDAA #$04; STAA $0401 (CRA: ORA)
+//   ff0a LDAA #$00; STAA $0400; LDAA #$FF; STAA $0400; BRA ff0a
+// 18 cycle loop (50 kHz): 0x00 held 7 cycles, 0xff held 11, average 156.
+void test_output_averages_dac(void) {
+  static uint8_t rom[256];
+  const uint8_t code[] = { 0x86, 0xff, 0xb7, 0x04, 0x00, 0x86, 0x04, 0xb7, 0x04, 0x01,
+                           0x86, 0x00, 0xb7, 0x04, 0x00, 0x86, 0xff, 0xb7, 0x04, 0x00,
+                           0x20, 0xf4 };
+  memcpy(rom, code, sizeof(code));
+  rom[0xfe] = 0xff;  // reset vector 0xff00
+  rom[0xff] = 0x00;
+  WilliamsSound snd;
+  snd.attach(rom, 0xff00, ram);
+  snd.reset();
+  snd.run(FRAME_CYCLES);
+  snd.sample();  // start-up: DAC still at reset level
+  snd.sample();
+  int n = 0;
+  for (int v = snd.sample(); v != WilliamsSound::EMPTY; v = snd.sample(), n++) {
+    TEST_ASSERT_INT_WITHIN(25, 156 - 0x80, v);
+  }
+  TEST_ASSERT_TRUE(n > 300);
 }
 
 #ifdef HAVE_ROM
@@ -99,15 +128,45 @@ void test_ring_produces_400_samples_per_frame(void) {
   }
   TEST_ASSERT_INT_WITHIN(3, 399, n);  // 24000 / 60.1
 }
+
+// Every sound command, DAC_VOLUME scaled and DC blocked, stays inside the
+// +-511 mix range. The DAC rests at 0 or 255 between sounds, so the next
+// sound swings up to twice its amplitude around the old level.
+void test_mix_fits_range(void) {
+  static const int DAC_VOLUME = 2;  // williams.h
+  static const int MIX_MAX = 511;   // Audio::valueToBuffer() input range
+  static const int FRAMES = 90;
+  for (int cmd = 0; cmd < 0x40; cmd++) {
+    WilliamsSound snd;
+    boot(snd);
+    DcBlock dc;
+    snd.command(0xff);
+    snd.run(FRAME_CYCLES * 10);
+    for (int f = 0; f < FRAMES; f++) {
+      snd.command(f == 0 ? cmd : 0xff);
+      snd.run(FRAME_CYCLES);
+      for (int v = snd.sample(); v != WilliamsSound::EMPTY; v = snd.sample()) {
+        const int out = dc.filter(v * DAC_VOLUME);
+        if (out > MIX_MAX || out < -MIX_MAX) {
+          char msg[48];
+          snprintf(msg, sizeof(msg), "cmd %02x frame %d: %d", cmd, f, out);
+          TEST_FAIL_MESSAGE(msg);
+        }
+      }
+    }
+  }
+}
 #endif
 
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_command_during_masked_irq);
+  RUN_TEST(test_output_averages_dac);
 #ifdef HAVE_ROM
   RUN_TEST(test_silent_without_command);
   RUN_TEST(test_command_makes_sound);
   RUN_TEST(test_ring_produces_400_samples_per_frame);
+  RUN_TEST(test_mix_fits_range);
 #endif
   return UNITY_END();
 }
