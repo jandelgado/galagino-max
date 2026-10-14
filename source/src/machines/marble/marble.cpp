@@ -22,6 +22,8 @@ using marble_physics::PLAYER;
 // Stick as trackball (MARBLE.md "Logic tick"): counter delta per tick, k = 9 is about MAME's
 // keyboard trackball speed. Screen right: c7 = c6 = -k; down: c7 = +k, c6 = -k.
 #define MARBLE_STICK_K 9
+// FIRE held while steering: turbo, as the C64, Amiga and NES ports. Speed cap stays the arcade's.
+#define MARBLE_STICK_TURBO_K 18
 
 // the extended PSID file (marble_sid.py). Only decodeInto() is used: data() would cache an
 // Arena pointer in this static, stale after the Arena reset of the next machine switch
@@ -35,7 +37,7 @@ static const int16_t MARBLE_CULL_MARGIN = 24;
 
 // stick -> trackball deltas c6/c7; diagonals scaled by 1/sqrt(2) to keep the length
 static void stick(uint32_t keys, int8_t &c6, int8_t &c7) {
-  const int16_t k = MARBLE_STICK_K;
+  const int16_t k = (keys & BUTTON_FIRE) ? MARBLE_STICK_TURBO_K : MARBLE_STICK_K;
   int16_t a = 0, b = 0, n = 0;  // c7, c6
   if (keys & BUTTON_RIGHT) { a -= k; b -= k; n++; }
   if (keys & BUTTON_LEFT)  { a += k; b += k; n++; }

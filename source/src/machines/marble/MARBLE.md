@@ -121,7 +121,9 @@ bottom rows), so pf_check cannot identify them.
   flow: section Game flow. Not modelled: other IRQ work, countdowns 0x400768/0x4003b8. Stick as trackball, deltas per tick, k =
   `MARBLE_STICK_K` (9, about MAME's keyboard trackball speed; tune on the device): right c7
   = c6 = -k, left +k, +k, down c7 = +k, c6 = -k, up c7 = -k, c6 = +k; two directions add,
-  scaled by 181/256 (about 1.4k on the axis both use). EXTRA held: no input (EXTRA + UP/DOWN
+  scaled by 181/256 (about 1.4k on the axis both use). FIRE held: turbo, k =
+  `MARBLE_STICK_TURBO_K` (18), as the C64/Amiga/NES ports; faster acceleration, the speed cap
+  0x26196 unchanged. EXTRA held: no input (EXTRA + UP/DOWN
   is volume). Logic ticks run only while the race is on (`marble_flow::frame` returns LOGIC);
   a race load (`loadRace`): cleared work RAM image with the carried bytes, race start, camera
   and pan reset.
