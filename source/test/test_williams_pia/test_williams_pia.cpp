@@ -60,6 +60,18 @@ void test_cb2_manual_output(void) {
   TEST_ASSERT_FALSE(p.cb2());
 }
 
+// Port B pins set as inputs float high: switching DDRB to output over
+// ORB = 0 drives them low without an ORB write (Defender's power-up sound)
+void test_port_b_input_pins_float_high(void) {
+  Pia6821 p;
+  p.reset();
+  TEST_ASSERT_EQUAL_HEX8(0xff, p.outB());
+  p.write(ORB, 0x0f);                 // CRB b2 = 0: DDR B, low nibble out
+  TEST_ASSERT_EQUAL_HEX8(0xf0, p.outB());
+  p.write(ORB, 0xff);
+  TEST_ASSERT_EQUAL_HEX8(0x00, p.outB());
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_ddr_then_output);
@@ -67,5 +79,6 @@ int main(int, char **) {
   RUN_TEST(test_cb1_rising_edge_irq_cleared_by_read);
   RUN_TEST(test_falling_edge_and_disabled_irq);
   RUN_TEST(test_cb2_manual_output);
+  RUN_TEST(test_port_b_input_pins_float_high);
   return UNITY_END();
 }

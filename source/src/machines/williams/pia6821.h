@@ -41,7 +41,8 @@ public:
 
   bool irq() const { return pending(crA) || pending(crB); }
   uint8_t outA() const { return orA & ddrA; }
-  uint8_t outB() const { return orB & ddrB; }
+  // port B pins: those set as inputs float high (sound command idle 0xff)
+  uint8_t outB() const { return (orB & ddrB) | (uint8_t)~ddrB; }
 
   // CB2 level in manual output mode (CRB b5 = b4 = 1), else low
   bool cb2() const { return (crB & C2_MANUAL) == C2_MANUAL && (crB & C2_LEVEL); }

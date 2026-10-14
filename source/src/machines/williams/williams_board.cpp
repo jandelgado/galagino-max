@@ -27,7 +27,7 @@ void WilliamsBoard::reset() {
   pia[PIA_INPUTS].reset();
   pia[PIA_SYSTEM].reset();
   snd.reset();
-  cycles = stall = frame = 0;
+  cycles = soundCycles = stall = frame = 0;
   keyState = 0;
   memset(&cpu6809, 0, sizeof(cpu6809));
   m6809_reset(&cpu6809);
@@ -49,11 +49,12 @@ void WilliamsBoard::runFrame() {
   for (int line = 0; line < LINES; line += SLICE_LINES) {
     beam(line);
     runMain((line + SLICE_LINES) * CYCLES_PER_LINE);
-    snd.run(SLICE_LINES * CYCLES_PER_LINE);
+    syncSound();
     scan.capture(ram, cfg.firstByteCol, line, SLICE_LINES, palette);
   }
   scan.flip();
   cycles -= FRAME_CYCLES;  // keep the overshoot of the last instruction
+  soundCycles -= FRAME_CYCLES;
   frame++;
 }
 
@@ -114,10 +115,26 @@ uint8_t WilliamsBoard::piaRead(uint8_t index, uint8_t reg) {
   return pia[index].read(reg);
 }
 
-void WilliamsBoard::piaWrite(uint8_t index, uint8_t reg, uint8_t val) {
-  if (pia[index].write(reg, val) == Pia6821::PORT_B && index == PIA_SYSTEM) {
-    snd.command(pia[index].outB());
+// 6808 catches up with the 6809: a command must reach the sound PIA at
+// its main CPU time, not up to a slice early
+void WilliamsBoard::syncSound() {
+  if (cycles > soundCycles) {
+    snd.run(cycles - soundCycles);
+    soundCycles = cycles;
   }
+}
+
+// Sound command = PIA1 port B pins. A DDR write changes them too: Defender's
+// boot sets DDRB over ORB = 0 (power-up sound), 46 cycles after reset, just
+// after the 6808 enabled its command IRQ.
+void WilliamsBoard::piaWrite(uint8_t index, uint8_t reg, uint8_t val) {
+  const uint8_t pins = pia[PIA_SYSTEM].outB();
+  pia[index].write(reg, val);
+  if (pia[PIA_SYSTEM].outB() == pins) {
+    return;
+  }
+  syncSound();
+  snd.command(pia[PIA_SYSTEM].outB());
 }
 
 void WilliamsBoard::paletteWrite(uint8_t index, uint8_t val) { palette[index & (PENS - 1)] = val; }

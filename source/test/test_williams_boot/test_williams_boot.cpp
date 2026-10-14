@@ -150,6 +150,21 @@ void test_defender_stick_reverses_ship(void) { coinStartReverse(BOARD_KEY_EXTRA)
 // COIN pin builds: START is also the action key (smart bomb pulse)
 void test_defender_start_action_key_starts(void) { coinStartReverse(BOARD_KEY_START); }
 
+// Power-up sound (MAME: first ~2.7 s): the boot code sets PIA1 DDRB to
+// output over ORB = 0, which drives command 0x00 without an ORB write.
+void test_defender_power_up_sound(void) {
+  bootDefender();
+  int changes = 0, last = 0;
+  for (int f = 0; f < 60; f++) {
+    board->runFrame();
+    for (int v = board->sound().sample(); v != WilliamsSound::EMPTY; v = board->sound().sample()) {
+      changes += v != last;
+      last = v;
+    }
+  }
+  TEST_ASSERT_TRUE(changes > 100);
+}
+
 void test_arena_fits_with_assets_first(void) {
   bootDefender();
   TEST_ASSERT_TRUE(Arena::bytesUsed() <= Arena::CAPACITY);
@@ -163,6 +178,7 @@ int main(int, char **) {
   RUN_TEST(test_unmapped_bank_reads_zero);
   RUN_TEST(test_defender_stick_reverses_ship);
   RUN_TEST(test_defender_start_action_key_starts);
+  RUN_TEST(test_defender_power_up_sound);
   RUN_TEST(test_arena_fits_with_assets_first);
 #endif
   return UNITY_END();

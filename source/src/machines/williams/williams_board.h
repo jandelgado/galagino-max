@@ -73,6 +73,7 @@ private:
 
   void beam(int line);
   void runMain(uint32_t until);
+  void syncSound();
 
   BoardConfig cfg;
   Pia6821 pia[2];
@@ -82,6 +83,7 @@ private:
   uint8_t *cmos = nullptr;
   uint8_t palette[PENS];
   uint32_t cycles = 0;  // 6809 cycles into the current frame
+  uint32_t soundCycles = 0;  // 6809 cycle the 6808 has run up to
   uint32_t stall = 0;   // blitter halt, charged after the instruction
   uint32_t frame = 0;
   unsigned int keyState = 0;
