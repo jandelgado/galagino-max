@@ -308,7 +308,11 @@
 #endif
 
 // change machine order is possible here...
-machineInfo machines[] = {
+// flash, not DRAM: the table grows with every enabled game and DRAM heap
+// margin for memory[] (RAMSIZE) is a few bytes (const alone lands in
+// .data.rel.ro, which ESP-IDF maps to DRAM)
+__attribute__((section(".rodata.machines")))
+const machineInfo machines[] = {
 #ifdef ENABLE_PACMAN
   { []() -> machineBase* { return new pacman(); }, pacman::logo,
 #ifdef LED_PIN
