@@ -13,13 +13,11 @@ static const unsigned int ACTION_KEY = BUTTON_EXTRA;
 defender::defender()
   : williams(hw, DEFENDER_COLUMNS),
     defender_rom_main(defender_rom_main_blob), defender_rom_banked(defender_rom_banked_blob),
-    defender_rom_sound(defender_rom_sound_blob), williams_rgb(williams_rgb_blob),
+    defender_rom_sound(defender_rom_sound_blob),
     romMain(defender_rom_main.data()), romBanked(defender_rom_banked.data()),
     romSound(defender_rom_sound.data()),
     hw(Arena::alloc(WilliamsBoard::RAM_SIZE), Arena::alloc(Scanout::BUF_BYTES),
-       Arena::alloc(Scanout::BUF_BYTES), romMain, romBanked, romSound, ACTION_KEY) {
-  setPalette(williams_rgb.data());
-}
+       Arena::alloc(Scanout::BUF_BYTES), romMain, romBanked, romSound, ACTION_KEY) {}
 
 #ifdef LED_PIN
 // colors from logos/defender.png: red, yellow

@@ -3,7 +3,6 @@
 
 #include "../williams/williams.h"
 #include "../williams/defender_board.h"
-#include "../williams/williams_palette.h"
 #include "defender_rom.h"
 #include "defender_logo.h"
 
@@ -14,7 +13,6 @@ class defender : public williams {
   Asset<unsigned char, COMPRESSED> defender_rom_main;
   Asset<unsigned char, COMPRESSED> defender_rom_banked;
   Asset<unsigned char, COMPRESSED> defender_rom_sound;
-  Asset<unsigned short, COMPRESSED> williams_rgb;
   const uint8_t *romMain, *romBanked, *romSound;
   DefenderBoard hw;
 

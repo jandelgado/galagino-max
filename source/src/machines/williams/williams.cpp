@@ -1,8 +1,11 @@
 #include "williams.h"
+#include "williams_palette.h"
 
 static_assert(0x0400 + 0x100 <= RAMSIZE, "CMOS + sound RAM in memory[]");
 
-williams::williams(WilliamsBoard &b, const ColumnLayout &l) : board(b) {
+// 512 B palette: unpacks first in the Arena, before the game's assets
+williams::williams(WilliamsBoard &b, const ColumnLayout &l)
+  : board(b), williams_rgb(williams_rgb_blob), rgb(williams_rgb.data()) {
   columns.build(l);
 }
 

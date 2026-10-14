@@ -34,7 +34,6 @@ public:
 protected:
   // board is a member of the derived class, not yet built: store only
   williams(WilliamsBoard &board, const ColumnLayout &columns);
-  void setPalette(const uint16_t *pal) { rgb = pal; }
   WilliamsBoard &board;
 
 private:
@@ -45,8 +44,9 @@ private:
 
   void clearPads(uint16_t *line);
 
+  Asset<unsigned short, COMPRESSED> williams_rgb;  // shared by all Williams games
+  const uint16_t *rgb;
   ColumnMap columns;
-  const uint16_t *rgb = nullptr;
   uint8_t shown = 0;
   uint16_t pens[Scanout::BANDS][PENS];
   int lastSample = 0;

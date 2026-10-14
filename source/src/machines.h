@@ -118,6 +118,9 @@
 #ifdef ENABLE_DEFENDER
   #include "machines/defender/defender.h"
 #endif
+#ifdef ENABLE_ROBOTRON
+  #include "machines/robotron/robotron.h"
+#endif
 
 #ifdef ENABLE_MOONCRESTA
   #include "machines/mooncresta/mooncresta.h"
@@ -862,6 +865,13 @@ machineInfo machines[] = {
     defender::menuLeds,
 #endif
     MCH_DEFENDER },
+#endif
+#ifdef ENABLE_ROBOTRON
+  { []() -> machineBase* { return new robotron(); }, robotron::logo,
+#ifdef LED_PIN
+    robotron::menuLeds,
+#endif
+    MCH_ROBOTRON },
 #endif
 };
 
