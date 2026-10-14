@@ -282,6 +282,10 @@ protected:
 };
 
 // Per-title data for the menu. No instance exists until create().
+// machineInfo::create; unlike a lambda's function pointer (C++11), a
+// constant expression, so the machine table can live in flash
+template <class T> machineBase *createMachine() { return new T(); }
+
 struct machineInfo {
   machineBase *(*create)();
   const Logo &(*logo)();
