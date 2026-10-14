@@ -45,6 +45,7 @@ void WilliamsBoard::addStall(uint32_t c) { stall += c; }
 
 // One frame in 4-line slices: beam inputs, 6809, 6808, scanout copy
 void WilliamsBoard::runFrame() {
+  frameInputs();
   for (int line = 0; line < LINES; line += SLICE_LINES) {
     beam(line);
     runMain((line + SLICE_LINES) * CYCLES_PER_LINE);

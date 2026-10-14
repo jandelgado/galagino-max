@@ -53,6 +53,7 @@ protected:
   virtual uint8_t in0() = 0;
   virtual uint8_t in1() = 0;
   virtual void installRomWindow() = 0;          // rom_direct after m6809_reset
+  virtual void frameInputs() {}                 // once per frame, before the CPU runs
   uint8_t in2();
   uint8_t videoCounter() const;
   uint8_t piaRead(uint8_t index, uint8_t reg);

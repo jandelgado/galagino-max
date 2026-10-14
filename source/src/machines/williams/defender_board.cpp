@@ -11,7 +11,6 @@ static const uint16_t IO_PAL_MASK = 0xfc10, IO_PAL = 0xc000;
 static const uint16_t IO_CMOS_MASK = 0xfc00, IO_CMOS = 0xc400, IO_COUNTER = 0xc800;
 static const uint16_t IO_PIA_MASK = 0xfc18, IO_PIA = 0xcc00, IO_PIA0_BIT = 0x0004;
 static const uint16_t BANK_SELECT_END = 0xe000;
-static const uint8_t IN0_START1 = 0x20;
 
 DefenderBoard::DefenderBoard(uint8_t *ram, uint8_t *scanA, uint8_t *scanB, const uint8_t *m,
                              const uint8_t *b, const uint8_t *s, unsigned int action)
@@ -73,5 +72,13 @@ void DefenderBoard::writeIo(uint16_t addr, uint8_t val) {
   }
 }
 
-uint8_t DefenderBoard::in0() { return (keys() & BOARD_KEY_START) ? IN0_START1 : 0; }
-uint8_t DefenderBoard::in1() { return 0; }
+void DefenderBoard::frameInputs() {
+  const bool left = DefenderControls::facingLeft(ram[DefenderControls::RAM_DIRECTION]);
+  inputs = controls.update(keys(), left, actionKey);
+  if (keys() & BOARD_KEY_START) {
+    inputs |= DefenderControls::START1;
+  }
+}
+
+uint8_t DefenderBoard::in0() { return inputs & 0xff; }
+uint8_t DefenderBoard::in1() { return inputs >> 8; }

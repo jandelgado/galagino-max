@@ -122,6 +122,29 @@ void test_unmapped_bank_reads_zero(void) {
   TEST_ASSERT_NOT_EQUAL(0x00, board->read(0xc000) | board->read(0xc001) | board->read(0xc002));
 }
 
+// coin, start, then push left: the board reverses the ship (RAM 0xa0bb -3)
+void test_defender_stick_reverses_ship(void) {
+  bootDefender();
+  while (!board->booted()) {
+    board->runFrame();
+  }
+  // coin needs ~200 frames before START counts (MAME: coin 1000, start 1200)
+  const unsigned int seq[][2] = { { 0, 230 }, { BOARD_KEY_COIN, 10 }, { 0, 190 },
+                                  { BOARD_KEY_START, 30 }, { 0, 400 } };
+  for (unsigned int i = 0; i < sizeof(seq) / sizeof(seq[0]); i++) {
+    board->setKeys(seq[i][0]);
+    for (unsigned int f = 0; f < seq[i][1]; f++) {
+      board->runFrame();
+    }
+  }
+  TEST_ASSERT_EQUAL_HEX8(0x03, board->ramByte(DefenderControls::RAM_DIRECTION));
+  board->setKeys(BOARD_KEY_LEFT);
+  for (int f = 0; f < 30; f++) {
+    board->runFrame();
+  }
+  TEST_ASSERT_EQUAL_HEX8(0xfd, board->ramByte(DefenderControls::RAM_DIRECTION));
+}
+
 void test_arena_fits_with_assets_first(void) {
   bootDefender();
   TEST_ASSERT_TRUE(Arena::bytesUsed() <= Arena::CAPACITY);
@@ -133,6 +156,7 @@ int main(int, char **) {
 #ifdef HAVE_ROM
   RUN_TEST(test_defender_boot_reaches_attract);
   RUN_TEST(test_unmapped_bank_reads_zero);
+  RUN_TEST(test_defender_stick_reverses_ship);
   RUN_TEST(test_arena_fits_with_assets_first);
 #endif
   return UNITY_END();
