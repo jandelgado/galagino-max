@@ -5,6 +5,7 @@
 #include "galaxian_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "galaxian_sound.h"
 #include "../../emulation/seqlock.h"
 
 // Starfield: max number of visible stars (LFSR generates ~252)
@@ -21,6 +22,7 @@ public:
   galaxian();
 
   signed char machineType() override { return MCH_GALAXIAN; }
+  void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
   void start(void) override;
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
@@ -80,6 +82,9 @@ private:
   };
   Seqlock<VideoState> vblank;
   VideoState video = {};
+
+private:
+  GalaxianSound sound;
 };
 
 #endif

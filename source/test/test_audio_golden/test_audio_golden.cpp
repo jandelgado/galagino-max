@@ -21,6 +21,9 @@
 #include "../../src/emulation/sn76489.h"             // .cpp: deps_sn76489.cpp
 #include "../../src/emulation/namco_wsg.h"           // .cpp: deps_namco_wsg.cpp
 #include "../../src/emulation/pokey.h"               // .cpp: deps_pokey.cpp
+#include "../../src/machines/galaxian/galaxian_sound.h"            // .cpp: deps_galaxian_sound.cpp
+#include "../../src/machines/bagman/bagman_sound.h"                // .cpp: deps_bagman_sound.cpp
+#include "../../src/machines/spaceinvaders/spaceinvaders_sound.h"  // .cpp: deps_spaceinvaders_sound.cpp
 
 // machineBase::reset() is in the vtable; the harness never resets CPUs
 extern "C" {
@@ -490,19 +493,31 @@ static void test_pokey_starwars(void) {
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_POKEY_STARWARS, run("pokey_starwars", &m, pokePokey));
 }
 
-static void test_galaxian(void) {
-  LegacyFake m(MCH_GALAXIAN);
-  TEST_ASSERT_EQUAL_HEX32(GOLDEN_GALAXIAN, run("galaxian", &m, pokeGalaxian));
-}
-
 static void test_phoenix(void) {
   LegacyFake m(MCH_PHOENIX);
   m.game_started = 1;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_PHOENIX, run("phoenix", &m, pokePhoenix));
 }
 
+class GalaxianFake : public machineBase {
+public:
+  void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
+  GalaxianSound sound;
+};
+
+class BagmanFake : public machineBase {
+public:
+  void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
+  BagmanSound sound;
+};
+
+static void test_galaxian(void) {
+  GalaxianFake m;
+  TEST_ASSERT_EQUAL_HEX32(GOLDEN_GALAXIAN, run("galaxian", &m, pokeGalaxian));
+}
+
 static void test_bagman(void) {
-  LegacyFake m(MCH_BAGMAN);
+  BagmanFake m;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_BAGMAN, run("bagman", &m, pokeBagman));
 }
 
@@ -685,6 +700,32 @@ static void test_pokey_init(void) {
       [](Pokey &k, int16_t *out) { k.render(pokey_regs, out, AUDIO_CHUNK); });
 }
 
+static const uint8_t GALAXIAN_REGS[16] = {0x80, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0};
+static uint8_t board_regs[16];
+static void test_board_init(void) {
+  assertInitIndependent<GalaxianSound>(
+      [](void *p) { return new (p) GalaxianSound(); },
+      [](GalaxianSound &s, int16_t *out) { s.render(GALAXIAN_REGS, out, AUDIO_CHUNK); });
+  assertInitIndependent<BagmanSound>(
+      [](void *p) {
+        board_regs[0] = 50;
+        board_regs[2] = 0x5;
+        return new (p) BagmanSound();
+      },
+      [](BagmanSound &s, int16_t *out) {
+        board_regs[0] = 50;  // both instances see the same duration
+        s.render(board_regs, out, AUDIO_CHUNK);
+      });
+  assertInitIndependent<SpaceInvadersSound>(
+      [](void *p) { return new (p) SpaceInvadersSound(fake_sample, SAMPLE_BYTES - 2, fake_sample, SAMPLE_BYTES - 2); },
+      [](SpaceInvadersSound &s, int16_t *out) {
+        board_regs[0] = 0x0f;  // UFO, shot, explosion, invader die
+        board_regs[1] = 0x11;  // fleet 1, UFO hit
+        board_regs[2] = 0;     // no coin: render() clears it, both instances must see the same
+        s.render(board_regs, out, AUDIO_CHUNK);
+      });
+}
+
 int main(int, char **) {
   fillTables();
   UNITY_BEGIN();
@@ -719,5 +760,6 @@ int main(int, char **) {
   RUN_TEST(test_sn_init);
   RUN_TEST(test_namco_init);
   RUN_TEST(test_pokey_init);
+  RUN_TEST(test_board_init);
   return UNITY_END();
 }
