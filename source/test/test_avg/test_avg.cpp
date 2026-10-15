@@ -96,6 +96,19 @@ static void test_first_frame_not_clipped(void) {
   TEST_ASSERT_EQUAL(1, avg::decode(mem(), st, out, 64));
 }
 
+// draw time: 32 clocks per instruction plus vector time, 0x8000 halved per
+// normalize shift (dx 100: 5, SVEC dx 4: 1) and binary scale step, SVEC
+// from 0x100
+static void test_draw_clocks(void) {
+  at(0); put(CNTR); put(scal(0, 0)); vctr(100, 50, 7); put(HALT);
+  avg::decode(mem(), st, out, 64);
+  TEST_ASSERT_EQUAL(4 * 32 + (0x8000 >> 5), st.draw_clocks);
+
+  at(0); put(CNTR); put(scal(1, 0)); vctr(100, 50, 7); put(svec(4, -2, 7)); put(HALT);
+  avg::decode(mem(), st, out, 64);
+  TEST_ASSERT_EQUAL(5 * 32 + (0x8000 >> 6) + (0x100 >> 2), st.draw_clocks);
+}
+
 // an endless JMPL loop ends after MAX_STEPS
 static void test_loop_terminates(void) {
   at(0); put(0xe000);
@@ -246,6 +259,7 @@ int main(int, char **) {
   RUN_TEST(test_starwars);
   RUN_TEST(test_clip_window);
   RUN_TEST(test_first_frame_not_clipped);
+  RUN_TEST(test_draw_clocks);
   RUN_TEST(test_loop_terminates);
   RUN_TEST(test_glyph_tagging);
   RUN_TEST(test_tempest_color);

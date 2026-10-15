@@ -29,7 +29,8 @@ enum : uint16_t {
 // IN0, active low unless noted
 enum : uint8_t {
   IN0_COIN1 = 0x02,
-  IN0_IDLE = 0x7f, // coins, service, diag step, AVG done (high: decoded at GO)
+  IN0_IDLE = 0x3f, // coins, service, diag step
+  IN0_AVG_DONE = 0x40,
   IN0_CLOCK_3K = 0x80,
 };
 // 0x8800 write, active low
@@ -56,7 +57,7 @@ uint8_t gravitar::in0() const {
   if (input->buttons_get() & BUTTON_COIN) {
     v &= ~IN0_COIN1;
   }
-  return v | (clock_3k() ? IN0_CLOCK_3K : 0);
+  return v | (avg_done() ? IN0_AVG_DONE : 0) | (clock_3k() ? IN0_CLOCK_3K : 0);
 }
 
 uint8_t *gravitar::ram(uint16_t a) {

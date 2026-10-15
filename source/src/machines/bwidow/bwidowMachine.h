@@ -29,6 +29,9 @@ protected:
   void pokey_write(uint8_t n, uint8_t reg, uint8_t v);
   void earom_control(uint8_t v);
   void avg_reset();
+  // IN0 bit 6: low while the AVG draws the list of the last GO. Games
+  // redraw whenever it is high; always high meant hundreds of GOs per frame.
+  bool avg_done() const { return (int32_t)(cpu_cycles() - avg_done_at) >= 0; }
 
   const unsigned char *vrom = nullptr; // set by the subclass ctor
   Er2055 earom;
@@ -46,6 +49,7 @@ private:
   const bwidow_layout::Screen screen;
   const uint8_t dsw[POKEYS];
   avg::State avg_state; // emulation core only (decode_frame)
+  uint32_t avg_done_at = 0; // cpu_cycles() the AVG halts
   uint8_t allpot[POKEYS] = {};
   uint32_t random_base[POKEYS] = {}; // CPU cycle of the SKCTL reset release
   uint16_t pal[bwidow_layout::PALETTE_SIZE];

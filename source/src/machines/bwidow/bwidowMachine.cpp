@@ -4,6 +4,8 @@
 // POKEY registers beyond AUDF1..AUDC4 (0-7)
 enum : uint8_t { POKEY_AUDCTL = 0x08, POKEY_ALLPOT = 0x08, POKEY_RANDOM = 0x0a, POKEY_SKCTL = 0x0f };
 enum : uint8_t { SK_RESET = 0x03, AUDCTL_POLY9 = 0x80 };
+// AVG 12.096 MHz, CPU 12.096 MHz / 8
+static const uint32_t AVG_CLOCKS_PER_CPU_CLOCK = 8;
 
 bwidowMachine::bwidowMachine(uint8_t (*read)(m6502_t *, uint16_t),
                              void (*write)(m6502_t *, uint16_t, uint8_t),
@@ -17,6 +19,7 @@ void bwidowMachine::reset() {
   dvgMachine::reset();
   earom.reset();
   avg_state.reset(int32_t(screen.xcenter) << 16, int32_t(screen.ycenter) << 16);
+  avg_done_at = 0;
   flip = 0;
   for (uint8_t n = 0; n < POKEYS; n++) {
     allpot[n] = 0;
@@ -62,15 +65,18 @@ void bwidowMachine::earom_control(uint8_t v) {
   earom.control((v & ~0x06) | ((v & 0x02) << 1) | ((v & 0x04) >> 1));
 }
 
-// MAME avg_vgrst
+// MAME avg_vgrst, halts the AVG
 void bwidowMachine::avg_reset() {
   avg_state.scale = avg_state.bin_scale = avg_state.color = 0;
+  avg_done_at = cpu_cycles();
 }
 
 uint16_t bwidowMachine::decode_frame(const uint8_t *vram) {
   const avg::Memory m = {vram, map.vram_size, vrom, uint16_t(map.vrom - map.vram), map.vrom_size,
                          0, 0, avg::COLOR, nullptr};
-  return avg::decode(m, avg_state, work, MAX_LINES);
+  const uint16_t count = avg::decode(m, avg_state, work, MAX_LINES);
+  avg_done_at = cpu_cycles() + avg_state.draw_clocks / AVG_CLOCKS_PER_CPU_CLOCK;
+  return count;
 }
 
 uint16_t bwidowMachine::map_lines(uint16_t count) {

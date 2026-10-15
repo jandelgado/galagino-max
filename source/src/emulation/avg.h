@@ -52,6 +52,9 @@ struct State {
   int32_t clipx_min, clipy_min, clipx_max, clipy_max;
   uint8_t scale, bin_scale, intensity, color;
   bool hst, lst; // clip switches, true = no clip corner pending
+  // AVG clocks (12.096 MHz, CPU clock * 8) the last decode() took to draw,
+  // see DRAW_CLOCKS_PER_STEP
+  uint32_t draw_clocks;
   void reset(int32_t xc, int32_t yc);
 };
 

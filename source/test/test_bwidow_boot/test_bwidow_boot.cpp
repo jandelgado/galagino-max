@@ -36,6 +36,8 @@ struct Board {
   uint16_t sticks;
   uint16_t max_lines;
   uint32_t in3_reads;
+  uint32_t gos;
+  uint32_t avg_done_at; // CPU cycle the AVG halts
 };
 
 static Board board;
@@ -48,6 +50,8 @@ static vec2d::Line lines[MAX_LINES];
 static void go(void) {
   const avg::Memory m = {board.vram, 0x0800, board.vrom, 0x0800, 0x3800, 0, 0, avg::COLOR, nullptr};
   const uint16_t n = avg::decode(m, avg_state, lines, MAX_LINES);
+  board.gos++;
+  board.avg_done_at = board.cycles + avg_state.draw_clocks / 8;
   if (n > board.max_lines) {
     board.max_lines = n;
   }
@@ -69,12 +73,18 @@ static uint8_t rd(m6502_t *, uint16_t a) {
   if (a >= 0x2800 && a < 0x6000) {
     return board.vrom[a - 0x2800];
   }
+  if ((a & 0xf00f) == 0x600a) { // POKEY RANDOM: after game over the game
+    return board.cycles;          // rerolls until it differs, must change
+  }
   if ((a & 0xf00f) == 0x6008) { // POKEY ALLPOT
     return (a & 0x0800) ? BWIDOW_DSW1 : BWIDOW_DSW0;
   }
   switch (a) {
     case 0x7000: return 0xff; // erased EAROM
-    case 0x7800: return (board.coin ? 0x7d : 0x7f) | ((board.cycles & 0x100) ? 0x80 : 0);
+    case 0x7800: {
+      const bool done = (int32_t)(board.cycles - board.avg_done_at) >= 0;
+      return (board.coin ? 0x3d : 0x3f) | (done ? 0x40 : 0) | ((board.cycles & 0x100) ? 0x80 : 0);
+    }
     case 0x8000:
       board.in3_reads++;
       board.sticks = sticks.update(board.keys);
@@ -93,6 +103,7 @@ static void wr(m6502_t *c, uint16_t a, uint8_t v) {
     go();
   } else if (a == 0x8880) {
     avg_state.scale = avg_state.bin_scale = avg_state.color = 0;
+    board.avg_done_at = board.cycles;
   } else if (a == 0x88c0) {
     c->irq = 0;
   }
@@ -179,9 +190,31 @@ static void test_line_count_fits(void) {
 #endif
 }
 
+// game over and the screens after it redraw whenever the AVG is done; an
+// AVG that never reports busy got 500 GOs per frame there
+static void test_go_rate_after_game_over(void) {
+  NEED_ROM();
+#ifdef HAVE_ROM
+  static const uint32_t WINDOW = 30, MAX_GOS_PER_FRAME = 16;
+  boot();
+  frames(600);
+  coin_and_start();
+  uint32_t max_gos = 0;
+  for (int i = 0; i < 120; i++) { // 60 s idle: lives lost, game over, attract
+    board.gos = 0;
+    frames(WINDOW);
+    if (board.gos > max_gos) {
+      max_gos = board.gos;
+    }
+  }
+  TEST_ASSERT_LESS_THAN(MAX_GOS_PER_FRAME * WINDOW, max_gos);
+#endif
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_start_starts_game);
   RUN_TEST(test_line_count_fits);
+  RUN_TEST(test_go_rate_after_game_over);
   return UNITY_END();
 }
