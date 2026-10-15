@@ -3,7 +3,7 @@ import sys
 import os
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from asset_emit import emit_plain
+from asset_emit import emit_compressed
 
 # --- Configurazione per Bomb Jack (Audio CPU) ---
 # Nomi dei file ROM richiesti dal driver MAME (bombjack.cpp)
@@ -15,9 +15,9 @@ ROM_FILES = {
 OUTPUT_FILE = "../../../source/src/machines/bombjack/bombjack_rom2.h"
 # Nome dell'array C nel file di output
 ROM_ID = "bombjack_rom_cpu2"
-# Dimensione totale della regione di memoria per la ROM della CPU Audio
-# (come da definizione ROM_REGION( 0x4000, "audiocpu", 0 ))
-AUDIO_REGION_SIZE = 0x4000  # 16KB
+# Only the 8 KB chip is emitted. The rest of MAME's 16 KB "audiocpu" region
+# is 0xFF fill, returned by bombjack.cpp's read handlers instead.
+AUDIO_ROM_SIZE = 0x2000  # 8KB
 
 # --- Funzione principale di conversione (invariata) ---
 
@@ -27,10 +27,7 @@ def create_output_file(rom_data, outfile, id_name):
     with open(outfile, "w") as of:
         of.write(f"// File generato automaticamente per {id_name}\n")
         of.write(f"// Contiene la ROM della CPU Audio di Bomb Jack\n")
-        # Arena budget: PLAIN, a ROM compresses worst (~30%); bg tiles get the space
-        body = ",\n".join("  " + ",".join("0x%02X" % v for v in rom_data[i:i + 16])
-                           for i in range(0, len(rom_data), 16))
-        emit_plain(of, id_name, "unsigned char", "", len(rom_data), body)
+        emit_compressed(of, id_name, "unsigned char", "", len(rom_data), list(rom_data))
     print("Completato.")
 
 def convert_bombjack_audio_rom():
@@ -48,8 +45,7 @@ def convert_bombjack_audio_rom():
             sys.exit(1)
     print("Il file ROM dell'Audio CPU è stato trovato.")
 
-    # Crea un buffer di bytearray per l'intera regione di memoria audio (16KB), inizializzato a 0xFF
-    audio_memory = bytearray([0xFF] * AUDIO_REGION_SIZE)
+    audio_memory = bytearray([0xFF] * AUDIO_ROM_SIZE)
     
     print("Inizio della mappatura della ROM in memoria...")
 
@@ -58,13 +54,12 @@ def convert_bombjack_audio_rom():
         # ROM_LOAD( "01_h03t.3h", 0x0000, 0x2000, ... )
         with open(os.path.join(rom_path, ROM_FILES["audio1"]), "rb") as f:
             rom_data = f.read()
-        
-        # Inserisce la ROM all'inizio del buffer di memoria
-        audio_memory[0x0000:0x2000] = rom_data
-        print(f"- {ROM_FILES['audio1']} mappato correttamente a 0x0000.")
-        print("- La restante area di memoria (0x2000-0x3FFF) è vuota, come previsto.")
+        assert len(rom_data) == AUDIO_ROM_SIZE
 
-        # L'intero buffer da 16KB è il nostro dato finale.
+        # Inserisce la ROM all'inizio del buffer di memoria
+        audio_memory[0x0000:AUDIO_ROM_SIZE] = rom_data
+        print(f"- {ROM_FILES['audio1']} mappato correttamente a 0x0000.")
+
         final_rom_data = audio_memory
 
         # Genera il file di output

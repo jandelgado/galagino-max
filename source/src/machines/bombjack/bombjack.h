@@ -22,7 +22,7 @@ protected:
   Asset<uint32_t[32], COMPRESSED> bombjack_bg_tiles;
   Asset<uint32_t[8], COMPRESSED> bombjack_fg_tiles;
   Asset<unsigned char, COMPRESSED> bombjack_rom_cpu1;
-  Asset<unsigned char, PLAIN> bombjack_rom_cpu2;
+  Asset<unsigned char, COMPRESSED> bombjack_rom_cpu2;
   Asset<uint32_t[32], COMPRESSED> bombjack_sprites_16x16;
   Asset<uint32_t[128], COMPRESSED> bombjack_sprites_32x32;
 public:
@@ -73,6 +73,8 @@ private:
   const unsigned char *bg_maps_ptr = nullptr;
 
 private:
+  // 8 KB audio ROM chip; the rest of its 16 KB region reads 0xFF.
+  static const uint16_t AUDIO_ROM_SIZE = 0x2000;
   static const uint8_t AY_INC = 8;
   static const uint8_t AY_GAIN = 4;
   Ay8910 ay[3] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
