@@ -8,76 +8,9 @@
 #include "zaxxon_tilemap.h"
 #include "zaxxon_palette.h"
 #include "zaxxon_logo.h"
-#include "zaxxon_sample_missile_homing.h"
-#include "zaxxon_sample_missile_base.h"
-#include "zaxxon_sample_laser.h"
-#include "zaxxon_sample_battleship.h"
-#include "zaxxon_sample_explosion_enemy.h"
-#include "zaxxon_sample_explosion_ship.h"
-#include "zaxxon_sample_cannon.h"
-#include "zaxxon_sample_shot.h"
-#include "zaxxon_sample_alarm_lock.h"
-#include "zaxxon_sample_alarm_fuel.h"
-#include "zaxxon_sample_noise_intro.h"
-#include "zaxxon_sample_noise_asteroid.h"
 #include "../machineBase.h"
+#include "zaxxon_sound.h"
 #include "../../emulation/seqlock.h"
-
-// PPI-triggered discrete sample board (zaxxon_a.cpp zaxxon_sample_names):
-// 12 channels, indexed exactly as MAME's sample table so Audio can trigger
-// them by index without knowing individual symbol names. Each points at a
-// 4-bit IMA-ADPCM stream (2-byte predictor header + packed nibbles, see
-// romconv/pyconv/adpcm.py), decoded per-sample by Audio::zaxxon_render_buffer.
-static const uint8_t *const zaxxon_sample_ptr[12] = {
-  zaxxon_sample_missile_homing_blob.data,  // 0
-  zaxxon_sample_missile_base_blob.data,    // 1
-  zaxxon_sample_laser_blob.data,           // 2
-  zaxxon_sample_battleship_blob.data,      // 3
-  zaxxon_sample_explosion_enemy_blob.data, // 4 (S-Exp)
-  zaxxon_sample_explosion_ship_blob.data,  // 5 (M-Exp)
-  zaxxon_sample_cannon_blob.data,          // 6
-  zaxxon_sample_shot_blob.data,            // 7
-  zaxxon_sample_alarm_lock_blob.data,      // 8 (Alarm2)
-  zaxxon_sample_alarm_fuel_blob.data,      // 9 (Alarm3)
-  zaxxon_sample_noise_intro_blob.data,     // 10
-  zaxxon_sample_noise_asteroid_blob.data,  // 11
-};
-static const uint32_t zaxxon_sample_len[12] = {
-  zaxxon_sample_missile_homing_blob.count,
-  zaxxon_sample_missile_base_blob.count,
-  zaxxon_sample_laser_blob.count,
-  zaxxon_sample_battleship_blob.count,
-  zaxxon_sample_explosion_enemy_blob.count,
-  zaxxon_sample_explosion_ship_blob.count,
-  zaxxon_sample_cannon_blob.count,
-  zaxxon_sample_shot_blob.count,
-  zaxxon_sample_alarm_lock_blob.count,
-  zaxxon_sample_alarm_fuel_blob.count,
-  zaxxon_sample_noise_intro_blob.count,
-  zaxxon_sample_noise_asteroid_blob.count,
-};
-// output samples per stored sample, per channel (stored at 8-24 kHz)
-static const uint8_t zaxxon_sample_hold[12] = {
-  zaxxon_sample_missile_homing_hold,
-  zaxxon_sample_missile_base_hold,
-  zaxxon_sample_laser_hold,
-  zaxxon_sample_battleship_hold,
-  zaxxon_sample_explosion_enemy_hold,
-  zaxxon_sample_explosion_ship_hold,
-  zaxxon_sample_cannon_hold,
-  zaxxon_sample_shot_hold,
-  zaxxon_sample_alarm_lock_hold,
-  zaxxon_sample_alarm_fuel_hold,
-  zaxxon_sample_noise_intro_hold,
-  zaxxon_sample_noise_asteroid_hold,
-};
-
-// The ROM (0x0165) pulses the one-shot bits of ports B/C: writes ~request,
-// then 0xff (or |0xf0) right after, so render-time sampling of the port
-// latch never sees them low. zaxxon::wrZ80 counts each falling edge in
-// soundregs[ZAXXON_TRIG_BASE + ch] (ch 4..9); Audio starts a channel when
-// its counter changed. Single writer, single reader, no lock needed.
-static const uint8_t ZAXXON_TRIG_BASE = 4;
 
 // ============================================================
 // Zaxxon (Sega 1982, set "zaxxon" US rev D). Single Z80 @ 3.04125MHz
@@ -104,6 +37,7 @@ protected:
   Asset<unsigned char[32][32], COMPRESSED> zaxxon_spritetiles;
   Asset<unsigned short, COMPRESSED> zaxxon_tilemap_code;
   Asset<unsigned char, COMPRESSED> zaxxon_tilemap_color;
+  ZaxxonSound sound;
 public:
   zaxxon();
 
@@ -125,6 +59,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
+  void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

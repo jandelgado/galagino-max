@@ -14,6 +14,7 @@
 // pokey, discrete and the Atari sound boards build as deps_*.cpp (own
 // translation units: their file-static names collide)
 #include "../../src/emulation/audio.cpp"
+#include "../../src/machines/zaxxon/zaxxon_sound.h"  // .cpp: deps_zaxxon_sound.cpp
 
 int16_t Namco54::render() { return 0; }  // galaga/xevious: not covered here
 // machineBase::reset() is in the vtable; the harness never resets CPUs
@@ -424,9 +425,79 @@ static void test_fantasy(void) {
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_FANTASY, run("fantasy", &m, pokeSnk));
 }
 
+class ZaxxonFake : public machineBase {
+public:
+  void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
+  ZaxxonSound sound;
+};
+
 static void test_zaxxon(void) {
-  LegacyFake m(MCH_ZAXXON);
+  ZaxxonFake m;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_ZAXXON, run("zaxxon", &m, pokeZaxxon));
+}
+
+// hash of FRAMES * CHUNKS_PER_FRAME buffers of idle level; 64 DAC words
+// per buffer (SND_DIFF, which doubles them, is not set: config_local.h
+// selects SND_RIGHT_CHANNEL)
+static const int DAC_WORDS = 64;
+static uint32_t silenceHash(void) {
+  uint16_t words[DAC_WORDS];
+  for (int i = 0; i < DAC_WORDS; i++) {
+    words[i] = 0x8000;  // Audio::SILENCE
+  }
+  uint32_t h = FNV_OFFSET;
+  for (int c = 0; c < FRAMES * CHUNKS_PER_FRAME; c++) {
+    const uint8_t *p = reinterpret_cast<const uint8_t *>(words);
+    for (size_t i = 0; i < sizeof(words); i++) {
+      h = (h ^ p[i]) * FNV_PRIME;
+    }
+  }
+  return h;
+}
+
+// menu: a machine without renderAudio() override plays silence
+static void test_menu_silent(void) {
+  machineBase m;
+  TEST_ASSERT_EQUAL_HEX32(silenceHash(), run("menu", &m, nullptr));
+}
+
+// mute is applied by the sink for every machine
+static void test_mute(void) {
+  LegacyFake m(MCH_FROGGER);
+  ay_chips = 1;
+  TEST_ASSERT_EQUAL_HEX32(silenceHash(), run("mute", &m, pokeAy, true));
+}
+
+// Builds T twice in memory pre-filled with different garbage and compares
+// ROUNDS rendered chunks: a member without an initializer (machines are
+// heap-allocated) shows up as a difference.
+static const int ROUNDS = 20;
+template <class T, class Build, class Render>
+static void assertInitIndependent(Build build, Render render) {
+  alignas(T) static uint8_t mem[2][sizeof(T)];
+  T *obj[2];
+  int16_t out[2][AUDIO_CHUNK];
+  for (int k = 0; k < 2; k++) {
+    memset(mem[k], k ? 0x5a : 0xa5, sizeof(T));
+    obj[k] = build(mem[k]);
+  }
+  for (int r = 0; r < ROUNDS; r++) {
+    for (int k = 0; k < 2; k++) {
+      render(*obj[k], out[k]);
+    }
+    TEST_ASSERT_EQUAL_INT16_ARRAY(out[0], out[1], AUDIO_CHUNK);
+  }
+  obj[0]->~T();
+  obj[1]->~T();
+}
+
+// port A 0x03: bits 2-7 low, every loop channel starts; counters 1..6
+// differ from trig_seen 0, so channels 4-9 start too
+static const uint8_t ZAXXON_INIT_REGS[16] = {0x03, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6};
+static void test_zaxxon_init(void) {
+  assertInitIndependent<ZaxxonSound>(
+      [](void *p) { return new (p) ZaxxonSound(); },
+      [](ZaxxonSound &s, int16_t *out) { s.render(ZAXXON_INIT_REGS, out, AUDIO_CHUNK); });
 }
 
 int main(int, char **) {
@@ -453,5 +524,8 @@ int main(int, char **) {
   RUN_TEST(test_vanguard);
   RUN_TEST(test_fantasy);
   RUN_TEST(test_zaxxon);
+  RUN_TEST(test_menu_silent);
+  RUN_TEST(test_mute);
+  RUN_TEST(test_zaxxon_init);
   return UNITY_END();
 }

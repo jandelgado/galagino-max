@@ -8,6 +8,7 @@
 #include "../emulation/input.h"
 #include "../emulation/asset.h"
 #include "../emulation/logo.h"
+#include "../emulation/audio_mix.h"
 
 #ifdef LED_PIN
 #include <FastLED.h>
@@ -213,6 +214,12 @@ public:
     virtual void prepare_frame(void) { };
     virtual void render_row(short row) { };
     
+    // Sound output: n (== AUDIO_CHUNK) samples at 24 kHz, +-AUDIO_MAX, see
+    // audio_mix.h. Called by Audio::transmit() on the video core; reads the
+    // registers the emulation core writes, without a lock. The machine owns
+    // its chips and mixes them here. Default: silence (menu).
+    virtual void renderAudio(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
+
     virtual const signed char *waveRom(unsigned char value) { return 0; }
     virtual unsigned char vanguardSoundRom(unsigned short addr) { return 0xff; }
     virtual bool vanguardMusic0Muted() { return true; }
