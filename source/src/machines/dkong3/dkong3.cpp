@@ -622,3 +622,15 @@ void dkong3::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+// APU samples queued on the emulation core
+void dkong3::renderAudio(int16_t *out, int n) {
+  for (int i = 0; i < n; i++) {
+    int16_t value = 0;
+    if (dk3_rptr != dk3_wptr) {
+      value = dk3_samples[dk3_rptr];
+      dk3_rptr = (dk3_rptr + 1) & (DK3_SAMPLES - 1);
+    }
+    out[i] = value;
+  }
+}

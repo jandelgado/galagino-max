@@ -37,7 +37,14 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  void renderSpeech(int16_t *out, int n) override { audio.render(out, n); }
+  // S14001A speech + Exidy 6840, mixed on the emulation core
+  void renderAudio(int16_t *out, int n) override {
+    audio.render(out, n);
+    for (int i = 0; i < n; i++) {
+      out[i] = audioClamp(out[i] >> MIX_SHIFT, AUDIO_MAX);
+    }
+  }
+  static const int MIX_SHIFT = 6;  // int16 -> +-512
   static const Logo &logo(void);
 
 #ifdef LED_PIN

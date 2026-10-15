@@ -3,8 +3,6 @@
 
 #include <driver/i2s.h>
 #include "../machines/machineBase.h"
-#include "../machines/dkong/dkong.h"
-#include "../machines/dkong3/dkong3.h"
 #include "../machines/galaga/galaga.h"
 #include "../machines/gaplus/gaplus.h"
 #include "../machines/spaceinvaders/spaceinvaders.h"
@@ -23,6 +21,11 @@
 // as a workaround we run dkong audio also at 24khz (instead of 11765)
 // and fill the buffer at half the rate resulting in 12khz effective
 // sample rate
+#endif
+
+#ifndef WORKAROUND_I2S_APLL_PROBLEM
+// Machines render 24 kHz only (dkong doubles its 11765 Hz DAC itself).
+#error "galagino audio needs ESP-IDF >= 4.4.4: fixed 24 kHz output"
 #endif
 
 // disctrete notes
@@ -63,22 +66,17 @@ private:
   void namco_15xx_render_buffer(void);
   void ay_render_buffer(const int16_t *mix = nullptr);
   void sn76489_render_buffer(void);
-  void i8048_render_buffer(void);
   void valueToBuffer(int index, short value);
   void bagman_render_buffer(void);
   void galaxian_render_buffer(void);
   void spaceinvaders_render_buffer(void);
   void phoenix_render_buffer(void);
-  void dkong3_render_buffer(void);
   void vanguard_render_buffer(void);
   void pokey_render_buffer(void);
   void bzone_render_buffer(void);
-  void berzerk_render_buffer(void);
-  void dac_render_buffer(void);
   void asteroids_render_buffer(void);
   void llander_render_buffer(void);
   void sid_ay_render_buffer(void);
-  void sid_render_buffer(void);
   void fm_ay_render_buffer(void);
   void generateSinusWave(int32_t amplitude, short* buffer, uint16_t length);
 

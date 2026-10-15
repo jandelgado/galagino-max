@@ -54,7 +54,7 @@ public:
   void render_row(short row) override;
   const int renderWidth() override { return OUT_WIDTH; }
   const int renderBuffer() override { return OUT_WIDTH * 2 * 8; }
-  void renderSid(int16_t *out, int n) override;
+  void renderAudio(int16_t *out, int n) override;
   static const Logo &logo(void);
 
 #ifdef LED_PIN

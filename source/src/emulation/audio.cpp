@@ -280,17 +280,6 @@ void Audio::start(machineBase *machineBase) {
     vg_adpcm_predictor[i]=vg_adpcm_step[i]=vg_sample_repeat[i]=0;vg_sample_divider[i]=1;
   }
   vg_speech_sequence = currentMachine->soundregs[4];
-
-#ifndef WORKAROUND_I2S_APLL_PROBLEM
-  // The audio CPU of donkey kong runs at 6Mhz. A full bus
-  // cycle needs 15 clocks which results in 400k cycles
-  // per second. The sound CPU typically needs 34 instruction
-  // cycles to write an updated audio value to the external
-  // DAC connected to port 0.
-
-  // The effective sample rate thus is 6M/15/34 = 11764.7 Hz
-  i2s_set_sample_rates(I2S_NUM_0, machineType == MCH_DKONG ? 11765 : 24000);
-#endif
 }
 
 void Audio::volumeUpDown(bool up, bool down) {
@@ -341,8 +330,6 @@ void Audio::transmit() {
     // render the next audio chunk if data has actually been sent
     if (machineType == MCH_COMMANDO || machineType == MCH_CBDASH || machineType == MCH_GNG)
       sid_ay_render_buffer();
-    else if (machineType == MCH_BUBLBOBL || machineType == MCH_MARBLE || machineType == MCH_SELFTEST)
-      sid_render_buffer();
     else if (machineType == MCH_1943)
       fm_ay_render_buffer();
     else if (AY > 0)
@@ -354,10 +341,6 @@ void Audio::transmit() {
     else if (machineType == MCH_MRDO || machineType == MCH_LADYBUG || machineType == MCH_STARFORCE || machineType == MCH_BALUBA || machineType == MCH_VANVAN || machineType == MCH_CIRCUSC || machineType == MCH_ROADFIGHTER || machineType == MCH_TP84 ||
              machineType == MCH_STARJACK || machineType == MCH_REGULUS || machineType == MCH_UPNDOWN || machineType == MCH_RAFLESIA || machineType == MCH_SWAT || machineType == MCH_GBERET)
       sn76489_render_buffer();
-    else if (machineType == MCH_DKONG || machineType == MCH_DKONGJR)
-      i8048_render_buffer();
-    else if (machineType == MCH_DKONG3)
-      dkong3_render_buffer();
     else if (machineType == MCH_BAGMAN)
       bagman_render_buffer();
     else if (machineType == MCH_SPACEINVADERS)
@@ -379,10 +362,6 @@ void Audio::transmit() {
       llander_render_buffer();
     else if(machineType == MCH_BZONE)
       bzone_render_buffer();
-    else if(machineType == MCH_BERZERK)
-      berzerk_render_buffer();
-    else if(machineType == MCH_DEFENDER || machineType == MCH_ROBOTRON || machineType == MCH_JOUST)
-      dac_render_buffer();
     else {
       int16_t samples[AUDIO_CHUNK];
       currentMachine->renderAudio(samples, AUDIO_CHUNK);
@@ -600,28 +579,6 @@ void Audio::bzone_render_buffer(void) {
   }
 }
 
-// Stern Berzerk: S14001A speech + Exidy 6840, mixed on the emulation core
-void Audio::berzerk_render_buffer(void) {
-  static const int32_t SAMPLE_MAX = 511;
-  static const int MIX_SHIFT = 6; // int16 -> +-512
-  int16_t samples[64];
-  currentMachine->renderSpeech(samples, 64);
-  for (int i = 0; i < 64; i++) {
-    const int32_t v = samples[i] >> MIX_SHIFT;
-    valueToBuffer(i, v > SAMPLE_MAX ? SAMPLE_MAX : (v < -SAMPLE_MAX ? -SAMPLE_MAX : v));
-  }
-}
-
-// Williams sound board: 6808 DAC samples produced on the emulation core
-void Audio::dac_render_buffer(void) {
-  static const int32_t SAMPLE_MAX = 511;  // valueToBuffer() wraps beyond
-  static DcBlock dc;
-  for (int i = 0; i < 64; i++) {
-    const int32_t v = dc.filter(currentMachine->renderDrumSample());
-    valueToBuffer(i, v > SAMPLE_MAX ? SAMPLE_MAX : (v < -SAMPLE_MAX ? -SAMPLE_MAX : v));
-  }
-}
-
 // C64 SID music from the machine's SidPlayer plus AY sound effects:
 // commando, gng (SSG part of both YM2203), cbdash
 void Audio::sid_ay_render_buffer(void) {
@@ -635,15 +592,6 @@ void Audio::fm_ay_render_buffer(void) {
   int16_t samples[64];
   currentMachine->renderFm(samples, 64);
   ay_render_buffer(samples);
-}
-
-// C64 SID music plus effects, mixed by the machine (bublbobl), +-512
-void Audio::sid_render_buffer(void) {
-  int16_t samples[64];
-  currentMachine->renderSid(samples, 64);
-  for (int i = 0; i < 64; i++) {
-    valueToBuffer(i, samples[i]);
-  }
 }
 
 // mix: optional 64 samples added to the AY output, result clipped
@@ -778,56 +726,6 @@ void Audio::ay_render_buffer(const int16_t *mix) {
       const int v = value + mix[i];
       value = v > 511 ? 511 : (v < -511 ? -511 : v);
     }
-
-    valueToBuffer(i, value);
-  }
-}
-
-void Audio::i8048_render_buffer(void) {
-  dkong *dkongMachine = static_cast<dkong*>(currentMachine);
-  const int voices = sizeof(dkongMachine->dkong_sample) / sizeof(dkongMachine->dkong_sample[0]);
-  int samples = 0;
-
-  // render first buffer contents
-  for(int i = 0; i < 64; i++) {
-    short value = 0; // silence
-
-    // no buffer available
-    if(dkongMachine->dkong_audio_rptr != dkongMachine->dkong_audio_wptr)
-      // copy data from dkong buffer into tx buffer
-      // 8048 sounds gets 50% of the available volume range
-#ifdef WORKAROUND_I2S_APLL_PROBLEM
-      value = dkongMachine->dkong_audio_transfer_buffer[dkongMachine->dkong_audio_rptr][(dkongMachine->dkong_obuf_toggle ? 32 : 0) + (i / 2)];
-#else
-      value = dkongMachine->dkong_audio_transfer_buffer[dkongMachine->dkong_audio_rptr][i];
-#endif
-
-    // include sample sounds
-#ifdef WORKAROUND_I2S_APLL_PROBLEM
-    if(!(i & 1)) { // output rate doubled: next sample every second output
-#endif
-      samples = 0;
-      for(int j = 0; j < voices; j++) {
-        samples += dkongMachine->dkong_sample[j].next();
-      }
-#ifdef WORKAROUND_I2S_APLL_PROBLEM
-    }
-#endif
-    value += samples;
-#ifdef WORKAROUND_I2S_APLL_PROBLEM
-    if (i == 63) {
-      // advance write pointer. The buffer is a ring
-      if(dkongMachine->dkong_obuf_toggle)
-        dkongMachine->dkong_audio_rptr = (dkongMachine->dkong_audio_rptr + 1) & DKONG_AUDIO_QUEUE_MASK;
-
-      dkongMachine->dkong_obuf_toggle = !dkongMachine->dkong_obuf_toggle;
-    }
-#endif
-    value = value << 1;
-    if (value > 384)
-      value = 384;
-    else if (value < -384)
-      value = -384;
 
     valueToBuffer(i, value);
   }
@@ -1783,18 +1681,6 @@ void Audio::phoenix_render_buffer(void) {
     if (value > 512)  value = 512;
     if (value < -512) value = -512;
     valueToBuffer(i, (short)value);
-  }
-}
-
-void Audio::dkong3_render_buffer(void) {
-  dkong3 *dk3 = static_cast<dkong3*>(currentMachine);
-  for (int i = 0; i < 64; i++) {
-    short value = 0;
-    if (dk3->dk3_rptr != dk3->dk3_wptr) {
-      value = dk3->dk3_samples[dk3->dk3_rptr];
-      dk3->dk3_rptr = (dk3->dk3_rptr + 1) & (dkong3::DK3_SAMPLES - 1);
-    }
-    valueToBuffer(i, value);
   }
 }
 

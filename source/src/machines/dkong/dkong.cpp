@@ -360,3 +360,31 @@ void dkong::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB));
 }
 #endif
+// i8048 DAC (64 bytes per 11765 Hz chunk, each byte output twice at
+// 24 kHz) plus the ADPCM sample voices at half the output rate
+void dkong::renderAudio(int16_t *out, int n) {
+  static const int32_t OUT_MAX = 384;
+  const int voices = sizeof(dkong_sample) / sizeof(dkong_sample[0]);
+  int samples = 0;
+  for (int i = 0; i < n; i++) {
+    int16_t value = 0;
+    if (dkong_audio_rptr != dkong_audio_wptr) {
+      value = dkong_audio_transfer_buffer[dkong_audio_rptr][(dkong_obuf_toggle ? 32 : 0) + (i / 2)];
+    }
+    if (!(i & 1)) {
+      samples = 0;
+      for (int j = 0; j < voices; j++) {
+        samples += dkong_sample[j].next();
+      }
+    }
+    value += samples;
+    if (i == n - 1) {
+      if (dkong_obuf_toggle) {
+        dkong_audio_rptr = (dkong_audio_rptr + 1) & DKONG_AUDIO_QUEUE_MASK;
+      }
+      dkong_obuf_toggle = !dkong_obuf_toggle;
+    }
+    value = value << 1;
+    out[i] = audioClamp(value, OUT_MAX);
+  }
+}

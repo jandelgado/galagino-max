@@ -485,7 +485,7 @@ void bublbobl::onSoundReset() {
 }
 
 // audio core: SID music plus up to two effect samples, +-512
-void bublbobl::renderSid(int16_t *out, int n) {
+void bublbobl::renderAudio(int16_t *out, int n) {
   const uint8_t resets = reset_request.load(std::memory_order_acquire);
   if (resets != reset_seen) {
     reset_seen = resets;
