@@ -25,19 +25,10 @@ void circusc::reset() {
   soundlatch = 0;
   snd_irq_pend = 0;
   sn_latch = 0;
-  sn_last_reg[0] = sn_last_reg[1] = 0;
   snd_icnt = 0;
   dac_wr = dac_rd = 0;
   dac_val = dac_last = 128;
   dac_acc = 0;
-  // SN76489: on boot mute channels (volume 15)
-  for (int chip = 0; chip < 2; chip++)
-    for (int c = 0; c < 4; c++) {
-      sn[chip].period[c] = 0;
-      sn[chip].volume[c] = 15;
-      sn[chip].hold[c] = 0;
-      sn[chip].min_volume[c] = 15;
-    }
   m6809_reset(&main_cpu);   // vettore reset da 0xFFFE (ROM, KONAMI-1)
 
   // instruction fetches straight from ROM, decrypted by the core, skipping
@@ -171,46 +162,6 @@ unsigned char circusc::rdZ80(unsigned short Addr) {
   return 0xFF;
 }
 
-// protocollo di scrittura SN76489 (da vanvan.cpp, con scaling dei periodi
-// per il clock 1.79MHz — vedi CIRCUSC_SN_PERIOD_SCALE in circusc.h)
-void circusc::sn_write(int chip, unsigned char data) {
-  if (data & 0x80) {                 // latch: registro + 4 bit bassi
-    int reg = (data >> 5) & 0x03;
-    int type = (data >> 4) & 0x01;   // 0=frequenza, 1=volume
-    sn_last_reg[chip] = (reg * 2) + type;
-
-    if (type == 0) {
-      if (reg == 3)
-        sn[chip].period[3] = data & 0x07;
-      else {
-        int raw = (sn_raw_period[chip][reg] & 0x3F0) | (data & 0x0F);
-        sn_raw_period[chip][reg] = raw;
-        sn[chip].period[reg] = CIRCUSC_SN_PERIOD_SCALE(raw);
-      }
-    } else {
-      unsigned char vol = data & 0x0F;
-      sn[chip].volume[reg] = vol;
-      if (vol < sn[chip].min_volume[reg])
-        sn[chip].min_volume[reg] = vol;
-      if (vol < 15)
-        sn[chip].hold[reg] = 6;
-    }
-  } else {                           // data: 6 bit alti della frequenza
-    int reg = sn_last_reg[chip] / 2;
-    int type = sn_last_reg[chip] % 2;
-
-    if (type == 0) {
-      if (reg == 3)
-        sn[chip].period[3] = data & 0x07;
-      else {
-        int raw = (sn_raw_period[chip][reg] & 0x00F) | ((data & 0x3F) << 4);
-        sn_raw_period[chip][reg] = raw;
-        sn[chip].period[reg] = CIRCUSC_SN_PERIOD_SCALE(raw);
-      }
-    }
-  }
-}
-
 void circusc::wrZ80(unsigned short Addr, unsigned char Value) {
   if ((Addr & 0xE000) == 0x4000) {
     snd_ram[Addr & 0x3FF] = Value;
@@ -221,8 +172,8 @@ void circusc::wrZ80(unsigned short Addr, unsigned char Value) {
     // 0xA000-0xA07F (mirror 0x1F80): CS2-CS6 selezionati da offset&7
     switch (Addr & 7) {
       case 0: sn_latch = Value; break;      // CS2: latch dato SN
-      case 1: sn_write(0, sn_latch); break; // CS3: scrittura SN #1
-      case 2: sn_write(1, sn_latch); break; // CS4: scrittura SN #2
+      case 1: sn[0].write(sn_latch); break; // CS3: scrittura SN #1
+      case 2: sn[1].write(sn_latch); break; // CS4: scrittura SN #2
       case 3: dac_val = Value; break;       // CS5: DAC 8 bit
       case 4: break;                        // CS6: filtri RC (ignorati)
     }

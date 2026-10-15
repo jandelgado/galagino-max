@@ -46,12 +46,6 @@
 #define CC_VIDEORAM   0x1400
 #define CC_SPRITERAM  0x1800   // 2 banchi da 0x100
 
-// Il render SN76489 di audio.cpp usa sn_inc=11 fisso, tarato per i chip
-// a ~4.2MHz (Mr.Do/Ladybug). I due SN76489A di Circus Charlie girano a
-// 14.318/8 = 1.79MHz: i periodi vanno scalati di 4.224/1.790 = x2.36.
-// Se su HW la musica risulta stonata, ritoccare qui (151/64 = 2.359).
-#define CIRCUSC_SN_PERIOD_SCALE(n)  (((n) * 151) >> 6)
-
 // Volume del DAC 8 bit (effetti/percussioni) nel mix con gli SN;
 // il campione esce gia' scalato da drumSample (max 127*vol).
 #define CIRCUSC_DAC_VOLUME  2
@@ -112,7 +106,6 @@ protected:
 private:
   void blit_tile_x(unsigned short addr, short x, unsigned char pass);
   void render_tiles(short row, unsigned char pass);
-  void sn_write(int chip, unsigned char data);
 
   m6809_state main_cpu;
 
@@ -129,7 +122,6 @@ private:
   uint8_t snd_ram[1024];
   uint8_t snd_irq_pend = 0;
   uint8_t sn_latch = 0;
-  uint8_t sn_last_reg[2] = {0, 0};
   unsigned long snd_icnt = 0;   // per il timer 0x8000 (vedi rdZ80)
 
   // DAC ring (producer: run_frame, ~400 samples/frame a 24kHz)
@@ -143,8 +135,7 @@ private:
   const unsigned char *audio_rom_ptr = nullptr;
 
 protected:
-  Sn76489 sn[2] = {Sn76489(Sn76489::INC_4MHZ), Sn76489(Sn76489::INC_4MHZ)};
-  int sn_raw_period[2][Sn76489::CHANNELS] = {};
+  Sn76489 sn[2] = {Sn76489(Sn76489::INC_2MHZ, Sn76489::HOLD_SHORT_NOTES), Sn76489(Sn76489::INC_2MHZ, Sn76489::HOLD_SHORT_NOTES)};
   DcTrack drums;
 };
 
