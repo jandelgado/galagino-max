@@ -127,6 +127,7 @@ enum {
   MCH_RAFLESIA,
   MCH_BWIDOW,
   MCH_SWAT,
+  MCH_1943,
   MCH_SELFTEST
 };
 
@@ -242,6 +243,10 @@ public:
     // Speech chip output (Star Wars TMS5220): n samples at 24 kHz, full
     // int16 range, on the audio core. Virtual for the same reason.
     virtual void renderSpeech(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
+
+    // YM2203 FM part (1943): n samples, +-512, rendered on the audio core and
+    // mixed under the AY renderer's SSG output. Virtual for the same reason.
+    virtual void renderFm(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
 
 #ifdef LED_PIN
     // Static: menu preview runs before any machine instance exists.

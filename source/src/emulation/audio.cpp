@@ -192,6 +192,7 @@ void Audio::start(machineBase *machineBase) {
   else if (machineType == MCH_SCREGG)     { AY = 2; AY_INC = 8; AY_VOL = 7;  }
   else if (machineType == MCH_COMMANDO)   { AY = 2; AY_INC = 4; AY_VOL = 5;  } // SSG 750 kHz
   else if (machineType == MCH_GNG)        { AY = 2; AY_INC = 4; AY_VOL = 5;  } // SSG 750 kHz
+  else if (machineType == MCH_1943)       { AY = 2; AY_INC = 4; AY_VOL = 5;  } // SSG 750 kHz
   else if (machineType == MCH_THEPIT)     { AY = 1; AY_INC = 8; AY_VOL = 11; } // 1.536 MHz
 
   if (machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
@@ -356,6 +357,8 @@ void Audio::transmit() {
       sid_ay_render_buffer();
     else if (machineType == MCH_BUBLBOBL || machineType == MCH_MARBLE || machineType == MCH_SELFTEST)
       sid_render_buffer();
+    else if (machineType == MCH_1943)
+      fm_ay_render_buffer();
     else if (AY > 0)
       ay_render_buffer();
     else if (currentMachine->hasNamcoAudio())
@@ -651,6 +654,13 @@ void Audio::dac_render_buffer(void) {
 void Audio::sid_ay_render_buffer(void) {
   int16_t samples[64];
   currentMachine->renderSid(samples, 64);
+  ay_render_buffer(samples);
+}
+
+// YM2203 boards: FM from the machine, SSG through the AY renderer
+void Audio::fm_ay_render_buffer(void) {
+  int16_t samples[64];
+  currentMachine->renderFm(samples, 64);
   ay_render_buffer(samples);
 }
 
