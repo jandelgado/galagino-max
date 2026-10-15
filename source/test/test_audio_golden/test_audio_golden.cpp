@@ -352,28 +352,28 @@ public:
 };
 
 static void test_sn_mrdo(void) {
-  static const Sn76489 chips[2] = {Sn76489(11), Sn76489(11)};
+  static const Sn76489 chips[2] = {Sn76489(Sn76489::INC_4MHZ), Sn76489(Sn76489::INC_4MHZ)};
   SnFake<2> m(chips);
   sn_chips = 2;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_SN_MRDO, run("sn_mrdo", &m, pokeSn));
 }
 
 static void test_sn_tp84(void) {
-  static const Sn76489 chips[3] = {Sn76489(5), Sn76489(5), Sn76489(5)};
+  static const Sn76489 chips[3] = {Sn76489(Sn76489::INC_2MHZ), Sn76489(Sn76489::INC_2MHZ), Sn76489(Sn76489::INC_2MHZ)};
   SnFake<3> m(chips);
   sn_chips = 3;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_SN_TP84, run("sn_tp84", &m, pokeSn));
 }
 
 static void test_sn_regulus(void) {
-  static const Sn76489 chips[2] = {Sn76489(5), Sn76489(11)};
+  static const Sn76489 chips[2] = {Sn76489(Sn76489::INC_2MHZ), Sn76489(Sn76489::INC_4MHZ)};
   SnFake<2> m(chips);
   sn_chips = 2;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_SN_REGULUS, run("sn_regulus", &m, pokeSn));
 }
 
 static void test_sn_gberet(void) {
-  static const Sn76489 chips[1] = {Sn76489(4)};
+  static const Sn76489 chips[1] = {Sn76489(Sn76489::INC_1536KHZ)};
   SnFake<1> m(chips);
   sn_chips = 1;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_SN_GBERET, run("sn_gberet", &m, pokeSn));
@@ -660,7 +660,7 @@ static void test_ym2203_init(void) {
 static void test_sn_init(void) {
   assertInitIndependent<Sn76489>(
       [](void *p) {
-        Sn76489 *s = new (p) Sn76489(11, Sn76489::HOLD_SHORT_NOTES);
+        Sn76489 *s = new (p) Sn76489(Sn76489::INC_4MHZ, Sn76489::HOLD_SHORT_NOTES);
         s->write(0x80 | 0x04);  // tone 0 period low nibble
         s->write(0x06);         // high bits
         s->write(0x90 | 0x03);  // tone 0 volume 3
@@ -825,6 +825,16 @@ static void test_sn_write_hold(void) {
   TEST_ASSERT_EQUAL_INT16(0, peak(plain));
 }
 
+// Circus Charlie's SN76489A run at 14.318/8 = 1.79 MHz: a tone period of
+// 466 toggles every 466 * 16 / 1789773 s = 100 samples at 24 kHz
+static void test_sn_pitch_1789khz(void) {
+  Sn76489 sn(Sn76489::INC_1789KHZ);
+  sn.write(snLatch(0, false, 466 & 0x0f));
+  sn.write(466 >> 4);
+  sn.write(snLatch(0, true, 0));
+  TEST_ASSERT_INT_WITHIN(2, 1000 * AUDIO_CHUNK / 100, toggles(sn, 1000));
+}
+
 int main(int, char **) {
   fillTables();
   UNITY_BEGIN();
@@ -862,6 +872,7 @@ int main(int, char **) {
   RUN_TEST(test_sn_write_noise_follows_tone2);
   RUN_TEST(test_sn_write_noise_rates);
   RUN_TEST(test_sn_write_hold);
+  RUN_TEST(test_sn_pitch_1789khz);
   RUN_TEST(test_namco_init);
   RUN_TEST(test_pokey_init);
   RUN_TEST(test_board_init);

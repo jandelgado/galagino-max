@@ -80,9 +80,9 @@ void Sn76489::render(int16_t *out, int n) {
           const uint32_t feedback = (noise_lfsr & 0x01) ^ ((noise_lfsr & 0x02) >> 1);
           noise_lfsr = (noise_lfsr >> 1) | (feedback << 14);
           toggle[c] = (noise_lfsr & 0x01) ? 1 : -1;
-          counter[c] += (p << 3);  // noise slowed down
+          counter[c] += (p << 3) * FRAC;  // noise slowed down
         } else {
-          counter[c] += p;
+          counter[c] += p * FRAC;
           toggle[c] = -toggle[c];
         }
       }

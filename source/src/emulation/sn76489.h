@@ -9,10 +9,13 @@
 // Output at the chip's scale, up to +-(4 * 15 * 6).
 class Sn76489 {
 public:
-  // counter units per output sample: chip clock / 16 / 24 kHz
-  static const int INC_4MHZ = 11;
-  static const int INC_2MHZ = 5;     // also 1.79 MHz
-  static const int INC_1536KHZ = 4;
+  // counter units per output sample: chip clock / 16 / 24 kHz, in 1/FRAC
+  // steps (a period of p toggles after p * FRAC counted down)
+  static const int FRAC = 64;
+  static const int INC_4MHZ = 11 * FRAC;     // 4 MHz (10.42) as tuned
+  static const int INC_2MHZ = 5 * FRAC;      // 2 MHz; tp84, roadfighter as tuned
+  static const int INC_1789KHZ = 298;        // 14.318 MHz / 8: 4.661 * FRAC
+  static const int INC_1536KHZ = 4 * FRAC;
   static const int CHANNELS = 4;     // 3 tones + noise
   static const int NOISE = 3;
 

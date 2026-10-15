@@ -135,7 +135,7 @@ private:
   const unsigned char *audio_rom_ptr = nullptr;
 
 protected:
-  Sn76489 sn[2] = {Sn76489(Sn76489::INC_2MHZ, Sn76489::HOLD_SHORT_NOTES), Sn76489(Sn76489::INC_2MHZ, Sn76489::HOLD_SHORT_NOTES)};
+  Sn76489 sn[2] = {Sn76489(Sn76489::INC_1789KHZ, Sn76489::HOLD_SHORT_NOTES), Sn76489(Sn76489::INC_1789KHZ, Sn76489::HOLD_SHORT_NOTES)};
   DcTrack drums;
 };
 
