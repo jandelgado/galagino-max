@@ -110,7 +110,9 @@ private:
   void wrSound(unsigned short Addr, unsigned char Value);
   unsigned char rdInput(unsigned short Addr);
   void runSound();
-  void blitBgLine(uint16_t *dst, uint8_t layer, int line);
+  void latchVideo();
+  void blitBg2Line(uint16_t *dst, int vx);
+  void blitBg1Line(uint16_t *dst, int vx, uint32_t *mask);
   void blitSprites(short row);
   void blitChar(short row, int col);
 };

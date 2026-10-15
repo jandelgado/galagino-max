@@ -28,6 +28,28 @@ static const int FM_SHIFT = 9; // full-scale chip -> 64, an SSG channel peaks at
 static const uint8_t C804_BANK_SHIFT = 2;
 static const uint8_t C804_BANK_MASK = 7;
 static const uint8_t C804_SOUND_RESET = 0x20;
+static const uint8_t C804_CHARS = 0x80;
+
+// $D806 layer enables
+static const uint8_t D806_BG1 = 0x10;
+static const uint8_t D806_BG2 = 0x20;
+static const uint8_t D806_SPRITES = 0x40;
+
+// tilemaps: 2048 x 8 tiles of 32x32, SCAN_COLS, 2 bytes each; bg1 map at
+// 0, bg2 at $8000. bg2 gfx has 128 tiles. attr b6 flip x, b7 flip y.
+static const uint8_t TILE_ROWS = 8;
+static const uint16_t BG2_MAP = 0x8000;
+static const uint8_t BG2_CODE_MASK = 0x7f;
+static const uint8_t ATTR_FLIPX = 0x40;
+static const uint8_t ATTR_FLIPY = 0x80;
+
+// native visible area -> tilemap: MAME scrolldx 128 / scrolldy 6 against
+// the visible area x 128.., y 22..; sprites drawn at y + 6 the same way
+static const int TILEMAP_Y_OFFSET = 16;
+
+// sprite attribute: b7-5 code bits 10-8, b4 x bit 8 (subtracted), b3-0 color
+static const uint8_t SPR_CODE_HI = 0xe0;
+static const uint8_t SPR_SX_HI = 0x10;
 
 _1943::_1943()
   : _1943_tilemap(_1943_tilemap_blob),
@@ -260,6 +282,12 @@ void _1943::run_frame() {
     runSound();
   }
 
+  latchVideo();
+  irq_pending = true;
+}
+
+// sprite RAM and scroll as the vblank IRQ sees them
+void _1943::latchVideo() {
   vblank.publish([this](VideoState &v) {
     for (uint8_t s = 0; s < SPRITES; s++) {
       memcpy(v.sprites[s], memory + SPRITE_RAM + 32 * s, 4);
@@ -270,7 +298,6 @@ void _1943::run_frame() {
     v.c804 = c804;
     v.d806 = d806;
   });
-  irq_pending = true;
 }
 
 void _1943::renderFm(int16_t *out, int n) {
@@ -286,9 +313,168 @@ void _1943::renderFm(int16_t *out, int n) {
   }
 }
 
+// MAME draw order: entry 0 first, and the first sprite to cover a pixel
+// keeps it, so the list stays in entry order
 void _1943::prepare_frame() {
   vblank.read(video);
+
+  spr_count = 0;
+  if (!(video.d806 & D806_SPRITES)) {
+    return;
+  }
+  for (uint8_t s = 0; s < SPRITES; s++) {
+    const uint8_t *e = video.sprites[s];
+    const int sx = e[3] - ((e[1] & SPR_SX_HI) << 4);
+    const int vy = e[2] - TILEMAP_Y_OFFSET;
+    if (sx <= -16 || vy <= -16 || vy >= WIDTH) {
+      continue;
+    }
+    spr_list[spr_count++] = s;
+  }
 }
 
+// One panel line = one native column vx of a 64K x 256 tile plane, walked
+// along native y. Tiles are 32x32, stored as native-x lines of 4 words.
+static inline uint8_t tilePen(const uint32_t *line, int i) {
+  return (line[i >> 3] >> ((i & 7) << 2)) & 15;
+}
+
+void _1943::blitBg2Line(uint16_t *dst, int vx) {
+  const uint16_t tx = vx + video.bg2_x;
+  const unsigned char *map = tilemap + BG2_MAP + 2 * (tx >> 5) * TILE_ROWS;
+
+  int ty = TILEMAP_Y_OFFSET;
+  for (int u = 0; u < WIDTH;) {
+    const int trow = ty >> 5; // no y scroll: 16..239 stays inside the map
+    const uint8_t attr = map[2 * trow + 1];
+    const uint8_t code = map[2 * trow] & BG2_CODE_MASK;
+    const uint32_t *line = bg2_tiles[code] + 4 * ((attr & ATTR_FLIPX) ? 31 - (tx & 31) : tx & 31);
+    const unsigned short *colors = cmap_bg2[(attr >> 2) & 15];
+    for (int i = ty & 31; i < 32 && u < WIDTH; i++, u++) {
+      dst[u] = colors[tilePen(line, (attr & ATTR_FLIPY) ? 31 - i : i)];
+    }
+    ty = (ty | 31) + 1;
+  }
+}
+
+// bg1 pens whose lookup is 0x0F are transparent; mask gets the opaque ones
+void _1943::blitBg1Line(uint16_t *dst, int vx, uint32_t *mask) {
+  const uint16_t tx = vx + video.bg1_x;
+  const unsigned char *map = tilemap + 2 * (tx >> 5) * TILE_ROWS;
+
+  int ty = TILEMAP_Y_OFFSET + video.bg1_y;
+  for (int u = 0; u < WIDTH;) {
+    const int trow = (ty >> 5) & (TILE_ROWS - 1);
+    const uint8_t attr = map[2 * trow + 1];
+    const uint16_t code = map[2 * trow] | ((attr & 1) << 8);
+    const uint32_t *line = bg1_tiles[code] + 4 * ((attr & ATTR_FLIPX) ? 31 - (tx & 31) : tx & 31);
+    const uint8_t color = (attr >> 2) & 15;
+    const unsigned short *colors = cmap_bg1[color];
+    const uint16_t clear = bg1_clear[color];
+    for (int i = ty & 31; i < 32 && u < WIDTH; i++, u++) {
+      const uint8_t pen = tilePen(line, (attr & ATTR_FLIPY) ? 31 - i : i);
+      if (clear & (1 << pen)) {
+        continue;
+      }
+      dst[u] = colors[pen];
+      mask[u >> 5] |= 1u << (u & 31);
+    }
+    ty = (ty | 31) + 1;
+  }
+}
+
+// a pixel taken by an earlier sprite stays taken, even where bg1 hides it
+void _1943::blitSprites(short row) {
+  const int vx_top = 255 - 8 * (row - FIRST_ROW); // native x of strip line 0
+  memset(drawn, 0, sizeof(drawn));
+
+  for (uint8_t n = 0; n < spr_count; n++) {
+    const uint8_t *e = video.sprites[spr_list[n]];
+    const int sx = e[3] - ((e[1] & SPR_SX_HI) << 4);
+    if (sx > vx_top || sx + 15 < vx_top - 7) {
+      continue;
+    }
+    const uint16_t code = e[0] | ((e[1] & SPR_CODE_HI) << 3);
+    const uint8_t color = e[1] & 15;
+    const unsigned short *colors = cmap_sprites[color];
+    const uint16_t behind = spr_behind[color];
+    const int vy = e[2] - TILEMAP_Y_OFFSET;
+
+    for (int l = 0; l < 8; l++) {
+      const int sl = vx_top - l - sx; // sprite line = native x inside
+      if (sl < 0 || sl > 15) {
+        continue;
+      }
+      const uint32_t *line = sprite_gfx[code] + 2 * sl;
+      uint16_t *dst = frame_buffer + WIDTH * l;
+      for (int i = 0; i < 16; i++) {
+        const int u = vy + i;
+        if (u < 0 || u >= WIDTH) {
+          continue;
+        }
+        const uint32_t bit = 1u << (u & 31);
+        const uint8_t pen = (line[i >> 3] >> ((i & 7) << 2)) & 15;
+        if (!pen || (drawn[l][u >> 5] & bit)) {
+          continue;
+        }
+        drawn[l][u >> 5] |= bit;
+        if ((bg1_mask[l][u >> 5] & bit) && (behind & (1 << pen))) {
+          continue;
+        }
+        dst[u] = colors[pen];
+      }
+    }
+  }
+}
+
+// fg text, not scrolled: strip row = char column 31 - (row - FIRST_ROW),
+// panel column col = char row col + 2 (16 lines above the visible area)
+void _1943::blitChar(short row, int col) {
+  const uint16_t idx = (col + TILEMAP_Y_OFFSET / 8) * 32 + (31 - (row - FIRST_ROW));
+  const uint8_t attr = memory[FG_ATTR + idx];
+  const uint16_t code = memory[FG_CODE + idx] | ((attr & 0xe0) << 3);
+  if (blank_chars[code >> 5] & (1u << (code & 31))) {
+    return;
+  }
+
+  const unsigned short *colors = cmap_chars[attr & 31];
+  for (int l = 0; l < 8; l++) {
+    uint16_t pix = chars[code][7 - l];
+    uint16_t *dst = frame_buffer + WIDTH * l + 8 * col;
+    for (int i = 0; i < 8; i++, pix >>= 2) {
+      if (pix & 3) {
+        dst[i] = colors[pix & 3];
+      }
+    }
+  }
+}
+
+// layers bottom to top: bg2 (sea), bg1 (clouds), sprites, fg text
 void _1943::render_row(short row) {
+  if (row < FIRST_ROW || row >= LAST_ROW) {
+    return;
+  }
+
+  memset(bg1_mask, 0, sizeof(bg1_mask));
+  for (int l = 0; l < 8; l++) {
+    const int vx = 255 - (8 * (row - FIRST_ROW) + l);
+    uint16_t *dst = frame_buffer + WIDTH * l;
+    if (video.d806 & D806_BG2) {
+      blitBg2Line(dst, vx);
+    }
+    if (video.d806 & D806_BG1) {
+      blitBg1Line(dst, vx, bg1_mask[l]);
+    }
+  }
+
+  if (spr_count) {
+    blitSprites(row);
+  }
+
+  if (!(video.c804 & C804_CHARS)) {
+    return;
+  }
+  for (int col = 0; col < WIDTH / 8; col++) {
+    blitChar(row, col);
+  }
 }
