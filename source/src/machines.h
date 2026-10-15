@@ -20,6 +20,9 @@
 #ifdef ENABLE_DIGDUG
   #include "machines/digdug/digdug.h"
 #endif
+#ifdef ENABLE_DIGDUG2
+  #include "machines/digdug2/digdug2.h"
+#endif
 
 #ifdef ENABLE_1942
   #include "machines/1942/1942.h"
@@ -346,6 +349,13 @@ constexpr machineInfo machines[] = {
     digdug::menuLeds,
 #endif
     MCH_DIGDUG },
+#endif
+#ifdef ENABLE_DIGDUG2
+  { createMachine<digdug2>, digdug2::logo,
+#ifdef LED_PIN
+    digdug2::menuLeds,
+#endif
+    MCH_DIGDUG2 },
 #endif
 #ifdef ENABLE_FROGGER
   { createMachine<frogger>, frogger::logo,
