@@ -21,11 +21,17 @@ private:
   void writeCommand(uint8_t cmd);
   void write8(uint8_t u8);
   void write16(uint16_t u16);
-  char dma_active;
+  void dmaWait();
+
+  // two strips in flight: rendering the next strip, or a burst of audio,
+  // overlaps the SPI sending the previous two
+  static const uint8_t DMA_BUFFERS = 2;
+  uint8_t dma_pending = 0; // queued, result not fetched yet
+  uint8_t dma_next = 0;    // buffer of the next write, the oldest in flight
   spi_device_handle_t handle;
   spi_transaction_t* r_trans;
-  spi_transaction_t transaction;
-  unsigned char *dma_buffer;  // use a second buffer for dma transfers
+  spi_transaction_t transaction[DMA_BUFFERS];
+  unsigned char *dma_buffer[DMA_BUFFERS];
   uint8_t madctl_last;
   uint16_t viewport_width = 224;
 };

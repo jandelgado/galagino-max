@@ -144,9 +144,6 @@ Video::Video() {
   pinMode(TFT_DC, OUTPUT);
   digitalWrite(TFT_DC, HIGH); // Data mode
 
-  // allocate a background buffer which is kept untouched during DMA transfer
-  dma_buffer = (unsigned char*)heap_caps_malloc(240*8*2, MALLOC_CAP_DMA);
-
   // 40Mhz is max possible rate with esp32
   // 40Mhz = 2.5MPix/s. A frame has 64512 pixels
   // -> max 38 frames/s = 25.8ms/frame
@@ -180,6 +177,11 @@ Video::Video() {
 }
 
 void Video::begin(void) {
+  // background buffers which are kept untouched during DMA transfer;
+  // allocated here, after main's larger permanent buffers
+  for(int i = 0; i < DMA_BUFFERS; i++)
+    dma_buffer[i] = (unsigned char*)heap_caps_malloc(240*8*2, MALLOC_CAP_DMA);
+
   uint8_t cmd;
   const uint8_t *addr = init_cmd;
   while(cmd = *addr++) {
@@ -195,12 +197,12 @@ void Video::begin(void) {
   digitalWrite(TFT_CS, LOW);
   setAddrWindow(0, 0, 240, 320);
 
-  memset(dma_buffer, 0, 240*4*2);   // 4 lines per transfer, bytes must be less than 224*8*2
+  memset(dma_buffer[0], 0, 240*4*2);   // 4 lines per transfer, bytes must be less than 224*8*2
   for(int i=0;i<320/4;i++) {
-    transaction.flags = 0;
-    transaction.length = 240*4*16; // Length in bits
-    transaction.tx_buffer = (const void *)dma_buffer;
-    spi_device_transmit(handle, &transaction);
+    transaction[0].flags = 0;
+    transaction[0].length = 240*4*16; // Length in bits
+    transaction[0].tx_buffer = (const void *)dma_buffer[0];
+    spi_device_transmit(handle, &transaction[0]);
   }
 
   // set active screen area to centered 224x288 pixels
@@ -227,61 +229,65 @@ void Video::flip(char flipY, char flipX) {
 
   printf("madctl: flipY=%d flipX=%d last=0x%02x new=0x%02x\n", flipY, flipX, madctl_last, madctl);
 
-  if (dma_active)
-    spi_device_get_trans_result(handle, &r_trans, portMAX_DELAY);
+  dmaWait();
 
   writeCommand(CMD_MADCTL);
   write8(MADCTL_SCAN(madctl));
   writeCommand(CMD_RAMWR);
 
   madctl_last = madctl;
-
-  dma_active = 0;
 }
 
 void Video::flipReset(char flipY, char flipX) {
   flip(0, 0);
 }
 
+// results come back in queue order: the oldest is dma_next's
 void Video::write(uint16_t *colors, uint32_t len) {
-  if(dma_active) {
+  if(dma_pending == DMA_BUFFERS) {
     spi_device_get_trans_result(handle, &r_trans, portMAX_DELAY);
+    dma_pending--;
   }
- 
-  memcpy(dma_buffer, colors, 2 * len);
-  transaction.flags = 0;
-  transaction.length = 16 * len; // Length in bits
-  transaction.tx_buffer = dma_buffer;
-  spi_device_queue_trans(handle, &transaction, portMAX_DELAY);
 
-  if(!dma_active)
-    dma_active = 1;
+  spi_transaction_t &t = transaction[dma_next];
+  memcpy(dma_buffer[dma_next], colors, 2 * len);
+  t.flags = 0;
+  t.length = 16 * len; // Length in bits
+  t.tx_buffer = dma_buffer[dma_next];
+  spi_device_queue_trans(handle, &t, portMAX_DELAY);
+
+  dma_pending++;
+  dma_next = (dma_next + 1) % DMA_BUFFERS;
+}
+
+// all queued strips sent, before commands or blocking transfers
+void Video::dmaWait() {
+  for(; dma_pending; dma_pending--)
+    spi_device_get_trans_result(handle, &r_trans, portMAX_DELAY);
 }
 
 void Video::setViewport(uint16_t width) {
   if(width != 240) width = 224;
   if(width == viewport_width) return;
 
-  if(dma_active)
-    spi_device_get_trans_result(handle, &r_trans, portMAX_DELAY);
+  dmaWait();
 
   if(viewport_width == 240 && width == 224) {
-    memset(dma_buffer, 0, 8 * 8 * 2);
+    memset(dma_buffer[0], 0, 8 * 8 * 2);
     const uint16_t side_x[2] = { 0, 232 };
     for(int side = 0; side < 2; side++) {
       setAddrWindow(side_x[side], TFT_Y_OFFSET, 8, 288);
       for(int strip = 0; strip < 36; strip++) {
-        transaction.flags = 0;
-        transaction.length = 8 * 8 * 16;
-        transaction.tx_buffer = dma_buffer;
-        spi_device_transmit(handle, &transaction);
+        transaction[0].flags = 0;
+        transaction[0].length = 8 * 8 * 16;
+        transaction[0].tx_buffer = dma_buffer[0];
+        spi_device_transmit(handle, &transaction[0]);
       }
     }
   }
 
   setAddrWindow((240 - width) / 2, TFT_Y_OFFSET, width, 288);
   viewport_width = width;
-  dma_active = 0;
 }
 
 void Video::sendCommand(uint8_t commandByte, uint8_t *dataBytes, uint8_t numDataBytes) {
@@ -310,19 +316,20 @@ void Video::setAddrWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
   writeCommand(0x2C); // Write to RAM, same command for ili9341 and st7789
 }
 
+// command bytes: only with no strip in flight (dmaWait)
 void Video::write16(uint16_t data) {
-  transaction.flags = SPI_TRANS_USE_TXDATA;
-  transaction.length = 16; // Length in bits
-  transaction.rxlength = 0;
-  transaction.tx_data[0] = ((data >> 8) & 0xFF);
-  transaction.tx_data[1] = data & 0xFF;
-  spi_device_transmit(handle, &transaction);
+  transaction[0].flags = SPI_TRANS_USE_TXDATA;
+  transaction[0].length = 16; // Length in bits
+  transaction[0].rxlength = 0;
+  transaction[0].tx_data[0] = ((data >> 8) & 0xFF);
+  transaction[0].tx_data[1] = data & 0xFF;
+  spi_device_transmit(handle, &transaction[0]);
 }
 
 void Video::write8(uint8_t data) {
-  transaction.flags = SPI_TRANS_USE_TXDATA;
-  transaction.length = 8; // Length in bits
-  transaction.rxlength = 0;
-  transaction.tx_data[0] = data;
-  spi_device_transmit(handle, &transaction);
+  transaction[0].flags = SPI_TRANS_USE_TXDATA;
+  transaction[0].length = 8; // Length in bits
+  transaction[0].rxlength = 0;
+  transaction[0].tx_data[0] = data;
+  spi_device_transmit(handle, &transaction[0]);
 }
