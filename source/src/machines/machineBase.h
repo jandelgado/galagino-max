@@ -211,8 +211,6 @@ public:
     // its chips and mixes them here. Default: silence (menu).
     virtual void renderAudio(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
 
-
-
 #ifdef LED_PIN
     // Static: menu preview runs before any machine instance exists.
     static void defaultMenuLeds(CRGB *leds) {

@@ -1,10 +1,15 @@
 #ifndef AUDIO_H
 #define AUDIO_H
 
+// I2S sink: buffering, volume, mute. Each machine renders its own sound
+// (machineBase::renderAudio, contract in audio_mix.h).
+
 #include <driver/i2s.h>
-#include "../machines/machineBase.h"
+#include <stdint.h>
 #include "../config.h"
-#include "ima_adpcm.h"
+#include "audio_mix.h"
+
+class machineBase;
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 4)
 // See https://github.com/espressif/arduino-esp32/issues/8467
@@ -22,7 +27,7 @@
 class Audio {
 public:
   void init();
-  void start(machineBase *machineBase);
+  void start(machineBase *machine);
   void stop();
   void transmit();
   void volumeUpDown(bool up, bool down);
@@ -42,7 +47,6 @@ private:
   void valueToBuffer(int index, short value);
 
   machineBase *currentMachine;
-  signed char machineType;
 
 #ifdef SND_DIFF
   unsigned short snd_buffer[128]; // buffer space for two channels

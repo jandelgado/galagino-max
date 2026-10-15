@@ -1,13 +1,9 @@
 #include "audio.h"
-#include <math.h>
 #include <string.h>
+#include "../machines/machineBase.h"
 #ifdef ES8311_AUDIO
 #include <es8311.h>
 #endif
-
-#include "ima_adpcm.h"
-#include "dc_block.h"
-using ima_adpcm::ima_adpcm_decode;
 
 void Audio::init() {
 #ifdef ES8311_AUDIO
@@ -164,9 +160,8 @@ void Audio::rampToSilence(void) {
   flushSilence();
 }
 
-void Audio::start(machineBase *machineBase) {
-  currentMachine = machineBase;
-  machineType = currentMachine->machineType();
+void Audio::start(machineBase *machine) {
+  currentMachine = machine;
 }
 
 void Audio::volumeUpDown(bool up, bool down) {
@@ -202,27 +197,25 @@ void Audio::transmit() {
   // (try to) transmit as much audio data as possible. Since we
   // write data in exact the size of the DMA buffers we can be sure
   // that either all or nothing is actually being written
-
   size_t bytesOut = 0;
   do {
-    // copy data in i2s dma buffer if possible
     i2s_write(I2S_NUM_0, snd_buffer, sizeof(snd_buffer), &bytesOut, 0);
-    if (!bytesOut)
+    if (!bytesOut) {
       return;
+    }
 
-    // menu: no machine, buffer stays silent
-    if (!currentMachine)
+    // stopped: buffer stays silent
+    if (!currentMachine) {
       continue;
+    }
 
     // render the next audio chunk if data has actually been sent
-    else {
-      int16_t samples[AUDIO_CHUNK];
-      currentMachine->renderAudio(samples, AUDIO_CHUNK);
-      for (int i = 0; i < AUDIO_CHUNK; i++) {
-        valueToBuffer(i, samples[i]);
-      }
+    int16_t samples[AUDIO_CHUNK];
+    currentMachine->renderAudio(samples, AUDIO_CHUNK);
+    for (int i = 0; i < AUDIO_CHUNK; i++) {
+      valueToBuffer(i, samples[i]);
     }
-  } while(bytesOut);
+  } while (bytesOut);
 }
 
 void Audio::valueToBuffer(int index, short value) {
