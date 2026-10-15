@@ -1,6 +1,7 @@
 #ifndef YM2203FM_H
 #define YM2203FM_H
 
+#include <atomic>
 #include <stdint.h>
 
 // FM part of a Yamaha YM2203 (OPN): 3 channels of 4 operators. Port of
@@ -8,11 +9,27 @@
 // kept 1:1 so one clock() equals one ymfm FM sample. Dropped: SSG-EG, CSM,
 // channel 3 multi-frequency mode, timers and status (1943, commando and
 // gng never use them). The SSG part goes through the AY renderer.
+//
+//   emulation core (sound CPU)        audio core
+//   writeAddress/writeData --> ring --> render(): apply writes, then
+//   bursts per sound IRQ               FM ticks at fmRate(), one output
+//                                      sample per out_rate tick
 class Ym2203Fm {
 public:
   static const uint32_t CLOCK = 1500000; // 1943, commando, gng
+  static const uint16_t RING_SIZE = 256;
 
+  // both cores stopped
   void reset();
+
+  // emulation core: chip address / data port writes. Only the prescaler
+  // addresses ($2D-$2F) and FM registers ($10+) are queued.
+  void writeAddress(uint8_t addr);
+  void writeData(uint8_t reg, uint8_t value);
+  uint16_t dropped() const { return dropped_; } // queue overflows
+
+  // audio core: adds n samples at out_rate onto out
+  void render(int32_t *out, int n, uint32_t out_rate);
 
   // host tests: apply a write now
   void applyAddress(uint8_t addr);
@@ -56,6 +73,19 @@ private:
   bool modified;    // a register changed since the last prepare()
   uint16_t prepare_count;
 
+  // single producer, single consumer; one slot stays empty. Entry:
+  // reg << 8 | value; reg < $10 encodes an address write of reg + $20.
+  uint16_t ring[RING_SIZE];
+  std::atomic<uint16_t> head; // producer
+  std::atomic<uint16_t> tail; // consumer
+  uint16_t dropped_;
+  uint32_t tick_frac; // 16.16 FM ticks owed to the output
+  int16_t last;       // FM sample held between ticks
+
+  void push(uint16_t entry);
+  void drain();
+  void advance();
+  int16_t mix();
   uint8_t reg(uint8_t base, const Op &o) const { return regs[base + o.offset]; }
   void prepare();
   void cacheOp(uint8_t c, Op &o);

@@ -166,6 +166,78 @@ void Ym2203Fm::reset() {
   active = (1 << CHANNELS) - 1;
   modified = true;
   prepare_count = 0;
+
+  head.store(0, std::memory_order_relaxed);
+  tail.store(0, std::memory_order_relaxed);
+  dropped_ = 0;
+  tick_frac = 0;
+  last = 0;
+}
+
+void Ym2203Fm::push(uint16_t entry) {
+  const uint16_t h = head.load(std::memory_order_relaxed);
+  const uint16_t next = (h + 1) % RING_SIZE;
+  if (next == tail.load(std::memory_order_acquire)) {
+    dropped_++;
+    return;
+  }
+  ring[h] = entry;
+  head.store(next, std::memory_order_release);
+}
+
+void Ym2203Fm::writeAddress(uint8_t addr) {
+  if (addr >= 0x2d && addr <= 0x2f) {
+    push((uint16_t)(addr - 0x20) << 8);
+  }
+}
+
+void Ym2203Fm::writeData(uint8_t reg, uint8_t value) {
+  if (reg >= 0x10) {
+    push((uint16_t)(reg << 8) | value);
+  }
+}
+
+// Applies the queued writes. Key writes of one batch were milliseconds
+// apart on the sound CPU but land between two FM ticks here; prepare()
+// in between keeps a key off + key on pair from collapsing into "on".
+void Ym2203Fm::drain() {
+  uint16_t t = tail.load(std::memory_order_relaxed);
+  const uint16_t h = head.load(std::memory_order_acquire);
+  bool key_pending = false;
+  for (; t != h; t = (t + 1) % RING_SIZE) {
+    const uint8_t reg = ring[t] >> 8;
+    if (reg < 0x10) {
+      applyAddress(reg + 0x20);
+      continue;
+    }
+    if (reg == REG_KEY) {
+      if (key_pending) {
+        prepare();
+      }
+      key_pending = true;
+    }
+    applyWrite(reg, ring[t] & 0xff);
+  }
+  tail.store(t, std::memory_order_release);
+}
+
+// FM ticks run at fmRate(); the output takes the latest tick's sample.
+// At out_rate == fmRate() this is exactly clock() per sample.
+void Ym2203Fm::render(int32_t *out, int n, uint32_t out_rate) {
+  drain();
+  const uint32_t step = (uint32_t)(((uint64_t)fmRate() << 16) / out_rate);
+  for (int i = 0; i < n; i++) {
+    tick_frac += step;
+    const uint32_t ticks = tick_frac >> 16;
+    tick_frac &= 0xffff;
+    for (uint32_t k = 0; k < ticks; k++) {
+      advance();
+    }
+    if (ticks) {
+      last = mix();
+    }
+    out[i] += last;
+  }
 }
 
 uint32_t Ym2203Fm::fmRate() const {
@@ -398,6 +470,12 @@ int32_t Ym2203Fm::output(Channel &c) {
 
 // ym2203::clock_fm: engine clock, output of the active channels, DAC
 int16_t Ym2203Fm::clock() {
+  advance();
+  return mix();
+}
+
+// fm_engine_base::clock: key/register changes, envelopes, phases
+void Ym2203Fm::advance() {
   if (modified || prepare_count++ >= PREPARE_PERIOD) {
     prepare();
     modified = false;
@@ -422,7 +500,10 @@ int16_t Ym2203Fm::clock() {
       o.phase += o.phase_step;
     }
   }
+}
 
+// fm_engine_base::output + roundtrip_fp
+int16_t Ym2203Fm::mix() {
   int32_t sum = 0;
   for (uint8_t c = 0; c < CHANNELS; c++) {
     if (active & (1 << c)) {
