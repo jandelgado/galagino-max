@@ -24,6 +24,7 @@
 #include "../../src/machines/galaxian/galaxian_sound.h"            // .cpp: deps_galaxian_sound.cpp
 #include "../../src/machines/bagman/bagman_sound.h"                // .cpp: deps_bagman_sound.cpp
 #include "../../src/machines/spaceinvaders/spaceinvaders_sound.h"  // .cpp: deps_spaceinvaders_sound.cpp
+#include "../../src/machines/phoenix/phoenix_sound.h"              // .cpp: deps_phoenix_sound.cpp
 
 // machineBase::reset() is in the vtable; the harness never resets CPUs
 extern "C" {
@@ -493,9 +494,14 @@ static void test_pokey_starwars(void) {
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_POKEY_STARWARS, run("pokey_starwars", &m, pokePokey));
 }
 
+class PhoenixFake : public machineBase {
+public:
+  void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
+  PhoenixSound sound;
+};
+
 static void test_phoenix(void) {
-  LegacyFake m(MCH_PHOENIX);
-  m.game_started = 1;
+  PhoenixFake m;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_PHOENIX, run("phoenix", &m, pokePhoenix));
 }
 
@@ -726,6 +732,13 @@ static void test_board_init(void) {
       });
 }
 
+static const uint8_t PHOENIX_REGS[2] = {0xc5, 0x3a};
+static void test_phoenix_init(void) {
+  assertInitIndependent<PhoenixSound>(
+      [](void *p) { return new (p) PhoenixSound(); },
+      [](PhoenixSound &s, int16_t *out) { s.render(PHOENIX_REGS, out, AUDIO_CHUNK); });
+}
+
 int main(int, char **) {
   fillTables();
   UNITY_BEGIN();
@@ -761,5 +774,6 @@ int main(int, char **) {
   RUN_TEST(test_namco_init);
   RUN_TEST(test_pokey_init);
   RUN_TEST(test_board_init);
+  RUN_TEST(test_phoenix_init);
   return UNITY_END();
 }

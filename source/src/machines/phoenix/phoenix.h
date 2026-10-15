@@ -2,6 +2,7 @@
 #define PHOENIX_H
 
 #include "../machineBase.h"
+#include "phoenix_sound.h"
 #include "phoenix_logo.h"
 #include "phoenix_dipswitches.h"
 
@@ -50,6 +51,14 @@ public:
   void start(void) override;
 
   signed char machineType()      override { return MCH_PHOENIX; }
+  // silent until the game starts
+  void renderAudio(int16_t *out, int n) override {
+    if (!game_started) {
+      memset(out, 0, n * sizeof(*out));
+      return;
+    }
+    sound.render(soundregs, out, n);
+  }
 
   unsigned char rdZ80(unsigned short Addr) override;
   void          wrZ80(unsigned short Addr, unsigned char Value) override;
@@ -78,6 +87,9 @@ private:
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
+
+private:
+  PhoenixSound sound;
 };
 
 #endif
