@@ -16,7 +16,6 @@ void vanvan::reset() {
   machineBase::reset();
   nmi_enable = 0;
   startupFrameCount = 0;
-  sn_last_register[0] = sn_last_register[1] = 0;
 }
 
 void vanvan::start(void) {
@@ -97,43 +96,8 @@ void vanvan::wrZ80(unsigned short Addr, unsigned char Value) {
 
 void vanvan::outZ80(unsigned short Port, unsigned char Value) {
   unsigned char port = Port & 0xff;
-  if (port == 0x01)      SN76489_Write_2chip(0, Value);
-  else if (port == 0x02) SN76489_Write_2chip(1, Value);
-}
-
-void vanvan::SN76489_Write_2chip(int chip, unsigned char data) {
-  if (data & 0x80) {                 // Latch command
-    int reg = (data >> 5) & 0x03;    // Channel 0-3
-    int type = (data >> 4) & 0x01;   // 0=Frequency, 1=Volume
-    sn_last_register[chip] = (reg * 2) + type;
-
-    if (reg < 4) {
-      if (type == 0) { // Frequency (4 lower bits)
-        sn[chip].period[reg] = (sn[chip].period[reg] & 0x3F0) | (data & 0x0F);
-      }
-      else { // Volume
-        unsigned char vol = data & 0x0F;
-        sn[chip].volume[reg] = vol;
-        if (vol < sn[chip].min_volume[reg])
-          sn[chip].min_volume[reg] = vol;
-        if (vol < 15)
-          sn[chip].hold[reg] = 6;
-      }
-    }
-  }
-  else { // Data write
-    int reg = sn_last_register[chip] / 2;
-    int type = sn_last_register[chip] % 2;
-
-    if (reg < 4 && type == 0) { // If latch was for frequency
-      if (reg == 3) {   // Noise channel
-        sn[chip].period[3] = data & 0x07;
-      }
-      else { // Tone channels
-        sn[chip].period[reg] = (sn[chip].period[reg] & 0x00F) | ((data & 0x3F) << 4);
-      }
-    }
-  }
+  if (port == 0x01)      sn[0].write(Value);
+  else if (port == 0x02) sn[1].write(Value);
 }
 
 void vanvan::run_frame(void) {

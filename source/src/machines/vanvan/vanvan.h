@@ -70,8 +70,6 @@ protected:
   void blit_sprite(short row, unsigned char s) override;
 
 private:
-  void SN76489_Write_2chip(int chip, unsigned char data);
-  int sn_last_register[2] = {0, 0};
   unsigned char nmi_enable = 0;
   unsigned short startupFrameCount = 0;
   unsigned long lastFrameMs = 0;
@@ -81,7 +79,7 @@ private:
   const unsigned char *rom2_ptr = nullptr;
 
 protected:
-  Sn76489 sn[2] = {Sn76489(Sn76489::INC_4MHZ), Sn76489(Sn76489::INC_4MHZ)};
+  Sn76489 sn[2] = {Sn76489(Sn76489::INC_4MHZ, Sn76489::HOLD_SHORT_NOTES), Sn76489(Sn76489::INC_4MHZ, Sn76489::HOLD_SHORT_NOTES)};
 };
 
 #endif
