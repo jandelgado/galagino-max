@@ -171,6 +171,43 @@ void test_keyon_alone_does_not_retrigger(void) {
   TEST_ASSERT_EQUAL_INT32(0, peak(out, 64));
 }
 
+// the trace through the ring and render() at 24 kHz in Audio's 64-sample
+// chunks; pins render()'s output so speedups stay sample exact
+static uint32_t render24k(uint8_t chip) {
+  static const int CHUNK = 64;
+  static const uint32_t OUT_RATE = 24000;
+  ym.reset();
+  const size_t n = sizeof(YM_TRACE) / sizeof(YM_TRACE[0]);
+  size_t w = 0;
+  uint32_t crc = 0;
+  for (uint32_t done = 0;; done += CHUNK) {
+    const uint32_t tick = (uint64_t)done * ym.fmRate() / OUT_RATE;
+    if (tick >= YM_TRACE_TICKS[chip]) {
+      break;
+    }
+    for (; w < n && YM_TRACE[w].tick <= tick; w++) {
+      const YmTraceWrite &e = YM_TRACE[w];
+      if (e.chip != chip) {
+        continue;
+      }
+      if (e.is_addr) {
+        ym.writeAddress(e.reg);
+      } else {
+        ym.writeData(e.reg, e.value);
+      }
+    }
+    int32_t buf[CHUNK] = {};
+    ym.render(buf, CHUNK, OUT_RATE);
+    crc = crc32_update(crc, (const uint8_t *)buf, sizeof(buf));
+  }
+  return crc;
+}
+
+void test_render_24k_trace(void) {
+  TEST_ASSERT_EQUAL_HEX32(0xf491f0e4, render24k(0));
+  TEST_ASSERT_EQUAL_HEX32(0xef9b2164, render24k(1));
+}
+
 // a full ring drops the newest writes and counts them
 void test_ring_overflow(void) {
   ym.reset();
@@ -190,5 +227,6 @@ int main(int argc, char **argv) {
   RUN_TEST(test_ring_keeps_keyoff_keyon_order);
   RUN_TEST(test_keyon_alone_does_not_retrigger);
   RUN_TEST(test_ring_overflow);
+  RUN_TEST(test_render_24k_trace);
   return UNITY_END();
 }

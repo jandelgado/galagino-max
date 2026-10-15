@@ -230,10 +230,8 @@ void Ym2203Fm::render(int32_t *out, int n, uint32_t out_rate) {
     tick_frac += step;
     const uint32_t ticks = tick_frac >> 16;
     tick_frac &= 0xffff;
-    for (uint32_t k = 0; k < ticks; k++) {
-      advance();
-    }
     if (ticks) {
+      advance(ticks);
       last = mix();
     }
     out[i] += last;
@@ -470,34 +468,41 @@ int32_t Ym2203Fm::output(Channel &c) {
 
 // ym2203::clock_fm: engine clock, output of the active channels, DAC
 int16_t Ym2203Fm::clock() {
-  advance();
+  advance(1);
   return mix();
 }
 
-// fm_engine_base::clock: key/register changes, envelopes, phases
-void Ym2203Fm::advance() {
-  if (modified || prepare_count++ >= PREPARE_PERIOD) {
-    prepare();
-    modified = false;
-    prepare_count = 0;
-  }
+// fm_engine_base::clock, ticks times in a row. Only the envelopes need
+// every tick; prepare() changes phases only on the first tick (writes are
+// applied before render's loop), so phases advance once by ticks steps.
+void Ym2203Fm::advance(uint32_t ticks) {
+  for (uint32_t t = 0; t < ticks; t++) {
+    if (modified || prepare_count++ >= PREPARE_PERIOD) {
+      prepare();
+      modified = false;
+      prepare_count = 0;
+    }
 
-  // envelope counter x.2, the sub-counter wraps at 3
-  if (bits(++env_counter, 0, 2) == 3) {
-    env_counter += 1;
+    // envelope counter x.2, the sub-counter wraps at 3
+    if (bits(++env_counter, 0, 2) == 3) {
+      env_counter += 1;
+    }
+    if (bits(env_counter, 0, 2) != 0) {
+      continue;
+    }
+    for (uint8_t c = 0; c < CHANNELS; c++) {
+      for (uint8_t n = 0; n < OPS; n++) {
+        envelope(ch[c].op[n], env_counter >> 2);
+      }
+    }
   }
-  const bool env_tick = bits(env_counter, 0, 2) == 0;
 
   for (uint8_t c = 0; c < CHANNELS; c++) {
     Channel &chan = ch[c];
-    chan.feedback[0] = chan.feedback[1];
+    chan.feedback[0] = ticks > 1 ? chan.feedback_in : chan.feedback[1];
     chan.feedback[1] = chan.feedback_in;
     for (uint8_t n = 0; n < OPS; n++) {
-      Op &o = chan.op[n];
-      if (env_tick) {
-        envelope(o, env_counter >> 2);
-      }
-      o.phase += o.phase_step;
+      chan.op[n].phase += chan.op[n].phase_step * ticks;
     }
   }
 }

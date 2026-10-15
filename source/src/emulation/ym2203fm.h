@@ -84,7 +84,7 @@ private:
 
   void push(uint16_t entry);
   void drain();
-  void advance();
+  void advance(uint32_t ticks);
   int16_t mix();
   uint8_t reg(uint8_t base, const Op &o) const { return regs[base + o.offset]; }
   void prepare();
