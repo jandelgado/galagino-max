@@ -5,6 +5,7 @@
 #include "rocnrope_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/ay8910.h"
 #include "../../cpus/m6809/m6809.h"
 
 // ============================================================
@@ -66,6 +67,7 @@ public:
   rocnrope();
 
   signed char machineType() override { return MCH_ROCNROPE; }
+  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   void start() override;
   void reset() override;
 
@@ -118,6 +120,11 @@ private:
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *main_rom_ptr = nullptr;
   const unsigned char *audio_rom_ptr = nullptr;
+
+private:
+  static const uint8_t AY_INC = 8;
+  static const uint8_t AY_GAIN = 7;
+  Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
 };
 
 #endif

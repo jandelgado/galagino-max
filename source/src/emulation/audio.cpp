@@ -169,32 +169,6 @@ void Audio::start(machineBase *machineBase) {
   currentMachine = machineBase;
   machineType = currentMachine->machineType();
 
-  AY = 0;
-  if (machineType == MCH_FROGGER)         { AY = 1; AY_INC = 9; AY_VOL = 11; }
-  else if (machineType == MCH_1942)       { AY = 2; AY_INC = 8; AY_VOL = 5;  }
-  else if (machineType == MCH_ANTEATER)   { AY = 2; AY_INC = 9; AY_VOL = 5;  }
-  else if (machineType == MCH_BOMBJACK)   { AY = 3; AY_INC = 8; AY_VOL = 4;  }
-  else if (machineType == MCH_GYRUSS)     { AY = 5; AY_INC = 9; AY_VOL = 3;  }
-  else if (machineType == MCH_TIMEPLT)    { AY = 2; AY_INC = 9; AY_VOL = 5;  }
-  else if (machineType == MCH_TUTANKHM)   { AY = 2; AY_INC = 7; AY_VOL = 7;  }
-  else if (machineType == MCH_SCRAMBLE)   { AY = 2; AY_INC = 8; AY_VOL = 7;  }
-  else if (machineType == MCH_SUPERCOBRA) { AY = 2; AY_INC = 8; AY_VOL = 7;  }
-  else if (machineType == MCH_POOYAN)     { AY = 2; AY_INC = 9; AY_VOL = 5;  }
-  else if (machineType == MCH_BURGERTIME) { AY = 2; AY_INC = 8; AY_VOL = 7;  }
-  else if (machineType == MCH_BNJ)        { AY = 2; AY_INC = 8; AY_VOL = 7;  }
-  else if (machineType == MCH_CBDASH)     { AY = 2; AY_INC = 8; AY_VOL = 7;  } // 1.5 MHz, as bnj
-  else if (machineType == MCH_TURTLES)    { AY = 2; AY_INC = 8; AY_VOL = 7;  }
-  else if (machineType == MCH_AMIDAR)     { AY = 2; AY_INC = 8; AY_VOL = 7;  }
-  else if (machineType == MCH_ROCNROPE)   { AY = 2; AY_INC = 8; AY_VOL = 7;  }
-  else if (machineType == MCH_PBACTION)   { AY = 3; AY_INC = 8; AY_VOL = 4;  }
-  else if (machineType == MCH_MOTORACE)   { AY = 2; AY_INC = 5; AY_VOL = 5;  }
-  else if (machineType == MCH_MPATROL)    { AY = 2; AY_INC = 5; AY_VOL = 5;  } // 894 kHz, as motorace
-  else if (machineType == MCH_SCREGG)     { AY = 2; AY_INC = 8; AY_VOL = 7;  }
-  else if (machineType == MCH_COMMANDO)   { AY = 2; AY_INC = 4; AY_VOL = 5;  } // SSG 750 kHz
-  else if (machineType == MCH_GNG)        { AY = 2; AY_INC = 4; AY_VOL = 5;  } // SSG 750 kHz
-  else if (machineType == MCH_1943)       { AY = 2; AY_INC = 4; AY_VOL = 5;  } // SSG 750 kHz
-  else if (machineType == MCH_THEPIT)     { AY = 1; AY_INC = 8; AY_VOL = 11; } // 1.536 MHz
-
   if (machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
       machineType == MCH_CCASTLES || machineType == MCH_BZONE || machineType == MCH_STARWARS ||
       machineType == MCH_MISSILE || machineType == MCH_HERO || machineType == MCH_TEMPEST ||
@@ -214,24 +188,6 @@ void Audio::start(machineBase *machineBase) {
   }
   if (machineType == MCH_BZONE) {
     bzone_sound.reset();
-  }
-
-  for(char ay = 0; ay < NUM_AY_CHIPS; ay++) {
-    for (int c = 0; c < 4; c++) {
-      audio_cnt[ay][c] = 1;
-    }
-
-    for (int c = 0; c < 3; c++) {
-      audio_toggle[ay][c] = 1;
-      ay_envelope[ay][c] = 0;
-    }
-    ay_noise_rng[ay] = 1;
-
-    ay_envelope_period[ay] = 0;
-    ay_envelope_shape[ay] = 0;
-    ay_envelope_counter[ay] = 0;
-    ay_envelope_step[ay] = 0;
-    ay_envelope_holding[ay] = 0;
   }
 
   for (int sn = 0; sn < NUM_SN_CHIPS; sn++) {
@@ -328,13 +284,7 @@ void Audio::transmit() {
       continue;
 
     // render the next audio chunk if data has actually been sent
-    if (machineType == MCH_COMMANDO || machineType == MCH_CBDASH || machineType == MCH_GNG)
-      sid_ay_render_buffer();
-    else if (machineType == MCH_1943)
-      fm_ay_render_buffer();
-    else if (AY > 0)
-      ay_render_buffer();
-    else if (currentMachine->hasNamcoAudio())
+    if (currentMachine->hasNamcoAudio())
       namco_render_buffer();
     else if (currentMachine->hasNamco15xxAudio())
       namco_15xx_render_buffer();
@@ -576,158 +526,6 @@ void Audio::bzone_render_buffer(void) {
   bzone_sound.render(currentMachine->soundregs[BZ_SND_LATCH], samples, out, 64);
   for (int i = 0; i < 64; i++) {
     valueToBuffer(i, out[i]);
-  }
-}
-
-// C64 SID music from the machine's SidPlayer plus AY sound effects:
-// commando, gng (SSG part of both YM2203), cbdash
-void Audio::sid_ay_render_buffer(void) {
-  int16_t samples[64];
-  currentMachine->renderSid(samples, 64);
-  ay_render_buffer(samples);
-}
-
-// YM2203 boards: FM from the machine, SSG through the AY renderer
-void Audio::fm_ay_render_buffer(void) {
-  int16_t samples[64];
-  currentMachine->renderFm(samples, 64);
-  ay_render_buffer(samples);
-}
-
-// mix: optional 64 samples added to the AY output, result clipped
-void Audio::ay_render_buffer(const int16_t *mix) {
-  for(char ay = 0; ay < AY; ay++) {
-    int ay_off = 16 * ay;
-    // three tone channels
-    for(char c = 0; c < 3; c++) {
-      ay_period[ay][c] = currentMachine->soundregs[ay_off + (2 * c)] + (256 * (currentMachine->soundregs[ay_off + (2 * c) + 1] & 0x0f)); // 12bit
-      ay_enable[ay][c] = (((currentMachine->soundregs[ay_off + 7] >> c) & 1) | ((currentMachine->soundregs[ay_off + 7] >> (c + 2)) & 2)) ^ 3; // 1=Tone; 2=Noise
-      // MotoRace: muta il noise channel AY (engine drone) che sovrasta la
-      // musica. Il LFSR continua a girare, ma non viene mixato sui canali tone.
-      if (machineType == MCH_MOTORACE) ay_enable[ay][c] &= 1;
-
-      ay_volume[ay][c] = currentMachine->soundregs[ay_off + 8 + c];
-      // envelope is used by Anteater and Tutankhm. Gyruss envelope not working, because it is updated multiple during one vblank.
-      ay_envelope[ay][c] = ((ay_volume[ay][c] & 0x10) == 0x10) && machineType != MCH_GYRUSS;
-    }
-
-    // R6 noise channel. Noise is used by 1942, Anteater and Bombjack
-    ay_period[ay][3] = currentMachine->soundregs[ay_off + 6] & 0x1f; // 5bit
-
-    // --- LOGICA INVILUPPO: Leggi registri R11, R12 ---
-    ay_envelope_period[ay] = currentMachine->soundregs[ay_off + 11] + 256 * currentMachine->soundregs[ay_off + 12]; //16bit
-
-    // Rileva un cambio di forma d'onda (R13) per triggerare l'inviluppo
-    uint8_t new_shape = currentMachine->soundregs[ay_off + 13];
-    if (new_shape != ay_envelope_shape[ay]) {
-      ay_envelope_shape[ay] = new_shape & 0x0F;
-      ay_envelope_counter[ay] = 0; // Reset contatore
-      // Imposta lo step iniziale in base alla forma d'onda (attacco: 0, decadimento: 15)
-      ay_envelope_step[ay] = (ay_envelope_shape[ay] < 4 || (ay_envelope_shape[ay] >= 8 && ay_envelope_shape[ay] < 12)) ? 0 : 15;
-      ay_envelope_holding[ay] = 0; // Non in stato di "hold"
-    }
-  }
-
-  // render first buffer contents
-  for(int i = 0; i < 64; i++) {
-    short value = 0; // silence
-
-    for(char ay = 0; ay < AY; ay++) {
-      // --- LOGICA INVILUPPO: Esegui un passo di emulazione ---
-      if (!ay_envelope_holding[ay] && ay_envelope_period[ay] > 0) {
-        ay_envelope_counter[ay] += AY_INC;
-        if (ay_envelope_counter[ay] >= ay_envelope_period[ay]) {
-          ay_envelope_counter[ay] -= ay_envelope_period[ay];
-          // Avanza lo step del volume dell'inviluppo in base alla forma
-          if (ay_envelope_shape[ay] < 8) { // Forme d'attacco (volume cresce da 0 a 15)
-            ay_envelope_step[ay]++;
-            if (ay_envelope_step[ay] > 15) {
-              // Se la forma è "alternata" (bit 0 settato), riparte da 0, altrimenti rimane a 15
-              ay_envelope_step[ay] = (ay_envelope_shape[ay] & 1) ? 0 : 15;
-              // Se la forma è "hold" (bit 1 settato), si ferma qui
-              if (ay_envelope_shape[ay] & 2) ay_envelope_holding[ay] = 1;
-            }
-          }
-          else { // Forme di decadimento (volume decresce da 15 a 0)
-            ay_envelope_step[ay]--;
-            if (ay_envelope_step[ay] < 0) {
-              // Se la forma è "alternata" (bit 0 settato), riparte da 15, altrimenti rimane a 0
-              ay_envelope_step[ay] = (ay_envelope_shape[ay] & 1) ? 15 : 0;
-              // Se la forma è "hold" (bit 1 settato), si ferma qui
-              if (ay_envelope_shape[ay] & 2) ay_envelope_holding[ay] = 1;
-            }
-          }
-        }
-      }
-
-      // Elabora il generatore di rumore (R6)
-      if(ay_period[ay][3]) {
-        audio_cnt[ay][3] += AY_INC;
-        if(audio_cnt[ay][3] > ay_period[ay][3]) {
-          audio_cnt[ay][3] -= ay_period[ay][3];
-          // progress rng
-          ay_noise_rng[ay] ^= (((ay_noise_rng[ay] & 1) ^ ((ay_noise_rng[ay] >> 3) & 1)) << 17);
-          ay_noise_rng[ay] >>= 1;
-        }
-      }
-
-      // Elabora i 3 canali di tono e li mixa con il rumore
-      for(char c = 0; c < 3; c++) {
-        // For a tone to be heard, the corresponding channel must have its volume set, and the tone must be enabled in the Mixer R7
-        if((ay_period[ay][c] || ay_envelope[ay][c]) && ay_volume[ay][c] && ay_enable[ay][c]) {
-          // --- LOGICA INVILUPPO: Scegli il volume corretto ---
-          int current_channel_volume = 0;
-          if (ay_volume[ay][c] & 0x10) { // Se il bit 4 del registro volume è 1, usa l'inviluppo
-            current_channel_volume = ay_envelope_step[ay];
-          }
-          else { // Altrimenti, usa il volume fisso (bit 0-3)
-            current_channel_volume = ay_volume[ay][c] & 0x0F;
-          }
-
-          if (current_channel_volume > 0) { // Solo se il volume non è zero
-            short bit = 1;
-            // Applica il mixing Tono/Rumore in base ai bit di ay_enable (ottenuti da R7)
-            if(ay_enable[ay][c] & 1) bit &= (audio_toggle[ay][c] > 0) ? 1:0; // Bit 0 di ay_enable -> Tono
-            if(ay_enable[ay][c] & 2) bit &= (ay_noise_rng[ay] & 1) ? 1:0;     // Bit 1 di ay_enable -> Rumore
-
-            // Se il bit risultante è 0, il segnale è invertito per l'onda quadra
-            if(bit == 0) bit = -1;
-            value += AY_VOL * bit * current_channel_volume;
-          }
-
-          // Avanza il contatore del tono (R0-R5)
-          audio_cnt[ay][c] += AY_INC;
-          if(audio_cnt[ay][c] > ay_period[ay][c]) {
-            audio_cnt[ay][c] -= ay_period[ay][c];
-            audio_toggle[ay][c] = -audio_toggle[ay][c];
-          }
-        }
-      }
-    }
-
-    // Drums Gyruss: somma al mix dei 5 AY un campione DAC dell'i8039 preso
-    // dal ring riempito da run_frame sul core emulazione — NON steppare
-    // l'8039 qui: sul loopTask congela gyruss su HW (isolato con stub
-    // 2026-07-11). renderDrumSample() e' una virtual di machineBase (default
-    // 0): evita di includere gyruss.h qui — ENABLE_GYRUSS non e' visibile
-    // fuori da main.cpp e l'include duplicherebbe le ROM const in flash.
-    // On/off e volume si regolano SOLO in gyruss.h (GYRUSS_ENABLE_DRUMS,
-    // GYRUSS_DRUMS_VOLUME): il campione arriva gia' scalato.
-    // DC blocker (high-pass ~40Hz) per togliere l'offset di riposo dell'8039
-    // -> niente pop/distorsione costante.
-    if (machineType == MCH_GYRUSS) {
-      static int dc = 0;
-      int s = currentMachine->renderDrumSample();  // gia' scalato (volume in gyruss.h)
-      dc += (s - dc) >> 7;                         // media lenta = livello DC
-      value += s - dc;                             // componente AC
-    }
-
-    if (mix) {
-      const int v = value + mix[i];
-      value = v > 511 ? 511 : (v < -511 ? -511 : v);
-    }
-
-    valueToBuffer(i, value);
   }
 }
 

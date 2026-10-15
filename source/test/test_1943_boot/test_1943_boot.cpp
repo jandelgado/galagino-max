@@ -13,6 +13,7 @@
 #include "../../src/emulation/arena.cpp"
 #include "../../src/cpus/z80/Z80.c"
 #include "../../src/emulation/ym2203fm.cpp"
+#include "../../src/emulation/ay8910.cpp"
 #include "../../src/machines/1943/1943.cpp"
 #endif
 

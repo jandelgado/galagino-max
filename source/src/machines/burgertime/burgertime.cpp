@@ -195,7 +195,7 @@ uint8_t burgertime::main_fetch(m6502_t *cpu, uint16_t addr) {
 }
 
 // ---------------------------------------------------------------------------
-// Audio CPU (6502 nudo) + 2x AY-3-8910 (soundregs[], vedi emulation/audio.cpp)
+// Audio CPU (6502 nudo) + 2x AY-3-8910 (soundregs[], mixed in renderAudio())
 // ---------------------------------------------------------------------------
 uint8_t burgertime::audio_read(m6502_t *cpu, uint16_t addr) {
   burgertime *s = (burgertime*)cpu->user;

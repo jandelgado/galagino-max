@@ -15,6 +15,7 @@
 // translation units: their file-static names collide)
 #include "../../src/emulation/audio.cpp"
 #include "../../src/machines/zaxxon/zaxxon_sound.h"  // .cpp: deps_zaxxon_sound.cpp
+#include "../../src/emulation/ay8910.h"              // .cpp: deps_ay8910.cpp
 
 int16_t Namco54::render() { return 0; }  // galaga/xevious: not covered here
 // machineBase::reset() is in the vtable; the harness never resets CPUs
@@ -270,7 +271,6 @@ public:
   bool hasNamcoAudio() override { return type == MCH_PACMAN; }
   bool hasNamco15xxAudio() override { return type == MCH_MAPPY; }
   bool namcoSoundEnabled() override { return namco_enabled; }
-  void renderFm(int16_t *out, int n) override { saw(phase, out, n); }
   void renderSpeech(int16_t *out, int n) override { speechSaw(phase, out, n); }
   unsigned char vanguardSoundRom(unsigned short a) override { return (a & 63) == 63 ? 0xff : (uint8_t)(a * 37 + 11); }
   bool vanguardMusic0Muted() override { return snk_muted[0]; }
@@ -299,6 +299,8 @@ private:
   uint32_t phase = 0;
 };
 
+static const uint8_t AY_REGS[Ay8910::REG_COUNT] = {0x40, 0, 0x55, 0, 0x99, 1, 5, 0x00,
+                                                   0x1f, 10, 15, 0x20, 0, 0x0e};
 // --- tests -----------------------------------------------------------------
 
 void setUp(void) {
@@ -307,32 +309,73 @@ void setUp(void) {
 }
 void tearDown(void) {}
 
+// as frogger: 1 chip, 9, 11
+class AyFrogger : public machineBase {
+public:
+  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
+  Ay8910 ay[1] = {Ay8910(9, 11)};
+};
+
+class AyBombjack : public machineBase {
+public:
+  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
+  Ay8910 ay[3] = {Ay8910(8, 4), Ay8910(8, 4), Ay8910(8, 4)};
+};
+
+class AyGyruss : public machineBase {
+public:
+  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
+  Ay8910 ay[5] = {Ay8910(9, 3, Ay8910::NO_PERIOD0_ENV), Ay8910(9, 3, Ay8910::NO_PERIOD0_ENV),
+                  Ay8910(9, 3, Ay8910::NO_PERIOD0_ENV), Ay8910(9, 3, Ay8910::NO_PERIOD0_ENV),
+                  Ay8910(9, 3, Ay8910::NO_PERIOD0_ENV)};
+};
+
+class AyMotorace : public machineBase {
+public:
+  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
+  Ay8910 ay[2] = {Ay8910(5, 5, Ay8910::NO_NOISE), Ay8910(5, 5, Ay8910::NO_NOISE)};
+};
+
+// as 1943: YM2203 FM part plus SSG, clipped
+class AyFm1943 : public machineBase {
+public:
+  void renderAudio(int16_t *out, int n) override {
+    int16_t ssg[AUDIO_CHUNK];
+    saw(phase, out, n);
+    Ay8910::renderBank(ay, soundregs, ssg, n);
+    audioAdd(out, ssg, n);
+    audioClampAll(out, n, AUDIO_MAX);
+  }
+  Ay8910 ay[2] = {Ay8910(4, 5), Ay8910(4, 5)};
+  uint32_t phase = 0;
+};
+
 static void test_ay_frogger(void) {
-  LegacyFake m(MCH_FROGGER);
+  AyFrogger m;
   ay_chips = 1;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_AY_FROGGER, run("ay_frogger", &m, pokeAy));
 }
 
 static void test_ay_bombjack(void) {
-  LegacyFake m(MCH_BOMBJACK);
+  AyBombjack m;
   ay_chips = 3;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_AY_BOMBJACK, run("ay_bombjack", &m, pokeAy));
 }
 
 static void test_ay_gyruss(void) {
-  LegacyFake m(MCH_GYRUSS);  // drums: renderDrumSample() default 0
+  AyGyruss m;
   ay_chips = 5;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_AY_GYRUSS, run("ay_gyruss", &m, pokeAy));
 }
 
 static void test_ay_motorace(void) {
-  LegacyFake m(MCH_MOTORACE);
+  AyMotorace m;
   ay_chips = 2;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_AY_MOTORACE, run("ay_motorace", &m, pokeAy));
 }
 
 static void test_ay_fm_1943(void) {
-  LegacyFake m(MCH_1943);
+  AyFm1943 m;
   ay_chips = 2;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_AY_FM_1943, run("ay_fm_1943", &m, pokeAy));
 }
@@ -463,7 +506,7 @@ static void test_menu_silent(void) {
 
 // mute is applied by the sink for every machine
 static void test_mute(void) {
-  LegacyFake m(MCH_FROGGER);
+  AyFrogger m;
   ay_chips = 1;
   TEST_ASSERT_EQUAL_HEX32(silenceHash(), run("mute", &m, pokeAy, true));
 }
@@ -500,6 +543,12 @@ static void test_zaxxon_init(void) {
       [](ZaxxonSound &s, int16_t *out) { s.render(ZAXXON_INIT_REGS, out, AUDIO_CHUNK); });
 }
 
+static void test_ay_init(void) {
+  assertInitIndependent<Ay8910>(
+      [](void *p) { return new (p) Ay8910(8, 7); },
+      [](Ay8910 &ay, int16_t *out) { ay.render(AY_REGS, out, AUDIO_CHUNK); });
+}
+
 int main(int, char **) {
   fillTables();
   UNITY_BEGIN();
@@ -527,5 +576,6 @@ int main(int, char **) {
   RUN_TEST(test_menu_silent);
   RUN_TEST(test_mute);
   RUN_TEST(test_zaxxon_init);
+  RUN_TEST(test_ay_init);
   return UNITY_END();
 }

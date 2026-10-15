@@ -2,6 +2,7 @@
 #define MOTORACE_H
 
 #include "../machineBase.h"
+#include "../../emulation/ay8910.h"
 
 #ifdef ENABLE_MOTORACE
 
@@ -29,6 +30,7 @@ public:
   motorace();
 
   signed char machineType()    override { return MCH_MOTORACE; }
+  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   // flipY toggles both MY and MX (video.cpp); flipX undoes MX.
   signed char videoFlipY()     override { return 1; }
   signed char videoFlipX()     override { return 1; }
@@ -82,6 +84,11 @@ private:
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
   const unsigned char *snd_rom_ptr = nullptr;
+
+private:
+  static const uint8_t AY_INC = 5;
+  static const uint8_t AY_GAIN = 5;
+  Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN, Ay8910::NO_NOISE), Ay8910(AY_INC, AY_GAIN, Ay8910::NO_NOISE)};
 };
 
 // Global pointer per callback M6803

@@ -4,6 +4,7 @@
 #include "burgertime_dipswitches.h"
 #include "../../cpus/m6502/m6502.h"
 #include "../machineBase.h"
+#include "../../emulation/ay8910.h"
 
 // ============================================================
 // Burger Time (Data East 1982, set "btime" / Data East set 1) memory map
@@ -52,6 +53,7 @@ public:
   burgertime();
 
   signed char machineType() override { return MCH_BURGERTIME; }
+  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   void start() override;
   void reset() override;
 
@@ -118,8 +120,8 @@ protected:
   // per ciascuna sottoclasse, il campo e' condiviso) ---
   m6502_t cpu_main;
 
-  // --- CPU 6502 audio (non cifrata) + 2x AY-3-8910 (soundregs[], vedi
-  // audio.cpp) -- audio_map IDENTICA byte-per-byte tra btime e bnj (vedi
+  // --- CPU 6502 audio (non cifrata) + 2x AY-3-8910 (soundregs[])
+  // -- audio_map IDENTICA byte-per-byte tra btime e bnj (vedi
   // btime.cpp: bnj() eredita m_audiocpu/audio_map da btime() senza
   // sovrascriverli), quindi bnj RIUSA audio_read/audio_write invariati ---
   m6502_t cpu_audio;
@@ -172,6 +174,11 @@ private:
   burgertime_bgtile_s bg_list[BG_LIST_MAX];
   int bg_count = 0;
   void blit_bg_tile(short row, int idx);
+
+private:
+  static const uint8_t AY_INC = 8;
+  static const uint8_t AY_GAIN = 7;
+  Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
 };
 
 #endif

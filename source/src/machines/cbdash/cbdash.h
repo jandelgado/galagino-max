@@ -2,6 +2,7 @@
 #define CBDASH_H
 
 #include "../machineBase.h"
+#include "../../emulation/ay8910.h"
 #include "../../cpus/m6502/m6502.h"
 #include "../../emulation/seqlock.h"
 #include "../../emulation/sidplayer.h"
@@ -23,13 +24,14 @@ public:
   cbdash();
 
   signed char machineType() override { return MCH_CBDASH; }
+  void renderAudio(int16_t *out, int n) override;
   const int renderWidth() override { return 240; }
   const int renderBuffer() override { return 240 * 2 * 8; }
   void start() override;
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  void renderSid(int16_t *out, int n) override;
+  void renderSid(int16_t *out, int n);
   static const Logo &logo(void);
 
 #ifdef LED_PIN
@@ -100,6 +102,11 @@ private:
   static uint8_t main_fetch(m6502_t *cpu, uint16_t addr);
   static uint8_t audio_read(m6502_t *cpu, uint16_t addr);
   static void audio_write(m6502_t *cpu, uint16_t addr, uint8_t val);
+
+private:
+  static const uint8_t AY_INC = 8;
+  static const uint8_t AY_GAIN = 7;
+  Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
 };
 
 #endif

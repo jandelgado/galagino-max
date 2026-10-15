@@ -5,6 +5,7 @@
 #include "pooyan_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/ay8910.h"
 
 // Pooyan (Konami 1982) memory map — hardware gemello di Time Pilot, gfx 4bpp:
 //   Main CPU (Z80 @ 3.072 MHz):
@@ -51,6 +52,7 @@ public:
 	pooyan();
 
 	signed char machineType() override { return MCH_POOYAN; }
+	void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
 	void start(void) override;
 
 	unsigned char rdZ80(unsigned short Addr) override;
@@ -88,6 +90,11 @@ private:
 	// Cached: hot path reads these per access; data() checks the cache on every call.
 	const unsigned char *rom_ptr = nullptr;
 	const unsigned char *snd_rom_ptr = nullptr;
+
+private:
+  static const uint8_t AY_INC = 9;
+  static const uint8_t AY_GAIN = 5;
+  Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
 };
 
 #endif

@@ -5,6 +5,7 @@
 #include "bombjack_logo.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/ay8910.h"
 
 #define PORT_P1_IN      0xB000  // P1 Controls (JOYSTICK + BUTTON)
 #define PORT_P2_IN      0xB001  // P2 Controls (per modalità COCKTAIL)
@@ -29,6 +30,7 @@ public:
 
   void reset() override;
   signed char machineType() override { return MCH_BOMBJACK; }
+  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   signed char useVideoHalfRate() override { return 1; }
 
   unsigned char rdZ80(unsigned short Addr) override;
@@ -69,6 +71,11 @@ private:
   const unsigned char *rom_cpu1_ptr = nullptr;
   const unsigned char *rom_cpu2_ptr = nullptr;
   const unsigned char *bg_maps_ptr = nullptr;
+
+private:
+  static const uint8_t AY_INC = 8;
+  static const uint8_t AY_GAIN = 4;
+  Ay8910 ay[3] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
 };
 
 #endif

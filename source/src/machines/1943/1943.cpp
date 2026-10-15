@@ -569,3 +569,12 @@ void _1943::gameLeds(CRGB *leds) {
   menuLeds(leds);
 }
 #endif
+
+// YM2203 FM plus the SSG parts, clipped
+void _1943::renderAudio(int16_t *out, int n) {
+  int16_t ssg[AUDIO_CHUNK];
+  renderFm(out, n);
+  Ay8910::renderBank(ay, soundregs, ssg, n);
+  audioAdd(out, ssg, n);
+  audioClampAll(out, n, AUDIO_MAX);
+}

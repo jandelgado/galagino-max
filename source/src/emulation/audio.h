@@ -39,7 +39,6 @@
 #define D6_E      1174.56
 #define B5_F      987.767
 
-#define NUM_AY_CHIPS 5
 #define NUM_SN_CHIPS 3
 
 class Audio {
@@ -64,7 +63,6 @@ private:
   void rampToSilence(void);
   void namco_render_buffer(void);
   void namco_15xx_render_buffer(void);
-  void ay_render_buffer(const int16_t *mix = nullptr);
   void sn76489_render_buffer(void);
   void valueToBuffer(int index, short value);
   void bagman_render_buffer(void);
@@ -76,8 +74,6 @@ private:
   void bzone_render_buffer(void);
   void asteroids_render_buffer(void);
   void llander_render_buffer(void);
-  void sid_ay_render_buffer(void);
-  void fm_ay_render_buffer(void);
   void generateSinusWave(int32_t amplitude, short* buffer, uint16_t length);
 
   machineBase *currentMachine;
@@ -105,27 +101,6 @@ private:
   unsigned long snd15_freq[8];
   const signed char *snd15_wave[8];
   unsigned char snd15_vol[8];
-
-  // AY 8910
-  char AY;
-  char AY_INC;
-  char AY_VOL;
-
-  // up to five AY's
-  int ay_volume[NUM_AY_CHIPS][3];
-  int ay_enable[NUM_AY_CHIPS][3];
-  int audio_toggle[NUM_AY_CHIPS][3];
-  int audio_cnt[NUM_AY_CHIPS][4];
-  int ay_period[NUM_AY_CHIPS][4];
-  unsigned long ay_noise_rng[NUM_AY_CHIPS];
-
-  // AY Envelope
-  char ay_envelope[NUM_AY_CHIPS][3];
-  int ay_envelope_period[NUM_AY_CHIPS];
-  uint8_t ay_envelope_shape[NUM_AY_CHIPS];
-  int ay_envelope_counter[NUM_AY_CHIPS];
-  int ay_envelope_step[NUM_AY_CHIPS];
-  int ay_envelope_holding[NUM_AY_CHIPS];
 
   // SN 76489
   int sn_counter[NUM_SN_CHIPS][4];

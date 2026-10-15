@@ -548,3 +548,12 @@ void commando::gameLeds(CRGB *leds) {
   menuLeds(leds);
 }
 #endif
+
+// C64 SID music plus the AY sound effects, clipped
+void commando::renderAudio(int16_t *out, int n) {
+  int16_t ssg[AUDIO_CHUNK];
+  renderSid(out, n);
+  Ay8910::renderBank(ay, soundregs, ssg, n);
+  audioAdd(out, ssg, n);
+  audioClampAll(out, n, AUDIO_MAX);
+}

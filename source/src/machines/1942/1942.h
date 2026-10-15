@@ -16,6 +16,7 @@
 #include "1942_tile_cmap.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/ay8910.h"
 #include "../../emulation/seqlock.h"
 
 class _1942 : public machineBase
@@ -36,6 +37,7 @@ public:
 	_1942();
 
 	signed char machineType() override { return MCH_1942; }
+	void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
 	void start(void) override;
 	unsigned char rdZ80(unsigned short Addr) override;
 	void wrZ80(unsigned short Addr, unsigned char Value) override;
@@ -45,7 +47,6 @@ public:
 	void prepare_frame(void) override;
 	void render_row(short row) override;
 	static const Logo &logo(void);
-	bool hasNamcoAudio() override { return false; }
 
 #ifdef LED_PIN
 	static void menuLeds(CRGB *leds);
@@ -91,6 +92,11 @@ private:
 	};
 	Seqlock<VideoState> vblank;
 	VideoState video = {};
+
+private:
+  static const uint8_t AY_INC = 8;
+  static const uint8_t AY_GAIN = 5;
+  Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
 };
 
 #endif
