@@ -642,8 +642,12 @@ void xevious::render_row(short row) {
   blit_tilemap_row(row, false);   // testo, trasparente (pen0)
 }
 
-const signed char *xevious::waveRom(unsigned char value) {
-  return xevious_wavetable[value];
+// WSG plus the 54xx explosion noise per sample
+void xevious::renderAudio(int16_t *out, int n) {
+  wsg.render(soundregs, xevious_wavetable, out, n);
+  for (int i = 0; i < n; i++) {
+    out[i] += n54.render();
+  }
 }
 
 const Logo &xevious::logo(void) {

@@ -19,8 +19,8 @@
 #include "../../src/emulation/ym2203.h"              // .cpp: deps_ym2203.cpp
 #include "../../src/emulation/ym2203fm.h"            // .cpp: deps_ym2203fm.cpp
 #include "../../src/emulation/sn76489.h"             // .cpp: deps_sn76489.cpp
+#include "../../src/emulation/namco_wsg.h"           // .cpp: deps_namco_wsg.cpp
 
-int16_t Namco54::render() { return 0; }  // galaga/xevious: not covered here
 // machineBase::reset() is in the vtable; the harness never resets CPUs
 extern "C" {
 void ResetZ80(Z80 *) {}
@@ -270,10 +270,6 @@ class LegacyFake : public machineBase {
 public:
   explicit LegacyFake(signed char type) : type(type) {}
   signed char machineType() override { return type; }
-  const signed char *waveRom(unsigned char v) override { return fake_waves[v & 7]; }
-  bool hasNamcoAudio() override { return type == MCH_PACMAN; }
-  bool hasNamco15xxAudio() override { return type == MCH_MAPPY; }
-  bool namcoSoundEnabled() override { return namco_enabled; }
   void renderSpeech(int16_t *out, int n) override { speechSaw(phase, out, n); }
   unsigned char vanguardSoundRom(unsigned short a) override { return (a & 63) == 63 ? 0xff : (uint8_t)(a * 37 + 11); }
   bool vanguardMusic0Muted() override { return snk_muted[0]; }
@@ -411,13 +407,28 @@ static void test_sn_gberet(void) {
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_SN_GBERET, run("sn_gberet", &m, pokeSn));
 }
 
+class NamcoFake : public machineBase {
+public:
+  void renderAudio(int16_t *out, int n) override { wsg.render(soundregs, fake_waves, out, n); }
+  NamcoWsg wsg;
+};
+
+class Namco15xxFake : public machineBase {
+public:
+  void renderAudio(int16_t *out, int n) override {
+    wsg.render(soundregs, fake_waves, namco_enabled, out, n);
+    audioShiftRight(out, n, 1);
+  }
+  Namco15xx wsg;
+};
+
 static void test_namco_pacman(void) {
-  LegacyFake m(MCH_PACMAN);
+  NamcoFake m;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_NAMCO_PACMAN, run("namco_pacman", &m, pokeNamco));
 }
 
 static void test_namco15xx_mappy(void) {
-  LegacyFake m(MCH_MAPPY);
+  Namco15xxFake m;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_NAMCO15XX_MAPPY, run("namco15xx_mappy", &m, pokeNamco15xx));
 }
 
@@ -616,6 +627,19 @@ static void test_sn_init(void) {
       [](Sn76489 &s, int16_t *out) { s.render(out, AUDIO_CHUNK); });
 }
 
+static uint8_t namco_regs[Namco15xx::REG_COUNT];
+static void test_namco_init(void) {
+  for (int i = 0; i < Namco15xx::REG_COUNT; i++) {
+    namco_regs[i] = (uint8_t)(i * 7 + 3);
+  }
+  assertInitIndependent<NamcoWsg>(
+      [](void *p) { return new (p) NamcoWsg(); },
+      [](NamcoWsg &w, int16_t *out) { w.render(namco_regs, fake_waves, out, AUDIO_CHUNK); });
+  assertInitIndependent<Namco15xx>(
+      [](void *p) { return new (p) Namco15xx(); },
+      [](Namco15xx &w, int16_t *out) { w.render(namco_regs, fake_waves, true, out, AUDIO_CHUNK); });
+}
+
 int main(int, char **) {
   fillTables();
   UNITY_BEGIN();
@@ -648,5 +672,6 @@ int main(int, char **) {
   RUN_TEST(test_ym2203_no_fm);
   RUN_TEST(test_ym2203_init);
   RUN_TEST(test_sn_init);
+  RUN_TEST(test_namco_init);
   return UNITY_END();
 }

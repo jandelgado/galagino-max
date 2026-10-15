@@ -436,8 +436,12 @@ void galaga::render_row(short row) {
     blit_tile(row, col);
 } 
 
-const signed char * galaga::waveRom(unsigned char value) {
-  return galaga_wavetable[value]; 
+// WSG plus the 54xx explosion noise per sample
+void galaga::renderAudio(int16_t *out, int n) {
+  wsg.render(soundregs, galaga_wavetable, out, n);
+  for (int i = 0; i < n; i++) {
+    out[i] += n54.render();
+  }
 }
 
 const Logo &galaga::logo(void) {

@@ -3,10 +3,7 @@
 
 #include <driver/i2s.h>
 #include "../machines/machineBase.h"
-#include "../machines/galaga/galaga.h"
-#include "../machines/gaplus/gaplus.h"
 #include "../machines/spaceinvaders/spaceinvaders.h"
-#include "../machines/xevious/xevious.h"
 #include "../config.h"
 #include "pokey.h"
 #include "asteroids_sound.h"
@@ -59,8 +56,6 @@ private:
   void flushSilence(void);
   void writeBlocking(void);
   void rampToSilence(void);
-  void namco_render_buffer(void);
-  void namco_15xx_render_buffer(void);
   void valueToBuffer(int index, short value);
   void bagman_render_buffer(void);
   void galaxian_render_buffer(void);
@@ -86,18 +81,6 @@ private:
   bool volumeUpLast;
   bool volumeDownLast;
   int  muted = 0;
-
-  // Namco
-  unsigned long snd_cnt[3] = {0, 0, 0};
-  unsigned long snd_freq[3];
-  const signed char *snd_wave[3];
-  unsigned char snd_volume[3];
-
-  // Namco WSG 15XX (Mappy): 8 voices, clock 24kHz = sample rate
-  unsigned long snd15_cnt[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-  unsigned long snd15_freq[8];
-  const signed char *snd15_wave[8];
-  unsigned char snd15_vol[8];
 
   // Bagman
   unsigned short positionLast;

@@ -15,6 +15,7 @@
 // ============================================================================
 
 #include "../machineBase.h"
+#include "../../emulation/namco_wsg.h"
 #include "../../emulation/seqlock.h"
 #include "../namcoio.h"
 #include "../tileaddr.h"
@@ -68,9 +69,10 @@ public:
   void prepare_frame(void) override;
   void render_row(short row) override;
 
-  bool hasNamco15xxAudio() override { return true; }
-  bool namcoSoundEnabled() override { return wsg_enable != 0; }
-  const signed char *waveRom(unsigned char value) override { return phozon_wavetable[value & 7]; }
+  void renderAudio(int16_t *out, int n) override {
+    wsg.render(soundregs, phozon_wavetable, wsg_enable != 0, out, n);
+    audioShiftRight(out, n, 1);
+  }
 
   static const Logo &logo(void) { return phozon_logo; }
 
@@ -141,6 +143,9 @@ private:
   static const uint8_t MAX_BLOCKS = SPRITE_TABLE / 2;
   Block blocks[MAX_BLOCKS];
   uint8_t n_blocks;
+
+private:
+  Namco15xx wsg;
 };
 
 #endif

@@ -277,11 +277,7 @@ void Audio::transmit() {
       continue;
 
     // render the next audio chunk if data has actually been sent
-    if (currentMachine->hasNamcoAudio())
-      namco_render_buffer();
-    else if (currentMachine->hasNamco15xxAudio())
-      namco_15xx_render_buffer();
-    else if (machineType == MCH_BAGMAN)
+    if (machineType == MCH_BAGMAN)
       bagman_render_buffer();
     else if (machineType == MCH_SPACEINVADERS)
       spaceinvaders_render_buffer();
@@ -516,85 +512,6 @@ void Audio::bzone_render_buffer(void) {
   bzone_sound.render(currentMachine->soundregs[BZ_SND_LATCH], samples, out, 64);
   for (int i = 0; i < 64; i++) {
     valueToBuffer(i, out[i]);
-  }
-}
-
-void Audio::namco_render_buffer(void) {
-  // parse all three wsg channels
-  for(char ch = 0; ch < 3; ch++) {
-    snd_wave[ch] = currentMachine->waveRom(currentMachine->soundregs[ch * 5 + 0x05] & 0x07);
-    snd_freq[ch] = (ch == 0) ? currentMachine->soundregs[0x10] : 0; //5050-5054, 5056-5059, 505b-505e
-    snd_freq[ch] += currentMachine->soundregs[ch * 5 + 0x11] << 4;
-    snd_freq[ch] += currentMachine->soundregs[ch * 5 + 0x12] << 8;
-    snd_freq[ch] += currentMachine->soundregs[ch * 5 + 0x13] << 12;
-    snd_freq[ch] += currentMachine->soundregs[ch * 5 + 0x14] << 16;
-    snd_volume[ch] = currentMachine->soundregs[ch * 5 + 0x15]; //5055, 505a, 505f
-  }
-
-  // render first buffer contents
-  for(int i = 0; i < 64; i++) {
-    short value = 0;
-
-    // add up to three wave signals
-    if(snd_volume[0]) value += snd_volume[0] * snd_wave[0][(snd_cnt[0] >> 13) & 0x1f];
-    if(snd_volume[1]) value += snd_volume[1] * snd_wave[1][(snd_cnt[1] >> 13) & 0x1f];
-    if(snd_volume[2]) value += snd_volume[2] * snd_wave[2][(snd_cnt[2] >> 13) & 0x1f];
-
-    snd_cnt[0] += snd_freq[0];
-    snd_cnt[1] += snd_freq[1];
-    snd_cnt[2] += snd_freq[2];
-
-#ifdef ENABLE_GALAGA
-    if(machineType == MCH_GALAGA) {
-      galaga *galagaMachine = static_cast<galaga*>(currentMachine);
-
-      value += galagaMachine->n54.render();
-    }
-#endif
-#ifdef ENABLE_XEVIOUS
-    if(machineType == MCH_XEVIOUS) {
-      xevious *xeviousMachine = static_cast<xevious*>(currentMachine);
-
-      value += xeviousMachine->n54.render();
-    }
-#endif
-
-    valueToBuffer(i, value);
-  }
-}
-
-// Namco WSG 15XX (Mappy): 8 voci, registri in soundregs[0x00-0x3F] (RAM
-// condivisa 0x4000-0x403F). Layout per canale ch (base ch*8, da MAME
-// sound/namco.cpp): +3 volume, +4/+5 freq bit 0-15, +6 = wave select
-// (bit 4-6) + freq bit 16-19. Clock chip = 18.432MHz/768 = 24000 Hz ESATTI
-// = sample rate galagino: 1 tick per campione, counter a 15 bit frazionari
-// -> posizione onda = (cnt >> 15) & 0x1f (32 campioni per forma).
-void Audio::namco_15xx_render_buffer(void) {
-  bool enabled = currentMachine->namcoSoundEnabled();
-
-  for (char ch = 0; ch < 8; ch++) {
-    snd15_wave[ch] = currentMachine->waveRom((currentMachine->soundregs[ch * 8 + 6] >> 4) & 0x07);
-    snd15_freq[ch] = currentMachine->soundregs[ch * 8 + 4] +
-                     (currentMachine->soundregs[ch * 8 + 5] << 8) +
-                     ((unsigned long)(currentMachine->soundregs[ch * 8 + 6] & 0x0f) << 16);
-    snd15_vol[ch] = enabled ? (currentMachine->soundregs[ch * 8 + 3] & 0x0f) : 0;
-  }
-
-  for (int i = 0; i < 64; i++) {
-    short value = 0;
-
-    for (char ch = 0; ch < 8; ch++) {
-      if (snd15_vol[ch])
-        value += snd15_vol[ch] * snd15_wave[ch][(snd15_cnt[ch] >> 15) & 0x1f];
-      snd15_cnt[ch] += snd15_freq[ch];
-    }
-    if (machineType == MCH_GAPLUS) {
-      gaplus *gaplusMachine = static_cast<gaplus*>(currentMachine);
-
-      value += gaplusMachine->snd_bang.next() * 3;
-    }
-
-    valueToBuffer(i, value >> 1);
   }
 }
 

@@ -4,6 +4,7 @@
 #include "pacman_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/namco_wsg.h"
 
 class pacman : public machineBase
 {
@@ -25,9 +26,9 @@ public:
 	void run_frame(void) override;
 	void prepare_frame(void) override;
 	void render_row(short row) override;
-	const signed char *waveRom(unsigned char value) override;
+	void renderAudio(int16_t *out, int n) override { wsg.render(soundregs, waveTable(), out, n); }
+	virtual const NamcoWave *waveTable();
 	static const Logo &logo(void);
-	bool hasNamcoAudio() override { return true; }
 	
 #ifdef LED_PIN
 	static void menuLeds(CRGB *leds);
@@ -44,6 +45,9 @@ protected:
 	// Cached: hot path reads these per access; data() checks the cache on every call.
 	// Protected: mspacman uses pacman_rom in Pac-Man mode.
 	const unsigned char *rom_ptr = nullptr;
+
+protected:
+  NamcoWsg wsg;
 };
 
 #endif

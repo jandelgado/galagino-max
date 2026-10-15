@@ -211,7 +211,6 @@ public:
     // its chips and mixes them here. Default: silence (menu).
     virtual void renderAudio(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
 
-    virtual const signed char *waveRom(unsigned char value) { return 0; }
     virtual unsigned char vanguardSoundRom(unsigned short addr) { return 0xff; }
     virtual bool vanguardMusic0Muted() { return true; }
     virtual void vanguardMusic0Ended() { }
@@ -220,12 +219,7 @@ public:
     virtual const signed char *vanguardSample(unsigned char index) { return 0; }
     virtual unsigned long vanguardSampleLength(unsigned char index) { return 0; }
     virtual unsigned char vanguardSampleDivider(unsigned char index) { return 1; }
-    virtual bool hasNamcoAudio() { return false; }
 
-    // WSG 15XX 8 voices (Mappy): register layout different from 3 voice WSG
-    // pacman/galaga. namcoSoundEnabled = mainlatch Q3 (0 = mute).
-    virtual bool hasNamco15xxAudio() { return false; }
-    virtual bool namcoSoundEnabled() { return true; }
 
     // Speech chip output (Star Wars TMS5220): n samples at 24 kHz, full
     // int16 range, on the audio core. Virtual for the same reason.

@@ -16,6 +16,7 @@
 #include "digdug_wavetable.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/namco_wsg.h"
 
 #define NAMCO_NMI_DELAY  30  // 10 results in errors
 
@@ -52,9 +53,8 @@ public:
 	void prepare_frame(void) override;
 	void render_row(short row) override;
 	
-	const signed char *waveRom(unsigned char value) override;
+	void renderAudio(int16_t *out, int n) override { wsg.render(soundregs, digdug_wavetable, out, n); }
 	static const Logo &logo(void);
-	bool hasNamcoAudio() override { return true; }
 #ifdef LED_PIN
 	static void menuLeds(CRGB *leds);
 	void gameLeds(CRGB *leds) override;
@@ -74,6 +74,9 @@ private:
 
 	// Cached: hot path reads these per access; data() checks the cache on every call.
 	const unsigned char *rom_ptr[3] = { nullptr, nullptr, nullptr };
+
+private:
+  NamcoWsg wsg;
 };
 
 #endif

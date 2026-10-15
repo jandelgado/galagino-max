@@ -210,8 +210,8 @@ const uint32_t *pacman::spriteRom(unsigned char code) {
   return pacman_sprites[code];
 }
 
-const signed char *pacman::waveRom(unsigned char value) {
-  return pacman_wavetable[value]; 
+const NamcoWave *pacman::waveTable() {
+  return pacman_wavetable;
 }
 
 const Logo &pacman::logo(void) {
