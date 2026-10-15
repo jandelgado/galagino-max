@@ -741,6 +741,103 @@ static void test_phoenix_init(void) {
       [](PhoenixSound &s, int16_t *out) { s.render(PHOENIX_REGS, out, AUDIO_CHUNK); });
 }
 
+// sign changes in n rendered samples: square-wave toggles
+static int toggles(Sn76489 &sn, int chunks) {
+  int count = 0;
+  int16_t last = 0;
+  for (int c = 0; c < chunks; c++) {
+    int16_t out[AUDIO_CHUNK];
+    sn.render(out, AUDIO_CHUNK);
+    for (int i = 0; i < AUDIO_CHUNK; i++) {
+      if (out[i] != 0 && last != 0 && (out[i] > 0) != (last > 0)) {
+        count++;
+      }
+      if (out[i] != 0) {
+        last = out[i];
+      }
+    }
+  }
+  return count;
+}
+
+static int16_t peak(Sn76489 &sn) {
+  int16_t out[AUDIO_CHUNK];
+  sn.render(out, AUDIO_CHUNK);
+  int16_t p = 0;
+  for (int i = 0; i < AUDIO_CHUNK; i++) {
+    p = out[i] > p ? out[i] : (-out[i] > p ? -out[i] : p);
+  }
+  return p;
+}
+
+static const uint8_t SN_LATCH = 0x80;
+static uint8_t snLatch(int ch, bool volume, uint8_t low) { return SN_LATCH | ch << 5 | (volume ? 0x10 : 0) | low; }
+
+// tone: latch carries bits 0-3, data byte bits 4-9; period 110 at inc 11
+// toggles every 10 samples
+static void test_sn_write_tone(void) {
+  Sn76489 sn(Sn76489::INC_4MHZ);
+  sn.write(snLatch(0, false, 110 & 0x0f));
+  sn.write(110 >> 4);
+  sn.write(snLatch(0, true, 0));  // volume 0 = loudest
+  TEST_ASSERT_INT_WITHIN(2, 10 * AUDIO_CHUNK / 10, toggles(sn, 10));  // 640 samples / 10
+}
+
+// volume: latch sets it; a data byte after a volume latch sets it too (MAME)
+static void test_sn_write_volume(void) {
+  Sn76489 sn(Sn76489::INC_4MHZ);
+  sn.write(snLatch(1, false, 0x0f));
+  sn.write(0x02);
+  sn.write(snLatch(1, true, 0));
+  TEST_ASSERT_EQUAL_INT16(15 * 6, peak(sn));
+  sn.write(10);  // data byte: volume 10
+  TEST_ASSERT_EQUAL_INT16(5 * 6, peak(sn));
+  sn.write(snLatch(1, true, 15));
+  TEST_ASSERT_EQUAL_INT16(0, peak(sn));
+}
+
+// noise rate 3 follows tone 2: a lower tone 2 slows the noise down
+static void test_sn_write_noise_follows_tone2(void) {
+  Sn76489 fast(Sn76489::INC_4MHZ), slow(Sn76489::INC_4MHZ);
+  Sn76489 *chips[2] = {&fast, &slow};
+  const int periods[2] = {40, 400};
+  for (int k = 0; k < 2; k++) {
+    chips[k]->write(snLatch(3, false, 3));  // noise: follow tone 2
+    chips[k]->write(snLatch(2, false, periods[k] & 0x0f));
+    chips[k]->write(periods[k] >> 4);
+    chips[k]->write(snLatch(3, true, 0));
+  }
+  TEST_ASSERT_TRUE(toggles(fast, 20) > 4 * toggles(slow, 20));
+}
+
+// noise rates 0..2 halve the shift rate per step
+static void test_sn_write_noise_rates(void) {
+  int t[3];
+  for (int rate = 0; rate < 3; rate++) {
+    Sn76489 sn(Sn76489::INC_4MHZ);
+    sn.write(snLatch(3, false, rate));
+    sn.write(snLatch(3, true, 0));
+    t[rate] = toggles(sn, 100);
+  }
+  TEST_ASSERT_TRUE(t[0] > t[1] && t[1] > t[2]);
+}
+
+// hold: a note switched on and off between two renders still sounds,
+// at its loudest volume, for HOLD_RENDERS renders; without the flag it is lost
+static void test_sn_write_hold(void) {
+  Sn76489 held(Sn76489::INC_4MHZ, Sn76489::HOLD_SHORT_NOTES), plain(Sn76489::INC_4MHZ);
+  Sn76489 *chips[2] = {&held, &plain};
+  for (int k = 0; k < 2; k++) {
+    chips[k]->write(snLatch(0, false, 0x0f));
+    chips[k]->write(0x02);
+    chips[k]->write(snLatch(0, true, 0));
+    chips[k]->write(snLatch(0, true, 8));
+    chips[k]->write(snLatch(0, true, 15));
+  }
+  TEST_ASSERT_EQUAL_INT16(15 * 6, peak(held));
+  TEST_ASSERT_EQUAL_INT16(0, peak(plain));
+}
+
 int main(int, char **) {
   fillTables();
   UNITY_BEGIN();
@@ -773,6 +870,11 @@ int main(int, char **) {
   RUN_TEST(test_ym2203_no_fm);
   RUN_TEST(test_ym2203_init);
   RUN_TEST(test_sn_init);
+  RUN_TEST(test_sn_write_tone);
+  RUN_TEST(test_sn_write_volume);
+  RUN_TEST(test_sn_write_noise_follows_tone2);
+  RUN_TEST(test_sn_write_noise_rates);
+  RUN_TEST(test_sn_write_hold);
   RUN_TEST(test_namco_init);
   RUN_TEST(test_pokey_init);
   RUN_TEST(test_board_init);

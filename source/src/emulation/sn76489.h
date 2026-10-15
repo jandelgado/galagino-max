@@ -16,7 +16,14 @@ public:
   static const int CHANNELS = 4;     // 3 tones + noise
   static const int NOISE = 3;
 
-  explicit Sn76489(int inc = INC_4MHZ);
+  // a note shorter than one render() still sounds for HOLD_RENDERS renders
+  // (render reads registers every 2.7 ms)
+  static const uint8_t HOLD_SHORT_NOTES = 1;
+
+  explicit Sn76489(int inc = INC_4MHZ, uint8_t flags = 0);
+
+  // a port byte as the CPU wrote it (emulation core)
+  void write(uint8_t data);
 
   // register state; volume 15 = off. A channel with hold > 0 plays at
   // min_volume for hold more render() calls (short blips stay audible).
@@ -38,7 +45,20 @@ public:
   }
 
 private:
+  static const uint8_t LATCH = 0x80;
+  static const int TONE2 = 2;
+  static const int NOISE_BASE = 4;    // N/512 in render() noise units
+  static const int FOLLOW_TONE2 = 3;  // noise rate: tone 2 output
+  static const int HOLD_RENDERS = 6;  // ~16 ms
+  static const int OFF = 15;
+
+  void setVolume(int ch, int vol);
+  void updateNoisePeriod(void);
+
   int inc;
+  uint8_t flags;
+  uint8_t latch = 0;      // last latched register: channel * 2 + volume flag
+  uint8_t noise_reg = 0;  // bits 0-1 rate, bit 2 white noise (not modeled)
   int counter[CHANNELS] = {0, 0, 0, 0};
   int toggle[CHANNELS] = {1, 1, 1, 1};
   uint32_t noise_lfsr = 0x4000;

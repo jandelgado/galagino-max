@@ -1,9 +1,56 @@
 #include "sn76489.h"
 
 static const int SN_GAIN = 6;
-static const int SN_OFF = 15;
 
-Sn76489::Sn76489(int inc) : inc(inc) {}
+Sn76489::Sn76489(int inc, uint8_t flags) : inc(inc), flags(flags) {}
+
+// MAME sn76496.cpp write(): a latch byte (bit 7) selects the register and
+// carries its low 4 bits, a data byte carries the high 6 bits of a tone
+// period, or a whole volume / noise value
+void Sn76489::write(uint8_t data) {
+  if (data & LATCH) {
+    latch = (data >> 4) & 0x07;
+  }
+  const int ch = latch >> 1;
+  if (latch & 1) {
+    setVolume(ch, data & 0x0f);
+    return;
+  }
+  if (ch == NOISE) {
+    noise_reg = data & 0x07;
+    updateNoisePeriod();
+    return;
+  }
+  if (data & LATCH) {
+    period[ch] = (period[ch] & 0x3f0) | (data & 0x0f);
+  } else {
+    period[ch] = (period[ch] & 0x00f) | ((data & 0x3f) << 4);
+  }
+  if (ch == TONE2) {
+    updateNoisePeriod();
+  }
+}
+
+void Sn76489::setVolume(int ch, int vol) {
+  volume[ch] = vol;
+  if (!(flags & HOLD_SHORT_NOTES)) {
+    return;
+  }
+  if (vol < min_volume[ch]) {
+    min_volume[ch] = vol;
+  }
+  if (vol < OFF) {
+    hold[ch] = HOLD_RENDERS;
+  }
+}
+
+// noise rate N/512, N/1024, N/2048 or tone 2 output (shifts every 2 tone
+// periods, MAME sn76496)
+void Sn76489::updateNoisePeriod(void) {
+  const int rate = noise_reg & 0x03;
+  const int p = rate == FOLLOW_TONE2 ? (period[TONE2] >> 2) : (NOISE_BASE << rate);
+  period[NOISE] = p > 0 ? p : 1;
+}
 
 void Sn76489::render(int16_t *out, int n) {
   int vol[CHANNELS];
@@ -24,7 +71,7 @@ void Sn76489::render(int16_t *out, int n) {
     int16_t sample = 0;
     for (int c = 0; c < CHANNELS; c++) {
       const int p = period[c];
-      if (vol[c] >= SN_OFF || p <= 0) {
+      if (vol[c] >= OFF || p <= 0) {
         continue;
       }
       counter[c] -= inc;
@@ -39,7 +86,7 @@ void Sn76489::render(int16_t *out, int n) {
           toggle[c] = -toggle[c];
         }
       }
-      sample += toggle[c] * (SN_OFF - vol[c]) * SN_GAIN;
+      sample += toggle[c] * (OFF - vol[c]) * SN_GAIN;
     }
     out[i] = sample;
   }
