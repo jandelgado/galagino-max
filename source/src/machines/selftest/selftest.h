@@ -8,12 +8,14 @@
 #include "../machineBase.h"
 #include "../../emulation/input.h"
 #include "../../emulation/sid.h"
+#include "controltest.h"
 
 // Arcade style boot screen, run like any machine: main starts it first and
 // switches on once done(). Title, hardware info lines, crosshatch that
 // turns into an Atari style rainbow to a SID jingle. Sequence defined
-// by PHASES in selftest.cpp. No CPU: timed by millis(). Coin pressed
-// twice: the rainbow runs until reset.
+// by PHASES in selftest.cpp. No CPU: timed by millis(). Any key on the
+// text screen: controller test until reset. COIN on the grid: rainbow
+// until reset.
 class SelfTest : public machineBase {
 public:
   // runs the checks, games is the number shown
@@ -70,6 +72,15 @@ private:
   void sidVoice(uint8_t v, uint8_t reg, uint8_t val);
   void sidFreq(uint8_t v, uint16_t freq);
 
+  void startControls();
+  void beep(int8_t row);
+
+  // MODE_RAINBOW: last phase held until reset
+  enum Mode : uint8_t { MODE_BOOT, MODE_CONTROLS, MODE_RAINBOW };
+  Mode mode = MODE_BOOT;
+  ControlTest controls;
+  uint8_t beep_release = 0;  // frames until the released beep is silenced
+
   char lines[LINE_COUNT][LINE_CHARS] = {};
   uint8_t games_total;
   uint32_t start_ms;
@@ -78,7 +89,6 @@ private:
   uint8_t phase = 0;  // index into PHASES, PHASE_COUNT once done
   uint8_t arp_step = 0;  // arpeggio note counter, one per frame
   unsigned int last_keys = ~0u;  // keys held at boot don't count
-  uint8_t coins = 0;  // coin presses so far
   Sid sid;
 };
 #endif

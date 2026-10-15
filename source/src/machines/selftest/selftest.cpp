@@ -255,6 +255,51 @@ void SelfTest::jingle(uint32_t ms) {
   }
 }
 
+// controller test beep: square wave while an input is held, one C major
+// pentatonic step per row, so each input sounds different
+static const uint16_t BEEP_NOTES[] = {
+  sid_freq(261.63), sid_freq(293.66), sid_freq(329.63), sid_freq(392.00), sid_freq(440.00),
+  sid_freq(523.25), sid_freq(587.33), sid_freq(659.26), sid_freq(783.99), sid_freq(880.00),
+  sid_freq(1046.50), sid_freq(1174.66), sid_freq(1318.51),
+};
+static constexpr uint8_t BEEP_NOTE_COUNT = sizeof(BEEP_NOTES) / sizeof(BEEP_NOTES[0]);
+static constexpr uint8_t VOICE_BEEP = VOICE_HIGH;
+static constexpr uint8_t BEEP_AD = 0x00;  // attack 2 ms, decay 6 ms
+static constexpr uint8_t BEEP_SR = 0xF2;  // full sustain, release 48 ms
+static constexpr uint16_t PW_SQUARE = 0x800;
+
+// silence the jingle, set the beep voice up
+void SelfTest::startControls() {
+  mode = MODE_CONTROLS;
+  toneSetup();
+  sidVoice(VOICE_BEEP, AD, BEEP_AD);
+  sidVoice(VOICE_BEEP, SR, BEEP_SR);
+  sidVoice(VOICE_BEEP, PW_LO, PW_SQUARE & 0xff);
+  sidVoice(VOICE_BEEP, PW_HI, PW_SQUARE >> 8);
+}
+
+// row: ControlTest::heldRow(), -1 releases the gate
+void SelfTest::beep(int8_t row) {
+  // covers BEEP_SR's 48 ms release at 30 or 60 Hz
+  static constexpr uint8_t BEEP_RELEASE_FRAMES = 4;
+
+  if (row >= 0) {
+    sidFreq(VOICE_BEEP, BEEP_NOTES[row % BEEP_NOTE_COUNT]);
+    sidVoice(VOICE_BEEP, CTRL, CTRL_PULSE | CTRL_GATE);
+    beep_release = BEEP_RELEASE_FRAMES;
+    return;
+  }
+
+  // waveform off once faded: Sid's envelope floor keeps a released voice
+  // faintly audible
+  if (beep_release) {
+    beep_release--;
+    sidVoice(VOICE_BEEP, CTRL, CTRL_PULSE);
+    return;
+  }
+  sidVoice(VOICE_BEEP, CTRL, 0);
+}
+
 static constexpr uint32_t LEDS_KEEP = 0xFFFFFFFF;  // keep the previous color
 static constexpr uint32_t LEDS_RED = 0xFF0000;
 static constexpr uint32_t LEDS_GREEN = 0x00FF00;
@@ -281,7 +326,8 @@ const SelfTest::Phase SelfTest::PHASES[] = {
 };
 const uint8_t SelfTest::PHASE_COUNT = sizeof(PHASES) / sizeof(PHASES[0]);
 
-SelfTest::SelfTest(Input *input, uint8_t games) : games_total(games) {
+SelfTest::SelfTest(Input *input, uint8_t games)
+    : controls(input, games == 1 ? ControlTest::EXIT_NONE : ControlTest::EXIT_RESET), games_total(games) {
   setLine(LINE_CHIP, "CHIP   %s REV%u", ESP.getChipModel(), ESP.getChipRevision());
   setLine(LINE_CPU, "CPU    %uMHZ %u CORES", ESP.getCpuFreqMHz(), ESP.getChipCores());
   setLine(LINE_RAM, "RAM    OK (%uK)", SRAM_KB);
@@ -304,19 +350,23 @@ void SelfTest::start() {
 }
 
 bool SelfTest::done() const {
-  return phase == PHASE_COUNT;
+  return mode == MODE_BOOT && phase == PHASE_COUNT;
 }
 
 // advance to the phase of this frame, update its tone
 void SelfTest::prepare_frame() {
-  static constexpr uint8_t ENDLESS_COINS = 2;
+  // last PHASES entries, the crosshatch
+  static constexpr uint8_t GRID_PHASES = 2;
 
-  // coin (BUTTON_EXTRA) twice: the last phase runs until reset
   const unsigned int keys = input->buttons_get();
-  if (keys & ~last_keys & BUTTON_EXTRA && coins < ENDLESS_COINS) {
-    coins++;
-  }
+  const unsigned int pressed = keys & ~last_keys;
   last_keys = keys;
+
+  if (mode == MODE_CONTROLS) {
+    controls.frame(keys, millis());
+    beep(controls.heldRow());
+    return;
+  }
 
   frame_ms = millis() - start_ms;
 
@@ -327,11 +377,23 @@ void SelfTest::prepare_frame() {
     }
     phase_start += PHASES[phase].ms;
   }
-  if (phase == PHASE_COUNT && coins == ENDLESS_COINS) {
+  if (phase == PHASE_COUNT && mode == MODE_RAINBOW) {
     phase--;
     phase_start -= PHASES[phase].ms;
   }
   phase_ms = frame_ms - phase_start;
+
+  // text screen: any key opens the controller test. grid: COIN
+  // (BUTTON_EXTRA, START without coin pin) runs the rainbow until reset
+  if (mode == MODE_BOOT && pressed) {
+    if (phase < PHASE_COUNT - GRID_PHASES) {
+      startControls();
+      return;
+    }
+    if (pressed & BUTTON_EXTRA) {
+      mode = MODE_RAINBOW;
+    }
+  }
 
   if (phase < PHASE_COUNT && PHASES[phase].tone) {
     PHASES[phase].tone(*this, phase_ms, PHASES[phase].ms);
@@ -339,6 +401,11 @@ void SelfTest::prepare_frame() {
 }
 
 void SelfTest::render_row(short row) {
+  if (mode == MODE_CONTROLS) {
+    controls.draw(frame_buffer, WIDTH, (uint8_t)row);
+    return;
+  }
+
   // every phase so far draws
   uint32_t phase_start = 0;
   for (uint8_t p = 0; p <= phase && p < PHASE_COUNT; p++) {
@@ -355,8 +422,8 @@ void SelfTest::renderSid(int16_t *out, int n) {
 void SelfTest::gameLeds(CRGB *leds) {
   uint32_t color = 0;
 
-  // last color set by the phases so far
-  for (int8_t p = phase < PHASE_COUNT ? phase : -1; p >= 0; p--) {
+  // last color set by the phases so far, off in the controller test
+  for (int8_t p = mode != MODE_CONTROLS && phase < PHASE_COUNT ? phase : -1; p >= 0; p--) {
     if (PHASES[p].led != LEDS_KEEP) {
       color = PHASES[p].led;
       break;
