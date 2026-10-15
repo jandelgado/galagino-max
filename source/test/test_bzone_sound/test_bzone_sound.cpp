@@ -2,7 +2,7 @@
 #include <unity.h>
 
 #include "../../src/emulation/discrete.cpp"
-#include "../../src/emulation/bzone_sound.cpp"
+#include "../../src/machines/bzone/bzone_sound.cpp"
 
 static BzoneSound snd;
 static int16_t pokey[4800], out[4800];

@@ -1,6 +1,7 @@
 #ifndef POKEY_H
 #define POKEY_H
 
+#include "audio_mix.h"
 #include <stdint.h>
 
 // Atari POKEY audio part (port of MAME devices/sound/pokey.cpp): 4
@@ -21,9 +22,22 @@ public:
   static const int32_t CLOCKS_1789KHZ = 75;
   static const int32_t CLOCKS_1250KHZ = 52;
 
+  explicit Pokey(int32_t clocks_per_sample = CLOCKS_1512KHZ) { reset(clocks_per_sample); }
   void reset(int32_t clocks_per_sample = CLOCKS_1512KHZ);
   // n samples centered on 0, about +-480
   void render(const uint8_t *regs, int16_t *out, int n);
+
+  // sum of N chips, chip c's registers at regs[c * REG_COUNT]; up to
+  // +-(N * 240), not clipped
+  template <int N>
+  static void renderBank(Pokey (&chips)[N], const uint8_t *regs, int16_t *out, int n) {
+    chips[0].render(regs, out, n);
+    for (int c = 1; c < N; c++) {
+      int16_t part[AUDIO_CHUNK];
+      chips[c].render(regs + c * REG_COUNT, part, n);
+      audioAdd(out, part, n);
+    }
+  }
   // RANDOM register value at POKEY clock count clock
   static uint8_t random(uint32_t clock, bool poly9);
 

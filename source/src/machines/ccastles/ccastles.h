@@ -6,6 +6,7 @@
 #include "ccastles_video.h"
 #include "../../cpus/m6502/m6502.h"
 #include "../machineBase.h"
+#include "../../emulation/pokey.h"
 #include "../../emulation/seqlock.h"
 
 // Atari Crystal Castles, joystick version (MAME ccastlesj), atari/ccastles.cpp.
@@ -25,6 +26,10 @@ protected:
 public:
   ccastles();
   signed char machineType() override { return MCH_CCASTLES; }
+  void renderAudio(int16_t *out, int n) override {
+    Pokey::renderBank(pokey, soundregs, out, n);
+    audioClampAll(out, n, AUDIO_MAX);
+  }
   void reset() override;
   void run_frame() override;
   void prepare_frame() override;
@@ -100,6 +105,9 @@ private:
   uint8_t merge[256];            // (mo << 4 | pix) -> pen, from the priority PROM
   uint16_t lut[256];             // merge mapped through video.pal, per frame
   uint8_t mo[8][256];            // sprite pens of the current strip
+
+private:
+  Pokey pokey[2] = {Pokey(Pokey::CLOCKS_1250KHZ), Pokey(Pokey::CLOCKS_1250KHZ)};
 };
 
 #endif

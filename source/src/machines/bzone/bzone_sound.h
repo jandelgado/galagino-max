@@ -2,7 +2,7 @@
 #define BZONE_SOUND_H
 
 #include <stdint.h>
-#include "discrete.h"
+#include "../../emulation/discrete.h"
 
 // Battle Zone sound registers in machineBase::soundregs: POKEY registers
 // first (pokey.h layout), then the raw sound latch byte (CPU 0x1840).
@@ -29,6 +29,7 @@ enum : uint8_t {
 //   POKEY -----------------------------------------------------------+
 class BzoneSound {
 public:
+  BzoneSound() { reset(); }
   void reset();
   void render(uint8_t latch, const int16_t *pokey, int16_t *out, int n);
 

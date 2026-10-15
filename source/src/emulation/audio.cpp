@@ -169,27 +169,6 @@ void Audio::start(machineBase *machineBase) {
   currentMachine = machineBase;
   machineType = currentMachine->machineType();
 
-  if (machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
-      machineType == MCH_CCASTLES || machineType == MCH_BZONE || machineType == MCH_STARWARS ||
-      machineType == MCH_MISSILE || machineType == MCH_HERO || machineType == MCH_TEMPEST ||
-      machineType == MCH_SPACDUEL || machineType == MCH_GRAVITAR || machineType == MCH_BWIDOW) {
-    const int32_t clocks = (machineType == MCH_ATETRIS || machineType == MCH_HERO) ? Pokey::CLOCKS_1789KHZ
-                         : (machineType == MCH_CCASTLES || machineType == MCH_MISSILE) ? Pokey::CLOCKS_1250KHZ
-                                                       : Pokey::CLOCKS_1512KHZ;
-    for (int n = 0; n < MAX_POKEYS; n++) {
-      pokey[n].reset(clocks);
-    }
-  }
-  if (machineType == MCH_ASTEROIDS) {
-    asteroids_sound.reset();
-  }
-  if (machineType == MCH_LLANDER) {
-    llander_sound.reset();
-  }
-  if (machineType == MCH_BZONE) {
-    bzone_sound.reset();
-  }
-
   // Phoenix
   ph_c24_level = ph_c25_level = 0;
   ph_c24_counter = ph_c25_counter = 0;
@@ -287,17 +266,6 @@ void Audio::transmit() {
       phoenix_render_buffer();
     else if(machineType == MCH_VANGUARD || machineType == MCH_FANTASY || machineType == MCH_NIBBLER)
       vanguard_render_buffer();
-    else if(machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
-            machineType == MCH_CCASTLES || machineType == MCH_STARWARS || machineType == MCH_MISSILE ||
-            machineType == MCH_HERO || machineType == MCH_TEMPEST || machineType == MCH_SPACDUEL ||
-            machineType == MCH_GRAVITAR || machineType == MCH_BWIDOW)
-      pokey_render_buffer();
-    else if(machineType == MCH_ASTEROIDS)
-      asteroids_render_buffer();
-    else if(machineType == MCH_LLANDER)
-      llander_render_buffer();
-    else if(machineType == MCH_BZONE)
-      bzone_render_buffer();
     else {
       int16_t samples[AUDIO_CHUNK];
       currentMachine->renderAudio(samples, AUDIO_CHUNK);
@@ -448,70 +416,6 @@ void Audio::vanguard_render_buffer(void) {
     }
     if (sample > 500) sample = 500; else if (sample < -500) sample = -500;
     valueToBuffer(i, sample);
-  }
-}
-
-// Atari POKEY (Centipede, Millipede, Tetris, Crystal Castles, Star Wars,
-// Missile Command, Tempest, Space Duel): chip n
-// registers at soundregs[n * Pokey::REG_COUNT], see pokey.h. MAME routes every
-// POKEY at the same gain, so the chips are summed; Star Wars' four at half
-// level, plus the TMS5220 at 2.5 times a POKEY (MAME 0.50 vs 0.20).
-void Audio::pokey_render_buffer(void) {
-  static const int32_t SAMPLE_MAX = 511;
-  static const int SPEECH_SHIFT = 6; // int16 -> +-512, a POKEY here is +-240
-  const bool speech = machineType == MCH_STARWARS;
-  const int chips = machineType == MCH_STARWARS ? 4
-      : (machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS || machineType == MCH_CCASTLES ||
-         machineType == MCH_TEMPEST || machineType == MCH_SPACDUEL || machineType == MCH_GRAVITAR ||
-         machineType == MCH_BWIDOW) ? 2 : 1;
-  const int shift = chips > 2 ? 1 : 0;
-  int16_t samples[MAX_POKEYS][64];
-  for (int n = 0; n < chips; n++) {
-    pokey[n].render(currentMachine->soundregs + n * Pokey::REG_COUNT, samples[n], 64);
-  }
-  int16_t voice[64];
-  if (speech) {
-    currentMachine->renderSpeech(voice, 64);
-  }
-
-  for (int i = 0; i < 64; i++) {
-    int32_t v = 0;
-    for (int n = 0; n < chips; n++) {
-      v += samples[n][i];
-    }
-    v >>= shift;
-    if (speech) {
-      v += voice[i] >> SPEECH_SHIFT;
-    }
-    valueToBuffer(i, v > SAMPLE_MAX ? SAMPLE_MAX : (v < -SAMPLE_MAX ? -SAMPLE_MAX : v));
-  }
-}
-
-// Atari Asteroids discrete sound, registers in asteroids_sound.h
-void Audio::asteroids_render_buffer(void) {
-  int16_t samples[64];
-  asteroids_sound.render(currentMachine->soundregs, samples, 64);
-  for (int i = 0; i < 64; i++) {
-    valueToBuffer(i, samples[i]);
-  }
-}
-
-// Atari Lunar Lander discrete sound, registers in llander_sound.h
-void Audio::llander_render_buffer(void) {
-  int16_t samples[64];
-  llander_sound.render(currentMachine->soundregs, samples, 64);
-  for (int i = 0; i < 64; i++) {
-    valueToBuffer(i, samples[i]);
-  }
-}
-
-// Atari Battle Zone: POKEY into the discrete mixer, see bzone_sound.h
-void Audio::bzone_render_buffer(void) {
-  int16_t samples[64], out[64];
-  pokey[0].render(currentMachine->soundregs, samples, 64);
-  bzone_sound.render(currentMachine->soundregs[BZ_SND_LATCH], samples, out, 64);
-  for (int i = 0; i < 64; i++) {
-    valueToBuffer(i, out[i]);
   }
 }
 

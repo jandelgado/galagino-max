@@ -5,10 +5,6 @@
 #include "../machines/machineBase.h"
 #include "../machines/spaceinvaders/spaceinvaders.h"
 #include "../config.h"
-#include "pokey.h"
-#include "asteroids_sound.h"
-#include "llander_sound.h"
-#include "bzone_sound.h"
 #include "ima_adpcm.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 4)
@@ -62,10 +58,6 @@ private:
   void spaceinvaders_render_buffer(void);
   void phoenix_render_buffer(void);
   void vanguard_render_buffer(void);
-  void pokey_render_buffer(void);
-  void bzone_render_buffer(void);
-  void asteroids_render_buffer(void);
-  void llander_render_buffer(void);
   void generateSinusWave(int32_t amplitude, short* buffer, uint16_t length);
 
   machineBase *currentMachine;
@@ -196,13 +188,6 @@ private:
   int8_t vg_adpcm_step[3] = {0, 0, 0};
   uint8_t vg_sample_repeat[3] = {0, 0, 0}, vg_sample_divider[3] = {1, 1, 1};
   uint8_t vg_speech_sequence = 0;
-
-  // Atari POKEY (Centipede: 1, Millipede, Tetris: 2, Star Wars: 4)
-  static const int MAX_POKEYS = 4;
-  Pokey pokey[MAX_POKEYS];
-  AsteroidsSound asteroids_sound;
-  LlanderSound llander_sound;
-  BzoneSound bzone_sound;
 };
 
 #endif

@@ -6,6 +6,7 @@
 #include "missile_video.h"
 #include "../../cpus/m6502/m6502.h"
 #include "../machineBase.h"
+#include "../../emulation/pokey.h"
 #include "../../emulation/seqlock.h"
 
 // Atari Missile Command rev 3 (MAME missile), atari/missile.cpp. One M6502 at
@@ -23,6 +24,10 @@ protected:
 public:
   missile();
   signed char machineType() override { return MCH_MISSILE; }
+  void renderAudio(int16_t *out, int n) override {
+    Pokey::renderBank(pokey, soundregs, out, n);
+    audioClampAll(out, n, AUDIO_MAX);
+  }
   void reset() override;
   void run_frame() override;
   void prepare_frame() override;
@@ -87,6 +92,9 @@ private:
   VideoState video = {};
 
   uint32_t quad[256];               // VRAM byte -> 4 pens (bits 2-1), one per byte
+
+private:
+  Pokey pokey[1] = {Pokey(Pokey::CLOCKS_1250KHZ)};
 };
 
 #endif

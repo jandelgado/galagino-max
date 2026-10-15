@@ -20,6 +20,7 @@
 #include "../../src/emulation/ym2203fm.h"            // .cpp: deps_ym2203fm.cpp
 #include "../../src/emulation/sn76489.h"             // .cpp: deps_sn76489.cpp
 #include "../../src/emulation/namco_wsg.h"           // .cpp: deps_namco_wsg.cpp
+#include "../../src/emulation/pokey.h"               // .cpp: deps_pokey.cpp
 
 // machineBase::reset() is in the vtable; the harness never resets CPUs
 extern "C" {
@@ -270,7 +271,6 @@ class LegacyFake : public machineBase {
 public:
   explicit LegacyFake(signed char type) : type(type) {}
   signed char machineType() override { return type; }
-  void renderSpeech(int16_t *out, int n) override { speechSaw(phase, out, n); }
   unsigned char vanguardSoundRom(unsigned short a) override { return (a & 63) == 63 ? 0xff : (uint8_t)(a * 37 + 11); }
   bool vanguardMusic0Muted() override { return snk_muted[0]; }
   void vanguardMusic0Ended() override { snk_muted[0] = true; }
@@ -432,26 +432,60 @@ static void test_namco15xx_mappy(void) {
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_NAMCO15XX_MAPPY, run("namco15xx_mappy", &m, pokeNamco15xx));
 }
 
+template <int N>
+class PokeyFake : public machineBase {
+public:
+  explicit PokeyFake(int32_t clocks) {
+    for (int c = 0; c < N; c++) {
+      pokey[c].reset(clocks);
+    }
+  }
+  void renderAudio(int16_t *out, int n) override {
+    Pokey::renderBank(pokey, soundregs, out, n);
+    audioClampAll(out, n, AUDIO_MAX);
+  }
+  Pokey pokey[N];
+};
+
+// as starwars: four POKEYs at half level plus TMS5220 speech
+class PokeyStarwars : public machineBase {
+public:
+  PokeyStarwars() {
+    for (int c = 0; c < 4; c++) {
+      pokey[c].reset(Pokey::CLOCKS_1512KHZ);
+    }
+  }
+  void renderAudio(int16_t *out, int n) override {
+    int16_t voice[AUDIO_CHUNK];
+    Pokey::renderBank(pokey, soundregs, out, n);
+    speechSaw(phase, voice, n);
+    for (int i = 0; i < n; i++) {
+      out[i] = audioClamp((out[i] >> 1) + (voice[i] >> 6), AUDIO_MAX);
+    }
+  }
+  Pokey pokey[4];
+  uint32_t phase = 0;
+};
+
 static void test_pokey_centipede(void) {
-  LegacyFake m(MCH_CENTIPEDE);
+  PokeyFake<1> m(Pokey::CLOCKS_1512KHZ);
   pokey_chips = 1;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_POKEY_CENTIPEDE, run("pokey_centipede", &m, pokePokey));
 }
-
 static void test_pokey_millipede(void) {
-  LegacyFake m(MCH_MILLIPEDE);
+  PokeyFake<2> m(Pokey::CLOCKS_1512KHZ);
   pokey_chips = 2;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_POKEY_MILLIPEDE, run("pokey_millipede", &m, pokePokey));
 }
 
 static void test_pokey_ccastles(void) {
-  LegacyFake m(MCH_CCASTLES);
+  PokeyFake<2> m(Pokey::CLOCKS_1250KHZ);
   pokey_chips = 2;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_POKEY_CCASTLES, run("pokey_ccastles", &m, pokePokey));
 }
 
 static void test_pokey_starwars(void) {
-  LegacyFake m(MCH_STARWARS);
+  PokeyStarwars m;
   pokey_chips = 4;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_POKEY_STARWARS, run("pokey_starwars", &m, pokePokey));
 }
@@ -640,6 +674,17 @@ static void test_namco_init(void) {
       [](Namco15xx &w, int16_t *out) { w.render(namco_regs, fake_waves, true, out, AUDIO_CHUNK); });
 }
 
+static uint8_t pokey_regs[Pokey::REG_COUNT] = {0x40, 0xa8, 0x60, 0xa6, 0, 0, 0, 0, 0, 0x03};
+static void test_pokey_init(void) {
+  assertInitIndependent<Pokey>(
+      [](void *p) {
+        Pokey *k = new (p) Pokey();
+        k->reset(Pokey::CLOCKS_1512KHZ);
+        return k;
+      },
+      [](Pokey &k, int16_t *out) { k.render(pokey_regs, out, AUDIO_CHUNK); });
+}
+
 int main(int, char **) {
   fillTables();
   UNITY_BEGIN();
@@ -673,5 +718,6 @@ int main(int, char **) {
   RUN_TEST(test_ym2203_init);
   RUN_TEST(test_sn_init);
   RUN_TEST(test_namco_init);
+  RUN_TEST(test_pokey_init);
   return UNITY_END();
 }

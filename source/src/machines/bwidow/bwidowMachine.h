@@ -2,6 +2,7 @@
 #define BWIDOWMACHINE_H
 
 #include "../dvgMachine.h"
+#include "../../emulation/pokey.h"
 #include "bwidow_layout.h"
 #include "../../emulation/avg.h"
 #include "../../emulation/er2055.h"
@@ -13,6 +14,10 @@
 class bwidowMachine : public dvgMachine {
 public:
   void reset() override;
+  void renderAudio(int16_t *out, int n) override {
+    Pokey::renderBank(pokey, soundregs, out, n);
+    audioClampAll(out, n, AUDIO_MAX);
+  }
 
 protected:
   // CPU addresses of vector RAM and ROM
@@ -53,6 +58,9 @@ private:
   uint8_t allpot[POKEYS] = {};
   uint32_t random_base[POKEYS] = {}; // CPU cycle of the SKCTL reset release
   uint16_t pal[bwidow_layout::PALETTE_SIZE];
+
+private:
+  Pokey pokey[2] = {Pokey(Pokey::CLOCKS_1512KHZ), Pokey(Pokey::CLOCKS_1512KHZ)};
 };
 
 #endif

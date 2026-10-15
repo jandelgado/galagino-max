@@ -4,6 +4,7 @@
 #include "llander_logo.h"
 #include "llander_dipswitches.h"
 #include "../dvgMachine.h"
+#include "llander_sound.h"
 
 // Atari Lunar Lander, MAME llander (rev 2), atari/asteroid.cpp.
 // Asteroids hardware with 8 KiB program ROM, 6 KiB vector ROM, an analog
@@ -21,6 +22,7 @@ protected:
 public:
   llander();
   signed char machineType() override { return MCH_LLANDER; }
+  void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
   void reset() override;
   static const Logo &logo() { return llander_logo; }
 #ifdef LED_PIN
@@ -42,6 +44,9 @@ private:
   uint8_t thrust = 0; // lever 0..THRUST_MAX, read at 0x2c00
   uint8_t lamps = 0;  // outlatch: mission lamps, start LED
   uint8_t mission[2 * 11]; // DVG list: LABS, up to 8 glyphs, HALT
+
+private:
+  LlanderSound sound;
 };
 
 #endif

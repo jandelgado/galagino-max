@@ -5,6 +5,7 @@
 #include "centipede_dipswitches.h"
 #include "../../cpus/m6502/m6502.h"
 #include "../machineBase.h"
+#include "../../emulation/pokey.h"
 #include "../../emulation/seqlock.h"
 #include "../../emulation/er2055.h"
 
@@ -18,6 +19,10 @@ protected:
 public:
   centipede();
   signed char machineType() override { return MCH_CENTIPEDE; }
+  void renderAudio(int16_t *out, int n) override {
+    Pokey::renderBank(pokey, soundregs, out, n);
+    audioClampAll(out, n, AUDIO_MAX);
+  }
   void start() override;
   void reset() override;
   void run_frame() override;
@@ -84,6 +89,9 @@ private:
   };
   Sprite spr[16];
   uint16_t tile_pal[4];
+
+private:
+  Pokey pokey[1] = {Pokey(Pokey::CLOCKS_1512KHZ)};
 };
 
 #endif

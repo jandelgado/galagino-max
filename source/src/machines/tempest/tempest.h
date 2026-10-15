@@ -2,6 +2,7 @@
 #define TEMPEST_H
 
 #include "../dvgMachine.h"
+#include "../../emulation/pokey.h"
 #include "tempest_logo.h"
 #include "tempest_dipswitches.h"
 #include "tempest_layout.h"
@@ -29,6 +30,10 @@ protected:
 public:
   tempest();
   signed char machineType() override { return MCH_TEMPEST; }
+  void renderAudio(int16_t *out, int n) override {
+    Pokey::renderBank(pokey, soundregs, out, n);
+    audioClampAll(out, n, AUDIO_MAX);
+  }
   void reset() override;
   void run_frame() override;
   static const Logo &logo() { return tempest_logo; }
@@ -69,6 +74,9 @@ private:
   uint8_t allpot[POKEYS] = {};
   uint32_t random_base[POKEYS] = {}; // CPU cycle of the SKCTL reset release
   uint16_t pal[tempest_layout::PALETTE_SIZE];
+
+private:
+  Pokey pokey[2] = {Pokey(Pokey::CLOCKS_1512KHZ), Pokey(Pokey::CLOCKS_1512KHZ)};
 };
 
 #endif

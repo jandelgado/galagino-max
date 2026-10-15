@@ -2,6 +2,8 @@
 #define BZONE_H
 
 #include "../dvgMachine.h"
+#include "../../emulation/pokey.h"
+#include "bzone_sound.h"
 #include "bzone_logo.h"
 #include "bzone_dipswitches.h"
 #include "bzone_treads.h" // after dvgMachine.h: needs input.h
@@ -25,6 +27,7 @@ protected:
 public:
   bzone();
   signed char machineType() override { return MCH_BZONE; }
+  void renderAudio(int16_t *out, int n) override;
   void reset() override;
   static const Logo &logo() { return bzone_logo; }
 #ifdef LED_PIN
@@ -50,6 +53,10 @@ private:
   uint8_t allpot = 0;   // ALLPOT as of the last read while running
   uint32_t random_base = 0; // CPU cycle of the SKCTL reset release
   uint16_t red[16];     // palette for strips above the overlay boundary
+
+private:
+  Pokey pokey = Pokey(Pokey::CLOCKS_1512KHZ);
+  BzoneSound sound;
 };
 
 #endif

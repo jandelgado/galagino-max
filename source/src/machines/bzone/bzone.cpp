@@ -1,7 +1,7 @@
 #include "bzone.h"
 #include "bzone_rom.h"
 #include "bzone_vrom.h"
-#include "../../emulation/bzone_sound.h"
+#include "bzone_sound.h"
 #include "../../emulation/pokey.h"
 
 // memory map (MAME bzone_map), 15 bit address bus; VRAM 0x2000-0x2fff
@@ -219,3 +219,10 @@ void bzone::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+// POKEY into the discrete mixer, see bzone_sound.h
+void bzone::renderAudio(int16_t *out, int n) {
+  int16_t pk[AUDIO_CHUNK];
+  pokey.render(soundregs, pk, n);
+  sound.render(soundregs[BZ_SND_LATCH], pk, out, n);
+}
