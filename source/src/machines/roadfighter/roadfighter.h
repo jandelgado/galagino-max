@@ -111,7 +111,6 @@ private:
   unsigned char snd_ram[0x1000];   // $4000-$4FFF (4 KB)
   unsigned char sound_latch;
   unsigned char sn_latch;
-  unsigned char sn_latch_reg;
   unsigned long snd_icnt;
   int           dac_sample;
 
@@ -126,7 +125,6 @@ private:
   unsigned char gear_state;
   unsigned char prev_fire_btn;    // edge detection del tap FIRE (1 volta/frame)
 
-  void sn76489_write(unsigned char data);
   unsigned char input_system();
   unsigned char input_p1();
 
@@ -149,7 +147,7 @@ private:
   const unsigned char *audio_rom_ptr = nullptr;
 
 protected:
-  Sn76489 sn[1] = {Sn76489(Sn76489::INC_2MHZ)};
+  Sn76489 sn[1] = {Sn76489(Sn76489::INC_2MHZ, Sn76489::HOLD_SHORT_NOTES)};
   static const int DAC_GAIN = 2;
 };
 
