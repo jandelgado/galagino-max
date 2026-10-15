@@ -212,9 +212,9 @@ static const uint8_t MOS_MAX = 64;  // MOs of one steelie: frame, overlay, masks
 
 static uint8_t addCols(const MarbleSpriteSet &s, const marble_video::Obj &o, uint8_t pal,
                        DrawnMo *out, uint8_t k) {
-  const MarbleSpriteFrame &f = s.frames[o.frame];
+  const MarbleSpriteFrame &f = s.frames()[o.frame];
   for (uint8_t c = 0; c < f.ncols && k < MOS_MAX; c++) {
-    const MarbleSpriteCol &col = s.cols[f.first + c];
+    const MarbleSpriteCol &col = s.cols()[f.first + c];
     out[k++] = {(int16_t)(o.x + col.x), (int16_t)(o.y + col.y), (uint8_t)(col.h & 0x7f), 0, pal,
                 (col.h & 0x80) != 0, false};
   }

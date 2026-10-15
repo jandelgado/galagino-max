@@ -232,9 +232,9 @@ static uint8_t birdMos(const Mem &m, const marble_video::VideoState &v, uint8_t 
       skip--;
       continue;
     }
-    const MarbleSpriteFrame &f = ds.frames[o.frame];
+    const MarbleSpriteFrame &f = ds.frames()[o.frame];
     for (uint8_t c = 0; c < f.ncols && k < MOS_MAX; c++) {
-      const MarbleSpriteCol &col = ds.cols[f.first + c];
+      const MarbleSpriteCol &col = ds.cols()[f.first + c];
       out[k++] = {(int16_t)(o.x + col.x), (int16_t)(o.y + col.y), (uint8_t)(col.h & 0x7f), 0,
                   (col.h & 0x80) != 0, false};
     }

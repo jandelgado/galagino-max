@@ -38,19 +38,19 @@ static uint32_t crc32(const void *data, size_t n, uint32_t crc = 0) {
 
 // glyph rows (2 bpp, left pixel in bits 15-14) and the alpha code -> glyph map
 static void test_glyphs(void) {
-  TEST_ASSERT_EQUAL_UINT32(MARBLE_HUD_FIX_GLYPHS, sizeof(marble_hud_glyphs) / sizeof(marble_hud_glyphs[0]));
-  TEST_ASSERT_EQUAL_HEX32(MARBLE_HUD_FIX_GLYPH_CRC, crc32(marble_hud_glyphs, sizeof(marble_hud_glyphs)));
-  TEST_ASSERT_EQUAL_HEX32(MARBLE_HUD_FIX_MAP_CRC, crc32(marble_hud_glyph, sizeof(marble_hud_glyph)));
+  TEST_ASSERT_EQUAL_UINT32(MARBLE_HUD_FIX_GLYPHS, MARBLE_HUD_GLYPHS);
+  TEST_ASSERT_EQUAL_HEX32(MARBLE_HUD_FIX_GLYPH_CRC, crc32(marble_hud_glyphs(), MARBLE_HUD_GLYPHS * 8 * sizeof(uint16_t)));
+  TEST_ASSERT_EQUAL_HEX32(MARBLE_HUD_FIX_MAP_CRC, crc32(marble_hud_glyph(), MARBLE_HUD_CODES));
 }
 
 // 'S' (0x53) of SCORE: pens unpacked from the 2 bpp rows equal the model's font decode
 static void test_glyph_pixels(void) {
-  const uint8_t g = marble_hud_glyph['S'];
+  const uint8_t g = marble_hud_glyph()['S'];
   TEST_ASSERT_NOT_EQUAL(MARBLE_HUD_NO_GLYPH, g);
   uint8_t pens[64];
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 8; x++) {
-      pens[y * 8 + x] = (marble_hud_glyphs[g][y] >> (14 - 2 * x)) & 3;
+      pens[y * 8 + x] = (marble_hud_glyphs()[g][y] >> (14 - 2 * x)) & 3;
     }
   }
   TEST_ASSERT_EQUAL_HEX32(MARBLE_HUD_FIX_S_CRC, crc32(pens, sizeof(pens)));
@@ -171,11 +171,11 @@ static void test_blend(void) {
     marble_hud::blend(grid, row, strip);
 
     const uint16_t w = grid.cells[row][0];
-    const uint8_t g = marble_hud_glyph[w & 0x3ff];
+    const uint8_t g = marble_hud_glyph()[w & 0x3ff];
     const int base = ((w >> 10) & 7) * 4;
     for (int y = 0; y < 8; y++) {
       for (int x = 0; x < 8; x++) {
-        const uint8_t pen = (marble_hud_glyphs[g][y] >> (14 - 2 * x)) & 3;
+        const uint8_t pen = (marble_hud_glyphs()[g][y] >> (14 - 2 * x)) & 3;
         const uint16_t want = pen || (w & 0x2000) ? grid.pal[base + pen] : BG;
         TEST_ASSERT_EQUAL_HEX16(want, strip[y * marble_video::OUT_W + x]);
       }

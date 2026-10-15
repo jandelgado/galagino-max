@@ -231,9 +231,9 @@ static uint8_t playerMos(const marble_video::VideoState &v, int16_t sx, int16_t 
       out[k++] = {o.x, o.y, 1, (uint16_t)(MARBLE_STAR_CODE + o.frame),
                   (uint16_t)(MARBLE_STAR_TILE + o.frame), pal, false, false};
     } else {
-      const MarbleSpriteFrame &f = s.frames[o.frame];
+      const MarbleSpriteFrame &f = s.frames()[o.frame];
       for (uint8_t c = 0; c < f.ncols; c++) {
-        const MarbleSpriteCol &col = s.cols[f.first + c];
+        const MarbleSpriteCol &col = s.cols()[f.first + c];
         out[k++] = {(int16_t)(o.x + col.x), (int16_t)(o.y + col.y), (uint8_t)(col.h & 0x7f), 0,
                     col.tile, pal, (col.h & 0x80) != 0, false};
       }
@@ -315,7 +315,7 @@ static void test_player_objects(void) {
       for (uint8_t i = 0; i < v.n; i++) {
         const marble_video::Obj &o = v.objs[i];
         if (!(o.set & marble_video::SET_DEATH) || (o.set & marble_video::SET_STAR)) { continue; }
-        const uint32_t hdr = FRAMES_BASE + 2 * (uint32_t)s.addr[o.frame];
+        const uint32_t hdr = FRAMES_BASE + 2 * (uint32_t)s.addr()[o.frame];
         TEST_ASSERT_EQUAL_HEX32_MESSAGE((o.set & marble_video::SET_SHARDS) ? t.shard_hdr
                                                                            : t.frame_hdr,
                                         hdr, msg);
@@ -393,7 +393,7 @@ static void displace(Mem &m, int16_t dz) {
 static bool inDeathSet(uint32_t hdr) {
   const MarbleSpriteSet &s = marble_physics::deathSet();
   for (uint8_t i = 0; i < s.nhdr; i++) {
-    if (FRAMES_BASE + 2 * (uint32_t)s.addr[i] == hdr) { return true; }
+    if (FRAMES_BASE + 2 * (uint32_t)s.addr()[i] == hdr) { return true; }
   }
   return false;
 }

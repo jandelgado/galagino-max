@@ -1029,6 +1029,31 @@ def c_words(w, indent="  "):
                       for k in range(0, len(w), 16))
 
 
+TABLES = bytearray()   # marble_tables: emitted last, LZMA packed, unpacked to the Arena
+
+
+def table_add(data):
+    """Appends data to marble_tables, returns its 2-aligned byte offset."""
+    if len(TABLES) & 1:
+        TABLES.append(0)
+    at = len(TABLES)
+    TABLES.extend(data)
+    if len(TABLES) > 0xffff:
+        fatal("marble: tables too long for 16 bit offsets")
+    return at
+
+
+def emit_table(f, name, ctype, dims, data):
+    """Table `name` of ctype elements (inner dims) into marble_tables, read through name()."""
+    at = table_add(data)
+    ret = f"const {ctype} (*{name}()){dims}" if dims else f"const {ctype} *{name}()"
+    print(f"static inline {ret} {{ return marble_table<{ctype}{dims}>({at}); }}", file=f)
+
+
+def words(w):
+    return struct.pack(f"<{len(w)}H", *w)
+
+
 def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, size4b4, size4b5,
                  size4b6):
     """Phase 2 data into marble_rom.h. Returns {item: flash bytes}; the prog blocks added by
@@ -1051,9 +1076,12 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, size4b
           file=f)
     print("struct MarbleTerrainInfo {\n  FlashAsset<unsigned char, COMPRESSED> packed; "
           "uint16_t pairs;\n"
-          "  const uint16_t *codes; uint16_t ncodes;\n  const uint8_t *records;\n"
+          "  uint16_t codes_at, ncodes;\n  uint16_t records_at;\n"
           "  uint16_t maxd;\n  uint16_t nrecords; uint32_t desc;\n"
-          "  const uint16_t *edges; uint8_t nedges;\n};",
+          "  uint16_t edges_at; uint8_t nedges;\n"
+          "  const uint16_t *codes() const { return marble_table<uint16_t>(codes_at); }\n"
+          "  const uint8_t *records() const { return marble_table<uint8_t>(records_at); }\n"
+          "  const uint16_t *edges() const { return marble_table<uint16_t>(edges_at); }\n};",
           file=f)
     # edge lists: marble_edge_lists[marble_edge_off[col]...] of the table of race and scroll
     # frame, first diagonal >= d (the last list entry is maxd - 1); equal lists are shared
@@ -1077,17 +1105,14 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, size4b
                 fatal(f"marble: race {race} emitted edge list differs at pool offset {o}")
     print("// Terrain edge diagonals (0x264aa): column c of scroll frame k (the ultimate race has 4,",
           file=f)
-    print("// others 1) of a race: ascending diagonals < maxd from marble_edge_lists[edges[36 * k +",
+    print("// others 1) of a race: ascending diagonals < maxd from marble_edge_lists()[edges()[36 *",
           file=f)
-    print("// c]]; the first entry >= d is the edge, the last is maxd - 1.", file=f)
-    print(f"static const uint8_t marble_edge_lists[{len(pool)}] = {{\n{c_bytes(pool)}\n}};",
-          file=f)
-    for race, rows in sorted(offs.items()):
-        flat = [o for row in rows for o in row]
-        print(f"static const uint16_t marble_edge_off_{race}[{len(flat)}] = {{\n{c_words(flat)}\n}};",
-              file=f)
+    print("// k + c]]; the first entry >= d is the edge, the last is maxd - 1.", file=f)
+    emit_table(f, "marble_edge_lists", "uint8_t", "", pool)
+    edges_at = {race: table_add(words([o for row in rows for o in row]))
+                for race, rows in sorted(offs.items())}
     size3["edge lists"] = len(pool) + 2 * sum(len(r) * 36 for r in offs.values()) + 6 * 8
-    code_names = {}
+    codes_at, records_at = {}, {}
     unpacked = 0
     for n, (index, codes, records, _, bases) in enumerate(races):
         if len(bases) != terrains[n].maxd or len(index) != terrains[n].maxd // 2 * PAIR_BYTES:
@@ -1098,12 +1123,10 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, size4b
         size["terrain index + bases"] = (size.get("terrain index + bases", 0)
                                          + len(lzma_compress(raw)))
         key = tuple(codes)
-        if key not in code_names:
-            code_names[key] = f"marble_terrain_codes_{n}"
-            print(f"static const uint16_t {code_names[key]}[] = {{\n{c_words(codes)}\n}};", file=f)
+        if key not in codes_at:
+            codes_at[key] = table_add(words(codes))
             size["terrain codes"] = size.get("terrain codes", 0) + 2 * len(codes)
-        print(f"static const uint8_t marble_terrain_records_{n}[] = {{\n{c_bytes(records)}\n}};",
-              file=f)
+        records_at[n] = table_add(bytes(records))
         size["terrain records"] = size.get("terrain records", 0) + len(records)
     print("// bytes of the largest unpacked race terrain (Arena buffer)", file=f)
     print(f"static const uint16_t MARBLE_TERRAIN_MAX = {unpacked};", file=f)
@@ -1111,9 +1134,9 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, size4b
     for n, (index, codes, records, _, bases) in enumerate(races):
         t = terrains[n]
         print(f"  {{ marble_terrain_{n}_blob, {len(index) // PAIR_BYTES}, "
-              f"{code_names[tuple(codes)]}, {len(codes)}, marble_terrain_records_{n}, "
+              f"{codes_at[tuple(codes)]}, {len(codes)}, {records_at[n]}, "
               f"{t.maxd}, {len(records)}, 0x{t.desc:05x}, "
-              f"marble_edge_off_{n}, {len(offs[n])} }},", file=f)
+              f"{edges_at[n]}, {len(offs[n])} }},", file=f)
     print("};", file=f)
     size["terrain info"] = 6 * 32  # 32 bit pointers, padded
 
@@ -1178,10 +1201,8 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, size4b
     print(f"static const uint8_t MARBLE_MO_CODES = 0x{MO_CODES.stop:02x};", file=f)
     print("static const uint8_t marble_mo_code_first[MARBLE_MO_CODES] = {\n"
           + c_bytes(first) + "\n};", file=f)
-    print(f"static const uint8_t marble_mo_tiles[{len(tiles)}][64] = {{", file=f)
-    for t in tiles:
-        print("  {" + ",".join(str(p) for p in t) + "},", file=f)
-    print("};", file=f)
+    print(f"static const uint8_t MARBLE_MO_TILES = {len(tiles)};", file=f)
+    emit_table(f, "marble_mo_tiles", "uint8_t", "[64]", bytes(p for t in tiles for p in t))
     print("static const uint16_t marble_mo_palette[16] = {\n" + c_words(pal) + "\n};",
           file=f)
     size["mo tiles"] = 64 * len(tiles) + len(first)
@@ -1251,10 +1272,7 @@ def emit_objects(f, rom, levels, size3):
     print("// uses are blank tiles (no mask pixel).", file=f)
     print(f"static const uint16_t MARBLE_MASK_FIRST = 0x{first:03x};", file=f)
     print(f"static const uint16_t MARBLE_MASK_CODES = {len(dense)};", file=f)
-    print(f"static const uint8_t marble_mask_tiles[{len(dense)}][8] = {{", file=f)
-    for t in dense:
-        print("  {" + ",".join(f"0x{v:02x}" for v in t) + "},", file=f)
-    print("};", file=f)
+    emit_table(f, "marble_mask_tiles", "uint8_t", "[8]", bytes(v for t in dense for v in t))
     print("static inline uint16_t marble_mask_index(uint16_t code) {\n"
           "  return (uint16_t)(code - MARBLE_MASK_FIRST) < MARBLE_MASK_CODES\n"
           "      ? (uint16_t)(code - MARBLE_MASK_FIRST) : 0xffff;\n}", file=f)
@@ -1307,9 +1325,10 @@ def lift_palette(rom):
     return out
 
 
-def frame_table(f, name, sp, base):
-    """Frame table of sprite set sp (addr, frames, cols arrays with suffix name), column tiles
-    + base (sprite tile buffer index). Returns the column pool."""
+def frame_table(sp, base):
+    """Frame table of sprite set sp (addr, frames, cols tables in marble_tables), column tiles
+    + base (sprite tile buffer index). Returns the column pool and the MarbleSpriteSet
+    initializer of the three tables' offsets."""
     pool, first, seen = [], [], {}
     for fid in range(len(sp.cols)):
         cols = tuple((x, y, hh, tile + base) for x, y, hh, tile in sp.objs_cols(fid))
@@ -1323,16 +1342,11 @@ def frame_table(f, name, sp, base):
         if h & 1 or not HDR_BASE <= h < HDR_BASE + 0x20000:
             fatal(f"marble: frame header {h:05x} odd or outside 0x20000-0x3ffff")
     addr = [(h - HDR_BASE) >> 1 for h in sp.hdrs]
-    print(f"static const uint16_t marble_sprite_addr_{name}[] = {{\n{c_words(addr)}\n}};", file=f)
-    print(f"static const MarbleSpriteFrame marble_sprite_frames_{name}[] = {{", file=f)
-    for fid, c in enumerate(sp.cols):
-        print(f"  {{ {len(c)}, {first[fid]} }},", file=f)
-    print("};", file=f)
-    print(f"static const MarbleSpriteCol marble_sprite_cols_{name}[] = {{", file=f)
-    for x, y, hh, tile in pool:
-        print(f"  {{ {x}, {y}, {hh}, {tile} }},", file=f)
-    print("};", file=f)
-    return pool
+    # MarbleSpriteFrame { uint8_t ncols; uint16_t first; }, MarbleSpriteCol { int8_t x, y;
+    # uint8_t h; uint16_t tile; }: C layout, padding byte before the uint16_t
+    frames = b"".join(struct.pack("<BxH", len(c), first[fid]) for fid, c in enumerate(sp.cols))
+    cols = b"".join(struct.pack("<bbBxH", *c) for c in pool)
+    return pool, f"{table_add(frames)}, {table_add(cols)}, {table_add(words(addr))}"
 
 
 def sets_flash(rom, sprites):
@@ -1379,12 +1393,20 @@ def emit_sprites(f, rom, size4, size4b1, size4b2):
         print(line, file=f)
     print("struct MarbleSpriteCol { int8_t x, y; uint8_t h; uint16_t tile; };", file=f)
     print("struct MarbleSpriteFrame { uint8_t ncols; uint16_t first; };", file=f)
-    print("struct MarbleSpriteSet {\n  const MarbleSpriteFrame *frames; const MarbleSpriteCol *cols;\n"
-          "  const uint16_t *addr; uint8_t nhdr, nframes; uint16_t ntiles;\n};", file=f)
+    print("static_assert(sizeof(MarbleSpriteCol) == 6 && sizeof(MarbleSpriteFrame) == 4,\n"
+          "              \"frame_table() packs this layout\");", file=f)
+    print("struct MarbleSpriteSet {\n  uint16_t frames_at, cols_at, addr_at; uint8_t nhdr, nframes; "
+          "uint16_t ntiles;\n"
+          "  const MarbleSpriteFrame *frames() const { "
+          "return marble_table<MarbleSpriteFrame>(frames_at); }\n"
+          "  const MarbleSpriteCol *cols() const { return marble_table<MarbleSpriteCol>(cols_at); }\n"
+          "  const uint16_t *addr() const { return marble_table<uint16_t>(addr_at); }\n};", file=f)
     sizes = {"tiles": 0, "frames": 0, "columns": 0, "header ids": 0}
     ndeath = len(DEATH.tile_codes)
+    tables = []
     for k, (n, sp, tiles) in enumerate(sets):
-        pool = frame_table(f, k, sp, ndeath)
+        pool, at = frame_table(sp, ndeath)
+        tables.append(at)
         emit_compressed(f, f"marble_spr{k}_tiles", "unsigned char", "[32]", len(sp.tile_codes),
                         list(tiles))
         packed = len(lzma_compress(tiles))
@@ -1399,7 +1421,7 @@ def emit_sprites(f, rom, size4, size4b1, size4b2):
         sizes["header ids"] += 2 * len(sp.hdrs)
     print("static const MarbleSpriteSet marble_sprites[%d] = {" % len(sets), file=f)
     for k, (n, sp, tiles) in enumerate(sets):
-        print(f"  {{ marble_sprite_frames_{k}, marble_sprite_cols_{k}, marble_sprite_addr_{k}, "
+        print(f"  {{ {tables[k]}, "
               f"{len(sp.hdrs)}, {len(sp.cols)}, {ndeath + len(sp.tile_codes)} }},", file=f)
     print("};", file=f)
     print("static const FlashAsset<unsigned char[32], COMPRESSED> marble_sprite_tiles[%d] = { "
@@ -1495,14 +1517,10 @@ def emit_hud(f, rom, size3b):
             "// flash); bonus colours of 0x118d2."):
         print(line, file=f)
     print(f"static const uint8_t MARBLE_HUD_NO_GLYPH = 0x{hud.NO_GLYPH:02x};", file=f)
-    print(f"static const uint16_t marble_hud_glyphs[{len(rows)}][8] = {{", file=f)
-    for c, g in zip(codes, rows):
-        print("  { " + ", ".join(f"0x{v:04x}" for v in g) + f" }},  // 0x{c:03x}", file=f)
-    print("};", file=f)
-    print(f"static const uint8_t marble_hud_glyph[0x{hud.CODES:x}] = {{", file=f)
-    for k in range(0, hud.CODES, 16):
-        print("  " + ", ".join(f"0x{v:02x}" for v in gmap[k:k + 16]) + ",", file=f)
-    print("};", file=f)
+    print(f"static const uint8_t MARBLE_HUD_GLYPHS = {len(rows)};", file=f)
+    emit_table(f, "marble_hud_glyphs", "uint16_t", "[8]", words([v for g in rows for v in g]))
+    print(f"static const uint16_t MARBLE_HUD_CODES = 0x{hud.CODES:x};", file=f)
+    emit_table(f, "marble_hud_glyph", "uint8_t", "", bytes(gmap))
     print("static const uint16_t marble_hud_pal[32] = { "
           + ", ".join(f"0x{v:04x}" for v in pal) + " };", file=f)
     print("static const uint16_t marble_hud_pulse[16] = { "
@@ -1698,7 +1716,7 @@ def emit_death(f, rom, size4b, size4b2, size4b3, size4b4, size4b5, size4b6):
             "// tile buffer; columns index them directly. Sparkle star MO code MARBLE_STAR_CODE + k",
             "// (k < MARBLE_STARS, height 1, 0x13ade) is buffer tile MARBLE_STAR_TILE + k."):
         print(line, file=f)
-    pool = frame_table(f, "death", ds, 0)
+    pool, at = frame_table(ds, 0)
     emit_compressed(f, "marble_death_tiles", "unsigned char", "[32]", len(ds.tile_codes),
                     list(tiles))
     print(f"static const uint16_t MARBLE_DEATH_TILES = {len(ds.tile_codes)};", file=f)
@@ -1719,8 +1737,7 @@ def emit_death(f, rom, size4b, size4b2, size4b3, size4b4, size4b5, size4b6):
     print(f"static const uint16_t MARBLE_STAR_CODE = 0x{mo.STAR_CODE:03x};", file=f)
     print(f"static const uint8_t MARBLE_STARS = {mo.STARS};", file=f)
     print(f"static const uint16_t MARBLE_STAR_TILE = {first};", file=f)
-    print(f"static const MarbleSpriteSet marble_death_set = {{ marble_sprite_frames_death, "
-          f"marble_sprite_cols_death, marble_sprite_addr_death, {len(ds.hdrs)}, {len(ds.cols)}, "
+    print(f"static const MarbleSpriteSet marble_death_set = {{ {at}, {len(ds.hdrs)}, {len(ds.cols)}, "
           f"{len(ds.tile_codes)} }};", file=f)
     pals = {tuple(tuple(rgb888_to_rgb565_le(*md.palette(rom, n, True)[0x100 + st * 16 + pen])
                         for pen in range(8)) for st in DEATH_SETS) for n in range(md.LEVELS)}
@@ -1804,6 +1821,13 @@ def main():
     with open(OUT, "w") as f:
         print("// Generated by romconv/internal/marble/marble_rom_convert.py; do not edit.", file=f)
         print("#ifndef MARBLE_ROM_H\n#define MARBLE_ROM_H\n#include <stdint.h>", file=f)
+        print("// Tables read through name() or a struct accessor live in marble_tables: one LZMA",
+              file=f)
+        print("// blob that marble_physics::loadRom() unpacks to the Arena, at 2-aligned offsets.",
+              file=f)
+        print("extern const uint8_t *marble_tables;", file=f)
+        print("template <typename T> static inline const T *marble_table(uint16_t at) {\n"
+              "  return (const T *)(marble_tables + at);\n}", file=f)
         print("struct MarbleLevelInfo { uint16_t rows; uint16_t tiles; };", file=f)
         print(f"static const uint8_t MARBLE_TITLE_LEVEL = {md.LEVELS};  // the title playfield",
               file=f)
@@ -1818,10 +1842,8 @@ def main():
               + ", ".join(f"marble_l{n}_map_blob" for n in range(md.LEVELS + 1)) + " };", file=f)
         print("static const FlashAsset<unsigned char[64], COMPRESSED> marble_tiles[7] = { "
               + ", ".join(f"marble_l{n}_tiles_blob" for n in range(md.LEVELS + 1)) + " };", file=f)
-        print("static const unsigned short marble_pf_palette[7][128] = {", file=f)
-        for _, _, _, pal in levels + [title]:
-            print("  { " + ", ".join(f"0x{v:04x}" for v in pal) + " },", file=f)
-        print("};", file=f)
+        emit_table(f, "marble_pf_palette", "uint16_t", "[128]",
+                   words([v for _, _, _, pal in levels + [title] for v in pal]))
         size3, size4, size4b, size4b1, size4b2, size4b3, size4b4, size4b5, size4b6 = \
             {}, {}, {}, {}, {}, {}, {}, {}, {}
         SPRITES[:] = [mo.Sprites(n) for n in range(md.LEVELS)]
@@ -1840,7 +1862,9 @@ def main():
         emit_demo(f, rom, size6b)
         size5 = {}
         emit_sound(f, size5)
+        emit_compressed(f, "marble_tables", "unsigned char", "", len(TABLES), list(TABLES))
         print("#endif", file=f)
+    print(f"tables: {len(TABLES)} B raw (Arena), {len(lzma_compress(bytes(TABLES)))} B LZMA")
     write_hud_fixture(rom)
     write_attract_fixture(rom, title)
     print("phase 6a (title) flash: " + ", ".join(f"{k} {v}" for k, v in size6a.items())

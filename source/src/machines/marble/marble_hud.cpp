@@ -427,9 +427,9 @@ void blend(const Grid &g, int row, uint16_t *dst) {
     const uint16_t w = g.cells[row][c];
     if (!w) { continue; }
     const uint16_t code = w & 0x3ff;
-    if (code >= sizeof(marble_hud_glyph)) { continue; }
-    const uint8_t gi = marble_hud_glyph[code];
-    const uint16_t *lines = gi == MARBLE_HUD_NO_GLYPH ? NONE : marble_hud_glyphs[gi];
+    if (code >= MARBLE_HUD_CODES) { continue; }
+    const uint8_t gi = marble_hud_glyph()[code];
+    const uint16_t *lines = gi == MARBLE_HUD_NO_GLYPH ? NONE : marble_hud_glyphs()[gi];
     if (lines == NONE && !(w & OPAQUE)) { continue; }
 
     const uint16_t *pal = g.pal + ((w >> 10) & 7) * 4;
