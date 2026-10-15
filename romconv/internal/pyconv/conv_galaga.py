@@ -22,6 +22,6 @@ run("internal/cmapconv.py", "galaga_colormap_tiles", "./roms/prom-5.5n", "16", "
 
 info("Galaga Audio")
 run("internal/audioconv.py", "galaga_wavetable", "./roms/prom-1.1d", "../source/src/machines/galaga/galaga_wavetable.h")
-run("internal/romconv.py", "namco54_rom", "./roms/54xx.bin", "../source/src/machines/galaga/namco54_rom.h")
+run("internal/romconv.py", "namco54_rom", "./roms/54xx.bin", "../source/src/machines/namco54/namco54_rom.h")
 
 info("--- Success ---")

@@ -15,6 +15,7 @@
 #include "xevious_dipswitches.h"
 #include "xevious_logo.h"
 #include "../machineBase.h"
+#include "../namco54/namco54_program.h"
 #include "../../emulation/namco_wsg.h"
 #include "../../emulation/namco54.h"
 #include "../../emulation/seqlock.h"
@@ -97,7 +98,7 @@ public:
   static const Logo &logo(void);
 
   // explosions: emulated 54xx, read by the audio core
-  Namco54 n54;
+  Namco54 n54{namco54Program()};
 
 protected:
   void blit_tile(short row, char col) override { }   // non usato: vedi blit_tilemap_row

@@ -14,6 +14,7 @@
 #include "galaga_starseed.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../namco54/namco54_program.h"
 #include "../../emulation/namco_wsg.h"
 #include "../../emulation/namco54.h"
 
@@ -51,7 +52,7 @@ public:
   // explosions: emulated 54xx, read by the audio core.
   // All other sounds are generated on the fly via the
   // original wave tables
-  Namco54 n54;
+  Namco54 n54{namco54Program()};
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;
