@@ -109,8 +109,6 @@ private:
   uint8_t soundRead(uint16_t addr);
   void soundWrite(uint16_t addr, uint8_t value);
   void irqLines();
-  void snWrite(int chip, uint8_t data);
-  void snNoise(int chip);
   uint8_t readP1();
   uint8_t readSystem();
   void startVblank();
@@ -132,8 +130,6 @@ private:
   Ppi8255 ppi;
   bool mainIrq;              // HOLD_LINE: pending until the CPU enables interrupts
   bool soundIrq;
-  uint8_t snLatch[2];        // last latched register per chip
-  uint8_t snNoiseReg[2];
   uint16_t palette[PALETTE_USED];
   uint16_t mixSel[system1_video::MIX_PRIORITIES];  // lookup PROM per tile priority pair
   bool clearShowsBg;
