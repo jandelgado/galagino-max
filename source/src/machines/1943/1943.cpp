@@ -102,7 +102,8 @@ void _1943::reset() {
   sound_latch = 0;
   irq_pending = false;
   sound_reset = false;
-  memset(ym_addr, 0, sizeof(ym_addr));
+  ym[0].reset();
+  ym[1].reset();
   fm[0].reset();
   fm[1].reset();
 }
@@ -236,8 +237,8 @@ unsigned char _1943::rdSound(unsigned short Addr) {
 }
 
 // $E000/$E001 YM2203 #1, $E002/$E003 #2: even = address, odd = data.
-// SSG registers 0-15 go to soundregs (AY layout, 16 per chip), the rest
-// to the FM queue. The game sets prescaler 1/3: SSG 750 kHz (audio.cpp).
+// Both YM2203 ports go to the chip (Ym2203: SSG registers 0-15, FM queue
+// for the rest). The game sets prescaler 1/3: SSG 750 kHz (AY_INC).
 void _1943::wrSound(unsigned short Addr, unsigned char Value) {
   if (Addr >= 0xc000 && Addr < 0xc800) {
     memory[SOUND_RAM + Addr - 0xc000] = Value;
@@ -249,15 +250,10 @@ void _1943::wrSound(unsigned short Addr, unsigned char Value) {
 
   const uint8_t chip = (Addr >> 1) & 1;
   if (!(Addr & 1)) {
-    ym_addr[chip] = Value;
-    fm[chip].writeAddress(Value);
+    ym[chip].writeAddress(Value);
     return;
   }
-  if (ym_addr[chip] < 16) {
-    soundregs[16 * chip + ym_addr[chip]] = Value;
-    return;
-  }
-  fm[chip].writeData(ym_addr[chip], Value);
+  ym[chip].writeData(Value);
 }
 
 void _1943::runSound() {
@@ -574,7 +570,7 @@ void _1943::gameLeds(CRGB *leds) {
 void _1943::renderAudio(int16_t *out, int n) {
   int16_t ssg[AUDIO_CHUNK];
   renderFm(out, n);
-  Ay8910::renderBank(ay, soundregs, ssg, n);
+  Ym2203::renderSsgBank(ym, ssg, n);
   audioAdd(out, ssg, n);
   audioClampAll(out, n, AUDIO_MAX);
 }

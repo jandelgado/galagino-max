@@ -117,7 +117,8 @@ void commando::reset() {
   effect_request = 0;
   sound_latch = 0;
   sound_reset = false;
-  memset(ym_addr, 0, sizeof(ym_addr));
+  ym[0].reset();
+  ym[1].reset();
 }
 
 unsigned char commando::opZ80(unsigned short Addr) {
@@ -252,7 +253,7 @@ unsigned char commando::rdSound(unsigned short Addr) {
 
 // $8000/$8001 YM2203 #1, $8002/$8003 #2: even = register select, odd =
 // data. Only the SSG registers 0-15 are kept (AY layout, 16 per chip).
-// The game sets the SSG prescaler to 1/2 (750 kHz AY clock, audio.cpp).
+// The game sets the SSG prescaler to 1/2 (750 kHz AY clock, AY_INC).
 void commando::wrSound(unsigned short Addr, unsigned char Value) {
   if (Addr >= 0x4000 && Addr < 0x4800) {
     memory[SOUND_RAM + Addr - 0x4000] = Value;
@@ -261,9 +262,9 @@ void commando::wrSound(unsigned short Addr, unsigned char Value) {
   if (Addr >= 0x8000 && Addr <= 0x8003) {
     const uint8_t chip = (Addr >> 1) & 1;
     if (!(Addr & 1)) {
-      ym_addr[chip] = Value;
-    } else if (ym_addr[chip] < 16) {
-      soundregs[16 * chip + ym_addr[chip]] = Value;
+      ym[chip].writeAddress(Value);
+    } else {
+      ym[chip].writeData(Value);
     }
   }
 }
@@ -553,7 +554,7 @@ void commando::gameLeds(CRGB *leds) {
 void commando::renderAudio(int16_t *out, int n) {
   int16_t ssg[AUDIO_CHUNK];
   renderSid(out, n);
-  Ay8910::renderBank(ay, soundregs, ssg, n);
+  Ym2203::renderSsgBank(ym, ssg, n);
   audioAdd(out, ssg, n);
   audioClampAll(out, n, AUDIO_MAX);
 }

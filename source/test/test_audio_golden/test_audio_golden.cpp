@@ -16,6 +16,8 @@
 #include "../../src/emulation/audio.cpp"
 #include "../../src/machines/zaxxon/zaxxon_sound.h"  // .cpp: deps_zaxxon_sound.cpp
 #include "../../src/emulation/ay8910.h"              // .cpp: deps_ay8910.cpp
+#include "../../src/emulation/ym2203.h"              // .cpp: deps_ym2203.cpp
+#include "../../src/emulation/ym2203fm.h"            // .cpp: deps_ym2203fm.cpp
 
 int16_t Namco54::render() { return 0; }  // galaga/xevious: not covered here
 // machineBase::reset() is in the vtable; the harness never resets CPUs
@@ -549,6 +551,57 @@ static void test_ay_init(void) {
       [](Ay8910 &ay, int16_t *out) { ay.render(AY_REGS, out, AUDIO_CHUNK); });
 }
 
+// a YM2203 driven through its port renders like an Ay8910 given the same
+// registers; data to FM registers ($10 and up) reaches the FM part only
+static void test_ym2203_port(void) {
+  static Ym2203Fm fm;  // large: keep off the stack
+  fm.reset();
+  Ym2203 ym(4, 5, &fm);
+  Ay8910 ay(4, 5);
+  uint8_t regs[Ay8910::REG_COUNT] = {};
+  rng = SCRIPT_SEED;
+  for (int chunk = 0; chunk < 200; chunk++) {
+    for (int k = 0; k < 6; k++) {
+      const uint8_t reg = rnd() % 0x30;  // SSG and FM registers
+      const uint8_t value = rnd();
+      ym.writeAddress(reg);
+      ym.writeData(value);
+      if (reg < Ay8910::REG_COUNT) {
+        regs[reg] = value;
+      }
+    }
+    int16_t a[AUDIO_CHUNK], b[AUDIO_CHUNK];
+    ym.renderSsg(a, AUDIO_CHUNK);
+    ay.render(regs, b, AUDIO_CHUNK);
+    TEST_ASSERT_EQUAL_INT16_ARRAY(b, a, AUDIO_CHUNK);
+  }
+}
+
+// without an FM part, FM writes are dropped (commando, gng)
+static void test_ym2203_no_fm(void) {
+  Ym2203 ym(4, 5);
+  ym.writeAddress(0x28);  // FM key on
+  ym.writeData(0xf0);
+  int16_t out[AUDIO_CHUNK];
+  ym.renderSsg(out, AUDIO_CHUNK);
+  for (int i = 0; i < AUDIO_CHUNK; i++) {
+    TEST_ASSERT_EQUAL_INT16(0, out[i]);
+  }
+}
+
+static void test_ym2203_init(void) {
+  assertInitIndependent<Ym2203>(
+      [](void *p) {
+        Ym2203 *y = new (p) Ym2203(4, 5);
+        for (uint8_t r = 0; r < Ay8910::REG_COUNT; r++) {
+          y->writeAddress(r);
+          y->writeData(AY_REGS[r]);
+        }
+        return y;
+      },
+      [](Ym2203 &y, int16_t *out) { y.renderSsg(out, AUDIO_CHUNK); });
+}
+
 int main(int, char **) {
   fillTables();
   UNITY_BEGIN();
@@ -577,5 +630,8 @@ int main(int, char **) {
   RUN_TEST(test_mute);
   RUN_TEST(test_zaxxon_init);
   RUN_TEST(test_ay_init);
+  RUN_TEST(test_ym2203_port);
+  RUN_TEST(test_ym2203_no_fm);
+  RUN_TEST(test_ym2203_init);
   return UNITY_END();
 }

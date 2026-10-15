@@ -3,7 +3,7 @@
 
 #include "1943_logo.h"
 #include "../machineBase.h"
-#include "../../emulation/ay8910.h"
+#include "../../emulation/ym2203.h"
 #include "../../emulation/seqlock.h"
 #include "../../emulation/ym2203fm.h"
 
@@ -96,7 +96,6 @@ private:
 
   // sound CPU (cpu[1])
   bool sound_reset = false;
-  uint8_t ym_addr[2] = {};
   Ym2203Fm fm[2];
 
   // sprite RAM bytes 0-3, scroll and enables as of the vblank IRQ (see
@@ -131,7 +130,8 @@ private:
 private:
   static const uint8_t AY_INC = 4;
   static const uint8_t AY_GAIN = 5;
-  Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
+  // after fm[2], which it points into
+  Ym2203 ym[2] = {Ym2203(AY_INC, AY_GAIN, &fm[0]), Ym2203(AY_INC, AY_GAIN, &fm[1])};
 };
 
 #endif

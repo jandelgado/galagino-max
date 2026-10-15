@@ -4,7 +4,7 @@
 #include "commando_logo.h"
 #include "commando_music.h"
 #include "../machineBase.h"
-#include "../../emulation/ay8910.h"
+#include "../../emulation/ym2203.h"
 #include "../../emulation/seqlock.h"
 #include "../../emulation/sidplayer.h"
 
@@ -101,7 +101,6 @@ private:
   // sound CPU (cpu[1])
   uint8_t sound_latch = 0;    // $C800
   bool sound_reset = false;   // $C804 bit 4
-  uint8_t ym_addr[2] = {};    // selected register per YM2203
 
   // music: written by the emulation core, read by renderSid() (audio core)
   // high byte: sequence, low byte: subtune, 0 = stopped
@@ -141,7 +140,7 @@ private:
 private:
   static const uint8_t AY_INC = 4;
   static const uint8_t AY_GAIN = 5;
-  Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
+  Ym2203 ym[2] = {Ym2203(AY_INC, AY_GAIN), Ym2203(AY_INC, AY_GAIN)};
 };
 
 #endif
