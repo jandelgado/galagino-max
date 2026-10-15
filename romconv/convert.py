@@ -82,6 +82,7 @@ GAMES = [
     "regulus",
     "upndown",
     "raflesia",
+    "swat",
     "cbdash",
     "phozon",
     "gberet",

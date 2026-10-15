@@ -309,6 +309,9 @@
 #ifdef ENABLE_RAFLESIA
   #include "machines/raflesia/raflesia.h"
 #endif
+#ifdef ENABLE_SWAT
+  #include "machines/swat/swat.h"
+#endif
 #ifdef ENABLE_CBDASH
   #include "machines/cbdash/cbdash.h"
 #endif
@@ -830,6 +833,13 @@ constexpr machineInfo machines[] = {
     raflesia::menuLeds,
 #endif
     MCH_RAFLESIA },
+#endif
+#ifdef ENABLE_SWAT
+  { createMachine<swat>, swat::logo,
+#ifdef LED_PIN
+    swat::menuLeds,
+#endif
+    MCH_SWAT },
 #endif
 #ifdef ENABLE_CBDASH
   { createMachine<cbdash>, cbdash::logo,

@@ -126,6 +126,7 @@ enum {
   MCH_JOUST,
   MCH_RAFLESIA,
   MCH_BWIDOW,
+  MCH_SWAT,
   MCH_SELFTEST
 };
 

@@ -12,8 +12,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..", "..", "..")
 MACHINES = os.path.join(ROOT, "source", "src", "machines")
 
-ARENA_CAPACITY = 182000
-ARENA_BLOCK = 91000
+ARENA_BLOCKS = (91000, 110500)  # source/src/emulation/arena.h BLOCK_A_SIZE, BLOCK_B_SIZE
 MIX_NO_COLLIDE = 0x04
 
 # MAME ROM_START per game, regions in load order
@@ -95,7 +94,52 @@ GAMES = {
                     ("epr-7410.05", "d0ad845bfe83412ac8d43125e1c50d0581a5b47e")],
         "lookup": [("pr-5317.76", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
     },
+    # swat: 315-5048 encrypted main CPU (0000-7fff), decrypted here
+    "swat": {
+        "main": [("epr5807b.129", "56e9d9a33f04b4d5971c0db24cc8719a52e64678"),
+                 ("epr-5808.130", "e8aa72f2835d38367be5e8a9313e51b64f452ee7"),
+                 ("epr-5809.131", "a0b4f0c2e537bd16f7345590da00f2622947d7e4"),
+                 ("epr-5810.132", "e740cbe239d379705fdffb3e500d6f5a2fece2e2"),
+                 ("epr-5811.133", "abf1f23dc26a7518357d0c1749e869b539c3bbed"),
+                 ("epr-5812.134", "adc8dcf643d8d0b0a1d0dda0494567263ea11a00")],
+        "sound": [("epr-5819.3", "06062648b9ebc70b4b5c30b043f537adc0052047")],
+        "tiles": [("epr-5818.82", "ad217cd8dad178f3f2f1fd44a58adcc4887fb6b7"),
+                  ("epr-5817.65", "da7378e8d12cc2970df2efa075c944c79b3b74d2"),
+                  ("epr-5816.81", "78ae13a38d6368e44ba95642cce7f5515a5b6022"),
+                  ("epr-5815.64", "a0b97e016e5cf43f223ecb6c5fe7dec7c8e9c098"),
+                  ("epr-5814.80", "bbb0afe2b195d60418014c36acf3de95adfd90d8"),
+                  ("epr-5813.63", "06b1d23cacfef3017e5951dc10e8471e9b3103d5")],
+        "sprites": [("epr-5805.86", "55c54e54f052187ddd957131e56400c9c432a6b2"),
+                    ("epr-5806.93", "e4e9f929ab8ae7da74f885481cf94335d7553a1c")],
+        "lookup": [("pr-5317.106", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
+        "crypt": "315-5048",
+    },
 }
+
+# MAME segacrpt_device.cpp sega_315_5048_device::decrypt(): per row
+# (A0, A4, A8, A12) an opcode and a data entry, indexed by src bits 3, 5
+CRYPT = {
+    "315-5048": [
+        (0x88, 0x08, 0x80, 0x00), (0xa0, 0xa8, 0x80, 0x88),
+        (0x88, 0x08, 0x80, 0x00), (0x88, 0xa8, 0x80, 0xa0),
+        (0xa0, 0x80, 0x20, 0x00), (0x88, 0x08, 0x80, 0x00),
+        (0xa0, 0xa8, 0x80, 0x88), (0x88, 0x08, 0x80, 0x00),
+        (0x28, 0x20, 0xa8, 0xa0), (0xa0, 0xa8, 0x80, 0x88),
+        (0x88, 0xa8, 0x80, 0xa0), (0x28, 0x20, 0xa8, 0xa0),
+        (0xa0, 0x80, 0x20, 0x00), (0xa0, 0xa8, 0x80, 0x88),
+        (0x28, 0x20, 0xa8, 0xa0), (0xa0, 0xa8, 0x80, 0x88),
+        (0xa0, 0x80, 0x20, 0x00), (0xa0, 0x80, 0x20, 0x00),
+        (0xa0, 0x20, 0x80, 0x00), (0x88, 0xa8, 0x80, 0xa0),
+        (0xa0, 0x20, 0x80, 0x00), (0xa0, 0x20, 0x80, 0x00),
+        (0xa0, 0x20, 0x80, 0x00), (0xa0, 0x20, 0x80, 0x00),
+        (0xa0, 0x80, 0x20, 0x00), (0xa0, 0x80, 0x20, 0x00),
+        (0x88, 0xa8, 0x80, 0xa0), (0x28, 0x20, 0xa8, 0xa0),
+        (0xa0, 0xa8, 0x80, 0x88), (0xa0, 0x80, 0x20, 0x00),
+        (0x28, 0x20, 0xa8, 0xa0), (0xa0, 0xa8, 0x80, 0x88),
+    ],
+}
+CRYPT_SIZE = 0x8000
+CRYPT_BITS = 0xa8  # bits 3, 5, 7 are swapped/inverted, the rest pass through
 
 
 def load(zip_path, files):
@@ -104,6 +148,24 @@ def load(zip_path, files):
 
 def bit(v, n):
     return (v >> n) & 1
+
+
+# MAME segacrpt decode(): data image of the whole ROM, opcode image of 0000-7fff
+def sega_decrypt(rom, table):
+    data = bytearray(rom)
+    ops = bytearray(CRYPT_SIZE)
+    for a in range(CRYPT_SIZE):
+        src = rom[a]
+        row = bit(a, 0) | bit(a, 4) << 1 | bit(a, 8) << 2 | bit(a, 12) << 3
+        col = bit(src, 3) | bit(src, 5) << 1
+        xor = 0
+        if src & 0x80:
+            col = 3 - col
+            xor = CRYPT_BITS
+        keep = src & ~CRYPT_BITS
+        ops[a] = keep | (table[2 * row][col] ^ xor)
+        data[a] = keep | (table[2 * row + 1][col] ^ xor)
+    return bytes(data), bytes(ops)
 
 
 # charlayout: 3 planes RGN_FRAC(n,3), plane 0 = MSB, byte bit 7 = left pixel.
@@ -169,6 +231,9 @@ def main(game):
     spec = GAMES[game]
     zip_path = os.path.join(ROOT, "romszip", f"{game}.zip")
     main_rom = load(zip_path, spec["main"])
+    opcodes = None
+    if "crypt" in spec:
+        main_rom, opcodes = sega_decrypt(main_rom, CRYPT[spec["crypt"]])
     sound = load(zip_path, spec["sound"])
     tiles, tile_count = decode_tiles(load(zip_path, spec["tiles"]))
     tiles, unique_count, tile_map = dedupe_tiles(tiles)
@@ -184,16 +249,20 @@ def main(game):
     emit(game, "tile_map", "unsigned short", "", tile_count, tile_map)
     emit(game, "sprites", "unsigned char", "", len(sprites), sprites)
     emit(game, "lookup_prom", "unsigned char", "", len(lookup), lookup)
+    if opcodes:
+        emit(game, "opcodes", "unsigned char", "", len(opcodes), opcodes)
     write_palette()
 
-    sizes = sorted([len(tiles) * 4, len(tile_map) * 2, len(main_rom), len(sprites), len(sound), len(lookup)],
-                   reverse=True)
+    sizes = [len(tiles) * 4, len(tile_map) * 2, len(main_rom), len(sprites), len(sound), len(lookup)]
+    if opcodes:
+        sizes.append(len(opcodes))
+    sizes.sort(reverse=True)
     blocks = [0, 0]
     for s in sizes:
-        i = 0 if blocks[0] + s <= ARENA_BLOCK else 1
+        i = 0 if blocks[0] + s <= ARENA_BLOCKS[0] else 1
         blocks[i] += s
-        assert blocks[i] <= ARENA_BLOCK, f"{game}: asset {s} does not fit an Arena block"
-    print(f"{game}: Arena {sum(sizes)} / {ARENA_CAPACITY} (blocks {blocks[0]}, {blocks[1]})")
+        assert blocks[i] <= ARENA_BLOCKS[i], f"{game}: asset {s} does not fit an Arena block"
+    print(f"{game}: Arena {sum(sizes)} / {sum(ARENA_BLOCKS)} (blocks {blocks[0]}, {blocks[1]})")
 
 
 if __name__ == "__main__":
