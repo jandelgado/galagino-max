@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include "audio_mix.h"
 
-// TI SN76489: three square tones and a noise LFSR. The machine's port
-// decoder writes period/volume directly (decoders differ per board).
+// TI SN76489: three square tones and a noise LFSR. The machine forwards the
+// CPU's port bytes to write().
 // Output at the chip's scale, up to +-(4 * 15 * 6).
 class Sn76489 {
 public:
@@ -24,13 +24,6 @@ public:
 
   // a port byte as the CPU wrote it (emulation core)
   void write(uint8_t data);
-
-  // register state; volume 15 = off. A channel with hold > 0 plays at
-  // min_volume for hold more render() calls (short blips stay audible).
-  int period[CHANNELS] = {0, 0, 0, 0};
-  int volume[CHANNELS] = {15, 15, 15, 15};
-  int min_volume[CHANNELS] = {15, 15, 15, 15};
-  int hold[CHANNELS] = {0, 0, 0, 0};
 
   void render(int16_t *out, int n);
 
@@ -59,6 +52,12 @@ private:
   uint8_t flags;
   uint8_t latch = 0;      // last latched register: channel * 2 + volume flag
   uint8_t noise_reg = 0;  // bits 0-1 rate, bit 2 white noise (not modeled)
+  // register state; volume 15 = off. A channel with hold > 0 plays at
+  // min_volume for hold more render() calls (short blips stay audible).
+  int period[CHANNELS] = {0, 0, 0, 0};
+  int volume[CHANNELS] = {15, 15, 15, 15};
+  int min_volume[CHANNELS] = {15, 15, 15, 15};
+  int hold[CHANNELS] = {0, 0, 0, 0};
   int counter[CHANNELS] = {0, 0, 0, 0};
   int toggle[CHANNELS] = {1, 1, 1, 1};
   uint32_t noise_lfsr = 0x4000;

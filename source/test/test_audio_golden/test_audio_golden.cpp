@@ -42,16 +42,17 @@ static const uint32_t TABLE_SEED = 777;
 static const int SAMPLE_BYTES = 256;
 static const uint32_t SAMPLE_NIBBLES = 400;  // < 2 * (SAMPLE_BYTES - 2)
 
-// recorded 2026-10-15 from the pre-refactoring Audio
+// recorded 2026-10-15 from the pre-refactoring Audio; the four SN hashes
+// re-recorded when the SN script moved to port bytes (Sn76489::write)
 static const uint32_t GOLDEN_AY_FROGGER = 0x25b45de4;
 static const uint32_t GOLDEN_AY_BOMBJACK = 0x432754b5;
 static const uint32_t GOLDEN_AY_GYRUSS = 0x4fbc7d26;
 static const uint32_t GOLDEN_AY_MOTORACE = 0xa43fe198;
 static const uint32_t GOLDEN_AY_FM_1943 = 0x23acec14;
-static const uint32_t GOLDEN_SN_MRDO = 0x54dd45b6;
-static const uint32_t GOLDEN_SN_TP84 = 0xfddd608a;
-static const uint32_t GOLDEN_SN_REGULUS = 0x412a2394;
-static const uint32_t GOLDEN_SN_GBERET = 0x1166d103;
+static const uint32_t GOLDEN_SN_MRDO = 0xa5e67bf0;
+static const uint32_t GOLDEN_SN_TP84 = 0xc6d3a787;
+static const uint32_t GOLDEN_SN_REGULUS = 0x0eba343a;
+static const uint32_t GOLDEN_SN_GBERET = 0x85b40557;
 static const uint32_t GOLDEN_NAMCO_PACMAN = 0x3807797a;
 static const uint32_t GOLDEN_NAMCO15XX_MAPPY = 0xdd0ba59e;
 static const uint32_t GOLDEN_POKEY_CENTIPEDE = 0xb61a23c4;
@@ -172,29 +173,14 @@ static const uint8_t AY_MASK[16] = {0xff, 0x0f, 0xff, 0x0f, 0xff, 0x0f, 0x1f, 0x
 static int ay_chips;
 static void pokeAy(machineBase *m, int) { pokeRegs(m->soundregs, 16 * ay_chips, AY_MASK, 16, 6); }
 
-struct SnView {
-  int *period;
-  int *volume;
-  int *min_volume;
-  int *hold;
-};
-static SnView sn_view[3];
+static Sn76489 *sn_target;  // chips of the running SN scenario
 static int sn_chips;
 static void pokeSn(machineBase *, int) {
   for (int k = 0; k < 4; k++) {
-    SnView &s = sn_view[rnd() % sn_chips];
-    const int ch = rnd() & 3;
-    const int what = rnd() % 3;
-    if (what == 0) {
-      const int hi = rnd() & 0x3f;
-      const int lo = rnd() & 0x0f;
-      s.period[ch] = ch == 3 ? (lo & 7) : (hi << 4 | lo);
-    } else if (what == 1) {
-      s.volume[ch] = rnd() & 15;
-    } else {
-      s.hold[ch] = rnd() % 7;
-      s.min_volume[ch] = rnd() & 15;
-    }
+    const int chip = rnd() % sn_chips;
+    const bool latch = rnd() & 1;
+    const uint8_t value = rnd() & 0x7f;
+    sn_target[chip].write(latch ? (uint8_t)(0x80 | value) : value);
   }
 }
 
@@ -358,8 +344,8 @@ public:
   explicit SnFake(const Sn76489 (&init)[N]) {
     for (int c = 0; c < N; c++) {
       sn[c] = init[c];
-      sn_view[c] = {sn[c].period, sn[c].volume, sn[c].min_volume, sn[c].hold};
     }
+    sn_target = sn;
   }
   void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   Sn76489 sn[N];  // default-constructed, replaced in the constructor
@@ -674,11 +660,12 @@ static void test_ym2203_init(void) {
 static void test_sn_init(void) {
   assertInitIndependent<Sn76489>(
       [](void *p) {
-        Sn76489 *s = new (p) Sn76489(11);
-        s->period[0] = 100;
-        s->volume[0] = 3;
-        s->period[3] = 2;
-        s->volume[3] = 5;
+        Sn76489 *s = new (p) Sn76489(11, Sn76489::HOLD_SHORT_NOTES);
+        s->write(0x80 | 0x04);  // tone 0 period low nibble
+        s->write(0x06);         // high bits
+        s->write(0x90 | 0x03);  // tone 0 volume 3
+        s->write(0xe0 | 0x01);  // noise rate N/1024
+        s->write(0xf0 | 0x05);  // noise volume 5
         return s;
       },
       [](Sn76489 &s, int16_t *out) { s.render(out, AUDIO_CHUNK); });
