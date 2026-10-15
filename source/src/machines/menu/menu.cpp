@@ -484,6 +484,7 @@ const char *mchName(signed char machineType) {
     case MCH_STARJACK:      return "Star Jacker";
     case MCH_REGULUS:       return "Regulus";
     case MCH_UPNDOWN:       return "Up'n Down";
+    case MCH_RAFLESIA:      return "Rafflesia";
     case MCH_CBDASH:        return "Boulder Dash";
     case MCH_PHOZON:        return "Phozon";
     case MCH_GBERET:        return "Green Beret";

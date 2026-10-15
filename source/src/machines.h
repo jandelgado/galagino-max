@@ -303,6 +303,9 @@
 #ifdef ENABLE_UPNDOWN
   #include "machines/upndown/upndown.h"
 #endif
+#ifdef ENABLE_RAFLESIA
+  #include "machines/raflesia/raflesia.h"
+#endif
 #ifdef ENABLE_CBDASH
   #include "machines/cbdash/cbdash.h"
 #endif
@@ -810,6 +813,13 @@ constexpr machineInfo machines[] = {
     upndown::menuLeds,
 #endif
     MCH_UPNDOWN },
+#endif
+#ifdef ENABLE_RAFLESIA
+  { createMachine<raflesia>, raflesia::logo,
+#ifdef LED_PIN
+    raflesia::menuLeds,
+#endif
+    MCH_RAFLESIA },
 #endif
 #ifdef ENABLE_CBDASH
   { createMachine<cbdash>, cbdash::logo,

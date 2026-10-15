@@ -16,8 +16,7 @@ public:
     const uint8_t *spriteRom;
     uint8_t spriteBanks;
     const uint8_t *vram;
-    const uint32_t (*tiles)[8];
-    uint16_t tileMask;
+    system1_video::TileSet tiles;
     const uint8_t *prom;
     uint8_t videoMode;
     system1_video::Visarea vis;

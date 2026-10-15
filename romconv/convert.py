@@ -80,6 +80,7 @@ GAMES = [
     "starjack",
     "regulus",
     "upndown",
+    "raflesia",
     "cbdash",
     "phozon",
     "gberet",

@@ -363,7 +363,7 @@ void Audio::transmit() {
     else if (currentMachine->hasNamco15xxAudio())
       namco_15xx_render_buffer();
     else if (machineType == MCH_MRDO || machineType == MCH_LADYBUG || machineType == MCH_STARFORCE || machineType == MCH_BALUBA || machineType == MCH_VANVAN || machineType == MCH_CIRCUSC || machineType == MCH_ROADFIGHTER || machineType == MCH_TP84 ||
-             machineType == MCH_STARJACK || machineType == MCH_REGULUS || machineType == MCH_UPNDOWN || machineType == MCH_GBERET)
+             machineType == MCH_STARJACK || machineType == MCH_REGULUS || machineType == MCH_UPNDOWN || machineType == MCH_RAFLESIA || machineType == MCH_GBERET)
       sn76489_render_buffer();
     else if (machineType == MCH_DKONG || machineType == MCH_DKONGJR)
       i8048_render_buffer();
@@ -977,7 +977,8 @@ void Audio::sn76489_render_buffer(void) {
   // tp84: 3x SN76489 @ 1.79 MHz (XTAL 14.318/8): 1789773 / 16 / 24000 = 4.7
   if (machineType == MCH_TP84) sn_inc[0] = sn_inc[1] = sn_inc[2] = 5;
   // System 1: sn1 2 MHz, sn2 4 MHz
-  if (machineType == MCH_STARJACK || machineType == MCH_REGULUS || machineType == MCH_UPNDOWN) sn_inc[0] = 5;
+  if (machineType == MCH_STARJACK || machineType == MCH_REGULUS || machineType == MCH_UPNDOWN ||
+      machineType == MCH_RAFLESIA) sn_inc[0] = 5;
   // Green Beret: SN76489A @ 1.536 MHz -> 1536000 / 16 / 24000 = 4
   if (machineType == MCH_GBERET) sn_inc[0] = 4;
 

@@ -74,6 +74,27 @@ GAMES = {
                     ("epr-5515.93", "aedff8ce07ab16942037e5aff212652e51c19e71")],
         "lookup": [("pr-5317.106", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
     },
+    # raflesiau: unencrypted set, main ROMs in subdir raflesiau/ of raflesia.zip
+    "raflesia": {
+        "main": [("raflesiau/epr-7433.129", "4c02e052c01099478adb5bb595c035aff862dd45"),
+                 ("raflesiau/epr-7434.130", "7bba493c8493611952e029dc8782916cc25db82a"),
+                 ("raflesiau/epr-7435.131", "5bffdcdf543f47ccf2ed0cabf1ef9e42857d59f9"),
+                 ("raflesiau/epr-7436.132", "aecf33c777e8f4a7323d72dd3f2ca5d12cc798e7"),
+                 ("raflesiau/epr-7437.133", "a97654ff82ffa051ee14359733c2b9a952134d4e"),
+                 ("raflesiau/epr-7438.134", "c353ed4d21661ea0721d8b85d6bfefe502373d7b")],
+        "sound": [("epr-7420.120", "9cb18e3002c32f658e4725707069f9cd2f496507")],
+        "tiles": [("epr-7419.62", "78c4d380d5558212e535c3262223137447d64818"),
+                  ("epr-7418.61", "48be9337f704a11ac1fdeb64a3b3518c796bcdd0"),
+                  ("epr-7417.64", "5cfd19241c54782c262bbb23c6f682534e77feb7"),
+                  ("epr-7416.63", "78bb1c4651bd63a9f776766d2eac4f1c09242ed5"),
+                  ("epr-7415.66", "b04ee35f603c6c9923ba888914eb43a8b7753d92"),
+                  ("epr-7414.65", "bdc0185d133f7bbe287106882bacde846634ffa4")],
+        "sprites": [("epr-7407.117", "c6f06144b708055b31fbcba9f38b63736db789d8"),
+                    ("epr-7409.04", "e63f0422814423be91d8e1937a13d19693a1a5fc"),
+                    ("epr-7408.110", "8476c2c01920f0492cf643929d4f023f3afe0164"),
+                    ("epr-7410.05", "d0ad845bfe83412ac8d43125e1c50d0581a5b47e")],
+        "lookup": [("pr-5317.76", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
+    },
 }
 
 
@@ -102,6 +123,20 @@ def decode_tiles(rom):
                 w = (w << 3) | px
             out.append(w)
     return out, count
+
+
+# Unique tiles in first-use order plus code -> unique index map (Arena budget)
+def dedupe_tiles(words):
+    index = {}
+    unique = []
+    tile_map = []
+    for c in range(len(words) // 8):
+        key = tuple(words[c * 8:c * 8 + 8])
+        if key not in index:
+            index[key] = len(index)
+            unique.extend(key)
+        tile_map.append(index[key])
+    return unique, len(index), tile_map
 
 
 def palette565():
@@ -136,6 +171,7 @@ def main(game):
     main_rom = load(zip_path, spec["main"])
     sound = load(zip_path, spec["sound"])
     tiles, tile_count = decode_tiles(load(zip_path, spec["tiles"]))
+    tiles, unique_count, tile_map = dedupe_tiles(tiles)
     sprites = load(zip_path, spec["sprites"])
     lookup = load(zip_path, spec["lookup"])
     assert len(sprites) % 0x8000 == 0, "sprite ROM is banked in 0x8000 units"
@@ -144,12 +180,13 @@ def main(game):
 
     emit(game, "main_rom", "unsigned char", "", len(main_rom), main_rom)
     emit(game, "sound_rom", "unsigned char", "", len(sound), sound)
-    emit(game, "tiles", "uint32_t", "[8]", tile_count, tiles)
+    emit(game, "tiles", "uint32_t", "[8]", unique_count, tiles)
+    emit(game, "tile_map", "unsigned short", "", tile_count, tile_map)
     emit(game, "sprites", "unsigned char", "", len(sprites), sprites)
     emit(game, "lookup_prom", "unsigned char", "", len(lookup), lookup)
     write_palette()
 
-    sizes = sorted([len(tiles) * 4, len(main_rom), len(sprites), len(sound), len(lookup)],
+    sizes = sorted([len(tiles) * 4, len(tile_map) * 2, len(main_rom), len(sprites), len(sound), len(lookup)],
                    reverse=True)
     blocks = [0, 0]
     for s in sizes:

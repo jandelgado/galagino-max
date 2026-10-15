@@ -5,13 +5,14 @@
 #include "regulus_main_rom.h"
 #include "regulus_sound_rom.h"
 #include "regulus_tiles.h"
+#include "regulus_tile_map.h"
 #include "regulus_sprites.h"
 #include "regulus_lookup_prom.h"
 
 // full 256 px visarea (sys1ppi, HUD at both ends); FIRE fires laser, START
 // drops bomb
 regulus::regulus() : system1(Roms{
-    regulus_main_rom_blob, regulus_sound_rom_blob, regulus_tiles_blob,
+    regulus_main_rom_blob, regulus_sound_rom_blob, regulus_tiles_blob, regulus_tile_map_blob,
     regulus_sprites_blob, regulus_lookup_prom_blob,
 }, Config{system1_video::VISAREA_FULL, true}) { }
 

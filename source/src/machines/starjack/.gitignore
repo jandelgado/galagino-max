@@ -3,3 +3,4 @@ starjack_sound_rom.h
 starjack_tiles.h
 starjack_sprites.h
 starjack_lookup_prom.h
+starjack_tile_map.h

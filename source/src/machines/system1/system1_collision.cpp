@@ -78,8 +78,8 @@ __attribute__((flatten)) void Collision::mixLine(const Frame &f, int y, int scro
     line[x] = EMPTY;
 
     uint8_t fgColor, bgColor;
-    const uint8_t fp = tilePixel(fgPage, f.tiles, f.tileMask, (uint8_t)(x / 2), y, fgColor);
-    const uint8_t bp = tilePixel(bgPage, f.tiles, f.tileMask, bgCol(x, scroll),
+    const uint8_t fp = tilePixel(fgPage, f.tiles, (uint8_t)(x / 2), y, fgColor);
+    const uint8_t bp = tilePixel(bgPage, f.tiles, bgCol(x, scroll),
                                  bgY(y, yscroll), bgColor);
     const uint8_t v = f.prom[mixIndex(true, fp, fgColor, bp, bgColor)];
     if (v & MIX_NO_COLLIDE) {

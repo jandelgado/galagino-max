@@ -8,6 +8,7 @@ static uint8_t spriteRam[SPRITES * SPRITE_BYTES];
 static uint8_t spriteRom[SPRITE_BANK];
 static uint8_t vram[2 * PAGE_BYTES];
 static uint32_t tiles[2][8];
+static const uint16_t tileMap[2] = {0, 1};
 static uint8_t prom[256];
 static Collision col;
 
@@ -28,7 +29,7 @@ static void sprite(int n, uint8_t top, uint8_t lines, uint16_t x512) {
 }
 
 static Collision::Frame frame(uint8_t mode = 0, Visarea vis = VISAREA_SCROLL) {
-  Collision::Frame f = {spriteRam, spriteRom, 1, vram, tiles, 1, prom, mode, vis};
+  Collision::Frame f = {spriteRam, spriteRom, 1, vram, {tiles, tileMap, 1}, prom, mode, vis};
   return f;
 }
 

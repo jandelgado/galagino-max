@@ -5,11 +5,12 @@
 #include "starjack_main_rom.h"
 #include "starjack_sound_rom.h"
 #include "starjack_tiles.h"
+#include "starjack_tile_map.h"
 #include "starjack_sprites.h"
 #include "starjack_lookup_prom.h"
 
 starjack::starjack() : system1(Roms{
-    starjack_main_rom_blob, starjack_sound_rom_blob, starjack_tiles_blob,
+    starjack_main_rom_blob, starjack_sound_rom_blob, starjack_tiles_blob, starjack_tile_map_blob,
     starjack_sprites_blob, starjack_lookup_prom_blob,
 }, Config{system1_video::VISAREA_SCROLL, false}) { }
 
