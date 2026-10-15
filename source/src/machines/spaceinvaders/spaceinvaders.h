@@ -48,9 +48,9 @@ protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> spaceinvaders_rom;
 public:
-    // read by Audio::spaceinvaders_render_buffer()
-    Asset<unsigned char, PLAIN> si_sample_shot;
-    Asset<unsigned char, PLAIN> si_sample_invhit;
+    // read by SpaceInvadersSound
+    Asset<unsigned char, COMPRESSED> si_sample_shot;
+    Asset<unsigned char, COMPRESSED> si_sample_invhit;
     SpaceInvadersSound sound;  // after the sample assets it points into
 
     spaceinvaders();

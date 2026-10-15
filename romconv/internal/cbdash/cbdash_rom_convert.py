@@ -15,7 +15,7 @@ import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import load_file
-from asset_emit import emit_compressed, emit_plain
+from asset_emit import emit_compressed
 from convutil import fatal
 
 ROMS = os.path.normpath(os.path.join("..", "..", "..", "romszip"))
@@ -143,14 +143,12 @@ def main():
     total += write("cbdash_rom_audio.h", "cbdash_rom_audio", audio,
                    "sound CPU ROM 0xf800-0xffff")
 
-    # plain: SidPlayer copies the payload into its RAM window anyway
     sid = sid_tune()
     with open(os.path.join(OUT_DIR, "cbdash_sid.h"), "w") as f:
         print("// C64 Boulder Dash PSID (Peter Liepa, 1984 First Star), rebuilt contiguous", file=f)
-        body = ",\n".join(",".join("0x%02x" % v for v in sid[i:i + 16]) for i in range(0, len(sid), 16))
-        emit_plain(f, "cbdash_sid", "unsigned char", "", len(sid), body)
+        emit_compressed(f, "cbdash_sid", "unsigned char", "", len(sid), list(sid))
     print(f"cbdash_sid: {len(sid)} bytes")
-    total += len(sid) - PSID_DATA  # SidPlayer RAM window
+    total += 2 * len(sid) - PSID_DATA  # the file + the SidPlayer RAM window
     print(f"Arena (decompressed assets): {total} bytes")
 
 if __name__ == "__main__":

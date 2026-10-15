@@ -8,6 +8,8 @@
 // unpack galaga.zip; same bytes, last one wins). namco54_rom.h defines the
 // bytes static, so including it in both machines would put two copies in
 // flash: namco54_program.cpp is the one translation unit that includes it.
+// Unpacks the program to the Arena: once per machine instance, the copy dies
+// with the Arena.
 const uint8_t *namco54Program(void);
 
 #endif
