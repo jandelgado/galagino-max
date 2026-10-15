@@ -20,20 +20,20 @@
 //   native visible y' (0..223) -> panel column y'
 class commando : public machineBase {
 protected:
-  // ROM assets: Arena residents unpacked eagerly in the ctor (largest
-  // first, to fit Arena's two blocks). The bg tiles compress best, so they
-  // take the Arena; the ROMs, chars and sprite bank 1 stay in flash.
+  // ROM assets: Arena residents unpacked eagerly in the ctor (not every
+  // order fits Arena's two blocks). The ROMs and bg tiles part a stay in
+  // flash: the other assets save more flash per Arena byte.
   Asset<unsigned char, PLAIN> commando_rom;
   Asset<uint32_t[32], COMPRESSED> commando_sprites0;
-  Asset<uint32_t[32], PLAIN> commando_sprites1;
+  Asset<uint32_t[32], COMPRESSED> commando_sprites1;
   Asset<uint32_t[32], COMPRESSED> commando_sprites2;
-  Asset<unsigned short[8], PLAIN> commando_chars;
+  Asset<unsigned short[8], COMPRESSED> commando_chars;
   Asset<unsigned short[8], COMPRESSED> commando_cmap_tiles;
   Asset<unsigned short[16], COMPRESSED> commando_cmap_sprites;
   Asset<unsigned short[4], COMPRESSED> commando_cmap_chars;
-  Asset<uint32_t[32], COMPRESSED> commando_tiles_a;  // tiles 0..TILES_A-1, block A
+  Asset<uint32_t[32], PLAIN> commando_tiles_a;       // tiles 0..TILES_A-1, flash
   Asset<uint32_t[32], COMPRESSED> commando_tiles_b;  // the rest, block B
-  Asset<unsigned char, PLAIN> commando_sid;
+  Asset<unsigned char, COMPRESSED> commando_sid;
   Asset<unsigned char, PLAIN> commando_sound;
 
 public:
