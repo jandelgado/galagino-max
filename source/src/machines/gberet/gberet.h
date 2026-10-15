@@ -62,7 +62,6 @@ private:
   VideoState video;  // render copy, video core only
 
   void interrupt_tick();
-  void sn_write(uint8_t data);
   void render_line(unsigned short *dst, int line);
 
   uint8_t int_mask = 0;     // e044 b0 NMI, b1/b2 IRQ enable
@@ -71,7 +70,6 @@ private:
   bool irq_line = false;    // held until e044 clears b1/b2
   uint8_t sprite_bank = 0;  // e043
   uint8_t sn_latch = 0;     // f200
-  uint8_t sn_reg = 0;       // SN76489 latched register
 #ifdef LED_PIN
   uint8_t led_frame = 0;
 #endif
@@ -82,7 +80,7 @@ private:
   const uint32_t (*sprites)[16][2] = nullptr;
 
 protected:
-  Sn76489 sn[1] = {Sn76489(Sn76489::INC_1536KHZ)};
+  Sn76489 sn[1] = {Sn76489(Sn76489::INC_1536KHZ, Sn76489::HOLD_SHORT_NOTES)};
 };
 
 #endif // ENABLE_GBERET

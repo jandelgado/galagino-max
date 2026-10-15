@@ -41,7 +41,7 @@ void gberet::reset() {
   machineBase::reset();
   int_mask = int_ticks = 0;
   nmi_line = irq_line = false;
-  sprite_bank = sn_latch = sn_reg = 0;
+  sprite_bank = sn_latch = 0;
 }
 
 // ── Z80 ──
@@ -105,24 +105,8 @@ void gberet::wrZ80(unsigned short Addr, unsigned char Value) {
       return;
     }
     case 0xf200: sn_latch = Value; return;
-    case 0xf400: sn_write(sn_latch); return;
+    case 0xf400: sn[0].write(sn_latch); return;
     default: return;  // e040-e042 unknown, f000 coin counters, f600 watchdog
-  }
-}
-
-// SN76489 byte stream -> sn_*[0] (as roadfighter::sn76489_write)
-void gberet::sn_write(uint8_t data) {
-  if (data & 0x80) { sn_reg = (data >> 4) & 0x07; }
-  const int ch = sn_reg >> 1;
-  if (sn_reg & 1) {
-    const uint8_t vol = data & 0x0f;
-    sn[0].volume[ch] = vol;
-    sn[0].min_volume[ch] = vol;
-    if (vol < 15) { sn[0].hold[ch] = 6; }
-  } else if (data & 0x80) {
-    sn[0].period[ch] = (sn[0].period[ch] & 0x3f0) | (data & 0x0f);
-  } else {
-    sn[0].period[ch] = (sn[0].period[ch] & 0x00f) | ((data & 0x3f) << 4);
   }
 }
 
