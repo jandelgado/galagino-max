@@ -67,8 +67,6 @@ private:
 	unsigned short calculate_color_starforce(unsigned char raw_palette_byte);
 	void blit_background_line(short start_screen_row, int layer_num);
 	unsigned char bg_color_group(unsigned char tile_code, int layer_num);
-	void SN76489_Write_3chip(int chip, unsigned char data);
-	int sn_last_register[3];
 
 	// Latch per la comunicazione tra CPU principale e CPU audio
 	unsigned char sound_latch = 0;

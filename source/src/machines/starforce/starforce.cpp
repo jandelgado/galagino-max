@@ -237,15 +237,15 @@ void starforce::wrZ80(unsigned short Addr, unsigned char Value) {
 
     // 0x8000, 0x9000, 0xA000: Scrittura ai chip audio SN76489
     if (Addr == 0x8000) {
-      SN76489_Write_3chip(0, Value); // Chiama direttamente la funzione di scrittura
+      sn[0].write(Value);
       return;
     }
     if (Addr == 0x9000) {
-      SN76489_Write_3chip(1, Value); // Chiama direttamente la funzione di scrittura
+      sn[1].write(Value);
       return;
     }
     if (Addr == 0xA000) {
-      SN76489_Write_3chip(2, Value); // Chiama direttamente la funzione di scrittura
+      sn[2].write(Value);
       return;
     }
 
@@ -306,36 +306,6 @@ void starforce::run_frame(void) {
 
   if (coinFrameCounter > 0)
     coinFrameCounter--;
-}
-
-void starforce::SN76489_Write_3chip(int chip, unsigned char data) {
-  if (data & 0x80) { // Latch
-    int reg = (data >> 5) & 0x03; 
-    int type = (data >> 4) & 0x01;
-    sn_last_register[chip] = (reg * 2) + type;
-        
-    if (reg < 4) { 
-      if (type == 0) { // Freq (4 bit bassi)
-        sn[chip].period[reg] = (sn[chip].period[reg] & 0x3F0) | (data & 0x0F);
-      } 
-      else { // Volume
-        sn[chip].volume[reg] = (data & 0x0F);
-      }
-    }
-  } 
-  else { // Dati
-    int reg = sn_last_register[chip] / 2;
-    int type = sn_last_register[chip] % 2;
-
-    if (reg < 4 && type == 0) { // Se il latch era per una Frequenza
-      if (reg == 3) { // Canale di rumore
-        sn[chip].period[3] = data & 0x07;
-      } 
-      else { // Canali di tono
-        sn[chip].period[reg] = (sn[chip].period[reg] & 0x00F) | ((data & 0x3F) << 4);
-      }
-    }
-  }
 }
 
 void starforce::prepare_frame(void) {
