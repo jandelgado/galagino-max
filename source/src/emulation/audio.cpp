@@ -1082,16 +1082,20 @@ void Audio::namco_render_buffer(void) {
     snd_cnt[1] += snd_freq[1];
     snd_cnt[2] += snd_freq[2];
 
+#ifdef ENABLE_GALAGA
     if(machineType == MCH_GALAGA) {
       galaga *galagaMachine = static_cast<galaga*>(currentMachine);
 
       value += galagaMachine->n54.render();
     }
-    else if(machineType == MCH_XEVIOUS) {
+#endif
+#ifdef ENABLE_XEVIOUS
+    if(machineType == MCH_XEVIOUS) {
       xevious *xeviousMachine = static_cast<xevious*>(currentMachine);
 
       value += xeviousMachine->n54.render();
     }
+#endif
 
     valueToBuffer(i, value);
   }
