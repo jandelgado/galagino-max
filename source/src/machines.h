@@ -291,6 +291,9 @@
 #ifdef ENABLE_BERZERK
   #include "machines/berzerk/berzerk.h"
 #endif
+#ifdef ENABLE_GORF
+  #include "machines/gorf/gorf.h"
+#endif
 #ifdef ENABLE_STARWARS
   #include "machines/starwars/starwars.h"
 #endif
@@ -797,6 +800,13 @@ constexpr machineInfo machines[] = {
     berzerk::menuLeds,
 #endif
     MCH_BERZERK },
+#endif
+#ifdef ENABLE_GORF
+  { createMachine<gorf>, gorf::logo,
+#ifdef LED_PIN
+    gorf::menuLeds,
+#endif
+    MCH_GORF },
 #endif
 #ifdef ENABLE_STARWARS
   { createMachine<starwars>, starwars::logo,
