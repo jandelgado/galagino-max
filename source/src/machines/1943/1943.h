@@ -1,6 +1,7 @@
 #ifndef _1943_H
 #define _1943_H
 
+#include "1943_logo.h"
 #include "../machineBase.h"
 #include "../../emulation/seqlock.h"
 #include "../../emulation/ym2203fm.h"
@@ -42,6 +43,11 @@ public:
   void prepare_frame() override;
   void render_row(short row) override;
   void renderFm(int16_t *out, int n) override;
+  static const Logo &logo() { return _1943_logo; }
+#ifdef LED_PIN
+  static void menuLeds(CRGB *leds);
+  void gameLeds(CRGB *leds) override;
+#endif
 
 private:
   // memory[] layout
@@ -81,6 +87,10 @@ private:
   uint8_t scroll[5] = {}; // $D800-$D804
   uint8_t sound_latch = 0;
   bool irq_pending = false; // vblank IRQ held until the main CPU enables
+#ifdef LED_PIN
+  static const uint8_t LED_FLASH_FRAMES = 60;
+  volatile uint8_t led_flash = 0; // set by the emulation core
+#endif
 
   // sound CPU (cpu[1])
   bool sound_reset = false;

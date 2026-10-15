@@ -24,6 +24,8 @@ static const uint16_t SOUND_IDLE_PC = 0x007c;
 static const uint32_t FM_RATE = 24000;         // audio.cpp I2S rate
 static const int FM_SHIFT = 9; // full-scale chip -> 64, an SSG channel peaks at 75
 
+static const uint8_t SND_PLAYER_DOWN = 0x05; // sound latch: player plane explodes
+
 // $C804
 static const uint8_t C804_BANK_SHIFT = 2;
 static const uint8_t C804_BANK_MASK = 7;
@@ -196,6 +198,11 @@ void _1943::wrZ80(unsigned short Addr, unsigned char Value) {
 
   switch (Addr) {
     case 0xc800:
+#ifdef LED_PIN
+      if (Value == SND_PLAYER_DOWN) {
+        led_flash = LED_FLASH_FRAMES;
+      }
+#endif
       sound_latch = Value;
       game_started = 1; // first command comes right after the boot test
       return;
@@ -478,3 +485,28 @@ void _1943::render_row(short row) {
     blitChar(row, col);
   }
 }
+
+#ifdef LED_PIN
+// logo colors (quantized logos/1943.png)
+static const CRGB RED = CRGB(0xc60000);
+static const CRGB BLUE = CRGB(0x006abe);
+static const CRGB DARK_BLUE = CRGB(0x00417c);
+static const CRGB WHITE = CRGB(0xf7fbf7);
+
+void _1943::menuLeds(CRGB *leds) {
+  const CRGB pattern[NUM_LEDS] = {DARK_BLUE, BLUE, RED, WHITE, RED, BLUE, DARK_BLUE};
+  memcpy(leds, pattern, sizeof(pattern));
+}
+
+// logo colors, red while the player's plane explodes
+void _1943::gameLeds(CRGB *leds) {
+  if (led_flash) {
+    led_flash--;
+    for (int i = 0; i < NUM_LEDS; i++) {
+      leds[i] = LED_RED;
+    }
+    return;
+  }
+  menuLeds(leds);
+}
+#endif
