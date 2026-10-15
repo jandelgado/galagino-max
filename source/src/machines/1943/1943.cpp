@@ -8,6 +8,7 @@
 #include "1943_tilemap.h"
 #include "1943_cmap.h"
 #include "1943_dipswitches.h"
+#include "../../emulation/spriteflip.h"
 
 // main Z80 6 MHz: twice commando's 3 MHz budget per quarter frame
 static const uint16_t MAIN_STEPS = 2 * INST_PER_FRAME;
@@ -342,11 +343,69 @@ void _1943::prepare_frame() {
 
 // One panel line = one native column vx of a 64K x 256 tile plane, walked
 // along native y. Tiles are 32x32, stored as native-x lines of 4 words.
-static inline uint8_t tilePen(const uint32_t *line, int i) {
-  return (line[i >> 3] >> ((i & 7) << 2)) & 15;
+// The pixel loops take a word (8 pens) at a time and keep their state in
+// registers: per-pen indexing cost ~36 cycles a pixel on the ESP32.
+
+// 32 pens of a tile line in panel order, pen 0 in the low nibble of w[0]
+__attribute__((always_inline)) static inline void tilePens(uint32_t w[4], const uint32_t *line,
+                                                           bool flip) {
+  if (!flip) {
+    memcpy(w, line, 4 * sizeof(uint32_t));
+    return;
+  }
+  for (int k = 0; k < 4; k++) {
+    w[k] = rev4bpp(line[3 - k]);
+  }
 }
 
-void _1943::blitBg2Line(uint16_t *dst, int vx) {
+// pens [from, to) of a tile line, opaque
+__attribute__((always_inline)) static inline void drawPens(uint16_t *dst, const uint32_t w[4],
+                                                           int from, int to,
+                                                           const unsigned short *colors) {
+  while (from < to) {
+    const int n = ((from | 7) + 1 < to ? (from | 7) + 1 : to) - from;
+    uint32_t p = w[from >> 3] >> ((from & 7) << 2);
+    from += n;
+    for (int i = 0; i < n; i++, p >>= 4) {
+      *dst++ = colors[p & 15];
+    }
+  }
+}
+
+// same, skipping the pens set in clear; returns a bit per opaque pixel,
+// bit 0 = dst[0]
+__attribute__((always_inline)) static inline uint32_t drawPensMasked(
+    uint16_t *dst, const uint32_t w[4], int from, int to, const unsigned short *colors,
+    uint32_t clear) {
+  uint32_t opaque = 0;
+  uint32_t bit = 1;
+  while (from < to) {
+    const int n = ((from | 7) + 1 < to ? (from | 7) + 1 : to) - from;
+    uint32_t p = w[from >> 3] >> ((from & 7) << 2);
+    from += n;
+    for (int i = 0; i < n; i++, p >>= 4, bit <<= 1, dst++) {
+      const uint32_t pen = p & 15;
+      if (clear & (1u << pen)) {
+        continue;
+      }
+      *dst = colors[pen];
+      opaque |= bit;
+    }
+  }
+  return opaque;
+}
+
+// ORs a span's opaque bits into a line mask at pixel u
+static inline void addMask(uint32_t *mask, int u, uint32_t opaque) {
+  const int shift = u & 31;
+  mask[u >> 5] |= opaque << shift;
+  const uint32_t spill = shift ? opaque >> (32 - shift) : 0;
+  if (spill) {
+    mask[(u >> 5) + 1] |= spill;
+  }
+}
+
+__attribute__((optimize("O2"))) void _1943::blitBg2Line(uint16_t *dst, int vx) {
   const uint16_t tx = vx + video.bg2_x;
   const unsigned char *map = tilemap + BG2_MAP + 2 * (tx >> 5) * TILE_ROWS;
 
@@ -356,16 +415,19 @@ void _1943::blitBg2Line(uint16_t *dst, int vx) {
     const uint8_t attr = map[2 * trow + 1];
     const uint8_t code = map[2 * trow] & BG2_CODE_MASK;
     const uint32_t *line = bg2_tiles[code] + 4 * ((attr & ATTR_FLIPX) ? 31 - (tx & 31) : tx & 31);
-    const unsigned short *colors = cmap_bg2[(attr >> 2) & 15];
-    for (int i = ty & 31; i < 32 && u < WIDTH; i++, u++) {
-      dst[u] = colors[tilePen(line, (attr & ATTR_FLIPY) ? 31 - i : i)];
-    }
+    uint32_t w[4];
+    tilePens(w, line, attr & ATTR_FLIPY);
+
+    const int from = ty & 31;
+    const int to = from + WIDTH - u < 32 ? from + WIDTH - u : 32;
+    drawPens(dst + u, w, from, to, cmap_bg2[(attr >> 2) & 15]);
+    u += to - from;
     ty = (ty | 31) + 1;
   }
 }
 
 // bg1 pens whose lookup is 0x0F are transparent; mask gets the opaque ones
-void _1943::blitBg1Line(uint16_t *dst, int vx, uint32_t *mask) {
+__attribute__((optimize("O2"))) void _1943::blitBg1Line(uint16_t *dst, int vx, uint32_t *mask) {
   const uint16_t tx = vx + video.bg1_x;
   const unsigned char *map = tilemap + 2 * (tx >> 5) * TILE_ROWS;
 
@@ -375,17 +437,14 @@ void _1943::blitBg1Line(uint16_t *dst, int vx, uint32_t *mask) {
     const uint8_t attr = map[2 * trow + 1];
     const uint16_t code = map[2 * trow] | ((attr & 1) << 8);
     const uint32_t *line = bg1_tiles[code] + 4 * ((attr & ATTR_FLIPX) ? 31 - (tx & 31) : tx & 31);
+    uint32_t w[4];
+    tilePens(w, line, attr & ATTR_FLIPY);
+
     const uint8_t color = (attr >> 2) & 15;
-    const unsigned short *colors = cmap_bg1[color];
-    const uint16_t clear = bg1_clear[color];
-    for (int i = ty & 31; i < 32 && u < WIDTH; i++, u++) {
-      const uint8_t pen = tilePen(line, (attr & ATTR_FLIPY) ? 31 - i : i);
-      if (clear & (1 << pen)) {
-        continue;
-      }
-      dst[u] = colors[pen];
-      mask[u >> 5] |= 1u << (u & 31);
-    }
+    const int from = ty & 31;
+    const int to = from + WIDTH - u < 32 ? from + WIDTH - u : 32;
+    addMask(mask, u, drawPensMasked(dst + u, w, from, to, cmap_bg1[color], bg1_clear[color]));
+    u += to - from;
     ty = (ty | 31) + 1;
   }
 }
