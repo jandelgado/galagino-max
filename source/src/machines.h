@@ -282,6 +282,9 @@
 #ifdef ENABLE_GRAVITAR
   #include "machines/gravitar/gravitar.h"
 #endif
+#ifdef ENABLE_BWIDOW
+  #include "machines/bwidow/bwidow.h"
+#endif
 #ifdef ENABLE_BERZERK
   #include "machines/berzerk/berzerk.h"
 #endif
@@ -764,6 +767,13 @@ constexpr machineInfo machines[] = {
     gravitar::menuLeds,
 #endif
     MCH_GRAVITAR },
+#endif
+#ifdef ENABLE_BWIDOW
+  { createMachine<bwidow>, bwidow::logo,
+#ifdef LED_PIN
+    bwidow::menuLeds,
+#endif
+    MCH_BWIDOW },
 #endif
 #ifdef ENABLE_BERZERK
   { createMachine<berzerk>, berzerk::logo,
