@@ -34,25 +34,26 @@ fantasy::fantasy()
   : fantasy_gfx(fantasy_gfx_blob),
     fantasy_rom(fantasy_rom_blob),
     fantasy_samples(fantasy_samples_blob),
-    fantasy_sound_rom(fantasy_sound_rom_blob) { memset(&m_cpu, 0, sizeof(m_cpu)); }
+    fantasy_sound_rom(fantasy_sound_rom_blob),
+    sound(*this, Snk6502Sound::FANTASY) { memset(&m_cpu, 0, sizeof(m_cpu)); }
 
 static_assert(FANTASY_SAMPLE_COUNT == 12, "Unexpected Fantasy sample count");
 
-unsigned char fantasy::vanguardSoundRom(unsigned short addr) {
+uint8_t fantasy::soundRom(uint16_t addr) {
   return addr < fantasy_sound_rom.size() ? fantasy_sound_rom[addr] : 0xff;
 }
 
-const signed char *fantasy::vanguardSample(unsigned char index) {
+const signed char *fantasy::sample(uint8_t index) {
   if(index < 2 || index - 2 >= FANTASY_SAMPLE_COUNT) return nullptr;
   index -= 2;
   return (const signed char *)(fantasy_samples.data() + fantasy_sample_offsets[index]);
 }
 
-unsigned long fantasy::vanguardSampleLength(unsigned char index) {
+uint32_t fantasy::sampleLength(uint8_t index) {
   return index >= 2 && index - 2 < FANTASY_SAMPLE_COUNT ? fantasy_sample_lengths[index - 2] : 0;
 }
 
-unsigned char fantasy::vanguardSampleDivider(unsigned char index) {
+uint8_t fantasy::sampleDivider(uint8_t index) {
   return index >= 2 && index - 2 < FANTASY_SAMPLE_COUNT ? 4 : 1;
 }
 

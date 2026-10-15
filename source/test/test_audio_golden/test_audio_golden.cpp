@@ -25,6 +25,7 @@
 #include "../../src/machines/bagman/bagman_sound.h"                // .cpp: deps_bagman_sound.cpp
 #include "../../src/machines/spaceinvaders/spaceinvaders_sound.h"  // .cpp: deps_spaceinvaders_sound.cpp
 #include "../../src/machines/phoenix/phoenix_sound.h"              // .cpp: deps_phoenix_sound.cpp
+#include "../../src/machines/vanguard/snk6502_sound.h"             // .cpp: deps_snk6502_sound.cpp
 
 // machineBase::reset() is in the vtable; the harness never resets CPUs
 extern "C" {
@@ -270,25 +271,6 @@ static void pokeZaxxon(machineBase *m, int) {
 
 // --- machines --------------------------------------------------------------
 
-// Stands in for a machine on the old Audio dispatch (machineType + virtuals).
-class LegacyFake : public machineBase {
-public:
-  explicit LegacyFake(signed char type) : type(type) {}
-  signed char machineType() override { return type; }
-  unsigned char vanguardSoundRom(unsigned short a) override { return (a & 63) == 63 ? 0xff : (uint8_t)(a * 37 + 11); }
-  bool vanguardMusic0Muted() override { return snk_muted[0]; }
-  void vanguardMusic0Ended() override { snk_muted[0] = true; }
-  bool vanguardMusic1Muted() override { return snk_muted[1]; }
-  bool vanguardMusic2Muted() override { return snk_muted[2]; }
-  const signed char *vanguardSample(unsigned char) override { return (const signed char *)fake_sample; }
-  unsigned long vanguardSampleLength(unsigned char) override { return SAMPLE_NIBBLES; }
-  unsigned char vanguardSampleDivider(unsigned char i) override { return i < 2 ? 3 : 4; }
-
-private:
-  signed char type;
-  uint32_t phase = 0;
-};
-
 static const uint8_t AY_REGS[Ay8910::REG_COUNT] = {0x40, 0, 0x55, 0, 0x99, 1, 5, 0x00,
                                                    0x1f, 10, 15, 0x20, 0, 0x0e};
 // --- tests -----------------------------------------------------------------
@@ -527,13 +509,33 @@ static void test_bagman(void) {
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_BAGMAN, run("bagman", &m, pokeBagman));
 }
 
+class SnkFake : public machineBase, private Snk6502Sound::Host {
+public:
+  explicit SnkFake(Snk6502Sound::Board board) : sound(*this, board) {}
+  void init(Input *i, unsigned short *f, sprite_S *s, unsigned char *m) override {
+    machineBase::init(i, f, s, m);
+    sound.reset(soundregs);
+  }
+  void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
+
+private:
+  uint8_t soundRom(uint16_t a) override { return (a & 63) == 63 ? 0xff : (uint8_t)(a * 37 + 11); }
+  bool musicMuted(int ch) override { return snk_muted[ch]; }
+  void musicEnded() override { snk_muted[0] = true; }
+  const signed char *sample(uint8_t) override { return (const signed char *)fake_sample; }
+  uint32_t sampleLength(uint8_t) override { return SAMPLE_NIBBLES; }
+  uint8_t sampleDivider(uint8_t i) override { return i < 2 ? 3 : 4; }
+
+  Snk6502Sound sound;
+};
+
 static void test_vanguard(void) {
-  LegacyFake m(MCH_VANGUARD);
+  SnkFake m(Snk6502Sound::VANGUARD);
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_VANGUARD, run("vanguard", &m, pokeSnk));
 }
 
 static void test_fantasy(void) {
-  LegacyFake m(MCH_FANTASY);
+  SnkFake m(Snk6502Sound::FANTASY);
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_FANTASY, run("fantasy", &m, pokeSnk));
 }
 

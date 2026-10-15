@@ -167,28 +167,6 @@ void Audio::rampToSilence(void) {
 void Audio::start(machineBase *machineBase) {
   currentMachine = machineBase;
   machineType = currentMachine->machineType();
-
-  vg_phase[0] = vg_phase[1] = vg_phase[2] = 0;
-  vg_offset[0] = vg_offset[1] = vg_offset[2] = 0;
-  vg_music_clock = 0;
-  vg_noise = 0x1ffff;
-  vg_last_port0 = 0;
-  vg_port_sequence[0] = currentMachine->soundregs[5];
-  vg_port_sequence[1] = currentMachine->soundregs[6];
-  vg_music0_restart = currentMachine->soundregs[8];
-  vg_music1_restart = currentMachine->soundregs[9];
-  vg_music2_restart = currentMachine->soundregs[11];
-  vg_music0_command_muted = currentMachine->vanguardMusic0Muted();
-  vg_music1_command_muted = currentMachine->vanguardMusic1Muted();
-  vg_music2_command_muted = currentMachine->vanguardMusic2Muted();
-  vg_muted[0] = vg_music0_command_muted;
-  vg_muted[1] = vg_music1_command_muted;
-  vg_muted[2] = vg_music2_command_muted;
-  for (int i=0;i<3;i++) {
-    vg_sample_pos[i]=vg_sample_len[i]=0;vg_sample_ptr[i]=nullptr;
-    vg_adpcm_predictor[i]=vg_adpcm_step[i]=vg_sample_repeat[i]=0;vg_sample_divider[i]=1;
-  }
-  vg_speech_sequence = currentMachine->soundregs[4];
 }
 
 void Audio::volumeUpDown(bool up, bool down) {
@@ -237,8 +215,6 @@ void Audio::transmit() {
       continue;
 
     // render the next audio chunk if data has actually been sent
-    if(machineType == MCH_VANGUARD || machineType == MCH_FANTASY || machineType == MCH_NIBBLER)
-      vanguard_render_buffer();
     else {
       int16_t samples[AUDIO_CHUNK];
       currentMachine->renderAudio(samples, AUDIO_CHUNK);
@@ -247,149 +223,6 @@ void Audio::transmit() {
       }
     }
   } while(bytesOut);
-}
-
-void Audio::vanguard_render_buffer(void) {
-  const bool is_fantasy = machineType == MCH_FANTASY || machineType == MCH_NIBBLER;
-  const uint8_t p0 = currentMachine->soundregs[0];
-  const uint8_t p1 = currentMachine->soundregs[1];
-  const uint8_t shapes = currentMachine->soundregs[2];
-  const uint8_t p3 = currentMachine->soundregs[10];
-
-  // These controls are evaluated on a CPU write, not continuously from the
-  // latched level. Continuously resetting offset 0 made the opening tune stick.
-  if(currentMachine->soundregs[5]!=vg_port_sequence[0]){
-    vg_port_sequence[0]=currentMachine->soundregs[5];
-    if (!is_fantasy && (p0 & 0x20) && !(vg_last_port0 & 0x20)) {
-      vg_sample_ptr[0]=currentMachine->vanguardSample(0);
-      vg_sample_len[0]=currentMachine->vanguardSampleLength(0);vg_sample_pos[0]=0;
-      vg_sample_divider[0]=currentMachine->vanguardSampleDivider(0);vg_sample_repeat[0]=0;
-    } else if (!(p0&0x20) && (vg_last_port0&0x20)) vg_sample_len[0]=0;
-    if (!is_fantasy && (p0 & 0x80) && !(vg_last_port0 & 0x80)) {
-      vg_sample_ptr[1]=currentMachine->vanguardSample(1);
-      vg_sample_len[1]=currentMachine->vanguardSampleLength(1);vg_sample_pos[1]=0;
-      vg_sample_divider[1]=currentMachine->vanguardSampleDivider(1);vg_sample_repeat[1]=0;
-    }
-    vg_last_port0=p0;
-  }
-  if(currentMachine->soundregs[8]!=vg_music0_restart){
-    vg_music0_restart=currentMachine->soundregs[8];vg_offset[0]=0;vg_muted[0]=false;
-  }
-  bool command_muted=currentMachine->vanguardMusic0Muted();
-  if(command_muted!=vg_music0_command_muted){
-    vg_music0_command_muted=command_muted;
-    if(command_muted){vg_muted[0]=true;vg_offset[0]=0;}
-    else {vg_muted[0]=false;vg_offset[0]=0;}
-  }
-  vg_port_sequence[1]=currentMachine->soundregs[6];
-  if(currentMachine->soundregs[9]!=vg_music1_restart){
-    vg_music1_restart=currentMachine->soundregs[9];vg_offset[1]=0;vg_muted[1]=false;
-  }
-  bool command_muted1=currentMachine->vanguardMusic1Muted();
-  if(command_muted1!=vg_music1_command_muted){
-    vg_music1_command_muted=command_muted1;
-    if(command_muted1){vg_muted[1]=true;vg_offset[1]=0;}
-    else {vg_muted[1]=false;vg_offset[1]=0;}
-  }
-  if(currentMachine->soundregs[11]!=vg_music2_restart){
-    vg_music2_restart=currentMachine->soundregs[11];vg_offset[2]=0;vg_muted[2]=false;
-  }
-  bool command_muted2=currentMachine->vanguardMusic2Muted();
-  if(command_muted2!=vg_music2_command_muted){
-    vg_music2_command_muted=command_muted2;
-    if(command_muted2){vg_muted[2]=true;vg_offset[2]=0;}
-    else {vg_muted[2]=false;vg_offset[2]=0;}
-  }
-  uint8_t speech_sequence=currentMachine->soundregs[4];
-  if(speech_sequence!=vg_speech_sequence){
-    vg_speech_sequence=speech_sequence;
-    uint8_t phrase=currentMachine->soundregs[3];
-    if(phrase==0xff)vg_sample_len[2]=0;
-    else if(vg_sample_pos[2]>=vg_sample_len[2]){
-      vg_sample_ptr[2]=currentMachine->vanguardSample(2+phrase);
-      vg_sample_len[2]=currentMachine->vanguardSampleLength(2+phrase);vg_sample_pos[2]=0;
-      vg_sample_divider[2]=currentMachine->vanguardSampleDivider(2+phrase);vg_sample_repeat[2]=0;
-    }
-  }
-
-  // Exact resistor-weighted waveform construction used by the SNK circuit.
-  int8_t form[3][16];
-  for(int ch=0;ch<(is_fantasy?3:2);ch++){
-    if(ch==2){
-      for(int pos=0;pos<16;pos++)form[ch][pos]=(pos&8)?7:-8;
-      continue;
-    }
-    uint8_t mask=ch?(shapes>>4):(is_fantasy ?
-      ((shapes&9)|((shapes&2)<<1)|((shapes&4)>>1)) :
-      ((shapes&3)|((shapes&4)<<1)|((shapes&8)>>1)));
-    int bit3=(mask&3)?8:((mask&4)?4:((mask&8)?2:0));
-    int bit2=(mask&4)?8:((mask&0x0a)?4:0);
-    int bit1=(mask&8)?8:((mask&4)?4:((mask&2)?2:0));
-    int bit0=bit1>>1;
-    if(bit0+bit1+bit2+bit3<16){bit0<<=1;bit1<<=1;bit2<<=1;bit3<<=1;}
-    int base=(bit0+bit1+bit2+bit3+1)>>1;
-    for(int pos=0;pos<16;pos++)
-      form[ch][pos]=((pos&1)?bit0:0)+((pos&2)?bit1:0)+
-                    ((pos&4)?bit2:0)+((pos&8)?bit3:0)-base;
-  }
-
-  for (int i = 0; i < 64; i++) {
-    int sample = 0;
-    for (int ch = 0; ch < (is_fantasy ? 3 : 2); ch++) {
-      if (vg_muted[ch]) continue;
-      unsigned short base;
-      if(ch==2)base=0x1000|((p3&0x70)<<4);
-      else base=(ch ? 0x0800 : 0)|((ch ? p1 : p0)&7)*0x100;
-      uint8_t note = currentMachine->vanguardSoundRom(base + vg_offset[ch]);
-      if (note == 0xff) continue;
-      uint32_t step = 939349UL / (256 - note); // 43000*8/24000 in Q16
-      uint32_t next_phase = vg_phase[ch] + step;
-      int previous = form[ch][(vg_phase[ch] >> 16) & 15];
-      int current = form[ch][(next_phase >> 16) & 15];
-      uint32_t fraction = next_phase & 0xffff;
-      sample += ((previous * (int)(0x10000 - fraction) +
-                  current * (int)fraction) >> 16) * 16;
-      vg_phase[ch] = next_phase;
-    }
-
-    // IMA-ADPCM samples: effects at 8 kHz, speech at 6 kHz, held to 24 kHz.
-    for(int voice=0;voice<3;voice++)if(vg_sample_ptr[voice] && vg_sample_pos[voice]<vg_sample_len[voice]){
-      if(!vg_sample_repeat[voice]){
-        if(!vg_sample_pos[voice]){
-          const uint8_t *encoded=(const uint8_t *)vg_sample_ptr[voice];
-          vg_adpcm_predictor[voice]=(int16_t)(encoded[0]|(encoded[1]<<8));vg_adpcm_step[voice]=0;
-        }else{
-          uint32_t nibble=vg_sample_pos[voice]-1;
-          uint8_t packed=(uint8_t)vg_sample_ptr[voice][2+(nibble>>1)];
-          uint8_t code=(nibble&1)?(packed>>4):(packed&15);
-          ima_adpcm_decode(vg_adpcm_predictor[voice], vg_adpcm_step[voice], code);
-        }
-        vg_sample_pos[voice]++;vg_sample_repeat[voice]=vg_sample_divider[voice];
-      }
-      sample+=(vg_adpcm_predictor[voice]>>8);vg_sample_repeat[voice]--;
-    }
-
-    // Shot B is the cabinet's second SN76477 and remains synthesized noise.
-    uint32_t feedback = (vg_noise ^ (vg_noise >> 3)) & 1;
-    vg_noise = (vg_noise >> 1) | (feedback << 16);
-    int noise = (vg_noise & 1) ? 1 : -1;
-    if (!is_fantasy && (p0 & 0x40)) sample += noise * 70;
-    if (is_fantasy && (p0 & 0x80)) sample += noise * 55;
-
-    vg_music_clock += is_fantasy ? 416 : 3899;
-    uint32_t music_threshold=is_fantasy ? 240000 : 2400000;
-    if (vg_music_clock >= music_threshold) {
-      vg_music_clock -= music_threshold;
-      for (int ch=0;ch<(is_fantasy?3:2);ch++) vg_offset[ch]=(vg_offset[ch]+1)&0xff;
-      if (!is_fantasy && vg_offset[0] == 0) {
-        vg_muted[0]=true;
-        vg_music0_command_muted=true;
-        currentMachine->vanguardMusic0Ended();
-      }
-    }
-    if (sample > 500) sample = 500; else if (sample < -500) sample = -500;
-    valueToBuffer(i, sample);
-  }
 }
 
 void Audio::valueToBuffer(int index, short value) {

@@ -5,8 +5,9 @@
 #include "fantasy_dipswitches.h"
 #include "../../cpus/m6502/m6502.h"
 #include "../machineBase.h"
+#include "../vanguard/snk6502_sound.h"
 
-class fantasy : public machineBase {
+class fantasy : public machineBase, private Snk6502Sound::Host {
 protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> fantasy_gfx;
@@ -22,15 +23,20 @@ public:
   void prepare_frame() override;
   void render_row(short row) override;
   static const Logo &logo() { return fantasy_logo; }
-  unsigned char vanguardSoundRom(unsigned short addr) override;
-  bool vanguardMusic0Muted() override { return music_muted[0]; }
-  bool vanguardMusic1Muted() override { return music_muted[1]; }
-  bool vanguardMusic2Muted() override { return music_muted[2]; }
-  const signed char *vanguardSample(unsigned char index) override;
-  unsigned long vanguardSampleLength(unsigned char index) override;
-  unsigned char vanguardSampleDivider(unsigned char index) override;
+  void init(Input *input, unsigned short *framebuffer, sprite_S *spritebuffer, unsigned char *memorybuffer) override {
+    machineBase::init(input, framebuffer, spritebuffer, memorybuffer);
+    sound.reset(soundregs);
+  }
+  void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
 
 private:
+  // Snk6502Sound::Host
+  uint8_t soundRom(uint16_t addr) override;
+  bool musicMuted(int ch) override { return music_muted[ch]; }
+  const signed char *sample(uint8_t index) override;
+  uint32_t sampleLength(uint8_t index) override;
+  uint8_t sampleDivider(uint8_t index) override;
+
   static uint8_t main_read(m6502_t *, uint16_t);
   static void main_write(m6502_t *, uint16_t, uint8_t);
   void set_music_level(unsigned char channel, bool enabled);
@@ -53,6 +59,7 @@ private:
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
+  Snk6502Sound sound;
 };
 
 #endif

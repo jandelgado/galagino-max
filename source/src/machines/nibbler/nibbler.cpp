@@ -29,9 +29,10 @@ static inline uint16_t reverse_pens(uint16_t w) {
 nibbler::nibbler()
   : nibbler_gfx(nibbler_gfx_blob),
     nibbler_rom(nibbler_rom_blob),
-    nibbler_sound_rom(nibbler_sound_rom_blob) { memset(&m_cpu,0,sizeof(m_cpu)); }
+    nibbler_sound_rom(nibbler_sound_rom_blob),
+    sound(*this, Snk6502Sound::FANTASY) { memset(&m_cpu,0,sizeof(m_cpu)); }
 
-unsigned char nibbler::vanguardSoundRom(unsigned short addr) {
+uint8_t nibbler::soundRom(uint16_t addr) {
   return addr < nibbler_sound_rom.size() ? nibbler_sound_rom[addr] : 0xff;
 }
 

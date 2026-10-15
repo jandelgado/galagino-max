@@ -40,7 +40,6 @@ private:
   void writeBlocking(void);
   void rampToSilence(void);
   void valueToBuffer(int index, short value);
-  void vanguard_render_buffer(void);
 
   machineBase *currentMachine;
   signed char machineType;
@@ -55,28 +54,6 @@ private:
   bool volumeUpLast;
   bool volumeDownLast;
   int  muted = 0;
-
-  // SNK6502 music (two channels in Vanguard, three in Fantasy) and effects.
-  uint32_t vg_phase[3] = {0, 0, 0};
-  uint16_t vg_offset[3] = {0, 0, 0};
-  uint32_t vg_music_clock = 0;
-  uint32_t vg_noise = 0x1ffff;
-  uint8_t vg_last_port0 = 0;
-  uint8_t vg_port_sequence[2] = {0, 0};
-  uint8_t vg_music0_restart = 0;
-  uint8_t vg_music1_restart = 0;
-  uint8_t vg_music2_restart = 0;
-  bool vg_music0_command_muted = true;
-  bool vg_music1_command_muted = true;
-  bool vg_music2_command_muted = true;
-  bool vg_muted[3] = {true, true, true};
-  uint32_t vg_sample_pos[3] = {0, 0, 0}; // fire, explosion, speech
-  uint32_t vg_sample_len[3] = {0, 0, 0};
-  const signed char *vg_sample_ptr[3] = {nullptr, nullptr, nullptr};
-  int16_t vg_adpcm_predictor[3] = {0, 0, 0};
-  int8_t vg_adpcm_step[3] = {0, 0, 0};
-  uint8_t vg_sample_repeat[3] = {0, 0, 0}, vg_sample_divider[3] = {1, 1, 1};
-  uint8_t vg_speech_sequence = 0;
 };
 
 #endif

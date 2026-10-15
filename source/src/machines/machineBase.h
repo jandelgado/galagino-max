@@ -211,14 +211,6 @@ public:
     // its chips and mixes them here. Default: silence (menu).
     virtual void renderAudio(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
 
-    virtual unsigned char vanguardSoundRom(unsigned short addr) { return 0xff; }
-    virtual bool vanguardMusic0Muted() { return true; }
-    virtual void vanguardMusic0Ended() { }
-    virtual bool vanguardMusic1Muted() { return true; }
-    virtual bool vanguardMusic2Muted() { return true; }
-    virtual const signed char *vanguardSample(unsigned char index) { return 0; }
-    virtual unsigned long vanguardSampleLength(unsigned char index) { return 0; }
-    virtual unsigned char vanguardSampleDivider(unsigned char index) { return 1; }
 
 
 #ifdef LED_PIN
