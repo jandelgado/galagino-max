@@ -18,6 +18,7 @@
 #include "../../src/emulation/ay8910.h"              // .cpp: deps_ay8910.cpp
 #include "../../src/emulation/ym2203.h"              // .cpp: deps_ym2203.cpp
 #include "../../src/emulation/ym2203fm.h"            // .cpp: deps_ym2203fm.cpp
+#include "../../src/emulation/sn76489.h"             // .cpp: deps_sn76489.cpp
 
 int16_t Namco54::render() { return 0; }  // galaga/xevious: not covered here
 // machineBase::reset() is in the vtable; the harness never resets CPUs
@@ -283,19 +284,6 @@ public:
   unsigned long vanguardSampleLength(unsigned char) override { return SAMPLE_NIBBLES; }
   unsigned char vanguardSampleDivider(unsigned char i) override { return i < 2 ? 3 : 4; }
 
-  // machineBase::reset() values, without resetting CPUs
-  void snPowerOn(void) {
-    for (int chip = 0; chip < 3; chip++) {
-      for (int c = 0; c < 4; c++) {
-        sn_period[chip][c] = 0;
-        sn_volume[chip][c] = 15;
-        sn_hold[chip][c] = 0;
-        sn_min_volume[chip][c] = 15;
-      }
-      sn_view[chip] = {sn_period[chip], sn_volume[chip], sn_min_volume[chip], sn_hold[chip]};
-    }
-  }
-
 private:
   signed char type;
   uint32_t phase = 0;
@@ -382,30 +370,43 @@ static void test_ay_fm_1943(void) {
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_AY_FM_1943, run("ay_fm_1943", &m, pokeAy));
 }
 
+template <int N>
+class SnFake : public machineBase {
+public:
+  explicit SnFake(const Sn76489 (&init)[N]) {
+    for (int c = 0; c < N; c++) {
+      sn[c] = init[c];
+      sn_view[c] = {sn[c].period, sn[c].volume, sn[c].min_volume, sn[c].hold};
+    }
+  }
+  void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
+  Sn76489 sn[N];  // default-constructed, replaced in the constructor
+};
+
 static void test_sn_mrdo(void) {
-  LegacyFake m(MCH_MRDO);
-  m.snPowerOn();
+  static const Sn76489 chips[2] = {Sn76489(11), Sn76489(11)};
+  SnFake<2> m(chips);
   sn_chips = 2;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_SN_MRDO, run("sn_mrdo", &m, pokeSn));
 }
 
 static void test_sn_tp84(void) {
-  LegacyFake m(MCH_TP84);
-  m.snPowerOn();
+  static const Sn76489 chips[3] = {Sn76489(5), Sn76489(5), Sn76489(5)};
+  SnFake<3> m(chips);
   sn_chips = 3;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_SN_TP84, run("sn_tp84", &m, pokeSn));
 }
 
 static void test_sn_regulus(void) {
-  LegacyFake m(MCH_REGULUS);
-  m.snPowerOn();
+  static const Sn76489 chips[2] = {Sn76489(5), Sn76489(11)};
+  SnFake<2> m(chips);
   sn_chips = 2;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_SN_REGULUS, run("sn_regulus", &m, pokeSn));
 }
 
 static void test_sn_gberet(void) {
-  LegacyFake m(MCH_GBERET);
-  m.snPowerOn();
+  static const Sn76489 chips[1] = {Sn76489(4)};
+  SnFake<1> m(chips);
   sn_chips = 1;
   TEST_ASSERT_EQUAL_HEX32(GOLDEN_SN_GBERET, run("sn_gberet", &m, pokeSn));
 }
@@ -602,6 +603,19 @@ static void test_ym2203_init(void) {
       [](Ym2203 &y, int16_t *out) { y.renderSsg(out, AUDIO_CHUNK); });
 }
 
+static void test_sn_init(void) {
+  assertInitIndependent<Sn76489>(
+      [](void *p) {
+        Sn76489 *s = new (p) Sn76489(11);
+        s->period[0] = 100;
+        s->volume[0] = 3;
+        s->period[3] = 2;
+        s->volume[3] = 5;
+        return s;
+      },
+      [](Sn76489 &s, int16_t *out) { s.render(out, AUDIO_CHUNK); });
+}
+
 int main(int, char **) {
   fillTables();
   UNITY_BEGIN();
@@ -633,5 +647,6 @@ int main(int, char **) {
   RUN_TEST(test_ym2203_port);
   RUN_TEST(test_ym2203_no_fm);
   RUN_TEST(test_ym2203_init);
+  RUN_TEST(test_sn_init);
   return UNITY_END();
 }

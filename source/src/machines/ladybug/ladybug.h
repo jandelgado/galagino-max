@@ -4,6 +4,7 @@
 #include "ladybug_dipswitches.h"
 #include "ladybug_logo.h"
 #include "../machineBase.h"
+#include "../../emulation/sn76489.h"
 // NOTE: Lady Bug does NOT use shared tileaddr.h - has custom tilemap scan
 
 // ============================================================================
@@ -49,10 +50,10 @@ public:
   void reset() override;
   void start(void) override;
   signed char machineType() override { return MCH_LADYBUG; }
+  void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   signed char videoFlipX() override { return 1; }
   signed char videoFlipY() override { return 1; }
   signed char useVideoHalfRate() override { return 1; }
-  bool hasNamcoAudio() override { return false; }
 
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
@@ -90,6 +91,9 @@ private:
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
+
+protected:
+  Sn76489 sn[2] = {Sn76489(Sn76489::INC_4MHZ), Sn76489(Sn76489::INC_4MHZ)};
 };
 
 #endif

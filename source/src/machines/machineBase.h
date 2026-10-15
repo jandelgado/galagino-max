@@ -167,15 +167,6 @@ public:
       memset(memory, 0, RAMSIZE);
       memset(soundregs, 0, sizeof(soundregs)); 
 
-      for (int chip = 0; chip < 3; chip++) {
-        for (int c = 0; c < 4; c++) {
-          sn_period[chip][c] = 0;
-          sn_raw_period[chip][c] = 0;
-          sn_volume[chip][c] = 15; // Mute
-          sn_hold[chip][c] = 0;
-          sn_min_volume[chip][c] = 15;
-        }
-      }
       current_cpu = 0;
       game_started = 0;
     }
@@ -236,13 +227,6 @@ public:
     virtual bool hasNamco15xxAudio() { return false; }
     virtual bool namcoSoundEnabled() { return true; }
 
-    // Sample-MCU drums (Gyruss i8039): called once per 24kHz output sample by
-    // the audio renderer; steps the MCU and returns the centered DAC value
-    // (-128..127), 0 = silence. Virtual so audio.cpp does not need to include
-    // the machine header (machines.h/gyruss.h can only live in main.cpp).
-    // also used by CircusCharlie
-    virtual int renderDrumSample() { return 0; }
-
     // Speech chip output (Star Wars TMS5220): n samples at 24 kHz, full
     // int16 range, on the audio core. Virtual for the same reason.
     virtual void renderSpeech(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
@@ -259,17 +243,7 @@ public:
 #endif
     char game_started;	
     unsigned char soundregs[80];
-    
-    //Mr.Do!
-    int sn_period[3][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};    // 4 canali per chip (3 tono + 1 rumore)
-    int sn_volume[3][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
 
-    //Ladybug
-    int sn_min_volume[3][4]; // latched min volume per audio render cycle
-    int sn_hold[3][4];       // hold counter: keep sound active for N render cycles
-
-    // Circus Charlie
-    int sn_raw_period[3][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
 
 protected:
     virtual void blit_tile(short row, char col) { }

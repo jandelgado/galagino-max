@@ -2,6 +2,7 @@
 #define TP84_H
 
 #include "../machineBase.h"
+#include "../../emulation/sn76489.h"
 #include "../../cpus/m6809/m6809.h"
 #include "../../emulation/seqlock.h"
 #include "tp84_hw.h"
@@ -51,6 +52,7 @@ protected:
 public:
   tp84();
   signed char machineType() override { return MCH_TP84; }
+  void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   void reset() override;
   void start() override;
 
@@ -110,6 +112,9 @@ private:
   uint16_t cmap_sprites[16][16];  // current bank, sprite colors
   uint16_t sprite_opaque[16];     // bit p set = pen p opaque
   int16_t cmap_bank = -1;         // bank cmap_* were built for
+
+protected:
+  Sn76489 sn[3] = {Sn76489(Sn76489::INC_2MHZ), Sn76489(Sn76489::INC_2MHZ), Sn76489(Sn76489::INC_2MHZ)};
 };
 
 #endif

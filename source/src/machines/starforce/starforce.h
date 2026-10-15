@@ -3,6 +3,7 @@
 
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/sn76489.h"
 #include "../../emulation/seqlock.h"
 
 // Offsets
@@ -24,6 +25,7 @@ public:
 	starforce();
 
 	signed char machineType() override { return MCH_STARFORCE; }
+	void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
 	signed char useVideoHalfRate() override { return 1; }
 
 	unsigned char opZ80(unsigned short Addr) override; 
@@ -112,6 +114,9 @@ private:
 	};
 	Seqlock<VideoState> vblank;
 	VideoState video = {};
+
+protected:
+  Sn76489 sn[3] = {Sn76489(Sn76489::INC_4MHZ), Sn76489(Sn76489::INC_4MHZ), Sn76489(Sn76489::INC_4MHZ)};
 };
 
 #endif

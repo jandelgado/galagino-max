@@ -177,10 +177,10 @@ void mrdo::SN76489_Write_2chip(int chip, unsigned char data) {
 
     if (reg < 4) {
       if (type == 0) { // Freq (4 bit bassi)
-        sn_period[chip][reg] = (sn_period[chip][reg] & 0x3F0) | (data & 0x0F);
+        sn[chip].period[reg] = (sn[chip].period[reg] & 0x3F0) | (data & 0x0F);
       }
       else { // Volume
-        sn_volume[chip][reg] = data & 0x0F;
+        sn[chip].volume[reg] = data & 0x0F;
       }
     }
   }
@@ -190,10 +190,10 @@ void mrdo::SN76489_Write_2chip(int chip, unsigned char data) {
 
     if (reg < 4 && type == 0) { // Se il latch era per una Frequenza
       if (reg == 3) {   // Canale di rumore
-        sn_period[chip][3] = data & 0x07; // 3 bit per il controllo del rumore
+        sn[chip].period[3] = data & 0x07; // 3 bit per il controllo del rumore
       }
       else { // Canali di tono
-        sn_period[chip][reg] = (sn_period[chip][reg] & 0x00F) | ((data & 0x3F) << 4);
+        sn[chip].period[reg] = (sn[chip].period[reg] & 0x00F) | ((data & 0x3F) << 4);
       }
     }
   }

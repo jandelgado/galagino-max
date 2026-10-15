@@ -166,7 +166,7 @@ void tp84::wrZ80(unsigned short Addr, unsigned char Value) {
   // 0xA000-0xA1FF RC filters, 0xC000 nop
 }
 
-// SN76489 byte stream -> sn_period/sn_volume. Raw periods; the 1.79 MHz
+// SN76489 byte stream -> sn[].period/volume. Raw periods; the 1.79 MHz
 // clock is handled by sn_inc in audio.cpp.
 void tp84::sn_write(int chip, uint8_t data) {
   if (data & 0x80) {                 // latch: register + low 4 bits
@@ -176,23 +176,23 @@ void tp84::sn_write(int chip, uint8_t data) {
 
     if (type == 0) {
       if (reg == 3)
-        sn_period[chip][3] = data & 0x07;
+        sn[chip].period[3] = data & 0x07;
       else
-        sn_period[chip][reg] = (sn_period[chip][reg] & 0x3F0) | (data & 0x0F);
+        sn[chip].period[reg] = (sn[chip].period[reg] & 0x3F0) | (data & 0x0F);
     } else {
       const uint8_t vol = data & 0x0F;
-      sn_volume[chip][reg] = vol;
-      if (vol < sn_min_volume[chip][reg]) sn_min_volume[chip][reg] = vol;
-      if (vol < 15) sn_hold[chip][reg] = 6;
+      sn[chip].volume[reg] = vol;
+      if (vol < sn[chip].min_volume[reg]) sn[chip].min_volume[reg] = vol;
+      if (vol < 15) sn[chip].hold[reg] = 6;
     }
   } else {                           // data: high 6 bits of the frequency
     const int reg = sn_last_reg[chip] / 2;
     const int type = sn_last_reg[chip] % 2;
     if (type == 0) {
       if (reg == 3)
-        sn_period[chip][3] = data & 0x07;
+        sn[chip].period[3] = data & 0x07;
       else
-        sn_period[chip][reg] = (sn_period[chip][reg] & 0x00F) | ((data & 0x3F) << 4);
+        sn[chip].period[reg] = (sn[chip].period[reg] & 0x00F) | ((data & 0x3F) << 4);
     }
   }
 }

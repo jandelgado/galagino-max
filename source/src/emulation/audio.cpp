@@ -190,13 +190,6 @@ void Audio::start(machineBase *machineBase) {
     bzone_sound.reset();
   }
 
-  for (int sn = 0; sn < NUM_SN_CHIPS; sn++) {
-    for (int c = 0; c < 4; c++) {
-      sn_counter[sn][c] = 0;
-      sn_toggle[sn][c] = 1;
-    }
-  }
-
   // Phoenix
   ph_c24_level = ph_c25_level = 0;
   ph_c24_counter = ph_c25_counter = 0;
@@ -288,9 +281,6 @@ void Audio::transmit() {
       namco_render_buffer();
     else if (currentMachine->hasNamco15xxAudio())
       namco_15xx_render_buffer();
-    else if (machineType == MCH_MRDO || machineType == MCH_LADYBUG || machineType == MCH_STARFORCE || machineType == MCH_BALUBA || machineType == MCH_VANVAN || machineType == MCH_CIRCUSC || machineType == MCH_ROADFIGHTER || machineType == MCH_TP84 ||
-             machineType == MCH_STARJACK || machineType == MCH_REGULUS || machineType == MCH_UPNDOWN || machineType == MCH_RAFLESIA || machineType == MCH_SWAT || machineType == MCH_GBERET)
-      sn76489_render_buffer();
     else if (machineType == MCH_BAGMAN)
       bagman_render_buffer();
     else if (machineType == MCH_SPACEINVADERS)
@@ -526,84 +516,6 @@ void Audio::bzone_render_buffer(void) {
   bzone_sound.render(currentMachine->soundregs[BZ_SND_LATCH], samples, out, 64);
   for (int i = 0; i < 64; i++) {
     valueToBuffer(i, out[i]);
-  }
-}
-
-void Audio::sn76489_render_buffer(void) {
-  int sn_inc[NUM_SN_CHIPS] = {11, 11, 11};  // SN_CLOCK / 16 / SAMPLE_RATE per chip
-  #ifdef ENABLE_ROADFIGHTER
-  // roadf: SN76489A @ 1.79 MHz (XTAL 14.318/8) -> note molto piu' basse di gigas.
-  if (machineType == MCH_ROADFIGHTER) sn_inc[0] = sn_inc[1] = sn_inc[2] = 5;
-  #endif
-  // tp84: 3x SN76489 @ 1.79 MHz (XTAL 14.318/8): 1789773 / 16 / 24000 = 4.7
-  if (machineType == MCH_TP84) sn_inc[0] = sn_inc[1] = sn_inc[2] = 5;
-  // System 1: sn1 2 MHz, sn2 4 MHz
-  if (machineType == MCH_STARJACK || machineType == MCH_REGULUS || machineType == MCH_UPNDOWN ||
-      machineType == MCH_RAFLESIA || machineType == MCH_SWAT) sn_inc[0] = 5;
-  // Green Beret: SN76489A @ 1.536 MHz -> 1536000 / 16 / 24000 = 4
-  if (machineType == MCH_GBERET) sn_inc[0] = 4;
-
-  // Volumi con hold
-  int vol[NUM_SN_CHIPS][4];
-  for (int chip = 0; chip < NUM_SN_CHIPS; chip++) {
-    for (int c = 0; c < 4; c++) {
-      if (currentMachine->sn_hold[chip][c] > 0) {
-        vol[chip][c] = currentMachine->sn_min_volume[chip][c];
-        currentMachine->sn_hold[chip][c]--;
-        if (currentMachine->sn_hold[chip][c] == 0)
-          currentMachine->sn_min_volume[chip][c] = currentMachine->sn_volume[chip][c];
-      }
-      else {
-        vol[chip][c] = currentMachine->sn_volume[chip][c];
-        currentMachine->sn_min_volume[chip][c] = currentMachine->sn_volume[chip][c];
-      }
-    }
-  }
-
-  for (int i = 0; i < 64; i++) {
-    short sample = 0;
-
-    for (int chip = 0; chip < NUM_SN_CHIPS; chip++) {
-      for (int c = 0; c < 4; c++) {
-        int period = currentMachine->sn_period[chip][c];
-
-        if (vol[chip][c] < 15 && period > 0) {
-          sn_counter[chip][c] -= sn_inc[chip];
-
-          while (sn_counter[chip][c] <= 0) {
-            if (c == 3) {  // Noise channel
-              uint32_t feedback = (noise_lfsr[chip] & 0x01) ^ ((noise_lfsr[chip] & 0x02) >> 1);
-              noise_lfsr[chip] = (noise_lfsr[chip] >> 1) | (feedback << 14);
-              sn_toggle[chip][c] = (noise_lfsr[chip] & 0x01) ? 1 : -1;
-              sn_counter[chip][c] += (period << 3);  // Rallenta noise
-            }
-            else {  // Tone
-              sn_counter[chip][c] += period;
-              sn_toggle[chip][c] = -sn_toggle[chip][c];
-            }
-          }
-          sample += sn_toggle[chip][c] * (15 - vol[chip][c]) * 6;
-        }
-      }
-    }
-
-    // Circus Charlie: mix DAC 8 bit (effects) over the two SN76489A.
-    // Like Gyruss drums: pop from the ring filled in run_frame.
-    if (machineType == MCH_CIRCUSC) {
-      static int dc = 0;
-      int s = currentMachine->renderDrumSample();  // already scaled (volume in circusc.h)
-      dc += (s - dc) >> 7;
-      sample += s - dc;
-    }
-
-#ifdef ENABLE_ROADFIGHTER
-    // DAC 8-bit R2R (motore/crash). dac_sample = signed -128..127, valore
-    // latchato (qualita' base per-buffer); da rifinire con coda stile DKong
-    // se il motore suona troppo "grezzo".
-    if (machineType == MCH_ROADFIGHTER)
-      sample += ((roadfighter*)currentMachine)->roadf_dac_sample() * 2;
-#endif
-    valueToBuffer(i, sample);
   }
 }
 

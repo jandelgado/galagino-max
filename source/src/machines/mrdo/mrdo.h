@@ -5,6 +5,7 @@
 #include "mrdo_logo.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/sn76489.h"
 
 #define SPRITE_FLIP_X 0x01
 #define SPRITE_FLIP_Y 0x02
@@ -23,6 +24,7 @@ public:
   void reset() override;
   void start(void) override;
   signed char machineType() override { return MCH_MRDO; }
+  void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   signed char videoFlipY() override { return 1; }
   signed char useVideoHalfRate() override { return 1; } 
 
@@ -59,6 +61,9 @@ private:
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
+
+protected:
+  Sn76489 sn[2] = {Sn76489(Sn76489::INC_4MHZ), Sn76489(Sn76489::INC_4MHZ)};
 };
 
 #endif

@@ -2,6 +2,7 @@
 #define SYSTEM1_H
 
 #include "../machineBase.h"
+#include "../../emulation/sn76489.h"
 #include "../../emulation/seqlock.h"
 #include "system1_video.h"
 #include "system1_collision.h"
@@ -38,6 +39,7 @@ public:
   void outZ80(unsigned short Port, unsigned char Value) override;
 
   void run_frame(void) override;
+  void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   void prepare_frame(void) override;
   void render_row(short row) override;
 
@@ -142,6 +144,9 @@ private:
   ActiveSprite active[system1_video::SPRITES];
   int activeCount = 0;
   uint32_t sprTiles[STRIP_LINES];  // per strip line: tile rows with sprite pens
+
+protected:
+  Sn76489 sn[2] = {Sn76489(Sn76489::INC_2MHZ), Sn76489(Sn76489::INC_4MHZ)};
 };
 
 #endif

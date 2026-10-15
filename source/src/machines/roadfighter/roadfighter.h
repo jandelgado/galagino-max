@@ -2,6 +2,7 @@
 #define ROADFIGHTER_H
 
 #include "../machineBase.h"
+#include "../../emulation/sn76489.h"
 #include "../../emulation/seqlock.h"
 
 #ifdef ENABLE_ROADFIGHTER
@@ -68,6 +69,13 @@ public:
   void start(void) override;
 
   signed char machineType()      override { return MCH_ROADFIGHTER; }
+  // SN76489A plus the 8-bit R2R DAC (engine/crash), latched per sample
+  void renderAudio(int16_t *out, int n) override {
+    Sn76489::renderBank(sn, out, n);
+    for (int i = 0; i < n; i++) {
+      out[i] += roadf_dac_sample() * DAC_GAIN;
+    }
+  }
 
   const int renderWidth()  override { return ROADF_RENDER_W; }
   const int renderBuffer() override { return ROADF_RENDER_W * 2 * 8; }
@@ -139,6 +147,10 @@ private:
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *main_raw_ptr = nullptr;
   const unsigned char *audio_rom_ptr = nullptr;
+
+protected:
+  Sn76489 sn[1] = {Sn76489(Sn76489::INC_2MHZ)};
+  static const int DAC_GAIN = 2;
 };
 
 #endif // ENABLE_ROADFIGHTER

@@ -116,13 +116,13 @@ void gberet::sn_write(uint8_t data) {
   const int ch = sn_reg >> 1;
   if (sn_reg & 1) {
     const uint8_t vol = data & 0x0f;
-    sn_volume[0][ch] = vol;
-    sn_min_volume[0][ch] = vol;
-    if (vol < 15) { sn_hold[0][ch] = 6; }
+    sn[0].volume[ch] = vol;
+    sn[0].min_volume[ch] = vol;
+    if (vol < 15) { sn[0].hold[ch] = 6; }
   } else if (data & 0x80) {
-    sn_period[0][ch] = (sn_period[0][ch] & 0x3f0) | (data & 0x0f);
+    sn[0].period[ch] = (sn[0].period[ch] & 0x3f0) | (data & 0x0f);
   } else {
-    sn_period[0][ch] = (sn_period[0][ch] & 0x00f) | ((data & 0x3f) << 4);
+    sn[0].period[ch] = (sn[0].period[ch] & 0x00f) | ((data & 0x3f) << 4);
   }
 }
 

@@ -37,6 +37,8 @@
 #include "circusc_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/sn76489.h"
+#include "../../emulation/dc_block.h"
 #include "../../cpus/m6809/m6809.h"
 
 // Offset in memory[] (= CPU addr - 0x2000, regione RAM 0x2000-0x3FFF)
@@ -51,7 +53,7 @@
 #define CIRCUSC_SN_PERIOD_SCALE(n)  (((n) * 151) >> 6)
 
 // Volume del DAC 8 bit (effetti/percussioni) nel mix con gli SN;
-// il campione esce gia' scalato da renderDrumSample (max 127*vol).
+// il campione esce gia' scalato da drumSample (max 127*vol).
 #define CIRCUSC_DAC_VOLUME  2
 
 // Ring buffer DAC (stile gyruss drums: si produce nel run_frame sul core
@@ -70,6 +72,13 @@ public:
   circusc();
 
   signed char machineType() override { return MCH_CIRCUSC; }
+  // two SN76489A plus the 8-bit effects DAC, DC tracked out
+  void renderAudio(int16_t *out, int n) override {
+    Sn76489::renderBank(sn, out, n);
+    for (int i = 0; i < n; i++) {
+      out[i] += drums.filter(drumSample());
+    }
+  }
   void start() override;
   void reset() override;
 
@@ -84,7 +93,7 @@ public:
   void wrZ80(unsigned short Addr, unsigned char Value) override;
 
   // campione DAC per il mix in sn76489_render_buffer (pop dal ring)
-  int renderDrumSample() override {
+  int drumSample() {
     if (dac_rd != dac_wr) {
       dac_last = dac_ring[dac_rd];
       dac_rd = (dac_rd + 1) & (CC_DAC_RING - 1);
@@ -132,6 +141,11 @@ private:
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *main_rom_ptr = nullptr;
   const unsigned char *audio_rom_ptr = nullptr;
+
+protected:
+  Sn76489 sn[2] = {Sn76489(Sn76489::INC_4MHZ), Sn76489(Sn76489::INC_4MHZ)};
+  int sn_raw_period[2][Sn76489::CHANNELS] = {};
+  DcTrack drums;
 };
 
 #endif

@@ -2,6 +2,7 @@
 #define GBERET_H
 
 #include "../machineBase.h"
+#include "../../emulation/sn76489.h"
 
 #ifdef ENABLE_GBERET
 
@@ -30,6 +31,7 @@ public:
   gberet();
 
   signed char machineType() override { return MCH_GBERET; }
+  void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   // Native ROT0 240x224, shown 1:1 on the portrait panel.
   const int renderWidth()  override { return gberet_hw::OUT_WIDTH; }
   const int renderBuffer() override { return gberet_hw::OUT_WIDTH * 2 * 8; }
@@ -78,6 +80,9 @@ private:
   const unsigned char *rom_ptr = nullptr;
   const uint32_t (*tiles)[8] = nullptr;
   const uint32_t (*sprites)[16][2] = nullptr;
+
+protected:
+  Sn76489 sn[1] = {Sn76489(Sn76489::INC_1536KHZ)};
 };
 
 #endif // ENABLE_GBERET

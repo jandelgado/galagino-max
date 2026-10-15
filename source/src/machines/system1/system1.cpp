@@ -263,7 +263,7 @@ void system1::snWrite(int chip, uint8_t d) {
   const bool volume = snLatch[chip] & 1;
 
   if (volume) {
-    sn_volume[chip][ch] = d & 0x0f;
+    sn[chip].volume[ch] = d & 0x0f;
     return;
   }
 
@@ -273,7 +273,7 @@ void system1::snWrite(int chip, uint8_t d) {
     return;
   }
 
-  int &period = sn_period[chip][ch];
+  int &period = sn[chip].period[ch];
   if (d & SN_LATCH) {
     period = (period & 0x3f0) | (d & 0x0f);
   } else {
@@ -289,8 +289,8 @@ void system1::snWrite(int chip, uint8_t d) {
 // periods, MAME sn76496); white/periodic not modeled
 void system1::snNoise(int chip) {
   const int rate = snNoiseReg[chip] & 0x03;
-  const int p = rate == SN_FOLLOW_TONE2 ? (sn_period[chip][SN_TONE2] >> 2) : (SN_NOISE_BASE << rate);
-  sn_period[chip][SN_NOISE] = p > 0 ? p : 1;
+  const int p = rate == SN_FOLLOW_TONE2 ? (sn[chip].period[SN_TONE2] >> 2) : (SN_NOISE_BASE << rate);
+  sn[chip].period[SN_NOISE] = p > 0 ? p : 1;
 }
 
 void system1::run_frame(void) {

@@ -109,15 +109,15 @@ void vanvan::SN76489_Write_2chip(int chip, unsigned char data) {
 
     if (reg < 4) {
       if (type == 0) { // Frequency (4 lower bits)
-        sn_period[chip][reg] = (sn_period[chip][reg] & 0x3F0) | (data & 0x0F);
+        sn[chip].period[reg] = (sn[chip].period[reg] & 0x3F0) | (data & 0x0F);
       }
       else { // Volume
         unsigned char vol = data & 0x0F;
-        sn_volume[chip][reg] = vol;
-        if (vol < sn_min_volume[chip][reg])
-          sn_min_volume[chip][reg] = vol;
+        sn[chip].volume[reg] = vol;
+        if (vol < sn[chip].min_volume[reg])
+          sn[chip].min_volume[reg] = vol;
         if (vol < 15)
-          sn_hold[chip][reg] = 6;
+          sn[chip].hold[reg] = 6;
       }
     }
   }
@@ -127,10 +127,10 @@ void vanvan::SN76489_Write_2chip(int chip, unsigned char data) {
 
     if (reg < 4 && type == 0) { // If latch was for frequency
       if (reg == 3) {   // Noise channel
-        sn_period[chip][3] = data & 0x07;
+        sn[chip].period[3] = data & 0x07;
       }
       else { // Tone channels
-        sn_period[chip][reg] = (sn_period[chip][reg] & 0x00F) | ((data & 0x3F) << 4);
+        sn[chip].period[reg] = (sn[chip].period[reg] & 0x00F) | ((data & 0x3F) << 4);
       }
     }
   }

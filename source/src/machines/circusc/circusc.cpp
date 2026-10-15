@@ -33,10 +33,10 @@ void circusc::reset() {
   // SN76489: on boot mute channels (volume 15)
   for (int chip = 0; chip < 2; chip++)
     for (int c = 0; c < 4; c++) {
-      sn_period[chip][c] = 0;
-      sn_volume[chip][c] = 15;
-      sn_hold[chip][c] = 0;
-      sn_min_volume[chip][c] = 15;
+      sn[chip].period[c] = 0;
+      sn[chip].volume[c] = 15;
+      sn[chip].hold[c] = 0;
+      sn[chip].min_volume[c] = 15;
     }
   m6809_reset(&main_cpu);   // vettore reset da 0xFFFE (ROM, KONAMI-1)
 
@@ -181,19 +181,19 @@ void circusc::sn_write(int chip, unsigned char data) {
 
     if (type == 0) {
       if (reg == 3)
-        sn_period[chip][3] = data & 0x07;
+        sn[chip].period[3] = data & 0x07;
       else {
         int raw = (sn_raw_period[chip][reg] & 0x3F0) | (data & 0x0F);
         sn_raw_period[chip][reg] = raw;
-        sn_period[chip][reg] = CIRCUSC_SN_PERIOD_SCALE(raw);
+        sn[chip].period[reg] = CIRCUSC_SN_PERIOD_SCALE(raw);
       }
     } else {
       unsigned char vol = data & 0x0F;
-      sn_volume[chip][reg] = vol;
-      if (vol < sn_min_volume[chip][reg])
-        sn_min_volume[chip][reg] = vol;
+      sn[chip].volume[reg] = vol;
+      if (vol < sn[chip].min_volume[reg])
+        sn[chip].min_volume[reg] = vol;
       if (vol < 15)
-        sn_hold[chip][reg] = 6;
+        sn[chip].hold[reg] = 6;
     }
   } else {                           // data: 6 bit alti della frequenza
     int reg = sn_last_reg[chip] / 2;
@@ -201,11 +201,11 @@ void circusc::sn_write(int chip, unsigned char data) {
 
     if (type == 0) {
       if (reg == 3)
-        sn_period[chip][3] = data & 0x07;
+        sn[chip].period[3] = data & 0x07;
       else {
         int raw = (sn_raw_period[chip][reg] & 0x00F) | ((data & 0x3F) << 4);
         sn_raw_period[chip][reg] = raw;
-        sn_period[chip][reg] = CIRCUSC_SN_PERIOD_SCALE(raw);
+        sn[chip].period[reg] = CIRCUSC_SN_PERIOD_SCALE(raw);
       }
     }
   }

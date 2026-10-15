@@ -220,19 +220,19 @@ void roadfighter::sn76489_write(unsigned char data) {
     unsigned char val4 = data & 0x0F;
     int ch = sn_latch_reg >> 1;
     if (sn_latch_reg & 1) {
-      sn_volume[0][ch] = val4; sn_min_volume[0][ch] = val4;
-      if (val4 < 15) sn_hold[0][ch] = 6;
+      sn[0].volume[ch] = val4; sn[0].min_volume[ch] = val4;
+      if (val4 < 15) sn[0].hold[ch] = 6;
     } else {
-      sn_period[0][ch] = (sn_period[0][ch] & 0x3F0) | val4;
+      sn[0].period[ch] = (sn[0].period[ch] & 0x3F0) | val4;
     }
   } else {
     int ch = sn_latch_reg >> 1;
     if (sn_latch_reg & 1) {
       unsigned char val4 = data & 0x0F;
-      sn_volume[0][ch] = val4; sn_min_volume[0][ch] = val4;
-      if (val4 < 15) sn_hold[0][ch] = 6;
+      sn[0].volume[ch] = val4; sn[0].min_volume[ch] = val4;
+      if (val4 < 15) sn[0].hold[ch] = 6;
     } else {
-      sn_period[0][ch] = (sn_period[0][ch] & 0x00F) | ((data & 0x3F) << 4);
+      sn[0].period[ch] = (sn[0].period[ch] & 0x00F) | ((data & 0x3F) << 4);
     }
   }
 }

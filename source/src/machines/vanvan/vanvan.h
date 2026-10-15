@@ -5,6 +5,7 @@
 #include "vanvan_logo.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/sn76489.h"
 
 // ============================================================
 // Van Van Car (Sanritsu 1983) memory map (MAME pacman.cpp: vanvan/dremshpr_map):
@@ -46,6 +47,7 @@ public:
   void reset() override;
   void start(void) override;
   signed char machineType() override { return MCH_VANVAN; }
+  void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   signed char videoFlipY() override { return 1; }
 
   unsigned char opZ80(unsigned short Addr) override;
@@ -57,7 +59,6 @@ public:
   void prepare_frame(void) override;
   void render_row(short row) override;
   static const Logo &logo(void);
-  bool hasNamcoAudio() override { return false; }
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
@@ -78,6 +79,9 @@ private:
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
   const unsigned char *rom2_ptr = nullptr;
+
+protected:
+  Sn76489 sn[2] = {Sn76489(Sn76489::INC_4MHZ), Sn76489(Sn76489::INC_4MHZ)};
 };
 
 #endif

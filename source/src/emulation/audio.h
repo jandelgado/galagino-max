@@ -7,7 +7,6 @@
 #include "../machines/gaplus/gaplus.h"
 #include "../machines/spaceinvaders/spaceinvaders.h"
 #include "../machines/xevious/xevious.h"
-#include "../machines/roadfighter/roadfighter.h"
 #include "../config.h"
 #include "pokey.h"
 #include "asteroids_sound.h"
@@ -39,7 +38,6 @@
 #define D6_E      1174.56
 #define B5_F      987.767
 
-#define NUM_SN_CHIPS 3
 
 class Audio {
 public:
@@ -63,7 +61,6 @@ private:
   void rampToSilence(void);
   void namco_render_buffer(void);
   void namco_15xx_render_buffer(void);
-  void sn76489_render_buffer(void);
   void valueToBuffer(int index, short value);
   void bagman_render_buffer(void);
   void galaxian_render_buffer(void);
@@ -101,13 +98,6 @@ private:
   unsigned long snd15_freq[8];
   const signed char *snd15_wave[8];
   unsigned char snd15_vol[8];
-
-  // SN 76489
-  int sn_counter[NUM_SN_CHIPS][4];
-  int sn_toggle[NUM_SN_CHIPS][4];
-
-  // Ladybug
-  uint32_t noise_lfsr[NUM_SN_CHIPS] = {0x4000, 0x4000, 0x4000};
 
   // Bagman
   unsigned short positionLast;
