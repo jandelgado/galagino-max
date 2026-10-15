@@ -50,14 +50,12 @@ protected:
 private:
   unsigned char protection_r();
   void render_background_strip(short screen_strip_row);
-  void SN76489_Write_2chip(int chip, unsigned char data);
 
   unsigned char flipscreen_w = 0; // 0 = normale, 1 = flip attivo
   unsigned char scrollx_w = 0;
   unsigned char scrolly_w = 0;
 
   unsigned char ignoreFireButton;
-  int sn_last_register[2];
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
