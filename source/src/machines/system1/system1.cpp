@@ -92,7 +92,7 @@ void system1::reset() {
   memset(palette, 0, sizeof(palette));
   collision.reset();
   activeCount = 0;
-  winX = (NATIVE_WIDTH - ROT0_WIDTH) / 2;
+  winX = windowTarget(config.window, NO_PLAYER);
 }
 
 unsigned char system1::opZ80(unsigned short Addr) {
@@ -375,6 +375,20 @@ void system1::prepare_frame(void) {
     a.x0 = x0;
     a.width = width;
   }
+
+  if (config.orientation == ROT0) {
+    winX = easeWindow(winX, windowTarget(config.window, playerX()));
+  }
+}
+
+// center x of the player sprite if it is on screen, else NO_PLAYER
+int system1::playerX() const {
+  for (int a = 0; a < activeCount; a++) {
+    if (active[a].number == config.window.playerSprite) {
+      return active[a].x0 + active[a].width / 2;
+    }
+  }
+  return NO_PLAYER;
 }
 
 const int system1::renderWidth() {
@@ -398,14 +412,15 @@ void system1::renderRot0(int strip) {
   const LineSrc f = lineSrc();
   for (int l = 0; l < STRIP_LINES; l++) {
     const int y = strip * STRIP_LINES + l - ROT0_FIRST_ROW;
+    const int x0 = y < config.window.hudLines ? config.window.hudX : winX;
     uint16_t *out = &frame_buffer[l * ROT0_WIDTH];
     uint32_t sprCols = 0;
     for (int a = 0; a < activeCount; a++) {
       const ActiveSprite &as = active[a];
       sprCols |= spriteRow(spriteRom + as.s.bank * SPRITE_BANK, as.s, as.x0,
-                           as.number * PENS_PER_SPRITE, y, winX, ROT0_WIDTH, out);
+                           as.number * PENS_PER_SPRITE, y, x0, ROT0_WIDTH, out);
     }
-    renderRow(f, y, winX, ROT0_WIDTH, sprCols, out);
+    renderRow(f, y, x0, ROT0_WIDTH, sprCols, out);
   }
 }
 

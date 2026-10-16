@@ -67,6 +67,7 @@ protected:
     bool startButton2;  // START presses BUTTON2 (Regulus: bomb)
     Board board;        // omitted in an initializer: BOARD_PPI
     Orientation orientation;  // omitted: ROT270
+    system1_video::Window window;  // ROT0 only
   };
   system1(const Roms &roms, const Config &config);
 
@@ -130,6 +131,7 @@ private:
   void drawSprites(int strip);
   void mixStrip(int strip);
   void renderRot0(int strip);
+  int playerX() const;
   system1_video::LineSrc lineSrc() const;
 
   system1_video::TileSet tiles;

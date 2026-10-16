@@ -374,6 +374,41 @@ template <class F> inline int walkRow(const uint8_t *bank, uint16_t addr, F px) 
   return i;
 }
 
+// ROT0 window into the 256 px line. The game's own content may not span all
+// 256 px (Pitfall II: x 5..249), so the window moves only within [min, max],
+// following the player sprite. HUD lines use a fixed window: their text stays
+// whole while the playfield below moves.
+constexpr int8_t NO_PLAYER = -1;
+constexpr int PLAYER_X_MIN = 8;
+constexpr int PLAYER_X_MAX = 248;
+
+struct Window {
+  int8_t min;           // native x of panel column 0
+  int8_t max;
+  int8_t playerSprite;  // sprite slot of the player, NO_PLAYER: centered
+  uint8_t hudLines;     // native lines 0 .. hudLines - 1 at hudX
+  int8_t hudX;
+};
+
+// proportional: player at the left wall -> min, right wall -> max
+inline int windowTarget(const Window &w, int playerX) {
+  if (playerX < 0) {
+    return (w.min + w.max) / 2;
+  }
+  if (playerX <= PLAYER_X_MIN) {
+    return w.min;
+  }
+  if (playerX >= PLAYER_X_MAX) {
+    return w.max;
+  }
+  return w.min + (playerX - PLAYER_X_MIN) * (w.max - w.min) / (PLAYER_X_MAX - PLAYER_X_MIN);
+}
+
+// 1 px per frame toward the target
+inline int easeWindow(int cur, int target) {
+  return cur < target ? cur + 1 : cur > target ? cur - 1 : cur;
+}
+
 // ROT0: pens of one sprite on native line y into out[0..n), out[i] = native
 // x winX + i. x0 = spriteX of the sprite. Returns the native fg tile columns
 // it wrote (renderRow sprCols).

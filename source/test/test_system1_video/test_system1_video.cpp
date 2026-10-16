@@ -307,6 +307,28 @@ static void test_sprite_row_clip(void) {
   TEST_ASSERT_EQUAL_HEX16(0, out[100]);
 }
 
+// player x 8..248 maps onto the window range, no player -> centered
+static void test_window_target(void) {
+  const Window w = {5, 10, 0, 24, 5};
+  TEST_ASSERT_EQUAL(7, windowTarget(w, NO_PLAYER));
+  TEST_ASSERT_EQUAL(5, windowTarget(w, 0));
+  TEST_ASSERT_EQUAL(5, windowTarget(w, 8));
+  TEST_ASSERT_EQUAL(10, windowTarget(w, 248));
+  TEST_ASSERT_EQUAL(10, windowTarget(w, 255));
+  for (int x = 1; x < 256; x++) {
+    TEST_ASSERT_TRUE(windowTarget(w, x) >= windowTarget(w, x - 1));
+  }
+  const Window fixed = {8, 8, NO_PLAYER, 0, 0};
+  TEST_ASSERT_EQUAL(8, windowTarget(fixed, 128));
+}
+
+// 1 px per frame toward the target: respawns and screen flips do not jump
+static void test_window_ease(void) {
+  TEST_ASSERT_EQUAL(6, easeWindow(5, 10));
+  TEST_ASSERT_EQUAL(9, easeWindow(10, 5));
+  TEST_ASSERT_EQUAL(7, easeWindow(7, 7));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_visarea_rows);
@@ -323,5 +345,7 @@ int main(int, char **) {
   RUN_TEST(test_render_line);
   RUN_TEST(test_render_row);
   RUN_TEST(test_sprite_row_clip);
+  RUN_TEST(test_window_target);
+  RUN_TEST(test_window_ease);
   return UNITY_END();
 }
