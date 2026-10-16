@@ -204,14 +204,14 @@ static void test_render_line(void) {
   }
 }
 
-// ROT0 reference: one native line y, pixels x0 .. x0 + n - 1, sprite pens
-// already in out (index i = native x - x0)
-static void referenceRow(const LineSrc &f, const uint8_t *prom, int y, int x0, int n,
+// ROT0 reference: one native line y, out[i] = bg and sprite pens at native
+// x0 + i, fg at fgX0 + i (HUD lines), sprite pens already in out
+static void referenceRow(const LineSrc &f, const uint8_t *prom, int y, int x0, int fgX0, int n,
                          uint16_t *out) {
   for (int i = 0; i < n; i++) {
     const int x = x0 + i;
     uint8_t fgColor, bgColor;
-    const uint8_t fp = tilePixel(f.fgPage, f.tiles, x, y, fgColor);
+    const uint8_t fp = tilePixel(f.fgPage, f.tiles, fgX0 + i, y, fgColor);
     const uint8_t bp = tilePixel(f.bgPage, f.tiles, bgCol(2 * x, f.scroll),
                                  bgY(y, f.scrollY), bgColor);
     const uint16_t spr = out[i];
@@ -260,6 +260,7 @@ static void test_render_row(void) {
     const bool full = round % 4 == 0;  // HUD rows render all 256 columns
     const int x0 = full ? 0 : rnd() % 17;
     const int n = full ? 256 : 240;
+    const int fgX0 = full || (round & 2) ? x0 : rnd() % 17;  // HUD line: fg window apart
     const uint32_t sprCols = rnd() & rnd();
 
     uint16_t want[256] = {}, got[256] = {};
@@ -268,8 +269,8 @@ static void test_render_row(void) {
         want[i] = got[i] = (rnd() & 1) ? rnd() % 0x200 : 0;
       }
     }
-    referenceRow(f, prom, y, x0, n, want);
-    renderRow(f, y, x0, n, sprCols, got);
+    referenceRow(f, prom, y, x0, fgX0, n, want);
+    renderRow(f, y, x0, fgX0, n, sprCols, got);
     TEST_ASSERT_EQUAL_HEX16_ARRAY(want, got, n);
   }
 }
@@ -322,6 +323,19 @@ static void test_window_target(void) {
   TEST_ASSERT_EQUAL(8, windowTarget(fixed, 128));
 }
 
+// player missing for a few frames (blink, respawn): the target holds, so the
+// window does not shake between the player and the center
+static void test_window_holds_missing_player(void) {
+  const Window w = {5, 10, 0, 24, 5};
+  WindowFollow follow = {};
+  TEST_ASSERT_EQUAL(10, follow.target(w, 248));
+  for (int i = 0; i < PLAYER_LOST_FRAMES; i++) {
+    TEST_ASSERT_EQUAL(10, follow.target(w, NO_PLAYER));
+  }
+  TEST_ASSERT_EQUAL(7, follow.target(w, NO_PLAYER));  // gone for good: center
+  TEST_ASSERT_EQUAL(5, follow.target(w, 8));
+}
+
 // 1 px per frame toward the target: respawns and screen flips do not jump
 static void test_window_ease(void) {
   TEST_ASSERT_EQUAL(6, easeWindow(5, 10));
@@ -347,5 +361,6 @@ int main(int, char **) {
   RUN_TEST(test_sprite_row_clip);
   RUN_TEST(test_window_target);
   RUN_TEST(test_window_ease);
+  RUN_TEST(test_window_holds_missing_player);
   return UNITY_END();
 }

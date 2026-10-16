@@ -146,6 +146,7 @@ private:
   int firstStrip;
   int lastStrip;
   int16_t winX;  // ROT0: native x of panel column 0, 0..16
+  system1_video::WindowFollow follow;
 
   Ppi8255 ppi;
   Z80Pio pio;
