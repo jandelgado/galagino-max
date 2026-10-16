@@ -1,0 +1,9 @@
+hvymetal_main_rom.h
+hvymetal_sound_rom.h
+hvymetal_tiles.h
+hvymetal_sprites.h
+hvymetal_lookup_prom.h
+hvymetal_tile_map.h
+hvymetal_opcodes.h
+hvymetal_banks.h
+hvymetal_palette.h

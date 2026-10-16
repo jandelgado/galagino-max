@@ -5,7 +5,8 @@
     defined(ENABLE_MRVIKING) || \
     defined(ENABLE_IMSORRY) || \
     defined(ENABLE_WBOY) || \
-    defined(ENABLE_FOURDWARRIO)
+    defined(ENABLE_FOURDWARRIO) || \
+    defined(ENABLE_HVYMETAL)
 
 #include "system1.h"
 #include "system1_palette.h"
@@ -274,12 +275,13 @@ uint8_t system1::videoMode() const {
 // (Regulus bomb), drives BUTTON2
 uint8_t system1::readP1() {
   const unsigned int k = input->buttons_get();
+  const bool swapped = config.buttons == BUTTONS_SWAPPED;
   uint8_t v = 0xff;
   if (k & BUTTON_FIRE) {
-    v &= ~IN_BUTTON1;
+    v &= swapped ? ~IN_BUTTON2 : ~IN_BUTTON1;
   }
   if ((k & BUTTON_B) || (config.startButton2 && (k & START_KEY))) {
-    v &= ~IN_BUTTON2;
+    v &= swapped ? ~IN_BUTTON1 : ~IN_BUTTON2;
   }
   if (k & BUTTON_DOWN) {
     v &= ~IN_DOWN;

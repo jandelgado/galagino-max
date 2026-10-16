@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <unity.h>
 
-// System 1 sets boot from their real ROMs: coin + start, 1200 frames, then
+// System 1 sets boot from their real ROMs: coin + start, 1200 frames (or more), then
 // the game must have polled its inputs, drawn to video RAM and played
 // sound. Catches wrong decryption, banking or ROM order early. Each set
 // needs its romconv headers (./convert.sh <game>), else it is skipped.
@@ -19,6 +19,9 @@
 #endif
 #if __has_include("../../src/machines/fourdwarrio/fourdwarrio_main_rom.h")
 #define ENABLE_FOURDWARRIO
+#endif
+#if __has_include("../../src/machines/hvymetal/hvymetal_main_rom.h")
+#define ENABLE_HVYMETAL
 #endif
 
 #include "../../src/machines/system1/system1_collision.cpp"  // before Z80.h: its `word` macro
@@ -38,6 +41,9 @@
 #endif
 #ifdef ENABLE_FOURDWARRIO
 #include "../../src/machines/fourdwarrio/fourdwarrio.cpp"
+#endif
+#ifdef ENABLE_HVYMETAL
+#include "../../src/machines/hvymetal/hvymetal.cpp"
 #endif
 #undef private
 #undef protected
@@ -82,18 +88,26 @@ template <class M> static void boot() {
 
 struct BootResult {
   bool started;
-  int vramBytes;  // non-zero bytes in video RAM
+  int vramBytes;  // most non-zero video RAM bytes seen (sampled once a second)
   int peak;       // peak |sample|
 };
 
-template <class M> static BootResult run() {
+template <class M> static BootResult run(int frames) {
   boot<M>();
   BootResult r = {false, 0, 0};
-  for (int frame = 0; frame < 1200; frame++) {
-    keys = frame >= 300 && frame < 310 ? BUTTON_COIN : 0;
-    keys |= frame >= 400 && frame < 410 ? BUTTON_START : 0;
+  for (int frame = 0; frame < frames; frame++) {
+    // coin + start every 10 s: sets with a long self test poll late
+    keys = frame % 600 >= 300 && frame % 600 < 310 ? BUTTON_COIN : 0;
+    keys |= frame % 600 >= 400 && frame % 600 < 410 ? BUTTON_START : 0;
     keys |= frame >= 500 && frame % 40 < 20 ? BUTTON_FIRE : 0;
     machine->run_frame();
+    if (frame % 60 == 0) {
+      int n = 0;
+      for (int i = 0; i < 0x1000; i++) {
+        n += memory[system1::VIDEO_RAM + i] != 0;
+      }
+      r.vramBytes = n > r.vramBytes ? n : r.vramBytes;
+    }
     for (int c = 0; c < 6; c++) {
       int16_t out[64];
       machine->renderAudio(out, 64);
@@ -104,14 +118,13 @@ template <class M> static BootResult run() {
   }
   keys = 0;
   r.started = machine->game_started;
-  for (int i = 0; i < 0x1000; i++) {
-    r.vramBytes += memory[system1::VIDEO_RAM + i] != 0;
-  }
   return r;
 }
 
-template <class M> static void check() {
-  const BootResult r = run<M>();
+// frames: Heavy Metal runs its IC test (RAM fill, ~4400 frames here, MAME
+// ~2700: the engine steps instructions, not cycles) before it polls inputs
+template <class M> static void check(int frames = 1200) {
+  const BootResult r = run<M>(frames);
   TEST_ASSERT_TRUE(r.started);
   TEST_ASSERT_GREATER_THAN(256, r.vramBytes);
   TEST_ASSERT_GREATER_THAN(0, r.peak);
@@ -128,6 +141,9 @@ static void test_wboy_boots(void) { check<wboy>(); }
 #endif
 #ifdef ENABLE_FOURDWARRIO
 static void test_fourdwarrio_boots(void) { check<fourdwarrio>(); }
+#endif
+#ifdef ENABLE_HVYMETAL
+static void test_hvymetal_boots(void) { check<hvymetal>(4800); }
 #endif
 
 void setUp(void) {}
@@ -146,6 +162,9 @@ int main(int, char **) {
 #endif
 #ifdef ENABLE_FOURDWARRIO
   RUN_TEST(test_fourdwarrio_boots);
+#endif
+#ifdef ENABLE_HVYMETAL
+  RUN_TEST(test_hvymetal_boots);
 #endif
   return UNITY_END();
 }

@@ -24,6 +24,9 @@
 #if defined(HAVE_ROMS) && __has_include("../../src/machines/fourdwarrio/fourdwarrio_main_rom.h")
 #define ENABLE_FOURDWARRIO
 #endif
+#if defined(HAVE_ROMS) && __has_include("../../src/machines/hvymetal/hvymetal_main_rom.h")
+#define ENABLE_HVYMETAL
+#endif
 
 #ifdef HAVE_ROMS
 #include "../../src/machines/system1/system1_collision.cpp"  // before Z80.h: its `word` macro
@@ -45,6 +48,9 @@
 #ifdef ENABLE_FOURDWARRIO
 #include "../../src/machines/fourdwarrio/fourdwarrio.cpp"
 #endif
+#ifdef ENABLE_HVYMETAL
+#include "../../src/machines/hvymetal/hvymetal.cpp"
+#endif
 #undef private
 #undef protected
 
@@ -58,6 +64,9 @@ struct MameFrame {
 
 #include "mame_flicky.h"
 #include "mame_pitfall2.h"
+#ifdef ENABLE_HVYMETAL
+#include "mame_hvymetal.h"
+#endif
 #ifdef ENABLE_FOURDWARRIO
 #include "mame_fourdwarrio.h"
 #endif
@@ -278,6 +287,19 @@ static void test_fourdwarrio_frames(void) {
 }
 #endif
 
+#ifdef ENABLE_HVYMETAL
+// status panel at x 0..63 (labels from x 0), playfield to x 255 (MAME):
+// fixed window 0 keeps the panel whole; title uses the PROM palette
+static void test_hvymetal_frames(void) {
+  boot<hvymetal>();
+  for (const MameFrame &f : MAME_HVYMETAL) {
+    load(f);
+    TEST_ASSERT_EQUAL(0, machine->winX);
+    TEST_ASSERT_EQUAL_MESSAGE(0, compare(f, 0), "hvymetal lines differ from MAME");
+  }
+}
+#endif
+
 static void test_flicky_audio(void) { TEST_ASSERT_GREATER_THAN(0, audioPeak<flicky>()); }
 static void test_pitfall2_audio(void) { TEST_ASSERT_GREATER_THAN(0, audioPeak<pitfall2>()); }
 #endif
@@ -299,6 +321,9 @@ int main(int, char **) {
 #endif
 #ifdef ENABLE_FOURDWARRIO
   RUN_TEST(test_fourdwarrio_frames);
+#endif
+#ifdef ENABLE_HVYMETAL
+  RUN_TEST(test_hvymetal_frames);
 #endif
   return UNITY_END();
 }

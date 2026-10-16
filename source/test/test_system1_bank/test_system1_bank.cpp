@@ -5,7 +5,8 @@
 // System 1 engine options for Heavy Metal on fake PLAIN ROMs (no romconv
 // headers needed): PLAIN assets read in place, bank44 main ROM banking at
 // 8000-bfff selected by video mode bits 6 and 2, palette from a per-game
-// table. Arduino.h / FastLED.h / esp_attr.h here are host stubs.
+// table, FIRE on P1 bit 1 for sets whose MAME BUTTON1 sits there.
+// Arduino.h / FastLED.h / esp_attr.h here are host stubs.
 #define ENABLE_STARJACK  // system1.cpp guard; needs romconv system1_palette.h
 #include "../../src/machines/system1/system1_collision.cpp"  // before Z80.h: its `word` macro
 #include "../../src/emulation/lzma/LzmaDec.c"
@@ -35,10 +36,10 @@ static constexpr FlashAsset<unsigned char, PLAIN> F_BANKS = {bankRom, sizeof(ban
 
 class fake : public system1 {
 public:
-  explicit fake(Bank bank)
+  explicit fake(Bank bank, Buttons buttons = BUTTONS_GENERIC)
       : system1(Roms{F_MAIN, F_SOUND, F_TILES, F_TILE_MAP, F_SPRITES, F_LOOKUP, nullptr, F_BANKS, fakePalette},
                 Config{system1_video::VISAREA_FULL, false, BOARD_PIO, ROT0,
-                       {8, 8, system1_video::NO_PLAYER, 0, 0}, bank}) {}
+                       {8, 8, system1_video::NO_PLAYER, 0, 0}, bank, buttons}) {}
   signed char machineType() override { return MCH_MENU; }
 
 protected:
@@ -47,7 +48,8 @@ protected:
 };
 
 static fake *machine;
-unsigned int Input::buttons_get(void) { return 0; }
+static unsigned int keys;
+unsigned int Input::buttons_get(void) { return keys; }
 bool Input::demoSoundsOff(void) { return false; }
 
 extern "C" {
@@ -69,9 +71,9 @@ static unsigned char memory[RAMSIZE];
 
 static constexpr uint16_t PIO_B_DATA = 0x19;
 
-static void boot(system1::Bank bank) {
+static void boot(system1::Bank bank, system1::Buttons buttons = system1::BUTTONS_GENERIC) {
   delete machine;
-  machine = new fake(bank);
+  machine = new fake(bank, buttons);
   machine->init(&input, frame_buffer, sprite_buf, memory);
   machine->reset();
   machine->current_cpu = system1::MAIN_CPU;
@@ -128,6 +130,20 @@ static void test_palette_from_game_table(void) {
   TEST_ASSERT_EQUAL_UINT16(0x1000 + 0x7e, machine->palette[3]);
 }
 
+static constexpr uint16_t PORT_P1 = 0x00;
+
+// generic: FIRE = bit 2 (MAME BUTTON1); swapped: FIRE = bit 1 (Heavy Metal)
+static void test_fire_bit(void) {
+  keys = BUTTON_FIRE;
+  boot(system1::BANK_NONE);
+  TEST_ASSERT_EQUAL_HEX8(0xfb, machine->inZ80(PORT_P1));
+  boot(system1::BANK_NONE, system1::BUTTONS_SWAPPED);
+  TEST_ASSERT_EQUAL_HEX8(0xfd, machine->inZ80(PORT_P1));
+  keys = BUTTON_B;
+  TEST_ASSERT_EQUAL_HEX8(0xfb, machine->inZ80(PORT_P1));
+  keys = 0;
+}
+
 int main(int, char **) {
   Arena::init();
   UNITY_BEGIN();
@@ -136,5 +152,6 @@ int main(int, char **) {
   RUN_TEST(test_bank44_select);
   RUN_TEST(test_no_bank_reads_open_bus);
   RUN_TEST(test_palette_from_game_table);
+  RUN_TEST(test_fire_bit);
   return UNITY_END();
 }
