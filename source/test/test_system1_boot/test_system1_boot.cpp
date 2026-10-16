@@ -23,6 +23,9 @@
 #if __has_include("../../src/machines/hvymetal/hvymetal_main_rom.h")
 #define ENABLE_HVYMETAL
 #endif
+#if __has_include("../../src/machines/regulus/regulus_main_rom.h")
+#define ENABLE_REGULUS
+#endif
 
 #include "../../src/machines/system1/system1_collision.cpp"  // before Z80.h: its `word` macro
 #include "../../src/emulation/lzma/LzmaDec.c"
@@ -44,6 +47,9 @@
 #endif
 #ifdef ENABLE_HVYMETAL
 #include "../../src/machines/hvymetal/hvymetal.cpp"
+#endif
+#ifdef ENABLE_REGULUS
+#include "../../src/machines/regulus/regulus.cpp"
 #endif
 #undef private
 #undef protected
@@ -153,6 +159,20 @@ static void test_fourdwarrio_boots(void) { check<fourdwarrio>(); }
 #ifdef ENABLE_HVYMETAL
 static void test_hvymetal_boots(void) { check<hvymetal>(4800); }
 #endif
+#ifdef ENABLE_REGULUS
+static void test_regulus_boots(void) { check<regulus>(); }
+
+// main CPU raises the first sound NMI in its PPI init: the sound CPU must
+// have set SP (8000-87ff) by then, else its NMI handler returns into RAM
+static void test_regulus_sound_stack(void) {
+  boot<regulus>();
+  for (int frame = 0; frame < 10; frame++) {
+    machine->run_frame();
+  }
+  const uint16_t sp = machine->cpu[system1::SOUND_CPU].SP.W;
+  TEST_ASSERT_TRUE(sp >= SOUND_ROM_END && sp <= SOUND_ROM_END + SOUND_RAM_MASK);
+}
+#endif
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -174,6 +194,10 @@ int main(int, char **) {
 #endif
 #ifdef ENABLE_HVYMETAL
   RUN_TEST(test_hvymetal_boots);
+#endif
+#ifdef ENABLE_REGULUS
+  RUN_TEST(test_regulus_boots);
+  RUN_TEST(test_regulus_sound_stack);
 #endif
   return UNITY_END();
 }
