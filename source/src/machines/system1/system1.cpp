@@ -32,8 +32,9 @@ constexpr uint8_t PORT_P2 = 0x04;
 constexpr uint8_t PORT_SYSTEM = 0x08;
 constexpr uint8_t PORT_DSW = 0x0c;           // 0c/0e SWA, 0d/0f SWB
 constexpr uint8_t PORT_DSWB = 0x10;
-constexpr uint8_t PORT_PPI = 0x14;
-constexpr uint8_t PORT_END = 0x18;
+constexpr uint8_t PORT_PPI = 0x14;          // 14-17, sys1ppi
+constexpr uint8_t PORT_PIO = 0x18;          // 18-1b, sys1pio
+constexpr uint8_t PORT_END = 0x1c;
 
 // inputs, active low
 constexpr uint8_t IN_BUTTON2 = 0x02;
@@ -79,6 +80,7 @@ void system1::reset() {
   machineBase::reset();
 
   ppi.reset();
+  pio.reset();
   mainIrq = false;
   soundIrq = false;
 
@@ -154,7 +156,7 @@ uint8_t system1::soundRead(uint16_t a) {
     return memory[SOUND_RAM + (a & SOUND_RAM_MASK)];
   }
   if (a >= SOUND_LATCH_BASE) {
-    return ppi.ackA();
+    return ackSoundLatch();
   }
   return 0xff;
 }
@@ -195,7 +197,10 @@ unsigned char system1::inZ80(unsigned short Port) {
   if (p < PORT_PPI) {
     return dswB();
   }
-  return ppi.read(p - PORT_PPI);
+  if (config.board == BOARD_PIO) {
+    return p >= PORT_PIO && p < PORT_END ? pio.read(p - PORT_PIO) : 0xff;
+  }
+  return p < PORT_PIO ? ppi.read(p - PORT_PPI) : 0xff;
 }
 
 void system1::outZ80(unsigned short Port, unsigned char Value) {
@@ -203,7 +208,29 @@ void system1::outZ80(unsigned short Port, unsigned char Value) {
   if (current_cpu != MAIN_CPU || p < PORT_PPI || p >= PORT_END) {
     return;
   }
-  ppi.write(p - PORT_PPI, Value);
+
+  if (config.board == BOARD_PIO) {
+    if (p >= PORT_PIO) {
+      pio.write(p - PORT_PIO, Value);
+    }
+    return;
+  }
+  if (p < PORT_PIO) {
+    ppi.write(p - PORT_PPI, Value);
+  }
+}
+
+// sound latch and video mode live on the PPI or the PIO, by board
+bool system1::takeSoundNmi() {
+  return config.board == BOARD_PIO ? pio.takeNmi() : ppi.takeNmi();
+}
+
+uint8_t system1::ackSoundLatch() {
+  return config.board == BOARD_PIO ? pio.ackA() : ppi.ackA();
+}
+
+uint8_t system1::videoMode() const {
+  return config.board == BOARD_PIO ? pio.portB() : ppi.portB();
 }
 
 // FIRE drives BUTTON1; galagino controller B, or START in two weapon games
@@ -258,7 +285,7 @@ void system1::run_frame(void) {
 
     // sound command written by the main CPU in this slice
     current_cpu = SOUND_CPU;
-    if (ppi.takeNmi()) {
+    if (takeSoundNmi()) {
       IntZ80(&cpu[SOUND_CPU], INT_NMI);
     }
     for (int i = 0; i < SOUND_STEPS_PER_LINE; i++) {
@@ -276,7 +303,7 @@ void system1::startVblank() {
   const uint8_t *vram = &memory[VIDEO_RAM];
 
   const Collision::Frame f = {&memory[SPRITE_RAM], spriteRom, spriteBanks, vram,
-                              tiles, prom, ppi.portB(), config.vis};
+                              tiles, prom, videoMode(), config.vis};
   collision.scan(f);
 
   vblank.publish([this, vram](VideoState &v) {
@@ -285,7 +312,7 @@ void system1::startVblank() {
     v.scroll_x_lo = vram[SCROLL_X_LO];
     v.scroll_x_hi = vram[SCROLL_X_HI];
     v.scroll_y = vram[SCROLL_Y];
-    v.mode = ppi.portB();
+    v.mode = videoMode();
   });
 
   mainIrq = true;
