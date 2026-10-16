@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <unity.h>
 #if __has_include("../../src/machines/robotron/robotron_rom.h")
 #define HAVE_ROBOTRON 1
@@ -213,6 +214,59 @@ void test_sinistar_blitter_window(void) {
   TEST_ASSERT_EQUAL_HEX8(0x00, b->read(0x7400));
   TEST_ASSERT_EQUAL_HEX8(0xaa, b->read(0xd000));
 }
+// Speech commands: the same command on a board with and one without the
+// HC-55516 must differ somewhere (the 6808 clocks CVSD bits via CA2/CB2).
+// One WilliamsSound at a time: the 6808 callbacks use a static instance.
+static const int SPEECH_FRAMES = 120, SAMPLES_PER_FRAME = 400;
+static int16_t speechRun[2][SPEECH_FRAMES * SAMPLES_PER_FRAME + 64];
+
+static int runSound(const uint8_t *rom, uint8_t cmd, bool speech, int16_t *out) {
+  static uint8_t ram256[256];
+  static WilliamsSound snd;
+  snd.attach(rom, 0xb000, ram256, speech);
+  snd.reset();
+  snd.run(16640);  // 6808 boot
+  while (snd.sample() != WilliamsSound::EMPTY) {
+  }
+  snd.command(cmd);
+  int n = 0;
+  for (int f = 0; f < SPEECH_FRAMES; f++) {
+    snd.run(16640);
+    for (int v = snd.sample(); v != WilliamsSound::EMPTY; v = snd.sample()) {
+      if (n < SPEECH_FRAMES * SAMPLES_PER_FRAME + 64) {
+        out[n++] = (int16_t)v;
+      }
+    }
+  }
+  return n;
+}
+
+static int speechDelta(const uint8_t *rom, uint8_t cmd) {
+  const int n = runSound(rom, cmd, true, speechRun[0]);
+  TEST_ASSERT_EQUAL_INT(n, runSound(rom, cmd, false, speechRun[1]));
+  int delta = 0;
+  for (int i = 0; i < n; i++) {
+    const int d = abs(speechRun[0][i] - speechRun[1][i]);
+    delta = d > delta ? d : delta;
+  }
+  return delta;
+}
+
+void test_sinistar_speech_commands(void) {
+  static Asset<unsigned char, PLAIN> s(sinistar_rom_sound_blob);
+  int speaking = 0, loudest = 0;
+  for (int cmd = 0; cmd < 64; cmd++) {
+    const int d = speechDelta(s.data(), (uint8_t)cmd);
+    if (d > 16) {
+      speaking++;
+    }
+    loudest = d > loudest ? d : loudest;
+  }
+  // 0x02 0x0c 0x10 0x11 0x12 0x14 0x19 0x1d speak, b5 is ignored: 16 of 64
+  // (probe 2026-10-16, deltas 148-154 with SPEECH_GAIN 192)
+  TEST_ASSERT_EQUAL_INT(16, speaking);
+  TEST_ASSERT_TRUE(loudest > 100);
+}
 #endif
 
 int main(int, char **) {
@@ -228,6 +282,7 @@ int main(int, char **) {
   RUN_TEST(test_sinistar_boot_reaches_attract);
   RUN_TEST(test_sinistar_stick49);
   RUN_TEST(test_sinistar_blitter_window);
+  RUN_TEST(test_sinistar_speech_commands);
 #endif
   return UNITY_END();
 }
