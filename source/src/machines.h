@@ -333,6 +333,9 @@
 #ifdef ENABLE_IMSORRY
   #include "machines/imsorry/imsorry.h"
 #endif
+#ifdef ENABLE_WBOY
+  #include "machines/wboy/wboy.h"
+#endif
 #ifdef ENABLE_1943
   #include "machines/1943/1943.h"
 #endif
@@ -913,6 +916,13 @@ constexpr machineInfo machines[] = {
     imsorry::menuLeds,
 #endif
     MCH_IMSORRY },
+#endif
+#ifdef ENABLE_WBOY
+  { createMachine<wboy>, wboy::logo,
+#ifdef LED_PIN
+    wboy::menuLeds,
+#endif
+    MCH_WBOY },
 #endif
 #ifdef ENABLE_1943
   { createMachine<_1943>, _1943::logo,

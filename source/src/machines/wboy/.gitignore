@@ -1,0 +1,6 @@
+wboy_main_rom.h
+wboy_sound_rom.h
+wboy_tiles.h
+wboy_sprites.h
+wboy_lookup_prom.h
+wboy_tile_map.h
