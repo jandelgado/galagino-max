@@ -41,6 +41,9 @@ static const uint8_t PORT_CTC = 0xf0;    // f0-f3
 static const uint8_t IP0_COIN = 0x01, IP0_START = 0x04, IP0_FIRE = 0x10;
 static const uint8_t IP2_LEFT = 0x01, IP2_RIGHT = 0x02, IP2_UP = 0x04, IP2_DOWN = 0x08;
 
+// game RAM: aim angle 0-35 (c405, see tron_aim.h)
+static const uint16_t RAM_AIM_ANGLE = 0x0405;
+
 static const int PANEL_TOP = 16;  // first panel row of native X 0
 static const int SPRITE_CODES = 64, SPRITE_VARIANTS = 4;
 
@@ -74,6 +77,7 @@ void tron::reset() {
   ssio.reset();
   odd_field = false;
   main_debt = 0;
+  aim = TronAim();
 }
 
 // ── main Z80 ──
@@ -144,7 +148,7 @@ uint8_t tron::read_input(uint8_t n) {
     }
     return v;
   case 1:
-    return 0;  // aim dial
+    return aim.dial();
   case 2:
     // panel up/down = native left/right (ROT90), panel left/right = native down/up
     if (keys & BUTTON_UP) {
@@ -163,7 +167,7 @@ uint8_t tron::read_input(uint8_t n) {
   case 3:
     return TRON_IP3;
   case 4:
-    return 0;  // player 2 dial
+    return aim.dial();  // player 2 dial (0x0289 reads it for player 2), same controls
   default:
     return 0xff;
   }
@@ -226,6 +230,7 @@ void tron::run_frame(void) {
     ctc.trigger(CTC_FRAME);
   }
   odd_field = !odd_field;
+  aim.update(input->buttons_get(), memory[TRON_MEM_NVRAM + RAM_AIM_ANGLE]);
 
   Z80 &z = cpu[0];
   for (int slice = 0; slice < SLICES; slice++) {

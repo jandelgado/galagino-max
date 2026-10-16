@@ -5,6 +5,7 @@
 #include "../../emulation/seqlock.h"
 #include "../../emulation/z80ctc.h"
 #include "tron_ssio.h"
+#include "tron_aim.h"
 #include "tron_dipswitches.h"
 
 // Tron (Bally Midway 1982), MAME midway/mcr.cpp: MCR 90010 CPU board (Z80
@@ -75,6 +76,7 @@ private:
 
   Z80Ctc ctc;
   TronSsio ssio;
+  TronAim aim;
   uint16_t palette9[COLORS] = {};  // 9 bit xRBG from video RAM writes
   bool odd_field = false;
   int main_debt = 0;
