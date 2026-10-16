@@ -1,16 +1,20 @@
 #include "xevious.h"
 #include "../../emulation/spriteflip.h"
 
-xevious::xevious()
+xevious::xevious() : xevious(xevious_rom_cpu1_blob, xevious_rom_cpu2_blob, XEVIOUS_DSWB) { }
+
+xevious::xevious(const FlashAsset<unsigned char, COMPRESSED> &cpu1,
+                 const FlashAsset<unsigned char, COMPRESSED> &cpu2, uint8_t dswb)
   : xevious_bgtilemap(xevious_bgtilemap_blob),
     xevious_colormap_bg(xevious_colormap_bg_blob),
     xevious_colormap_sprites(xevious_colormap_sprites_blob),
     xevious_fgtilemap(xevious_fgtilemap_blob),
     xevious_planetmap(xevious_planetmap_blob),
-    xevious_rom_cpu1(xevious_rom_cpu1_blob),
-    xevious_rom_cpu2(xevious_rom_cpu2_blob),
+    xevious_rom_cpu1(cpu1),
+    xevious_rom_cpu2(cpu2),
     xevious_rom_cpu3(xevious_rom_cpu3_blob),
-    xevious_sprites(xevious_sprites_blob) { }
+    xevious_sprites(xevious_sprites_blob),
+    dswB(dswb) { }
 
 // ============================================================================
 // CPU dispatch — ogni CPU ha una ROM di dimensione diversa (16K/8K/4K),
@@ -86,7 +90,7 @@ unsigned char xevious::rdZ80(unsigned short Addr) {
   // bit0=(DSWB>>offset)&1, bit1=(DSWA>>offset)&1, nessuna inversione
   if ((Addr & 0xfff8) == 0x6800) {
     unsigned char bit = Addr & 7;
-    unsigned char b0 = (XEVIOUS_DSWB >> bit) & 1;
+    unsigned char b0 = (dswB >> bit) & 1;
     unsigned char b1 = (XEVIOUS_DSWA >> bit) & 1;
     // la BOMBA (secondo pulsante) NON passa dal 51xx: in MAME e' PORT_BIT
     // 0x01 IPT_BUTTON2 ACTIVE-LOW dentro DSWB (galaga.cpp riga 1228). Il
