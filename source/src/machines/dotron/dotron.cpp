@@ -59,6 +59,8 @@ dotron::dotron()
   sound_rom = dotron_snd_rom.data();
   tiles = dotron_tilemap.data();
   sprite_gfx = dotron_spritemap.data();
+  // auto-aim patches the decompressed ROM copy in place (dotron_aim.h)
+  aim.attach(const_cast<unsigned char *>(main_rom));
 
   for (int n = 0; n < SPRITE_CODES; n++) {
     uint32_t any = 0;
@@ -77,6 +79,7 @@ void dotron::reset() {
   machineBase::reset();
   memset(memory + DOTRON_MEM_NVRAM, 0xff, NVRAM_MASK + 1);  // NVRAM_DEFAULT_ALL_1
   memset(palette9, 0, sizeof(palette9));
+  aim.restore();  // the boot ROM checksum must see the original code
   ctc.reset();
   ssio.attach(sound_rom, SOUND_ROM_SIZE, memory + DOTRON_MEM_SSIO, dotron_ssio_duty_gain);
   ssio.reset();
@@ -254,6 +257,8 @@ void dotron::run_frame(void) {
   if (keys & BUTTON_R1) {
     dial -= DIAL_STEP;
   }
+  // game_started: first interrupt, after the boot ROM checksum
+  aim.update(keys, game_started ? DotronAim::RUNNING : DotronAim::BOOTING);
 
   Z80 &z = cpu[0];
   for (int slice = 0; slice < SLICES; slice++) {

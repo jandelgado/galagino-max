@@ -77,6 +77,8 @@ static const uint32_t ATTRACT_FRAMES = 2400;
 static const uint32_t COIN_FRAME = 6000;     // MAME 3000
 static const uint32_t START_FRAME = 6120;    // MAME 3060
 static const uint32_t GAME_FRAME = 7800;     // MAME 3900, player on platform
+static const uint32_t SCORE_FRAME = 10800;   // MAME 5400
+static const uint16_t RAM_SCORE = 0xe025;    // digits, 1 per byte: e025 1e5 .. e028 100
 static const int AUDIO_CHUNKS = 6;  // Audio::transmit() per screen
 
 static void boot(void) {
@@ -209,6 +211,58 @@ static void test_coin_start_reaches_game(void) {
   TEST_ASSERT_GREATER_THAN_INT(2, machine->active_sprites);
   TEST_ASSERT_GREATER_THAN_UINT32(2000, litPixels(24, 264));
 }
+
+// mean panel column of Tron (blue) pixels, -1 if none
+static int blueColumn(void) {
+  long sum = 0, n = 0;
+  for (int y = 24; y < 264; y++) {
+    for (int x = 0; x < 240; x++) {
+      const uint16_t v = (uint16_t)((screen[y][x] << 8) | (screen[y][x] >> 8));
+      const int r = v >> 11, b = v & 31;
+      if (b > 20 && r < 8) {
+        sum += x;
+        n++;
+      }
+    }
+  }
+  return n ? (int)(sum / n) : -1;
+}
+
+// the stick moves Tron the way it is pushed on the mirrored screen
+static void test_stick_left_moves_left(void) {
+  boot();
+  renderScreen("dotron_stick0");
+  const int before = blueColumn();
+  keys = BUTTON_LEFT;
+  runTo(frame + 60);
+  keys = 0;
+  renderScreen("dotron_stick1");
+  const int after = blueColumn();
+  printf("Tron column %d -> %d\n", before, after);
+  TEST_ASSERT_TRUE(before >= 0 && after >= 0);
+  TEST_ASSERT_LESS_THAN_INT(before - 4, after);
+}
+
+static int score(void) {
+  int v = 0;
+  for (int i = 0; i < 4; i++) {
+    v = v * 10 + machine->rdZ80(RAM_SCORE + i);
+  }
+  return v * 100;
+}
+
+// blind fire twice a second, no aiming: auto-aim hits Sark
+static void test_auto_aim_scores(void) {
+  boot();
+  while (frame < SCORE_FRAME) {
+    keys = (frame % 60) < 8 ? BUTTON_FIRE : 0;
+    runFrame();
+  }
+  keys = 0;
+  renderScreen("dotron_score");
+  printf("score %d\n", score());
+  TEST_ASSERT_GREATER_OR_EQUAL_INT(2000, score());
+}
 #endif
 
 int main(int argc, char **argv) {
@@ -217,6 +271,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_title_frame);
   RUN_TEST(test_attract_runs);
   RUN_TEST(test_coin_start_reaches_game);
+  RUN_TEST(test_stick_left_moves_left);
+  RUN_TEST(test_auto_aim_scores);
 #endif
   return UNITY_END();
 }

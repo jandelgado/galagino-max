@@ -5,6 +5,7 @@
 #include "../../emulation/seqlock.h"
 #include "../../emulation/z80ctc.h"
 #include "../mcr/mcr_ssio.h"
+#include "dotron_aim.h"
 #include "dotron_dipswitches.h"
 
 // Discs of Tron (Bally Midway 1983, upright 10/4/83), MAME midway/mcr.cpp:
@@ -78,6 +79,7 @@ private:
 
   Z80Ctc ctc;
   McrSsio ssio;
+  DotronAim aim;
   uint16_t palette9[COLORS] = {};  // 9 bit xRBG from palette RAM writes
   bool odd_field = false;
   uint8_t dial = 0;  // IP1 dial counter, 7 bit
