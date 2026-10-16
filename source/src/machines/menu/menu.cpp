@@ -495,6 +495,7 @@ const char *mchName(signed char machineType) {
     case MCH_CAVENGER:     return "Cosmic Avenger";
     case MCH_VULGUS:       return "Vulgus";
     case MCH_MIKIE:        return "Mikie";
+    case MCH_ARKANOID:     return "Arkanoid";
     case MCH_STARWARS:      return "Star Wars";
     case MCH_MISSILE:       return "Missile Command";
     case MCH_MPATROL:       return "Moon Patrol";

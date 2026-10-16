@@ -360,6 +360,9 @@
 #ifdef ENABLE_MIKIE
   #include "machines/mikie/mikie.h"
 #endif
+#ifdef ENABLE_ARKANOID
+  #include "machines/arkanoid/arkanoid.h"
+#endif
 #ifdef ENABLE_1943
   #include "machines/1943/1943.h"
 #endif
@@ -1003,6 +1006,13 @@ constexpr machineInfo machines[] = {
     mikie::menuLeds,
 #endif
     MCH_MIKIE },
+#endif
+#ifdef ENABLE_ARKANOID
+  { createMachine<arkanoid>, arkanoid::logo,
+#ifdef LED_PIN
+    arkanoid::menuLeds,
+#endif
+    MCH_ARKANOID },
 #endif
 #ifdef ENABLE_1943
   { createMachine<_1943>, _1943::logo,
