@@ -26,6 +26,7 @@
 #include "../../src/machines/williams/robotron_board.h"
 #include "../../src/machines/williams/joust_board.h"
 #include "../../src/machines/williams/sinistar_board.h"
+#include "../../src/emulation/dc_block.h"
 
 // Boots the blitter board games (Robotron, Joust) through the board layer
 // on the real ROMs (romconv headers, skipped without them); PPM frames to
@@ -165,12 +166,12 @@ static uint8_t sram[4096];
 // the high score table holds longer than ATTRACT_STEP
 static const int SINISTAR_ATTRACT_STEP = 250;
 
-static SinistarBoard *bootSinistar() {
+static SinistarBoard *bootSinistar(unsigned int actionKey = BOARD_KEY_EXTRA) {
   arena();
   static Asset<unsigned char, COMPRESSED> m(sinistar_rom_main_blob);
   static Asset<unsigned char, PLAIN> s(sinistar_rom_sound_blob);
   delete board;
-  SinistarBoard *b = new SinistarBoard(ram, scanA, scanB, m.data(), s.data(), BOARD_KEY_EXTRA);
+  SinistarBoard *b = new SinistarBoard(ram, scanA, scanB, m.data(), s.data(), actionKey);
   board = b;
   b->bindMemory(cmos, soundRam);
   b->bindSram(sram);
@@ -252,6 +253,73 @@ static int speechDelta(const uint8_t *rom, uint8_t cmd) {
   return delta;
 }
 
+// speech board mix at MAME's ratio (CVSD 0.8 : DAC 0.25) must stay in the
+// renderer's range after williams.cpp's DAC_VOLUME 2 and the DC block, with
+// speech peaks near full scale
+void test_sinistar_mix_fits_range(void) {
+  static Asset<unsigned char, PLAIN> s(sinistar_rom_sound_blob);
+  static const int DAC_VOLUME = 2, MIX_MAX = 511;  // williams.h, audio_mix.h
+  int peak = 0;
+  for (int cmd = 0; cmd < 32; cmd++) {
+    const int n = runSound(s.data(), (uint8_t)cmd, true, speechRun[0]);
+    DcBlock dc;
+    for (int i = 0; i < n; i++) {
+      const int out = dc.filter(speechRun[0][i] * DAC_VOLUME);
+      TEST_ASSERT_INT_WITHIN(MIX_MAX, 0, out);
+      peak = abs(out) > peak ? abs(out) : peak;
+    }
+  }
+  TEST_ASSERT_TRUE(peak > 400);
+}
+
+// Inputs scripted over frames after boot; returns the final frame hash
+struct KeySpan {
+  int from, to;
+  unsigned int keys;
+};
+
+static uint32_t sinistarScript(unsigned int actionKey, const KeySpan *spans, int count, int frames) {
+  SinistarBoard *b = bootSinistar(actionKey);
+  while (!b->booted()) {
+    b->runFrame();
+  }
+  for (int f = 0; f < frames; f++) {
+    unsigned int k = 0;
+    for (int i = 0; i < count; i++) {
+      if (f >= spans[i].from && f < spans[i].to) {
+        k |= spans[i].keys;
+      }
+    }
+    b->setKeys(k);
+    b->runFrame();
+  }
+  return frameHash();
+}
+
+// START as the action key (COIN pin / controller builds): START1 and BOMB
+// rise together on the start press; the game must start as with START1
+// alone (probe 2026-10-16: both start, only the enemy layout differs: the
+// extra input bit shifts the random seed)
+void test_sinistar_start_with_bomb(void) {
+  const KeySpan start[] = { { 100, 105, BOARD_KEY_COIN }, { 160, 170, BOARD_KEY_START } };
+  const uint32_t attract = sinistarScript(BOARD_KEY_EXTRA, start, 1, 600);
+  const uint32_t plain = sinistarScript(BOARD_KEY_EXTRA, start, 2, 600);
+  const uint32_t bomb = sinistarScript(BOARD_KEY_START, start, 2, 600);
+  dump(".pio/sinistar_start_bomb.ppm");
+  TEST_ASSERT_NOT_EQUAL(attract, plain);  // the start press did something
+  TEST_ASSERT_NOT_EQUAL(attract, bomb);
+}
+
+// START1 held mid-game (EXTRA as action key sends START after a bomb):
+// must not change the game
+void test_sinistar_start1_mid_game_ignored(void) {
+  const KeySpan play[] = { { 100, 105, BOARD_KEY_COIN }, { 160, 170, BOARD_KEY_START },
+                           { 600, 660, BOARD_KEY_START } };
+  const uint32_t without = sinistarScript(BOARD_KEY_EXTRA, play, 2, 900);
+  const uint32_t with = sinistarScript(BOARD_KEY_EXTRA, play, 3, 900);
+  TEST_ASSERT_EQUAL_HEX32(without, with);
+}
+
 void test_sinistar_speech_commands(void) {
   static Asset<unsigned char, PLAIN> s(sinistar_rom_sound_blob);
   int speaking = 0, loudest = 0;
@@ -283,6 +351,9 @@ int main(int, char **) {
   RUN_TEST(test_sinistar_stick49);
   RUN_TEST(test_sinistar_blitter_window);
   RUN_TEST(test_sinistar_speech_commands);
+  RUN_TEST(test_sinistar_mix_fits_range);
+  RUN_TEST(test_sinistar_start_with_bomb);
+  RUN_TEST(test_sinistar_start1_mid_game_ignored);
 #endif
   return UNITY_END();
 }
