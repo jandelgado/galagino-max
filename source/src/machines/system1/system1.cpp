@@ -317,18 +317,19 @@ void system1::run_frame(void) {
     }
     irqLines();
 
-    current_cpu = MAIN_CPU;
-    for (int i = 0; i < MAIN_STEPS_PER_LINE; i++) {
-      StepZ80(&cpu[MAIN_CPU]);
-    }
-
-    // sound command written by the main CPU in this slice
+    // sound CPU first: at power-on it must set SP before the main CPU's
+    // PPI init raises the first sound NMI (Regulus crashed its sound CPU)
     current_cpu = SOUND_CPU;
     if (takeSoundNmi()) {
       IntZ80(&cpu[SOUND_CPU], INT_NMI);
     }
     for (int i = 0; i < SOUND_STEPS_PER_LINE; i++) {
       StepZ80(&cpu[SOUND_CPU]);
+    }
+
+    current_cpu = MAIN_CPU;
+    for (int i = 0; i < MAIN_STEPS_PER_LINE; i++) {
+      StepZ80(&cpu[MAIN_CPU]);
     }
 
     if (line == VBLANK_LINE) {
