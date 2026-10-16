@@ -16,7 +16,8 @@ static_assert(BOARD_KEY_LEFT == BUTTON_LEFT && BOARD_KEY_RIGHT == BUTTON_RIGHT &
 
 // Galagino side of the Williams gen 1 machines: forwards the 6809 bus to
 // the board, renders the scanout through the column map, feeds the DAC.
-// Native 292 x 240 (ROT0) -> 239 x 240, rows 24..263 of the 288.
+// Native 292 x 240 (ROT0) -> 239 x 240, rows 24..263 of the 288; ROT270
+// (Sinistar) upright: 240 x 288, see uprightX().
 class williams : public machineBase {
 public:
   void start() override;
@@ -35,6 +36,7 @@ public:
 protected:
   // board is a member of the derived class, not yet built: store only
   williams(WilliamsBoard &board, const ColumnLayout &columns);
+  explicit williams(WilliamsBoard &board);  // ROT270 upright (Sinistar)
   WilliamsBoard &board;
 
 private:
@@ -46,6 +48,7 @@ private:
   static const uint16_t CMOS_OFS = 0x0000, SOUND_RAM_OFS = 0x0400;  // memory[]
 
   void clearPads(uint16_t *line);
+  void renderUpright(short row);
 
   Asset<unsigned short, COMPRESSED> williams_rgb;  // shared by all Williams games
   const uint16_t *rgb;
@@ -54,6 +57,7 @@ private:
   uint16_t pens[Scanout::BANDS][PENS];
   int lastSample = 0;
   DcBlock dc;
+  bool upright = false;
 
   int dacSample();
 };
