@@ -1,0 +1,166 @@
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unity.h>
+
+// System 1 ROT0 games (Flicky, Pitfall II): MAME RAM states rendered through
+// the machine class, each panel line compared with the MAME snapshot at the
+// machine's window. Needs the romconv headers (./convert.sh flicky pitfall2).
+// Machine state is private: this test opens it up. Arduino.h / FastLED.h /
+// esp_attr.h here are host stubs.
+#if __has_include("../../src/machines/flicky/flicky_main_rom.h")
+#define HAVE_FLICKY 1
+#define ENABLE_FLICKY
+#endif
+
+#ifdef HAVE_FLICKY
+#include "../../src/machines/system1/system1_collision.cpp"  // before Z80.h: its `word` macro
+#include "../../src/emulation/lzma/LzmaDec.c"
+#include "../../src/emulation/arena.cpp"
+#include "../../src/cpus/z80/Z80.c"
+#include "../../src/emulation/sn76489.cpp"
+#define private public
+#define protected public
+#include "../../src/machines/system1/system1.cpp"
+#include "../../src/machines/flicky/flicky.cpp"
+#undef private
+#undef protected
+
+struct MameFrame {
+  uint32_t frame;
+  uint8_t vram[0x1000];
+  uint8_t pal[0x600];
+  uint8_t spr[0x800];
+  uint32_t crc[224][17];  // per line, per window start 0..16
+};
+
+#include "mame_flicky.h"
+
+using namespace system1_video;
+
+static system1 *machine;
+static unsigned int keys;
+unsigned int Input::buttons_get(void) { return keys; }
+bool Input::demoSoundsOff(void) { return false; }
+
+extern "C" {
+unsigned char OpZ80_INL(unsigned short a) { return machine->opZ80(a); }
+unsigned char OpPrefixZ80_INL(unsigned short a) { return machine->opPrefixZ80(a); }
+unsigned char RdZ80(unsigned short a) { return machine->rdZ80(a); }
+void WrZ80(unsigned short a, unsigned char v) { machine->wrZ80(a, v); }
+unsigned char InZ80(unsigned short p) { return machine->inZ80(p); }
+void OutZ80(unsigned short p, unsigned char v) { machine->outZ80(p, v); }
+void PatchZ80(Z80 *) {}
+word LoopZ80(Z80 *) { return INT_NONE; }
+}
+void Reset6502(M6502 *) {}
+
+static Input input;
+static unsigned short frame_buffer[ROT0_WIDTH * 8];
+static sprite_S sprite_buf[128];
+static unsigned char memory[RAMSIZE];
+
+static uint32_t crc32(const uint8_t *p, size_t n) {
+  uint32_t c = 0xffffffffu;
+  for (size_t i = 0; i < n; i++) {
+    c ^= p[i];
+    for (int k = 0; k < 8; k++) {
+      c = (c >> 1) ^ (0xedb88320u & (0u - (c & 1)));
+    }
+  }
+  return ~c;
+}
+
+// Arena::init() before the ctor: it unpacks the ROMs
+template <class M> static void boot() {
+  delete machine;
+  machine = nullptr;
+  Arena::init();
+  machine = new M();
+  machine->init(&input, frame_buffer, sprite_buf, memory);
+  machine->reset();
+  machine->start();
+  machine->start();
+}
+
+// MAME RAM into the machine, latched as at vblank
+static void load(const MameFrame &f) {
+  memcpy(&memory[system1::VIDEO_RAM], f.vram, sizeof(f.vram));
+  memcpy(&memory[system1::SPRITE_RAM], f.spr, sizeof(f.spr));
+  machine->current_cpu = system1::MAIN_CPU;
+  for (int i = 0; i < (int)sizeof(f.pal); i++) {
+    machine->wrZ80(0xd800 + i, f.pal[i]);
+  }
+  machine->startVblank();
+  machine->prepare_frame();
+}
+
+// env ROT0_DUMP=<dir>: rendered frames as <dir>/<frame>.ppm for a visual diff
+static void dumpLine(FILE *ppm, int y, const uint16_t *line) {
+  for (int x = 0; x < ROT0_WIDTH; x++) {
+    const uint16_t c = (uint16_t)((line[x] >> 8) | (line[x] << 8));
+    const uint8_t rgb[3] = {(uint8_t)((c >> 8) & 0xf8), (uint8_t)((c >> 3) & 0xfc),
+                            (uint8_t)((c << 3) & 0xf8)};
+    fwrite(rgb, 1, 3, ppm);
+  }
+}
+
+// renders all strips, returns the number of lines that differ from MAME
+static int compare(const MameFrame &f, int winX) {
+  int bad = 0;
+  FILE *ppm = nullptr;
+  if (getenv("ROT0_DUMP")) {
+    char path[256];
+    snprintf(path, sizeof(path), "%s/%u.ppm", getenv("ROT0_DUMP"), f.frame);
+    ppm = fopen(path, "wb");
+    fprintf(ppm, "P6 %d %d 255\n", ROT0_WIDTH, VIS_LINES);
+  }
+  machine->winX = winX;
+  for (int strip = machine->firstStrip; strip <= machine->lastStrip; strip++) {
+    memset(frame_buffer, 0, sizeof(frame_buffer));
+    machine->render_row(strip);
+    for (int l = 0; l < 8; l++) {
+      const int y = strip * 8 + l - ROT0_FIRST_ROW;
+      const int w = y < machine->config.window.hudLines ? machine->config.window.hudX : winX;
+      if (ppm) {
+        dumpLine(ppm, y, &frame_buffer[l * ROT0_WIDTH]);
+      }
+      const uint32_t got = crc32((const uint8_t *)&frame_buffer[l * ROT0_WIDTH],
+                                 ROT0_WIDTH * sizeof(uint16_t));
+      if (got != f.crc[y][w]) {
+        if (bad == 0) {
+          printf("frame %u: first bad line %d (window %d)\n", f.frame, y, w);
+          fflush(stdout);
+        }
+        bad++;
+      }
+    }
+  }
+  if (ppm) {
+    fclose(ppm);
+  }
+  return bad;
+}
+
+void setUp(void) {}
+void tearDown(void) {}
+
+static void test_flicky_frames(void) {
+  boot<flicky>();
+  TEST_ASSERT_EQUAL(ROT0_WIDTH, machine->renderWidth());
+  for (const MameFrame &f : MAME_FLICKY) {
+    load(f);
+    TEST_ASSERT_EQUAL(8, machine->winX);
+    TEST_ASSERT_EQUAL_MESSAGE(0, compare(f, 8), "flicky lines differ from MAME");
+  }
+}
+#endif
+
+int main(int, char **) {
+  UNITY_BEGIN();
+#ifdef HAVE_FLICKY
+  RUN_TEST(test_flicky_frames);
+#endif
+  return UNITY_END();
+}
