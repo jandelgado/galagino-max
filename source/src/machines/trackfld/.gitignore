@@ -1,0 +1,6 @@
+trackfld_rom_main.h
+trackfld_rom_sound.h
+trackfld_vlm.h
+trackfld_tilemap.h
+trackfld_spritemap.h
+trackfld_cmap.h
