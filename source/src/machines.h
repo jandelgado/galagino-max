@@ -130,6 +130,9 @@
 #ifdef ENABLE_SINISTAR
   #include "machines/sinistar/sinistar.h"
 #endif
+#ifdef ENABLE_YIEAR
+  #include "machines/yiear/yiear.h"
+#endif
 
 #ifdef ENABLE_MOONCRESTA
   #include "machines/mooncresta/mooncresta.h"
@@ -1107,6 +1110,13 @@ constexpr machineInfo machines[] = {
     sinistar::menuLeds,
 #endif
     MCH_SINISTAR },
+#endif
+#ifdef ENABLE_YIEAR
+  { createMachine<yiear>, yiear::logo,
+#ifdef LED_PIN
+    yiear::menuLeds,
+#endif
+    MCH_YIEAR },
 #endif
 };
 
