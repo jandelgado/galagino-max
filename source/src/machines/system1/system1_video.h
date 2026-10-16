@@ -11,7 +11,6 @@ namespace system1_video {
 
 constexpr int VIS_LINES = 224;
 constexpr int ROW_OF_X0 = 271;   // ROT270: half-res x 0 -> galagino row 271
-constexpr int NATIVE_WIDTH = 256;   // half-res x 0..255
 constexpr int ROT0_WIDTH = 240;     // ROT0: panel columns, a window into 256
 constexpr int ROT0_FIRST_ROW = 32;  // ROT0: line 0 -> galagino row 32, centered in 288
 constexpr int SPRITES = 32;
@@ -241,82 +240,72 @@ inline void renderLine(const LineSrc &f, int x, uint32_t sprTiles, uint16_t *out
   }
 }
 
-// bg pixel of a ROT0 line: tile looked up when the bg column enters a new tile
-struct BgRow {
-  const LineSrc &f;
-  uint8_t by;
-  int tile = -1;
-  uint32_t w = 0;
-  const uint16_t *pal = nullptr;
-  int pri = 0;
-
-  BgRow(const LineSrc &src, int y) : f(src), by(bgY(y, src.scrollY)) {}
-
-  inline __attribute__((always_inline)) uint8_t pixel(uint8_t bx) {
-    if ((bx >> 3) != tile) {
-      tile = bx >> 3;
-      const Tile t = tileAt(f.bgPage, (by >> 3) * PAGE_COLS + tile);
-      w = f.tiles[t.code][by & 7];
-      pal = &f.pal[BG_PENS | tilePen(t.color, 0)];
-      pri = t.color >> 6;
-    }
-    return (w >> (3 * (7 - (bx & 7)))) & 7;
-  }
-};
-
 // One ROT0 output line: native line y into out[0..n), bg and sprites from
 // native x0 + i, fg from fgX0 + i (HUD lines keep their text at a fixed x
 // while the scenery under it moves with the window; else fgX0 == x0). Tiles
 // stored TILES_BY_ROW. Sprite pens are already in out; sprCols bit tx marks
-// native tile columns tx (sprite space) that may hold them. Same two passes
-// as renderLine: bg everywhere, then the fg tiles with fg or sprite pixels.
+// native tile columns tx (sprite space) that may hold them. One pass over
+// runs with a fixed fg and bg tile: runs without fg or sprite pixels copy
+// bg, the others go through mixRun (renderLine's pass 2).
 inline void renderRow(const LineSrc &f, int y, int x0, int fgX0, int n, uint32_t sprCols,
                       uint16_t *out) {
-  // pass 1 overwrites the sprite pens: keep them
-  uint16_t pens[NATIVE_WIDTH];
-  if (sprCols) {
-    memcpy(pens, out, n * sizeof(uint16_t));
-  }
+  static const uint16_t NO_PENS[TILE_SIZE] = {};
+  constexpr uint32_t ROW_BITS = 0xffffff;  // 8 pixels x 3 bits
+  const uint8_t by = bgY(y, f.scrollY);
+  const int fgRow = (y >> 3) * PAGE_COLS;
+  const int bgRow = (by >> 3) * PAGE_COLS;
 
-  BgRow bg(f, y);
-  for (int i = 0; i < n; i++) {
-    const uint8_t bp = bg.pixel(bgCol(2 * (x0 + i), f.scroll));
-    out[i] = bg.pal[bp];
-  }
+  // bgCol truncates toward 0: with an odd scroll bg column 0 shows twice,
+  // the second time at i = dup, where the column count restarts
+  const int dup = (f.scroll & 1) ? (f.scroll + 1) / 2 - x0 : -1;
 
-  // fg tile columns walk fg space; with the fg shifted (HUD lines) sprite
-  // tile columns do not line up, so any sprite on the line counts for all
-  const int ty = y >> 3;
-  const int shiftY = y & 7;
-  const int fx1 = fgX0 + n;
-  for (int tx = fgX0 >> 3; tx <= (fx1 - 1) >> 3; tx++) {
-    const Tile t = tileAt(f.fgPage, ty * PAGE_COLS + tx);
-    const uint32_t fw = f.tiles[t.code][shiftY];
-    const bool sprite = fgX0 == x0 ? (sprCols >> tx) & 1 : sprCols != 0;
-    if (fw == 0 && !sprite && f.clearShowsBg) {
-      continue;
+  int fgCol = -1;
+  int bgTileCol = -1;
+  uint32_t fgWord = 0;
+  uint32_t bgWord = 0;
+  int fgPri = 0;
+  int bgPri = 0;
+  Run r;
+  for (int i = 0; i < n;) {
+    const uint8_t bx = bgCol(2 * (x0 + i), f.scroll);
+    const int fx = fgX0 + i;
+    int len = TILE_SIZE - (bx & 7);
+    len = TILE_SIZE - (fx & 7) < len ? TILE_SIZE - (fx & 7) : len;
+    len = n - i < len ? n - i : len;
+    len = dup > i && dup < i + len ? dup - i : len;
+
+    // tiles change every 8 pixels, runs are shorter
+    if ((fx >> 3) != fgCol) {
+      fgCol = fx >> 3;
+      const Tile t = tileAt(f.fgPage, fgRow + fgCol);
+      fgWord = f.tiles[t.code][y & 7];
+      r.fgPal = &f.pal[FG_PENS | tilePen(t.color, 0)];
+      fgPri = t.color >> 6;
     }
+    if ((bx >> 3) != bgTileCol) {
+      bgTileCol = bx >> 3;
+      const Tile t = tileAt(f.bgPage, bgRow + bgTileCol);
+      bgWord = f.tiles[t.code][by & 7];
+      r.bgPal = &f.pal[BG_PENS | tilePen(t.color, 0)];
+      bgPri = t.color >> 6;
+    }
+    r.fw = fgWord << (3 * (fx & 7));
+    r.bw = bgWord << (3 * (bx & 7));
 
-    const uint16_t *fgPal = &f.pal[FG_PENS | tilePen(t.color, 0)];
-    const int fgPri = t.color >> 6;
-    const int a = tx * TILE_SIZE > fgX0 ? tx * TILE_SIZE : fgX0;
-    const int b = (tx + 1) * TILE_SIZE < fx1 ? (tx + 1) * TILE_SIZE : fx1;
-    BgRow bgt(f, y);
-    for (int fx = a; fx < b; fx++) {
-      const int i = fx - fgX0;
-      const uint8_t fp = (fw >> (3 * (7 - (fx & 7)))) & 7;
-      const uint8_t bp = bgt.pixel(bgCol(2 * (x0 + i), f.scroll));
-      const uint16_t spr = sprite ? pens[i] : 0;
-      const int o = (spr ? 0 : 1) | (fp ? 0 : 2) | (bp ? 0 : 4);
-      const uint8_t source = (f.mixSel[fgPri | (bgt.pri << 2)] >> (2 * o)) & MIX_SOURCE;
-      if (source == SOURCE_SPRITE) {
-        out[i] = f.pal[spr];
-      } else if (source == SOURCE_FG) {
-        out[i] = fgPal[fp];
-      } else {
-        out[i] = bgt.pal[bp];
+    // with the fg shifted (HUD lines) sprite tile columns do not line up,
+    // so any sprite on the line counts for all
+    const bool sprite = fgX0 == x0 ? (sprCols >> fgCol) & 1 : sprCols != 0;
+    if ((r.fw & ROW_BITS) == 0 && !sprite && f.clearShowsBg) {
+      uint32_t bw = r.bw;
+      for (int k = 0; k < len; k++, bw <<= 3) {
+        out[i + k] = r.bgPal[(bw >> 21) & 7];
       }
+    } else {
+      r.sel = f.mixSel[fgPri | (bgPri << 2)];
+      mixRun(&out[i], sprite ? &out[i] : NO_PENS, len, r, f.pal);
     }
+
+    i += len;
   }
 }
 
