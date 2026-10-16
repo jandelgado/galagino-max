@@ -12,6 +12,7 @@ namespace {
 
 // main CPU address map (MAME system1_map)
 constexpr uint16_t ROM_END = 0xc000;
+constexpr uint16_t OPCODES_END = 0x8000;     // Sega encryption covers 0000-7fff only
 constexpr uint16_t RAM_BASE = 0xc000;        // c000-efff: work, sprite, palette, video RAM
 constexpr uint16_t PALETTE_BASE = 0xd800;
 constexpr uint16_t COLLISION_BASE = 0xf000;
@@ -59,7 +60,10 @@ constexpr unsigned int START_KEY = BUTTON_EXTRA;
 
 system1::system1(const Roms &r, const Config &c)
     : tile_rom(r.tiles), tile_map(r.tileMap), main_rom(r.main_cpu), sprite_rom(r.sprites),
-      sound_rom(r.sound_cpu), lookup_prom(r.lookup), config(c) {
+      sound_rom(r.sound_cpu), lookup_prom(r.lookup),
+      opcode_rom(r.opcodes ? r.opcodes->packed : nullptr, r.opcodes ? r.opcodes->packedLen : 0,
+                 r.opcodes ? r.opcodes->count : 0),
+      config(c) {
   // unpack order is the Arena bin packing: tiles + main ROM fill block A
   tiles.gfx = tile_rom.data();
   mainRom = main_rom.data();
@@ -70,6 +74,7 @@ system1::system1(const Roms &r, const Config &c)
   tiles.mask = tile_map.size() - 1;  // romconv asserts a power of two
   tiles.layout = config.orientation == ROT0 ? TILES_BY_ROW : TILES_BY_COLUMN;
   clearShowsBg = buildMixSel(prom, mixSel);
+  opcodes = r.opcodes ? opcode_rom.data() : nullptr;  // last: the Arena block packing
 
   mainRomSize = main_rom.size();
   soundRomSize = sound_rom.size();
@@ -99,6 +104,9 @@ void system1::reset() {
 
 unsigned char system1::opZ80(unsigned short Addr) {
   if (current_cpu == MAIN_CPU) {
+    if (opcodes && Addr < OPCODES_END) {
+      return opcodes[Addr];
+    }
     return Addr < mainRomSize ? mainRom[Addr] : mainRead(Addr);
   }
   return Addr < soundRomSize ? soundRom[Addr] : soundRead(Addr);
