@@ -5,10 +5,24 @@
 
 #include "../../src/cpus/mb88xx/mb88xx.cpp"
 #include "../../src/emulation/namco54.cpp"
+#include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/machines/namco54/namco54_rom.h"
 
 // Needs machines/namco54/namco54_rom.h (romconv galaga or xevious).
 // NAMCO54_WAV=<dir> writes each rendered packet as a 24 kHz WAV.
+
+// namco54_rom_blob is compressed: decode once
+static const uint8_t *namco54_rom_data(void) {
+  static uint8_t rom[1024];
+  static bool done = false;
+  if (!done) {
+    const Asset<unsigned char, COMPRESSED> a(namco54_rom_blob);
+    TEST_ASSERT_TRUE(a.size() <= sizeof(rom));
+    a.decodeInto(rom);
+    done = true;
+  }
+  return rom;
+}
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -59,7 +73,7 @@ static void write_wav(const char *name) {
 }
 
 static Stats play(const uint8_t *bytes, int count, uint8_t ctrl, const char *name) {
-  Namco54 *p = new Namco54(namco54_rom_data); // fresh chip per packet
+  Namco54 *p = new Namco54(namco54_rom_data()); // fresh chip per packet
   Namco54 &chip = *p;
   chip.hold(true);
   chip.render();
@@ -93,7 +107,7 @@ static Stats play(const uint8_t *bytes, int count, uint8_t ctrl, const char *nam
 }
 
 static void test_idle_is_silent(void) {
-  Namco54 chip(namco54_rom_data);
+  Namco54 chip(namco54_rom_data());
   int peak = 0;
   for (int i = 0; i < RATE; i++) {
     const int v = abs(chip.render());
@@ -122,7 +136,7 @@ static void test_xevious_explosions(void) {
 
 // bytes written while the 06xx holds the chip in reset are dropped
 static void test_held_chip_drops_bytes(void) {
-  Namco54 chip(namco54_rom_data);
+  Namco54 chip(namco54_rom_data());
   chip.hold(true);
   for (unsigned i = 0; i < sizeof(GALAGA); i++) {
     chip.write(GALAGA[i], 0xa8);
