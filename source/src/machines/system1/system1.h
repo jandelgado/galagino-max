@@ -29,11 +29,13 @@ private:
   Asset<unsigned char, COMPRESSED> sprite_rom;
   Asset<unsigned char, COMPRESSED> sound_rom;
   Asset<unsigned char, COMPRESSED> lookup_prom;
+  Asset<unsigned char, COMPRESSED> opcode_rom;
 
 public:
   void reset() override;
 
   unsigned char opZ80(unsigned short Addr) override;
+  unsigned char opPrefixZ80(unsigned short Addr) override { return opZ80(Addr); }
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
   unsigned char inZ80(unsigned short Port) override;
@@ -54,6 +56,9 @@ protected:
     const FlashAsset<unsigned short, COMPRESSED> &tileMap;
     const FlashAsset<unsigned char, COMPRESSED> &sprites;
     const FlashAsset<unsigned char, COMPRESSED> &lookup;
+    // encrypted main CPU: opcode image of 0000-7fff, romconv decrypts
+    // main_cpu as data. Omitted in an initializer: nullptr, unencrypted
+    const FlashAsset<unsigned char, COMPRESSED> *opcodes;
   };
   // sound latch / video mode chip: 8255 PPI (sys1ppi) or Z80 PIO (sys1pio)
   enum Board : uint8_t { BOARD_PPI, BOARD_PIO };
@@ -139,6 +144,7 @@ private:
   const uint8_t *spriteRom;
   const uint8_t *soundRom;
   const uint8_t *prom;
+  const uint8_t *opcodes;  // nullptr: M1 fetches read mainRom
   uint16_t mainRomSize;
   uint16_t soundRomSize;
   uint8_t spriteBanks;
