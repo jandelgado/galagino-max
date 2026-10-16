@@ -43,6 +43,8 @@ public:
   void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   void prepare_frame(void) override;
   void render_row(short row) override;
+  const int renderWidth() override;
+  const int renderBuffer() override { return renderWidth() * 2 * STRIP_LINES; }
 
 protected:
   struct Roms {
@@ -56,10 +58,15 @@ protected:
   // sound latch / video mode chip: 8255 PPI (sys1ppi) or Z80 PIO (sys1pio)
   enum Board : uint8_t { BOARD_PPI, BOARD_PIO };
 
+  // ROT270: panel row = native x (column games). ROT0: panel row = native
+  // line, a 240 px window into the 256 px line (landscape games, upright)
+  enum Orientation : uint8_t { ROT270, ROT0 };
+
   struct Config {
     system1_video::Visarea vis;
     bool startButton2;  // START presses BUTTON2 (Regulus: bomb)
     Board board;        // omitted in an initializer: BOARD_PPI
+    Orientation orientation;  // omitted: ROT270
   };
   system1(const Roms &roms, const Config &config);
 
@@ -122,6 +129,8 @@ private:
   void startVblank();
   void drawSprites(int strip);
   void mixStrip(int strip);
+  void renderRot0(int strip);
+  system1_video::LineSrc lineSrc() const;
 
   system1_video::TileSet tiles;
   const uint8_t *mainRom;
@@ -134,6 +143,7 @@ private:
   const Config config;
   int firstStrip;
   int lastStrip;
+  int16_t winX;  // ROT0: native x of panel column 0, 0..16
 
   Ppi8255 ppi;
   Z80Pio pio;
