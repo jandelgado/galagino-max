@@ -3,8 +3,12 @@
 
 WilliamsSound *WilliamsSound::active = nullptr;
 
-void WilliamsSound::attach(const uint8_t *r, uint16_t base, uint8_t *ram256) {
+// speech on the DAC scale: MAME mixes DAC 0.25, CVSD 0.8; tuned on device
+static const int32_t SPEECH_GAIN = 192;  // CVSD full scale -> +-192
+
+void WilliamsSound::attach(const uint8_t *r, uint16_t base, uint8_t *ram256, bool sp) {
   rom = r;
+  speech = sp;
   romBase = base;
   ram = ram256;
 }
@@ -20,6 +24,7 @@ void WilliamsSound::reset() {
   outPhase = 0;
   dacArea = 0;
   dacValue = 0x80;
+  cvsd.reset();
   wr = rd = 0;
   memset(&cpu, 0, sizeof(cpu));
   m6800_reset(&cpu);
@@ -55,7 +60,7 @@ void WilliamsSound::step() {
     cpu.irq_pending = 0;
   }
 
-  const uint8_t held = dacValue;  // a DAC write lands at the end of the step
+  const int32_t held = level();  // a DAC or speech change lands at the end of the step
   const int cycles = m6800_step(&cpu);
   budget -= cycles * (int32_t)MAIN_HZ;
 
@@ -67,15 +72,23 @@ void WilliamsSound::step() {
     const uint32_t part = SOUND_HZ - outPhase;
     phase -= part;
     outPhase = 0;
-    dacArea += held * part;
-    push((dacArea + SOUND_HZ / 2) / SOUND_HZ);
+    dacArea += held * (int32_t)part;
+    push((int16_t)(dacArea / (int32_t)SOUND_HZ));
     dacArea = 0;
   }
   outPhase += phase;
-  dacArea += held * phase;
+  dacArea += held * (int32_t)phase;
 }
 
-void WilliamsSound::push(uint8_t v) {
+int16_t WilliamsSound::level() const {
+  int32_t v = (int32_t)dacValue - 0x80;
+  if (speech) {
+    v += ((int32_t)cvsd.output() * SPEECH_GAIN) >> 15;
+  }
+  return (int16_t)v;
+}
+
+void WilliamsSound::push(int16_t v) {
   const uint16_t next = (wr + 1) & (RING - 1);
   if (next == rd) {
     return;  // full: drop, the audio core is behind
@@ -88,9 +101,9 @@ int WilliamsSound::sample() {
   if (rd == wr) {
     return EMPTY;
   }
-  const uint8_t v = ring[rd];
+  const int16_t v = ring[rd];
   rd = (rd + 1) & (RING - 1);
-  return (int)v - 0x80;
+  return v;
 }
 
 uint8_t WilliamsSound::read(uint16_t addr) {
@@ -113,7 +126,13 @@ void WilliamsSound::write(uint16_t addr, uint8_t val) {
     s.ram[addr] = val;
     return;
   }
-  if ((addr & PIA_MASK) == PIA_BASE && s.pia.write(addr & 3, val) == Pia6821::PORT_A) {
-    s.dacValue = s.pia.outA();
+  if ((addr & PIA_MASK) == PIA_BASE) {
+    const Pia6821::Port port = s.pia.write(addr & 3, val);
+    if (port == Pia6821::PORT_A) {
+      s.dacValue = s.pia.outA();
+    } else if (s.speech && port == Pia6821::PORT_NONE && (addr & 1)) {
+      s.cvsd.digit(s.pia.ca2());  // CRA/CRB write: the C2 lines may have moved
+      s.cvsd.clock(s.pia.cb2());
+    }
   }
 }

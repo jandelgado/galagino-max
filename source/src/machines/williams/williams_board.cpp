@@ -16,7 +16,7 @@ WilliamsBoard::WilliamsBoard(const BoardConfig &c, uint8_t *r, uint8_t *scanA, u
 
 void WilliamsBoard::bindMemory(uint8_t *cmosRam, uint8_t *soundRam) {
   cmos = cmosRam;
-  snd.attach(soundRomPtr, cfg.soundRomBase, soundRam);
+  snd.attach(soundRomPtr, cfg.soundRomBase, soundRam, cfg.speech);
 }
 
 void WilliamsBoard::reset() {

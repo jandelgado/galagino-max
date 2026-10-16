@@ -44,6 +44,9 @@ public:
   // port B pins: those set as inputs float high (sound command idle 0xff)
   uint8_t outB() const { return (orB & ddrB) | (uint8_t)~ddrB; }
 
+  // CA2 level in manual output mode (CRA b5 = b4 = 1), else low
+  bool ca2() const { return (crA & C2_MANUAL) == C2_MANUAL && (crA & C2_LEVEL); }
+
   // CB2 level in manual output mode (CRB b5 = b4 = 1), else low
   bool cb2() const { return (crB & C2_MANUAL) == C2_MANUAL && (crB & C2_LEVEL); }
 

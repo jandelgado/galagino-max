@@ -14,6 +14,7 @@ struct BoardConfig {
   uint16_t cmosMask;      // CMOS address mask: Defender 0xff, others 0x3ff
   uint16_t soundRomBase;  // 0xf800 Defender, 0xf000 others
   uint16_t advanceFrame;  // Advance pulse once the restore prompt shows (boot test)
+  uint8_t speech;         // HC-55516 on the sound PIA (Sinistar)
 };
 
 // Williams gen 1 board (MAME williams/williams.cpp), host-compilable:
