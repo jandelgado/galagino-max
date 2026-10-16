@@ -1,6 +1,7 @@
 #include "ay8910.h"
 
-Ay8910::Ay8910(uint8_t inc, uint8_t gain, uint8_t flags) : inc(inc), gain(gain), flags(flags) {}
+Ay8910::Ay8910(uint8_t inc, uint8_t gain, uint8_t flags)
+    : inc(inc), gain(gain), flags(flags), chanGain{gain, gain, gain} {}
 
 void Ay8910::render(const uint8_t *regs, int16_t *out, int n) {
   for (int c = 0; c < TONES; c++) {
@@ -54,7 +55,7 @@ void Ay8910::render(const uint8_t *regs, int16_t *out, int n) {
         if (bit == 0) {
           bit = -1;
         }
-        value += gain * bit * level;
+        value += chanGain[c] * bit * level;
       }
       cnt[c] += inc;
       if (cnt[c] > period[c]) {
