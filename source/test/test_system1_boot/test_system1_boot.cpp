@@ -132,6 +132,14 @@ template <class M> static void check(int frames = 1200) {
 
 #ifdef ENABLE_MRVIKING
 static void test_mrviking_boots(void) { check<mrviking>(); }
+
+// MAME mrviking: BUTTON1 (attack) on P1 bit 1, FIRE must press it
+static void test_mrviking_fire_bit(void) {
+  boot<mrviking>();
+  keys = BUTTON_FIRE;
+  TEST_ASSERT_EQUAL_HEX8(0xfd, machine->inZ80(0x00));
+  keys = 0;
+}
 #endif
 #ifdef ENABLE_IMSORRY
 static void test_imsorry_boots(void) { check<imsorry>(); }
@@ -153,6 +161,7 @@ int main(int, char **) {
   UNITY_BEGIN();
 #ifdef ENABLE_MRVIKING
   RUN_TEST(test_mrviking_boots);
+  RUN_TEST(test_mrviking_fire_bit);
 #endif
 #ifdef ENABLE_IMSORRY
   RUN_TEST(test_imsorry_boots);
