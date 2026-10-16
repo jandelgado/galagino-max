@@ -154,17 +154,17 @@ uint8_t tron::read_input(uint8_t n) {
   case 1:
     return aim.dial();
   case 2:
-    // panel up/down = native left/right (ROT90), panel left/right = native down/up
-    if (keys & BUTTON_UP) {
+    // the stick as the player sees it: not rotated with the screen
+    if (keys & BUTTON_LEFT) {
       v &= ~IP2_LEFT;
     }
-    if (keys & BUTTON_DOWN) {
+    if (keys & BUTTON_RIGHT) {
       v &= ~IP2_RIGHT;
     }
-    if (keys & BUTTON_RIGHT) {
+    if (keys & BUTTON_UP) {
       v &= ~IP2_UP;
     }
-    if (keys & BUTTON_LEFT) {
+    if (keys & BUTTON_DOWN) {
       v &= ~IP2_DOWN;
     }
     return v;

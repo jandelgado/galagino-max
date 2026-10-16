@@ -125,6 +125,19 @@ static void test_attract_runs(void) {
   TEST_ASSERT_GREATER_THAN_UINT32(100, lit);
 }
 
+// IP2 holds the joystick as the player sees it (MAME: physical controls are
+// not rotated with the screen), so stick directions map 1:1
+static void test_stick_not_rotated(void) {
+  boot();
+  static const struct { unsigned int key; uint8_t bit; } MAP[] = {
+      {BUTTON_LEFT, 0x01}, {BUTTON_RIGHT, 0x02}, {BUTTON_UP, 0x04}, {BUTTON_DOWN, 0x08}};
+  for (const auto &m : MAP) {
+    keys = m.key;
+    TEST_ASSERT_EQUAL_HEX8(0xff & ~m.bit, machine->inZ80(0x02));
+  }
+  keys = 0;
+}
+
 // RGB565, bytes swapped for SPI -> 8 bit RGB
 static void putPixel(FILE *f, uint16_t v) {
   v = (uint16_t)((v << 8) | (v >> 8));
@@ -167,6 +180,7 @@ int main(int argc, char **argv) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   RUN_TEST(test_attract_runs);
+  RUN_TEST(test_stick_not_rotated);
   RUN_TEST(test_render_frame);
 #endif
   return UNITY_END();
