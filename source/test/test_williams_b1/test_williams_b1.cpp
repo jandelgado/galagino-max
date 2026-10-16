@@ -13,6 +13,10 @@
 #define HAVE_JOUST 1
 #include "../../src/machines/joust/joust_rom.h"
 #endif
+#if __has_include("../../src/machines/sinistar/sinistar_rom.h") && defined(HAVE_ROBOTRON)
+#define HAVE_SINISTAR 1
+#include "../../src/machines/sinistar/sinistar_rom.h"
+#endif
 #include "../../src/cpus/m6803/m6803.c"
 #include "../../src/cpus/m6809/m6809.c"
 #include "../../src/machines/williams/williams_sound.cpp"
@@ -20,6 +24,7 @@
 #include "../../src/machines/williams/b1_board.cpp"
 #include "../../src/machines/williams/robotron_board.h"
 #include "../../src/machines/williams/joust_board.h"
+#include "../../src/machines/williams/sinistar_board.h"
 
 // Boots the blitter board games (Robotron, Joust) through the board layer
 // on the real ROMs (romconv headers, skipped without them); PPM frames to
@@ -87,13 +92,13 @@ static uint32_t frameHash() {
   return h;
 }
 
-static void runAttract(const char *game) {
+static void runAttract(const char *game, int step = ATTRACT_STEP) {
   while (!board->booted()) {
     board->runFrame();
   }
   uint32_t hashes[4];
   for (int i = 0; i < 4; i++) {
-    for (int f = 0; f < ATTRACT_STEP; f++) {
+    for (int f = 0; f < step; f++) {
       board->runFrame();
     }
     hashes[i] = frameHash();
@@ -154,6 +159,62 @@ void test_joust_mux(void) {
 }
 #endif
 
+#ifdef HAVE_SINISTAR
+static uint8_t sram[4096];
+// the high score table holds longer than ATTRACT_STEP
+static const int SINISTAR_ATTRACT_STEP = 250;
+
+static SinistarBoard *bootSinistar() {
+  arena();
+  static Asset<unsigned char, COMPRESSED> m(sinistar_rom_main_blob);
+  static Asset<unsigned char, PLAIN> s(sinistar_rom_sound_blob);
+  delete board;
+  SinistarBoard *b = new SinistarBoard(ram, scanA, scanB, m.data(), s.data(), BOARD_KEY_EXTRA);
+  board = b;
+  b->bindMemory(cmos, soundRam);
+  b->bindSram(sram);
+  b->reset();
+  return b;
+}
+
+void test_sinistar_boot_reaches_attract(void) {
+  bootSinistar();
+  runAttract("sinistar", SINISTAR_ATTRACT_STEP);
+}
+
+// 49-way stick at full deflection, MAME translate49 (williams_m.cpp:221)
+void test_sinistar_stick49(void) {
+  TEST_ASSERT_EQUAL_HEX8(0x77, SinistarBoard::stick49(0));
+  TEST_ASSERT_EQUAL_HEX8(0x07, SinistarBoard::stick49(BOARD_KEY_LEFT));
+  TEST_ASSERT_EQUAL_HEX8(0x87, SinistarBoard::stick49(BOARD_KEY_RIGHT));
+  TEST_ASSERT_EQUAL_HEX8(0x78, SinistarBoard::stick49(BOARD_KEY_UP));
+  TEST_ASSERT_EQUAL_HEX8(0x70, SinistarBoard::stick49(BOARD_KEY_DOWN));
+  TEST_ASSERT_EQUAL_HEX8(0x08, SinistarBoard::stick49(BOARD_KEY_LEFT | BOARD_KEY_UP));
+}
+
+// window on: blits to 0x7400-0xbfff dropped, below and SRAM pass
+void test_sinistar_blitter_window(void) {
+  SinistarBoard *b = bootSinistar();
+  b->write(0xc900, 0x04);  // window on, RAM visible
+  b->write(0x7000, 0x00);
+  b->write(0x7400, 0x00);
+  b->write(0xd000, 0x00);
+  // solid 1x1 fill of 0xaa at each target: control 0x10 (SOLID), size XOR 4
+  const uint16_t dst[] = { 0x7000, 0x7400, 0xd000 };
+  for (uint16_t d : dst) {
+    b->write(0xca01, 0xaa);
+    b->write(0xca04, d >> 8);
+    b->write(0xca05, d & 0xff);
+    b->write(0xca06, 1 ^ 4);
+    b->write(0xca07, 1 ^ 4);
+    b->write(0xca00, 0x10);
+  }
+  TEST_ASSERT_EQUAL_HEX8(0xaa, b->read(0x7000));
+  TEST_ASSERT_EQUAL_HEX8(0x00, b->read(0x7400));
+  TEST_ASSERT_EQUAL_HEX8(0xaa, b->read(0xd000));
+}
+#endif
+
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROBOTRON
@@ -162,6 +223,11 @@ int main(int, char **) {
 #ifdef HAVE_JOUST
   RUN_TEST(test_joust_boot_reaches_attract);
   RUN_TEST(test_joust_mux);
+#endif
+#ifdef HAVE_SINISTAR
+  RUN_TEST(test_sinistar_boot_reaches_attract);
+  RUN_TEST(test_sinistar_stick49);
+  RUN_TEST(test_sinistar_blitter_window);
 #endif
   return UNITY_END();
 }

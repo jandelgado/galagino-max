@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-# Williams gen 1 (MAME williams/williams.cpp): defender, robotron, joust.
+# Williams gen 1 (MAME williams/williams.cpp): defender, robotron, joust,
+# sinistar.
 # CPU ROMs as LZMA assets, plus the shared 256 entry RGB565 palette
 # (palette_init: R/G resistors 1200/560/330, B 560/330, BBGGGRRR).
-# usage: williams_rom_convert.py <defender|robotron|joust>
+# usage: williams_rom_convert.py <defender|robotron|joust|sinistar>
 import os
 import sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import load_file, rgb888_to_rgb565_le
-from asset_emit import emit_compressed
+from asset_emit import emit_compressed, emit_plain
 from resnet import resistor_weights, combine
 
 GAME = sys.argv[1]
@@ -106,5 +107,35 @@ if GAME in ("robotron", "joust"):
         emit_compressed(f, f"{GAME}_rom_main", "unsigned char", "", len(main), list(main))
         emit_compressed(f, f"{GAME}_rom_sound", "unsigned char", "", len(sound), list(sound))
     budget += len(main) + len(sound)
+
+SINISTAR = [("sinistar_rom_1-b_16-3004-53.1d", "026d8cab07734fa294a5645edbe65a904bcbc302"),
+            ("sinistar_rom_2-b_16-3004-54.1c", "423d1e3b0c07333ec582529bc4d0b7baf591820a"),
+            ("sinistar_rom_3-b_16-3004-55.1a", "5bc03d7249529d827dc60c087e074ab3e4ea7361"),
+            ("sinistar_rom_4-b_16-3004-56.2d", "72c0c3d5a5ca87ca4d95fcedaf834206e4633950"),
+            ("sinistar_rom_5-b_16-3004-57.2c", "828a89d2ea13d8a362dae708f86bff54cb231887"),
+            ("sinistar_rom_6-b_16-3004-58.2a", "703e29e6446856615760a4897c0f5d79cc7bdfb2"),
+            ("sinistar_rom_7-b_16-3004-59.3d", "bf4e2ada6a59d246218544d822ba5355da925924"),
+            ("sinistar_rom_8-b_16-3004-60.3c", "8c7eca656b2c23b0da41a8c7ce51a2735cab85a4"),
+            ("sinistar_rom_9-b_16-3004-61.3a", "96e28e4fef98fff2649741a266fa590e0313e3b0"),
+            ("sinistar_rom_10-b_16-3004-62.4c", "81802622bee8dbea5c0f08019d87d941dcdbe292"),
+            ("sinistar_rom_11-b_16-3004-63.4a", "2f38e572ab9c731e38dfe9bad3cc8222a775c5ea")]
+SINISTAR_SOUND = [("3004_speech_ic7_r1_16-3004-52.ic7", "442f4f3ccd2e1db2136d2ffb121ea442921f87ca"),
+                  ("3004_speech_ic5_r1_16-3004-50.ic5", "d5d51c550581c9d46ab331dd4fd32541a2ef598e"),
+                  ("3004_speech_ic6_r1_16-3004-51.ic6", "16fa2a602acbbc182dd96bab113ab18356f3daf0"),
+                  ("3004_speech_ic4_r1_16-3004-49.ic4", "44430cd5c110ec751b0bfb8ae99b26d443350db1"),
+                  ("video_sound_rom_9_std.808.ic12", "c70c7dd6e88897920d7709a260f27810f66aade1")]
+
+if GAME == "sinistar":
+    main = b"".join(rom(n, s) for n, s in SINISTAR)  # 0x0000-0x8fff, then 0xe000-0xffff
+    sound = b"".join(rom(n, s) for n, s in SINISTAR_SOUND)  # 0xb000-0xffff
+    assert len(main) == 0xb000 and len(sound) == 0x5000
+    with open(os.path.join(out_dir, "sinistar_rom.h"), "w") as f:
+        emit_compressed(f, "sinistar_rom_main", "unsigned char", "", len(main), list(main))
+        # PLAIN: in the Arena it breaks first-fit packing for some orders of
+        # the board's three allocs; the 6808 reads it sparsely (speech bits)
+        body = ",\n".join(", ".join(f"0x{v:02x}" for v in sound[i:i + 16])
+                           for i in range(0, len(sound), 16))
+        emit_plain(f, "sinistar_rom_sound", "unsigned char", "", len(sound), body)
+    budget += len(main)
 
 print(f"{GAME} Arena assets: {budget} bytes (+ RAM 49152 + scanout 70080 <= 201500)")
