@@ -28,8 +28,9 @@ static void sprite(int n, uint8_t top, uint8_t lines, uint16_t x512) {
   e[7] = ROW_DATA >> 8;
 }
 
-static Collision::Frame frame(uint8_t mode = 0, Visarea vis = VISAREA_SCROLL) {
-  Collision::Frame f = {spriteRam, spriteRom, 1, vram, {tiles, tileMap, 1}, prom, mode, vis};
+static Collision::Frame frame(uint8_t mode = 0, Visarea vis = VISAREA_SCROLL,
+                              TileLayout layout = TILES_BY_COLUMN) {
+  Collision::Frame f = {spriteRam, spriteRom, 1, vram, {tiles, tileMap, 1, layout}, prom, mode, vis};
   return f;
 }
 
@@ -166,6 +167,18 @@ static void test_fg_priority(void) {
   TEST_ASSERT_EQUAL_HEX8(0xff, col.mixRead(0));
 }
 
+// ROT0 tiles stored by row: the one opaque pixel (x 51, y 10) collides
+static void test_fg_tiles_by_row(void) {
+  for (int c = 0; c < 8; c++) {
+    tiles[1][c] = 0;
+  }
+  tiles[1][2] = 7u << (3 * (7 - 3));  // row 2, column 3
+  sprite(0, 10, 1, 100);              // fg x 50..53 on line 10, tile (6, 1)
+  vram[FG_PAGE + 2 * (1 * PAGE_COLS + 6)] = 1;
+  col.scan(frame(0, VISAREA_SCROLL, TILES_BY_ROW));
+  TEST_ASSERT_TRUE(col.hit());
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_sprite_pair);
@@ -179,5 +192,6 @@ int main(int, char **) {
   RUN_TEST(test_fg_per_unit);
   RUN_TEST(test_pixel_across_words);
   RUN_TEST(test_fg_priority);
+  RUN_TEST(test_fg_tiles_by_row);
   return UNITY_END();
 }

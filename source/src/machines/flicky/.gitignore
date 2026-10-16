@@ -1,0 +1,6 @@
+flicky_main_rom.h
+flicky_sound_rom.h
+flicky_tiles.h
+flicky_sprites.h
+flicky_lookup_prom.h
+flicky_tile_map.h

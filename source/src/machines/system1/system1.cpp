@@ -67,6 +67,7 @@ system1::system1(const Roms &r, const Config &c)
   prom = lookup_prom.data();
   tiles.map = tile_map.data();
   tiles.mask = tile_map.size() - 1;  // romconv asserts a power of two
+  tiles.layout = TILES_BY_COLUMN;
   clearShowsBg = buildMixSel(prom, mixSel);
 
   mainRomSize = main_rom.size();
