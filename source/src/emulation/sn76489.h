@@ -12,8 +12,8 @@ public:
   // counter units per output sample: chip clock / 16 / 24 kHz, in 1/FRAC
   // steps (a period of p toggles after p * FRAC counted down)
   static const int FRAC = 64;
-  static const int INC_4MHZ = 11 * FRAC;     // 4 MHz (10.42) as tuned
-  static const int INC_2MHZ = 5 * FRAC;      // 2 MHz; tp84, roadfighter as tuned
+  static const int INC_4MHZ = 667;           // 4 MHz: 10.417 * FRAC
+  static const int INC_2MHZ = 333;           // 2 MHz: 5.208 * FRAC
   static const int INC_1789KHZ = 298;        // 14.318 MHz / 8: 4.661 * FRAC
   static const int INC_1536KHZ = 4 * FRAC;
   static const int CHANNELS = 4;     // 3 tones + noise
