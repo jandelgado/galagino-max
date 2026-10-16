@@ -2,7 +2,8 @@
 #if defined(ENABLE_STARJACK) || defined(ENABLE_REGULUS) || defined(ENABLE_UPNDOWN) || \
     defined(ENABLE_RAFLESIA) || defined(ENABLE_SWAT) || defined(ENABLE_FLICKY) || \
     defined(ENABLE_PITFALL2) || \
-    defined(ENABLE_MRVIKING)
+    defined(ENABLE_MRVIKING) || \
+    defined(ENABLE_IMSORRY)
 
 #include "system1.h"
 #include "system1_palette.h"

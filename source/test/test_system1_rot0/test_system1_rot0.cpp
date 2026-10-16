@@ -15,6 +15,9 @@
 #define ENABLE_FLICKY
 #define ENABLE_PITFALL2
 #endif
+#if defined(HAVE_ROMS) && __has_include("../../src/machines/imsorry/imsorry_main_rom.h")
+#define ENABLE_IMSORRY
+#endif
 
 #ifdef HAVE_ROMS
 #include "../../src/machines/system1/system1_collision.cpp"  // before Z80.h: its `word` macro
@@ -27,6 +30,9 @@
 #include "../../src/machines/system1/system1.cpp"
 #include "../../src/machines/flicky/flicky.cpp"
 #include "../../src/machines/pitfall2/pitfall2.cpp"
+#ifdef ENABLE_IMSORRY
+#include "../../src/machines/imsorry/imsorry.cpp"
+#endif
 #undef private
 #undef protected
 
@@ -40,6 +46,9 @@ struct MameFrame {
 
 #include "mame_flicky.h"
 #include "mame_pitfall2.h"
+#ifdef ENABLE_IMSORRY
+#include "mame_imsorry.h"
+#endif
 
 using namespace system1_video;
 
@@ -215,6 +224,18 @@ template <class M> static int audioPeak() {
   return peak;
 }
 
+#ifdef ENABLE_IMSORRY
+// content x 8..247 (MAME): fixed window 8, no HUD band
+static void test_imsorry_frames(void) {
+  boot<imsorry>();
+  for (const MameFrame &f : MAME_IMSORRY) {
+    load(f);
+    TEST_ASSERT_EQUAL(8, machine->winX);
+    TEST_ASSERT_EQUAL_MESSAGE(0, compare(f, 8), "imsorry lines differ from MAME");
+  }
+}
+#endif
+
 static void test_flicky_audio(void) { TEST_ASSERT_GREATER_THAN(0, audioPeak<flicky>()); }
 static void test_pitfall2_audio(void) { TEST_ASSERT_GREATER_THAN(0, audioPeak<pitfall2>()); }
 #endif
@@ -227,6 +248,9 @@ int main(int, char **) {
   RUN_TEST(test_pitfall2_window_follows);
   RUN_TEST(test_flicky_audio);
   RUN_TEST(test_pitfall2_audio);
+#ifdef ENABLE_IMSORRY
+  RUN_TEST(test_imsorry_frames);
+#endif
 #endif
   return UNITY_END();
 }
