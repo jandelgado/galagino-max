@@ -16,6 +16,8 @@ namespace {
 // main CPU address map (MAME system1_map)
 constexpr uint16_t ROM_END = 0xc000;
 constexpr uint16_t OPCODES_END = 0x8000;     // Sega encryption covers 0000-7fff only
+constexpr uint16_t BANK_BASE = 0x8000;       // 8000-bfff: banked ROM (Config::bank)
+constexpr uint32_t BANK_SIZE = 0x4000;
 constexpr uint16_t RAM_BASE = 0xc000;        // c000-efff: work, sprite, palette, video RAM
 constexpr uint16_t PALETTE_BASE = 0xd800;
 constexpr uint16_t COLLISION_BASE = 0xf000;
@@ -63,9 +65,7 @@ constexpr unsigned int START_KEY = BUTTON_EXTRA;
 
 system1::system1(const Roms &r, const Config &c)
     : tile_rom(r.tiles), tile_map(r.tileMap), main_rom(r.main_cpu), sprite_rom(r.sprites),
-      sound_rom(r.sound_cpu), lookup_prom(r.lookup),
-      opcode_rom(r.opcodes ? r.opcodes->packed : nullptr, r.opcodes ? r.opcodes->packedLen : 0,
-                 r.opcodes ? r.opcodes->count : 0),
+      sound_rom(r.sound_cpu), lookup_prom(r.lookup), opcode_rom(r.opcodes), bank_rom(r.banks),
       config(c) {
   // unpack order is the Arena bin packing (Arena::alloc first fit, A then
   // B); romconv's UNPACK_ORDER checks the same order fits for every set
@@ -75,7 +75,10 @@ system1::system1(const Roms &r, const Config &c)
   soundRom = sound_rom.data();
   prom = lookup_prom.data();
   tiles.map = tile_map.data();
-  opcodes = r.opcodes ? opcode_rom.data() : nullptr;
+  opcodes = opcode_rom.data();
+  banks = config.bank == BANK_NONE ? nullptr : bank_rom.data();
+  bank = nullptr;
+  paletteLut = r.palette ? r.palette : system1_palette;
   tiles.mask = tile_map.size() - 1;  // romconv asserts a power of two
   tiles.layout = config.orientation == ROT0 ? TILES_BY_ROW : TILES_BY_COLUMN;
   clearShowsBg = buildMixSel(prom, mixSel);
@@ -98,6 +101,7 @@ void system1::reset() {
   pio.reset();
   mainIrq = false;
   soundIrq = false;
+  selectBank();
 
   memset(palette, 0, sizeof(palette));
   collision.reset();
@@ -130,7 +134,10 @@ void system1::wrZ80(unsigned short Addr, unsigned char Value) {
 
 uint8_t system1::mainRead(uint16_t a) {
   if (a < ROM_END) {
-    return a < mainRomSize ? mainRom[a] : 0xff;
+    if (a < mainRomSize) {
+      return mainRom[a];
+    }
+    return bank && a >= BANK_BASE ? bank[a - BANK_BASE] : 0xff;
   }
   if (a < COLLISION_BASE) {
     return memory[a - RAM_BASE];
@@ -152,7 +159,7 @@ void system1::mainWrite(uint16_t a, uint8_t v) {
   if (a < COLLISION_BASE) {
     memory[a - RAM_BASE] = v;
     if (a >= PALETTE_BASE && a - PALETTE_BASE < PALETTE_USED) {
-      palette[a - PALETTE_BASE] = system1_palette[v];
+      palette[a - PALETTE_BASE] = paletteLut[v];
     }
     return;
   }
@@ -233,11 +240,20 @@ void system1::outZ80(unsigned short Port, unsigned char Value) {
     if (p >= PORT_PIO) {
       pio.write(p - PORT_PIO, Value);
     }
-    return;
-  }
-  if (p < PORT_PIO) {
+  } else if (p < PORT_PIO) {
     ppi.write(p - PORT_PPI, Value);
   }
+  selectBank();
+}
+
+// MAME bank44_custom_w: video mode bits 6 and 2 pick one of 4 banks
+void system1::selectBank() {
+  if (!banks) {
+    return;
+  }
+  const uint8_t m = videoMode();
+  const uint32_t entry = ((m & 0x40) >> 5) | ((m & 0x04) >> 2);
+  bank = banks + (entry % (bank_rom.size() / BANK_SIZE)) * BANK_SIZE;
 }
 
 // sound latch and video mode live on the PPI or the PIO, by board

@@ -17,7 +17,7 @@ static const system1_video::Window IMSORRY_WINDOW = {8, 8, system1_video::NO_PLA
 
 imsorry::imsorry() : system1(Roms{
     imsorry_main_rom_blob, imsorry_sound_rom_blob, imsorry_tiles_blob, imsorry_tile_map_blob,
-    imsorry_sprites_blob, imsorry_lookup_prom_blob, &imsorry_opcodes_blob,
+    imsorry_sprites_blob, imsorry_lookup_prom_blob, imsorry_opcodes_blob,
 }, Config{system1_video::VISAREA_FULL, true, BOARD_PIO, ROT0, IMSORRY_WINDOW}) { }
 
 const Logo &imsorry::logo(void) {

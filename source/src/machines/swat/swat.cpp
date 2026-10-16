@@ -15,7 +15,7 @@
 // opcode-decrypted 0000-7fff as opcodes
 swat::swat() : system1(Roms{
     swat_main_rom_blob, swat_sound_rom_blob, swat_tiles_blob, swat_tile_map_blob,
-    swat_sprites_blob, swat_lookup_prom_blob, &swat_opcodes_blob,
+    swat_sprites_blob, swat_lookup_prom_blob, swat_opcodes_blob,
 }, Config{system1_video::VISAREA_FULL, true}) { }
 
 const Logo &swat::logo(void) {

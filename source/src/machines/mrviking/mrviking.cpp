@@ -15,7 +15,7 @@
 // picked-up weapon (MAME probe 2026-10-16: bit 2 scores steadily).
 mrviking::mrviking() : system1(Roms{
     mrviking_main_rom_blob, mrviking_sound_rom_blob, mrviking_tiles_blob, mrviking_tile_map_blob,
-    mrviking_sprites_blob, mrviking_lookup_prom_blob, &mrviking_opcodes_blob,
+    mrviking_sprites_blob, mrviking_lookup_prom_blob, mrviking_opcodes_blob,
 }, Config{system1_video::VISAREA_SCROLL, true}) { }
 
 const Logo &mrviking::logo(void) {
