@@ -21,6 +21,9 @@
 #if defined(HAVE_ROMS) && __has_include("../../src/machines/wboy/wboy_main_rom.h")
 #define ENABLE_WBOY
 #endif
+#if defined(HAVE_ROMS) && __has_include("../../src/machines/fourdwarrio/fourdwarrio_main_rom.h")
+#define ENABLE_FOURDWARRIO
+#endif
 
 #ifdef HAVE_ROMS
 #include "../../src/machines/system1/system1_collision.cpp"  // before Z80.h: its `word` macro
@@ -39,6 +42,9 @@
 #ifdef ENABLE_WBOY
 #include "../../src/machines/wboy/wboy.cpp"
 #endif
+#ifdef ENABLE_FOURDWARRIO
+#include "../../src/machines/fourdwarrio/fourdwarrio.cpp"
+#endif
 #undef private
 #undef protected
 
@@ -52,6 +58,9 @@ struct MameFrame {
 
 #include "mame_flicky.h"
 #include "mame_pitfall2.h"
+#ifdef ENABLE_FOURDWARRIO
+#include "mame_fourdwarrio.h"
+#endif
 #ifdef ENABLE_WBOY
 #include "mame_wboy.h"
 #endif
@@ -257,6 +266,18 @@ static void test_wboy_frames(void) {
 }
 #endif
 
+#ifdef ENABLE_FOURDWARRIO
+// content spans x 0..255 (MAME, scrolling playfield): fixed centered window 8
+static void test_fourdwarrio_frames(void) {
+  boot<fourdwarrio>();
+  for (const MameFrame &f : MAME_FOURDWARRIO) {
+    load(f);
+    TEST_ASSERT_EQUAL(8, machine->winX);
+    TEST_ASSERT_EQUAL_MESSAGE(0, compare(f, 8), "fourdwarrio lines differ from MAME");
+  }
+}
+#endif
+
 static void test_flicky_audio(void) { TEST_ASSERT_GREATER_THAN(0, audioPeak<flicky>()); }
 static void test_pitfall2_audio(void) { TEST_ASSERT_GREATER_THAN(0, audioPeak<pitfall2>()); }
 #endif
@@ -275,6 +296,9 @@ int main(int, char **) {
 #endif
 #ifdef ENABLE_WBOY
   RUN_TEST(test_wboy_frames);
+#endif
+#ifdef ENABLE_FOURDWARRIO
+  RUN_TEST(test_fourdwarrio_frames);
 #endif
   return UNITY_END();
 }

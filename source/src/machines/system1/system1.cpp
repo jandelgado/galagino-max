@@ -4,7 +4,8 @@
     defined(ENABLE_PITFALL2) || \
     defined(ENABLE_MRVIKING) || \
     defined(ENABLE_IMSORRY) || \
-    defined(ENABLE_WBOY)
+    defined(ENABLE_WBOY) || \
+    defined(ENABLE_FOURDWARRIO)
 
 #include "system1.h"
 #include "system1_palette.h"

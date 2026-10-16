@@ -1,0 +1,7 @@
+fourdwarrio_main_rom.h
+fourdwarrio_sound_rom.h
+fourdwarrio_tiles.h
+fourdwarrio_sprites.h
+fourdwarrio_lookup_prom.h
+fourdwarrio_tile_map.h
+fourdwarrio_opcodes.h
