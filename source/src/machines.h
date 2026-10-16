@@ -139,6 +139,9 @@
 #ifdef ENABLE_TRON
   #include "machines/tron/tron.h"
 #endif
+#ifdef ENABLE_DOTRON
+  #include "machines/dotron/dotron.h"
+#endif
 
 #ifdef ENABLE_MOONCRESTA
   #include "machines/mooncresta/mooncresta.h"
@@ -1137,6 +1140,13 @@ constexpr machineInfo machines[] = {
     tron::menuLeds,
 #endif
     MCH_TRON },
+#endif
+#ifdef ENABLE_DOTRON
+  { createMachine<dotron>, dotron::logo,
+#ifdef LED_PIN
+    dotron::menuLeds,
+#endif
+    MCH_DOTRON },
 #endif
 };
 

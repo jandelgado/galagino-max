@@ -7,6 +7,7 @@
 #include "../mcr/mcr_ssio.h"
 #include "dotron_aim.h"
 #include "dotron_dipswitches.h"
+#include "dotron_logo.h"
 
 // Discs of Tron (Bally Midway 1983, upright 10/4/83), MAME midway/mcr.cpp:
 // MCR 91490 CPU board (Z80 at 5 MHz, IM 2 interrupts from a Z80 CTC),
@@ -51,6 +52,11 @@ public:
   void prepare_frame(void) override;
   void render_row(short row) override;
   void renderAudio(int16_t *out, int n) override;
+  static const Logo &logo(void) { return dotron_logo; }
+#ifdef LED_PIN
+  static void menuLeds(CRGB *leds);
+  void gameLeds(CRGB *leds) override;
+#endif
 
 private:
   static const int OUT_WIDTH = 240;
@@ -83,6 +89,8 @@ private:
   uint16_t palette9[COLORS] = {};  // 9 bit xRBG from palette RAM writes
   bool odd_field = false;
   uint8_t dial = 0;  // IP1 dial counter, 7 bit
+  uint8_t last_command = 0;
+  uint8_t led_flash = 0;  // frames left, set by a new sound command
   int main_debt = 0;
 
   // strip buffer, video core only: pixel taken by a higher sprite

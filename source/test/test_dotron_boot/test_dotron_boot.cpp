@@ -263,6 +263,43 @@ static void test_auto_aim_scores(void) {
   printf("score %d\n", score());
   TEST_ASSERT_GREATER_OR_EQUAL_INT(2000, score());
 }
+
+#ifdef LED_PIN
+static bool sameLeds(const CRGB *a, const CRGB *b) {
+  for (int i = 0; i < NUM_LEDS; i++) {
+    if (a[i].r != b[i].r || a[i].g != b[i].g || a[i].b != b[i].b) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// a new sound command flashes all LEDs for a few frames, then menu colors
+static void test_leds_flash_on_sound_command(void) {
+  boot();
+  CRGB menu[NUM_LEDS], game[NUM_LEDS];
+  dotron::menuLeds(menu);
+  TEST_ASSERT_FALSE(menu[0].r == menu[3].r && menu[0].g == menu[3].g && menu[0].b == menu[3].b);
+
+  runTo(frame + 10);
+  machine->outZ80(PORT_LATCH0, (uint8_t)(machine->last_command + 1));
+  machine->gameLeds(game);
+  TEST_ASSERT_FALSE(sameLeds(game, menu));
+  for (int i = 1; i < NUM_LEDS; i++) {  // one flash color
+    TEST_ASSERT_EQUAL_UINT8(game[0].r, game[i].r);
+    TEST_ASSERT_EQUAL_UINT8(game[0].g, game[i].g);
+    TEST_ASSERT_EQUAL_UINT8(game[0].b, game[i].b);
+  }
+
+  keys = 0;
+  for (int i = 0; i < 4; i++) {
+    machine->run_frame();
+  }
+  machine->outZ80(PORT_LATCH0, machine->last_command);  // same command: no flash
+  machine->gameLeds(game);
+  TEST_ASSERT_TRUE(sameLeds(game, menu));
+}
+#endif
 #endif
 
 int main(int argc, char **argv) {
@@ -273,6 +310,9 @@ int main(int argc, char **argv) {
   RUN_TEST(test_coin_start_reaches_game);
   RUN_TEST(test_stick_left_moves_left);
   RUN_TEST(test_auto_aim_scores);
+#ifdef LED_PIN
+  RUN_TEST(test_leds_flash_on_sound_command);
+#endif
 #endif
   return UNITY_END();
 }

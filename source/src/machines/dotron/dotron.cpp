@@ -48,6 +48,8 @@ static const uint8_t IP2_AIM_DOWN = 0x10, IP2_AIM_UP = 0x20, IP2_DEFLECT = 0x40;
 static const uint8_t IP1_DIAL_MASK = 0x7f, IP1_UNUSED = 0x80;
 static const uint8_t DIAL_STEP = 4;  // dial counts per frame for L1/R1
 
+static const uint8_t LED_FLASH_FRAMES = 4;
+
 // panel layout: native half-res X 8-247 -> column 247 - X, Y -> row Y + 24
 static const int X_FIRST = 8, X_LAST = 247;
 static const int FIRST_STRIP = 3;  // panel strip of tile row 0
@@ -86,6 +88,8 @@ void dotron::reset() {
   odd_field = false;
   main_debt = 0;
   dial = 0;
+  last_command = 0;
+  led_flash = 0;
 }
 
 // ── main Z80 ──
@@ -211,6 +215,10 @@ void dotron::outZ80(unsigned short Port, unsigned char Value) {
   const uint8_t p = Port & 0xff;
   if ((p & 0xfc) == PORT_LATCH) {
     ssio.latch(p & 3, Value);
+    if (p == PORT_LATCH && Value != last_command) {
+      last_command = Value;
+      led_flash = LED_FLASH_FRAMES;
+    }
     return;
   }
   if ((p & 0xfc) == PORT_CTC) {
@@ -249,6 +257,9 @@ void dotron::run_frame(void) {
     ctc.trigger(CTC_FRAME);
   }
   odd_field = !odd_field;
+  if (led_flash) {
+    led_flash--;
+  }
 
   const unsigned int keys = input->buttons_get();
   if (keys & BUTTON_L1) {
@@ -392,5 +403,27 @@ void dotron::renderAudio(int16_t *out, int n) {
   ssio.render(out, n);
   audioClampAll(out, n, AUDIO_MAX);
 }
+
+#ifdef LED_PIN
+// logo colors (quantized logos/dotron.png): dark blue, light blue, magenta, purple
+static const CRGB DOTRON_LED_BLUE(0x00008d), DOTRON_LED_LIGHT(0xc7dafe);
+static const CRGB DOTRON_LED_MAGENTA(0xbb006d), DOTRON_LED_PURPLE(0x7f0065);
+
+void dotron::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[NUM_LEDS] = {
+      DOTRON_LED_BLUE, DOTRON_LED_LIGHT, DOTRON_LED_MAGENTA, DOTRON_LED_PURPLE,
+      DOTRON_LED_MAGENTA, DOTRON_LED_LIGHT, DOTRON_LED_BLUE};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
+}
+
+// magenta flash on each new sound command (throws, hits, derez)
+void dotron::gameLeds(CRGB *leds) {
+  if (led_flash) {
+    fill_solid(leds, NUM_LEDS, DOTRON_LED_MAGENTA);
+    return;
+  }
+  menuLeds(leds);
+}
+#endif
 
 #endif
