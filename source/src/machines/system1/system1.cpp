@@ -67,7 +67,7 @@ system1::system1(const Roms &r, const Config &c)
   prom = lookup_prom.data();
   tiles.map = tile_map.data();
   tiles.mask = tile_map.size() - 1;  // romconv asserts a power of two
-  tiles.layout = TILES_BY_COLUMN;
+  tiles.layout = config.orientation == ROT0 ? TILES_BY_ROW : TILES_BY_COLUMN;
   clearShowsBg = buildMixSel(prom, mixSel);
 
   mainRomSize = main_rom.size();
@@ -75,6 +75,10 @@ system1::system1(const Roms &r, const Config &c)
   spriteBanks = sprite_rom.size() / SPRITE_BANK;
   firstStrip = rowOfX(config.vis.x1) / STRIP_LINES;
   lastStrip = rowOfX(config.vis.x0) / STRIP_LINES;
+  if (config.orientation == ROT0) {
+    firstStrip = ROT0_FIRST_ROW / STRIP_LINES;
+    lastStrip = (ROT0_FIRST_ROW + VIS_LINES) / STRIP_LINES - 1;
+  }
 }
 
 void system1::reset() {
@@ -88,6 +92,7 @@ void system1::reset() {
   memset(palette, 0, sizeof(palette));
   collision.reset();
   activeCount = 0;
+  winX = (NATIVE_WIDTH - ROT0_WIDTH) / 2;
 }
 
 unsigned char system1::opZ80(unsigned short Addr) {
@@ -372,12 +377,48 @@ void system1::prepare_frame(void) {
   }
 }
 
+const int system1::renderWidth() {
+  return config.orientation == ROT0 ? ROT0_WIDTH : VIS_LINES;
+}
+
 void system1::render_row(short strip) {
   if (strip < firstStrip || strip > lastStrip || (video.mode & VIDEO_BLANK)) {
     return;
   }
+  if (config.orientation == ROT0) {
+    renderRot0(strip);
+    return;
+  }
   drawSprites(strip);
   mixStrip(strip);
+}
+
+// ROT0: per native line the sprite pens, then tiles mixed over the window
+void system1::renderRot0(int strip) {
+  const LineSrc f = lineSrc();
+  for (int l = 0; l < STRIP_LINES; l++) {
+    const int y = strip * STRIP_LINES + l - ROT0_FIRST_ROW;
+    uint16_t *out = &frame_buffer[l * ROT0_WIDTH];
+    uint32_t sprCols = 0;
+    for (int a = 0; a < activeCount; a++) {
+      const ActiveSprite &as = active[a];
+      sprCols |= spriteRow(spriteRom + as.s.bank * SPRITE_BANK, as.s, as.x0,
+                           as.number * PENS_PER_SPRITE, y, winX, ROT0_WIDTH, out);
+    }
+    renderRow(f, y, winX, ROT0_WIDTH, sprCols, out);
+  }
+}
+
+system1_video::LineSrc system1::lineSrc() const {
+  const LineSrc f = {&memory[VIDEO_RAM + PAGE_BYTES],  // fixed layer, read live
+                     video.bg_page,
+                     tiles,
+                     palette,
+                     mixSel,
+                     clearShowsBg,
+                     bgScroll(video.scroll_x_lo, video.scroll_x_hi),
+                     video.scroll_y};
+  return f;
 }
 
 // Sprite pens (sprite * 16 + nibble, never 0) into frame_buffer, later wins.
@@ -424,14 +465,7 @@ __attribute__((flatten)) void system1::drawSprites(int strip) {
 
 // fg + bg tiles and the sprite pens mixed line by line (renderLine)
 void system1::mixStrip(int strip) {
-  const LineSrc f = {&memory[VIDEO_RAM + PAGE_BYTES],  // fixed layer, read live
-                     video.bg_page,
-                     tiles,
-                     palette,
-                     mixSel,
-                     clearShowsBg,
-                     bgScroll(video.scroll_x_lo, video.scroll_x_hi),
-                     video.scroll_y};
+  const LineSrc f = lineSrc();
 
   for (int l = 0; l < STRIP_LINES; l++) {
     renderLine(f, xOfRow(strip * STRIP_LINES + l), sprTiles[l], &frame_buffer[l * VIS_LINES]);
