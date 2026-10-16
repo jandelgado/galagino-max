@@ -12,18 +12,23 @@
 extern "C" unsigned char OpZ80_INL(unsigned short Addr);
 
 static const uint8_t OP_EI = 0xfb;
+static const int MIN_STEP_CYCLES = 4;
 
+// ICount starts at 0 every step: block opcodes (LDIR) loop while ICount > 0,
+// so a long-running count would turn them into one atomic copy.
 int tronStepZ80(Z80 &z) {
   const uint8_t op = OpZ80_INL(z.PC.W);
-  const int before = z.ICount;
-  z.ICount = before - Cycles[op];
+  z.ICount = -Cycles[op];
   StepZ80(&z);
 
   // EI parks ICount at 1 for RunZ80; undo that
   if (op == OP_EI) {
-    z.ICount = before - Cycles[op];
+    z.ICount = -Cycles[op];
   }
-  return before - z.ICount;
+
+  // HALT zeroes ICount and re-executes itself: still costs time
+  const int used = -z.ICount;
+  return used > MIN_STEP_CYCLES ? used : MIN_STEP_CYCLES;
 }
 
 void TronSsio::attach(const uint8_t *r, uint8_t *m, const uint8_t *duty) {

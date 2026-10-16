@@ -120,6 +120,30 @@ static void test_mute_bit(void) {
   TEST_ASSERT_EQUAL(0, peak());
 }
 
+// tronStepZ80 must charge one LDIR iteration per step even after a long
+// run (ICount far from 0), and HALT must still cost cycles
+static void test_step_ldir_one_iteration(void) {
+  memset(rom, 0, sizeof(rom));
+  rom[0] = 0xed;  // LDIR
+  rom[1] = 0xb0;
+  ResetZ80(&cpu);
+  cpu.HL.W = 0x8000;
+  cpu.DE.W = 0x8100;
+  cpu.BC.W = 10;
+  cpu.ICount = 1000000;  // as after ~15 min of counting down and wrapping
+  const int used = tronStepZ80(cpu);
+  TEST_ASSERT_EQUAL(9, cpu.BC.W);
+  TEST_ASSERT_EQUAL(21, used);
+}
+
+static void test_step_halt_costs_cycles(void) {
+  memset(rom, 0, sizeof(rom));
+  rom[0] = 0x76;  // HALT
+  ResetZ80(&cpu);
+  TEST_ASSERT_GREATER_THAN(0, tronStepZ80(cpu));
+  TEST_ASSERT_GREATER_THAN(0, tronStepZ80(cpu));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_irq_rate_with_clear);
@@ -128,5 +152,7 @@ int main(int, char **) {
   RUN_TEST(test_ay_tone_audible);
   RUN_TEST(test_duty_cycle_silences_voice);
   RUN_TEST(test_mute_bit);
+  RUN_TEST(test_step_ldir_one_iteration);
+  RUN_TEST(test_step_halt_costs_cycles);
   return UNITY_END();
 }
