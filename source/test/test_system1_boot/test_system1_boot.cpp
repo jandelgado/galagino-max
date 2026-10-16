@@ -17,6 +17,9 @@
 #if __has_include("../../src/machines/wboy/wboy_main_rom.h")
 #define ENABLE_WBOY
 #endif
+#if __has_include("../../src/machines/fourdwarrio/fourdwarrio_main_rom.h")
+#define ENABLE_FOURDWARRIO
+#endif
 
 #include "../../src/machines/system1/system1_collision.cpp"  // before Z80.h: its `word` macro
 #include "../../src/emulation/lzma/LzmaDec.c"
@@ -32,6 +35,9 @@
 #endif
 #ifdef ENABLE_WBOY
 #include "../../src/machines/wboy/wboy.cpp"
+#endif
+#ifdef ENABLE_FOURDWARRIO
+#include "../../src/machines/fourdwarrio/fourdwarrio.cpp"
 #endif
 #undef private
 #undef protected
@@ -120,6 +126,9 @@ static void test_imsorry_boots(void) { check<imsorry>(); }
 #ifdef ENABLE_WBOY
 static void test_wboy_boots(void) { check<wboy>(); }
 #endif
+#ifdef ENABLE_FOURDWARRIO
+static void test_fourdwarrio_boots(void) { check<fourdwarrio>(); }
+#endif
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -134,6 +143,9 @@ int main(int, char **) {
 #endif
 #ifdef ENABLE_WBOY
   RUN_TEST(test_wboy_boots);
+#endif
+#ifdef ENABLE_FOURDWARRIO
+  RUN_TEST(test_fourdwarrio_boots);
 #endif
   return UNITY_END();
 }

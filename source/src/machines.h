@@ -336,6 +336,9 @@
 #ifdef ENABLE_WBOY
   #include "machines/wboy/wboy.h"
 #endif
+#ifdef ENABLE_FOURDWARRIO
+  #include "machines/fourdwarrio/fourdwarrio.h"
+#endif
 #ifdef ENABLE_1943
   #include "machines/1943/1943.h"
 #endif
@@ -923,6 +926,13 @@ constexpr machineInfo machines[] = {
     wboy::menuLeds,
 #endif
     MCH_WBOY },
+#endif
+#ifdef ENABLE_FOURDWARRIO
+  { createMachine<fourdwarrio>, fourdwarrio::logo,
+#ifdef LED_PIN
+    fourdwarrio::menuLeds,
+#endif
+    MCH_FOURDWARRIO },
 #endif
 #ifdef ENABLE_1943
   { createMachine<_1943>, _1943::logo,
