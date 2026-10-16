@@ -13,16 +13,16 @@ public:
 
   // MAME translate49 at x/y = 0x00, 0x38, 0x6f: 0x0, 0x7, 0x8; Y reversed
   static uint8_t stick49(unsigned int k) {
-    uint8_t x = CENTER, y = CENTER;
+    uint8_t x = STICK_CENTER, y = STICK_CENTER;
     if (k & BOARD_KEY_LEFT) {
-      x = LOW;
+      x = STICK_MIN;
     } else if (k & BOARD_KEY_RIGHT) {
-      x = HIGH;
+      x = STICK_MAX;
     }
     if (k & BOARD_KEY_UP) {
-      y = HIGH;
+      y = STICK_MAX;
     } else if (k & BOARD_KEY_DOWN) {
-      y = LOW;
+      y = STICK_MIN;
     }
     return (uint8_t)(x << 4 | y);
   }
@@ -46,7 +46,7 @@ protected:
   uint8_t in1() override { return buttons; }
 
 private:
-  static const uint8_t LOW = 0x0, CENTER = 0x7, HIGH = 0x8;
+  static const uint8_t STICK_MIN = 0x0, STICK_CENTER = 0x7, STICK_MAX = 0x8;
   static const uint8_t FIRE = 0x01, BOMB = 0x02, START1 = 0x10;  // IN1
   static const uint16_t ADVANCE_FRAME = 750;  // as Robotron; Step 5 checks it
 

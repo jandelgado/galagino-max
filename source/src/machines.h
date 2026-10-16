@@ -127,6 +127,9 @@
 #ifdef ENABLE_JOUST
   #include "machines/joust/joust.h"
 #endif
+#ifdef ENABLE_SINISTAR
+  #include "machines/sinistar/sinistar.h"
+#endif
 
 #ifdef ENABLE_MOONCRESTA
   #include "machines/mooncresta/mooncresta.h"
@@ -1097,6 +1100,13 @@ constexpr machineInfo machines[] = {
     joust::menuLeds,
 #endif
     MCH_JOUST },
+#endif
+#ifdef ENABLE_SINISTAR
+  { createMachine<sinistar>, sinistar::logo,
+#ifdef LED_PIN
+    sinistar::menuLeds,
+#endif
+    MCH_SINISTAR },
 #endif
 };
 

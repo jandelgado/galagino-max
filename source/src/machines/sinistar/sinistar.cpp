@@ -24,3 +24,22 @@ void sinistar::reset() {
   williams::reset();
   hw.bindSram(memory + SRAM_OFS);
 }
+
+#ifdef LED_PIN
+// logos/sinistar.png has one color (red 0xf80000): symmetric gradient,
+// brightest in the middle
+void sinistar::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[NUM_LEDS] = { CRGB(0x3e0000), CRGB(0x7c0000), CRGB(0xba0000),
+      CRGB(0xf80000), CRGB(0xba0000), CRGB(0x7c0000), CRGB(0x3e0000) };
+  memcpy(leds, menu_leds, sizeof(menu_leds));
+}
+
+// menu colors, scaled by the DAC swing: LEDs pulse with the sound
+void sinistar::gameLeds(CRGB *leds) {
+  menuLeds(leds);
+  const int swing = abs((int)hw.sound().dac() - 0x80);  // 0..128
+  for (int i = 0; i < NUM_LEDS; i++) {
+    leds[i].nscale8(64 + swing);
+  }
+}
+#endif
