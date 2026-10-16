@@ -84,20 +84,18 @@ def decode_tiles(rom):
     return count, [pack_row(row) for t in tiles for row in rotate(t)]
 
 
-def downsample(sprite):
-    # 2:1 per axis; first opaque pixel of each 2x2 block keeps 1 px lines
-    out = []
-    for y in range(0, 32, 2):
-        row = []
-        for x in range(0, 32, 2):
-            block = [sprite[y][x], sprite[y][x + 1], sprite[y + 1][x], sprite[y + 1][x + 1]]
-            row.append(next((p for p in block if p), 0))
-        out.append(row)
-    return out
+def downsample(sprite, px, py):
+    # 2:1 per axis, pixel (2k + px, 2l + py) of each block. Sprites are ORed
+    # together in hardware (dithered overlaps blend), so all sprites must
+    # sample the same screen pixels, like a 2:1 nearest scale of MAME's frame.
+    return [[sprite[2 * l + py][2 * k + px] for k in range(16)] for l in range(16)]
 
 
 def decode_sprites(rom):
-    # mcr_sprite_layout: 32x32, planes STEP4(0,1), columns spread over the 4 ROM quarters
+    # mcr_sprite_layout: 32x32, planes STEP4(0,1), columns spread over the 4 ROM quarters.
+    # Panel pixels sample even native x, odd native y. Native flips swap the
+    # sampled source parity, so 4 variants: index (py << 1 | px) * count + code,
+    # px = hflip, py = !vflip.
     q = len(rom) * 2  # RGN_FRAC(1,4) in bits
     count = q // 1024
     xoffs = []
@@ -106,10 +104,12 @@ def decode_sprites(rom):
             xoffs += [quarter * q + byte, quarter * q + byte + 4]
     sprites = mame_decode(rom, 32, 32, step(0, 1, 4), xoffs, step(0, 32, 32), 1024, count)
     flat = []
-    for s in sprites:
-        for row in rotate(downsample(s)):
-            flat += [pack_row(row[:8]), pack_row(row[8:])]
-    return count, flat
+    for py in range(2):
+        for px in range(2):
+            for s in sprites:
+                for row in rotate(downsample(s, px, py)):
+                    flat += [pack_row(row[:8]), pack_row(row[8:])]
+    return count * 4, flat
 
 
 def duty_gain(prom):
@@ -157,7 +157,7 @@ def main():
     emit("tron_tilemap", "uint32_t", "[8]", tile_count, tiles,
          f"{tile_count} tiles 8x8 4 bpp, rotated, row = 8 pens, first in bits 31-28")
     emit("tron_spritemap", "uint32_t", "[16][2]", sprite_count, sprites,
-         f"{sprite_count} sprites 32x32 downsampled to 16x16 4 bpp, rotated, [row][0] pens 0-7, first in bits 31-28")
+         f"{sprite_count // 4} sprites 32x32 downsampled to 16x16 4 bpp in 4 sampling variants, rotated, [row][0] pens 0-7, first in bits 31-28")
 
     path = os.path.join(OUT_DIR, "tron_ssio_prom.h")
     with header(path, "SSIO AY voice gain / 16 per duty-cycle nibble (PROM 82s123.12d)") as f:

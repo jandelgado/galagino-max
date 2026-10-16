@@ -1,3 +1,5 @@
+#ifdef ENABLE_TRON
+
 #include "tron_ssio.h"
 #include <string.h>
 
@@ -136,3 +138,5 @@ void TronSsio::render(int16_t *out, int n) {
   Ay8910::renderBank(ay, regs, out, n);
   audioShiftRight(out, n, MIX_SHIFT);
 }
+
+#endif

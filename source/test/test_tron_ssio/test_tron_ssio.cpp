@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unity.h>
 
+#define ENABLE_TRON
 #include "../../src/cpus/z80/Z80.c"
 #define TRON_Z80_TABLES_INCLUDED
 #include "../../src/emulation/ay8910.cpp"
