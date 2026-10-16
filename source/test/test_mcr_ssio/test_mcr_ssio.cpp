@@ -3,16 +3,16 @@
 #include <string.h>
 #include <unity.h>
 
-#define ENABLE_TRON
+#define ENABLE_DOTRON
 #include "../../src/cpus/z80/Z80.c"
-#define TRON_Z80_TABLES_INCLUDED
+#define MCR_Z80_TABLES_INCLUDED
 #include "../../src/emulation/ay8910.cpp"
-#include "../../src/machines/tron/tron_ssio.cpp"
+#include "../../src/machines/mcr/mcr_ssio.cpp"
 
 static uint8_t rom[0x3000];
 static uint8_t ram[1024];
 static Z80 cpu;
-static TronSsio ssio;
+static McrSsio ssio;
 
 // duty nibble -> gain/16: full at 0, silent at 15
 static const uint8_t DUTY[16] = {16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 0};
@@ -44,7 +44,7 @@ static void loadProgram(bool clearIrq) {
 
 void setUp(void) {
   memset(ram, 0, sizeof(ram));
-  ssio.attach(rom, ram, DUTY);
+  ssio.attach(rom, sizeof(rom), ram, DUTY);
   ssio.reset();
   ResetZ80(&cpu);
 }
@@ -120,8 +120,19 @@ static void test_mute_bit(void) {
   TEST_ASSERT_EQUAL(0, peak());
 }
 
-// tronStepZ80 must charge one LDIR iteration per step even after a long
+// mcrStepZ80 must charge one LDIR iteration per step even after a long
 // run (ICount far from 0), and HALT must still cost cycles
+// ROM ends at the size given to attach(): tron 12 KB, dotron 16 KB
+static uint8_t rom16k[0x4000];
+static void test_rom_size(void) {
+  rom16k[0x3fff] = 0x5a;
+  McrSsio s;
+  s.attach(rom16k, 0x3000, ram, DUTY);
+  TEST_ASSERT_EQUAL_HEX8(0xff, s.rd(0x3fff));
+  s.attach(rom16k, 0x4000, ram, DUTY);
+  TEST_ASSERT_EQUAL_HEX8(0x5a, s.rd(0x3fff));
+}
+
 static void test_step_ldir_one_iteration(void) {
   memset(rom, 0, sizeof(rom));
   rom[0] = 0xed;  // LDIR
@@ -131,7 +142,7 @@ static void test_step_ldir_one_iteration(void) {
   cpu.DE.W = 0x8100;
   cpu.BC.W = 10;
   cpu.ICount = 1000000;  // as after ~15 min of counting down and wrapping
-  const int used = tronStepZ80(cpu);
+  const int used = mcrStepZ80(cpu);
   TEST_ASSERT_EQUAL(9, cpu.BC.W);
   TEST_ASSERT_EQUAL(21, used);
 }
@@ -140,8 +151,8 @@ static void test_step_halt_costs_cycles(void) {
   memset(rom, 0, sizeof(rom));
   rom[0] = 0x76;  // HALT
   ResetZ80(&cpu);
-  TEST_ASSERT_GREATER_THAN(0, tronStepZ80(cpu));
-  TEST_ASSERT_GREATER_THAN(0, tronStepZ80(cpu));
+  TEST_ASSERT_GREATER_THAN(0, mcrStepZ80(cpu));
+  TEST_ASSERT_GREATER_THAN(0, mcrStepZ80(cpu));
 }
 
 int main(int, char **) {
@@ -154,5 +165,6 @@ int main(int, char **) {
   RUN_TEST(test_mute_bit);
   RUN_TEST(test_step_ldir_one_iteration);
   RUN_TEST(test_step_halt_costs_cycles);
+  RUN_TEST(test_rom_size);
   return UNITY_END();
 }
