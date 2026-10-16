@@ -542,8 +542,10 @@ void m6809_firq(m6809_state *s) {
     s->firq_pending = 1;
 }
 
+/* m6809_step() does not poll: vector now, or stay pending until armed */
 void m6809_nmi(m6809_state *s) {
     s->nmi_pending = 1;
+    check_interrupts(s);
 }
 
 /* ============================================================
