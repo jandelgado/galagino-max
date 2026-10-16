@@ -194,6 +194,29 @@ static void test_pitfall2_window_follows(void) {
     TEST_ASSERT_EQUAL(windowTarget(machine->config.window, px), machine->winX);
   }
 }
+
+// boots the real ROM, coin + start, returns the peak |sample| of 1200 frames
+template <class M> static int audioPeak() {
+  boot<M>();
+  int peak = 0;
+  for (int frame = 0; frame < 1200; frame++) {
+    keys = frame >= 300 && frame < 310 ? BUTTON_COIN : 0;
+    keys |= frame >= 400 && frame < 410 ? BUTTON_START : 0;
+    machine->run_frame();
+    for (int c = 0; c < 6; c++) {
+      int16_t out[64];
+      machine->renderAudio(out, 64);
+      for (int i = 0; i < 64; i++) {
+        peak = abs(out[i]) > peak ? abs(out[i]) : peak;
+      }
+    }
+  }
+  keys = 0;
+  return peak;
+}
+
+static void test_flicky_audio(void) { TEST_ASSERT_GREATER_THAN(0, audioPeak<flicky>()); }
+static void test_pitfall2_audio(void) { TEST_ASSERT_GREATER_THAN(0, audioPeak<pitfall2>()); }
 #endif
 
 int main(int, char **) {
@@ -202,6 +225,8 @@ int main(int, char **) {
   RUN_TEST(test_flicky_frames);
   RUN_TEST(test_pitfall2_frames);
   RUN_TEST(test_pitfall2_window_follows);
+  RUN_TEST(test_flicky_audio);
+  RUN_TEST(test_pitfall2_audio);
 #endif
   return UNITY_END();
 }

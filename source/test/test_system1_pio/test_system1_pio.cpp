@@ -80,6 +80,19 @@ static void test_interrupt_mask_word_skipped(void) {
   TEST_ASSERT_TRUE(pio.takeNmi());
 }
 
+// Flicky / Pitfall II: port A in mode 2 (control 0x8f). MAME set_mode leaves
+// RDY low, each data write drops and raises it: one NMI per command.
+static void test_bidirectional_command_nmi(void) {
+  pio.write(CTRL_A, 0x07);
+  pio.write(CTRL_A, 0x8f);
+  TEST_ASSERT_FALSE(pio.takeNmi());
+  pio.write(DATA_A, 0x21);
+  TEST_ASSERT_TRUE(pio.takeNmi());
+  TEST_ASSERT_EQUAL_HEX8(0x21, pio.ackA());
+  pio.write(DATA_A, 0x22);
+  TEST_ASSERT_TRUE(pio.takeNmi());
+}
+
 static void test_read_data_returns_latch(void) {
   pio.write(CTRL_B, MODE_OUTPUT);
   pio.write(DATA_B, 0x81);
@@ -97,5 +110,6 @@ int main(int, char **) {
   RUN_TEST(test_port_b_output_no_nmi);
   RUN_TEST(test_interrupt_mask_word_skipped);
   RUN_TEST(test_read_data_returns_latch);
+  RUN_TEST(test_bidirectional_command_nmi);
   return UNITY_END();
 }
