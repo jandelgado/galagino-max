@@ -67,13 +67,30 @@ inline __attribute__((always_inline)) Tile tileAt(const uint8_t *page, int index
   return t;
 }
 
+// romconv tile word order: ROT270 games render along native columns, ROT0
+// games along native lines, so each stores the words its renderer walks
+enum TileLayout : uint8_t {
+  TILES_BY_COLUMN,  // word per pixel column, row 0 in bits 23..21
+  TILES_BY_ROW,     // word per pixel row, column 0 in bits 23..21
+};
+
 // Tile gfx deduplicated by romconv: code -> unique tile via map
 struct TileSet {
   const uint32_t (*gfx)[8];
   const uint16_t *map;
-  uint16_t mask;  // code mask, map size - 1
+  uint16_t mask;      // code mask, map size - 1
+  TileLayout layout;  // omitted in an initializer: TILES_BY_COLUMN
   inline __attribute__((always_inline)) const uint32_t *operator[](uint16_t code) const {
     return gfx[map[code & mask]];
+  }
+
+  // pixel (x, y) of one tile's words
+  inline __attribute__((always_inline)) uint8_t pixel(const uint32_t *w, uint8_t x,
+                                                      uint8_t y) const {
+    if (layout == TILES_BY_ROW) {
+      return (w[y & 7] >> (3 * (7 - (x & 7)))) & 7;
+    }
+    return (w[x & 7] >> (3 * (7 - (y & 7)))) & 7;
   }
 };
 
@@ -86,12 +103,11 @@ inline uint8_t mixIndex(bool sprOpaque, uint8_t fgPix, uint8_t fgColor, uint8_t 
          (bgPix ? 0 : 0x10) | ((bgColor >> 6) << 5);
 }
 
-// tiles are column-major: word = pixel column, native row 0 in bits 23..21
 inline uint8_t tilePixel(const uint8_t *page, const TileSet &tiles, uint8_t x, uint8_t y,
                          uint8_t &color) {
   const Tile t = tileAt(page, (y >> 3) * PAGE_COLS + (x >> 3));
   color = t.color;
-  return (tiles[t.code][x & 7] >> (3 * (7 - (y & 7)))) & 7;
+  return tiles.pixel(tiles[t.code], x, y);
 }
 
 // Lookup PROM source (0 sprite, 1 fg, 2/3 bg) per tile priority pair p =

@@ -114,6 +114,40 @@ GAMES = {
         "lookup": [("pr-5317.106", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
         "crypt": "315-5048",
     },
+    # flickys2: unencrypted 128k set, sys1pio board, ROT0
+    "flicky": {
+        "rot0": True,
+        "main": [("flickys2/epr-6621.bin", "e1d5438eaf0efeaeb4687dcfc12bf325e804182f"),
+                 ("flickys2/epr-6622.bin", "e5e620797daace0843a680cb4572586b5e639ca0")],
+        "sound": [("epr-5869.120", "fe02a7a94a1ad046fc775a7f67f460c8d0f6dca6")],
+        "tiles": [("epr-5868.62", "5bd660ac24a2d0d8ad983e948674a82a2d2e8b49"),
+                  ("epr-5867.61", "4bc3bc6eb8f03926d3710c9f96fcc1b116e918d3"),
+                  ("epr-5866.64", "652be7848526c6e61db4a502f75d1689d2ff2f59"),
+                  ("epr-5865.63", "e158db3e0b86f2b8ad34cefc2714cb0a942efde7"),
+                  ("epr-5864.66", "cf59f1fb0f9fb77d5ac36be52b6ee946ee85d6de"),
+                  ("epr-5863.65", "8c629a853486bbe049b1deecdc00f9e16b87698f")],
+        "sprites": [("epr-5855.117", "2c72dc16739dad155fcd572e1add067a7647f5bd"),
+                    ("epr-5856.110", "dcbfce550d10a1f2b3ce3e7e081fc008cb575708")],
+        "lookup": [("pr-5317.76", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
+    },
+    # pitfall2u: unencrypted set, sys1pio board, ROT0. pitfall2u.zip holds
+    # only the main CPU ROMs, the rest merges from the parent pitfall2.zip.
+    "pitfall2": {
+        "rot0": True,
+        "main": [("pitfall2u.zip", "epr-6623.116", "d33421999f899c0a4dc0d4553614c1f5c7027257"),
+                 ("pitfall2u.zip", "epr-6624a.109", "4869ca4d3f0b08cd3df4c82be9cfc774ddeb3010"),
+                 ("pitfall2u.zip", "epr-6625.96", "62fffff7d935c104def5f09e9dc4a26fa4ce4f94")],
+        "sound": [("epr-6462.120", "89add2e3784e8f5a20b895fb2c4466bdd6c34b0c")],
+        "tiles": [("epr-6474a.62", "c652010a8b19828f81fd101aa1ea781e250c4ec2"),
+                  ("epr-6473a.61", "23e04589f2b523d6b8e46d16f40e59685e27f522"),
+                  ("epr-6472a.64", "b7a96a1867f8bd3cc1251b5fd12991c406e62a37"),
+                  ("epr-6471a.63", "520afa7617e8dfd09bf469c01ac606a4a3acdc5e"),
+                  ("epr-6470a.66", "54ea6ef54be6dcc2a5d00f7f817fd8836a02b3b9"),
+                  ("epr-6469a.65", "f95e3b368c2c6dbf8265fb314d73019fe7dcce22")],
+        "sprites": [("epr-6454a.117", "e0571f6fd031bbe2d971c3be7b96a017b0ea4be9"),
+                    ("epr-6455.05", "21743f78735fc9105fbbfac420bdaa2965b4b56f")],
+        "lookup": [("pr-5317.76", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
+    },
 }
 
 # MAME segacrpt_device.cpp sega_315_5048_device::decrypt(): per row
@@ -142,8 +176,14 @@ CRYPT_SIZE = 0x8000
 CRYPT_BITS = 0xa8  # bits 3, 5, 7 are swapped/inverted, the rest pass through
 
 
+# files: (name, sha1) from zip_path, or (zip, name, sha1) from romszip/<zip>
 def load(zip_path, files):
-    return b"".join(bytes(load_file(zip_path, [name], sha1)) for name, sha1 in files)
+    out = b""
+    for f in files:
+        path = zip_path if len(f) == 2 else os.path.join(os.path.dirname(zip_path), f[0])
+        name, sha1 = f[-2:]
+        out += bytes(load_file(path, [name], sha1))
+    return out
 
 
 def bit(v, n):
@@ -170,15 +210,18 @@ def sega_decrypt(rom, table):
 
 # charlayout: 3 planes RGN_FRAC(n,3), plane 0 = MSB, byte bit 7 = left pixel.
 # Emitted column-major: word per native pixel column, native row 0 in bits 23..21.
-def decode_tiles(rom):
+# ROT0 games (transpose) render along native lines: word per native pixel row,
+# native column 0 in bits 23..21.
+def decode_tiles(rom, transpose=False):
     plane = len(rom) // 3
     count = plane // 8
     assert count & (count - 1) == 0, "tile count must be a power of two (code mask)"
     out = []
     for c in range(count):
-        for col in range(8):
+        for outer in range(8):
             w = 0
-            for row in range(8):
+            for inner in range(8):
+                row, col = (outer, inner) if transpose else (inner, outer)
                 px = 0
                 for p in range(3):
                     px = (px << 1) | bit(rom[p * plane + c * 8 + row], 7 - col)
@@ -229,13 +272,13 @@ def emit(game, asset, ctype, dims, count, values):
 
 def main(game):
     spec = GAMES[game]
-    zip_path = os.path.join(ROOT, "romszip", f"{game}.zip")
+    zip_path = os.path.join(ROOT, "romszip", spec.get("zip", f"{game}.zip"))
     main_rom = load(zip_path, spec["main"])
     opcodes = None
     if "crypt" in spec:
         main_rom, opcodes = sega_decrypt(main_rom, CRYPT[spec["crypt"]])
     sound = load(zip_path, spec["sound"])
-    tiles, tile_count = decode_tiles(load(zip_path, spec["tiles"]))
+    tiles, tile_count = decode_tiles(load(zip_path, spec["tiles"]), spec.get("rot0", False))
     tiles, unique_count, tile_map = dedupe_tiles(tiles)
     sprites = load(zip_path, spec["sprites"])
     lookup = load(zip_path, spec["lookup"])

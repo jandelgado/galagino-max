@@ -56,13 +56,13 @@ struct LayerRow {
   const uint8_t *page;
   const TileSet &tiles;
   int row;    // tile row offset in page
-  int shift;  // pixel row within the tile word
+  uint8_t y;
   int col = -1;
   const uint32_t *gfx = nullptr;
   uint8_t color = 0;
 
   LayerRow(const uint8_t *p, const TileSet &t, uint8_t y)
-      : page(p), tiles(t), row((y >> 3) * PAGE_COLS), shift(3 * (7 - (y & 7))) {}
+      : page(p), tiles(t), row((y >> 3) * PAGE_COLS), y(y) {}
 
   // tile under pixel x, returns its mixer priority
   inline __attribute__((always_inline)) uint8_t tile(uint8_t x) {
@@ -77,7 +77,7 @@ struct LayerRow {
 
   // pixel x of the tile selected by tile(x)
   inline __attribute__((always_inline)) uint8_t pixel(uint8_t x) const {
-    return (gfx[x & 7] >> shift) & 7;
+    return tiles.pixel(gfx, x, y);
   }
 };
 

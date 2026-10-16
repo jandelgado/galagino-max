@@ -62,6 +62,29 @@ static void test_tile_pixel(void) {
   TEST_ASSERT_EQUAL(1, color);
 }
 
+// ROT0 games store tiles by row: same pixels through tilePixel
+static void test_tile_pixel_layouts(void) {
+  uint32_t byColumn[1][8] = {};
+  uint32_t byRow[1][8] = {};
+  for (int x = 0; x < 8; x++) {
+    for (int y = 0; y < 8; y++) {
+      const uint32_t pen = (x * 3 + y * 5) & 7;
+      byColumn[0][x] |= pen << (3 * (7 - y));
+      byRow[0][y] |= pen << (3 * (7 - x));
+    }
+  }
+  const uint16_t map[1] = {0};
+  const uint8_t page[PAGE_BYTES] = {};
+  const TileSet col = {byColumn, map, 0, TILES_BY_COLUMN};
+  const TileSet row = {byRow, map, 0, TILES_BY_ROW};
+  for (int x = 0; x < 8; x++) {
+    for (int y = 0; y < 8; y++) {
+      uint8_t color;
+      TEST_ASSERT_EQUAL(tilePixel(page, col, x, y, color), tilePixel(page, row, x, y, color));
+    }
+  }
+}
+
 static void test_decode_sprites(void) {
   uint8_t ram[SPRITES * SPRITE_BYTES] = {};
   const uint8_t e[SPRITE_BYTES] = {0x0f, 0x1f, 0x34, 0xe1, 0x20, 0x00, 0x00, 0x40};
@@ -189,6 +212,7 @@ int main(int, char **) {
   RUN_TEST(test_tile_decode);
   RUN_TEST(test_mix_index);
   RUN_TEST(test_tile_pixel);
+  RUN_TEST(test_tile_pixel_layouts);
   RUN_TEST(test_decode_sprites);
   RUN_TEST(test_walk_row_forward);
   RUN_TEST(test_walk_row_mirrored);
