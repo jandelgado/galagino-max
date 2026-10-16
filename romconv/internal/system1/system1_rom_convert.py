@@ -483,7 +483,12 @@ def emit(game, asset, ctype, dims, count, values):
         emit_compressed(f, f"{game}_{asset}", ctype, dims, count, values)
 
 
-def main(game):
+# system1::system1() unpacks in this order; Arena::alloc is first fit, block A then B
+UNPACK_ORDER = ["sprites", "tiles", "main_rom", "sound_rom", "lookup_prom", "tile_map", "opcodes"]
+
+
+# assets of one game: (name, C type, dims, count, values, bytes)
+def convert(game):
     spec = GAMES[game]
     zip_path = os.path.join(ROOT, "romszip", spec.get("zip", f"{game}.zip"))
     main_rom, opcodes = decrypt_main(spec, load(zip_path, spec["main"]))
@@ -496,26 +501,40 @@ def main(game):
     # the mixer only collides under opaque sprite pixels (collision engine relies on it)
     assert all(lookup[i] & MIX_NO_COLLIDE for i in range(1, 128, 2))
 
-    emit(game, "main_rom", "unsigned char", "", len(main_rom), main_rom)
-    emit(game, "sound_rom", "unsigned char", "", len(sound), sound)
-    emit(game, "tiles", "uint32_t", "[8]", unique_count, tiles)
-    emit(game, "tile_map", "unsigned short", "", tile_count, tile_map)
-    emit(game, "sprites", "unsigned char", "", len(sprites), sprites)
-    emit(game, "lookup_prom", "unsigned char", "", len(lookup), lookup)
+    assets = [
+        ("main_rom", "unsigned char", "", len(main_rom), main_rom, len(main_rom)),
+        ("sound_rom", "unsigned char", "", len(sound), sound, len(sound)),
+        ("tiles", "uint32_t", "[8]", unique_count, tiles, len(tiles) * 4),
+        ("tile_map", "unsigned short", "", tile_count, tile_map, len(tile_map) * 2),
+        ("sprites", "unsigned char", "", len(sprites), sprites, len(sprites)),
+        ("lookup_prom", "unsigned char", "", len(lookup), lookup, len(lookup)),
+    ]
     if opcodes:
-        emit(game, "opcodes", "unsigned char", "", len(opcodes), opcodes)
+        assets.append(("opcodes", "unsigned char", "", len(opcodes), opcodes, len(opcodes)))
+    return assets
+
+
+# simulates the ctor's unpack: (block A, block B) bytes used
+def arena_blocks(assets):
+    size = {a[0]: a[5] for a in assets}
+    blocks = [0, 0]
+    for name in UNPACK_ORDER:
+        if name not in size:
+            continue
+        i = 0 if blocks[0] + size[name] <= ARENA_BLOCKS[0] else 1
+        blocks[i] += size[name]
+        assert blocks[i] <= ARENA_BLOCKS[i], f"{name} ({size[name]} B) fits no Arena block"
+    return blocks
+
+
+def main(game):
+    assets = convert(game)
+    for name, ctype, dims, count, values, _ in assets:
+        emit(game, name, ctype, dims, count, values)
     write_palette()
 
-    sizes = [len(tiles) * 4, len(tile_map) * 2, len(main_rom), len(sprites), len(sound), len(lookup)]
-    if opcodes:
-        sizes.append(len(opcodes))
-    sizes.sort(reverse=True)
-    blocks = [0, 0]
-    for s in sizes:
-        i = 0 if blocks[0] + s <= ARENA_BLOCKS[0] else 1
-        blocks[i] += s
-        assert blocks[i] <= ARENA_BLOCKS[i], f"{game}: asset {s} does not fit an Arena block"
-    print(f"{game}: Arena {sum(sizes)} / {sum(ARENA_BLOCKS)} (blocks {blocks[0]}, {blocks[1]})")
+    a, b = arena_blocks(assets)
+    print(f"{game}: Arena {a + b} / {sum(ARENA_BLOCKS)} (blocks {a}, {b})")
 
 
 if __name__ == "__main__":
