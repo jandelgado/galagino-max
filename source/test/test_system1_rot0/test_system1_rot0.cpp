@@ -132,15 +132,20 @@ static int compare(const MameFrame &f, int winX) {
     machine->render_row(strip);
     for (int l = 0; l < 8; l++) {
       const int y = strip * 8 + l - ROT0_FIRST_ROW;
-      const int w = y < machine->config.window.hudLines ? machine->config.window.hudX : winX;
       if (ppm) {
         dumpLine(ppm, y, &frame_buffer[l * ROT0_WIDTH]);
       }
+
+      // HUD lines mix fg at hudX with bg at winX: MAME has no such window
+      const bool hud = y < machine->config.window.hudLines;
+      if (hud && winX != machine->config.window.hudX) {
+        continue;
+      }
       const uint32_t got = crc32((const uint8_t *)&frame_buffer[l * ROT0_WIDTH],
                                  ROT0_WIDTH * sizeof(uint16_t));
-      if (got != f.crc[y][w]) {
+      if (got != f.crc[y][winX]) {
         if (bad == 0) {
-          printf("frame %u: first bad line %d (window %d)\n", f.frame, y, w);
+          printf("frame %u: first bad line %d (window %d)\n", f.frame, y, winX);
           fflush(stdout);
         }
         bad++;
@@ -166,7 +171,7 @@ static void test_flicky_frames(void) {
   }
 }
 
-// any window in 5..10 matches MAME; HUD lines stay at x 5
+// any window in 5..10 matches MAME (HUD lines checked at their own x 5)
 static void test_pitfall2_frames(void) {
   boot<pitfall2>();
   for (const MameFrame &f : MAME_PITFALL2) {

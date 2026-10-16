@@ -264,11 +264,13 @@ struct BgRow {
   }
 };
 
-// One ROT0 output line: native line y, pixels x0 .. x0 + n - 1 into out[0..n),
-// tiles stored TILES_BY_ROW. Sprite pens are already in out; sprCols bit tx
-// marks native fg tile columns tx that may hold them. Same two passes as
-// renderLine: bg everywhere, then the fg tiles with fg or sprite pixels.
-inline void renderRow(const LineSrc &f, int y, int x0, int n, uint32_t sprCols,
+// One ROT0 output line: native line y into out[0..n), bg and sprites from
+// native x0 + i, fg from fgX0 + i (HUD lines keep their text at a fixed x
+// while the scenery under it moves with the window; else fgX0 == x0). Tiles
+// stored TILES_BY_ROW. Sprite pens are already in out; sprCols bit tx marks
+// native tile columns tx (sprite space) that may hold them. Same two passes
+// as renderLine: bg everywhere, then the fg tiles with fg or sprite pixels.
+inline void renderRow(const LineSrc &f, int y, int x0, int fgX0, int n, uint32_t sprCols,
                       uint16_t *out) {
   // pass 1 overwrites the sprite pens: keep them
   uint16_t pens[NATIVE_WIDTH];
@@ -282,34 +284,37 @@ inline void renderRow(const LineSrc &f, int y, int x0, int n, uint32_t sprCols,
     out[i] = bg.pal[bp];
   }
 
+  // fg tile columns walk fg space; with the fg shifted (HUD lines) sprite
+  // tile columns do not line up, so any sprite on the line counts for all
   const int ty = y >> 3;
   const int shiftY = y & 7;
-  const int x1 = x0 + n;
-  for (int tx = x0 >> 3; tx <= (x1 - 1) >> 3; tx++) {
+  const int fx1 = fgX0 + n;
+  for (int tx = fgX0 >> 3; tx <= (fx1 - 1) >> 3; tx++) {
     const Tile t = tileAt(f.fgPage, ty * PAGE_COLS + tx);
     const uint32_t fw = f.tiles[t.code][shiftY];
-    const bool sprite = (sprCols >> tx) & 1;
+    const bool sprite = fgX0 == x0 ? (sprCols >> tx) & 1 : sprCols != 0;
     if (fw == 0 && !sprite && f.clearShowsBg) {
       continue;
     }
 
     const uint16_t *fgPal = &f.pal[FG_PENS | tilePen(t.color, 0)];
     const int fgPri = t.color >> 6;
-    const int a = tx * TILE_SIZE > x0 ? tx * TILE_SIZE : x0;
-    const int b = (tx + 1) * TILE_SIZE < x1 ? (tx + 1) * TILE_SIZE : x1;
+    const int a = tx * TILE_SIZE > fgX0 ? tx * TILE_SIZE : fgX0;
+    const int b = (tx + 1) * TILE_SIZE < fx1 ? (tx + 1) * TILE_SIZE : fx1;
     BgRow bgt(f, y);
-    for (int x = a; x < b; x++) {
-      const uint8_t fp = (fw >> (3 * (7 - (x & 7)))) & 7;
-      const uint8_t bp = bgt.pixel(bgCol(2 * x, f.scroll));
-      const uint16_t spr = sprite ? pens[x - x0] : 0;
+    for (int fx = a; fx < b; fx++) {
+      const int i = fx - fgX0;
+      const uint8_t fp = (fw >> (3 * (7 - (fx & 7)))) & 7;
+      const uint8_t bp = bgt.pixel(bgCol(2 * (x0 + i), f.scroll));
+      const uint16_t spr = sprite ? pens[i] : 0;
       const int o = (spr ? 0 : 1) | (fp ? 0 : 2) | (bp ? 0 : 4);
       const uint8_t source = (f.mixSel[fgPri | (bgt.pri << 2)] >> (2 * o)) & MIX_SOURCE;
       if (source == SOURCE_SPRITE) {
-        out[x - x0] = f.pal[spr];
+        out[i] = f.pal[spr];
       } else if (source == SOURCE_FG) {
-        out[x - x0] = fgPal[fp];
+        out[i] = fgPal[fp];
       } else {
-        out[x - x0] = bgt.pal[bp];
+        out[i] = bgt.pal[bp];
       }
     }
   }
@@ -408,6 +413,28 @@ inline int windowTarget(const Window &w, int playerX) {
 inline int easeWindow(int cur, int target) {
   return cur < target ? cur + 1 : cur > target ? cur - 1 : cur;
 }
+
+// The player sprite blinks or vanishes for a few frames (hit, respawn):
+// keep its last target, so the window does not shake toward the center.
+constexpr int PLAYER_LOST_FRAMES = 30;
+
+struct WindowFollow {
+  int last;     // target while the player was last seen
+  int missing;  // frames without the player, 0 = none seen yet
+
+  int target(const Window &w, int playerX) {
+    if (playerX >= 0) {
+      last = windowTarget(w, playerX);
+      missing = 1;
+      return last;
+    }
+    if (missing == 0 || missing > PLAYER_LOST_FRAMES) {
+      return windowTarget(w, NO_PLAYER);
+    }
+    missing++;
+    return last;
+  }
+};
 
 // ROT0: pens of one sprite on native line y into out[0..n), out[i] = native
 // x winX + i. x0 = spriteX of the sprite. Returns the native fg tile columns
