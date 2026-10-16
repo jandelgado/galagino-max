@@ -136,6 +136,9 @@
 #ifdef ENABLE_TRACKFLD
   #include "machines/trackfld/trackfld.h"
 #endif
+#ifdef ENABLE_TRON
+  #include "machines/tron/tron.h"
+#endif
 
 #ifdef ENABLE_MOONCRESTA
   #include "machines/mooncresta/mooncresta.h"
@@ -1127,6 +1130,13 @@ constexpr machineInfo machines[] = {
     trackfld::menuLeds,
 #endif
     MCH_TRACKFLD },
+#endif
+#ifdef ENABLE_TRON
+  { createMachine<tron>, tron::logo,
+#ifdef LED_PIN
+    tron::menuLeds,
+#endif
+    MCH_TRON },
 #endif
 };
 

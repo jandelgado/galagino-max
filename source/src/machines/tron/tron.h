@@ -7,6 +7,7 @@
 #include "tron_ssio.h"
 #include "tron_aim.h"
 #include "tron_dipswitches.h"
+#include "tron_logo.h"
 
 // Tron (Bally Midway 1982), MAME midway/mcr.cpp: MCR 90010 CPU board (Z80
 // at 2.496 MHz, IM 2 interrupts from a Z80 CTC), 91399 video gen, Super
@@ -50,6 +51,11 @@ public:
   void prepare_frame(void) override;
   void render_row(short row) override;
   void renderAudio(int16_t *out, int n) override;
+  static const Logo &logo(void) { return tron_logo; }
+#ifdef LED_PIN
+  static void menuLeds(CRGB *leds);
+  void gameLeds(CRGB *leds) override;
+#endif
 
 private:
   static const int OUT_WIDTH = 240;
@@ -79,6 +85,8 @@ private:
   TronAim aim;
   uint16_t palette9[COLORS] = {};  // 9 bit xRBG from video RAM writes
   bool odd_field = false;
+  uint8_t last_command = 0;
+  uint8_t led_flash = 0;  // frames left, set by a new sound command
   int main_debt = 0;
 
   // strip buffers, video core only

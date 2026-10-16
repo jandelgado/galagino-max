@@ -44,6 +44,8 @@ static const uint8_t IP2_LEFT = 0x01, IP2_RIGHT = 0x02, IP2_UP = 0x04, IP2_DOWN 
 // game RAM: aim angle 0-35 (c405, see tron_aim.h)
 static const uint16_t RAM_AIM_ANGLE = 0x0405;
 
+static const uint8_t LED_FLASH_FRAMES = 4;
+
 static const int PANEL_TOP = 16;  // first panel row of native X 0
 static const int SPRITE_CODES = 64, SPRITE_VARIANTS = 4;
 
@@ -77,6 +79,8 @@ void tron::reset() {
   ssio.reset();
   odd_field = false;
   main_debt = 0;
+  last_command = 0;
+  led_flash = 0;
   aim = TronAim();
 }
 
@@ -192,6 +196,10 @@ void tron::outZ80(unsigned short Port, unsigned char Value) {
   const uint8_t p = Port & 0xff;
   if ((p & 0xfc) == PORT_LATCH) {
     ssio.latch(p & 3, Value);
+    if (p == PORT_LATCH && Value != last_command) {
+      last_command = Value;
+      led_flash = LED_FLASH_FRAMES;
+    }
     return;
   }
   if ((p & 0xfc) == PORT_CTC) {
@@ -230,6 +238,9 @@ void tron::run_frame(void) {
     ctc.trigger(CTC_FRAME);
   }
   odd_field = !odd_field;
+  if (led_flash) {
+    led_flash--;
+  }
   aim.update(input->buttons_get(), memory[TRON_MEM_NVRAM + RAM_AIM_ANGLE]);
 
   Z80 &z = cpu[0];
@@ -363,5 +374,26 @@ void tron::renderAudio(int16_t *out, int n) {
   ssio.render(out, n);
   audioClampAll(out, n, AUDIO_MAX);
 }
+
+#ifdef LED_PIN
+// logo colors (quantized logos/tron.png): dark blue, silver, red
+static const CRGB TRON_LED_BLUE(0x000049), TRON_LED_SILVER(0xbeb0bc), TRON_LED_RED(0x910021);
+
+void tron::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[NUM_LEDS] = {
+      TRON_LED_BLUE, TRON_LED_RED, TRON_LED_SILVER, TRON_LED_SILVER,
+      TRON_LED_SILVER, TRON_LED_RED, TRON_LED_BLUE};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
+}
+
+// red flash on each new sound command (shots, crashes, stage events)
+void tron::gameLeds(CRGB *leds) {
+  if (led_flash) {
+    fill_solid(leds, NUM_LEDS, TRON_LED_RED);
+    return;
+  }
+  menuLeds(leds);
+}
+#endif
 
 #endif
