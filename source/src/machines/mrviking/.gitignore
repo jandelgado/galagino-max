@@ -1,0 +1,7 @@
+mrviking_main_rom.h
+mrviking_sound_rom.h
+mrviking_tiles.h
+mrviking_sprites.h
+mrviking_lookup_prom.h
+mrviking_tile_map.h
+mrviking_opcodes.h
