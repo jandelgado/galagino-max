@@ -1,0 +1,9 @@
+gardia_main_rom.h
+gardia_sound_rom.h
+gardia_tiles.h
+gardia_sprites.h
+gardia_lookup_prom.h
+gardia_tile_map.h
+gardia_opcodes.h
+gardia_banks.h
+gardia_palette.h

@@ -26,6 +26,9 @@
 #if __has_include("../../src/machines/regulus/regulus_main_rom.h")
 #define ENABLE_REGULUS
 #endif
+#if __has_include("../../src/machines/gardia/gardia_main_rom.h")
+#define ENABLE_GARDIA
+#endif
 
 #include "../../src/machines/system1/system1_collision.cpp"  // before Z80.h: its `word` macro
 #include "../../src/emulation/lzma/LzmaDec.c"
@@ -50,6 +53,9 @@
 #endif
 #ifdef ENABLE_REGULUS
 #include "../../src/machines/regulus/regulus.cpp"
+#endif
+#ifdef ENABLE_GARDIA
+#include "../../src/machines/gardia/gardia.cpp"
 #endif
 #undef private
 #undef protected
@@ -159,6 +165,10 @@ static void test_fourdwarrio_boots(void) { check<fourdwarrio>(); }
 #ifdef ENABLE_HVYMETAL
 static void test_hvymetal_boots(void) { check<hvymetal>(4800); }
 #endif
+#ifdef ENABLE_GARDIA
+// 317-0006 decryption, bank44 banks in the Arena
+static void test_gardia_boots(void) { check<gardia>(); }
+#endif
 #ifdef ENABLE_REGULUS
 static void test_regulus_boots(void) { check<regulus>(); }
 
@@ -194,6 +204,9 @@ int main(int, char **) {
 #endif
 #ifdef ENABLE_HVYMETAL
   RUN_TEST(test_hvymetal_boots);
+#endif
+#ifdef ENABLE_GARDIA
+  RUN_TEST(test_gardia_boots);
 #endif
 #ifdef ENABLE_REGULUS
   RUN_TEST(test_regulus_boots);
