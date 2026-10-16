@@ -64,17 +64,18 @@ system1::system1(const Roms &r, const Config &c)
       opcode_rom(r.opcodes ? r.opcodes->packed : nullptr, r.opcodes ? r.opcodes->packedLen : 0,
                  r.opcodes ? r.opcodes->count : 0),
       config(c) {
-  // unpack order is the Arena bin packing: tiles + main ROM fill block A
+  // unpack order is the Arena bin packing (Arena::alloc first fit, A then
+  // B); romconv's UNPACK_ORDER checks the same order fits for every set
+  spriteRom = sprite_rom.data();
   tiles.gfx = tile_rom.data();
   mainRom = main_rom.data();
-  spriteRom = sprite_rom.data();
   soundRom = sound_rom.data();
   prom = lookup_prom.data();
   tiles.map = tile_map.data();
+  opcodes = r.opcodes ? opcode_rom.data() : nullptr;
   tiles.mask = tile_map.size() - 1;  // romconv asserts a power of two
   tiles.layout = config.orientation == ROT0 ? TILES_BY_ROW : TILES_BY_COLUMN;
   clearShowsBg = buildMixSel(prom, mixSel);
-  opcodes = r.opcodes ? opcode_rom.data() : nullptr;  // last: the Arena block packing
 
   mainRomSize = main_rom.size();
   soundRomSize = sound_rom.size();
