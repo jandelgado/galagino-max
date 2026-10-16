@@ -345,6 +345,9 @@
 #ifdef ENABLE_SXEVIOUS
   #include "machines/sxevious/sxevious.h"
 #endif
+#ifdef ENABLE_PLEIADS
+  #include "machines/pleiads/pleiads.h"
+#endif
 #ifdef ENABLE_GARDIA
   #include "machines/gardia/gardia.h"
 #endif
@@ -965,6 +968,13 @@ constexpr machineInfo machines[] = {
     sxevious::menuLeds,
 #endif
     MCH_SXEVIOUS },
+#endif
+#ifdef ENABLE_PLEIADS
+  { createMachine<pleiads>, pleiads::logo,
+#ifdef LED_PIN
+    pleiads::menuLeds,
+#endif
+    MCH_PLEIADS },
 #endif
 #ifdef ENABLE_GARDIA
   { createMachine<gardia>, gardia::logo,
