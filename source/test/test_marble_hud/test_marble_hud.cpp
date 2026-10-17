@@ -197,6 +197,7 @@ int main(int argc, char **argv) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   Arena::init();
+  Arena::reserve(&marble_arena_plan);  // like switchTo()
   marble_physics::loadRom();
   RUN_TEST(test_glyphs);
   RUN_TEST(test_glyph_pixels);

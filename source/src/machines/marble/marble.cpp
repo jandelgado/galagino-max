@@ -12,6 +12,13 @@
 #include "marble_physics.h"
 #include "marble_rng.h"
 #include "marble_rom.h"
+
+static_assert(marble::ARENA_EXTRA[0] == marble_level::MAX_ROWS * marble_level::COLS * 2 &&
+              marble::ARENA_EXTRA[1] == marble_level::MAX_TILES * 64 &&
+              marble::ARENA_EXTRA[2] == marble_level::SPRITE_TILES * 32 &&
+              marble::ARENA_EXTRA[3] == marble_prog_blob.count &&
+              marble::ARENA_EXTRA[4] == MARBLE_TERRAIN_MAX && marble::ARENA_EXTRA[5] == MARBLE_SID_SIZE &&
+              marble::ARENA_EXTRA[6] == MARBLE_SID_RAM, "update marble::ARENA_EXTRA");
 #include "../../emulation/asset.h"
 
 using namespace marble_video;

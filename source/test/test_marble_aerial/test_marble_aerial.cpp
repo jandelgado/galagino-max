@@ -247,6 +247,7 @@ int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   Arena::init();
+  Arena::reserve(&marble_arena_plan);  // like switchTo()
   marble_physics::loadRom();
   RUN_TEST(test_replay_aerial);
   RUN_TEST(test_gate_catch);

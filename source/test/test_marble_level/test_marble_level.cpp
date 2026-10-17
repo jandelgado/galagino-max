@@ -762,6 +762,7 @@ int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   Arena::init();
+  Arena::reserve(&marble_arena_plan);  // like switchTo()
   store.init();
   marble_physics::loadRom();
   RUN_TEST(test_levels_match_decoder);

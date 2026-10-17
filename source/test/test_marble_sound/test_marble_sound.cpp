@@ -218,6 +218,7 @@ int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   Arena::init();
+  Arena::reserve(&marble_arena_plan);  // like switchTo()
   marble_physics::loadRom();
   RUN_TEST(test_file_matches_converter);
   RUN_TEST(test_songs_stay_inside);

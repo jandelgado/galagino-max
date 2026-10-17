@@ -1076,7 +1076,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     marble::menuLeds,
 #endif
-    MCH_MARBLE },
+    MCH_MARBLE, &marble_arena_plan },
 #endif
 #ifdef ENABLE_COMMANDO
   { createMachine<commando>, commando::logo,
