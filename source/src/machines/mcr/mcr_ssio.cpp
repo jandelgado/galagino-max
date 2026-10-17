@@ -14,6 +14,12 @@ extern "C" unsigned char OpZ80_INL(unsigned short Addr);
 static const uint8_t OP_EI = 0xfb;
 static const int MIN_STEP_CYCLES = 4;
 
+// ld a,(flag) / or a / jr z,$-4: 13 + 4 + 12 cycles per pass
+static const uint8_t IDLE_LOOP[] = {0x3a, 0x00, 0x00, 0xb7, 0x28, 0xfa};
+static const uint8_t IDLE_FLAG_LO = 1, IDLE_FLAG_HI = 2;
+static const int IDLE_PASS_CYCLES = 29;
+static const uint8_t RAM_PAGE = 0x8;  // 8000-8fff, see rd()
+
 // ICount starts at 0 every step: block opcodes (LDIR) loop while ICount > 0,
 // so a long-running count would turn them into one atomic copy.
 int mcrStepZ80(Z80 &z) {
@@ -36,6 +42,27 @@ void McrSsio::attach(const uint8_t *r, uint16_t size, uint8_t *m, const uint8_t 
   romSize = size;
   ram = m;
   dutyGain = duty;
+  findIdleLoop();
+}
+
+// The sound program waits for its ISR in a loop that only polls a RAM flag
+// (tron 0x0101, dotron 0x010b, flag 0x8374). run() charges a pass of it
+// without stepping the Z80: up to 3/4 of the sound CPU time.
+void McrSsio::findIdleLoop() {
+  idlePc = NO_IDLE_LOOP;
+  for (uint16_t a = 0; a + sizeof(IDLE_LOOP) <= romSize; a++) {
+    const uint8_t *p = rom + a;
+    if (p[0] != IDLE_LOOP[0] || memcmp(p + 3, IDLE_LOOP + 3, sizeof(IDLE_LOOP) - 3)) {
+      continue;
+    }
+    const uint16_t flag = p[IDLE_FLAG_LO] | (p[IDLE_FLAG_HI] << 8);
+    if ((flag >> 12) != RAM_PAGE) {
+      continue;
+    }
+    idlePc = a;
+    idleFlag = flag & (RAM_SIZE - 1);
+    return;
+  }
 }
 
 void McrSsio::reset() {
@@ -68,7 +95,8 @@ void McrSsio::run(Z80 &cpu, int cycles) {
     if (irqLine && (cpu.IFF & IFF_1)) {
       IntZ80(&cpu, INT_RST38);
     }
-    const int used = mcrStepZ80(cpu);
+    const bool idle = cpu.PC.W == idlePc && !ram[idleFlag];
+    const int used = idle ? IDLE_PASS_CYCLES : mcrStepZ80(cpu);
     debt -= used;
     tickCounter(used);
   }

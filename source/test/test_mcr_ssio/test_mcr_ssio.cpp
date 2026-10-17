@@ -17,8 +17,14 @@ static McrSsio ssio;
 // duty nibble -> gain/16: full at 0, silent at 15
 static const uint8_t DUTY[16] = {16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 0};
 
+static uint16_t watchPc;
+static uint32_t watchFetches;
+
 extern "C" {
-unsigned char OpZ80_INL(unsigned short a) { return ssio.rd(a); }
+unsigned char OpZ80_INL(unsigned short a) {
+  watchFetches += a == watchPc;
+  return ssio.rd(a);
+}
 unsigned char OpPrefixZ80_INL(unsigned short a) { return ssio.rd(a); }
 unsigned char RdZ80(unsigned short a) { return ssio.rd(a); }
 void WrZ80(unsigned short a, unsigned char v) { ssio.wr(a, v); }
@@ -155,6 +161,32 @@ static void test_step_halt_costs_cycles(void) {
   TEST_ASSERT_GREATER_THAN(0, mcrStepZ80(cpu));
 }
 
+// SSIO program idle loop (tron 0x0101, dotron 0x010b): poll a RAM flag the
+// ISR sets. IRQ timing must not change when it is skipped.
+//   0000 IM 1; LD SP,8400h; EI
+//   0006 LD A,(8374h); OR A; JR Z,0006h
+//   000c LD (8001h),A; JR $
+//   0038 PUSH AF; INC (8000h); LD A,(8000h); CP 5; JR NZ,+3; LD (8374h),A
+//        LD A,(E000h); POP AF; EI; RET
+static void test_idle_loop_skipped(void) {
+  memset(rom, 0, sizeof(rom));
+  const uint8_t main[] = {0xed, 0x56, 0x31, 0x00, 0x84, 0xfb, 0x3a, 0x74, 0x83, 0xb7,
+                          0x28, 0xfa, 0x32, 0x01, 0x80, 0x18, 0xfe};
+  const uint8_t isr[] = {0xf5, 0x21, 0x00, 0x80, 0x34, 0x3a, 0x00, 0x80, 0xfe, 0x05, 0x20,
+                         0x03, 0x32, 0x74, 0x83, 0x3a, 0x00, 0xe0, 0xf1, 0xfb, 0xc9};
+  memcpy(rom, main, sizeof(main));
+  memcpy(rom + 0x38, isr, sizeof(isr));
+  ssio.attach(rom, sizeof(rom), ram, DUTY);
+  ResetZ80(&cpu);
+  watchPc = 0x0006;
+  watchFetches = 0;
+
+  ssio.run(cpu, 33333);
+  TEST_ASSERT_INT_WITHIN(1, 13, ram[0]);   // same IRQ rate as test_irq_rate_with_clear
+  TEST_ASSERT_EQUAL(5, ram[1]);            // left the loop once the flag was set
+  TEST_ASSERT_LESS_OR_EQUAL(2, watchFetches);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_irq_rate_with_clear);
@@ -166,5 +198,6 @@ int main(int, char **) {
   RUN_TEST(test_step_ldir_one_iteration);
   RUN_TEST(test_step_halt_costs_cycles);
   RUN_TEST(test_rom_size);
+  RUN_TEST(test_idle_loop_skipped);
   return UNITY_END();
 }

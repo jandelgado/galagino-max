@@ -92,6 +92,7 @@ private:
   uint8_t last_command = 0;
   uint8_t led_flash = 0;  // frames left, set by a new sound command
   int main_debt = 0;
+  int ctc_pending = 0;  // main CPU cycles not yet given to the CTC
 
   // strip buffer, video core only: pixel taken by a higher sprite
   uint8_t claim[8][OUT_WIDTH];

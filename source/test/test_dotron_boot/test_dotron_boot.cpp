@@ -40,8 +40,15 @@ static uint32_t watchdogWrites, latchWrites, ip0Reads;
 
 static const uint8_t PORT_WATCHDOG = 0xe0, PORT_LATCH0 = 0x1c, PORT_IP0 = 0x00;
 
+// opcode fetches at one address per CPU
+static uint16_t watchPc[2];
+static uint32_t watchFetches[2];
+
 extern "C" {
-unsigned char OpZ80_INL(unsigned short a) { return machine->opZ80(a); }
+unsigned char OpZ80_INL(unsigned short a) {
+  watchFetches[machine->current_cpu] += a == watchPc[machine->current_cpu];
+  return machine->opZ80(a);
+}
 unsigned char OpPrefixZ80_INL(unsigned short a) { return machine->opZ80(a); }
 unsigned char RdZ80(unsigned short a) { return machine->rdZ80(a); }
 void WrZ80(unsigned short a, unsigned char v) { machine->wrZ80(a, v); }
@@ -194,6 +201,28 @@ static void test_attract_runs(void) {
   TEST_ASSERT_GREATER_THAN_UINT32(100, lit);
 }
 
+// Both CPUs spend most of a frame in loops that wait for their ISR (attract:
+// main 40 %, sound 75 % of all instructions). run_frame() skips them.
+static void test_idle_loops_skipped(void) {
+  static const uint8_t MAIN_LOOP[] = {0x3a, 0x00, 0xe0, 0xd3, 0xe0, 0xfe, 0x01, 0x38, 0xf7};
+  static const uint16_t MAIN_LOOP_PC = 0x92b4, SOUND_LOOP_PC = 0x010b;
+  static const uint32_t FRAMES = 60;
+  boot();
+  for (uint16_t i = 0; i < sizeof(MAIN_LOOP); i++) {
+    TEST_ASSERT_EQUAL_HEX8(MAIN_LOOP[i], machine->rdZ80(MAIN_LOOP_PC + i));
+  }
+
+  watchPc[0] = MAIN_LOOP_PC;
+  watchPc[1] = SOUND_LOOP_PC;
+  watchFetches[0] = watchFetches[1] = 0;
+  runTo(frame + FRAMES);
+  watchPc[0] = watchPc[1] = 0xffff;
+  printf("idle loop fetches: main %u, sound %u\n", watchFetches[0], watchFetches[1]);
+  // a few per frame: the pass that leaves the loop
+  TEST_ASSERT_LESS_OR_EQUAL(FRAMES * 4, watchFetches[0]);
+  TEST_ASSERT_LESS_OR_EQUAL(FRAMES * 8, watchFetches[1]);
+}
+
 // coin + start reach the game: player and enemy sprites on screen
 static void test_coin_start_reaches_game(void) {
   boot();
@@ -307,6 +336,7 @@ int main(int argc, char **argv) {
 #ifdef HAVE_ROM
   RUN_TEST(test_title_frame);
   RUN_TEST(test_attract_runs);
+  RUN_TEST(test_idle_loops_skipped);
   RUN_TEST(test_coin_start_reaches_game);
   RUN_TEST(test_stick_left_moves_left);
   RUN_TEST(test_auto_aim_scores);

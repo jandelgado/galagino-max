@@ -34,7 +34,9 @@ public:
 
 private:
   static const int CYCLES_PER_COUNT = 40;  // 2 MHz / 50 kHz 14024 clock
+  static const uint16_t NO_IDLE_LOOP = 0xffff;
 
+  void findIdleLoop();
   void tickCounter(int cycles);
   void applyVolumes();
 
@@ -42,6 +44,8 @@ private:
   uint16_t romSize = 0;
   uint8_t *ram = nullptr;
   const uint8_t *dutyGain = nullptr;
+  uint16_t idlePc = NO_IDLE_LOOP;  // program wait loop, see findIdleLoop()
+  uint16_t idleFlag = 0;           // RAM offset it polls
   uint8_t latches[4] = {0, 0, 0, 0};
   uint8_t statusByte = 0;
   uint8_t ayAddr[2] = {0, 0};

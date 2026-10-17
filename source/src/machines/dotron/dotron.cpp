@@ -33,8 +33,18 @@ static const int MAIN_CYCLES = 83333;
 static const int SOUND_CYCLES = 33333;
 static const int SLICES = 240;
 
+// Frame wait loop: ld a,($e000) / out ($e0),a / cp 1 / jr c,$92b4 polls the
+// flag the frame ISR sets, 13 + 11 + 7 + 12 cycles per pass. run_frame()
+// charges a pass without stepping the Z80: 40-80 % of all main CPU time.
+static const uint16_t FRAME_WAIT_PC = 0x92b4;
+static const uint16_t FRAME_WAIT_FLAG = 0xe000;
+static const int FRAME_WAIT_CYCLES = 43;
+
 // CTC triggers (mcr_interrupt): trg2 = VBLANK every field, trg3 = 30 Hz frame
 static const uint8_t CTC_VBLANK = 2, CTC_FRAME = 3;
+// CTC clocked every 64 cycles, not every instruction: saves 2-4 ms per frame
+// on the ESP32. Timer IRQs (ch1, every 61440 cycles) shift by < 64 cycles.
+static const int CTC_BATCH = 64;
 
 // main CPU I/O ports
 static const uint8_t PORT_SSIO_STATUS = 0x07;
@@ -87,6 +97,7 @@ void dotron::reset() {
   ssio.reset();
   odd_field = false;
   main_debt = 0;
+  ctc_pending = 0;
   dial = 0;
   last_command = 0;
   led_flash = 0;
@@ -280,9 +291,16 @@ void dotron::run_frame(void) {
         IntZ80(&z, ctc.ack());
         game_started = 1;
       }
-      const int used = mcrStepZ80(z);
+      const bool waiting =
+          z.PC.W == FRAME_WAIT_PC && !memory[DOTRON_MEM_NVRAM + (FRAME_WAIT_FLAG & NVRAM_MASK)];
+      const int used = waiting ? FRAME_WAIT_CYCLES : mcrStepZ80(z);
       main_debt -= used;
-      ctc.tick(used);
+      ctc_pending += used;
+      if (ctc_pending < CTC_BATCH) {
+        continue;
+      }
+      ctc.tick(ctc_pending);
+      ctc_pending = 0;
       if (ctc.zc(0)) {
         ctc.trigger(1);  // ZC/TO0 -> CLK/TRG1
       }
