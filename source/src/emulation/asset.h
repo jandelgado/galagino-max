@@ -37,11 +37,14 @@ struct FlashAsset<T, PLAIN> {
     uint32_t id;
 };
 
+// block: where unpack() puts it (omitted: ARENA_ANY, first fit). Shares
+// count's word: ~400 blobs in flash.
 template<typename T>
 struct FlashAsset<T, COMPRESSED> {
     const uint8_t *packed;
     uint32_t packedLen;
-    uint32_t count;
+    uint32_t count : 30;
+    ArenaBlock block : 2;
 };
 
 template<typename T>
@@ -78,10 +81,11 @@ template<typename T>
 class Asset<T, COMPRESSED> {
 public:
     // Unpacked on first access and cached.
-    constexpr Asset(const uint8_t *packed, uint32_t packedLen, uint32_t count)
-      : packed(packed), packedLen(packedLen), count(count), current(nullptr) { }
+    constexpr Asset(const uint8_t *packed, uint32_t packedLen, uint32_t count,
+                    ArenaBlock block = ARENA_ANY)
+      : packed(packed), packedLen(packedLen), count(count), block(block), current(nullptr) { }
     constexpr Asset(const FlashAsset<T, COMPRESSED> &blob)
-      : Asset(blob.packed, blob.packedLen, blob.count) { }
+      : Asset(blob.packed, blob.packedLen, blob.count, blob.block) { }
 
     // No release(): the cache dies with its machine, Arena::reset() frees
     // the memory. Menu logos (logo.h) use decodeInto().
@@ -132,7 +136,7 @@ private:
 #ifdef ARDUINO
       uint32_t t0 = millis();
 #endif
-      T *buf = (T *)Arena::alloc(count * sizeof(T), alignof(T));
+      T *buf = (T *)Arena::alloc(count * sizeof(T), alignof(T), block);
       // read now: the other core may allocate during decodeInto()
       uint32_t usedAfterThisAlloc = Arena::bytesUsed();
 
@@ -157,6 +161,7 @@ private:
     const uint8_t *packed;
     uint32_t packedLen;
     uint32_t count;
+    ArenaBlock block;
     mutable const T *current;
 };
 

@@ -13,7 +13,7 @@ def read(path=HEADER):
     with open(path) as f:
         defs = dict(re.findall(r"^#define (ARENA_\w+) (\d+)$", f.read(), re.M))
     try:
-        b = int(defs["ARENA_B"])
+        b = int(defs["ARENA_B_SIZE"])
         return {"local": (int(defs["ARENA_A_LOCAL"]), b),
                 "remote": (int(defs["ARENA_A_REMOTE"]), b)}
     except KeyError as e:

@@ -280,6 +280,7 @@ static void switchTo(int8_t index) {
       return;
     }
 #endif
+    Arena::reserve(machines[index].arena);
     currentMachine = machines[index].create();
 #ifdef MASTER_ATTRACT_GAME_TIMEOUT
     attractGameStart = machinesCount > 1 ? millis() : 0;

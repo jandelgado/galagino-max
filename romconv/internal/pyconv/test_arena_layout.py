@@ -11,7 +11,7 @@ print("1. layouts from arena_layout.h: OK")
 d = tempfile.mkdtemp()
 p = os.path.join(d, "h.h")
 with open(p, "w") as f:
-    f.write("#define ARENA_A_LOCAL 91000\n#define ARENA_B 110500\n")
+    f.write("#define ARENA_A_LOCAL 91000\n#define ARENA_B_SIZE 110500\n")
 try:
     read(p)
     raise AssertionError("missing ARENA_A_REMOTE accepted")

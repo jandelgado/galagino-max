@@ -7,6 +7,6 @@
 // so their block A is smaller.
 #define ARENA_A_LOCAL 91000
 #define ARENA_A_REMOTE 69000
-#define ARENA_B 110500
+#define ARENA_B_SIZE 110500
 
 #endif

@@ -1039,7 +1039,7 @@ constexpr machineInfo machines[] = {
 #endif
     MCH_1943,
 #ifdef ASSETS_REMOTE
-    &_1943_bundle,
+    nullptr, &_1943_bundle,
 #endif
   },
 #endif
