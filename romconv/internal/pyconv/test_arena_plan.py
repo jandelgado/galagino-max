@@ -102,6 +102,16 @@ m, r = solve(A, [], (60000, 8192))
 assert m["b_rom"] == "PLAIN" and m["a_tiles"] != "PLAIN", m
 print("8c. tie-break by converter mode: OK")
 
+# 8d. the converter's split wins whenever it fits (mode 1 unchanged)
+A = [("x", 100, 1, "PLAIN"), ("y", 50, 1, "COMPRESSED")]
+m, r = solve(A, [], (1000, 1000))
+assert m["x"] == "PLAIN" and m["y"] != "PLAIN", m
+m, r = solve(A, [], (40, 40))  # does not fit: fewest PLAIN bytes
+assert m["x"] == "PLAIN" and m["y"] == "PLAIN", m
+m, r = solve([("x", 100, 1, "COMPRESSED"), ("y", 50, 1, "COMPRESSED")], [], (100, 0))
+assert m["x"] == "A" and m["y"] == "PLAIN", m
+print("8d. converter split kept when it fits: OK")
+
 # 9. 16 assets solve in reasonable time
 rnd = random.Random(1)
 assets = [(f"a{i}", rnd.choice([4096, 8192, 16384, 32768, 65536]) + rnd.randrange(0, 4096), 1)

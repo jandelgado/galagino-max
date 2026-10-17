@@ -47,8 +47,10 @@ def solve(assets, extras, layout, ram=(), flash=()):
     """Mode per asset ("PLAIN", "A", "B") and reserved bytes per block.
 
     assets: (name, bytes, align[, hint]); hint "PLAIN"/"COMPRESSED" is the
-    converter's own mode. Minimizes PLAIN bytes, then modes that differ from
-    the hint, then PLAIN asset count, then the sorted PLAIN names.
+    converter's own mode. The converter's split (pins applied) wins when it
+    fits: hand-tuned for the local layout, so mode 1 stays as it was.
+    Otherwise: fewest PLAIN bytes, then modes that differ from the hint,
+    then PLAIN asset count, then the sorted PLAIN names.
     ValueError if no split fits.
     """
     names = {a[0] for a in assets}
@@ -56,6 +58,16 @@ def solve(assets, extras, layout, ram=(), flash=()):
     for pin in list(ram) + list(flash):
         if pin not in names:
             raise ValueError(f"pinned asset {pin} not in the game's assets")
+    if all(len(a) > 3 for a in assets):
+        plain = (hint_plain | set(flash)) - set(ram)
+        try:
+            return _search(assets, extras, layout, names - plain, plain, hint_plain)
+        except ValueError:
+            pass
+    return _search(assets, extras, layout, ram, flash, hint_plain)
+
+
+def _search(assets, extras, layout, ram, flash, hint_plain):
     size_a, size_b = layout
     items = sorted(((_r4(a[1]), a[0]) for a in assets), reverse=True)
     extras4 = [_r4(e) for e in extras]
