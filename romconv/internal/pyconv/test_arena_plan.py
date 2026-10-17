@@ -46,7 +46,11 @@ assert m["big"] == "PLAIN" and m["s"] != "PLAIN"
 print("5. oversize asset PLAIN: OK")
 
 # 6. plan header
-h = plan_header("1942", {"local": ({"x": "A"}, (8, 0)), "remote": ({"x": "PLAIN"}, (0, 0))})
+h = plan_header("1942", {"local": ({"x": "A"}, (8, 0)), "remote": ({"x": "PLAIN"}, (0, 0))},
+                {"x": "unsigned char[8][8]"})
+assert '#include "../../emulation/asset.h"' in h
+assert "using x_asset = Asset<unsigned char[8][8], PLAIN>;" in h
+assert "using x_asset = Asset<unsigned char[8][8], COMPRESSED>;" in h
 assert "#ifndef _1942_ARENA_PLAN_H" in h
 assert "static constexpr ArenaPlan _1942_arena_plan = { 0, 0 };" in h
 assert "static constexpr ArenaPlan _1942_arena_plan = { 8, 0 };" in h
@@ -78,10 +82,10 @@ print("7. machine header parse: OK")
 
 # 8. markers
 with open(os.path.join(d, "a.h"), "w") as f:
-    f.write("// arena-asset g_rom 16384 1 PLAIN\n#if g_rom_PLAIN\n")
+    f.write("// arena-asset g_rom 16384 1 PLAIN unsigned char[8][8]\n#if g_rom_PLAIN\n")
 with open(os.path.join(d, "g_arena_plan.h"), "w") as f:
     f.write("// arena-asset stale 1 1\n")
-assert parse_markers(d) == [("g_rom", 16384, 1, "PLAIN")]
+assert parse_markers(d) == [("g_rom", 16384, 1, "PLAIN", "unsigned char[8][8]")]
 print("8. markers: OK")
 
 # 8b. extras must fit in every order (function arguments: unspecified order)

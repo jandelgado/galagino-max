@@ -79,23 +79,21 @@ def _flat_body(ctype, flat_values):
 
 def _emit_planned(f, game, name, ctype, inner_dims, count, raw, array_body, hint):
     """Both forms, picked by <name>_PLAIN from <game>_arena_plan.h
-    (romconv arena_plan.py), plus the marker arena_plan.py reads. hint: the
-    converter's own mode, arena_plan.py's tie-break."""
+    (romconv arena_plan.py, also defines <name>_asset), plus the marker
+    arena_plan.py reads. hint: the converter's own mode, the tie-break."""
     packed = lzma_compress(raw)
     ratio = 100.0 * (1.0 - len(packed) / len(raw)) if raw else 0.0
     t = f"{ctype}{inner_dims}"
     print('#include "../../emulation/asset.h"', file=f)
     print(f'#include "{game}_arena_plan.h"', file=f)
-    print(f"// arena-asset {name} {len(raw)} {_WIDTH[ctype]} {hint}", file=f)
+    print(f"// arena-asset {name} {len(raw)} {_WIDTH[ctype]} {hint} {t}", file=f)
     print(f"#if {name}_PLAIN", file=f)
     print(f"static const {ctype} {name}_data[]{inner_dims} = {{\n{array_body}\n}};", file=f)
     print(f"static constexpr FlashAsset<{t}, PLAIN> {name}_blob = {{ {name}_data, {count} }};", file=f)
-    print(f"using {name}_asset = Asset<{t}, PLAIN>;", file=f)
     print("#else", file=f)
     print(f"// {name}: {len(raw)} -> {len(packed)} bytes ({ratio:.1f}% smaller)", file=f)
     print(f"static const unsigned char {name}_packed[] = {{\n  " + _hex_block(packed) + "\n};", file=f)
     print(f"static constexpr FlashAsset<{t}, COMPRESSED> {name}_blob = {{ {name}_packed, sizeof({name}_packed), {count}, {name}_BLOCK }};", file=f)
-    print(f"using {name}_asset = Asset<{t}, COMPRESSED>;", file=f)
     print("#endif", file=f)
 
 def emit_compressed(f, name, ctype, inner_dims, count, flat_values, plan=True):
