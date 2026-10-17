@@ -80,6 +80,8 @@ private:
   // SID tune RAM (start())
   static constexpr uint32_t ARENA_EXTRA[] = { 5440 };
   static_assert(ARENA_EXTRA[0] == TUNE_RAM_SIZE, "update ARENA_EXTRA");
+  static_assert(arenaExtrasKey(ARENA_EXTRA, sizeof(ARENA_EXTRA) / sizeof(uint32_t), false) ==
+                gng_arena_extras_key, "ARENA_EXTRA changed: rerun romconv");
 
   static const int WIDTH = 240;
   static const int CROP = 8;          // native columns cropped per side

@@ -14,6 +14,16 @@ struct ArenaPlan {
     uint32_t b;
 };
 
+// Key over a machine's ARENA_EXTRA and ARENA_EXTRA_ANY_ORDER, the inputs
+// romconv solved its Arena plan for (arena_plan.py extras_key()). The
+// machine compares it with <game>_arena_extras_key: a stale plan fails the
+// build instead of aborting at boot.
+constexpr uint32_t arenaExtrasKey(const uint32_t *extras, uint32_t count, bool anyOrder,
+                                  uint32_t key = 0) {
+    return count ? arenaExtrasKey(extras + 1, count - 1, anyOrder, key * 31u + *extras)
+                 : (anyOrder ? key ^ 0x80000000u : key);
+}
+
 // Bump allocator over two blocks reserved at boot, before the heap
 // fragments. Holds either menu logos or the running machine's unpacked
 // assets, never both; reset() drops everything on each menu/machine switch.

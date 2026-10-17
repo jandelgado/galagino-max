@@ -19,6 +19,8 @@ static_assert(marble::ARENA_EXTRA[0] == marble_level::MAX_ROWS * marble_level::C
               marble::ARENA_EXTRA[3] == marble_prog_blob.count &&
               marble::ARENA_EXTRA[4] == MARBLE_TERRAIN_MAX && marble::ARENA_EXTRA[5] == MARBLE_SID_SIZE &&
               marble::ARENA_EXTRA[6] == MARBLE_SID_RAM, "update marble::ARENA_EXTRA");
+static_assert(arenaExtrasKey(marble::ARENA_EXTRA, sizeof(marble::ARENA_EXTRA) / sizeof(uint32_t), false) ==
+              marble_arena_extras_key, "ARENA_EXTRA changed: rerun romconv");
 #include "../../emulation/asset.h"
 
 using namespace marble_video;

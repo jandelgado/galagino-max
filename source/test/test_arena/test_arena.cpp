@@ -53,6 +53,14 @@ static void test_null_plan_is_no_reservation(void) {
   TEST_ASSERT_EQUAL_PTR(baseA, Arena::alloc(Arena::BLOCK_A_SIZE));
 }
 
+// same key as romconv arena_plan.extras_key (test_arena_plan.py)
+static void test_extras_key(void) {
+  static const uint32_t extras[] = {49152, 35040};
+  TEST_ASSERT_EQUAL_UINT32(49152u * 31 + 35040, arenaExtrasKey(extras, 2, false));
+  TEST_ASSERT_EQUAL_UINT32((49152u * 31 + 35040) ^ 0x80000000u, arenaExtrasKey(extras, 2, true));
+  TEST_ASSERT_EQUAL_UINT32(0, arenaExtrasKey(extras, 0, false));
+}
+
 int main(int, char **) {
   Arena::init();
   UNITY_BEGIN();
@@ -60,5 +68,6 @@ int main(int, char **) {
   RUN_TEST(test_reserved_region);
   RUN_TEST(test_reset_clears_reservation);
   RUN_TEST(test_null_plan_is_no_reservation);
+  RUN_TEST(test_extras_key);
   return UNITY_END();
 }

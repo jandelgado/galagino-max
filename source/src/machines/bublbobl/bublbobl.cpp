@@ -15,6 +15,8 @@ static_assert(bublbobl::ARENA_EXTRA[0] == bublbobl::TUNE_RAM_SIZE &&
               bublbobl::ARENA_EXTRA[3] == bublbobl_fx_fx1e_blob.count &&
               bublbobl::ARENA_EXTRA[4] == bublbobl_fx_fx25_blob.count &&
               bublbobl::ARENA_EXTRA[5] == bublbobl_fx_coin_blob.count, "update bublbobl::ARENA_EXTRA");
+static_assert(arenaExtrasKey(bublbobl::ARENA_EXTRA, sizeof(bublbobl::ARENA_EXTRA) / sizeof(uint32_t), false) ==
+              bublbobl_arena_extras_key, "ARENA_EXTRA changed: rerun romconv");
 #include "bublbobl_sound_map.h"
 #include "../../emulation/arena.h"
 

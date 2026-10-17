@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Checks arena_plan.py: Arena split solver, machine header parse, plan header.
 import os, random, tempfile, time
-from arena_plan import solve, plan_header, parse_machine_header, parse_markers
+from arena_plan import solve, plan_header, parse_machine_header, parse_markers, extras_key
 
 W = [49152, 35040, 35040]  # Williams RAM + 2 scanout buffers
 REMOTE, LOCAL = (69000, 110500), (91000, 110500)
@@ -48,7 +48,7 @@ print("5. oversize asset PLAIN: OK")
 
 # 6. plan header
 h = plan_header("1942", {"local": ({"x": "A"}, (8, 0)), "remote": ({"x": "PLAIN"}, (0, 0))},
-                {"x": "unsigned char[8][8]"})
+                {"x": "unsigned char[8][8]"}, 0)
 assert '#include "../../emulation/asset.h"' in h
 assert "using x_asset = Asset<unsigned char[8][8], PLAIN>;" in h
 assert "using x_asset = Asset<unsigned char[8][8], COMPRESSED>;" in h
@@ -61,6 +61,16 @@ assert "Arena::BLOCK_A_SIZE == 69000 && Arena::BLOCK_B_SIZE == 110500" in h
 assert "Arena::BLOCK_A_SIZE == 91000 && Arena::BLOCK_B_SIZE == 110500" in h
 assert h.index("#ifdef ASSETS_REMOTE") < h.index("{ 0, 0 }") < h.index("#else") < h.index("{ 8, 0 }")
 print("6. plan header: OK")
+
+# 6b. extras key: the plan records ARENA_EXTRA and ARENA_EXTRA_ANY_ORDER it
+# was solved for; arena.h arenaExtrasKey() computes the same (test_arena)
+assert extras_key([49152, 35040], False) == 49152 * 31 + 35040
+assert extras_key([49152, 35040], True) == (49152 * 31 + 35040) ^ 0x80000000
+assert extras_key([35040, 49152], False) != extras_key([49152, 35040], False)
+assert extras_key([], False) == 0
+h = plan_header("g", {"local": ({}, (0, 0)), "remote": ({}, (0, 0))}, {}, extras_key([7], False))
+assert "static constexpr uint32_t g_arena_extras_key = 7u;" in h
+print("6b. extras key: OK")
 
 # 7. machine header parse
 d = tempfile.mkdtemp()

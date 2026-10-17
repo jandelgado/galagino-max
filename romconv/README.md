@@ -66,8 +66,9 @@ split per layout:
   bytes `Arena::reserve()` keeps for the planned assets.
 - The converter's own choice (`emit_plain` vs `emit_compressed`) is kept
   whenever it fits; otherwise the split with the fewest PLAIN bytes wins.
-- Changing `arena_layout.h` makes the plan headers fail to compile until
-  the games are converted again.
+- Changing `arena_layout.h`, or a machine's `ARENA_EXTRA` /
+  `ARENA_EXTRA_ANY_ORDER` (the machine asserts `<game>_arena_extras_key`),
+  makes the build fail until the game is converted again.
 - `emit_*(..., plan=False)` keeps an asset out of the plan (e.g. ADPCM
   samples, whose count is not a byte count, or assets outside the game's
   directory).

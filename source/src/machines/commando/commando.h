@@ -79,6 +79,8 @@ private:
   // SID tune RAM (start())
   static constexpr uint32_t ARENA_EXTRA[] = { 4096 };
   static_assert(ARENA_EXTRA[0] == TUNE_RAM_SIZE, "update ARENA_EXTRA");
+  static_assert(arenaExtrasKey(ARENA_EXTRA, sizeof(ARENA_EXTRA) / sizeof(uint32_t), false) ==
+                commando_arena_extras_key, "ARENA_EXTRA changed: rerun romconv");
 
   static const int WIDTH = 224;
   static const short FIRST_ROW = 2; // panel rows 2..33 show the game
