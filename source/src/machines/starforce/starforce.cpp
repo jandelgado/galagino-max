@@ -19,8 +19,7 @@ starforce::starforce(const Roms &r)
 	: main_cpu_rom(r.main_cpu), sub_cpu_rom(r.sub_cpu), fg_tiles(r.fg),
 	  bg1_tiles(r.bg1), bg2_tiles(r.bg2), bg3_tiles(r.bg3),
 	  sprites_16x16(r.sprites_16x16) {
-	// eager: caches the hot path pointers. Any unpack order fits Arena's
-	// two blocks.
+	// eager: caches the hot path pointers
 	spr16_ptr = sprites_16x16.data();
 	bg_ptr[0] = bg1_tiles.data();
 	bg_ptr[1] = bg2_tiles.data();

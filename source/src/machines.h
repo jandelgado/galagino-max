@@ -575,14 +575,14 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     starforce::menuLeds,
 #endif
-    MCH_STARFORCE },
+    MCH_STARFORCE, &starforce_arena_plan },
 #endif
 #ifdef ENABLE_BALUBA
   { createMachine<baluba>, baluba::logo,
 #ifdef LED_PIN
     baluba::menuLeds,
 #endif
-    MCH_BALUBA },
+    MCH_BALUBA, &baluba_arena_plan },
 #endif
 #ifdef ENABLE_MOONCRESTA
   { createMachine<mooncresta>, mooncresta::logo,
