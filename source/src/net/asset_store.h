@@ -24,6 +24,7 @@ public:
   bool append(const uint8_t *data, uint32_t length);
   // writes the tag; false unless every byte was appended
   bool commit();
+  // nullptr if the region cannot be mapped
   const uint8_t *bundle();
 
 private:

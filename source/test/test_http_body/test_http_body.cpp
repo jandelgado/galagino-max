@@ -96,6 +96,20 @@ static void test_body_beyond_length_rejected(void) {
   TEST_ASSERT_FALSE(feedString(h, OK_RESPONSE + "X"));
 }
 
+// loader error messages: why a download failed
+static void test_status_and_received_reported(void) {
+  Collected c;
+  HttpBody h(collect, &c);
+  TEST_ASSERT_EQUAL_INT(0, h.status());
+  TEST_ASSERT_TRUE(feedString(h, "HTTP/1.0 200 OK\r\nContent-Length: 10\r\n\r\n0123"));
+  TEST_ASSERT_EQUAL_INT(200, h.status());
+  TEST_ASSERT_EQUAL_UINT32(4, h.received());
+
+  HttpBody notFound(collect, &c);
+  TEST_ASSERT_FALSE(feedString(notFound, "HTTP/1.0 404 File not found\r\n\r\n"));
+  TEST_ASSERT_EQUAL_INT(404, notFound.status());
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_body_split_everywhere);
@@ -106,5 +120,6 @@ int main(int, char **) {
   RUN_TEST(test_overlong_header_rejected);
   RUN_TEST(test_sink_refusal_propagates);
   RUN_TEST(test_body_beyond_length_rejected);
+  RUN_TEST(test_status_and_received_reported);
   return UNITY_END();
 }

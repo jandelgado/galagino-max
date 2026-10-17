@@ -18,6 +18,9 @@ public:
   // Headers done, Content-Length present and that many body bytes seen.
   bool complete() const;
   uint32_t contentLength() const { return length; }
+  // for error messages: 0 until the status line arrived
+  int status() const { return statusCode; }
+  uint32_t received() const { return bodyBytesSeen; }
 
 private:
   enum State { STATUS, HEADERS, BODY, FAILED };
@@ -34,7 +37,8 @@ private:
   uint32_t lineLen = 0;
   bool hasLength = false;
   uint32_t length = 0;
-  uint32_t received = 0;
+  uint32_t bodyBytesSeen = 0;
+  int statusCode = 0;
 };
 
 #endif

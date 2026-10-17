@@ -25,8 +25,10 @@ ZIP = os.path.join(ROOT, "romszip", "1943.zip")
 OUT = os.path.join(ROOT, "source", "src", "machines", "1943")
 SERVER_ROOT = os.path.join(ROOT, "galagino-server", "data")
 
-ARENA_BLOCKS = (91000, 110500)  # source/src/emulation/arena.h BLOCK_A_SIZE, BLOCK_B_SIZE
-ARENA_BUDGET = 182000
+# source/src/emulation/arena.h BLOCK_A_SIZE, BLOCK_B_SIZE; A is 69000 in
+# ASSETS_REMOTE (WiFi) builds, the tighter of both
+ARENA_BLOCKS = (69000, 110500)
+ARENA_BUDGET = sum(ARENA_BLOCKS)
 
 # MAME ROM_START( 1943b ); bootleg files live in 1943b/ of the merged zip
 MAIN = [("1943b/1.12d", "6f84e906656f132ffcb63022f6d067580d261431"),

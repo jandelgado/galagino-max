@@ -82,8 +82,10 @@ static constexpr uint16_t HTTP_DEFAULT_PORT = 80;
 static constexpr uint32_t RECV_TIMEOUT_S = 5;
 static constexpr uint32_t CONNECT_TCP_TIMEOUT_S = 5;
 
-// Size: driver peak ~33.5 KB + WiFi task stack + TCB
-static constexpr uint32_t WIFI_HEAP_BYTES = 49152;
+// Size: driver peak ~33.5 KB + WiFi task stack + TCB, plus RX buffering
+// while flash writes slow the receiver (peak 47.2 KB measured at 48 KB).
+// Costs nothing: Arena is empty during load.
+static constexpr uint32_t WIFI_HEAP_BYTES = 65536;
 
 static wifi_osi_funcs_t osi;
 static multi_heap_handle_t wifiHeap = nullptr;
@@ -392,6 +394,9 @@ static bool wifiUp() {
   osi._wifi_zalloc = wZalloc;
   osi._task_create_pinned_to_core = wTaskCreatePinned;
   osi._task_create = wTaskCreate;
+  // the emulation task deletes itself after emulation_stop(); its TCB may
+  // still be pending cleanup. Safe because the loader erases (seconds, with
+  // yields) before up(). Calling up() right after a machine stop needs a wait.
   tasksBefore = uxTaskGetNumberOfTasks();
 
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -503,20 +508,16 @@ bool Wifi::get(const char *url, HttpBody &body) {
   const int n = snprintf(req, sizeof(req), "GET %s HTTP/1.0\r\nHost: %s\r\n\r\n", path, host);
   send(s, req, n, 0);
 
-  // from the Arena heap: static DRAM is too tight (solomon low-water 2.9 KB)
+  // from Arena, outside the WiFi heap so the driver never competes for it;
+  // static DRAM is too tight (solomon low-water 2.9 KB). Freed by down().
   const size_t BUF_BYTES = 4096;
-  uint8_t *buf = (uint8_t *)multi_heap_malloc(wifiHeap, BUF_BYTES);
-  if (!buf) {
-    printf("wifi: no receive buffer\n");
-    close(s);
-    return false;
-  }
+  uint8_t *buf = Arena::alloc(BUF_BYTES);
   bool ok = true;
   int r;
-  while (ok && (r = recv(s, buf, BUF_BYTES, 0)) > 0) {
+  // stop at the end of the body: a server may keep the connection open
+  while (ok && !body.complete() && (r = recv(s, buf, BUF_BYTES, 0)) > 0) {
     ok = body.feed(buf, r);
   }
-  multi_heap_free(wifiHeap, buf);
   close(s);
   return ok && body.complete();
 }

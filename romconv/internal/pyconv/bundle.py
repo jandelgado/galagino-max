@@ -36,7 +36,11 @@ class BundleWriter:
         self.assets = []
 
     def add(self, name, raw):
-        self.assets.append((asset_id(name), bytes(raw)))
+        aid = asset_id(name)
+        # duplicate name or FNV collision: the device would resolve the wrong asset
+        if any(aid == other for other, _ in self.assets):
+            raise ValueError(f"asset id 0x{aid:08X} of {name} already in bundle")
+        self.assets.append((aid, bytes(raw)))
 
     def build(self):
         table = bytearray(HEADER.pack(MAGIC, VERSION, len(self.assets)))

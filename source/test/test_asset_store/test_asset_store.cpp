@@ -40,6 +40,9 @@ public:
   }
 
   const uint8_t *map() override {
+    if (mapFails) {
+      return nullptr;
+    }
     mapped = true;
     return mem.data();
   }
@@ -49,6 +52,7 @@ public:
   std::vector<uint8_t> mem;
   bool mapped = false;
   bool eraseWhileMapped = false;
+  bool mapFails = false;  // missing partition or MMU window full
 };
 
 static const uint32_t REGION_BYTES = 64 * 1024;
@@ -164,6 +168,25 @@ static void test_begin_unmaps(void) {
   TEST_ASSERT_FALSE(region.eraseWhileMapped);
 }
 
+static void test_map_failure_holds_nothing(void) {
+  FakeRegion region(REGION_BYTES);
+  AssetStore store(region);
+  const BundleRef a = ref(1, 5000);
+  TEST_ASSERT_TRUE(store.begin(a));
+  writeAll(store, payload(a.length, 1));
+  TEST_ASSERT_TRUE(store.commit());
+  region.mapFails = true;
+  TEST_ASSERT_FALSE(store.holds(a));
+  TEST_ASSERT_NULL(store.bundle());
+}
+
+static void test_region_smaller_than_tag(void) {
+  FakeRegion region(0);  // partition missing: size 0
+  AssetStore store(region);
+  TEST_ASSERT_FALSE(store.begin(ref(1, 100)));
+  TEST_ASSERT_FALSE(store.holds(ref(1, 100)));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_empty_region_holds_nothing);
@@ -174,5 +197,7 @@ int main(int, char **) {
   RUN_TEST(test_rewrite_invalidates_old);
   RUN_TEST(test_other_hash_not_held);
   RUN_TEST(test_begin_unmaps);
+  RUN_TEST(test_map_failure_holds_nothing);
+  RUN_TEST(test_region_smaller_than_tag);
   return UNITY_END();
 }

@@ -33,7 +33,7 @@ bool HttpBody::feed(const uint8_t *data, uint32_t n) {
 }
 
 bool HttpBody::complete() const {
-  return state == BODY && hasLength && received == length;
+  return state == BODY && hasLength && bodyBytesSeen == length;
 }
 
 bool HttpBody::headerByte(uint8_t c) {
@@ -61,7 +61,8 @@ bool HttpBody::lineDone() {
     if (strncmp(line, STATUS_PREFIX, prefix) || strlen(line) < prefix + 5 || line[prefix + 1] != ' ') {
       return false;
     }
-    if (atoi(line + prefix + 2) != HTTP_OK) {
+    statusCode = atoi(line + prefix + 2);
+    if (statusCode != HTTP_OK) {
       return false;
     }
     state = HEADERS;
@@ -80,9 +81,9 @@ bool HttpBody::lineDone() {
 }
 
 bool HttpBody::bodyBytes(const uint8_t *data, uint32_t n) {
-  if (hasLength && n > length - received) {
+  if (hasLength && n > length - bodyBytesSeen) {
     return false;
   }
-  received += n;
+  bodyBytesSeen += n;
   return sink(ctx, data, n);
 }

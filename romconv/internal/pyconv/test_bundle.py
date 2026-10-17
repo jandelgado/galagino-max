@@ -25,6 +25,16 @@ assert data[52:60] == b"\x04" * 8
 assert len(data) == 60
 print("2. bundle header, entries, alignment: OK")
 
+# 2b. duplicate name (or FNV collision) rejected: would resolve the wrong asset
+w = BundleWriter()
+w.add("_a", b"\x01")
+try:
+    w.add("_a", b"\x02")
+    raise AssertionError("duplicate id accepted")
+except ValueError:
+    pass
+print("2b. duplicate id rejected: OK")
+
 # 3. bundle hash = first 8 bytes of SHA-256
 assert bundle_hash(data) == hashlib.sha256(data).digest()[:8]
 print("3. bundle_hash: OK")

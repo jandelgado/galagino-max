@@ -13,8 +13,12 @@ struct Tag {
 };
 
 bool AssetStore::holds(const BundleRef &ref) {
+  const uint8_t *base = region.size() >= TAG_BYTES ? region.map() : nullptr;
+  if (!base) {
+    return false;
+  }
   Tag tag;
-  memcpy(&tag, region.map(), sizeof(tag));
+  memcpy(&tag, base, sizeof(tag));
   if (tag.magic != TAG_MAGIC || tag.commit != COMMIT_WORD) {
     return false;
   }
@@ -24,7 +28,7 @@ bool AssetStore::holds(const BundleRef &ref) {
 bool AssetStore::begin(const BundleRef &ref) {
   written = 0;
   pending = {};
-  if (ref.length > region.size() - TAG_BYTES) {
+  if (region.size() < TAG_BYTES || ref.length > region.size() - TAG_BYTES) {
     return false;
   }
 
@@ -59,5 +63,6 @@ bool AssetStore::commit() {
 }
 
 const uint8_t *AssetStore::bundle() {
-  return region.map() + TAG_BYTES;
+  const uint8_t *base = region.map();
+  return base ? base + TAG_BYTES : nullptr;
 }

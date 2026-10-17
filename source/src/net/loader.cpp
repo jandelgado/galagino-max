@@ -50,19 +50,26 @@ static bool download(const BundleRef &ref, const char *hex) {
   mbedtls_sha256_starts_ret(&d.sha, 0);
   HttpBody body(toStore, &d);
 
+  const bool connected = Wifi::up();
   const uint32_t t0 = millis();
-  const bool got = Wifi::up() && Wifi::get(url, body);
+  const bool got = connected && Wifi::get(url, body);
+  const uint32_t ms = millis() - t0;
   Wifi::down();
-  if (!got) {
-    printf("loader: error download failed\n");
-    mbedtls_sha256_free(&d.sha);
-    return false;
-  }
-  printf("loader: %u bytes in %u ms\n", ref.length, millis() - t0);
 
   uint8_t digest[32];
   mbedtls_sha256_finish_ret(&d.sha, digest);
   mbedtls_sha256_free(&d.sha);
+  if (!connected) {
+    printf("loader: error WiFi not connected\n");
+    return false;
+  }
+  if (!got) {
+    printf("loader: error download failed, HTTP %d, %u of %u bytes\n", body.status(), body.received(),
+           ref.length);
+    return false;
+  }
+  printf("loader: %u bytes in %u ms\n", body.received(), ms);
+
   if (memcmp(digest, ref.hash, sizeof(ref.hash))) {
     printf("loader: error SHA mismatch\n");
     return false;
@@ -91,7 +98,8 @@ bool Loader::prepare(const BundleRef *ref) {
     return false;
   }
 
-  if (!Bundle::mount(store.bundle(), ref->length)) {
+  const uint8_t *bundle = store.bundle();
+  if (!bundle || !Bundle::mount(bundle, ref->length)) {
     printf("loader: error bundle header invalid\n");
     return false;
   }
