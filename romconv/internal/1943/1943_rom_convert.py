@@ -15,6 +15,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pyconv"))
 from gfxutil import load_file, mame_decode, rgb888_to_rgb565_le
+from arena_layout import REMOTE
 from asset_emit import emit_compressed, emit_plain_remote, _hex_block
 from bundle import BundleWriter, write_bundle, bundle_hash
 from convutil import fatal
@@ -25,9 +26,8 @@ ZIP = os.path.join(ROOT, "romszip", "1943.zip")
 OUT = os.path.join(ROOT, "source", "src", "machines", "1943")
 SERVER_ROOT = os.path.join(ROOT, "galagino-server", "data")
 
-# source/src/emulation/arena.h BLOCK_A_SIZE, BLOCK_B_SIZE; A is 69000 in
-# ASSETS_REMOTE (WiFi) builds, the tighter of both
-ARENA_BLOCKS = (69000, 110500)
+# arena_layout.h: the ASSETS_REMOTE (WiFi) layout, the tighter of both
+ARENA_BLOCKS = REMOTE
 ARENA_BUDGET = sum(ARENA_BLOCKS)
 
 # MAME ROM_START( 1943b ); bootleg files live in 1943b/ of the merged zip

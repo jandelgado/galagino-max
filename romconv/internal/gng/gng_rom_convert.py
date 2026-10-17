@@ -21,6 +21,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pyconv"))
+from arena_layout import LOCAL
 from asset_emit import emit_compressed, emit_plain
 from convutil import fatal
 from gfxutil import load_file, mame_decode
@@ -168,8 +169,8 @@ def main():
     for name, size in arena.items():
         print(f"  arena {name:9s} {size:6d}")
     convert_chars()
-    print(f"  arena total     {total:6d} of 201500")
-    if total >= 201500:
+    print(f"  arena total     {total:6d} of {sum(LOCAL)}")
+    if total >= sum(LOCAL):
         fatal("Ghosts'n Goblins assets exceed Arena::CAPACITY")
 
 

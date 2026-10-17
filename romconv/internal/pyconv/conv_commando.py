@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from functools import partial
+from arena_layout import LOCAL
 from convutil import run, info, fatal
 
 run_in_workdir = partial(run, cwd="internal/commando")
@@ -43,13 +44,13 @@ ARENA = {"sprites": 3 * 32768, "chars": 16384, "tiles": (1024 - TILES_A) * 128, 
          "sid": SID, "tune_ram": 4096}
 BLOCK_A = 2 * 32768 + 16384 + 512 + SID + 4096
 BLOCK_B = 32768 + (1024 - TILES_A) * 128
-if BLOCK_A > 91000 or BLOCK_B > 110500:
-    fatal(f"Commando blocks exceed Arena: A {BLOCK_A} of 91000, B {BLOCK_B} of 110500")
+if BLOCK_A > LOCAL[0] or BLOCK_B > LOCAL[1]:
+    fatal(f"Commando blocks exceed Arena: A {BLOCK_A} of {LOCAL[0]}, B {BLOCK_B} of {LOCAL[1]}")
 total = sum(ARENA.values())
 for name, size in ARENA.items():
     info(f"  arena {name:9s} {size:6d}")
-info(f"  arena total     {total:6d} of 201500")
-if total >= 201500:
+info(f"  arena total     {total:6d} of {sum(LOCAL)}")
+if total >= sum(LOCAL):
     fatal("Commando assets exceed Arena::CAPACITY")
 
 info("--- Success ---")

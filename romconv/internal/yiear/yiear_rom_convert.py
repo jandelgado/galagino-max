@@ -5,6 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pyconv"))
 from gfxutil import load_file, mame_decode, rgb888_to_rgb565_le
+from arena_layout import LOCAL
 from asset_emit import emit_compressed
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -32,7 +33,7 @@ VLM = ("407_c09.8b", "f139f6cb41351eb81ee47d777db03012aa5fadb1")
 
 TILE_COUNT = 512
 SPRITE_COUNT = 512
-ARENA_CAPACITY = 201500
+ARENA_CAPACITY = sum(LOCAL)
 
 
 def load(entry):

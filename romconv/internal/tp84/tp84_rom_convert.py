@@ -12,6 +12,7 @@ import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import load_file, mame_decode, rot_galagino, rgb888_to_rgb565_le
+from arena_layout import LOCAL
 from asset_emit import emit_compressed
 from resnet import resistor_weights, combine
 
@@ -126,5 +127,5 @@ sizes = {"main": len(main), "sub": len(sub), "audio": len(audio),
 for k, v in sizes.items():
     print(f"  {k:8s} {v:6d}")
 total = sum(sizes.values())
-print(f"Arena total {total} B (CAPACITY 201500)")
-assert total < 201500
+print(f"Arena total {total} B (CAPACITY {sum(LOCAL)})")
+assert total < sum(LOCAL)

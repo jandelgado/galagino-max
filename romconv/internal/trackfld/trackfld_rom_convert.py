@@ -5,6 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pyconv"))
 from gfxutil import load_file, mame_decode, rgb888_to_rgb565_le
+from arena_layout import LOCAL
 from asset_emit import emit_compressed
 from resnet import resistor_weights, combine
 
@@ -38,7 +39,7 @@ SPR_CLUT = ("361b17.b16", "894b5cedf01ba9225a0d6215291857e455b84903")
 TILE_CLUT = ("361b18.e15", "6740a62cf7b6938a4f936a2fed429704612060a5")
 VLM = ("c9_d15.bin", "caee3d8546eb7a75ce2a578c6a1a630246aec6b8")
 
-ARENA_CAPACITY = 201500
+ARENA_CAPACITY = sum(LOCAL)
 
 
 def load(entry):

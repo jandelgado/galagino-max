@@ -5,6 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pyconv"))
 from gfxutil import load_file, rgb888_to_rgb565_le
+from arena_layout import LOCAL
 from asset_emit import emit_compressed, emit_plain
 from resnet import resistor_weights, combine
 
@@ -12,7 +13,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..", "..", "..")
 MACHINES = os.path.join(ROOT, "source", "src", "machines")
 
-ARENA_BLOCKS = (91000, 110500)  # source/src/emulation/arena.h BLOCK_A_SIZE, BLOCK_B_SIZE
+ARENA_BLOCKS = LOCAL
 MIX_NO_COLLIDE = 0x04
 
 # MAME ROM_START per game, regions in load order

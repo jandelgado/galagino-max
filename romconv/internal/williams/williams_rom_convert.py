@@ -10,6 +10,7 @@ import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import load_file, rgb888_to_rgb565_le
+from arena_layout import LOCAL
 from asset_emit import emit_compressed, emit_plain
 from resnet import resistor_weights, combine
 
@@ -138,4 +139,4 @@ if GAME == "sinistar":
         emit_plain(f, "sinistar_rom_sound", "unsigned char", "", len(sound), body)
     budget += len(main)
 
-print(f"{GAME} Arena assets: {budget} bytes (+ RAM 49152 + scanout 70080 <= 201500)")
+print(f"{GAME} Arena assets: {budget} bytes (+ RAM 49152 + scanout 70080 <= {sum(LOCAL)})")

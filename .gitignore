@@ -7,3 +7,4 @@ source/src/machines/*/*_logo.h
 
 # remote asset bundles written by romconv
 galagino-server/data/
+source/src/machines/*/*_arena_plan.h
