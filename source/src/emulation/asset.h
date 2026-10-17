@@ -10,6 +10,9 @@
 #include <cstdint>
 #include "arena.h"
 #include "lzma/LzmaDec.h"
+#ifdef ASSETS_REMOTE
+#include "../net/bundle.h"
+#endif
 
 enum AssetMode { PLAIN, COMPRESSED };
 
@@ -25,10 +28,13 @@ template<typename T, AssetMode mode> class Asset;
 // from it, so the unpack cache lives and dies with the machine instance.
 template<typename T, AssetMode mode> struct FlashAsset;
 
+// data == nullptr: remote asset (ASSETS_REMOTE), resolved by id in the
+// mounted bundle. Built-in blobs leave id 0.
 template<typename T>
 struct FlashAsset<T, PLAIN> {
     const T *data;
     uint32_t count;
+    uint32_t id;
 };
 
 template<typename T>
@@ -44,8 +50,15 @@ public:
     // Points into flash, no copy.
     constexpr Asset(const T *flashData, unsigned int count)
       : data_(flashData), count_(count) { }
+#ifdef ASSETS_REMOTE
+    // once per machine, never in data(): no per-frame cost
+    constexpr Asset(const FlashAsset<T, PLAIN> &blob)
+      : data_(blob.data ? blob.data : (const T *)Bundle::find(blob.id, blob.count * sizeof(T))),
+        count_(blob.count) { }
+#else
     constexpr Asset(const FlashAsset<T, PLAIN> &blob)
       : data_(blob.data), count_(blob.count) { }
+#endif
 
     Asset(const Asset &) = delete;
     Asset &operator=(const Asset &) = delete;
