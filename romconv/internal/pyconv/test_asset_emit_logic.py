@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# Checks asset_emit.py output without a C++ build: structure and zlib
+# Checks asset_emit.py output without a C++ build: structure and LZMA
 # round-trip.
-import io, re, zlib, struct
-from asset_emit import emit_compressed, emit_plain
+import io, re, struct
+from asset_emit import emit_compressed, emit_plain, lzma_decompress
 
-# 1. compressed byte array: values round-trip through zlib exactly
+# 1. compressed byte array: values round-trip through LZMA exactly
 values = list(range(256)) * 4   # 1024 unsigned char values
 f = io.StringIO()
 emit_compressed(f, "_test_rom", "unsigned char", "", len(values), values)
@@ -12,7 +12,7 @@ out = f.getvalue()
 
 m = re.search(r"_test_rom_packed\[\] = \{(.*?)\};", out, re.S)
 packed_bytes = bytes(int(x, 16) for x in re.findall(r"0x[0-9A-Fa-f]{2}", m.group(1)))
-restored = zlib.decompress(packed_bytes)
+restored = lzma_decompress(packed_bytes)
 expected = bytes(v & 0xFF for v in values)
 assert restored == expected, "compressed round-trip mismatch"
 assert "static constexpr FlashAsset<unsigned char, COMPRESSED> _test_rom_blob = { _test_rom_packed, sizeof(_test_rom_packed), 1024 };" in out
@@ -26,7 +26,7 @@ emit_compressed(f, "_test_rows", "unsigned short", "[2]", 2, values16)
 out = f.getvalue()
 m = re.search(r"_test_rows_packed\[\] = \{(.*?)\};", out, re.S)
 packed_bytes = bytes(int(x, 16) for x in re.findall(r"0x[0-9A-Fa-f]{2}", m.group(1)))
-restored = zlib.decompress(packed_bytes)
+restored = lzma_decompress(packed_bytes)
 expected = b"".join(struct.pack("<H", v) for v in values16)
 assert restored == expected, "16-bit little-endian round-trip mismatch"
 assert "static constexpr FlashAsset<unsigned short[2], COMPRESSED> _test_rows_blob = { _test_rows_packed, sizeof(_test_rows_packed), 2 };" in out
