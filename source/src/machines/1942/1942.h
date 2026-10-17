@@ -1,6 +1,7 @@
 #ifndef _1942_H
 #define _1942_H
 
+#include "1942_arena_plan.h"
 #include "1942_rom1.h"
 #include "1942_rom2.h"
 #include "1942_rom1_b0.h"
@@ -23,16 +24,16 @@ class _1942 : public machineBase
 {
 protected:
   // ROM assets, unpacked into the Arena on first data()
-  Asset<unsigned short[8], COMPRESSED> _1942_charmap;
+  _1942_charmap_asset _1942_charmap;
   // rom_cpu1, b1, b2 compress worst: flash, the Arena holds the tilemap
-  Asset<unsigned char, PLAIN> _1942_rom_cpu1;
-  Asset<unsigned char, COMPRESSED> _1942_rom_cpu1_b0;
-  Asset<unsigned char, PLAIN> _1942_rom_cpu1_b1;
-  Asset<unsigned char, COMPRESSED> _1942_rom_cpu1_b2;
-  Asset<unsigned char, COMPRESSED> _1942_rom_cpu2;
-  Asset<uint32_t[32], COMPRESSED> _1942_sprites;
-  Asset<unsigned short[32][8], COMPRESSED> _1942_colormap_tiles;
-  Asset<uint32_t[32], COMPRESSED> _1942_tilemap;
+  _1942_rom_cpu1_asset _1942_rom_cpu1;
+  _1942_rom_cpu1_b0_asset _1942_rom_cpu1_b0;
+  _1942_rom_cpu1_b1_asset _1942_rom_cpu1_b1;
+  _1942_rom_cpu1_b2_asset _1942_rom_cpu1_b2;
+  _1942_rom_cpu2_asset _1942_rom_cpu2;
+  _1942_sprites_asset _1942_sprites;
+  _1942_colormap_tiles_asset _1942_colormap_tiles;
+  _1942_tilemap_asset _1942_tilemap;
 public:
 	_1942();
 

@@ -6,7 +6,7 @@
 #include "bombjack_fg_tiles.h"
 #include "bombjack_sprites.h"
 
-// Unpack eagerly, largest first: not every order fits Arena's two blocks.
+// Unpack eagerly. Blocks come from romconv (<game>_arena_plan.h): any order fits.
 // Also caches the pointers the hot paths read (see bombjack.h).
 bombjack::bombjack()
   : bombjack_bg_maps(bombjack_bg_maps_blob),

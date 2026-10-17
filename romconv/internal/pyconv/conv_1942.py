@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
+import os
 from convutil import run, info
+
+os.environ["ROMCONV_PLAN"] = "1942"
 
 info("--------- Convert 1942 ---------")
 info("1942 Unpack roms")
@@ -26,4 +29,5 @@ run("internal/cmapconv.py", "_1942_colormap_chars", "./roms/sb-5.e8,./roms/sb-6.
 run("internal/cmapconv.py", "_1942_colormap_tiles", "./roms/sb-5.e8,./roms/sb-6.e9,./roms/sb-7.e10", "-1", "./roms/sb-4.d6,./roms/sb-3.d2,./roms/sb-2.d1", "../source/src/machines/1942/1942_tile_cmap.h")
 run("internal/cmapconv.py", "_1942_colormap_sprites", "./roms/sb-5.e8,./roms/sb-6.e9,./roms/sb-7.e10", "64", "./roms/sb-8.k3", "../source/src/machines/1942/1942_sprite_cmap.h")
 
+run("internal/pyconv/arena_plan.py", "1942")
 info("--- Success ---")

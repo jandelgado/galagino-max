@@ -1,6 +1,7 @@
 #ifndef ZAXXON_H
 #define ZAXXON_H
 
+#include "zaxxon_arena_plan.h"
 #include "zaxxon_rom_main.h"
 #include "zaxxon_chartiles.h"
 #include "zaxxon_bgtiles.h"
@@ -29,14 +30,14 @@ class zaxxon : public machineBase
 {
 protected:
   // ROM assets, unpacked into the Arena on first data()
-  Asset<unsigned char[8][8], COMPRESSED> zaxxon_bgtiles;
-  Asset<unsigned char[8][8], PLAIN> zaxxon_chartiles;
-  Asset<unsigned short, COMPRESSED> zaxxon_palette;
-  Asset<unsigned char, COMPRESSED> zaxxon_fgcolor_codes;
-  Asset<unsigned char, PLAIN> zaxxon_rom_main;  // compresses worst: flash
-  Asset<unsigned char[32][32], COMPRESSED> zaxxon_spritetiles;
-  Asset<unsigned short, COMPRESSED> zaxxon_tilemap_code;
-  Asset<unsigned char, COMPRESSED> zaxxon_tilemap_color;
+  zaxxon_bgtiles_asset zaxxon_bgtiles;
+  zaxxon_chartiles_asset zaxxon_chartiles;
+  zaxxon_palette_asset zaxxon_palette;
+  zaxxon_fgcolor_codes_asset zaxxon_fgcolor_codes;
+  zaxxon_rom_main_asset zaxxon_rom_main;
+  zaxxon_spritetiles_asset zaxxon_spritetiles;
+  zaxxon_tilemap_code_asset zaxxon_tilemap_code;
+  zaxxon_tilemap_color_asset zaxxon_tilemap_color;
   ZaxxonSound sound;
 public:
   zaxxon();

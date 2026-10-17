@@ -64,7 +64,7 @@ zaxxon::zaxxon()
     zaxxon_spritetiles(zaxxon_spritetiles_blob),
     zaxxon_tilemap_code(zaxxon_tilemap_code_blob),
     zaxxon_tilemap_color(zaxxon_tilemap_color_blob) {
-  // largest first, or Arena's two blocks overflow
+  // eager; blocks come from romconv (zaxxon_arena_plan.h): any order fits
   zaxxon_bgtiles.data();
   zaxxon_spritetiles.data();
   zaxxon_tilemap_code.data();

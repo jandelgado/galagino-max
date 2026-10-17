@@ -1,6 +1,7 @@
 #ifndef BOMBJACK_H
 #define BOMBJACK_H
 
+#include "bombjack_arena_plan.h"
 #include "bombjack_dipswitches.h"
 #include "bombjack_logo.h"
 #include "../tileaddr.h"
@@ -18,13 +19,13 @@ class bombjack : public machineBase
 {
 protected:
   // ROM assets, unpacked into the Arena on first data()
-  Asset<unsigned char, COMPRESSED> bombjack_bg_maps;
-  Asset<uint32_t[32], COMPRESSED> bombjack_bg_tiles;
-  Asset<uint32_t[8], COMPRESSED> bombjack_fg_tiles;
-  Asset<unsigned char, COMPRESSED> bombjack_rom_cpu1;
-  Asset<unsigned char, COMPRESSED> bombjack_rom_cpu2;
-  Asset<uint32_t[32], COMPRESSED> bombjack_sprites_16x16;
-  Asset<uint32_t[128], COMPRESSED> bombjack_sprites_32x32;
+  bombjack_bg_maps_asset bombjack_bg_maps;
+  bombjack_bg_tiles_asset bombjack_bg_tiles;
+  bombjack_fg_tiles_asset bombjack_fg_tiles;
+  bombjack_rom_cpu1_asset bombjack_rom_cpu1;
+  bombjack_rom_cpu2_asset bombjack_rom_cpu2;
+  bombjack_sprites_16x16_asset bombjack_sprites_16x16;
+  bombjack_sprites_32x32_asset bombjack_sprites_32x32;
 public:
   bombjack();
 

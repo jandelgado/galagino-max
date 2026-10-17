@@ -1,6 +1,6 @@
 #include "1942.h"
 
-// Unpack eagerly, largest first: not every order fits Arena's two blocks.
+// Unpack eagerly. Blocks come from romconv (<game>_arena_plan.h): any order fits.
 _1942::_1942()
   : _1942_charmap(_1942_charmap_blob),
     _1942_rom_cpu1(_1942_rom_cpu1_blob),

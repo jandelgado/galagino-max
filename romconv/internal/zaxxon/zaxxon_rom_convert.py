@@ -205,7 +205,8 @@ def write_samples(audio_set):
             print("// has no headroom left for heap decompression; the Asset count", file=f)
             print("// below is the decoded sample count, not the encoded byte count.", file=f)
             print(f"// {len(samples8)} samples ({len(samples8)/rate:.3f}s)", file=f)
-            emit_plain(f, sym, "unsigned char", "", len(samples8), _plain_hex_block(flat))
+            # never planned: count is samples, zaxxon_sound.cpp reads the PLAIN blobs
+            emit_plain(f, sym, "unsigned char", "", len(samples8), _plain_hex_block(flat), plan=False)
             print(f"// output samples per stored sample ({OUTPUT_RATE} / {rate} Hz)", file=f)
             print(f"static const uint8_t {sym}_hold = {OUTPUT_RATE // rate};", file=f)
         total_pcm += len(samples8)

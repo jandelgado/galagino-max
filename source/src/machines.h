@@ -442,7 +442,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     _1942::menuLeds,
 #endif
-    MCH_1942 },
+    MCH_1942, &_1942_arena_plan },
 #endif
 #ifdef ENABLE_LIZWIZ
   { createMachine<lizwiz>, lizwiz::logo,
@@ -491,7 +491,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     bombjack::menuLeds,
 #endif
-    MCH_BOMBJACK },
+    MCH_BOMBJACK, &bombjack_arena_plan },
 #endif
 #ifdef ENABLE_MRDO
   { createMachine<mrdo>, mrdo::logo,
@@ -645,7 +645,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     machineBase::defaultMenuLeds,
 #endif
-    MCH_BNJ },
+    MCH_BNJ, &bnj_arena_plan },
 #endif
 #ifdef ENABLE_MAPPY
   { createMachine<mappy>, mappy::logo,
@@ -750,7 +750,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     machineBase::defaultMenuLeds,
 #endif
-    MCH_SCREGG },
+    MCH_SCREGG, &scregg_arena_plan },
 #endif
 #ifdef ENABLE_VANGUARD
   { createMachine<vanguard>, vanguard::logo,
@@ -764,7 +764,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     zaxxon::menuLeds,
 #endif
-    MCH_ZAXXON },
+    MCH_ZAXXON, &zaxxon_arena_plan },
 #endif
 #ifdef ENABLE_CENTIPEDE
   { createMachine<centipede>, centipede::logo,

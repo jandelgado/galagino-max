@@ -29,7 +29,7 @@ static inline unsigned short xy_swap(unsigned short local_offset) {
   return 32 * y + x;
 }
 
-// Unpack eagerly, largest first: not every order fits Arena's two blocks.
+// Unpack eagerly. Blocks come from romconv (<game>_arena_plan.h): any order fits.
 // In start(), not ctor: burgertime's ctor also runs for bnj.
 void bnj::start() {
   bnj_chartiles.data();
