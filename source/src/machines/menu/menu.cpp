@@ -40,15 +40,6 @@ static inline unsigned short shade_RGB565(unsigned short in, uint8_t shade, uint
   return pack_RGB565(r >> 1, g, b >> 1);
 }
 
-// Per line memo of shade_RGB565(): a logo line has at most 16 colours, but
-// shading every pixel (~80 instructions) made the drum render slower than
-// SPI (51 Hz). Direct mapped, entry = colour << 16 | shaded colour.
-constexpr uint8_t SHADE_CACHE_SIZE = 64;
-constexpr unsigned short WHITE_RGB565 = 0xffff;
-
-static inline uint8_t shade_slot(unsigned short c) {
-  return (c ^ (c >> 6) ^ (c >> 11)) & (SHADE_CACHE_SIZE - 1);
-}
 #endif
 
 Menu::Menu(const machineInfo *machines, int8_t machinesCount, int8_t shown, int8_t preselect)
@@ -131,15 +122,17 @@ int Menu::scrollTarget(int8_t sel) {
 // Pool lives as long as the menu. The last machine is deleted by now, so
 // reset() reclaims its assets.
 void Menu::enterMenu() {
+  static_assert(LOGO_CACHE_SIZE * Logo::SLOT_BYTES <= Arena::BLOCK_A_SIZE, "logo pool fits block A");
   Arena::reset();
   for(logo_pool_count = 0; logo_pool_count < LOGO_CACHE_SIZE; logo_pool_count++) {
-    logo_pool[logo_pool_count] = Arena::alloc<unsigned short>(LOGO_PIXELS);
+    logo_pool[logo_pool_count] = Arena::alloc(Logo::SLOT_BYTES, alignof(uint16_t));
     slot_logo[logo_pool_count] = nullptr;
   }
 
 #ifdef MENU_CYLINDER
-  // after the pool: each block keeps its 2 logo slots, Arena::ROM_SLACK
-  // has room for this
+  // after the pool, same block
+  static_assert(LOGO_CACHE_SIZE * Logo::SLOT_BYTES + 288 * sizeof(CylinderLine) <= Arena::BLOCK_A_SIZE,
+                "logo pool and drum table fit block A");
   cylinder_lut = Arena::alloc<CylinderLine>(288);
   for(short y = 0; y < 288; y++) {
     CylinderLine &l = cylinder_lut[y];
@@ -240,22 +233,31 @@ void Menu::render_row(short row) {
 
 // render one of three the menu logos. Only the active one is colorful
 // render logo into current buffer starting with line "row" of the logo
-void Menu::menu_logo(short row, const unsigned short *img, char active) {
+void Menu::menu_logo(short row, const uint8_t *slot, char active) {
   // less than 8 rows in image left?
   unsigned short pix2draw = ((row <= 96 - 8) ? (224 * 8) : ((96 - row) * 224));
 
   unsigned short ipix = (row < 0) ? (unsigned short)(-row * 224) : 0;
 
   // Logo got no pool slot.
-  if(!img) {
+  if(!slot) {
     while(ipix < pix2draw) { frame_buffer[ipix++] = 0; }
     return;
   }
 
-  const unsigned short *src = img + 224 * (row >= 0 ? row : 0);
+  // grey once per palette entry, not per pixel
+  const uint16_t *palette = Logo::palette(slot);
+  uint16_t colors[Logo::COLORS];
+  for(uint8_t c = 0; c < Logo::COLORS; c++) {
+    colors[c] = active ? palette[c] : convert_RGB565_to_greyscale(palette[c]);
+  }
 
-  while(ipix < pix2draw)
-    frame_buffer[ipix++] = active ? *src++ : convert_RGB565_to_greyscale(*src++);
+  // logo pixel shown at frame_buffer[0], negative above the logo
+  const int32_t first = row * 224;
+  const uint8_t *pixels = Logo::pixels(slot);
+  for(; ipix < pix2draw; ipix++) {
+    frame_buffer[ipix] = colors[Logo::colorIndex(pixels, first + ipix)];
+  }
 }
 
 #ifdef MENU_CYLINDER
@@ -267,14 +269,15 @@ void Menu::render_row_cylinder(short row) {
 
   for(short y = row * 8; y < row * 8 + 8; y++, dst += 224) {
     const CylinderLine &l = cylinder_lut[y];
-    const unsigned short *img = nullptr;
+    const uint8_t *slot = nullptr;
+    uint32_t first = 0;  // first logo pixel of this line
     if(l.line >= 0) {
       int v = (scroll_offset + l.line) % total;
-      img = logoBuffer(machines[v / 96].logo());
-      if(img) { img += 224 * (v % 96); }
+      slot = logoBuffer(machines[v / 96].logo());
+      first = 224 * (v % 96);
     }
 
-    if(!img) {
+    if(!slot) {
       for(short x = 0; x < 224; x++) { dst[x] = 0; }
       continue;
     }
@@ -287,20 +290,25 @@ void Menu::render_row_cylinder(short row) {
     // 16.16 source step, sampled at pixel centres
     const uint32_t step = (224u << 16) / l.width;
     uint32_t sx = step / 2;
+    const uint16_t *palette = Logo::palette(slot);
+    const uint8_t *pixels = Logo::pixels(slot);
     if(l.shade == 255 && l.sat == 255) {
-      for(short x = left; x < right; x++, sx += step) { dst[x] = img[sx >> 16]; }
+      for(short x = left; x < right; x++, sx += step) {
+        dst[x] = palette[Logo::colorIndex(pixels, first + (sx >> 16))];
+      }
     }
     else {
-      // every slot starts as white's entry, so no valid flag is needed
-      uint32_t cache[SHADE_CACHE_SIZE];
-      const uint32_t white = ((uint32_t)WHITE_RGB565 << 16) | shade_RGB565(WHITE_RGB565, l.shade, l.sat);
-      for(uint8_t i = 0; i < SHADE_CACHE_SIZE; i++) { cache[i] = white; }
-
+      // Shading every pixel (~80 instructions) made the drum slower than
+      // SPI (51 Hz): shade each palette entry once per line, on first use.
+      uint16_t shaded[Logo::COLORS];
+      uint16_t done = 0;  // bit c set: shaded[c] valid
       for(short x = left; x < right; x++, sx += step) {
-        const unsigned short c = img[sx >> 16];
-        uint32_t &e = cache[shade_slot(c)];
-        if((e >> 16) != c) { e = ((uint32_t)c << 16) | shade_RGB565(c, l.shade, l.sat); }
-        dst[x] = (unsigned short)e;
+        const uint8_t c = Logo::colorIndex(pixels, first + (sx >> 16));
+        if(!(done & (1u << c))) {
+          shaded[c] = shade_RGB565(palette[c], l.shade, l.sat);
+          done |= 1u << c;
+        }
+        dst[x] = shaded[c];
       }
     }
   }
@@ -374,7 +382,7 @@ void Menu::refreshLogoCache() {
 }
 
 // nullptr unless refreshLogoCache() made the logo resident this frame.
-const unsigned short *Menu::logoBuffer(const Logo &logo) {
+const uint8_t *Menu::logoBuffer(const Logo &logo) {
   for(unsigned char i = 0; i < LOGO_CACHE_SIZE; i++) {
     if(slot_logo[i] == &logo) {
       return logo_pool[i];

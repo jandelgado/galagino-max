@@ -7,7 +7,7 @@
 #include "../../src/machines/pacman/pacman_logo.h"
 #include "../../src/machines/roadfighter/roadfighter_logo.h"
 
-static uint16_t slot[Logo::PIXELS];
+static uint8_t slot[Logo::SLOT_BYTES];
 static uint8_t packed[Logo::PACKED_BYTES];
 static uint16_t expected[Logo::PIXELS];
 
@@ -26,13 +26,28 @@ static void decode_reference(const FlashAsset<uint8_t, COMPRESSED> &blob) {
   }
 }
 
+// slot holds the LZMA output unchanged
 static void check(const Logo &logo, const FlashAsset<uint8_t, COMPRESSED> &blob) {
   TEST_ASSERT_EQUAL_UINT32(Logo::PACKED_BYTES, blob.count);
 
   decode_reference(blob);
   memset(slot, 0xa5, sizeof(slot));
   logo.decodeInto(slot);
-  TEST_ASSERT_EQUAL_UINT16_ARRAY(expected, slot, Logo::PIXELS);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(packed, slot, Logo::SLOT_BYTES);
+
+  // palette + colorIndex reproduce the old RGB565 expansion for every pixel
+  for (uint32_t i = 0; i < Logo::PIXELS; i++) {
+    TEST_ASSERT_EQUAL_UINT16(expected[i],
+        Logo::palette(slot)[Logo::colorIndex(Logo::pixels(slot), i)]);
+  }
+}
+
+static void test_color_index(void) {
+  const uint8_t px[2] = { 0xab, 0x3c };
+  TEST_ASSERT_EQUAL_UINT8(0xa, Logo::colorIndex(px, 0));
+  TEST_ASSERT_EQUAL_UINT8(0xb, Logo::colorIndex(px, 1));
+  TEST_ASSERT_EQUAL_UINT8(0x3, Logo::colorIndex(px, 2));
+  TEST_ASSERT_EQUAL_UINT8(0xc, Logo::colorIndex(px, 3));
 }
 
 static void test_baluba(void) { check(baluba_logo, baluba_logo_blob); }
@@ -44,5 +59,6 @@ int main(int argc, char **argv) {
   RUN_TEST(test_baluba);
   RUN_TEST(test_pacman);
   RUN_TEST(test_roadfighter);
+  RUN_TEST(test_color_index);
   return UNITY_END();
 }
