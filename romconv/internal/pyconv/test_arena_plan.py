@@ -78,10 +78,10 @@ print("7. machine header parse: OK")
 
 # 8. markers
 with open(os.path.join(d, "a.h"), "w") as f:
-    f.write("// arena-asset g_rom 16384 1\n#if g_rom_PLAIN\n")
+    f.write("// arena-asset g_rom 16384 1 PLAIN\n#if g_rom_PLAIN\n")
 with open(os.path.join(d, "g_arena_plan.h"), "w") as f:
     f.write("// arena-asset stale 1 1\n")
-assert parse_markers(d) == [("g_rom", 16384, 1)]
+assert parse_markers(d) == [("g_rom", 16384, 1, "PLAIN")]
 print("8. markers: OK")
 
 # 8b. extras must fit in every order (function arguments: unspecified order)
@@ -91,6 +91,12 @@ try:
 except ValueError:
     pass
 print("8b. extras fit in any order: OK")
+
+# 8c. equal PLAIN bytes: the converter's mode (hint) wins over names
+A = [("a_tiles", 8192, 1, "COMPRESSED"), ("b_rom", 8192, 1, "PLAIN"), ("c", 60000, 1, "COMPRESSED")]
+m, r = solve(A, [], (60000, 8192))
+assert m["b_rom"] == "PLAIN" and m["a_tiles"] != "PLAIN", m
+print("8c. tie-break by converter mode: OK")
 
 # 9. 16 assets solve in reasonable time
 rnd = random.Random(1)

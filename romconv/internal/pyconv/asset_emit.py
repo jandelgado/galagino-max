@@ -77,15 +77,16 @@ def _flat_body(ctype, flat_values):
     rows = [",".join(vals[i:i + 16]) for i in range(0, len(vals), 16)]
     return "  " + ",\n  ".join(rows)
 
-def _emit_planned(f, game, name, ctype, inner_dims, count, raw, array_body):
+def _emit_planned(f, game, name, ctype, inner_dims, count, raw, array_body, hint):
     """Both forms, picked by <name>_PLAIN from <game>_arena_plan.h
-    (romconv arena_plan.py), plus the marker arena_plan.py reads."""
+    (romconv arena_plan.py), plus the marker arena_plan.py reads. hint: the
+    converter's own mode, arena_plan.py's tie-break."""
     packed = lzma_compress(raw)
     ratio = 100.0 * (1.0 - len(packed) / len(raw)) if raw else 0.0
     t = f"{ctype}{inner_dims}"
     print('#include "../../emulation/asset.h"', file=f)
     print(f'#include "{game}_arena_plan.h"', file=f)
-    print(f"// arena-asset {name} {len(raw)} {_WIDTH[ctype]}", file=f)
+    print(f"// arena-asset {name} {len(raw)} {_WIDTH[ctype]} {hint}", file=f)
     print(f"#if {name}_PLAIN", file=f)
     print(f"static const {ctype} {name}_data[]{inner_dims} = {{\n{array_body}\n}};", file=f)
     print(f"static constexpr FlashAsset<{t}, PLAIN> {name}_blob = {{ {name}_data, {count} }};", file=f)
@@ -106,7 +107,8 @@ def emit_compressed(f, name, ctype, inner_dims, count, flat_values, plan=True):
     raw = _raw(ctype, flat_values)
     game = plan and os.environ.get("ROMCONV_PLAN")
     if game:
-        _emit_planned(f, game, name, ctype, inner_dims, count, raw, _flat_body(ctype, flat_values))
+        _emit_planned(f, game, name, ctype, inner_dims, count, raw, _flat_body(ctype, flat_values),
+                      "COMPRESSED")
         return
     packed = lzma_compress(raw)
     ratio = 100.0 * (1.0 - len(packed) / len(raw)) if raw else 0.0
@@ -139,7 +141,7 @@ def emit_plain(f, name, ctype, inner_dims, count, array_body, plan=True):
     game = plan and os.environ.get("ROMCONV_PLAN")
     if game:
         values = _body_values(array_body, count * _inner_elements(inner_dims))
-        _emit_planned(f, game, name, ctype, inner_dims, count, _raw(ctype, values), array_body)
+        _emit_planned(f, game, name, ctype, inner_dims, count, _raw(ctype, values), array_body, "PLAIN")
         return
     print('#include "../../emulation/asset.h"', file=f)
     print(f"static const {ctype} {name}_data[]{inner_dims} = {{\n{array_body}\n}};", file=f)

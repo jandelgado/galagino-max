@@ -31,7 +31,7 @@ f = io.StringIO()
 emit_plain(f, "_p", "uint32_t", "[2]", 2, " { 0x1,0x2 },\n { 0x3,0x4 } // 99")
 out = f.getvalue()
 for s in ('#include "../../emulation/asset.h"', '#include "tst_arena_plan.h"',
-          "// arena-asset _p 16 4", "#if _p_PLAIN", "#else", "#endif",
+          "// arena-asset _p 16 4 PLAIN", "#if _p_PLAIN", "#else", "#endif",
           "static const uint32_t _p_data[][2] = {",
           "static constexpr FlashAsset<uint32_t[2], PLAIN> _p_blob = { _p_data, 2 };",
           "using _p_asset = Asset<uint32_t[2], PLAIN>;",
@@ -53,7 +53,7 @@ print("2. wrong value count rejected: OK")
 f = io.StringIO()
 emit_compressed(f, "_c", "unsigned short", "", 3, [1, 2, 0xFFFF])
 out = f.getvalue()
-assert "// arena-asset _c 6 2" in out
+assert "// arena-asset _c 6 2 COMPRESSED" in out
 assert plain_values(out, "_c") == [1, 2, 0xFFFF]
 assert packed_of(out, "_c") == struct.pack("<3H", 1, 2, 0xFFFF)
 assert "using _c_asset = Asset<unsigned short, COMPRESSED>;" in out

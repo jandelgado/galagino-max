@@ -4,7 +4,7 @@
 # read by the planned asset headers (asset_emit.py, ROMCONV_PLAN) and
 # machines.h.
 #
-# Inputs: `// arena-asset <name> <bytes> <align>` markers in the game's
+# Inputs: `// arena-asset <name> <bytes> <align> <hint>` markers in the game's
 # generated headers, ARENA_EXTRA / ARENA_RAM / ARENA_FLASH in its machine
 # header (plain literals), block sizes from arena_layout.h. Extras (non-asset
 # Arena::alloc) must fit first-fit in every order.
@@ -46,15 +46,18 @@ def _extras_fit(extras, free_a, free_b):
 def solve(assets, extras, layout, ram=(), flash=()):
     """Mode per asset ("PLAIN", "A", "B") and reserved bytes per block.
 
-    Minimizes PLAIN bytes, then PLAIN asset count, then the sorted PLAIN
-    names. ValueError if no split fits.
+    assets: (name, bytes, align[, hint]); hint "PLAIN"/"COMPRESSED" is the
+    converter's own mode. Minimizes PLAIN bytes, then modes that differ from
+    the hint, then PLAIN asset count, then the sorted PLAIN names.
+    ValueError if no split fits.
     """
-    names = {n for n, _, _ in assets}
+    names = {a[0] for a in assets}
+    hint_plain = {a[0] for a in assets if len(a) > 3 and a[3] == "PLAIN"}
     for pin in list(ram) + list(flash):
         if pin not in names:
             raise ValueError(f"pinned asset {pin} not in the game's assets")
     size_a, size_b = layout
-    items = sorted(((_r4(b), n) for n, b, _ in assets), reverse=True)
+    items = sorted(((_r4(a[1]), a[0]) for a in assets), reverse=True)
     extras4 = [_r4(e) for e in extras]
     extra_total = sum(extras4)
     # run-time order is not always fixed (Arena::alloc as function arguments)
@@ -72,10 +75,11 @@ def solve(assets, extras, layout, ram=(), flash=()):
 
     def key(modes):
         plain = sorted(n for n, m in modes.items() if m == "PLAIN")
-        return (sum(s for s, n in items if modes[n] == "PLAIN"), len(plain), plain)
+        changed = len(set(plain) ^ hint_plain)
+        return (sum(s for s, n in items if modes[n] == "PLAIN"), changed, len(plain), plain)
 
     def dfs(i, sum_a, sum_b, plain_bytes, plain_count, modes):
-        if best[0] is not None and (plain_bytes, plain_count) > best[0][:2]:
+        if best[0] is not None and plain_bytes > best[0][0]:
             return
         if extra_total > (size_a - sum_a) + (size_b - sum_b):
             return
@@ -135,14 +139,14 @@ def parse_machine_header(path):
 
 
 def parse_markers(game_dir):
-    """[(name, bytes, align)] of the planned assets in a machine dir."""
+    """[(name, bytes, align, hint)] of the planned assets in a machine dir."""
     assets = []
     for path in sorted(glob.glob(os.path.join(game_dir, "*.h"))):
         if path.endswith("_arena_plan.h"):
             continue
         with open(path) as f:
-            for m in re.finditer(r"^// arena-asset (\w+) (\d+) (\d+)$", f.read(), re.M):
-                assets.append((m.group(1), int(m.group(2)), int(m.group(3))))
+            for m in re.finditer(r"^// arena-asset (\w+) (\d+) (\d+) (PLAIN|COMPRESSED)$", f.read(), re.M):
+                assets.append((m.group(1), int(m.group(2)), int(m.group(3)), m.group(4)))
     return assets
 
 
@@ -185,7 +189,7 @@ def main(game):
             raise ValueError(f"{game}: {e}")
         plans[layout] = (modes, reserve)
         plain = [n for n in sorted(modes) if modes[n] == "PLAIN"]
-        plain_bytes = sum(s for n, s, _ in assets if modes[n] == "PLAIN")
+        plain_bytes = sum(a[1] for a in assets if modes[a[0]] == "PLAIN")
         print(f"  {game} {layout:6s} A {reserve[0]:6d} B {reserve[1]:6d} reserved of {a}+{b},"
               f" extras {sum(map(_r4, extras))}, PLAIN {plain_bytes} B: {' '.join(plain) or '-'}")
     with open(os.path.join(game_dir, game + "_arena_plan.h"), "w") as f:
