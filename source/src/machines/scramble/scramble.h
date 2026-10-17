@@ -54,6 +54,8 @@ protected:
   Asset<unsigned short[8], COMPRESSED> scramble_tilemap;
 public:
   scramble();
+  // RAM pointers need `memory`, which init() sets after the ctor
+  void init(Input *input, unsigned short *framebuffer, sprite_S *spritebuffer, unsigned char *memorybuffer) override;
 
   signed char machineType() override { return MCH_SCRAMBLE; }
   void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
@@ -157,15 +159,15 @@ private:
   static constexpr unsigned short CPU2_FILTER_ADDR   = 0x9000; // hardware sound filter, not RAM
   static constexpr unsigned short CPU2_FILTER_SIZE   = 0x1000;
 
-  unsigned char *cpu_ram       = memory + CPU1_RAM_OFFSET;
-  unsigned char *video_ram     = memory + CPU1_VRAM_OFFSET;
-  unsigned char *attribute_ram = memory + CPU1_ATTR_OFFSET;
-  unsigned char *sprite_ram    = memory + CPU1_SPRITE_OFFSET;
-  unsigned char *bullet_ram    = memory + CPU1_BULLET_OFFSET;
-  unsigned char *cpu_ram2      = memory + CPU1_RAM2_OFFSET;
-  unsigned char *obj_ram       = memory + CPU1_OBJRAM_OFFSET;
+  unsigned char *cpu_ram;
+  unsigned char *video_ram;
+  unsigned char *attribute_ram;
+  unsigned char *sprite_ram;
+  unsigned char *bullet_ram;
+  unsigned char *cpu_ram2;
+  unsigned char *obj_ram;
 
-  unsigned char *cpu2_ram      = memory + CPU2_RAM_OFFSET;
+  unsigned char *cpu2_ram;
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_main_ptr = nullptr;
