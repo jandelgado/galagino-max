@@ -84,6 +84,14 @@ with open(os.path.join(d, "g_arena_plan.h"), "w") as f:
 assert parse_markers(d) == [("g_rom", 16384, 1)]
 print("8. markers: OK")
 
+# 8b. extras must fit in every order (function arguments: unspecified order)
+try:
+    solve([], [100, 60], (100, 60))
+    raise AssertionError("order-dependent fit accepted")
+except ValueError:
+    pass
+print("8b. extras fit in any order: OK")
+
 # 9. 16 assets solve in reasonable time
 rnd = random.Random(1)
 assets = [(f"a{i}", rnd.choice([4096, 8192, 16384, 32768, 65536]) + rnd.randrange(0, 4096), 1)

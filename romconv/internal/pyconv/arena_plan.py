@@ -6,10 +6,12 @@
 #
 # Inputs: `// arena-asset <name> <bytes> <align>` markers in the game's
 # generated headers, ARENA_EXTRA / ARENA_RAM / ARENA_FLASH in its machine
-# header (plain literals), block sizes from arena_layout.h.
+# header (plain literals), block sizes from arena_layout.h. Extras (non-asset
+# Arena::alloc) must fit first-fit in every order.
 #
 # Usage (from romconv/): arena_plan.py <game>
 import glob
+import itertools
 import os
 import re
 import sys
@@ -22,6 +24,10 @@ MACHINES = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 
 def _r4(n):
     return (n + 3) & ~3
+
+
+# extras checked in every order up to this count, declared order above
+ANY_ORDER_MAX = 8
 
 
 def _extras_fit(extras, free_a, free_b):
@@ -51,6 +57,17 @@ def solve(assets, extras, layout, ram=(), flash=()):
     items = sorted(((_r4(b), n) for n, b, _ in assets), reverse=True)
     extras4 = [_r4(e) for e in extras]
     extra_total = sum(extras4)
+    # run-time order is not always fixed (Arena::alloc as function arguments)
+    if len(extras4) <= ANY_ORDER_MAX:
+        orders = set(itertools.permutations(extras4))
+    else:
+        orders = {tuple(extras4)}
+    fits = {}
+
+    def extras_fit(free_a, free_b):
+        if (free_a, free_b) not in fits:
+            fits[(free_a, free_b)] = all(_extras_fit(o, free_a, free_b) for o in orders)
+        return fits[(free_a, free_b)]
     best = [None, None]  # key, modes
 
     def key(modes):
@@ -63,7 +80,7 @@ def solve(assets, extras, layout, ram=(), flash=()):
         if extra_total > (size_a - sum_a) + (size_b - sum_b):
             return
         if i == len(items):
-            if _extras_fit(extras4, size_a - sum_a, size_b - sum_b):
+            if extras_fit(size_a - sum_a, size_b - sum_b):
                 k = key(modes)
                 if best[0] is None or k < best[0]:
                     best[0], best[1] = k, dict(modes)
