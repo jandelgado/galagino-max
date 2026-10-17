@@ -1,6 +1,7 @@
 #ifndef GNG_H
 #define GNG_H
 
+#include "gng_arena_plan.h"
 #include "gng_logo.h"
 #include "../machineBase.h"
 #include "../../emulation/ym2203.h"
@@ -21,16 +22,16 @@ protected:
   // ROM assets: Arena residents unpacked in the ctor (largest first, to
   // fit Arena's two blocks). Main ROM and bg tiles stay in flash: the main
   // ROM compresses worst of all, the bg tiles do not fit.
-  Asset<unsigned char, PLAIN> gng_rom;
-  Asset<uint32_t[32], COMPRESSED> gng_sprites0;
-  Asset<uint32_t[32], COMPRESSED> gng_sprites1;
-  Asset<uint32_t[32], PLAIN> gng_sprites2;
-  Asset<unsigned short[8], PLAIN> gng_chars;
-  Asset<unsigned short, COMPRESSED> gng_tile_map;
-  Asset<uint32_t[32], COMPRESSED> gng_tiles;
-  Asset<unsigned char, PLAIN> gng_bank;
-  Asset<unsigned char, COMPRESSED> gng_sound;
-  Asset<unsigned char, PLAIN> gng_sid;
+  gng_rom_asset gng_rom;
+  gng_sprites0_asset gng_sprites0;
+  gng_sprites1_asset gng_sprites1;
+  gng_sprites2_asset gng_sprites2;
+  gng_chars_asset gng_chars;
+  gng_tile_map_asset gng_tile_map;
+  gng_tiles_asset gng_tiles;
+  gng_bank_asset gng_bank;
+  gng_sound_asset gng_sound;
+  gng_sid_asset gng_sid;
 
 public:
   gng();
@@ -75,6 +76,10 @@ private:
   static const uint16_t BG_BYTES = 0x800;      // code + attr
   static const uint16_t PALETTE_BYTES = 0x200; // RG + B
   static const uint16_t TUNE_RAM_SIZE = 0x1540; // C64 $3800-$4D3F
+  // Arena::alloc besides planned assets, read by romconv (arena_plan.py):
+  // SID tune RAM (start())
+  static constexpr uint32_t ARENA_EXTRA[] = { 5440 };
+  static_assert(ARENA_EXTRA[0] == TUNE_RAM_SIZE, "update ARENA_EXTRA");
 
   static const int WIDTH = 240;
   static const int CROP = 8;          // native columns cropped per side

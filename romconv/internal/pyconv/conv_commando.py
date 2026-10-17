@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+import os
 from functools import partial
-from arena_layout import LOCAL
-from convutil import run, info, fatal
+from convutil import run, info
+
+os.environ["ROMCONV_PLAN"] = "commando"
 
 run_in_workdir = partial(run, cwd="internal/commando")
 OUT = "../source/src/machines/commando/"
@@ -36,21 +38,5 @@ run_in_workdir("commando_cmap_convert.py")
 info("Commando C64 SID music")
 run_in_workdir("commando_sid_convert.py")
 
-# Arena residents (bytes) per block, see commando.cpp ctor:
-# A: sprites0, sprites1, chars, cmaps (128 + 64 + 64) x 2, SID file, SID
-#    tune RAM window (commando.h TUNE_RAM_SIZE); B: tiles TILES_A..1023, sprites2
-SID = 4165  # Commando.sid, SHA1 checked by commando_sid_convert.py
-ARENA = {"sprites": 3 * 32768, "chars": 16384, "tiles": (1024 - TILES_A) * 128, "cmaps": 512,
-         "sid": SID, "tune_ram": 4096}
-BLOCK_A = 2 * 32768 + 16384 + 512 + SID + 4096
-BLOCK_B = 32768 + (1024 - TILES_A) * 128
-if BLOCK_A > LOCAL[0] or BLOCK_B > LOCAL[1]:
-    fatal(f"Commando blocks exceed Arena: A {BLOCK_A} of {LOCAL[0]}, B {BLOCK_B} of {LOCAL[1]}")
-total = sum(ARENA.values())
-for name, size in ARENA.items():
-    info(f"  arena {name:9s} {size:6d}")
-info(f"  arena total     {total:6d} of {sum(LOCAL)}")
-if total >= sum(LOCAL):
-    fatal("Commando assets exceed Arena::CAPACITY")
-
+run("internal/pyconv/arena_plan.py", "commando")
 info("--- Success ---")

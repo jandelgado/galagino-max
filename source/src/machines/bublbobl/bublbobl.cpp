@@ -8,6 +8,13 @@
 #include "bublbobl_logo.h"
 #include "bublbobl_sid.h"
 #include "bublbobl_samples.h"
+
+static_assert(bublbobl::ARENA_EXTRA[0] == bublbobl::TUNE_RAM_SIZE &&
+              bublbobl::ARENA_EXTRA[1] >= BUBLBOBL_EFFECT_COUNT * sizeof(bublbobl_sound::FxSample) &&
+              bublbobl::ARENA_EXTRA[2] == bublbobl_fx_fx0b_blob.count &&
+              bublbobl::ARENA_EXTRA[3] == bublbobl_fx_fx1e_blob.count &&
+              bublbobl::ARENA_EXTRA[4] == bublbobl_fx_fx25_blob.count &&
+              bublbobl::ARENA_EXTRA[5] == bublbobl_fx_coin_blob.count, "update bublbobl::ARENA_EXTRA");
 #include "bublbobl_sound_map.h"
 #include "../../emulation/arena.h"
 

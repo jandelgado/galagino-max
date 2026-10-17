@@ -806,7 +806,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     bublbobl::menuLeds,
 #endif
-    MCH_BUBLBOBL },
+    MCH_BUBLBOBL, &bublbobl_arena_plan },
 #endif
 #ifdef ENABLE_ATETRIS
   { createMachine<atetris>, atetris::logo,
@@ -1083,14 +1083,14 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     commando::menuLeds,
 #endif
-    MCH_COMMANDO },
+    MCH_COMMANDO, &commando_arena_plan },
 #endif
 #ifdef ENABLE_GNG
   { createMachine<gng>, gng::logo,
 #ifdef LED_PIN
     gng::menuLeds,
 #endif
-    MCH_GNG },
+    MCH_GNG, &gng_arena_plan },
 #endif
 #ifdef ENABLE_TP84
   { createMachine<tp84>, tp84::logo,
