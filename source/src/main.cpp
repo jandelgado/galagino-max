@@ -253,6 +253,8 @@ static void switchTo(int8_t index) {
     video.flipReset(currentMachine->videoFlipY(), currentMachine->videoFlipX());
     audio.stop();
     delete currentMachine;
+    // a failed game load re-enters switchTo() for the menu
+    currentMachine = nullptr;
   }
 
   menu = nullptr;
