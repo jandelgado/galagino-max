@@ -61,6 +61,19 @@ def emit_compressed(f, name, ctype, inner_dims, count, flat_values):
     print(f"static const unsigned char {name}_packed[] = {{\n  " + _hex_block(packed) + "\n};", file=f)
     print(f"static constexpr FlashAsset<{ctype}{inner_dims}, COMPRESSED> {name}_blob = {{ {name}_packed, sizeof({name}_packed), {count} }};", file=f)
 
+def emit_plain_remote(f, name, ctype, inner_dims, count, array_body):
+    """Like emit_plain(), plus the ASSETS_REMOTE form: no array, the blob
+    carries the asset id and Asset<PLAIN> resolves it in the mounted bundle.
+    """
+    from bundle import asset_id
+    print('#include "../../emulation/asset.h"', file=f)
+    print("#ifdef ASSETS_REMOTE", file=f)
+    print(f"static constexpr FlashAsset<{ctype}{inner_dims}, PLAIN> {name}_blob = {{ nullptr, {count}, 0x{asset_id(name):08X}u }};", file=f)
+    print("#else", file=f)
+    print(f"static const {ctype} {name}_data[]{inner_dims} = {{\n{array_body}\n}};", file=f)
+    print(f"static constexpr FlashAsset<{ctype}{inner_dims}, PLAIN> {name}_blob = {{ {name}_data, {count} }};", file=f)
+    print("#endif", file=f)
+
 def emit_plain(f, name, ctype, inner_dims, count, array_body):
     """Write a plain (flash-resident) FlashAsset<ctype inner_dims> definition.
 
