@@ -1104,28 +1104,28 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     defender::menuLeds,
 #endif
-    MCH_DEFENDER },
+    MCH_DEFENDER, &defender_arena_plan },
 #endif
 #ifdef ENABLE_ROBOTRON
   { createMachine<robotron>, robotron::logo,
 #ifdef LED_PIN
     robotron::menuLeds,
 #endif
-    MCH_ROBOTRON },
+    MCH_ROBOTRON, &robotron_arena_plan },
 #endif
 #ifdef ENABLE_JOUST
   { createMachine<joust>, joust::logo,
 #ifdef LED_PIN
     joust::menuLeds,
 #endif
-    MCH_JOUST },
+    MCH_JOUST, &joust_arena_plan },
 #endif
 #ifdef ENABLE_SINISTAR
   { createMachine<sinistar>, sinistar::logo,
 #ifdef LED_PIN
     sinistar::menuLeds,
 #endif
-    MCH_SINISTAR },
+    MCH_SINISTAR, &sinistar_arena_plan },
 #endif
 #ifdef ENABLE_YIEAR
   { createMachine<yiear>, yiear::logo,

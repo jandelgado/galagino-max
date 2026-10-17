@@ -72,9 +72,10 @@ static DefenderBoard *bootDefender(unsigned int action = BOARD_KEY_EXTRA) {
   static const uint8_t *main = nullptr, *banked = nullptr, *snd = nullptr;
   if (!ram) {
     Arena::init();
-    static Asset<unsigned char, COMPRESSED> m(defender_rom_main_blob);
-    static Asset<unsigned char, COMPRESSED> k(defender_rom_banked_blob);
-    static Asset<unsigned char, COMPRESSED> s(defender_rom_sound_blob);
+    Arena::reserve(&defender_arena_plan);
+    static defender_rom_main_asset m(defender_rom_main_blob);
+    static defender_rom_banked_asset k(defender_rom_banked_blob);
+    static defender_rom_sound_asset s(defender_rom_sound_blob);
     main = m.data();
     banked = k.data();
     snd = s.data();

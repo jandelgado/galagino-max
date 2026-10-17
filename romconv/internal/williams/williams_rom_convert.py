@@ -10,7 +10,6 @@ import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import load_file, rgb888_to_rgb565_le
-from arena_layout import LOCAL
 from asset_emit import emit_compressed, emit_plain
 from resnet import resistor_weights, combine
 
@@ -43,11 +42,10 @@ def palette():
 
 os.makedirs(os.path.join(OUT, "williams"), exist_ok=True)
 with open(os.path.join(OUT, "williams", "williams_palette.h"), "w") as f:
-    emit_compressed(f, "williams_rgb", "unsigned short", "", 256, palette())
+    emit_compressed(f, "williams_rgb", "unsigned short", "", 256, palette(), plan=False)  # shared dir: never planned
 
 out_dir = os.path.join(OUT, GAME)
 os.makedirs(out_dir, exist_ok=True)
-budget = 512
 
 if GAME == "defender":
     main = (rom("defend.1", "a57f5278ffe44248fc73f9925d107f4024ad981a")
@@ -70,7 +68,6 @@ if GAME == "defender":
         emit_compressed(f, "defender_rom_main", "unsigned char", "", len(main), list(main))
         emit_compressed(f, "defender_rom_banked", "unsigned char", "", len(banked), list(banked))
         emit_compressed(f, "defender_rom_sound", "unsigned char", "", len(sound), list(sound))
-    budget += len(main) + len(banked) + len(sound)
 
 ROBOTRON = [("2084_rom_1b_3005-13.e4", "f6d60e26c209c1df2cc01ac07ad5559daa1b7118"),
             ("2084_rom_2b_3005-14.c4", "4d6e82bc29f49100f7751ccfc6a9ff35695b84b3"),
@@ -107,7 +104,6 @@ if GAME in ("robotron", "joust"):
     with open(os.path.join(out_dir, f"{GAME}_rom.h"), "w") as f:
         emit_compressed(f, f"{GAME}_rom_main", "unsigned char", "", len(main), list(main))
         emit_compressed(f, f"{GAME}_rom_sound", "unsigned char", "", len(sound), list(sound))
-    budget += len(main) + len(sound)
 
 SINISTAR = [("sinistar_rom_1-b_16-3004-53.1d", "026d8cab07734fa294a5645edbe65a904bcbc302"),
             ("sinistar_rom_2-b_16-3004-54.1c", "423d1e3b0c07333ec582529bc4d0b7baf591820a"),
@@ -137,6 +133,4 @@ if GAME == "sinistar":
         body = ",\n".join(", ".join(f"0x{v:02x}" for v in sound[i:i + 16])
                            for i in range(0, len(sound), 16))
         emit_plain(f, "sinistar_rom_sound", "unsigned char", "", len(sound), body)
-    budget += len(main)
 
-print(f"{GAME} Arena assets: {budget} bytes (+ RAM 49152 + scanout 70080 <= {sum(LOCAL)})")
