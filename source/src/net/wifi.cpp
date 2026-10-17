@@ -80,6 +80,7 @@
 static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
 static constexpr uint16_t HTTP_DEFAULT_PORT = 80;
 static constexpr uint32_t RECV_TIMEOUT_S = 5;
+static constexpr uint32_t CONNECT_TCP_TIMEOUT_S = 5;
 
 // Size: driver peak ~33.5 KB + WiFi task stack + TCB
 static constexpr uint32_t WIFI_HEAP_BYTES = 49152;
@@ -432,6 +433,31 @@ static bool wifiUp() {
   return true;
 }
 
+// Blocking connect() retries SYN/ARP for 18 s or more when the host is
+// unreachable, freezing the loop: connect non-blocking, wait at most
+// CONNECT_TCP_TIMEOUT_S.
+static bool connectTimeout(int s, const sockaddr_in &addr) {
+  const int flags = fcntl(s, F_GETFL, 0);
+  fcntl(s, F_SETFL, flags | O_NONBLOCK);
+  if (connect(s, (const sockaddr *)&addr, sizeof(addr)) && errno != EINPROGRESS) {
+    return false;
+  }
+
+  fd_set writable;
+  FD_ZERO(&writable);
+  FD_SET(s, &writable);
+  timeval timeout = {CONNECT_TCP_TIMEOUT_S, 0};
+  if (select(s + 1, nullptr, &writable, nullptr, &timeout) != 1) {
+    return false;
+  }
+
+  int err = 0;
+  socklen_t len = sizeof(err);
+  getsockopt(s, SOL_SOCKET, SO_ERROR, &err, &len);
+  fcntl(s, F_SETFL, flags);
+  return err == 0;
+}
+
 // url: http://a.b.c.d[:port]/path (no DNS)
 bool Wifi::get(const char *url, HttpBody &body) {
   static const char PREFIX[] = "http://";
@@ -461,7 +487,7 @@ bool Wifi::get(const char *url, HttpBody &body) {
   }
 
   const int s = socket(AF_INET, SOCK_STREAM, 0);
-  if (s < 0 || connect(s, (sockaddr *)&addr, sizeof(addr))) {
+  if (s < 0 || !connectTimeout(s, addr)) {
     printf("wifi: tcp connect failed\n");
     if (s >= 0) {
       close(s);
