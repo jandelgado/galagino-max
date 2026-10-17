@@ -24,6 +24,9 @@
 #include "emulation/emulation.h"
 #include "emulation/hud.h"
 #include "machines/selftest/selftest.h"
+#ifdef ASSETS_REMOTE
+  #include "net/loader.h"
+#endif
 #ifdef LED_PIN
   #include "emulation/led.h"
 #endif
@@ -269,6 +272,12 @@ static void switchTo(int8_t index) {
   else {
     lastIndex = index;
     menuPreselect = index;
+#ifdef ASSETS_REMOTE
+    if (!Loader::prepare(machines[index].bundle)) {
+      switchTo(SHOW_MENU);
+      return;
+    }
+#endif
     currentMachine = machines[index].create();
 #ifdef MASTER_ATTRACT_GAME_TIMEOUT
     attractGameStart = machinesCount > 1 ? millis() : 0;

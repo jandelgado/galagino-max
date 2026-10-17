@@ -380,6 +380,9 @@
 #endif
 #ifdef ENABLE_1943
   #include "machines/1943/1943.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/1943/1943_bundle.h"
+  #endif
 #endif
 #ifdef ENABLE_CBDASH
   #include "machines/cbdash/cbdash.h"
@@ -1034,7 +1037,11 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     _1943::menuLeds,
 #endif
-    MCH_1943 },
+    MCH_1943,
+#ifdef ASSETS_REMOTE
+    &_1943_bundle,
+#endif
+  },
 #endif
 #ifdef ENABLE_CBDASH
   { createMachine<cbdash>, cbdash::logo,

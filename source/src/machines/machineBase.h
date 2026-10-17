@@ -277,6 +277,10 @@ struct machineInfo {
   void (*menuLeds)(CRGB *leds);
 #endif
   signed char type;
+#ifdef ASSETS_REMOTE
+  // remote PLAIN assets, nullptr: built in
+  const BundleRef *bundle;
+#endif
 };
 
 #endif
