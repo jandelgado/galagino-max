@@ -7,15 +7,16 @@ W = [49152, 35040, 35040]  # Williams RAM + 2 scanout buffers
 REMOTE, LOCAL = (69000, 110500), (91000, 110500)
 
 # 1. defender: placement alone fits, nothing PLAIN
-m, r = solve([("d_main", 12288, 1), ("d_banked", 28672, 1), ("d_sound", 2048, 1)], W, REMOTE)
+m, r = solve([("d_main", 12288, 1), ("d_banked", 28672, 1), ("d_sound", 2048, 1)], W, REMOTE,
+             any_order=True)
 assert "PLAIN" not in m.values(), m
 print("1. defender fits by placement: OK")
 
 # 2. joust: no block split works, the main ROM goes to flash; local fits
 J = [("j_main", 49152, 1), ("j_sound", 4096, 1)]
-m, r = solve(J, W, REMOTE)
+m, r = solve(J, W, REMOTE, any_order=True)
 assert [n for n, v in m.items() if v == "PLAIN"] == ["j_main"], m
-m, r = solve(J, W, LOCAL)
+m, r = solve(J, W, LOCAL, any_order=True)
 assert "PLAIN" not in m.values(), m
 print("2. joust main ROM PLAIN remote, none local: OK")
 
@@ -23,7 +24,7 @@ print("2. joust main ROM PLAIN remote, none local: OK")
 m, r = solve([("a", 10, 1)], [], REMOTE, flash=["a"])
 assert m["a"] == "PLAIN"
 try:
-    solve(J, W, REMOTE, ram=["j_main"])
+    solve(J, W, REMOTE, ram=["j_main"], any_order=True)
     raise AssertionError("infeasible pin accepted")
 except ValueError:
     pass
@@ -67,10 +68,13 @@ p = os.path.join(d, "g.h")
 with open(p, "w") as f:
     f.write("class g {\n  static constexpr uint32_t ARENA_EXTRA[] = { 49152, 35040,\n    35040 };  // hw\n"
             '  static constexpr const char *ARENA_RAM[] = { "a", "b" };\n};\n')
-assert parse_machine_header(p) == ([49152, 35040, 35040], ["a", "b"], [])
+assert parse_machine_header(p) == ([49152, 35040, 35040], ["a", "b"], [], False)
 with open(p, "w") as f:
     f.write("class g {\n};\n")
-assert parse_machine_header(p) == ([], [], [])
+assert parse_machine_header(p) == ([], [], [], False)
+with open(p, "w") as f:
+    f.write("  static constexpr bool ARENA_EXTRA_ANY_ORDER = true;\n")
+assert parse_machine_header(p) == ([], [], [], True)
 with open(p, "w") as f:
     f.write("static constexpr uint32_t ARENA_EXTRA[] = { WilliamsBoard::RAM_SIZE };\n")
 try:
@@ -88,13 +92,15 @@ with open(os.path.join(d, "g_arena_plan.h"), "w") as f:
 assert parse_markers(d) == [("g_rom", 16384, 1, "PLAIN", "unsigned char[8][8]")]
 print("8. markers: OK")
 
-# 8b. extras must fit in every order (function arguments: unspecified order)
+# 8b. extras run in declared order; any_order: every order must fit
+# (Arena::alloc as function arguments: unspecified order)
+solve([], [100, 60], (100, 60))
 try:
-    solve([], [100, 60], (100, 60))
+    solve([], [100, 60], (100, 60), any_order=True)
     raise AssertionError("order-dependent fit accepted")
 except ValueError:
     pass
-print("8b. extras fit in any order: OK")
+print("8b. extras order: OK")
 
 # 8c. equal PLAIN bytes: the converter's mode (hint) wins over names
 A = [("a_tiles", 8192, 1, "COMPRESSED"), ("b_rom", 8192, 1, "PLAIN"), ("c", 60000, 1, "COMPRESSED")]

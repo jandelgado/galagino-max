@@ -7,7 +7,8 @@
 # Inputs: `// arena-asset <name> <bytes> <align> <hint> <type>` markers in the game's
 # generated headers, ARENA_EXTRA / ARENA_RAM / ARENA_FLASH in its machine
 # header (plain literals), block sizes from arena_layout.h. Extras (non-asset
-# Arena::alloc) must fit first-fit in every order.
+# Arena::alloc) run first-fit in declared order, or must fit in every order
+# with ARENA_EXTRA_ANY_ORDER (allocations as function arguments).
 #
 # Usage (from romconv/): arena_plan.py <game>
 import glob
@@ -26,7 +27,7 @@ def _r4(n):
     return (n + 3) & ~3
 
 
-# extras checked in every order up to this count, declared order above
+# any_order: extras checked in every order up to this count
 ANY_ORDER_MAX = 8
 
 
@@ -43,15 +44,15 @@ def _extras_fit(extras, free_a, free_b):
     return True
 
 
-def solve(assets, extras, layout, ram=(), flash=()):
+def solve(assets, extras, layout, ram=(), flash=(), any_order=False):
     """Mode per asset ("PLAIN", "A", "B") and reserved bytes per block.
 
     assets: (name, bytes, align[, hint]); hint "PLAIN"/"COMPRESSED" is the
     converter's own mode. The converter's split (pins applied) wins when it
     fits: hand-tuned for the local layout, so mode 1 stays as it was.
     Otherwise: fewest PLAIN bytes, then modes that differ from the hint,
-    then PLAIN asset count, then the sorted PLAIN names.
-    ValueError if no split fits.
+    then PLAIN asset count, then the sorted PLAIN names. any_order: extras
+    must fit in every run-time order. ValueError if no split fits.
     """
     names = {a[0] for a in assets}
     hint_plain = {a[0] for a in assets if len(a) > 3 and a[3] == "PLAIN"}
@@ -61,19 +62,20 @@ def solve(assets, extras, layout, ram=(), flash=()):
     if all(len(a) > 3 for a in assets):
         plain = (hint_plain | set(flash)) - set(ram)
         try:
-            return _search(assets, extras, layout, names - plain, plain, hint_plain)
+            return _search(assets, extras, layout, names - plain, plain, hint_plain, any_order)
         except ValueError:
             pass
-    return _search(assets, extras, layout, ram, flash, hint_plain)
+    return _search(assets, extras, layout, ram, flash, hint_plain, any_order)
 
 
-def _search(assets, extras, layout, ram, flash, hint_plain):
+def _search(assets, extras, layout, ram, flash, hint_plain, any_order):
     size_a, size_b = layout
     items = sorted(((_r4(a[1]), a[0]) for a in assets), reverse=True)
     extras4 = [_r4(e) for e in extras]
     extra_total = sum(extras4)
-    # run-time order is not always fixed (Arena::alloc as function arguments)
-    if len(extras4) <= ANY_ORDER_MAX:
+    if any_order:
+        if len(extras4) > ANY_ORDER_MAX:
+            raise ValueError(f"ARENA_EXTRA_ANY_ORDER with more than {ANY_ORDER_MAX} extras")
         orders = set(itertools.permutations(extras4))
     else:
         orders = {tuple(extras4)}
@@ -131,7 +133,7 @@ def _array(text, name):
 
 
 def parse_machine_header(path):
-    """(extras, ram, flash) from the ARENA_* arrays; literals only."""
+    """(extras, ram, flash, any_order) from the ARENA_* constants; literals only."""
     with open(path) as f:
         text = f.read()
     extras = []
@@ -147,7 +149,8 @@ def parse_machine_header(path):
                 raise ValueError(f"{path}: {name} entry {v} is not a string literal")
             vals.append(v.strip('"'))
         pins.append(vals)
-    return extras, pins[0], pins[1]
+    any_order = bool(re.search(r"\bARENA_EXTRA_ANY_ORDER\s*=\s*true\b", text))
+    return extras, pins[0], pins[1], any_order
 
 
 def parse_markers(game_dir):
@@ -194,11 +197,11 @@ def main(game):
     assets = parse_markers(game_dir)
     if not assets:
         raise ValueError(f"{game}: no planned assets in {game_dir} (ROMCONV_PLAN not set?)")
-    extras, ram, flash = parse_machine_header(os.path.join(game_dir, game + ".h"))
+    extras, ram, flash, any_order = parse_machine_header(os.path.join(game_dir, game + ".h"))
     plans = {}
     for layout, (a, b) in LAYOUTS.items():
         try:
-            modes, reserve = solve(assets, extras, (a, b), ram, flash)
+            modes, reserve = solve(assets, extras, (a, b), ram, flash, any_order)
         except ValueError as e:
             raise ValueError(f"{game}: {e}")
         plans[layout] = (modes, reserve)

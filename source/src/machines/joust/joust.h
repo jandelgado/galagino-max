@@ -12,6 +12,7 @@ public:
   // Arena::alloc besides planned assets, read by romconv (arena_plan.py):
   // williams_rgb (256 colors, base ctor), board RAM and 2 scanout buffers (hw, any order)
   static constexpr uint32_t ARENA_EXTRA[] = { 512, 49152, 35040, 35040 };
+  static constexpr bool ARENA_EXTRA_ANY_ORDER = true;  // hw(...) arguments
   static_assert(ARENA_EXTRA[0] == 256 * sizeof(uint16_t) &&
                 ARENA_EXTRA[1] == WilliamsBoard::RAM_SIZE && ARENA_EXTRA[2] == Scanout::BUF_BYTES &&
                 ARENA_EXTRA[3] == Scanout::BUF_BYTES, "update ARENA_EXTRA");
