@@ -298,9 +298,26 @@ static void switchTo(int8_t index) {
 // and heap use, to size the Arena. True if it switched machines.
 static bool heapProbeStep() {
 #ifdef HEAP_PROBE
-  static const uint32_t PROBE_GAME_MS = 5000;
-  static int8_t probeIndex = -1;
+#ifndef HEAP_PROBE_GAME_MS
+#define HEAP_PROBE_GAME_MS 5000
+#endif
+  static const uint32_t PROBE_GAME_MS = HEAP_PROBE_GAME_MS;
+  // survive the abort and reboot of an Arena overflow: the sweep goes on
+  // with the next game
+  static const uint32_t PROBE_MAGIC = 0x50524f42;
+  RTC_NOINIT_ATTR static uint32_t probeMagic;
+  RTC_NOINIT_ATTR static int8_t probeIndex;
   static uint32_t probeStart = 0;
+
+  if (!currentMachine) {
+    if (probeMagic == PROBE_MAGIC && esp_reset_reason() == ESP_RST_PANIC) {
+      printf("PROBE game=%d type=%d FAIL\n", probeIndex, machines[probeIndex].type);
+    }
+    else {
+      probeIndex = -1;
+    }
+    probeMagic = PROBE_MAGIC;
+  }
 
   if (currentMachine && millis() - probeStart <= PROBE_GAME_MS) {
     return false;
@@ -316,6 +333,7 @@ static bool heapProbeStep() {
   probeIndex++;
   if (probeIndex == machinesCount) {
     heapProbeDump("end");
+    probeMagic = 0;
     probeIndex = 0;
   }
 
