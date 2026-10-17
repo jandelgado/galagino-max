@@ -2,6 +2,7 @@
 #define RAFLESIA_H
 
 #include "../system1/system1.h"
+#include "raflesia_arena_plan.h"
 #include "raflesia_dipswitches.h"
 
 // Rafflesia (Coreland / Sega 1986), unencrypted set raflesiau

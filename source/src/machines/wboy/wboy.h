@@ -2,6 +2,7 @@
 #define WBOY_H
 
 #include "../system1/system1.h"
+#include "wboy_arena_plan.h"
 #include "wboy_dipswitches.h"
 
 // Wonder Boy (Escape / Sega 1986), unencrypted set wboy2u

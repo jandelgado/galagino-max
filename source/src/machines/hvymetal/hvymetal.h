@@ -2,6 +2,7 @@
 #define HVYMETAL_H
 
 #include "../system1/system1.h"
+#include "hvymetal_arena_plan.h"
 #include "hvymetal_dipswitches.h"
 
 // Heavy Metal (Sega 1985), 315-5135 encrypted main CPU, banked main ROM

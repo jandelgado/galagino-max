@@ -2,6 +2,7 @@
 #define FLICKY_H
 
 #include "../system1/system1.h"
+#include "flicky_arena_plan.h"
 #include "flicky_dipswitches.h"
 
 // Flicky (Sega 1984), unencrypted 128k set flickys2

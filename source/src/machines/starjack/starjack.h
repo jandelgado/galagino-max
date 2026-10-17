@@ -2,6 +2,7 @@
 #define STARJACK_H
 
 #include "../system1/system1.h"
+#include "starjack_arena_plan.h"
 #include "starjack_dipswitches.h"
 
 // Star Jacker (Sega 1983), the first Sega System 1 game

@@ -2,6 +2,7 @@
 #define PITFALL2_H
 
 #include "../system1/system1.h"
+#include "pitfall2_arena_plan.h"
 #include "pitfall2_dipswitches.h"
 
 // Pitfall II (Sega 1985), unencrypted set pitfall2u

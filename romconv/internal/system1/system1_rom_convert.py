@@ -5,15 +5,13 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pyconv"))
 from gfxutil import load_file, rgb888_to_rgb565_le
-from arena_layout import LOCAL
-from asset_emit import emit_compressed, emit_plain
+from asset_emit import emit_compressed
 from resnet import resistor_weights, combine
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..", "..", "..")
 MACHINES = os.path.join(ROOT, "source", "src", "machines")
 
-ARENA_BLOCKS = LOCAL
 MIX_NO_COLLIDE = 0x04
 
 # MAME ROM_START per game, regions in load order
@@ -218,9 +216,6 @@ GAMES = {
         "zip": "4dwarrio.zip",
         "crypt": "315-5162",
         "rot0": True,
-        # Arena total 218656 > 201500: the opcode image (32 KB, read per M1
-        # fetch from flash cache) stays PLAIN
-        "plain": ["opcodes"],
         "main": [("4d.116", "724bb2f77a2b82fae85e535ae4a37820cfb323d0"),
                  ("4d.109", "bc368abeb6c0a7172e03bd7a1754cf4a6ecbb4f8"),
                  ("4d.96", "520ecbafd1c7271dad24410a68067dfd801fa6d6")],
@@ -243,10 +238,6 @@ GAMES = {
         "crypt": "315-5135",
         "rot0": True,
         "banked": True,
-        # ~400 KB decoded: sprites (128K, read per sprite line), the 64K
-        # banked ROM and the opcode image (CPU reads via the flash cache)
-        # stay PLAIN; tiles (read per pixel row) fit the Arena
-        "plain": ["sprites", "banks", "opcodes"],
         "main": [("epr-6790a.1", "63dde673bd875dd23d445b152decb1d70c3750a4"),
                  ("epr-6789a.2", "07ef58ee2a5212e1e2800efc2bd48d2b2a9ed10d"),
                  ("epr-6788a.3", "3236313d5d826873d58af5ad80652c8d0ae0cc31")],
@@ -271,9 +262,6 @@ GAMES = {
     "gardia": {
         "crypt": "317-0006",
         "banked": True,
-        # sprites (128K) and the opcode image stay PLAIN; the 64K banks fit
-        # the Arena (174 KB total) and pack to about half in flash
-        "plain": ["sprites", "opcodes"],
         "main": [("epr-10255.1", "f19e345e5fae6a518276cc1bd09d1e2083672b25"),
                  ("epr-10254.2", "de1faf33cca031b72052bf5244fcb0bd79d85659"),
                  ("epr-10253.3", "44196f0a6c4c2b22a68609ddfc75be6a7877a69a")],
@@ -550,27 +538,14 @@ def write_palette():
         f.write("};\n")
 
 
-def plain_body(dims, values):
-    if not dims:
-        return ",\n".join(", ".join(f"0x{v:02x}" for v in values[i:i + 16])
-                          for i in range(0, len(values), 16))
-    n = int(dims[1:-1])
-    return ",\n".join("{" + ", ".join(f"0x{v:08x}" for v in values[i:i + n]) + "}"
-                      for i in range(0, len(values), n))
-
-
-def emit(game, asset, ctype, dims, count, values, plain=False):
+# planned (ROMCONV_PLAN, conv_<game>.py): mode and block per layout from
+# romconv arena_plan.py
+def emit(game, asset, ctype, dims, count, values):
     path = os.path.join(MACHINES, game, f"{game}_{asset}.h")
     with open(path, "w", newline="\n") as f:
-        if plain:
-            emit_plain(f, f"{game}_{asset}", ctype, dims, count, plain_body(dims, values))
-        else:
-            emit_compressed(f, f"{game}_{asset}", ctype, dims, count, values)
+        emit_compressed(f, f"{game}_{asset}", ctype, dims, count, values)
 
 
-# system1::system1() unpacks in this order; Arena::alloc is first fit, block A then B
-UNPACK_ORDER = ["sprites", "tiles", "main_rom", "sound_rom", "lookup_prom", "tile_map", "opcodes",
-                "banks"]
 BANK_BASE = 0x8000  # "banked": main ROM image past 0x8000 is 16 KB banks at 8000-bfff
 
 
@@ -606,33 +581,15 @@ def convert(game):
     return assets
 
 
-# simulates the ctor's unpack: (block A, block B) bytes used. PLAIN assets
-# stay in flash.
-def arena_blocks(assets, plain=()):
-    size = {a[0]: a[5] for a in assets if a[0] not in plain}
-    blocks = [0, 0]
-    for name in UNPACK_ORDER:
-        if name not in size:
-            continue
-        i = 0 if blocks[0] + size[name] <= ARENA_BLOCKS[0] else 1
-        blocks[i] += size[name]
-        assert blocks[i] <= ARENA_BLOCKS[i], f"{name} ({size[name]} B) fits no Arena block"
-    return blocks
-
-
 def main(game):
     spec = GAMES[game]
-    plain = spec.get("plain", ())
     assets = convert(game)
     for name, ctype, dims, count, values, _ in assets:
-        emit(game, name, ctype, dims, count, values, name in plain)
+        emit(game, name, ctype, dims, count, values)
     write_palette()
     if "color" in spec:
         zip_path = os.path.join(ROOT, "romszip", spec.get("zip", f"{game}.zip"))
         write_game_palette(game, prom_palette565(load(zip_path, spec["color"])))
-
-    a, b = arena_blocks(assets, plain)
-    print(f"{game}: Arena {a + b} / {sum(ARENA_BLOCKS)} (blocks {a}, {b})")
 
 
 if __name__ == "__main__":

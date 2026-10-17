@@ -2,6 +2,7 @@
 #define FOURDWARRIO_H
 
 #include "../system1/system1.h"
+#include "fourdwarrio_arena_plan.h"
 #include "fourdwarrio_dipswitches.h"
 
 // 4-D Warriors (Coreland / Sega 1985), 315-5162 encrypted main CPU

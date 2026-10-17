@@ -904,84 +904,84 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     starjack::menuLeds,
 #endif
-    MCH_STARJACK },
+    MCH_STARJACK, &starjack_arena_plan },
 #endif
 #ifdef ENABLE_REGULUS
   { createMachine<regulus>, regulus::logo,
 #ifdef LED_PIN
     regulus::menuLeds,
 #endif
-    MCH_REGULUS },
+    MCH_REGULUS, &regulus_arena_plan },
 #endif
 #ifdef ENABLE_UPNDOWN
   { createMachine<upndown>, upndown::logo,
 #ifdef LED_PIN
     upndown::menuLeds,
 #endif
-    MCH_UPNDOWN },
+    MCH_UPNDOWN, &upndown_arena_plan },
 #endif
 #ifdef ENABLE_RAFLESIA
   { createMachine<raflesia>, raflesia::logo,
 #ifdef LED_PIN
     raflesia::menuLeds,
 #endif
-    MCH_RAFLESIA },
+    MCH_RAFLESIA, &raflesia_arena_plan },
 #endif
 #ifdef ENABLE_SWAT
   { createMachine<swat>, swat::logo,
 #ifdef LED_PIN
     swat::menuLeds,
 #endif
-    MCH_SWAT },
+    MCH_SWAT, &swat_arena_plan },
 #endif
 #ifdef ENABLE_FLICKY
   { createMachine<flicky>, flicky::logo,
 #ifdef LED_PIN
     flicky::menuLeds,
 #endif
-    MCH_FLICKY },
+    MCH_FLICKY, &flicky_arena_plan },
 #endif
 #ifdef ENABLE_PITFALL2
   { createMachine<pitfall2>, pitfall2::logo,
 #ifdef LED_PIN
     pitfall2::menuLeds,
 #endif
-    MCH_PITFALL2 },
+    MCH_PITFALL2, &pitfall2_arena_plan },
 #endif
 #ifdef ENABLE_MRVIKING
   { createMachine<mrviking>, mrviking::logo,
 #ifdef LED_PIN
     mrviking::menuLeds,
 #endif
-    MCH_MRVIKING },
+    MCH_MRVIKING, &mrviking_arena_plan },
 #endif
 #ifdef ENABLE_IMSORRY
   { createMachine<imsorry>, imsorry::logo,
 #ifdef LED_PIN
     imsorry::menuLeds,
 #endif
-    MCH_IMSORRY },
+    MCH_IMSORRY, &imsorry_arena_plan },
 #endif
 #ifdef ENABLE_WBOY
   { createMachine<wboy>, wboy::logo,
 #ifdef LED_PIN
     wboy::menuLeds,
 #endif
-    MCH_WBOY },
+    MCH_WBOY, &wboy_arena_plan },
 #endif
 #ifdef ENABLE_FOURDWARRIO
   { createMachine<fourdwarrio>, fourdwarrio::logo,
 #ifdef LED_PIN
     fourdwarrio::menuLeds,
 #endif
-    MCH_FOURDWARRIO },
+    MCH_FOURDWARRIO, &fourdwarrio_arena_plan },
 #endif
 #ifdef ENABLE_HVYMETAL
   { createMachine<hvymetal>, hvymetal::logo,
 #ifdef LED_PIN
     hvymetal::menuLeds,
 #endif
-    MCH_HVYMETAL },
+    MCH_HVYMETAL, &hvymetal_arena_plan },
 #endif
 #ifdef ENABLE_SXEVIOUS
   { createMachine<sxevious>, sxevious::logo,
@@ -1002,7 +1002,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     gardia::menuLeds,
 #endif
-    MCH_GARDIA },
+    MCH_GARDIA, &gardia_arena_plan },
 #endif
 #ifdef ENABLE_CAVENGER
   { createMachine<cavenger>, cavenger::logo,
