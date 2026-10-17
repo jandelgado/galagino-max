@@ -21,7 +21,13 @@ public:
     // largest first.
     static constexpr uint32_t GAME_BLOCK_MIN = 86016;
     static constexpr uint32_t ROM_SLACK = 4984; // headroom for bombjack/1942 asset shapes
+#ifdef ASSETS_REMOTE
+    // WiFi links ~23 KB static DRAM, taken from the boot heap. Games pack
+    // into 69,000 + 110,500 (spec "Spike results").
+    static constexpr uint32_t BLOCK_A_SIZE = 69000;
+#else
     static constexpr uint32_t BLOCK_A_SIZE = GAME_BLOCK_MIN + ROM_SLACK; // 91000
+#endif
     // B takes its whole DRAM region (0x3ffe4350, largest free block 110580
     // at boot). Measured over all games: nothing else allocates there.
     static constexpr uint32_t B_REGION_REST = 19500;

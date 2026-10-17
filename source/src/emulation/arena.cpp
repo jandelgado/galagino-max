@@ -29,8 +29,14 @@ uint32_t Arena::usedA = 0;
 uint32_t Arena::usedB = 0;
 
 void Arena::init() {
+#ifdef ASSETS_REMOTE
+  // B first, so it gets its region before A takes it (smaller boot heap)
+  blockB = (uint8_t *)malloc(BLOCK_B_SIZE);
+  blockA = (uint8_t *)malloc(BLOCK_A_SIZE);
+#else
   blockA = (uint8_t *)malloc(BLOCK_A_SIZE);
   blockB = (uint8_t *)malloc(BLOCK_B_SIZE);
+#endif
   if (!blockA || !blockB) {
     printf("Arena: boot-time reservation failed (A=%p B=%p)\n", (void *)blockA, (void *)blockB);
     abort();
