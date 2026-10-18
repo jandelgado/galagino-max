@@ -1,10 +1,21 @@
+## Usage (from source/, env names: make envs, see platformio.ini):
+##   make <env>                 build, upload, monitor, e.g. make azdelivery-local
+##   make build ENV=<env>       build only
+##   make upload-only ENV=<env> build, upload
+##   make monitor ENV=<env>     serial monitor
+##   make config                resolved platformio.ini
+##   make image-info|verify-flash|erase-flash|flash-id ENV=<env>   esptool
+## Options: DEVICE=1 (/dev/ttyUSB1 or /dev/ttyACM1), V=1 (verbose build)
+## Without ENV: DEFAULT_ENV in Makefile.
+
 .PHONY: phony
 
-DEVICE_BASE := /dev/ttyUSB
-DEVICE_BASE := /dev/ttyACM
-DEFAULT_ENV := cyd-2432s028r
-DEFAULT_ENV := cyd-esp32-s3-display-usb-up
+help: phony
+	@sed -n 's/^## \{0,1\}//p' $(MAKEFILE_LIST)
 
+DEFAULT_ENV := fnk0104-full-usbup
+
+DEVICE_BASE := /dev/ttyACM
 ifneq (,$(wildcard /dev/ttyUSB*))
   DEVICE_BASE := /dev/ttyUSB
 endif
@@ -15,6 +26,10 @@ DEVICE ?= 0
 DEVICE_PATH := $(DEVICE_BASE)$(DEVICE)
 
 ENV ?= $(DEFAULT_ENV)
+BIN = .pio/build/$(ENV)/GALAGINO_*_release.bin
+
+# every device env of platformio.ini
+ENVS := $(filter-out native,$(shell sed -n 's/^\[env:\(.*\)\]/\1/p' platformio.ini))
 
 ifeq ($(V),)
         VERBOSE :=
@@ -24,6 +39,9 @@ endif
 
 config: phony
 	pio project config
+
+envs: phony
+	@echo $(ENVS)
 
 build: phony
 	pio run $(VERBOSE) -e $(ENV)
@@ -37,45 +55,20 @@ upload: phony
 upload-only: phony
 	pio run $(VERBOSE) -e $(ENV) -t upload
 
-release_azDeliveryDevKitV4: phony
-	$(MAKE) upload ENV=$@
-
-cyd-2432s028r: phony
-	$(MAKE) upload ENV=$@
-
-cyd-fnk0103f: phony
-	$(MAKE) upload ENV=$@
-
-cyd-fnk0103b: phony
-	$(MAKE) upload ENV=$@
-
-# ST7789 - black
-cyd-fnk0103b-usb-up: phony
-	$(MAKE) upload ENV=$@
-
-# ILI9341 - transparent
-cyd-fnk0103f-usb-up: phony
-	$(MAKE) upload ENV=$@
-
-# ILI9341 - silk white
-cyd-esp32-s3-display-usb-up: phony
-	$(MAKE) upload ENV=$@
-
-release_cheapYellowDisplay: phony
+# make <env>: upload + monitor that env
+$(ENVS): phony
 	$(MAKE) upload ENV=$@
 
 image-info: phony
-	esptool --chip esp32s3 --port $(DEVICE_PATH) image-info .pio/build/cyd-esp32-s3-display-usb-up/GALAGINO_*_release.bin
+	esptool image-info $(BIN)
 
 verify-flash: phony
-	esptool --chip esp32s3 --port $(DEVICE_PATH) \
-	  verify-flash --diff 0x10000 .pio/build/cyd-esp32-s3-display-usb-up/GALAGINO_*_release.bin
+	esptool --port $(DEVICE_PATH) verify-flash --diff 0x10000 $(BIN)
 
 erase-flash: phony
-	esptool --chip esp32s3 --port $(DEVICE_PATH) erase-flash
+	esptool --port $(DEVICE_PATH) erase-flash
 
 flash-id: phony
 	esptool --port $(DEVICE_PATH) flash-id
 
 phony:
-

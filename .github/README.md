@@ -125,9 +125,8 @@ evicted first. Menu entries not cached yet show a NET marker.
    python3 -m http.server 8080 --directory galagino-server/data
    ```
 
-4. Flash env `remote_azDeliveryDevKitV4` (`pio run -e
-   remote_azDeliveryDevKitV4 -t upload` in `source/`). Its `ENABLE_<X>`
-   flags pick the built-in games.
+4. Flash a `<board>-remote` env, e.g. `make azdelivery-remote` in
+   `source/`. `[mode_remote]` in `platformio.ini` lists the built-in games.
 
 ### Games
 
