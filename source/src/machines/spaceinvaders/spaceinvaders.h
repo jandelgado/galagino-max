@@ -48,8 +48,8 @@ protected:
   Asset<unsigned char, COMPRESSED> spaceinvaders_rom;
 public:
     // read by Audio::spaceinvaders_render_buffer()
-    Asset<signed char, COMPRESSED> si_sample_shot;
-    Asset<signed char, COMPRESSED> si_sample_invhit;
+    Asset<unsigned char, PLAIN> si_sample_shot;
+    Asset<unsigned char, PLAIN> si_sample_invhit;
 
     spaceinvaders();
 

@@ -15,6 +15,7 @@
 #include "pokey.h"
 #include "asteroids_sound.h"
 #include "llander_sound.h"
+#include "ima_adpcm.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 4)
 // See https://github.com/espressif/arduino-esp32/issues/8467
@@ -154,13 +155,13 @@ private:
   unsigned long si_ufo_cnt = 0;         // VCO phase accumulator
   int si_ufo_toggle = 1;                // VCO square wave state
   // Shot: sample playback
-  int si_shot_pos = 0;                  // current sample position
+  ima_adpcm::Voice si_shot;             // 12 kHz IMA-ADPCM sample
   int si_shot_playing = 0;              // 1 if playing
   // Explosion: noise burst with slow decay (~2s)
   unsigned long si_explo_cnt = 0;       // decay tick counter
   int si_explo_env = 0;                 // envelope level (decays from 120)
   // Invader die: sample playback
-  int si_invhit_pos = 0;                // current sample position
+  ima_adpcm::Voice si_invhit;           // 12 kHz IMA-ADPCM sample
   int si_invhit_playing = 0;            // 1 if playing
   // Fleet: 4 low tones (55/40/37/33 Hz, doubled for small speaker)
   unsigned long si_fleet_cnt = 0;       // tone phase accumulator
@@ -252,6 +253,10 @@ private:
   uint32_t zx_pos[12] = {0};
   int16_t zx_adpcm_predictor[12] = {0};
   int8_t zx_adpcm_step[12] = {0};
+  // samples stored below 24 kHz: output sample within the hold, and the
+  // previous decoded sample to interpolate from
+  uint8_t zx_phase[12] = {0};
+  int16_t zx_adpcm_prev[12] = {0};
 
   // Atari POKEY (Centipede: 1, Millipede: 2)
   static const int MAX_POKEYS = 2;

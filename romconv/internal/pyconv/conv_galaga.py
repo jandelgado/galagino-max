@@ -22,5 +22,6 @@ run("internal/cmapconv.py", "galaga_colormap_tiles", "./roms/prom-5.5n", "16", "
 
 info("Galaga Audio")
 run("internal/audioconv.py", "galaga_wavetable", "./roms/prom-1.1d", "../source/src/machines/galaga/galaga_wavetable.h")
+run("internal/sampleconv.py", "galaga_sample_boom", "../samples/galaga_boom.s8", "../source/src/machines/galaga/galaga_sample_boom.h")
 
 info("--- Success ---")

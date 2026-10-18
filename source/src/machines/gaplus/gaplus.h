@@ -23,6 +23,7 @@
 // ============================================================================
 
 #include "../machineBase.h"
+#include "../../emulation/ima_adpcm.h"
 #include "../../cpus/m6809/m6809.h"
 #include "../tileaddr.h"
 #include "gaplus_rom_main.h"
@@ -55,7 +56,7 @@ protected:
   Asset<unsigned char, COMPRESSED> gaplus_rom_main;
   Asset<unsigned char, COMPRESSED> gaplus_rom_sub;
   Asset<unsigned char, COMPRESSED> gaplus_rom_sub2;
-  Asset<unsigned char, COMPRESSED> gaplus_sample_bang;
+  Asset<unsigned char, PLAIN> gaplus_sample_bang;
   Asset<uint32_t[32], PLAIN> gaplus_sprites;
   Asset<unsigned short[8], COMPRESSED> gaplus_tilemap;
 public:
@@ -81,12 +82,9 @@ public:
 
     static const Logo &logo(void) { return gaplus_logo; }
 
-    // campione esplosione "bang" (customio_3, offset9>=0x0F), mixato in
-    // Audio::namco_15xx_render_buffer (gated MCH_GAPLUS), stesso schema di
-    // galaga::snd_boom_cnt/ptr ma a piena velocita' (campione gia' a 24kHz,
-    // il puntatore avanza ad OGNI campione, non ogni due come galaga)
-    unsigned short snd_bang_cnt = 0;
-    const signed char *snd_bang_ptr = NULL;
+    // explosion "bang" (customio_3, offset 9 >= 0x0F), 24 kHz IMA-ADPCM,
+    // mixed in Audio::namco_15xx_render_buffer (MCH_GAPLUS)
+    ima_adpcm::Voice snd_bang;
 
 protected:
     void blit_tile(short row, char col, char prio);

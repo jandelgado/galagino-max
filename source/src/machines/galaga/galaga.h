@@ -15,6 +15,7 @@
 #include "galaga_starseed.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/ima_adpcm.h"
 
 class galaga : public machineBase
 {
@@ -51,8 +52,7 @@ public:
   // the ship explosion sound is stored as a digi sample.
   // All other sounds are generated on the fly via the
   // original wave tables
-  unsigned short snd_boom_cnt = 0;
-  const signed char *snd_boom_ptr = NULL;
+  ima_adpcm::Voice snd_boom;
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;

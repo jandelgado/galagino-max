@@ -42,7 +42,12 @@ AUDIO_SAMPLES = [
     ("21.wav", "alarm_lock",       "Target lock alarm, one-shot"),
     ("23.wav", "shot",             "Enemy shot, one-shot"),
 ]
-AUDIO_SAMPLE_RATE = 24000  # matches Audio's fixed output rate (audio.cpp)
+OUTPUT_RATE = 24000  # Audio's fixed output rate (audio.cpp)
+# Stored sample rate. Default: output rate. Device test of half the flash:
+#   ZAXXON_SAMPLE_RATE=12000 ./convert.sh zaxxon
+# Audio holds each stored sample OUTPUT_RATE / rate output samples,
+# linearly interpolated (ZAXXON_SAMPLE_HOLD in zaxxon_sample_rate.h).
+AUDIO_SAMPLE_RATE = int(os.environ.get("ZAXXON_SAMPLE_RATE", OUTPUT_RATE))
 
 ZAXXON_FILES = {
   "romset": {"name": "zaxxon.zip", "description": "Zaxxon (US rev D)"},
@@ -141,6 +146,13 @@ def load_wav_from_zip(zip_path, wav_name):
 # xevious_rom_convert.py write_sample_boom): resample to the fixed audio
 # output rate (no runtime resampling needed) and requantize to 8 bit,
 # peak-normalized per clip.
+def low_pass_taps(cutoff, taps=63):
+    # Hamming windowed sinc, cutoff in cycles per input sample, unity DC gain
+    import numpy as np
+    n = np.arange(taps) - (taps - 1) / 2
+    h = 2 * cutoff * np.sinc(2 * cutoff * n) * np.hamming(taps)
+    return h / h.sum()
+
 def resample_to_8bit(wav_file):
     import numpy as np
     w = wave.open(wav_file, "rb")
@@ -150,6 +162,12 @@ def resample_to_8bit(wav_file):
     data = np.frombuffer(frames, dtype=dtype).astype(np.float64)
     if nch > 1:
         data = data.reshape(-1, nch).mean(axis=1)
+
+    # below the output rate the stored rate's Nyquist cuts into the audio
+    # band: low pass first, else 6-22 kHz content folds into audible
+    # aliases. The default (24 kHz) output stays byte identical.
+    if AUDIO_SAMPLE_RATE < min(fr, OUTPUT_RATE):
+        data = np.convolve(data, low_pass_taps(0.45 * AUDIO_SAMPLE_RATE / fr), mode="same")
 
     n_out = int(len(data) * AUDIO_SAMPLE_RATE / fr)
     x_old = np.linspace(0, 1, len(data), endpoint=False)
@@ -169,6 +187,13 @@ def write_samples(audio_set):
     # romconv/pyconv/adpcm.py), decoded inline per-sample by
     # Audio::zaxxon_render_buffer (ima_adpcm_decode in audio.cpp) -- halves
     # flash usage vs raw 8-bit PCM with no heap/RAM cost.
+    if OUTPUT_RATE % AUDIO_SAMPLE_RATE:
+        fatal(f"ZAXXON_SAMPLE_RATE {AUDIO_SAMPLE_RATE} does not divide {OUTPUT_RATE}")
+    with open(os.path.join(OUT_DIR, "zaxxon_sample_rate.h"), "w") as f:
+        print(f"// Zaxxon samples are stored at {AUDIO_SAMPLE_RATE} Hz: each one is held", file=f)
+        print(f"// for this many {OUTPUT_RATE} Hz output samples.", file=f)
+        print(f"#define ZAXXON_SAMPLE_HOLD {OUTPUT_RATE // AUDIO_SAMPLE_RATE}", file=f)
+
     total_pcm = total_encoded = 0
     for wav_name, suffix, comment in AUDIO_SAMPLES:
         sym = f"zaxxon_sample_{suffix}"

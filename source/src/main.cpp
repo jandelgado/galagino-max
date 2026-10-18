@@ -41,7 +41,7 @@ unsigned short *frame_buffer;
 // RAM
 unsigned char *memory;
 
-Audio audio = Audio();
+Audio audio;  // not copy-initialized: holds atomics (ima_adpcm::Voice)
 Video video = Video();
 Input input = Input();
 Menu menu = Menu();

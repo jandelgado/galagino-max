@@ -24,6 +24,7 @@ from gfxutil import load_file, mame_decode, rot_galagino
 from asset_emit import emit_compressed, emit_plain
 from namco_hw import nudge, rgb565_swapped_rgb as rgb565_swapped
 from convutil import fatal
+from adpcm import emit_adpcm
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "..", "romszip", "xevious.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "..", "source", "src", "machines", "xevious"))
@@ -252,11 +253,10 @@ def write_sample_boom():
 
         with open(os.path.join(OUT_DIR,name + ".h"), "w") as f:
             print(f"// Explosion samples (samples/xevious_{wav}.wav),", file=f)
-            print(f"// resampled at 24000 Hz signed 8bit (bit pattern in unsigned char,", file=f)
-            print(f"// read with cast 'const signed char*' like galaga_sample_boom.h).", file=f)
+            print(f"// resampled at 24000 Hz signed 8bit, stored as 4-bit IMA-ADPCM", file=f)
+            print(f"// (ima_adpcm::Voice). PLAIN: ADPCM barely compresses.", file=f)
             print(f"// {len(samples8)} samples ({len(samples8)/target_fr:.3f}s at 24000 Hz)", file=f)
-            flat = [int(v) & 0xFF for v in samples8]
-            emit_compressed(f, name, "unsigned char", "", len(flat), flat)
+            emit_adpcm(f, name, samples8)
         print(f"{name}.h: {len(samples8)} samples @24kHz ({len(samples8)/target_fr:.3f}s)")
 
 def write_planetmap(rom2a, rom2b, rom2c):

@@ -7,6 +7,7 @@
 #include "dkong_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/ima_adpcm.h"
 
 class dkong : public machineBase
 {
@@ -44,8 +45,7 @@ public:
 	unsigned char dkong_obuf_toggle = 0;
 	unsigned char dkong_audio_transfer_buffer[DKONG_AUDIO_QUEUE_LEN][64];
 	unsigned char dkong_audio_rptr = 0, dkong_audio_wptr = 0;
-	unsigned short dkong_sample_cnt[6] = { 0,0,0,0,0,0};
-	const signed char *dkong_sample_ptr[6];
+	ima_adpcm::Voice dkong_sample[6];
 
 protected:
  	void blit_tile(short row, char col) override;
