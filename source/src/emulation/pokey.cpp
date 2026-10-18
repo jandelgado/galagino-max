@@ -18,7 +18,7 @@ static const int32_t DIV_64 = 28, DIV_15 = 114;
 // extra clocks of a high clock channel, alone (AUDF+4) and joined (AUDF+7)
 static const int32_t HICLK_EXTRA = 4, HICLK_JOINED_EXTRA = 7;
 
-// output: 4 channels * volume 15 * 63 clocks -> 0..960
+// output: 4 channels * volume 15 * cps clocks, scaled by 1/cps
 static const int32_t OUTPUT_SCALE = 16;
 static const int32_t OUTPUT_MAX = 511;
 // DC blocker time constant 2^9 samples (~21 ms)
@@ -49,16 +49,17 @@ static inline uint32_t advance17(uint32_t s, uint32_t k) {
   return (s >> k) | (fresh << (17 - k));
 }
 
-// o[p] .. o[p+63] of window s at p; moves s to p + CLOCKS_PER_SAMPLE
-static uint64_t window17(uint32_t &s) {
-  uint64_t w = 0;
-  for (int pos = 0; pos < 60; pos += 12) {
-    w |= (uint64_t)s << pos;
-    s = advance17(s, 12);
+// o[p] .. o[p+n-1] of window s at p into w (n <= 128); moves s to p + n
+static void window17(uint32_t &s, int32_t n, uint64_t w[2]) {
+  w[0] = w[1] = 0;
+  for (int32_t pos = 0; pos < n; pos += 12) {
+    const int32_t i = pos >> 6, b = pos & 63;
+    w[i] |= (uint64_t)s << b;
+    if (b > 64 - 17 && i == 0) {
+      w[1] |= (uint64_t)s >> (64 - b);
+    }
+    s = advance17(s, n - pos < 12 ? n - pos : 12);
   }
-  w |= (uint64_t)s << 60;
-  s = advance17(s, Pokey::CLOCKS_PER_SAMPLE - 60);
-  return w;
 }
 
 // a * b mod x^17 + x^5 + 1 over GF(2)
@@ -98,7 +99,8 @@ static uint32_t state17_at(uint32_t i) {
   return s & POLY17_MASK;
 }
 
-void Pokey::reset() {
+void Pokey::reset(int32_t clocks_per_sample) {
+  cps = clocks_per_sample;
   for (int c = 0; c < 4; c++) {
     ch[c].counter = 0;
     ch[c].out = 0;
@@ -106,7 +108,7 @@ void Pokey::reset() {
   }
   i4 = i5 = i9 = 0;
   s17 = POLY17_START;
-  w17 = 0;
+  w17[0] = w17[1] = 0;
   dc_q8 = lp = 0;
 }
 
@@ -119,7 +121,7 @@ uint8_t Pokey::random(uint32_t clock, bool poly9) {
   return state17_at(wrap(clock % LEN17 + LEN17 - RANDOM17_LAG, LEN17)) & 0xff;
 }
 
-// borrow of channel c at clock offset t (0..62) into the current sample
+// borrow of channel c at clock offset t (0..cps-1) into the current sample
 // (MAME process_channel)
 void Pokey::event(int c, uint8_t audc, uint8_t audctl, int32_t t) {
   if (!(audc & NOTPOLY5) && !((pokey_poly5_bits >> ((i5 + t) % LEN5)) & 1)) {
@@ -133,7 +135,7 @@ void Pokey::event(int c, uint8_t audc, uint8_t audctl, int32_t t) {
   } else if (audctl & POLY9) {
     h.out = pokey_poly9[wrap(i9 + t, LEN9)] & 1;
   } else {
-    h.out = (w17 >> t) & 1;
+    h.out = (w17[t >> 6] >> (t & 63)) & 1;
   }
 }
 
@@ -184,7 +186,7 @@ void Pokey::render(const uint8_t *regs, int16_t *out, int n) {
   if (running) {
     for (int c = 0; c < 4; c++) {
       if (!live[c] && period[c]) {
-        ch[c].counter = skip_borrows(ch[c].counter, period[c], n * CLOCKS_PER_SAMPLE);
+        ch[c].counter = skip_borrows(ch[c].counter, period[c], n * cps);
       }
     }
     // unfiltered: the latch a borrow would set
@@ -199,7 +201,7 @@ void Pokey::render(const uint8_t *regs, int16_t *out, int n) {
   static const int ORDER[4] = {2, 3, 0, 1}; // MAME step_one_clock order
   for (int s = 0; s < n; s++) {
     if (running) {
-      w17 = window17(s17);
+      window17(s17, cps, w17);
     }
     int32_t acc = 0; // sum of volume * clocks high within this sample
     for (int k = 0; k < 4; k++) {
@@ -209,7 +211,7 @@ void Pokey::render(const uint8_t *regs, int16_t *out, int n) {
       int32_t high = 0, pos = 0;
       uint8_t level = (audc & VOLUME_ONLY) ? 1 : (h.out ^ h.filter);
       if (running && period[c] && live[c]) {
-        while (h.counter < CLOCKS_PER_SAMPLE) {
+        while (h.counter < cps) {
           if (level) {
             high += h.counter - pos;
           }
@@ -227,21 +229,21 @@ void Pokey::render(const uint8_t *regs, int16_t *out, int n) {
           level = (audc & VOLUME_ONLY) ? 1 : (h.out ^ h.filter);
           h.counter += period[c];
         }
-        h.counter -= CLOCKS_PER_SAMPLE;
+        h.counter -= cps;
       }
       if (level) {
-        high += CLOCKS_PER_SAMPLE - pos;
+        high += cps - pos;
       }
       acc += (audc & VOLUME_MASK) * high;
     }
     if (running) {
-      i4 = (i4 + CLOCKS_PER_SAMPLE) % LEN4;
-      i5 = (i5 + CLOCKS_PER_SAMPLE) % LEN5;
-      i9 = wrap(i9 + CLOCKS_PER_SAMPLE, LEN9);
+      i4 = (i4 + cps) % LEN4;
+      i5 = (i5 + cps) % LEN5;
+      i9 = wrap(i9 + cps, LEN9);
     }
 
     // remove DC (POKEY output is unipolar), then low pass
-    const int32_t x = acc * OUTPUT_SCALE / CLOCKS_PER_SAMPLE;
+    const int32_t x = acc * OUTPUT_SCALE / cps;
     dc_q8 += ((x << 8) - dc_q8) >> DC_SHIFT;
     lp += ((x - (dc_q8 >> 8) - lp) * LOWPASS_ALPHA) >> 8;
     out[s] = lp > OUTPUT_MAX ? OUTPUT_MAX : (lp < -OUTPUT_MAX ? -OUTPUT_MAX : (int16_t)lp);

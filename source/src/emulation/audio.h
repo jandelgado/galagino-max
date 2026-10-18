@@ -258,7 +258,7 @@ private:
   uint8_t zx_phase[12] = {0};
   int16_t zx_adpcm_prev[12] = {0};
 
-  // Atari POKEY (Centipede: 1, Millipede: 2)
+  // Atari POKEY (Centipede: 1, Millipede, Tetris: 2)
   static const int MAX_POKEYS = 2;
   Pokey pokey[MAX_POKEYS];
   AsteroidsSound asteroids_sound;

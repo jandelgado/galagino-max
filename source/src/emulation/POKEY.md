@@ -58,9 +58,8 @@ bits already in the window, so `advance17(s, k)` moves it k <= 12 bits
 with 3 shift/xor ops. `POLY17_START` = `o[0..16]` = 0x0007f.
 
 - Channel noise (sequential): per sample, while not in reset,
-  `window17()` builds `w17` = `o[p] .. o[p+63]` (5 x 12 + 3 bits of
-  advance) and moves `s17` 63 bits on. `event()` at offset t reads
-  `(w17 >> t) & 1`.
+  `window17()` builds `w17[2]` = `o[p] .. o[p+cps-1]` (12 bit steps)
+  and moves `s17` cps bits on. `event()` at offset t reads bit t.
 - RANDOM (random access): `state17_at(i)` jumps via
   `x^i mod x^17 + x^5 + 1` (17 square-and-multiply steps). With
   `x^i = sum r_k x^k`, `o[i+m] = XOR of o[k+m]` over set `r_k`, taken
@@ -76,7 +75,9 @@ Host test (`test_pokey`) checks both paths against MAME's states:
 
 ## Emulation
 
-One 24 kHz sample = 63 chip clocks (`CLOCKS_PER_SAMPLE`).
+One 24 kHz sample = `cps` chip clocks, set in `reset()`: 63
+(`CLOCKS_1512KHZ`, Centipede/Millipede) or 75 (`CLOCKS_1789KHZ`, Tetris,
+0.6% sharp).
 
 Per `render()` call (64 samples): read registers, compute each channel's
 period in chip clocks:
@@ -90,18 +91,18 @@ A counter longer than the new period restarts with it.
 Per sample, per channel (order 3, 4, 1, 2 as in MAME `step_one_clock`):
 
 ```text
-while counter < 63:
+while counter < cps:
     add clocks spent high since last event
     event() at offset counter     // pure toggle or poly bit, poly5 gate
     ch3/ch4 borrow: latch ch1/ch2 filter
     counter += period
-counter -= 63
+counter -= cps
 ```
 
 Sample value = sum of `volume * clocks high`. Work scales with borrows,
 not clocks, and the per-sample average is a box filter (cheap
 anti-aliasing). Poly positions are kept per sample start; an event at
-offset t reads position `i+t`, all advance by 63 per sample while not in
+offset t reads position `i+t`, all advance by cps per sample while not in
 reset (poly17: window `w17`, see above).
 
 Channels whose borrows are inaudible (volume 0 or volume only, and not

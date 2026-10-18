@@ -29,15 +29,22 @@ void tearDown(void) {}
 
 static uint32_t ref_bit(uint32_t i) { return state17[i % 0x1ffff] & 1; }
 
-static void test_poly17_window_matches_mame(void) {
-  // two full periods, 63 bits per sample, crossing the wrap
+static void check_window(int32_t n) {
   uint32_t s = POLY17_START;
-  for (uint32_t p = 0; p < 2 * 0x1ffff * 63; p += 63) {
-    const uint64_t w = window17(s);
-    for (uint32_t t = 0; t < 64; t++) {
-      if (((w >> t) & 1) != ref_bit(p + t)) TEST_FAIL_MESSAGE("window bit mismatch");
+  uint64_t w[2];
+  for (uint32_t p = 0; p < 2 * 0x1ffff * (uint32_t)n; p += n) {
+    window17(s, n, w);
+    for (int32_t t = 0; t < n; t++) {
+      if (((w[t >> 6] >> (t & 63)) & 1) != ref_bit(p + t)) {
+        TEST_FAIL_MESSAGE("window bit mismatch");
+      }
     }
   }
+}
+
+static void test_poly17_window_matches_mame(void) {
+  check_window(Pokey::CLOCKS_1512KHZ); // two full periods, crossing the wrap
+  check_window(Pokey::CLOCKS_1789KHZ);
 }
 
 static void test_poly17_state_at_matches_mame(void) {
@@ -78,6 +85,23 @@ static void test_pure_tone_64khz_base(void) {
   r[0] = 99; r[1] = 0xa8; r[Pokey::REG_SKCTL] = 3; // pure tone, volume 8
   // f = 1512000 / 28 / (99+1) / 2 = 270 Hz, 2 crossings per period
   TEST_ASSERT_INT_WITHIN(20, 540, crossings(r));
+}
+
+static int crossings_at(const uint8_t *regs, int32_t clocks) {
+  Pokey p;
+  p.reset(clocks);
+  static int16_t buf[24000];
+  p.render(regs, buf, 24000);
+  int n = 0;
+  for (int i = 4800 + 1; i < 24000; i++) n += (buf[i - 1] < 0) != (buf[i] < 0);
+  return n * 24000 / (24000 - 4801);
+}
+
+static void test_pure_tone_1789khz(void) {
+  uint8_t r[Pokey::REG_COUNT] = {};
+  r[0] = 99; r[1] = 0xa8; r[Pokey::REG_SKCTL] = 3; // pure tone, volume 8
+  // 75 clocks per 24 kHz sample = 1.8 MHz: f = 1800000 / 28 / 100 / 2 = 321 Hz
+  TEST_ASSERT_INT_WITHIN(20, 643, crossings_at(r, Pokey::CLOCKS_1789KHZ));
 }
 
 static void test_ch3_high_clock(void) {
@@ -206,6 +230,7 @@ int main(int, char **) {
   RUN_TEST(test_random_matches_mame);
   RUN_TEST(test_random_changes_between_instructions);
   RUN_TEST(test_pure_tone_64khz_base);
+  RUN_TEST(test_pure_tone_1789khz);
   RUN_TEST(test_ch3_high_clock);
   RUN_TEST(test_joined_12);
   RUN_TEST(test_skctl_reset_is_silent);
