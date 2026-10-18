@@ -95,7 +95,7 @@ IRAM_ATTR void emulation_task(void *p) {
     // The 60hz vblank rate is in turn 16.6 ms.
   if (counter % 10 == 0) {
     // good time total: 160...170ms
-    uint32_t now = millis();
+    uint32_t now = cpuStart;
     uint32_t dt = now - timeTotal;
     uint32_t hz = dt ? 10000 / dt : 0;
 #ifdef DEBUG_TIMING_FPS_HUD

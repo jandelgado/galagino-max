@@ -4,7 +4,7 @@ namespace vec2d {
 
 enum { LEFT = 1, RIGHT = 2, TOP = 4, BOTTOM = 8 };
 
-static uint8_t outcode(int32_t x, int32_t y, const Rect &r) {
+static inline __attribute__((always_inline)) uint8_t outcode(int32_t x, int32_t y, const Rect &r) {
   return (x < r.x0 ? LEFT : x > r.x1 ? RIGHT : 0) |
          (y < r.y0 ? TOP : y > r.y1 ? BOTTOM : 0);
 }

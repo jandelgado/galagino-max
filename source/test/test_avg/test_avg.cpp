@@ -131,6 +131,22 @@ static void test_glyph_tagging(void) {
   TEST_ASSERT_NOT_EQUAL(out[2].dy, out[4].dy);
 }
 
+// Star Wars: big endian words, STAT holds RGB (bits 10-8) and an 8 bit
+// intensity scaled by the VCTR z field; black lines are skipped
+static void test_starwars(void) {
+  at(0); put(CNTR); put(scal(0, 0)); put(0x6380); vctr(100, 50, 7);
+  put(0x6080); vctr(10, 0, 7); put(HALT);
+  for (int a = 0; a < (int)sizeof(ram); a += 2) {
+    const uint8_t t = ram[a];
+    ram[a] = ram[a + 1];
+    ram[a + 1] = t;
+  }
+  const avg::Memory m{ram, sizeof(ram), nullptr, 0, 0, 0, 0, avg::STARWARS};
+  TEST_ASSERT_EQUAL(1, avg::decode(m, st, out, 64));
+  // z 7: 7 * 0x80 / 8 = 112 -> level 7
+  assert_line(out[0], 290, 200, 389, 150, (3 << avg::SW_COLOR_SHIFT) | 7);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_vctr_stat);
@@ -138,6 +154,7 @@ int main(int, char **) {
   RUN_TEST(test_svec);
   RUN_TEST(test_jsrl_rtsl);
   RUN_TEST(test_jmpl);
+  RUN_TEST(test_starwars);
   RUN_TEST(test_clip_window);
   RUN_TEST(test_first_frame_not_clipped);
   RUN_TEST(test_loop_terminates);

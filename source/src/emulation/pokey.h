@@ -34,8 +34,11 @@ private:
   };
   Channel ch[4];
   uint32_t i4, i5, i9;      // poly positions at current sample start
-  uint32_t s17;             // poly17 window at next sample start
+  uint32_t p17;             // poly17 position at next sample start
+  uint32_t s17;             // poly17 window at p17, stale if !s17_valid
+  bool s17_valid;
   int32_t cps;              // POKEY clocks per sample
+  uint8_t cps4, cps5;       // cps mod LEN4, LEN5
   uint64_t w17[2];          // poly17 bits of current sample, bit t = clock t
   int32_t dc_q8, lp;        // DC blocker (Q8) and low pass state
   void event(int c, uint8_t audc, uint8_t audctl, int32_t t);

@@ -103,7 +103,8 @@ enum {
   MCH_BUBLBOBL,
   MCH_ATETRIS,
   MCH_CCASTLES,
-  MCH_BZONE
+  MCH_BZONE,
+  MCH_STARWARS
 };
 
 // one inst at 3Mhz ~ 500k inst/sec = 500000/60 inst per frame
@@ -214,6 +215,10 @@ public:
     // C64 SID music (commando): n samples, +-480, rendered on
     // the audio core. Virtual so audio.cpp does not need the machine header.
     virtual void renderSid(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
+
+    // Speech chip output (Star Wars TMS5220): n samples at 24 kHz, full
+    // int16 range, on the audio core. Virtual for the same reason.
+    virtual void renderSpeech(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
 
 #ifdef LED_PIN
     // Static: menu preview runs before any machine instance exists.

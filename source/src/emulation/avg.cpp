@@ -2,6 +2,9 @@
 
 namespace avg {
 
+// -Os (framework flags) leaves these per step helpers as calls
+#define AVG_INLINE inline __attribute__((always_inline))
+
 enum Opcode : uint8_t {
   OP_VCTR = 0, OP_HALT = 1, OP_SVEC = 2, OP_STAT = 3,
   OP_CNTR = 4, OP_JSRL = 5, OP_RTSL = 6, OP_JMPL = 7,
@@ -16,7 +19,7 @@ void State::reset(int32_t xc, int32_t yc) {
   hst = lst = true;
 }
 
-static uint8_t fetch(const Memory &m, uint16_t a) {
+static AVG_INLINE uint8_t fetch(const Memory &m, uint16_t a) {
   if (a < m.ram_bytes) {
     return m.ram[a];
   }
@@ -26,35 +29,70 @@ static uint8_t fetch(const Memory &m, uint16_t a) {
   return 0; // unmapped
 }
 
-// MAME avg_strobe0 normalization plus avg_strobe1 binary scale: returns
-// the timer, dvx/dvy shifted until bit 12 differs from bit 11
-static uint16_t normalize(uint16_t &dvx, uint16_t &dvy, uint8_t bin_scale, bool op1) {
-  uint16_t timer = 0;
-  for (int i = 0; i < 16 && !((dvy ^ (dvy << 1)) & 0x1000) && !((dvx ^ (dvx << 1)) & 0x1000); i++) {
-    dvy = (dvy & 0x1000) | ((dvy << 1) & 0x1fff);
-    dvx = (dvx & 0x1000) | ((dvx << 1) & 0x1fff);
-    timer = (timer >> 1) | 0x4000 | (op1 << 7);
+// bits 11-0 of 13 bit v equal to sign bit 12, counted from bit 11; 16:
+// v is 0 and never normalizes
+static AVG_INLINE uint8_t sign_run(uint16_t v) {
+  const uint16_t w = (v ^ ((v & 0x1000) ? 0xfff : 0)) & 0xfff;
+  if (w) {
+    return __builtin_clz(w) - 20;
   }
-  if (op1) {
-    timer &= 0xff;
+  return (v & 0x1000) ? 12 : 16;
+}
+
+// MAME avg_strobe0 normalization plus avg_strobe1 binary scale: shifts
+// dvx/dvy until bit 12 differs from bit 11 (at most 16 times) and returns
+// the draw time in cycles, halved per shift and binary scale step
+static AVG_INLINE uint32_t normalize(uint16_t &dvx, uint16_t &dvy, uint8_t bin_scale, bool op1) {
+  const uint8_t kx = sign_run(dvx), ky = sign_run(dvy);
+  const uint8_t k = kx < ky ? kx : ky;
+  dvx = (dvx & 0x1000) | ((dvx << k) & 0xfff);
+  dvy = (dvy & 0x1000) | ((dvy << k) & 0xfff);
+  const uint32_t cycles = (op1 ? 0x100u : 0x8000u) >> (k + bin_scale);
+  return cycles ? cycles : 1;
+}
+
+// both endpoints inside r: clipping would change nothing
+static AVG_INLINE bool inside(const vec2d::Line &l, const vec2d::Rect &r) {
+  return l.x0 >= r.x0 && l.x0 <= r.x1 && l.x1 >= r.x0 && l.x1 <= r.x1 &&
+         l.y0 >= r.y0 && l.y0 <= r.y1 && l.y1 >= r.y0 && l.y1 <= r.y1;
+}
+
+// Line::color of a vector with VCTR/SVEC intensity field z
+static AVG_INLINE uint8_t line_color(const Memory &m, const State &s, uint8_t z) {
+  if (m.variant == STARWARS) {
+    // MAME starwars_strobe3: z * STAT intensity / 8, 0..222 -> level 1..14;
+    // black lines are skipped like moves
+    const uint16_t level = (((z >> 1) * s.intensity) >> 3) + 15;
+    return level < 16 || !s.color ? 0 : (s.color << SW_COLOR_SHIFT) | (level >> 4);
   }
-  for (uint8_t i = bin_scale; i > 0; i--) {
-    timer = (timer >> 1) | 0x4000 | (op1 << 7);
+  return (z >> 1) == 1 ? s.intensity : (z & 0xe);
+}
+
+// MAME avg_strobe2 STAT, bzone_strobe2 and starwars_strobe2 variants
+static void stat(const Memory &m, State &s, uint16_t dvy) {
+  if (m.variant == STARWARS) {
+    s.intensity = dvy & 0xff;
+    s.color = (dvy >> 8) & 7;
+    return;
   }
-  if (op1) {
-    timer &= 0xff;
+
+  s.intensity = (dvy >> 4) & 0xf;
+  if (!(dvy & 0x400)) {
+    s.lst = dvy & 0x200;
+    s.hst = !s.lst;
   }
-  return timer;
 }
 
 // MAME avg_strobe3 deflection: int32 product, wrapping like MAME's int
 // arithmetic (unsigned multiply, defined in C++)
-static int32_t deflect(uint16_t dv, uint32_t cycles, uint8_t scale) {
+static AVG_INLINE int32_t deflect(uint16_t dv, uint32_t cycles, uint8_t scale) {
   const int32_t dac = (int32_t)(((dv >> 3) ^ 0x200) & 0x3ff) - 0x200;
   return (int32_t)((uint32_t)dac * cycles * (uint32_t)(scale ^ 0xff)) >> 4;
 }
 
 uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
+  // byte offsets of a word's high (opcode) and low byte
+  const uint8_t hi_ofs = mem.variant == STARWARS ? 0 : 1, lo_ofs = hi_ofs ^ 1;
   uint16_t pc = 0, stack[4] = {0, 0, 0, 0};
   uint8_t sp = 0;
   uint16_t n = 0;
@@ -65,7 +103,7 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
 
   for (uint16_t step = 0; step < MAX_STEPS && n < max; step++) {
     // h1: high byte of word 0; Battle Zone clip latch on the way
-    const uint8_t hi = fetch(mem, pc + 1);
+    const uint8_t hi = fetch(mem, pc + hi_ofs);
     if (!s.hst) {
       s.clipx_max = s.xpos;
       s.clipy_min = s.ypos;
@@ -92,15 +130,15 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
     uint8_t int_latch = 0;
 
     if (op == OP_SVEC) {
-      const uint8_t lo = fetch(mem, pc); // h3 on the low byte
+      const uint8_t lo = fetch(mem, pc + lo_ofs); // h3 on the low byte
       int_latch = lo >> 4;
       dvx = ((int_latch & 1) << 12) | ((lo & 0xf) << 8);
       pc += 2;
     } else {
-      dvy |= fetch(mem, pc); // h0
+      dvy |= fetch(mem, pc + lo_ofs); // h0
       pc += 2;
       if (op == OP_VCTR) {
-        const uint8_t hi1 = fetch(mem, pc + 1), lo1 = fetch(mem, pc); // h3, h2
+        const uint8_t hi1 = fetch(mem, pc + hi_ofs), lo1 = fetch(mem, pc + lo_ofs); // h3, h2
         int_latch = hi1 >> 4;
         dvx = ((int_latch & 1) << 12) | ((hi1 & 0xf) << 8) | lo1;
         pc += 2;
@@ -124,12 +162,11 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
     switch (op) {
       case OP_VCTR:
       case OP_SVEC: {
-        const uint16_t timer = normalize(dvx, dvy, s.bin_scale, op1);
-        const uint32_t cycles = op1 ? 0x100 - (timer & 0xff) : 0x8000 - timer;
+        const uint32_t cycles = normalize(dvx, dvy, s.bin_scale, op1);
         const int32_t x0 = s.xpos, y0 = s.ypos;
         s.xpos += deflect(dvx, cycles, s.scale);
         s.ypos -= deflect(dvy, cycles, s.scale);
-        const uint8_t intensity = (int_latch >> 1) == 1 ? s.intensity : (int_latch & 0xe);
+        const uint8_t intensity = line_color(mem, s, int_latch);
         if (intensity) {
           vec2d::Line l = {};
           l.x0 = x0 >> 16;
@@ -137,7 +174,7 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
           l.x1 = s.xpos >> 16;
           l.y1 = s.ypos >> 16;
           l.color = intensity;
-          if (vec2d::clip(l, window)) {
+          if (inside(l, window) || vec2d::clip(l, window)) {
             if (glyph_sp) {
               l.color |= GLYPH;
               l.dx = run_x;
@@ -152,11 +189,7 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
         return n;
       case OP_STAT: // h6
         if (!dvy12) {
-          s.intensity = (dvy >> 4) & 0xf;
-          if (!(dvy & 0x400)) {
-            s.lst = dvy & 0x200;
-            s.hst = !s.lst;
-          }
+          stat(mem, s, dvy);
         } else {
           s.scale = dvy & 0xff;
           s.bin_scale = (dvy >> 8) & 7;

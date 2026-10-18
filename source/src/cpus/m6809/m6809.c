@@ -12,9 +12,12 @@
 #define REG_D(s)  ((uint16_t)((s)->A << 8) | (s)->B)
 #define SET_D(s,v) do { (s)->A = (uint8_t)((v) >> 8); (s)->B = (uint8_t)(v); } while(0)
 
+/* -Os (framework flags) would leave the per byte fetches as calls */
+#define M6809_INLINE inline __attribute__((always_inline))
+
 /* instruction stream fetches: use the direct-ROM window when installed
    (see rom_direct in m6809.h), else fall back to the callbacks */
-static inline uint8_t fetch8(m6809_state *s) {
+static M6809_INLINE uint8_t fetch8(m6809_state *s) {
     uint16_t pc = s->PC++;
     uint16_t off = (uint16_t)(pc - s->rom_base);
     if (off < s->rom_size)
@@ -25,7 +28,7 @@ static inline uint8_t fetch8(m6809_state *s) {
 /* KONAMI-1 opcode XOR, keyed by address bits A1/A3: index (A3<<1)|A1 */
 static const uint8_t konami1_xor[4] = { 0x22, 0x82, 0x28, 0x88 };
 
-static inline uint8_t fetch_op(m6809_state *s) {
+static M6809_INLINE uint8_t fetch_op(m6809_state *s) {
     uint16_t pc = s->PC++;
     uint16_t off = (uint16_t)(pc - s->rom_base);
     if (off < s->rom_size) {
