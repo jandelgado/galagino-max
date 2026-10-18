@@ -15,7 +15,8 @@ gaplus::gaplus()
   tiles(gaplus_tilemap.data()),
   cmap_tiles(gaplus_colormap_tiles),
   cmap_prio(gaplus_colormap_tiles_prio),
-  cmap_sprites(gaplus_colormap_sprites.data()) { }
+  cmap_sprites(gaplus_colormap_sprites.data()),
+  sprites(gaplus_sprites.data()) { }
 
 void gaplus::reset() {
   machineBase::reset();
@@ -578,7 +579,7 @@ void gaplus::prepare_frame(void) {
 // colormap 0 (lookup 0xFF nel converter)
 void gaplus::blit_sprite(short row, unsigned char s) {
   unsigned short code = sprite[s].code | ((unsigned short)sprite[s].color_block << 8);
-  SpriteRows4bpp spr(gaplus_sprites[code], sprite[s].flags & 3);
+  SpriteRows4bpp spr(sprites[code], sprite[s].flags & 3);
   const unsigned short *colors = cmap_sprites[sprite[s].color & 0x3F];
 
   short y_offset = sprite[s].y - 8 * row;

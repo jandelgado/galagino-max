@@ -81,7 +81,7 @@ protected:
   Asset<unsigned char, COMPRESSED> xevious_rom_cpu3;
   Asset<unsigned char, PLAIN> xevious_sample_boom;
   Asset<unsigned char, PLAIN> xevious_sample_boom2;
-  Asset<uint32_t[32], PLAIN> xevious_sprites;
+  Asset<uint32_t[32], COMPRESSED> xevious_sprites;
 public:
   xevious();
 

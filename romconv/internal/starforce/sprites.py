@@ -22,7 +22,6 @@ PREVIEW_PNG_16 = f"{game}_sprites_16x16_preview.png"
 
 # Parametri Sprite 32x32
 NUM_SPRITES_32, SPRITE_WIDTH_32, SPRITE_HEIGHT_32 = 128, 32, 32
-C_ARRAY_NAME_32 = f"{game}_sprites_32x32"
 PREVIEW_PNG_32 = f"{game}_sprites_32x32_preview.png"
 
 def rotate_matrix_90_cw(matrix, width, height):
@@ -158,5 +157,12 @@ if __name__ == "__main__":
         sprites_32 = [rotate_matrix_90_cw(s, SPRITE_WIDTH_32, SPRITE_HEIGHT_32) for s in sprites_32]
     if GENERATE_PREVIEW:
         generate_preview(PREVIEW_PNG_32, sprites_32, SPRITE_HEIGHT_32, SPRITE_WIDTH_32, grid_cols=16)
-    write_c_array_packed(OUTPUT_C_FILE, C_ARRAY_NAME_32, sprites_32, SPRITE_HEIGHT_32, SPRITE_WIDTH_32,
-                          compress=False)
+    # Not emitted: 32x32 sprite k is 16x16 sprites 4k+2 | 4k (top half) over
+    # 4k+3 | 4k+1 (bottom half), after rotation. starforce::blit_sprite
+    # composes it from the 16x16 set, saving 64K flash.
+    for k, s32 in enumerate(sprites_32):
+        for qy in range(2):
+            for qx in range(2):
+                s16 = sprites_16[4 * k + (0 if qx else 2) + qy]
+                for y in range(16):
+                    assert s32[qy * 16 + y][qx * 16:qx * 16 + 16] == s16[y], (k, qy, qx)

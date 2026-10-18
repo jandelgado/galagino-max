@@ -146,7 +146,7 @@ def write_tile_map(f, remap):
     f.write(f"#define BUBLBOBL_TILE_INDEX 0x{TILE_INDEX:04X}\n")
     f.write(f"#define BUBLBOBL_TILE_FLIPX 0x{TILE_FLIPX:04X}\n")
     f.write(f"#define BUBLBOBL_TILE_FLIPY 0x{TILE_FLIPY:04X}\n")
-    emit_plain(f, "bublbobl_tile_map", "unsigned short", "", len(remap), body(remap, "%d"))
+    emit_compressed(f, "bublbobl_tile_map", "unsigned short", "", len(remap), remap)
 
 
 def body(values, fmt, per_line=16):
@@ -250,7 +250,6 @@ def main():
     write("bublbobl_tiles.h", lambda f: emit_plain(
         f, "bublbobl_tiles", "uint32_t", "[8]", len(unique),
         "\n".join("{" + ",".join("0x%08X" % v for v in t) + "}," for t in unique)))
-    # PLAIN: read once per drawn tile, same access pattern as the tiles
     write("bublbobl_tile_map.h", lambda f: write_tile_map(f, remap))
     # PLAIN: 128 bytes, not worth a zlib stream and an Arena allocation
     types = list(prom[0x80:0x100])
@@ -270,12 +269,13 @@ def main():
     write("bublbobl_samples.h", lambda f: encoded.append(write_samples(f, pcm8)))
     print(f"  flash effects {len(EFFECTS)}: {encoded[0]} bytes, sid {len(sid)}")
 
-    arena = {"bank_rom": len(banks), "main_rom": len(main), "sub_rom": len(sub), "sid_ram": SID_RAM}
+    arena = {"bank_rom": len(banks), "main_rom": len(main), "sub_rom": len(sub),
+             "tile_map": len(remap) * 2, "sid_ram": SID_RAM}
     total = sum(arena.values())
     for name, size in arena.items():
         print(f"  arena {name:9s} {size:6d}")
     print(f"  arena total     {total:6d} of {ARENA_CAPACITY}")
-    print(f"  flash tiles {len(unique)} x 32 = {len(unique) * 32}, map {len(remap) * 2}")
+    print(f"  flash tiles {len(unique)} x 32 = {len(unique) * 32}")
     if total >= ARENA_CAPACITY:
         fatal("bublbobl assets exceed Arena::CAPACITY")
 

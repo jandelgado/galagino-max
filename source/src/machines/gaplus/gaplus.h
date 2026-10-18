@@ -57,7 +57,7 @@ protected:
   Asset<unsigned char, COMPRESSED> gaplus_rom_sub;
   Asset<unsigned char, COMPRESSED> gaplus_rom_sub2;
   Asset<unsigned char, PLAIN> gaplus_sample_bang;
-  Asset<uint32_t[32], PLAIN> gaplus_sprites;
+  Asset<uint32_t[32], COMPRESSED> gaplus_sprites;
   Asset<unsigned short[8], COMPRESSED> gaplus_tilemap;
 public:
     gaplus();
@@ -125,8 +125,8 @@ private:
     unsigned char namco15xx_ram[0x3C0];
 
     // ROM + grafica copiate in DRAM interna al reset (lazy, stile mappy:
-    // vedi project_mappy.md per il perche'). Totale ~66KB: main 24KB +
-    // sub 24KB + sub2 8KB + tilemap 8KB + colormap ~2.5KB.
+    // vedi project_mappy.md per il perche'). Totale ~114KB: main 24KB +
+    // sub 24KB + sub2 8KB + tilemap 8KB + sprites 48KB + colormap ~2.5KB.
     const unsigned char *rom_main;    // 24KB, main 0xA000-0xFFFF
     const unsigned char *rom_sub;     // 24KB, sub  0xA000-0xFFFF (ALTRO bus)
     const unsigned char *rom_sub2;    // 8KB,  sub2 0xE000-0xFFFF
@@ -134,6 +134,7 @@ private:
     const unsigned short (*cmap_tiles)[4];        // 512B
     const unsigned short (*cmap_prio)[4];         // 512B
     const unsigned short (*cmap_sprites)[8];      // 1KB (64 gruppi x8 pen)
+    const uint32_t (*sprites)[32];                // 48KB, gaplus_sprites (384 sprite)
 
     nio_S io[2];
     unsigned char dipmux_sel;

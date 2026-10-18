@@ -13,11 +13,11 @@ class Arena {
 public:
     // An asset cannot span both blocks, so each block size matters.
     // Menu: 4 equal logo slots only fit as 2 + 2, so a block holds 2 slots.
-    // ROM_SLACK: extra space bombjack/1942/pbaction need to bin-pack their
+    // ROM_SLACK: extra space bombjack/1942 need to bin-pack their
     // assets, found by search over real asset sizes. Only one unpack order
     // fits, so these machines unpack eagerly, largest first.
     static constexpr uint32_t LOGO_BLOCK_MIN = 2 * (224 * 96 + 1) * sizeof(unsigned short); // 86020, 2 logo slots
-    static constexpr uint32_t ROM_SLACK = 4980; // headroom for bombjack/1942/pbaction's asset shapes
+    static constexpr uint32_t ROM_SLACK = 4980; // headroom for bombjack/1942 asset shapes
     static constexpr uint32_t BLOCK_A_SIZE = LOGO_BLOCK_MIN + ROM_SLACK; // 91000
     static constexpr uint32_t BLOCK_B_SIZE = LOGO_BLOCK_MIN + ROM_SLACK; // 91000
     static constexpr uint32_t CAPACITY = BLOCK_A_SIZE + BLOCK_B_SIZE; // 182000

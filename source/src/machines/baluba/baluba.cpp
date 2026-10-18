@@ -12,7 +12,7 @@
 baluba::baluba() : starforce(Roms{
   baluba_main_cpu_rom_blob, baluba_sub_cpu_rom_blob, baluba_fg_tilemap_blob,
   baluba_bg1_tilemap_blob, baluba_bg2_tilemap_blob, baluba_bg3_tilemap_blob,
-  baluba_sprites_16x16_blob, baluba_sprites_32x32_blob,
+  baluba_sprites_16x16_blob,
 }) { }
 
 uint8_t baluba::dsw1() {

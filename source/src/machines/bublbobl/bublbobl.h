@@ -35,7 +35,7 @@ class bublbobl : public machineBase
   Asset<unsigned char, COMPRESSED> bublbobl_main_rom;
   Asset<unsigned char, COMPRESSED> bublbobl_sub_rom;
   Asset<uint32_t[8], PLAIN> bublbobl_tiles;
-  Asset<unsigned short, PLAIN> bublbobl_tile_map;
+  Asset<unsigned short, COMPRESSED> bublbobl_tile_map;
   Asset<unsigned char, PLAIN> bublbobl_prom;
   Asset<unsigned char, PLAIN> bublbobl_sid;
 

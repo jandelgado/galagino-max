@@ -12,17 +12,16 @@
 starforce::starforce() : starforce(Roms{
 	starforce_main_cpu_rom_blob, starforce_sub_cpu_rom_blob, starforce_fg_tilemap_blob,
 	starforce_bg1_tilemap_blob, starforce_bg2_tilemap_blob, starforce_bg3_tilemap_blob,
-	starforce_sprites_16x16_blob, starforce_sprites_32x32_blob,
+	starforce_sprites_16x16_blob,
 }) { }
 
 starforce::starforce(const Roms &r)
 	: main_cpu_rom(r.main_cpu), sub_cpu_rom(r.sub_cpu), fg_tiles(r.fg),
 	  bg1_tiles(r.bg1), bg2_tiles(r.bg2), bg3_tiles(r.bg3),
-	  sprites_16x16(r.sprites_16x16), sprites_32x32(r.sprites_32x32) {
+	  sprites_16x16(r.sprites_16x16) {
 	// decompress largest first: heap is freshest right after create(), so
 	// big blocks get placed before smaller ones fragment it
 	spr16_ptr = sprites_16x16.data();
-	spr32_ptr = sprites_32x32.data();
 	rom_main_ptr = main_cpu_rom.data();
 	bg_ptr[0] = bg1_tiles.data();
 	bg_ptr[1] = bg2_tiles.data();
@@ -581,16 +580,25 @@ void starforce::blit_sprite(short row, unsigned char s_idx) {
   const bool flip_x = (spr->flags & 1) != 0;
   const int size_minus_1 = size - 1;
 
-  // base-pointer 
-  const uint32_t *sprite_data_ptr = spr->is_32x32 
-    ? (const uint32_t *)spr32_ptr[spr->code]
-    : (const uint32_t *)spr16_ptr[spr->code];
+  // 32x32 sprite k is 16x16 sprites 4k+2 | 4k (top) over 4k+3 | 4k+1
+  // (bottom), see romconv starforce/sprites.py
+  const uint32_t (*quad)[16][2] = &spr16_ptr[spr->is_32x32 ? (spr->code << 2) : spr->code];
+  uint32_t row32[4];
 
   for (int y_in_sprite = min_y_sprite; y_in_sprite < max_y_sprite; y_in_sprite++) {
     int y_in_buffer = (spr_y_start + y_in_sprite) - y_strip_start;
     int y_read = flip_y ? (size_minus_1 - y_in_sprite) : y_in_sprite;
 
-    const uint32_t *sprite_row_gfx = sprite_data_ptr + (y_read * (spr->is_32x32 ? 4 : 2));
+    const uint32_t *sprite_row_gfx = row32;
+    if (!spr->is_32x32) {
+      sprite_row_gfx = quad[0][y_read];
+    } else {
+      const int half = y_read >> 4, line = y_read & 15;
+      row32[0] = quad[2 + half][line][0];
+      row32[1] = quad[2 + half][line][1];
+      row32[2] = quad[half][line][0];
+      row32[3] = quad[half][line][1];
+    }
 
     // set pointer to begin of line in frame buffer
     unsigned short *fb_row_ptr = &frame_buffer[y_in_buffer * 224];

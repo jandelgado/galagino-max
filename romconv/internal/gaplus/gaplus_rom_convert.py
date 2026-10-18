@@ -132,21 +132,18 @@ def write_tiles(tiles):
         emit_compressed(f, "gaplus_tilemap", "unsigned short", "[8]", len(tiles), flat)
 
 def write_sprites(sprites):
-    # Unflipped, gaplus::blit_sprite flips at draw time. Stays PLAIN in flash.
+    # Unflipped, gaplus::blit_sprite flips at draw time.
     with open(os.path.join(OUT_DIR, "gaplus_spritemap.h"), "w") as f:
         print("// Gaplus sprites (gp2-11+gp2-10+gp2-12+gp2-9 + driver_init unpack) —", file=f)
-        rows = []
+        flat = []
         for t in sprites:
-            vals = []
             for y in range(16):
                 v = 0
                 for x in range(16):
                     v |= t[y][x] << (4*x)
-                vals.append(hex(v & 0xffffffff))
-                vals.append(hex(v >> 32))
-            rows.append("  { " + ",".join(vals) + " }")
-        body = ",\n".join(rows)
-        emit_plain(f, "gaplus_sprites", "uint32_t", "[32]", len(sprites), body)
+                flat.append(v & 0xffffffff)
+                flat.append(v >> 32)
+        emit_compressed(f, "gaplus_sprites", "uint32_t", "[32]", len(sprites), flat)
 
 def decode_palette(red_prom, green_prom, blue_prom):
     # gaplus_palette(): resistenze pesate 0x0e/0x1f/0x43/0x8f sui 4 bit
