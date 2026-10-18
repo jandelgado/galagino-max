@@ -525,6 +525,7 @@ const char *mchName(signed char machineType) {
     case MCH_UPNDOWN:       return "Up'n Down";
     case MCH_CBDASH:        return "Boulder Dash";
     case MCH_PHOZON:        return "Phozon";
+    case MCH_GBERET:        return "Green Beret";
   }
 
   return "";
