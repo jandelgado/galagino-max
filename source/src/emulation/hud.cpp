@@ -1,7 +1,7 @@
 #include "emulation.h"
 #include "hud.h"
 
-#if defined(DEBUG_TIMING_FPS_HUD) || defined(BOOT_SELFTEST)
+#if defined(DEBUG_TIMING_FPS_HUD) || defined(BOOT_SELFTEST) || defined(ASSETS_REMOTE)
 
 #include "hud_font.h"
 
@@ -28,6 +28,11 @@ static const uint8_t *hud_glyph(char c) {
     return hud_font[FONT_DOT];
   }
   return nullptr;
+}
+
+uint8_t hud_glyph_line(char c, uint8_t line) {
+  const uint8_t *glyph = hud_glyph(c);
+  return glyph ? glyph[line] : 0;
 }
 
 void hud_text(uint16_t *frame_buffer, uint16_t width, uint8_t row, uint8_t flip,

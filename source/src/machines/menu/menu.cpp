@@ -1,5 +1,15 @@
 #include "menu.h"
 #include "../../emulation/arena.h"
+#ifdef ASSETS_REMOTE
+#include "../../emulation/hud.h"
+#include "../../net/loader.h"
+
+// NET marker, bottom right of a logo (224 x 96): green text, dark gray box
+static constexpr short NET_W = 3 * HUD_GLYPH_SIZE + 4;
+static constexpr short NET_H = HUD_GLYPH_SIZE + 4;
+static constexpr short NET_X = 224 - NET_W - 2;
+static constexpr short NET_Y = 96 - NET_H - 2;
+#endif
 #ifdef MENU_CYLINDER
 #include <math.h>
 
@@ -56,6 +66,15 @@ Menu::Menu(const machineInfo *machines, int8_t machinesCount, int8_t shown, int8
   }
 
   enterMenu();
+
+#ifdef ASSETS_REMOTE
+  // once: a cache lookup scans flash
+  for(int i = 0; i < machinesCount; i++) {
+    if(!Loader::available(machines[i].bundle)) {
+      net_only[i >> 5] |= 1u << (i & 31);
+    }
+  }
+#endif
 }
 
 // Logo pool dies with the menu: the next machine unpacks into a clean Arena.
@@ -106,6 +125,10 @@ void Menu::prepare_frame() {
 #ifdef MASTER_ATTRACT_MENU_TIMEOUT
   if(millis() - attract_start > MASTER_ATTRACT_MENU_TIMEOUT) {
     printf("MASTER ATTRACT ");
+#ifdef ASSETS_REMOTE
+    // no downloads while idle: network traffic, cache churn, flash wear
+    menu_sel = nextAvailable(menu_sel);
+#endif
     select();
   }
 #endif
@@ -171,8 +194,12 @@ void Menu::render_row(short row) {
     for(char i = 0; i < machinesCount; i++) {
       char offset = i * 12;
       if(machinesCount == 2) offset += 6;
-      if(row >= offset && row < offset + 12)
+      if(row >= offset && row < offset + 12) {
 	menu_logo(8 * (row - offset), logoBuffer(machines[i].logo()), menu_sel == i + 1);
+#ifdef ASSETS_REMOTE
+	netStrip(8 * (row - offset), i);
+#endif
+      }
     }
   }
   else {
@@ -191,12 +218,18 @@ void Menu::render_row(short row) {
 
     // check if logo at logo_y shows up in current row
     menu_logo(logo_y, logoBuffer(machines[logo_idx].logo()), (menu_sel-1) == logo_idx);
+#ifdef ASSETS_REMOTE
+    netStrip(logo_y, logo_idx);
+#endif
 
     // check if a second logo may show up here
     if(logo_y > (96 - 8)) {
       logo_idx = (logo_idx + 1) % machinesCount;
       logo_y -= 96;
       menu_logo(logo_y, logoBuffer(machines[logo_idx].logo()), (menu_sel-1) == logo_idx);
+#ifdef ASSETS_REMOTE
+      netStrip(logo_y, logo_idx);
+#endif
     }
 #endif
 
@@ -271,8 +304,9 @@ void Menu::render_row_cylinder(short row) {
     const CylinderLine &l = cylinder_lut[y];
     const uint8_t *slot = nullptr;
     uint32_t first = 0;  // first logo pixel of this line
+    int v = 0;
     if(l.line >= 0) {
-      int v = (scroll_offset + l.line) % total;
+      v = (scroll_offset + l.line) % total;
       slot = logoBuffer(machines[v / 96].logo());
       first = 224 * (v % 96);
     }
@@ -311,7 +345,61 @@ void Menu::render_row_cylinder(short row) {
         dst[x] = shaded[c];
       }
     }
+#ifdef ASSETS_REMOTE
+    // flat front face only: on the arc the marker would need the perspective
+    if(l.width == 224 && netOnly(v / 96)) {
+      netLine(dst, v % 96);
+    }
+#endif
   }
+}
+
+#endif
+
+#ifdef ASSETS_REMOTE
+// marker over the 8 lines of the current strip, logo line logo_y at the top
+void Menu::netStrip(short logo_y, int idx) {
+  if(!netOnly(idx)) {
+    return;
+  }
+  for(short l = 0; l < 8; l++) {
+    netLine(frame_buffer + l * 224, logo_y + l);
+  }
+}
+
+// one screen line of the marker, logo_line: line of the logo it shows
+void Menu::netLine(unsigned short *line, int logo_line) {
+  if(logo_line < NET_Y || logo_line >= NET_Y + NET_H) {
+    return;
+  }
+  for(short x = NET_X; x < NET_X + NET_W; x++) {
+    line[x] = HUD_DARKGRAY;
+  }
+
+  const int glyph_line = logo_line - NET_Y - 2;
+  if(glyph_line < 0 || glyph_line >= HUD_GLYPH_SIZE) {
+    return;
+  }
+  const char *text = "NET";
+  for(short c = 0; text[c]; c++) {
+    uint8_t bits = hud_glyph_line(text[c], glyph_line);
+    for(short x = NET_X + 2 + c * HUD_GLYPH_SIZE; bits; bits <<= 1, x++) {
+      if(bits & 0x80) {
+        line[x] = HUD_GREEN;
+      }
+    }
+  }
+}
+
+// sel (1-based) or the next game that starts without network
+int8_t Menu::nextAvailable(int8_t sel) {
+  for(int8_t i = 0; i < machinesCount; i++) {
+    const int8_t idx = (sel - 1 + i) % machinesCount;
+    if(!netOnly(idx)) {
+      return idx + 1;
+    }
+  }
+  return sel;
 }
 #endif
 
