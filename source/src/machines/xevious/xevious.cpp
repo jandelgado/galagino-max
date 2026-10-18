@@ -10,8 +10,6 @@ xevious::xevious()
     xevious_rom_cpu1(xevious_rom_cpu1_blob),
     xevious_rom_cpu2(xevious_rom_cpu2_blob),
     xevious_rom_cpu3(xevious_rom_cpu3_blob),
-    xevious_sample_boom(xevious_sample_boom_blob),
-    xevious_sample_boom2(xevious_sample_boom2_blob),
     xevious_sprites(xevious_sprites_blob) { }
 
 // ============================================================================
@@ -256,6 +254,7 @@ void xevious::wrZ80(unsigned short Addr, unsigned char Value) {
       namco_cnt = 0;
       xfer_busy = 0;     // 06xx idle (evita "busy" bloccato dopo un reset)
       coincredMode = 0;  // contatore argomenti comando coinage 51xx
+      n54.hold(sub_cpu_reset);
       if (sub_cpu_reset) {
         // BUG FIX: run_frame() puo' ancora avere StepZ80(&cpu[0]) da eseguire
         // per la stessa iterazione 'i' quando questa scrittura arriva da CPU1
@@ -288,9 +287,6 @@ void xevious::wrZ80(unsigned short Addr, unsigned char Value) {
     xfer_busy = (Value & 0xe0) ? 1 : 0;
     nmi_cnt = 0;   // riparte il timing del burst NMI a ogni nuovo comando (#21)
     namco_busy = 5000;
-    n54_skip = 0;  // ogni control-write apre un nuovo pacchetto 06xx: il
-                   // prossimo byte dati per il 54xx e' un comando, non un
-                   // parametro residuo (vedi parser cs_ctrl==0x68 sotto)
     return;
   }
 
@@ -313,25 +309,9 @@ void xevious::wrZ80(unsigned short Addr, unsigned char Value) {
       namco_cnt++;              // conta il byte per far scadere il "busy" 06xx
       return;
     }
-    if (cs_ctrl == 0x68) {      // 54xx: generatore di rumore (esplosioni).
-      // Protocollo reale (namco54.cpp MAME): comando a nibble alto —
-      // 1x/2x/5x = play suono tipo A/B/C, 3x/4x = set parametri A/B
-      // (seguono 4 byte), 6x = set parametri C (seguono 5 byte), 7x =
-      // volume C, 0x/8x-Fx = nop. Xevious manda in tutto 3 pacchetti
-      // (template in ROM CPU1): 0x15ba/0x28b9 = "30 <4 param> 10 10"
-      // (play tipo A, esplosioni nave/grandi) e 0x1a36 = "40 40 40 01 ff
-      // 20 20" (play tipo B) inviato dal loop oggetti-a-terra 0x1a00 —
-      // UNO PER BERSAGLIO distrutto, quindi anche a raffica ravvicinata.
+    if (cs_ctrl == 0x68) {      // 54xx: explosions, see namco54.h
       namco_cnt++;
-      if (n54_skip) { n54_skip--; return; }   // byte parametro, non comando
-      switch (Value >> 4) {
-        case 1: trigger_sound_explosion(1); break;   // play A -> explo2 (nave)
-        case 2: trigger_sound_explosion(0); break;   // play B -> explo1 (a terra)
-        case 3:
-        case 4: n54_skip = 4; break;
-        case 6: n54_skip = 5; break;
-        default: break;   // 0x, 5x (tipo C mai parametrizzato qui), 7x, 8x-Fx
-      }
+      n54.write(Value, cs_ctrl);
       return;
     }
     if (cs_ctrl & 1) {          // 51xx selezionato: interpreta i comandi 0-7
@@ -660,28 +640,6 @@ void xevious::render_row(short row) {
       blit_sprite(row, s);
 
   blit_tilemap_row(row, false);   // testo, trasparente (pen0)
-}
-
-// ============================================================================
-// Suono — WSG 3 voci gia' gestito genericamente da audio.cpp
-// (namco_render_buffer(), hasNamcoAudio()). Esplosioni: campioni PCM
-// (explo1/explo2.wav, gli stessi che MAME usa per il bootleg Battles privo
-// del 54xx), innescati dai comandi "play" reali del 54xx decodificati in
-// wrZ80 (cs_ctrl==0x68). Come in Battles (noise_sound_w, xevious_m.cpp:
-// riparte solo quando il rumore precedente e' spento) un'esplosione in
-// corso NON viene fatta ripartire: i bersagli a terra esplodono a raffica
-// (un pacchetto 54xx per oggetto, e ogni pacchetto contiene DUE play) e
-// riavviare il campione a ogni play produce solo gracchi. L'esplosione
-// nave (tipo A, rara) ha priorita' e puo' interrompere quella a terra.
-// ============================================================================
-void xevious::trigger_sound_explosion(unsigned char ship) {
-  if (snd_boom.active() && (snd_boom_ship || !ship)) return;   // gia' in corso
-  snd_boom_ship = ship;
-  if (ship) {
-    snd_boom.start(xevious_sample_boom2.data(), xevious_sample_boom2.size());
-  } else {
-    snd_boom.start(xevious_sample_boom.data(), xevious_sample_boom.size());
-  }
 }
 
 const signed char *xevious::waveRom(unsigned char value) {

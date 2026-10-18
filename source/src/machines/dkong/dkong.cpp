@@ -11,8 +11,6 @@
 #include "dkong_sample_jump.h"
 #include "dkong_sample_stomp.h"
 #include "dkong_sample_fall.h"
-#include "dkong_sample_roar.h"
-#include "dkong_sample_snapjaw.h"
 #include "../../emulation/spriteflip.h"
 
 dkong::dkong()
@@ -204,11 +202,9 @@ void dkong::run_frame(void) {
 void dkong::trigger_sound(char snd) {
   static const FlashAsset<unsigned char, PLAIN> *const samples[] = {
     &dkong_sample_walk0_blob, &dkong_sample_walk1_blob, &dkong_sample_walk2_blob,
-    &dkong_sample_jump_blob, &dkong_sample_stomp_blob, &dkong_sample_roar_blob,
-    &dkong_sample_fall_blob, &dkong_sample_snapjaw_blob
+    &dkong_sample_jump_blob, &dkong_sample_stomp_blob, &dkong_sample_fall_blob
   };
   const FlashAsset<unsigned char, PLAIN> *sample;
-  char voice = snd;
 
   switch (snd) {
     case 0:
@@ -217,12 +213,10 @@ void dkong::trigger_sound(char snd) {
       break;
     case 1: sample = samples[3]; break;  // jump
     case 2: sample = samples[4]; break;  // stomp
-    case 3: sample = samples[5]; break;  // roar
-    case 4: sample = samples[6]; break;  // fall
-    case 6: sample = samples[7]; voice = 5; break;  // snapjaw
+    case 4: sample = samples[5]; break;  // fall
     default: return;
   }
-  dkong_sample[voice].start(sample->data, sample->count);
+  dkong_sample[snd].start(sample->data, sample->count);
 }
 
 void dkong::prepare_frame(void) {

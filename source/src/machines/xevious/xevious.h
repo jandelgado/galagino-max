@@ -12,12 +12,10 @@
 #include "xevious_cmap_bg.h"
 #include "xevious_cmap_sprites.h"
 #include "xevious_wavetable.h"
-#include "xevious_sample_boom.h"
-#include "xevious_sample_boom2.h"
 #include "xevious_dipswitches.h"
 #include "xevious_logo.h"
 #include "../machineBase.h"
-#include "../../emulation/ima_adpcm.h"
+#include "../../emulation/namco54.h"
 #include "../../emulation/seqlock.h"
 
 // ============================================================
@@ -79,8 +77,6 @@ protected:
   Asset<unsigned char, COMPRESSED> xevious_rom_cpu1;
   Asset<unsigned char, COMPRESSED> xevious_rom_cpu2;
   Asset<unsigned char, COMPRESSED> xevious_rom_cpu3;
-  Asset<unsigned char, PLAIN> xevious_sample_boom;
-  Asset<unsigned char, PLAIN> xevious_sample_boom2;
   Asset<uint32_t[32], COMPRESSED> xevious_sprites;
 public:
   xevious();
@@ -100,9 +96,8 @@ public:
   static const Logo &logo(void);
   bool hasNamcoAudio() override { return true; }
 
-  // explosions: IMA-ADPCM samples, see trigger_sound_explosion()
-  ima_adpcm::Voice snd_boom;
-  unsigned char snd_boom_ship = 0;   // 1 = sta suonando explo2 (nave/tipo A)
+  // explosions: emulated 54xx, read by the audio core
+  Namco54 n54;
 
 protected:
   void blit_tile(short row, char col) override { }   // non usato: vedi blit_tilemap_row
@@ -110,8 +105,6 @@ protected:
   void blit_tilemap_row(short row, bool bg);
 
 private:
-  void trigger_sound_explosion(unsigned char ship);
-  unsigned char n54_skip = 0;   // byte parametro 54xx ancora da consumare
 
   // Cache DRAM lazy (bring-up #27, ricetta mappy): al primo start() ROM cpu,
   // planet-map e gfx tile/colormap vengono copiati in DRAM interna (~58KB);

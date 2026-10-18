@@ -28,26 +28,27 @@ OUT_DIR = os.path.normpath(os.path.join("..", "..", "..", "source", "src", "mach
 # zaxxon_sample_names): 12 wav files, named by MAME's sample index. Same
 # source as the Battles/Xevious explosion samples (mamewavs), here the full
 # board set incl. missiles/laser/alarms/engine noise.
+# Stored rate per sample, from the share of energy above 4 / 6 kHz
+# (COMPRESSION.md "Lower rates for the 24 kHz sets"): explosions and noise
+# loops carry nothing above 4 kHz -> 8 kHz; cannon, shot, homing missile
+# and laser -> 12 kHz; the alarms keep 24 kHz.
 AUDIO_SAMPLES = [
-    ("00.wav", "battleship",       "Battleship (end-of-level boss), looped"),
-    ("01.wav", "laser",            "Laser / force field, looped"),
-    ("02.wav", "missile_base",     "Base missile, one-shot"),
-    ("03.wav", "missile_homing",   "Homing missile, looped"),
-    ("04.wav", "noise_asteroid",   "Asteroid field background noise, looped"),
-    ("05.wav", "noise_intro",      "Initial background noise, looped"),
-    ("08.wav", "cannon",           "Ship cannon fire, one-shot"),
-    ("10.wav", "explosion_ship",   "Player ship explosion, one-shot"),
-    ("11.wav", "explosion_enemy",  "Enemy explosion, one-shot"),
-    ("20.wav", "alarm_fuel",       "Low fuel alarm, one-shot"),
-    ("21.wav", "alarm_lock",       "Target lock alarm, one-shot"),
-    ("23.wav", "shot",             "Enemy shot, one-shot"),
+    ("00.wav", "battleship",       "Battleship (end-of-level boss), looped",  8000),
+    ("01.wav", "laser",            "Laser / force field, looped",             12000),
+    ("02.wav", "missile_base",     "Base missile, one-shot",                  8000),
+    ("03.wav", "missile_homing",   "Homing missile, looped",                  12000),
+    ("04.wav", "noise_asteroid",   "Asteroid field background noise, looped", 8000),
+    ("05.wav", "noise_intro",      "Initial background noise, looped",        8000),
+    ("08.wav", "cannon",           "Ship cannon fire, one-shot",              12000),
+    ("10.wav", "explosion_ship",   "Player ship explosion, one-shot",         8000),
+    ("11.wav", "explosion_enemy",  "Enemy explosion, one-shot",               8000),
+    ("20.wav", "alarm_fuel",       "Low fuel alarm, one-shot",                24000),
+    ("21.wav", "alarm_lock",       "Target lock alarm, one-shot",             24000),
+    ("23.wav", "shot",             "Enemy shot, one-shot",                    12000),
 ]
 OUTPUT_RATE = 24000  # Audio's fixed output rate (audio.cpp)
-# Stored sample rate. Default: output rate. Device test of half the flash:
-#   ZAXXON_SAMPLE_RATE=12000 ./convert.sh zaxxon
 # Audio holds each stored sample OUTPUT_RATE / rate output samples,
-# linearly interpolated (ZAXXON_SAMPLE_HOLD in zaxxon_sample_rate.h).
-AUDIO_SAMPLE_RATE = int(os.environ.get("ZAXXON_SAMPLE_RATE", OUTPUT_RATE))
+# linearly interpolated (zaxxon_sample_<name>_hold, Audio::zaxxon_render_buffer).
 
 ZAXXON_FILES = {
   "romset": {"name": "zaxxon.zip", "description": "Zaxxon (US rev D)"},
@@ -153,7 +154,7 @@ def low_pass_taps(cutoff, taps=63):
     h = 2 * cutoff * np.sinc(2 * cutoff * n) * np.hamming(taps)
     return h / h.sum()
 
-def resample_to_8bit(wav_file):
+def resample_to_8bit(wav_file, rate):
     import numpy as np
     w = wave.open(wav_file, "rb")
     nch, sw, fr, nframes = w.getnchannels(), w.getsampwidth(), w.getframerate(), w.getnframes()
@@ -164,12 +165,12 @@ def resample_to_8bit(wav_file):
         data = data.reshape(-1, nch).mean(axis=1)
 
     # below the output rate the stored rate's Nyquist cuts into the audio
-    # band: low pass first, else 6-22 kHz content folds into audible
-    # aliases. The default (24 kHz) output stays byte identical.
-    if AUDIO_SAMPLE_RATE < min(fr, OUTPUT_RATE):
-        data = np.convolve(data, low_pass_taps(0.45 * AUDIO_SAMPLE_RATE / fr), mode="same")
+    # band: low pass first, else higher content folds into audible
+    # aliases. 24 kHz output stays byte identical.
+    if rate < min(fr, OUTPUT_RATE):
+        data = np.convolve(data, low_pass_taps(0.45 * rate / fr), mode="same")
 
-    n_out = int(len(data) * AUDIO_SAMPLE_RATE / fr)
+    n_out = int(len(data) * rate / fr)
     x_old = np.linspace(0, 1, len(data), endpoint=False)
     x_new = np.linspace(0, 1, n_out, endpoint=False)
     resampled = np.interp(x_new, x_old, data)
@@ -187,32 +188,29 @@ def write_samples(audio_set):
     # romconv/pyconv/adpcm.py), decoded inline per-sample by
     # Audio::zaxxon_render_buffer (ima_adpcm_decode in audio.cpp) -- halves
     # flash usage vs raw 8-bit PCM with no heap/RAM cost.
-    if OUTPUT_RATE % AUDIO_SAMPLE_RATE:
-        fatal(f"ZAXXON_SAMPLE_RATE {AUDIO_SAMPLE_RATE} does not divide {OUTPUT_RATE}")
-    with open(os.path.join(OUT_DIR, "zaxxon_sample_rate.h"), "w") as f:
-        print(f"// Zaxxon samples are stored at {AUDIO_SAMPLE_RATE} Hz: each one is held", file=f)
-        print(f"// for this many {OUTPUT_RATE} Hz output samples.", file=f)
-        print(f"#define ZAXXON_SAMPLE_HOLD {OUTPUT_RATE // AUDIO_SAMPLE_RATE}", file=f)
-
     total_pcm = total_encoded = 0
-    for wav_name, suffix, comment in AUDIO_SAMPLES:
+    for wav_name, suffix, comment, rate in AUDIO_SAMPLES:
+        if OUTPUT_RATE % rate:
+            fatal(f"{suffix}: rate {rate} does not divide {OUTPUT_RATE}")
         sym = f"zaxxon_sample_{suffix}"
-        samples8 = resample_to_8bit(load_wav_from_zip(audio_set, wav_name))
+        samples8 = resample_to_8bit(load_wav_from_zip(audio_set, wav_name), rate)
         encoded = ima_encode(samples8)
         flat = [int(b) for b in encoded]
         with open(os.path.join(OUT_DIR, f"{sym}.h"), "w") as f:
             print(f"// {comment} (zaxxon-audio.zip:{wav_name}), resampled at", file=f)
-            print(f"// {AUDIO_SAMPLE_RATE} Hz and encoded as 4-bit IMA-ADPCM: a 2-byte", file=f)
+            print(f"// {rate} Hz and encoded as 4-bit IMA-ADPCM: a 2-byte", file=f)
             print("// little-endian initial predictor followed by one nibble per", file=f)
             print("// remaining sample. PLAIN/flash-resident: see ARENA BUDGET note in", file=f)
             print("// zaxxon_rom_main.h -- up to 12 of these play concurrently and Arena", file=f)
             print("// has no headroom left for heap decompression; the Asset count", file=f)
             print("// below is the decoded sample count, not the encoded byte count.", file=f)
-            print(f"// {len(samples8)} samples ({len(samples8)/AUDIO_SAMPLE_RATE:.3f}s)", file=f)
+            print(f"// {len(samples8)} samples ({len(samples8)/rate:.3f}s)", file=f)
             emit_plain(f, sym, "unsigned char", "", len(samples8), _plain_hex_block(flat))
+            print(f"// output samples per stored sample ({OUTPUT_RATE} / {rate} Hz)", file=f)
+            print(f"static const uint8_t {sym}_hold = {OUTPUT_RATE // rate};", file=f)
         total_pcm += len(samples8)
         total_encoded += len(encoded)
-        print(f"{sym}.h: {len(samples8)} samples ({len(samples8)/AUDIO_SAMPLE_RATE:.3f}s @{AUDIO_SAMPLE_RATE}Hz) "
+        print(f"{sym}.h: {len(samples8)} samples ({len(samples8)/rate:.3f}s @{rate}Hz) "
               f"{len(samples8)} -> {len(encoded)} bytes PLAIN")
     print(f"zaxxon samples total: {total_pcm} -> {total_encoded} bytes "
           f"({100.0 * (1.0 - total_encoded / total_pcm):.1f}% smaller)")
