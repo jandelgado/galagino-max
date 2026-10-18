@@ -105,7 +105,8 @@ enum {
   MCH_CCASTLES,
   MCH_BZONE,
   MCH_STARWARS,
-  MCH_MISSILE
+  MCH_MISSILE,
+  MCH_MPATROL
 };
 
 // one inst at 3Mhz ~ 500k inst/sec = 500000/60 inst per frame

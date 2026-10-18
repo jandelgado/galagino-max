@@ -1,0 +1,6 @@
+mpatrol_rom.h
+mpatrol_snd_rom.h
+mpatrol_tilemap.h
+mpatrol_spritemap.h
+mpatrol_bg.h
+mpatrol_cmap.h
