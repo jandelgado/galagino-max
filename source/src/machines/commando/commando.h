@@ -76,7 +76,7 @@ private:
   static const uint16_t BG_BYTES = 0x800; // code + attr
   static const uint16_t TUNE_RAM_SIZE = 0x1000; // $5000-$5FFF, see test_sidplayer
   // Arena::alloc besides planned assets, read by romconv (arena_plan.py):
-  // SID tune RAM (start())
+  // SID tune RAM (ctor)
   static constexpr uint32_t ARENA_EXTRA[] = { 4096 };
   static_assert(ARENA_EXTRA[0] == TUNE_RAM_SIZE, "update ARENA_EXTRA");
   static_assert(arenaExtrasKey(ARENA_EXTRA, sizeof(ARENA_EXTRA) / sizeof(uint32_t), false) ==

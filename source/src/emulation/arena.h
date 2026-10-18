@@ -36,10 +36,9 @@ public:
     // GAME_BLOCK_MIN: the size both blocks had when they were sized for 2
     // RGB565 menu logos each. Games bin-pack their assets against it; the
     // menu now needs 43136 B (4 indexed logos) plus the drum table, in A.
-    // ROM_SLACK: extra space bombjack, 1942 and starforce/baluba need to
-    // bin-pack their assets, found by search over real asset sizes. Not
-    // every unpack order fits bombjack and 1942, so they unpack eagerly,
-    // largest first.
+    // ROM_SLACK: extra space bombjack, 1942 and starforce/baluba needed to
+    // bin-pack their assets, found by search over real asset sizes. Today
+    // romconv plans their split and blocks per layout (arena_plan.py).
     static constexpr uint32_t GAME_BLOCK_MIN = 86016;
     static constexpr uint32_t ROM_SLACK = 4984; // headroom for bombjack/1942 asset shapes
     // Sizes live in arena_layout.h, shared with romconv.

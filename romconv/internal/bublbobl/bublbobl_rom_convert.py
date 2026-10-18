@@ -230,6 +230,8 @@ def write_samples(f, pcm8):
             emit_plain(f, f"bublbobl_fx_{name}", "unsigned char", "", len(enc), body(list(enc), "0x%02X"),
                        plan=False)
     f.write(f"#define BUBLBOBL_EFFECT_COUNT {len(EFFECTS)}\n")
+    # bublbobl.cpp checks ARENA_EXTRA holds one decode buffer per packed effect
+    f.write(f"#define BUBLBOBL_PACKED_EFFECT_COUNT {sum(n in PACKED_EFFECTS for n in EFFECTS.values())}\n")
     f.write("// effect index -> ADPCM stream in flash (plain) or packed for the Arena\n")
     f.write("struct BublboblFxBlob {\n")
     f.write("  const FlashAsset<unsigned char, PLAIN> *plain;       // nullptr: packed\n")

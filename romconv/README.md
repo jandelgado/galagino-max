@@ -46,6 +46,7 @@ Game names match the `internal/pyconv/conv_<name>.py` scripts.
 `convert.py`/`.sh`/`.bat` are the only scripts meant to be run
 directly. Everything else (`internal/`) is implementation detail:
 per-game converters, shared helpers, and unpacked ROM working data.
+
 ## Asset split per Arena layout
 
 Machines unpack COMPRESSED assets into the Arena, two RAM blocks whose

@@ -15,6 +15,9 @@ static_assert(bublbobl::ARENA_EXTRA[0] == bublbobl::TUNE_RAM_SIZE &&
               bublbobl::ARENA_EXTRA[3] == bublbobl_fx_fx1e_blob.count &&
               bublbobl::ARENA_EXTRA[4] == bublbobl_fx_fx25_blob.count &&
               bublbobl::ARENA_EXTRA[5] == bublbobl_fx_coin_blob.count, "update bublbobl::ARENA_EXTRA");
+// tune RAM + fx_samples + one buffer per packed effect: a new packed effect needs an entry
+static_assert(sizeof(bublbobl::ARENA_EXTRA) / sizeof(uint32_t) == 2 + BUBLBOBL_PACKED_EFFECT_COUNT,
+              "update bublbobl::ARENA_EXTRA");
 static_assert(arenaExtrasKey(bublbobl::ARENA_EXTRA, sizeof(bublbobl::ARENA_EXTRA) / sizeof(uint32_t), false) ==
               bublbobl_arena_extras_key, "ARENA_EXTRA changed: rerun romconv");
 #include "bublbobl_sound_map.h"
@@ -30,8 +33,7 @@ bublbobl::bublbobl() :
     bublbobl_tile_map(bublbobl_tile_map_blob),
     bublbobl_prom(bublbobl_prom_blob),
     bublbobl_sid(bublbobl_sid_blob) {
-  // largest first: bank -> Arena block A, main + sub -> block B,
-  // tile_map -> rest of block A
+  // eager: blocks come from romconv (bublbobl_arena_plan.h), any order fits
   bank_rom = bublbobl_bank_rom.data();
   main_rom = bublbobl_main_rom.data();
   sub_rom = bublbobl_sub_rom.data();
@@ -43,7 +45,7 @@ bublbobl::bublbobl() :
     first_new[t] = first_new_column(prom, t);
   }
 
-  // after the ROMs: the tune RAM fits next to main + sub in block B
+  // tune RAM and effects: ARENA_EXTRA, first fit below the reservation
   tune_ok = psidParse(bublbobl_sid.data(), bublbobl_sid.size(), &tune);
   if (tune_ok) {
     tune_ok = player.load(tune, Arena::alloc<uint8_t>(TUNE_RAM_SIZE), TUNE_RAM_SIZE);
@@ -52,7 +54,7 @@ bublbobl::bublbobl() :
     printf("bublbobl: Bubble_Bobble.sid is not a supported PSID\n");
   }
 
-  // packed effects to the rest of block B now: the audio core plays them
+  // packed effects unpack now: the audio core plays them
   fx_samples = Arena::alloc<bublbobl_sound::FxSample>(BUBLBOBL_EFFECT_COUNT);
   for (uint8_t e = 0; e < BUBLBOBL_EFFECT_COUNT; e++) {
     const BublboblFxBlob &b = bublbobl_fx_blobs[e];

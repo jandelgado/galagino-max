@@ -310,7 +310,9 @@ static bool heapProbeStep() {
   static uint32_t probeStart = 0;
 
   if (!currentMachine) {
-    if (probeMagic == PROBE_MAGIC && esp_reset_reason() == ESP_RST_PANIC) {
+    // index checked: RTC memory survives flashing a firmware with fewer games
+    if (probeMagic == PROBE_MAGIC && esp_reset_reason() == ESP_RST_PANIC &&
+        probeIndex >= 0 && probeIndex < machinesCount) {
       printf("PROBE game=%d type=%d FAIL\n", probeIndex, machines[probeIndex].type);
     }
     else {
@@ -330,14 +332,14 @@ static bool heapProbeStep() {
            heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
            heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
   }
+  // a panic while leaving the game still counts for it
+  switchTo(SHOW_MENU);  // menu dtor resets the Arena
   probeIndex++;
   if (probeIndex == machinesCount) {
     heapProbeDump("end");
     probeMagic = 0;
     probeIndex = 0;
   }
-
-  switchTo(SHOW_MENU);  // menu dtor resets the Arena
   switchTo(probeIndex);
   probeStart = millis();
   return true;
