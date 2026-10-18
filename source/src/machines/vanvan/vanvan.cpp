@@ -253,7 +253,7 @@ void vanvan::render_row(short row) {
   }
 }
 
-Asset<unsigned short, COMPRESSED> &vanvan::logo(void) {
+const Logo &vanvan::logo(void) {
   return vanvan_logo;
 }
 

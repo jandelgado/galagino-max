@@ -479,6 +479,6 @@ void burgertime::render_row(short row) {
   }
 }
 
-Asset<unsigned short, COMPRESSED> &burgertime::logo(void) {
+const Logo &burgertime::logo(void) {
   return burgertime_logo;
 }

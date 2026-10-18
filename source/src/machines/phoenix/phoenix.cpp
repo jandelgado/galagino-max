@@ -40,7 +40,7 @@ void phoenix::reset() {
   vblank_active = false;
 }
 
-Asset<unsigned short, COMPRESSED> &phoenix::logo(void) {
+const Logo &phoenix::logo(void) {
   return phoenix_logo;
 }
 

@@ -20,7 +20,7 @@ public:
   void reset() override;
   void run_frame() override;
   void render_row(short row) override;
-  static Asset<unsigned short, COMPRESSED> &logo() { return fantasy_logo; }
+  static const Logo &logo() { return fantasy_logo; }
   unsigned char vanguardSoundRom(unsigned short addr) override;
   bool vanguardMusic0Muted() override { return music_muted[0]; }
   bool vanguardMusic1Muted() override { return music_muted[1]; }

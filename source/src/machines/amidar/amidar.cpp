@@ -151,7 +151,7 @@ void amidar::blit_sprite(short row, unsigned char s) {
   }
 }
 
-Asset<unsigned short, COMPRESSED> &amidar::logo(void) {
+const Logo &amidar::logo(void) {
   return amidar_logo;
 }
 

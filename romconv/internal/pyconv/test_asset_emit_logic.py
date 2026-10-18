@@ -48,10 +48,4 @@ assert "// test_arr: 4 -> " in out, "missing size/ratio comment"
 assert "bytes" in out and "%" in out
 print("4. emit_compressed includes size/ratio comment: OK")
 
-# 5. static_object (menu logos) also emits a static Asset from the blob
-f = io.StringIO()
-emit_compressed(f, "_test_logo", "unsigned short", "", 2, [1, 2], static_object=True)
-assert "static Asset<unsigned short, COMPRESSED> _test_logo(_test_logo_blob);" in f.getvalue()
-print("5. emit_compressed static_object: OK")
-
 print("\nALL ASSET_EMIT TESTS PASSED")

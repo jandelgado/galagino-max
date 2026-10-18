@@ -606,7 +606,7 @@ void pbaction::render_row(short row) {
     blit_tile_fg(row, col);
 }
 
-Asset<unsigned short, COMPRESSED> &pbaction::logo(void) {
+const Logo &pbaction::logo(void) {
   return pbaction_logo;
 }
 

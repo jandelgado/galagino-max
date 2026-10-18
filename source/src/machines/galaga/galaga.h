@@ -45,7 +45,7 @@ public:
   void render_row(short row) override;
 
   const signed char *waveRom(unsigned char value) override;
-  static Asset<unsigned short, COMPRESSED> &logo(void);
+  static const Logo &logo(void);
   bool hasNamcoAudio() override { return true; }
 
   // the ship explosion sound is stored as a digi sample.

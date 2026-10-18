@@ -92,7 +92,7 @@ public:
   void prepare_frame(void)  override;
   void render_row(short row) override;
 
-  static Asset<unsigned short, COMPRESSED> &logo(void) { return roadfighter_logo; }
+  static const Logo &logo(void) { return roadfighter_logo; }
 
   int roadf_dac_sample() const { return dac_sample; }
 

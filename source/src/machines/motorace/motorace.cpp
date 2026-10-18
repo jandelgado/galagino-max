@@ -363,7 +363,7 @@ void motorace::render_row(short strip_r) {
   }
 }
 
-Asset<unsigned short, COMPRESSED> &motorace::logo(void) {
+const Logo &motorace::logo(void) {
   return motorace_logo;
 }
 

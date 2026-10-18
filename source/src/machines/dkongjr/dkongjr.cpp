@@ -288,6 +288,6 @@ void dkongjr::blit_sprite(short row, unsigned char s) {
   }
 }
 
-Asset<unsigned short, COMPRESSED> &dkongjr::logo(void) {
+const Logo &dkongjr::logo(void) {
   return dkongjr_logo;
 }

@@ -365,7 +365,7 @@ void tutankhm::render_row(short row) {
     }
 }
 
-Asset<unsigned short, COMPRESSED> &tutankhm::logo(void) {
+const Logo &tutankhm::logo(void) {
     return tutankhm_logo;
 }
 

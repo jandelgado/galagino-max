@@ -7,6 +7,7 @@
 #include "../cpus/mos6502/M6502.h"
 #include "../emulation/input.h"
 #include "../emulation/asset.h"
+#include "../emulation/logo.h"
 
 #ifdef LED_PIN
 #include <FastLED.h>
@@ -245,7 +246,7 @@ protected:
 // Per-title data for the menu. No instance exists until create().
 struct machineInfo {
   machineBase *(*create)();
-  Asset<unsigned short, COMPRESSED> &(*logo)();
+  const Logo &(*logo)();
 #ifdef LED_PIN
   void (*menuLeds)(CRGB *leds);
 #endif

@@ -411,7 +411,7 @@ const uint32_t *frogger::spriteRom(unsigned char flags, unsigned char code) {
   return frogger_sprites[flags][code];
 }
 
-Asset<unsigned short, COMPRESSED> &frogger::logo(void) {
+const Logo &frogger::logo(void) {
   return frogger_logo;
 }
 

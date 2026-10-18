@@ -25,7 +25,7 @@ public:
   void render_row(short row) override;
   const int renderWidth() override { return 240; }
   const int renderBuffer() override { return 240 * 2 * 8; }
-  static Asset<unsigned short, COMPRESSED> &logo() { return centipede_logo; }
+  static const Logo &logo() { return centipede_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;

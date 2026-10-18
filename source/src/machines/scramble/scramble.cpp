@@ -553,7 +553,7 @@ inline unsigned short scramble::rgb_to_swapped565(unsigned char r, unsigned char
   return (c >> 8) | (c << 8);  // byte-swap
 }
 
-Asset<unsigned short, COMPRESSED> &scramble::logo(void) {
+const Logo &scramble::logo(void) {
   return scramble_logo;
 }
 

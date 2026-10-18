@@ -423,7 +423,7 @@ const signed char * digdug::waveRom(unsigned char value) {
   return digdug_wavetable[value]; 
 }
 
-Asset<unsigned short, COMPRESSED> &digdug::logo(void) {
+const Logo &digdug::logo(void) {
   return digdug_logo;
 }
 

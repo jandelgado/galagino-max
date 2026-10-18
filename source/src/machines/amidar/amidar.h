@@ -34,7 +34,7 @@ public:
   unsigned char opZ80(unsigned short Addr) override;
   unsigned char rdZ80(unsigned short Addr) override;
 
-  static Asset<unsigned short, COMPRESSED> &logo(void);
+  static const Logo &logo(void);
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

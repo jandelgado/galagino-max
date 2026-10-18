@@ -34,7 +34,7 @@ public:
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
   unsigned char opZ80(unsigned short Addr) override;
-  static Asset<unsigned short, COMPRESSED> &logo(void);
+  static const Logo &logo(void);
 
 protected:
   const unsigned short *tileRom(unsigned short addr) override;

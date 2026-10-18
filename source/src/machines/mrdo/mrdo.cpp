@@ -424,7 +424,7 @@ void mrdo::render_row(short row) {
   }
 }
 
-Asset<unsigned short, COMPRESSED> &mrdo::logo(void) {
+const Logo &mrdo::logo(void) {
   return mrdo_logo;
 }
 

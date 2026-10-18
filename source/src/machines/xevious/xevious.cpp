@@ -690,6 +690,6 @@ const signed char *xevious::waveRom(unsigned char value) {
   return xevious_wavetable[value];
 }
 
-Asset<unsigned short, COMPRESSED> &xevious::logo(void) {
+const Logo &xevious::logo(void) {
   return xevious_logo;
 }

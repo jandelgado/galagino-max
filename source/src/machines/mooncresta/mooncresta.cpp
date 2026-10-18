@@ -457,7 +457,7 @@ inline unsigned short mooncresta::rgb_to_swapped565(unsigned char r, unsigned ch
   return (c >> 8) | (c << 8);  // byte-swap
 }
 
-Asset<unsigned short, COMPRESSED> &mooncresta::logo(void) {
+const Logo &mooncresta::logo(void) {
   return mooncresta_logo;
 }
 

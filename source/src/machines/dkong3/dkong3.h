@@ -71,7 +71,7 @@ public:
     void prepare_frame(void) override;
     void run_frame(void) override;
     void render_row(short row) override;
-    static Asset<unsigned short, COMPRESSED> &logo(void);
+    static const Logo &logo(void);
 
     // Public: accessed by audio.cpp
     static const int DK3_SAMPLES = 1024;

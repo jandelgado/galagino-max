@@ -74,7 +74,7 @@ public:
       : Asset(blob.packed, blob.packedLen, blob.count) { }
 
     // No release(): the cache dies with its machine, Arena::reset() frees
-    // the memory. Menu logos are statics and use decodeInto().
+    // the memory. Menu logos (logo.h) use decodeInto().
 
     Asset(const Asset &) = delete;
     Asset &operator=(const Asset &) = delete;

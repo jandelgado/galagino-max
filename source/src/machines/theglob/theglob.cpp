@@ -164,7 +164,7 @@ const uint32_t *theglob::spriteRom(unsigned char flags, unsigned char code) {
   return theglob_sprites[flags][code];
 }
 
-Asset<unsigned short, COMPRESSED> &theglob::logo(void) {
+const Logo &theglob::logo(void) {
   return theglob_logo;
 }
 

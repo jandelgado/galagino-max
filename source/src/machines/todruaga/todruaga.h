@@ -71,7 +71,7 @@ public:
     bool namcoSoundEnabled() override { return wsg_enable != 0; }
     const signed char *waveRom(unsigned char value) override { return todruaga_wavetable[value & 7]; }
 
-    static Asset<unsigned short, COMPRESSED> &logo(void) { return todruaga_logo; }
+    static const Logo &logo(void) { return todruaga_logo; }
 
 protected:
     void blit_tile(unsigned short idx, short x, char prio);

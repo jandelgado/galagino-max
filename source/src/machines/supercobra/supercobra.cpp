@@ -495,7 +495,7 @@ void supercobra::render_row(short row) {
 
 }
 
-Asset<unsigned short, COMPRESSED> &supercobra::logo(void) {
+const Logo &supercobra::logo(void) {
   return supercobra_logo;
 }
 

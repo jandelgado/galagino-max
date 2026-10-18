@@ -582,7 +582,7 @@ void gyruss::render_row(short row) {
 // Logo
 // ============================================================
 
-Asset<unsigned short, COMPRESSED> &gyruss::logo(void) {
+const Logo &gyruss::logo(void) {
   return gyruss_logo;
 }
 

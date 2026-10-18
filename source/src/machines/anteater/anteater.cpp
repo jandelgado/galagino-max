@@ -414,7 +414,7 @@ const uint32_t *anteater::spriteRom(unsigned char flags, unsigned char code) {
   return anteater_sprites[flags][code];
 }
 
-Asset<unsigned short, COMPRESSED> &anteater::logo(void) {
+const Logo &anteater::logo(void) {
   return anteater_logo;
 }
 

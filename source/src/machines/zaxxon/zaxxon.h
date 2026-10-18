@@ -100,7 +100,7 @@ public:
   const int renderWidth() override { return 224; }
   const int renderBuffer() override { return 224 * 2 * 8; }
 
-  static Asset<unsigned short, COMPRESSED> &logo() { return zaxxon_logo; }
+  static const Logo &logo() { return zaxxon_logo; }
 
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;

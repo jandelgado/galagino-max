@@ -226,7 +226,7 @@ void spaceinvaders::render_row(short row) {
 }
 
 
-Asset<unsigned short, COMPRESSED> &spaceinvaders::logo(void) {
+const Logo &spaceinvaders::logo(void) {
   return spaceinvaders_logo;
 }
 
