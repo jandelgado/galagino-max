@@ -67,6 +67,7 @@ private:
   void asteroids_render_buffer(void);
   void llander_render_buffer(void);
   void commando_render_buffer(void);
+  void sid_render_buffer(void);
   void zaxxonStartChannel(int ch, ZaxxonPlayMode mode);
   void zaxxonStopChannel(int ch);
   void generateSinusWave(int32_t amplitude, short* buffer, uint16_t length);

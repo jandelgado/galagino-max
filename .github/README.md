@@ -162,5 +162,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Commando (commando.zip)        | ![Commando marquee](/logos/commando.png) | ![Commando screenshot](/images/commando.png) | L1-Fire START+R1=Grenade. C64 SID music: romszip/Commando.sid (HVSC) |
 | Lunar Lander (llander.zip)     | ![Lunar Lander marquee](/logos/llander.png) | ![Lunar Lander screenshot](/images/llander.png) | Rev 2. Up/down=thrust lever, FIRE=select mission/abort |
 | The Pit (thepit.zip)           | ![The Pit marquee](/logos/thepit.png) | ![The Pit screenshot](/images/thepit.png) |  |
+| Bubble Bobble (boblbobl.zip)   | ![Bubble Bobble marquee](/logos/bublbobl.png) | ![Bubble Bobble screenshot](/images/boblbobl.png) | Bootleg "Bobble Bobble", no MCU, needs parent bublbobl.zip. UP=jump. C64 SID music: romszip/Bubble_Bobble.sid (HVSC), effects recorded from MAME (samples/bublbobl_samples.zip) |
 
 ### ...
