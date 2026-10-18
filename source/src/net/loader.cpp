@@ -1,9 +1,12 @@
 #ifdef ASSETS_REMOTE
 #include <Arduino.h>
 #include <cstring>
+#include <new>
 #include <mbedtls/sha256.h>
 #include "../config.h"
-#include "asset_store.h"
+#include "../emulation/arena.h"
+#include "asset_cache.h"
+#include "bundle_unpack.h"
 #include "http_body.h"
 #include "loader.h"
 #include "partition_region.h"
@@ -14,17 +17,30 @@
 #endif
 
 static EspPartitionRegion region("assets");
-static AssetStore store(region);
+static AssetCache cache(region);
 
+// work buffers of the download: first fit puts the dictionary into block
+// B, the WiFi heap fills A. Wifi::down() resets the Arena, so no free.
+static void *arenaAlloc(ISzAllocPtr, size_t size) {
+  return Arena::alloc(size, 4);
+}
+static void arenaFree(ISzAllocPtr, void *) { }
+static const ISzAlloc lzmaAlloc = {arenaAlloc, arenaFree};
+
+// HTTP body -> SHA-256 (of the wire bundle) and unpacker -> cache
 struct Download {
   mbedtls_sha256_context sha;
-  AssetStore *store;
+  BundleUnpacker *unpacker;
 };
 
-static bool toStore(void *ctx, const uint8_t *data, uint32_t length) {
+static bool toUnpacker(void *ctx, const uint8_t *data, uint32_t length) {
   Download *d = (Download *)ctx;
   mbedtls_sha256_update_ret(&d->sha, data, length);
-  return d->store->append(data, length);
+  return d->unpacker->feed(data, length);
+}
+
+static bool toCache(void *, const uint8_t *data, uint32_t length) {
+  return cache.append(data, length);
 }
 
 static void hashHex(const BundleRef &ref, char *hex) {
@@ -34,9 +50,9 @@ static void hashHex(const BundleRef &ref, char *hex) {
 }
 
 static bool download(const BundleRef &ref, const char *hex) {
-  // erase before WiFi: 720 KB takes ~2 s, no reason to hold WiFi meanwhile
-  if (!store.begin(ref)) {
-    printf("loader: error bundle %u bytes does not fit the assets partition\n", ref.wireLength);
+  // erase before WiFi: up to 1 MB takes seconds, no reason to hold WiFi meanwhile
+  if (!cache.begin(ref)) {
+    printf("loader: error entry %u bytes does not fit the assets partition\n", ref.entryLength);
     return false;
   }
 
@@ -44,16 +60,23 @@ static bool download(const BundleRef &ref, const char *hex) {
   snprintf(url, sizeof(url), "%s/g/%s", GALAGINO_ASSETS_URL, hex);
   printf("loader: GET %s\n", url);
 
+  const bool connected = Wifi::up();
+  uint8_t *dict = Arena::alloc(BundleUnpacker::PLAIN_DICT_BYTES, 4);
+  void *slot = Arena::alloc(sizeof(BundleUnpacker), alignof(BundleUnpacker));
+  BundleUnpacker *unpacker = new (slot) BundleUnpacker(toCache, nullptr, dict, &lzmaAlloc);
+
   Download d;
-  d.store = &store;
+  d.unpacker = unpacker;
   mbedtls_sha256_init(&d.sha);
   mbedtls_sha256_starts_ret(&d.sha, 0);
-  HttpBody body(toStore, &d);
+  HttpBody body(toUnpacker, &d);
 
-  const bool connected = Wifi::up();
   const uint32_t t0 = millis();
   const bool got = connected && Wifi::get(url, body);
   const uint32_t ms = millis() - t0;
+  // the unpacker lives in the Arena: read it before WiFi down resets that
+  const bool unpacked = unpacker->finished() && unpacker->entryLength() == ref.entryLength;
+  const uint32_t arenaUsed = Arena::bytesUsed();
   Wifi::down();
 
   uint8_t digest[32];
@@ -68,14 +91,19 @@ static bool download(const BundleRef &ref, const char *hex) {
            ref.wireLength);
     return false;
   }
-  printf("loader: %u bytes in %u ms\n", body.received(), ms);
+  printf("loader: %u bytes in %u ms, entry %u bytes, Arena %u\n", body.received(), ms, ref.entryLength,
+         arenaUsed);
 
-  if (memcmp(digest, ref.hash, sizeof(ref.hash))) {
+  if (body.received() != ref.wireLength || memcmp(digest, ref.hash, sizeof(ref.hash))) {
     printf("loader: error SHA mismatch\n");
     return false;
   }
   printf("loader: SHA OK\n");
-  return store.commit();
+  if (!unpacked) {
+    printf("loader: error bundle does not unpack to %u bytes\n", ref.entryLength);
+    return false;
+  }
+  return cache.commit();
 }
 
 bool Loader::prepare(const BundleRef *ref) {
@@ -87,22 +115,25 @@ bool Loader::prepare(const BundleRef *ref) {
   char hex[17];
   hashHex(*ref, hex);
 #ifdef LOADER_FORCE_DOWNLOAD
-  const bool cached = false;  // test: every start downloads (leak cycles)
+  const uint8_t *entry = nullptr;  // test: every start downloads (leak cycles)
 #else
-  const bool cached = store.holds(*ref);
+  const uint8_t *entry = cache.find(*ref);
 #endif
-  if (cached) {
+  if (entry) {
     printf("loader: cached %s\n", hex);
   }
-  else if (!download(*ref, hex)) {
-    return false;
+  else if (download(*ref, hex)) {
+    entry = cache.find(*ref);
   }
 
-  const uint8_t *bundle = store.bundle();
-  if (!bundle || !Bundle::mount(bundle, ref->wireLength)) {
-    printf("loader: error bundle header invalid\n");
+  if (!entry || !Bundle::mount(entry, ref->entryLength)) {
+    printf("loader: error no valid entry for %s\n", hex);
     return false;
   }
   return true;
+}
+
+bool Loader::available(const BundleRef *ref) {
+  return !ref || cache.find(*ref);
 }
 #endif

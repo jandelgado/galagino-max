@@ -11,6 +11,7 @@
 #include "arena.h"
 #include "lzma/LzmaDec.h"
 #ifdef ASSETS_REMOTE
+#include "../catalog.h"     // BUILTIN_<DIR> of the generated asset headers
 #include "../net/bundle.h"
 #endif
 
