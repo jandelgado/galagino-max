@@ -17,7 +17,4 @@ run("internal/spriteconv.py", "-c", "theglob_sprites", "pacman", "./roms/glob.5f
 info("TheGlob Colormaps")
 run("internal/cmapconv.py", "theglob_colormap", "./roms/glob.7f", "0", "./roms/glob.4a", "../source/src/machines/theglob/theglob_cmap.h")
 
-info("TheGlob Audio")
-run("internal/audioconv.py", "theglob_wavetable", "./roms/82s126.1m", "../source/src/machines/theglob/theglob_wavetable.h")
-
 info("--- Success ---")

@@ -4,7 +4,7 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 # --- CONFIGURAZIONE ---
-INPUT_HEADER_FILE = "../../../source/src/machines/tileaddr.h"
+INPUT_HEADER_FILE = "../../../source/src/machines/tileaddr.cpp"
 OUTPUT_IMAGE_FILE = "tileaddr_map_visualization.png"
 
 # Dimensioni della griglia basate sulla tua tabella

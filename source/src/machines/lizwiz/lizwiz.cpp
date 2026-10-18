@@ -3,7 +3,6 @@
 #include "lizwiz_tilemap.h"
 #include "lizwiz_spritemap.h"
 #include "lizwiz_cmap.h"
-#include "lizwiz_wavetable.h"
 
 lizwiz::lizwiz()
   : lizwiz_rom(lizwiz_rom_blob),
@@ -111,10 +110,6 @@ const unsigned short *lizwiz::colorRom(unsigned short addr) {
 
 const uint32_t *lizwiz::spriteRom(unsigned char flags, unsigned char code) {
   return lizwiz_sprites[flags][code];
-}
-
-const signed char *lizwiz::waveRom(unsigned char value) {
-  return lizwiz_wavetable[value]; 
 }
 
 Asset<unsigned short, COMPRESSED> &lizwiz::logo(void) {

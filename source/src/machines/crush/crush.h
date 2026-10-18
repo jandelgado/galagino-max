@@ -24,7 +24,6 @@ public:
   unsigned char opZ80(unsigned short Addr) override;
 
   void run_frame(void) override;
-  const signed char *waveRom(unsigned char value) override;
   static Asset<unsigned short, COMPRESSED> &logo(void);
 
 #ifdef LED_PIN
