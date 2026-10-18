@@ -124,4 +124,9 @@ run("internal/pokey_poly.py")
 for game in games:
     run(f"internal/pyconv/conv_{game}.py")
 
+# mode 3 (ASSETS_REMOTE): gating macros, then one bundle per catalog game
+info("--------- Catalog and remote bundles ---------")
+run("internal/pyconv/catalog.py")
+run("internal/pyconv/bundles.py")
+
 info("--- Success ---")

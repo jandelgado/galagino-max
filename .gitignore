@@ -12,3 +12,6 @@ source/src/machines/*/*_arena_plan.h
 
 # romconv bundle sidecars (asset_emit.py)
 romconv/build/
+
+# romconv bundles.py: BundleRef per game (hash of the converted ROMs)
+source/src/machines/*/*_bundle.h

@@ -120,14 +120,14 @@ def _write_sidecar(rdir, name, ctype, inner_dims, count, mode, raw, packed):
     out = os.path.join(os.environ.get("ROMCONV_ASSET_DIR", ASSET_DIR), rdir)
     os.makedirs(out, exist_ok=True)
     meta = {"ctype": ctype, "inner": inner_dims, "count": count, "mode": mode}
-    files = {".json": json.dumps(meta).encode(), ".raw": raw}
-    if packed is not None:
-        files[".lz"] = packed
+    # .lz of PLAIN: full dictionary, only for the ratio report of bundles.py
+    files = {".json": json.dumps(meta).encode(), ".raw": raw,
+             ".lz": packed if packed is not None else lzma_compress(raw)}
     if mode != "COMPRESSED":
         files[".lz64"] = lzma_compress(raw, PLAIN_DICT_BYTES)
-    for ext in (".lz", ".lz64"):
-        if ext not in files and os.path.exists(os.path.join(out, name + ext)):
-            os.remove(os.path.join(out, name + ext))
+    lz64 = os.path.join(out, name + ".lz64")
+    if ".lz64" not in files and os.path.exists(lz64):
+        os.remove(lz64)
     for ext, data in files.items():
         with open(os.path.join(out, name + ext), "wb") as g:
             g.write(data)

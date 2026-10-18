@@ -3,7 +3,7 @@
 # carry a remote blob for ASSETS_REMOTE builds without the game built in, and
 # leave sidecar files for bundles.py.
 import json, lzma, os, re, tempfile
-from asset_emit import emit_compressed, emit_plain
+from asset_emit import emit_compressed, emit_plain, lzma_decompress
 from bundle import asset_id
 
 tmp = tempfile.mkdtemp()
@@ -46,7 +46,7 @@ meta = json.loads(sidecar("foo", "foo_x", ".json"))
 assert meta == {"ctype": "unsigned char", "inner": "", "count": 3, "mode": "PLAIN"}, meta
 assert sidecar("foo", "foo_x", ".raw") == b"\x01\x02\x03"
 assert lz64_decode(sidecar("foo", "foo_x", ".lz64")) == b"\x01\x02\x03"
-assert sidecar("foo", "foo_x", ".lz") is None
+assert lzma_decompress(sidecar("foo", "foo_x", ".lz")) == b"\x01\x02\x03"  # ratio report
 print("1. emit_plain remote form + sidecars: OK")
 
 # 2. COMPRESSED: remote blob carries the packed length; .lz == emitted array
