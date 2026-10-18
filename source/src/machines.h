@@ -252,6 +252,12 @@
 #ifdef ENABLE_MPATROL
   #include "machines/mpatrol/mpatrol.h"
 #endif
+#ifdef ENABLE_STARJACK
+  #include "machines/starjack/starjack.h"
+#endif
+#ifdef ENABLE_REGULUS
+  #include "machines/regulus/regulus.h"
+#endif
 
 // change machine order is possible here...
 machineInfo machines[] = {
@@ -702,6 +708,20 @@ machineInfo machines[] = {
     mpatrol::menuLeds,
 #endif
     MCH_MPATROL },
+#endif
+#ifdef ENABLE_STARJACK
+  { []() -> machineBase* { return new starjack(); }, starjack::logo,
+#ifdef LED_PIN
+    starjack::menuLeds,
+#endif
+    MCH_STARJACK },
+#endif
+#ifdef ENABLE_REGULUS
+  { []() -> machineBase* { return new regulus(); }, regulus::logo,
+#ifdef LED_PIN
+    regulus::menuLeds,
+#endif
+    MCH_REGULUS },
 #endif
 #ifdef ENABLE_COMMANDO
   { []() -> machineBase* { return new commando(); }, commando::logo,
