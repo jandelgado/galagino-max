@@ -5,7 +5,8 @@
 // Asset<PLAIN> in an ASSETS_REMOTE build: a blob without data resolves its
 // asset id in the mounted bundle, once, in the ctor.
 #define ASSETS_REMOTE
-#include "../../src/emulation/asset.h"
+#include "../../src/emulation/arena.cpp"
+#include "../../src/emulation/any_asset.h"
 #include "../../src/net/bundle.cpp"
 
 void setUp(void) {}
@@ -56,10 +57,21 @@ static void test_remote_blob_missing(void) {
   TEST_ASSERT_NULL(a.data());
 }
 
+// base classes fed by subclass blobs (system1, starforce) see remote blobs too
+static void test_any_asset_remote_blob_resolves(void) {
+  std::vector<uint8_t> b = oneEntry();
+  TEST_ASSERT_TRUE(Bundle::mount(b.data(), b.size()));
+  static constexpr FlashAsset<uint32_t[2], PLAIN> blob = {nullptr, 1, ID};
+  const AnyAsset<uint32_t[2]> a{AssetRef<uint32_t[2]>(blob)};
+  TEST_ASSERT_EQUAL_PTR(b.data() + 28, a.data());
+  TEST_ASSERT_EQUAL_UINT32(1, a.size());
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_builtin_blob_unchanged);
   RUN_TEST(test_remote_blob_resolves);
   RUN_TEST(test_remote_blob_missing);
+  RUN_TEST(test_any_asset_remote_blob_resolves);
   return UNITY_END();
 }

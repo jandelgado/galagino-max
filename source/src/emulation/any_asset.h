@@ -20,19 +20,18 @@ template <typename T> struct AssetRef {
 
 template <typename T> class AnyAsset {
 public:
+  // Asset<PLAIN> resolves remote blobs (ASSETS_REMOTE) in its ctor
   explicit AnyAsset(const AssetRef<T> &r)
       : packed(r.packed ? *r.packed : FlashAsset<T, COMPRESSED>{nullptr, 0, 0, ARENA_ANY}),
-        plain(r.plain ? r.plain->data : nullptr),
-        count(r.packed ? r.packed->count : (r.plain ? r.plain->count : 0)) {}
+        plain(r.plain ? *r.plain : FlashAsset<T, PLAIN>{nullptr, 0, 0}) {}
 
-  // nullptr for an omitted asset
-  const T *data() const { return plain ? plain : (count ? packed.data() : nullptr); }
-  uint32_t size() const { return count; }
+  // nullptr for an omitted asset or a remote one missing from the bundle
+  const T *data() const { return plain.size() ? plain.data() : (packed.size() ? packed.data() : nullptr); }
+  uint32_t size() const { return plain.size() ? plain.size() : packed.size(); }
 
 private:
   Asset<T, COMPRESSED> packed;
-  const T *plain;
-  uint32_t count;
+  Asset<T, PLAIN> plain;
 };
 
 #endif
