@@ -2,7 +2,7 @@
 import sys
 sys.path.insert(0, "internal/pyconv")
 
-from asset_emit import emit_compressed
+from asset_emit import emit_compressed, emit_plain, _hex_block
 
 PATCHES = {
     "galaga_rom_cpu1":
@@ -68,16 +68,7 @@ def parse_rom(id, infiles, outfile, apply_patches = False, decode = False, compr
     if compress:
         emit_compressed(of, id, "unsigned char", "", len(all_bytes), list(all_bytes))
     else:
-        print("const unsigned char "+id+"[] = {\n  ", end="", file=of)
-        hexs = ["0x{:02X}".format(b) for b in all_bytes]
-        for i, h in enumerate(hexs):
-            print(h, end="", file=of)
-            if i != len(hexs) - 1:
-                print(",", end="", file=of)
-                if i & 15 == 15:
-                    print("\n  ", end="", file=of)
-        print("", file=of)
-        print("};", file=of)
+        emit_plain(of, id, "unsigned char", "", len(all_bytes), "  " + _hex_block(all_bytes))
     of.close()
 
 FLAGS = {"-p": "apply_patches", "-d": "decode", "-c": "compress"}

@@ -13,7 +13,7 @@
 #define MASTER_ATTRACT_MENU_TIMEOUT  20000      // start games while sitting idle in menu for 20 seconds, undefine to disable
 #endif
 #ifndef MASTER_ATTRACT_GAME_TIMEOUT
-#define MASTER_ATTRACT_GAME_TIMEOUT  60000 * 5  // restart after 5 minutes 
+#define MASTER_ATTRACT_GAME_TIMEOUT  60000 * 5  // restart after 5 minutes
 #endif
 
 #define MASTER_ATTRACT_MENU_SHOW_COUNTDOWN      // undefine to hide the countdown bar in the menu
@@ -22,6 +22,9 @@
 #endif
 
 //#define MENU_CYLINDER   // scrolling menu: logos on a rotating drum instead of a flat list
+
+//#define COMMANDO_INVINCIBLE // cheat: Commando player never dies
+//#define COMMANDO_NO_MUSIC   // test: Commando sound effects only, no SID music
 
 // video config
 //#define TFT_SPICLK  40000000    // 40 Mhz. Some displays cope with 80 Mhz
@@ -127,13 +130,13 @@
 
 #if CONFIG_IDF_TARGET_ESP32S3
 // ESP32-S3
-// SPI0/SPI1 -> FLASH/PSRAM 
+// SPI0/SPI1 -> FLASH/PSRAM
 // SPI2      -> 80MHz IO_MUX pins 9/10/11/12/13/14
 // SPI3      -> 40Mhz GPIO matrix any pins
 #define TFT_SPI_HOST SPI2_HOST
 #else
 // ESP32
-// SPI0/SPI1 -> FLASH/PSRAM 
+// SPI0/SPI1 -> FLASH/PSRAM
 // SPI2      -> 80MHz 2/4/12=HSPI_MISO/13=HSPI_MOSI/14=HSPI_CLK/15=HSPI_CS0
 // SPI3      -> 80Mhz 5=VSPI_CS0/18=VSPI_CLK/19=VSPI_MISO/23=VSPI_MOSI 22=VSPI_WP 21=VSPI_HD
 #define TFT_SPI_HOST SPI2_HOST

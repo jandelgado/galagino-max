@@ -96,7 +96,8 @@ enum {
   MCH_CENTIPEDE,
   MCH_MILLIPEDE,
   MCH_ASTEROIDS,
-  MCH_BALUBA
+  MCH_BALUBA,
+  MCH_COMMANDO
 };
 
 // one inst at 3Mhz ~ 500k inst/sec = 500000/60 inst per frame
@@ -159,6 +160,9 @@ public:
     virtual void wrZ80(unsigned short Addr, unsigned char Value) { };
     virtual void outZ80(unsigned short Port, unsigned char Value) { };
     virtual unsigned char opZ80(unsigned short Addr) { return 0x00; }
+    // opcode byte after a CB/ED/DD/FD prefix; differs from rdZ80 only for
+    // encrypted opcodes (commando)
+    virtual unsigned char opPrefixZ80(unsigned short Addr) { return rdZ80(Addr); }
     virtual unsigned char inZ80(unsigned short Port) { return 0x00; }
 
     virtual void wrI8048_port(struct i8048_state_S *state, unsigned char port, unsigned char pos) { }
@@ -200,6 +204,10 @@ public:
     // the machine header (machines.h/gyruss.h can only live in main.cpp).
     // also used by CircusCharlie
     virtual int renderDrumSample() { return 0; }
+
+    // C64 SID music (commando): n samples, +-480, rendered on
+    // the audio core. Virtual so audio.cpp does not need the machine header.
+    virtual void renderSid(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
 
 #ifdef LED_PIN
     // Static: menu preview runs before any machine instance exists.

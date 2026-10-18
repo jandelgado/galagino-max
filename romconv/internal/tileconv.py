@@ -129,12 +129,13 @@ def parse_charmap(id, inname, outname, compress=False):
     charmap_data = f.read()
     f.close()
 
-    is_1942 = len(charmap_data) == 8192
+    # 1942 8K (512 chars), commando 16K (1024 chars)
+    is_1942 = len(charmap_data) in (8192, 16384)
 
     chars = []
     if is_1942:
         # 1942 2bpp format
-        for chr in range(512):
+        for chr in range(len(charmap_data) // 16):
             chars.append(parse_chr_1942(charmap_data[16*chr:16*(chr+1)]))
 
     elif len(charmap_data) == 4096:

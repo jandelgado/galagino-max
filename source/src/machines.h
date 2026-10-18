@@ -104,6 +104,9 @@
 #ifdef ENABLE_BALUBA
   #include "machines/baluba/baluba.h"
 #endif
+#ifdef ENABLE_COMMANDO
+  #include "machines/commando/commando.h"
+#endif
 
 #ifdef ENABLE_MOONCRESTA
   #include "machines/mooncresta/mooncresta.h"
@@ -605,6 +608,13 @@ machineInfo machines[] = {
     asteroids::menuLeds,
 #endif
     MCH_ASTEROIDS },
+#endif
+#ifdef ENABLE_COMMANDO
+  { []() -> machineBase* { return new commando(); }, commando::logo,
+#ifdef LED_PIN
+    commando::menuLeds,
+#endif
+    MCH_COMMANDO },
 #endif
 };
 

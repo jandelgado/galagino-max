@@ -18,6 +18,7 @@ GAMES = [
     "millipede",
     "btime",
     "circusc",
+    "commando",
     "crush",
     "digdug",
     "dkong",

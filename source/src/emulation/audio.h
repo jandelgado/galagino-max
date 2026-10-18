@@ -51,7 +51,7 @@ public:
 private:
   void namco_render_buffer(void);
   void namco_15xx_render_buffer(void);
-  void ay_render_buffer(void);
+  void ay_render_buffer(const int16_t *mix = nullptr);
   void sn76489_render_buffer(void);
   void i8048_render_buffer(void);
   void valueToBuffer(int index, short value);
@@ -64,6 +64,7 @@ private:
   void zaxxon_render_buffer(void);
   void pokey_render_buffer(void);
   void asteroids_render_buffer(void);
+  void commando_render_buffer(void);
   void zaxxonStartChannel(int ch, ZaxxonPlayMode mode);
   void zaxxonStopChannel(int ch);
   void generateSinusWave(int32_t amplitude, short* buffer, uint16_t length);

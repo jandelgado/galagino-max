@@ -125,6 +125,10 @@ unsigned char OpZ80_INL(unsigned short Addr) {
   return currentMachine->opZ80(Addr);
 }
 
+unsigned char OpPrefixZ80_INL(unsigned short Addr) {
+  return currentMachine->opPrefixZ80(Addr);
+}
+
 void OutZ80(unsigned short Port, unsigned char Value) {
   currentMachine->outZ80(Port, Value);
 }
