@@ -164,5 +164,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | The Pit (thepit.zip)           | ![The Pit marquee](/logos/thepit.png) | ![The Pit screenshot](/images/thepit.png) |  |
 | Bubble Bobble (boblbobl.zip)   | ![Bubble Bobble marquee](/logos/bublbobl.png) | ![Bubble Bobble screenshot](/images/boblbobl.png) | Bootleg "Bobble Bobble", no MCU, needs parent bublbobl.zip. UP=jump. C64 SID music: romszip/Bubble_Bobble.sid (HVSC), effects recorded from MAME (samples/bublbobl_samples.zip) |
 | Tetris (atetris.zip)           | ![Tetris marquee](/logos/atetris.png) | ![Tetris screenshot](/images/atetris.png) | Atari, set 1. FIRE=rotate. Screen dynamically scaled and cropped in game for best view: playfield cropped to the player 1 side, other screens scaled from 336 to 240 columns |
+| Crystal Castles (ccastlesj.zip) | ![Crystal Castles marquee](/logos/ccastles.png) | ![Crystal Castles screenshot](/images/ccastles.png) | Joystick version, needs parent ccastles.zip. FIRE=jump |
 
 ### ...
