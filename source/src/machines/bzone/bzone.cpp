@@ -55,11 +55,11 @@ static uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 bzone::bzone()
-  : dvgMachine(main_read, main_write, BZ_VRAM_SIZE),
+  : dvgMachine(main_read, main_write),
     bzone_rom(bzone_rom_blob),
     bzone_vrom(bzone_vrom_blob) {
   static_assert(RAM_END <= VRAM_OFS, "Battle Zone RAM overlaps VRAM");
-  static_assert(BZ_VRAM_SIZE <= MAX_VRAM_SIZE, "Battle Zone VRAM exceeds the latch");
+  static_assert(BZ_VRAM_SIZE <= MAX_VRAM_SIZE, "Battle Zone VRAM exceeds MAX_VRAM_SIZE");
   rom = bzone_rom.data();
   vrom = bzone_vrom.data();
 
@@ -180,11 +180,11 @@ void bzone::main_write(m6502_t *cpu, uint16_t a, uint8_t v) {
 
 uint16_t bzone::decode_frame(const uint8_t *vram) {
   const avg::Memory m = {vram, BZ_VRAM_SIZE, vrom, AVG_ROM_BASE, BZ_VROM_SIZE, GLYPH_LO, GLYPH_HI};
-  return avg::decode(m, avg_state, lines, MAX_LINES);
+  return avg::decode(m, avg_state, work, MAX_LINES);
 }
 
 uint16_t bzone::map_lines(uint16_t count) {
-  return bzone_layout::map(lines, count);
+  return bzone_layout::map(work, count);
 }
 
 const uint16_t *bzone::strip_palette(uint8_t strip) const {

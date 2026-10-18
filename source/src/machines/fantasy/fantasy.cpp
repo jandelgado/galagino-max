@@ -5,6 +5,31 @@
 #include "fantasy_sound_rom.h"
 #include "fantasy_samples.h"
 
+// Screen is rotated: an output line is one native x column, walked
+// along native y. Tiles are stored pre-rotated like that, 8 words per
+// tile, word q = native column q (mask 0x80 >> q), pixel c = 2 bit pen
+// of native row 7 - c at bits 2c. One load then feeds 8 pixels.
+// In MAME's planar decoder plane 0 (hi) is the most significant pen bit.
+// Keeping the ROM order as bit 0 swapped palette pens 1 and 2 (for
+// example blue sea became green and cyan clouds became white).
+static void decode_tile(uint16_t *dst, const unsigned char *hi, const unsigned char *lo) {
+  for(int q = 0; q < 8; q++) {
+    uint16_t w = 0;
+    for(int c = 0; c < 8; c++) {
+      const int n = 7 - c;
+      w |= (((hi[n] >> (7 - q)) & 1) << 1 | ((lo[n] >> (7 - q)) & 1)) << (2 * c);
+    }
+    dst[q] = w;
+  }
+}
+
+// flipped screen walks native rows the other way: pixel c <-> 7 - c
+static inline uint16_t reverse_pens(uint16_t w) {
+  w = (w >> 8) | (w << 8);
+  w = ((w & 0xf0f0) >> 4) | ((w & 0x0f0f) << 4);
+  return ((w & 0xcccc) >> 2) | ((w & 0x3333) << 2);
+}
+
 fantasy::fantasy()
   : fantasy_gfx(fantasy_gfx_blob),
     fantasy_rom(fantasy_rom_blob),
@@ -44,6 +69,17 @@ void fantasy::start() {
   for(int i=0;i<64;i++) palette[i]=pen(fantasy_proms[i]);
   m_cpu.read=main_read; m_cpu.write=main_write; m_cpu.fetch=nullptr; m_cpu.user=this;
   rom_ptr = fantasy_rom.data();
+
+  // start() runs twice: decode the ROM tiles once
+  if(!bg_tiles) {
+    const unsigned char *gfx = fantasy_gfx.data();
+    bg_tiles = Arena::alloc<uint16_t>(512 * 8);
+    fg_tiles = Arena::alloc<uint16_t>(256 * 8);
+    for(int code = 0; code < 512; code++) {
+      decode_tile(bg_tiles + 8 * code, gfx + 8 * code, gfx + 0x1000 + 8 * code);
+    }
+  }
+  memset((void *)fg_dirty, 1, sizeof(fg_dirty));
   reset();
 }
 
@@ -106,7 +142,13 @@ void fantasy::speech_write(unsigned char v) {
 
 void fantasy::main_write(m6502_t *cpu, uint16_t a, uint8_t v) {
   fantasy *s=static_cast<fantasy *>(cpu->user);
-  if(a<0x2000){s->memory[a]=v;return;}
+  if(a<0x2000){
+    s->memory[a]=v;
+    if(a>=0x1000){
+      s->fg_dirty[(a>>3)&0xff]=1;
+    }
+    return;
+  }
   if(a>=0x2100 && a<=0x2102){
     unsigned char port=a-0x2100;
     s->soundregs[port]=v;s->soundregs[5+port]++;
@@ -132,37 +174,72 @@ void fantasy::run_frame() {
   if(!game_started)game_started=1;
 }
 
+// Re-decode RAM chars the CPU wrote since the last frame. Flag cleared
+// before the decode: a write during it sets it again for the next frame.
+void fantasy::prepare_frame() {
+  for(int code = 0; code < 256; code++) {
+    if(!fg_dirty[code]) {
+      continue;
+    }
+    fg_dirty[code] = 0;
+    decode_tile(fg_tiles + 8 * code, char_ram + 8 * code, char_ram + 0x800 + 8 * code);
+  }
+}
+
 void fantasy::render_row(short strip) {
-  // Hoisted: data() checks the cache on every call.
-  const unsigned char *gfx = fantasy_gfx.data();
-  for(int oy=0;oy<8;oy++){
-    int py=strip*8+oy-16;if(py<0||py>=256)continue;
-    uint16_t *dst=frame_buffer+oy*224;
-    int sx=flip_screen?255-py:py, bx=(sx+scroll_x)&255;
-    unsigned char fmask=1<<(7-(sx&7)),bmask=1<<(7-(bx&7));
-    int last_frow=-1,last_brow=-1;unsigned short bcode=0;
-    unsigned char fcode=0,fcolor=0,bcolor=0;
-    for(int ox=0;ox<224;ox++){
-      int sy=flip_screen?ox:223-ox,by=(sy+scroll_y)&255,brow=by>>3;
-      if(brow!=last_brow){
-        unsigned short ti=(brow<<5)+(bx>>3);
-        bcode=bg_ram[ti]+(charbank<<8);bcolor=(color_ram[ti]>>3)&7;last_brow=brow;
+  const int py0 = strip * 8 - 16;
+  if(py0 < 0 || py0 >= 256) {
+    return;
+  }
+
+  const bool flip = flip_screen != 0;
+  const unsigned short bank = charbank << 8;
+  const unsigned short back = palette[32 + backcolor * 4];
+
+  // bg, per line: column bx, scrolled native rows cross tile rows
+  // anywhere, so spans of up to 8 pixels per tile
+  for(int oy = 0; oy < 8; oy++) {
+    const int sx = flip ? 255 - (py0 + oy) : py0 + oy;
+    const int bx = (sx + scroll_x) & 255;
+    const unsigned char bcol = bx >> 3, q = bx & 7;
+    unsigned short *dst = frame_buffer + oy * 224;
+    int by = ((flip ? 0 : 223) + scroll_y) & 255;
+    int ox = 0;
+    while(ox < 224) {
+      const unsigned short ti = ((by >> 3) << 5) + bcol;
+      uint16_t w = bg_tiles[8 * (bg_ram[ti] + bank) + q];
+      if(flip) {
+        w = reverse_pens(w);
       }
-      unsigned short base=(bcode<<3)+(by&7);
-      // In MAME's planar decoder plane 0 is the most significant pen bit.
-      // Keeping the ROM order as bit 0 swapped palette pens 1 and 2 (for
-      // example blue sea became green and cyan clouds became white).
-      unsigned char bpix=(gfx[base]&bmask?2:0)|(gfx[base+0x1000]&bmask?1:0);
-      unsigned char pi=bpix?(32+bcolor*4+bpix):(32+backcolor*4);
-      int frow=sy>>3;
-      if(frow!=last_frow){
-        unsigned short ti=(frow<<5)+(sx>>3);
-        fcode=fg_ram[ti];fcolor=color_ram[ti]&7;last_frow=frow;
+      const unsigned short *pal = palette + 32 + ((color_ram[ti] >> 3) & 7) * 4;
+      const int c = flip ? by & 7 : 7 - (by & 7);
+      int n = 8 - c;
+      if(n > 224 - ox) {
+        n = 224 - ox;
       }
-      base=(fcode<<3)+(sy&7);
-      unsigned char fpix=(char_ram[base]&fmask?2:0)|(char_ram[base+0x800]&fmask?1:0);
-      if(fpix)pi=fcolor*4+fpix;
-      dst[ox]=palette[pi];
+      w >>= 2 * c;
+      for(int i = 0; i < n; i++, w >>= 2) {
+        dst[ox++] = (w & 3) ? pal[w & 3] : back;
+      }
+      by = (flip ? by + n : by - n) & 255;
+    }
+  }
+
+  // fg, per tile: tile rows line up with the 8 pixel chunks, pen 0
+  // shows the bg
+  const int fcol = (flip ? 255 - py0 : py0) >> 3;
+  for(int k = 0; k < 28; k++) {
+    const unsigned short ti = ((flip ? k : 27 - k) << 5) + fcol;
+    const uint16_t *tile = fg_tiles + 8 * fg_ram[ti];
+    const unsigned short *pal = palette + (color_ram[ti] & 7) * 4;
+    unsigned short *dst = frame_buffer + 8 * k;
+    for(int oy = 0; oy < 8; oy++, dst += 224) {
+      uint16_t w = flip ? reverse_pens(tile[7 - oy]) : tile[oy];
+      for(int c = 0; w; c++, w >>= 2) {
+        if(w & 3) {
+          dst[c] = pal[w & 3];
+        }
+      }
     }
   }
 }

@@ -178,6 +178,9 @@ void phoenix::render_row(short row) {
 
   unsigned char *vp = (*vram)[video_page];
   int prow = row - 2;                    // 0..31 = colonna arcade tx (FG)
+  // Hoisted: data() checks the cache on every call.
+  const unsigned char *bgtiles = phoenix_bgtiles.data();
+  const unsigned char *fgtiles = phoenix_fgtiles.data();
 
   for (int ry = 0; ry < 8; ry++) {
     unsigned short *line = frame_buffer + ry * FB_W + PX_OFFSET;
@@ -192,7 +195,7 @@ void phoenix::render_row(short row) {
       unsigned char code = vp[(ty << 5) + bg_tx + 0x800];
       unsigned char col  = ((code >> 5) & 0x07) | (palette_bank << 4);
       const unsigned short *pal  = &phoenix_palette[col << 2];
-      const unsigned char  *pens = &phoenix_bgtiles[(code << 6) + bg_lx];
+      const unsigned char  *pens = &bgtiles[(code << 6) + bg_lx];
       unsigned short *p = line + (pcol << 3);
       // rx 0..7 -> ly = 7-rx ; pen = pens[ly*8]
       p[0] = pal[pens[7 << 3]]; p[1] = pal[pens[6 << 3]];
@@ -208,7 +211,7 @@ void phoenix::render_row(short row) {
       unsigned char code = vp[(ty << 5) + prow];
       unsigned char col  = ((code >> 5) & 0x07) | 0x08 | (palette_bank << 4);
       const unsigned short *pal  = &phoenix_palette[col << 2];
-      const unsigned char  *pens = &phoenix_fgtiles[(code << 6) + fg_lx];
+      const unsigned char  *pens = &fgtiles[(code << 6) + fg_lx];
       unsigned short *p = line + (pcol << 3);
       unsigned char pen;
       pen = pens[7 << 3]; if (pen) p[0] = pal[pen];

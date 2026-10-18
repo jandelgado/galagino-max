@@ -46,7 +46,7 @@ private:
 
   const unsigned char *rom = nullptr, *vrom = nullptr;
   Mathbox mathbox;
-  avg::State avg_state; // video core only (decode_frame)
+  avg::State avg_state; // emulation core only (decode_frame)
   uint8_t allpot = 0;   // ALLPOT as of the last read while running
   uint32_t random_base = 0; // CPU cycle of the SKCTL reset release
   uint16_t red[16];     // palette for strips above the overlay boundary

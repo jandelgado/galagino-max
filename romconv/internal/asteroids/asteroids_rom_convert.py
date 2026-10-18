@@ -25,6 +25,9 @@ VECTOR = [("035127-02.np3", "8cd5005e531eafa361d6b7e9eed159d164776c70")]
 # (2 x uint16_t per line) + 36 strip heads, allocated in start()
 MAX_LINES = 1024
 LINE_BUFFER_BYTES = MAX_LINES * 16 + MAX_LINES * 2 * 2 + 36 * 2
+# GO list: decode buffer (vec2d::Line per line) and published PackedLine
+# (8 B) list (+ 2 B count + 4 B sequence)
+GO_LIST_BYTES = MAX_LINES * 16 + MAX_LINES * 8 + 8
 
 
 def load_all(files):
@@ -47,7 +50,7 @@ def main():
                   "Main M6502 ROM, 6 KiB mapped at 0x6800-0x7fff.")
     total += write("asteroids_vrom.h", "asteroids_vrom", load_all(VECTOR),
                    "DVG vector ROM, 2 KiB mapped at 0x5000-0x57ff.")
-    total += LINE_BUFFER_BYTES
+    total += LINE_BUFFER_BYTES + GO_LIST_BYTES
     print(f"  Arena budget: {total} / 182000 bytes")
     if total >= 182000:
         sys.exit("ERROR: Arena budget exceeded")
