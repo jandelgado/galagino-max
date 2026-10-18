@@ -104,6 +104,8 @@ private:
   static constexpr uint16_t MEM_FREE_ZAXXON  = SPRITERAM_OFFSET + SPRITERAM_SIZE;
   static_assert(MEM_FREE_ZAXXON <= RAMSIZE, "RAMSIZE too low for zaxxon");
 
+  // set in ctor: opZ80/rdZ80 skip Asset::data()'s unpack check
+  const uint8_t *rom_main_ptr = nullptr;
   uint8_t *work_ram;
   uint8_t *video_ram;
   uint8_t *sprite_ram;

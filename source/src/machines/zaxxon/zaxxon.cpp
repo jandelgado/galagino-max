@@ -71,6 +71,7 @@ zaxxon::zaxxon()
   zaxxon_tilemap_color.data();
   zaxxon_palette.data();
   zaxxon_fgcolor_codes.data();
+  rom_main_ptr = zaxxon_rom_main.data();
 
   for (uint16_t c = 0; c < CHAR_CODES; c++) {
     char_blank[c] = is_blank(zaxxon_chartiles[c], sizeof(zaxxon_chartiles[c]));
@@ -92,7 +93,7 @@ void zaxxon::start(void) {
 
 unsigned char zaxxon::opZ80(unsigned short Addr) {
   if (Addr < zaxxon_rom_main.size())
-    return zaxxon_rom_main[Addr];
+    return rom_main_ptr[Addr];
   return 0xff;
 }
 
@@ -102,7 +103,7 @@ unsigned char zaxxon::rdZ80(unsigned short Addr) {
   // 2000-3fff ROM 2
   // 4000-4fff ROM 1
   if (Addr <= 0x4fff && Addr < zaxxon_rom_main.size()) {
-    return zaxxon_rom_main[Addr];
+    return rom_main_ptr[Addr];
   }
 
   // RAM
