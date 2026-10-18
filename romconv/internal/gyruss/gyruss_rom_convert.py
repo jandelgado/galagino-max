@@ -4,7 +4,7 @@ Convert Gyruss (gyrussk) raw ROM dumps to galagino .h header files.
 
 Reads ROM files from ../../roms/ and generates:
   - ../../../source/src/machines/gyruss/gyruss_rom_main.h    (main Z80 CPU ROM, 24KB)
-  - ../../../source/src/machines/gyruss/gyruss_rom_sub.h     (M6809 sub-CPU ROM, 8KB + decrypted opcodes)
+  - ../../../source/src/machines/gyruss/gyruss_rom_sub.h     (M6809 sub-CPU ROM, 8KB, Konami-1 encrypted)
   - ../../../source/src/machines/gyruss/gyruss_rom_audio.h   (audio Z80 ROM, 16KB)
   - ../../../source/src/machines/gyruss/gyruss_tilemap.h     (decoded 8x8 tiles from gyrussk.4)
   - ../../../source/src/machines/gyruss/gyruss_spritemap.h   (decoded 8x16 sprites from gyrussk.5/6/7/8)
@@ -79,17 +79,6 @@ def apply_patch_values(values, patch_values, mask):
 
 
 # ============================================================
-# Konami-1 opcode decryption
-# ============================================================
-
-def konami1_decrypt_opcode(val, addr):
-    """Decrypt a single opcode byte using Konami-1 XOR scheme.
-    XOR table based on address bits A1 and A3."""
-    xor_table = {0x0: 0x22, 0x2: 0x82, 0x8: 0x28, 0xA: 0x88}
-    return val ^ xor_table[addr & 0x0A]
-
-
-# ============================================================
 # CPU ROM assembly
 # ============================================================
 
@@ -103,14 +92,8 @@ def assemble_main_rom():
 
 
 def assemble_sub_rom():
-    """Assemble M6809 sub-CPU ROM (8KB: 0xE000-0xFFFF).
-    Returns (raw_rom, decrypted_opcodes) tuple."""
-    raw = load_file("gyrussk.9")  # 8KB, mapped at 0xE000-0xFFFF
-    decrypted = bytearray(len(raw))
-    for i in range(len(raw)):
-        addr = 0xE000 + i
-        decrypted[i] = konami1_decrypt_opcode(raw[i], addr)
-    return raw, decrypted
+    """Assemble M6809 sub-CPU ROM (8KB: 0xE000-0xFFFF)."""
+    return load_file("gyrussk.9")  # 8KB, mapped at 0xE000-0xFFFF
 
 
 def assemble_audio_rom():
@@ -331,15 +314,13 @@ def write_main_rom_h(rom, filepath):
         emit_compressed(f, "gyruss_rom_main", "unsigned char", "", len(rom), list(rom))
 
 
-def write_sub_rom_h(raw, decrypted, filepath):
-    """Write M6809 sub-CPU ROM header with both raw and decrypted opcodes."""
+def write_sub_rom_h(raw, filepath):
+    """Write M6809 sub-CPU ROM header."""
     with open(filepath, "w") as f:
         f.write("// Gyruss M6809 sub-CPU ROM (8KB: mapped at 0xE000-0xFFFF)\n")
         f.write("// Generated from gyrussk.9\n")
-        f.write("// Raw data for operand reads, decrypted for opcode fetches (Konami-1)\n\n")
+        f.write("// Konami-1 encrypted, the M6809 core decrypts opcode fetches\n\n")
         emit_compressed(f, "gyruss_rom_sub_raw", "unsigned char", "", len(raw), list(raw))
-        f.write("\n// Decrypted opcodes (Konami-1 XOR scheme)\n")
-        emit_compressed(f, "gyruss_rom_sub_decrypt", "unsigned char", "", len(decrypted), list(decrypted))
 
 
 def write_audio_rom_h(rom, filepath):
@@ -461,14 +442,14 @@ def main():
     write_main_rom_h(main_rom, path)
     print(f"  Written: {path} ({len(main_rom)} bytes)")
 
-    # 2. M6809 sub-CPU ROM with Konami-1 decryption (no patch)
-    print("Assembling M6809 sub-CPU ROM (8KB + decrypted)...")
-    sub_raw, sub_decrypt = assemble_sub_rom()
+    # 2. M6809 sub-CPU ROM (no patch)
+    print("Assembling M6809 sub-CPU ROM (8KB)...")
+    sub_raw = assemble_sub_rom()
     if sub_raw is None:
         fatal("Impossibile caricare i file per la sub ROM")
     path = os.path.join(OUT_DIR, "gyruss_rom_sub.h")
-    write_sub_rom_h(sub_raw, sub_decrypt, path)
-    print(f"  Written: {path} ({len(sub_raw)} bytes raw + {len(sub_decrypt)} bytes decrypted)")
+    write_sub_rom_h(sub_raw, path)
+    print(f"  Written: {path} ({len(sub_raw)} bytes)")
 
     # 3. Audio Z80 ROM (no patch)
     print("Assembling audio Z80 ROM (16KB)...")
@@ -532,7 +513,7 @@ def main():
     print("\nConversion complete!")
     print(f"\nSummary:")
     print(f"  Main ROM:    {len(main_rom):6d} bytes")
-    print(f"  Sub ROM:     {len(sub_raw):6d} bytes (+ {len(sub_decrypt)} decrypted)")
+    print(f"  Sub ROM:     {len(sub_raw):6d} bytes")
     print(f"  Audio ROM:   {len(audio_rom):6d} bytes")
     print(f"  Tiles:       {len(tiles):6d} (8x8, 2bpp)")
     print(f"  Sprites:     512 (8x16, 4bpp)")

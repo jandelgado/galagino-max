@@ -11,14 +11,12 @@ gyruss::gyruss()
     gyruss_rom_i8039(gyruss_rom_i8039_blob),
     gyruss_rom_main(gyruss_rom_main_blob),
     gyruss_rom_sub_raw(gyruss_rom_sub_raw_blob),
-    gyruss_rom_sub_decrypt(gyruss_rom_sub_decrypt_blob),
     gyruss_sprites(gyruss_sprites_blob),
     gyruss_tilemap(gyruss_tilemap_blob) {
   // Before start_audio_task(): the audio task reads these.
   main_rom_ptr = gyruss_rom_main.data();
   audio_rom_ptr = gyruss_rom_audio.data();
   sub_raw_ptr = gyruss_rom_sub_raw.data();
-  sub_decrypt_ptr = gyruss_rom_sub_decrypt.data();
 }
 
 // ============================================================
@@ -60,10 +58,7 @@ void gyruss::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
 }
 
 unsigned char gyruss::m6809_read_opcode(m6809_state *s, uint16_t addr) {
-  // Konami-1 decrypted opcodes at 0xE000-0xFFFF only (no mirror)
-  if (addr >= 0xE000) {
-    return sub_decrypt_ptr[addr - 0xE000];
-  }
+  // ROM opcodes come from rom_direct, Konami-1 decrypted by the core
   return m6809_read(s, addr);
 }
 
@@ -171,9 +166,17 @@ void gyruss::reset() {
     printf("gyrus: reset\n");
   stop_audio_task();
   m6809_reset(&sub_cpu);
+
+  // instruction fetches straight from ROM, decrypted by the core, skipping
+  // the per-byte callback chain; must follow m6809_reset(), which clears it
+  sub_cpu.rom_direct = sub_raw_ptr;
+  sub_cpu.rom_base = 0xE000;
+  sub_cpu.rom_size = 0x2000;
+  sub_cpu.konami1 = 1;
+
   machineBase::reset();
   memset(sub_ram, 0, sizeof(sub_ram));
-  memset(multiplexPart1, 0, sizeof(multiplexPart1));
+  memset(multiplex, 0, sizeof(multiplex));
   memset(shared_ram, 0, sizeof(shared_ram));
 
   // i8039 sample MCU (drums)
@@ -419,9 +422,17 @@ void gyruss::run_frame(void) {
 
     if (multiplexUsed && !multiplexUsedPart1) {
       multiplexUsedPart1 = 1;
-      memcpy(multiplexPart1, sub_ram, sizeof(multiplexPart1));
+      memcpy(multiplex, &sub_ram[SPRITE_OFFS], SPRITE_BYTES);
     }
   }
+
+  vblank.publish([this](VideoState &v) {
+    v.multiplexed = multiplexUsedPart1;
+    if (multiplexUsedPart1) {
+      memcpy(v.first, multiplex, SPRITE_BYTES);
+    }
+    memcpy(v.second, &sub_ram[SPRITE_OFFS], SPRITE_BYTES);
+  });
 
   m6809_irq(&sub_cpu);
 
@@ -438,14 +449,13 @@ void gyruss::run_frame(void) {
 
 void gyruss::prepare_frame(void) {
   active_sprites = 0;
+  vblank.read(video);
 
-  // Sprite RAM at sub CPU address 0x4040-0x40FF (confirmed from MAME)
-  unsigned char *sr = &sub_ram[0x40];
-  prepare_sprites(sr);
-
-  // Has the effect, that not anymore used sprites will appear. But better than missing sprites...
-  sr = &multiplexPart1[0x40];
-  prepare_sprites(sr);
+  // both multiplexed sets of one frame; no first set without multiplexing
+  prepare_sprites(video.second);
+  if (video.multiplexed) {
+    prepare_sprites(video.first);
+  }
 }
 
 void gyruss::prepare_sprites(unsigned char *sr) {

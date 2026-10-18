@@ -74,6 +74,7 @@ private:
   static_assert(VIDEO_RAM == 0xe000 - 0xc000, "c000-efff map 1:1 onto memory[]");
 
   static constexpr int PALETTE_USED = 0x600;  // sprite, fg, bg blocks of 0x200
+  static constexpr int STRIP_LINES = 8;
 
   // 260 lines per frame, CPUs interleaved per line (~256 cycles at 4 MHz)
   static constexpr int FRAME_LINES = 260;
@@ -131,12 +132,15 @@ private:
   uint8_t snLatch[2];        // last latched register per chip
   uint8_t snNoiseReg[2];
   uint16_t palette[PALETTE_USED];
+  uint16_t mixSel[system1_video::MIX_PRIORITIES];  // lookup PROM per tile priority pair
+  bool clearShowsBg;
   Collision collision;
 
   Seqlock<VideoState> vblank;
   VideoState video = {};
   ActiveSprite active[system1_video::SPRITES];
   int activeCount = 0;
+  uint32_t sprTiles[STRIP_LINES];  // per strip line: tile rows with sprite pens
 };
 
 #endif
