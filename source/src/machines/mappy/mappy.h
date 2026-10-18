@@ -43,7 +43,7 @@ protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> mappy_rom_main;
   Asset<unsigned char, COMPRESSED> mappy_rom_sub;
-  Asset<uint32_t[128][32], COMPRESSED> mappy_sprites;
+  Asset<uint32_t[32], COMPRESSED> mappy_sprites;
   Asset<unsigned short[8], COMPRESSED> mappy_tilemap;
 public:
     mappy();

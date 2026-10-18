@@ -39,7 +39,7 @@ protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> turtles_audio_rom;
   Asset<unsigned char, COMPRESSED> turtles_main_rom;
-  Asset<uint32_t[64][16], COMPRESSED> turtles_spritemap;
+  Asset<uint32_t[16], COMPRESSED> turtles_spritemap;
   Asset<unsigned short[8], COMPRESSED> turtles_tilemap;
 public:
   turtles();

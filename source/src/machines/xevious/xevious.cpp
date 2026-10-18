@@ -1,4 +1,5 @@
 #include "xevious.h"
+#include "../../emulation/spriteflip.h"
 
 xevious::xevious()
   : xevious_bgtilemap(xevious_bgtilemap_blob),
@@ -522,7 +523,7 @@ void xevious::prepare_frame(void) {
 
 void xevious::blit_sprite(short row, unsigned char s) {
   unsigned short code = sprite[s].code | ((unsigned short)sprite[s].color_block << 8);
-  const uint32_t *spr = xevious_sprites[sprite[s].flags & 3][code];
+  SpriteRows4bpp spr(xevious_sprites[code], sprite[s].flags & 3);
   const unsigned short *colors = cmap_spr[sprite[s].color & 0x3f];
 
   short y_offset = sprite[s].y - 8 * row;
@@ -530,16 +531,18 @@ void xevious::blit_sprite(short row, unsigned char s) {
   if (y_offset < -8) lines2draw = 16 + y_offset;
   unsigned short startline = 0;
   if (y_offset > 0) { startline = y_offset; lines2draw = 8 - y_offset; }
-  if (y_offset < 0) spr += 2 * (-y_offset);
+  if (y_offset < 0) spr.skip(-y_offset);
 
   short x = sprite[s].x;
   unsigned char c0 = (x < 0) ? -x : 0;
   unsigned char c1 = (x > 224 - 16) ? 224 - x : 16;
 
   unsigned short *ptr = frame_buffer + x + 224 * startline;
-  for (unsigned char r = 0; r < lines2draw; r++, ptr += 224, spr += 2) {
+  for (unsigned char r = 0; r < lines2draw; r++, ptr += 224) {
+    uint32_t pix[2];
+    spr.next(pix);
     for (unsigned char c = c0; c < c1; c++) {
-      unsigned short col = colors[(spr[c >> 3] >> (4 * (c & 7))) & 0x0f];
+      unsigned short col = colors[(pix[c >> 3] >> (4 * (c & 7))) & 0x0f];
       if (col) ptr[c] = col;
     }
   }

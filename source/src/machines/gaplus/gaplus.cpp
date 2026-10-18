@@ -1,4 +1,5 @@
 #include "gaplus.h"
+#include "../../emulation/spriteflip.h"
 
 gaplus::gaplus()
   : gaplus_colormap_sprites(gaplus_colormap_sprites_blob),
@@ -583,7 +584,7 @@ void gaplus::prepare_frame(void) {
 // colormap 0 (lookup 0xFF nel converter)
 void gaplus::blit_sprite(short row, unsigned char s) {
   unsigned short code = sprite[s].code | ((unsigned short)sprite[s].color_block << 8);
-  const uint32_t *spr = gaplus_sprites[sprite[s].flags & 3][code];
+  SpriteRows4bpp spr(gaplus_sprites[code], sprite[s].flags & 3);
   const unsigned short *colors = cmap_sprites[sprite[s].color & 0x3F];
 
   short y_offset = sprite[s].y - 8 * row;
@@ -598,16 +599,18 @@ void gaplus::blit_sprite(short row, unsigned char s) {
   }
 
   if (y_offset < 0)
-    spr += 2 * (-y_offset);
+    spr.skip(-y_offset);
 
   short x = sprite[s].x;
   unsigned char c0 = (x < 0) ? -x : 0;
   unsigned char c1 = (x > 224 - 16) ? 224 - x : 16;
 
   unsigned short *ptr = frame_buffer + x + 224 * startline;
-  for (unsigned char r = 0; r < lines2draw; r++, ptr += 224, spr += 2) {
+  for (unsigned char r = 0; r < lines2draw; r++, ptr += 224) {
+    uint32_t pix[2];
+    spr.next(pix);
     for (unsigned char c = c0; c < c1; c++) {
-      unsigned short col = colors[(spr[c >> 3] >> (4 * (c & 7))) & 0x0F];
+      unsigned short col = colors[(pix[c >> 3] >> (4 * (c & 7))) & 0x0F];
       if (col) ptr[c] = col;
     }
   }

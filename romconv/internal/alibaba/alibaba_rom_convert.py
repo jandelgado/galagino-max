@@ -225,40 +225,23 @@ def convert_tiles_sprites():
     sprites = decode_layout(sprite_region, 16, 16, sprite_total, 2, sprite_planeoffset,
                              sprite_xoffset, sprite_yoffset, 64 * 8)
 
-    # precompute the 4 flip orientations (flags bit0=flipx, bit1=flipy), matching
-    # how blit_sprite in pacman.cpp consumes pacman_sprites[flags][code][row].
-    # IMPORTANT: flip MUST be applied in the ORIGINAL (pre-rotation) hardware
-    # orientation, THEN rotated -- not the other way round. Rotating first and
-    # flipping the already-rotated image swaps which screen axis each flip bit
-    # affects (confirmed on real HW: moving right drew the sprite upside down,
-    # i.e. flipY was being triggered by what hardware intended as flipX).
-    def flipped(img, flipx, flipy):
-        h = len(img)
-        w = len(img[0])
-        out = [[0] * w for _ in range(h)]
-        for y in range(h):
-            sy = h - 1 - y if flipy else y
-            for x in range(w):
-                sx = w - 1 - x if flipx else x
-                out[y][x] = img[sy][sx]
-        return out
-
+    # Stored unflipped; pacman::blit_sprite flips at draw time. Flags bit0
+    # (hardware flipx) and bit1 (flipy) act in the ORIGINAL (pre-rotation)
+    # orientation, which after rotate_cw are row order and pixel order of the
+    # stored rows (spriteflip.h).
     outfile = os.path.join(OUT_DIR, "alibaba_spritemap.h")
     with open(outfile, "w") as f:
-        f.write("// Ali Baba sprites: 16x16, 2bpp, packed as one uint32 per row, 4 flip orientations\n")
+        f.write("// Ali Baba sprites: 16x16, 2bpp, packed as one uint32 per row, unflipped\n")
         flat = []
-        for flags in range(4):
-            flipx = flags & 1
-            flipy = (flags >> 1) & 1
-            for img in sprites:
-                fimg = rotate_cw(flipped(img, flipx, flipy))
-                for y in range(16):
-                    word = 0
-                    for x in range(16):
-                        word |= fimg[y][x] << (2 * x)
-                    flat.append(word)
-        emit_compressed(f, "alibaba_sprites", "uint32_t", "["+str(len(sprites))+"][16]", 4, flat)
-    print("Written:", outfile, "(", len(sprites), "sprites x 4 flips )")
+        for img in sprites:
+            rimg = rotate_cw(img)
+            for y in range(16):
+                word = 0
+                for x in range(16):
+                    word |= rimg[y][x] << (2 * x)
+                flat.append(word)
+        emit_compressed(f, "alibaba_sprites", "uint32_t", "[16]", len(sprites), flat)
+    print("Written:", outfile, "(", len(sprites), "sprites )")
 
 
 # ---------------------------------------------------------------------------

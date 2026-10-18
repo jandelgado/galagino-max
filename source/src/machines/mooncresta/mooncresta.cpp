@@ -4,6 +4,7 @@
 #include "mooncresta_spritemap.h"
 #include "mooncresta_cmap.h"
 #include "../../emulation/input.h"
+#include "../../emulation/spriteflip.h"
 
 mooncresta::mooncresta()
   : mooncresta_rom(mooncresta_rom_blob),
@@ -301,7 +302,7 @@ void mooncresta::blit_tile_scroll(short row, signed char col, unsigned char scro
 }
 
 void mooncresta::blit_sprite(short row, unsigned char s) {
-  const uint32_t *spr = mooncresta_spritemap[sprite[s].flags & 3][sprite[s].code];
+  SpriteRows2bpp spr(mooncresta_spritemap[sprite[s].code], sprite[s].flags & 3);
   const unsigned short *colors = mooncresta_colormap[sprite[s].color];
 
   /*
@@ -326,12 +327,12 @@ void mooncresta::blit_sprite(short row, unsigned char s) {
     lines2draw = 8 - y_offset;
   }
 
-  if(y_offset < 0) spr -= y_offset;
+  if(y_offset < 0) spr.skip(-y_offset);
 
   unsigned short *ptr = frame_buffer + sprite[s].x + 224 * startline;
 
   for(char r = 0; r < lines2draw; r++, ptr += (224 - 16)) {
-    unsigned long pix = *spr++ & mask;
+    unsigned long pix = spr.next() & mask;
     for(char c = 0; c < 16; c++, pix >>= 2) {
       if(pix & 3) *ptr = colors[pix & 3];
       ptr++;

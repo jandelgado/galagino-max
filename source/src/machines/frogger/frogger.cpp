@@ -5,6 +5,7 @@
 #include "frogger_tilemap.h"
 #include "frogger_spritemap.h"
 #include "frogger_cmap.h"
+#include "../../emulation/spriteflip.h"
 
 frogger::frogger()
   : frogger_rom_cpu1(frogger_rom_cpu1_blob),
@@ -319,7 +320,7 @@ void frogger::blit_tile_scroll(short row, signed char col, short scroll) {
 }
 
 void frogger::blit_sprite(short row, unsigned char s) {
-  const uint32_t *spr = spriteRom(sprite[s].flags & 3, sprite[s].code);
+  SpriteRows2bpp spr(spriteRom(sprite[s].code), sprite[s].flags & 3);
   const unsigned short *colors = colorRom(sprite[s].color);
   
   // create mask for sprites that clip left or right
@@ -342,14 +343,14 @@ void frogger::blit_sprite(short row, unsigned char s) {
 
   // if we are not starting to draw with the first line, then
   // skip into the sprite image
-  if(y_offset < 0) spr -= y_offset;  
+  if(y_offset < 0) spr.skip(-y_offset);  
 
   // calculate pixel lines to paint  
   unsigned short *ptr = frame_buffer + sprite[s].x + 224*startline;
   
   // 16 pixel rows per sprite
   for(char r=0;r<lines2draw;r++,ptr+=(224-16)) {
-    unsigned long pix = *spr++ & mask;
+    unsigned long pix = spr.next() & mask;
     // 16 pixel columns per tile
     for(char c=0;c<16;c++,pix>>=2) {
       unsigned short col = colors[pix&3];
@@ -407,8 +408,8 @@ const unsigned short *frogger::colorRom(unsigned short addr) {
   return frogger_colormap[addr];
 }
 
-const uint32_t *frogger::spriteRom(unsigned char flags, unsigned char code) {
-  return frogger_sprites[flags][code];
+const uint32_t *frogger::spriteRom(unsigned char code) {
+  return frogger_sprites[code];
 }
 
 const Logo &frogger::logo(void) {

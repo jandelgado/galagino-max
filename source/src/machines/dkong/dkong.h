@@ -15,7 +15,7 @@ protected:
   Asset<unsigned short[256][4], COMPRESSED> dkong_colormap;
   Asset<unsigned char, COMPRESSED> dkong_rom_cpu1;
   Asset<unsigned char, COMPRESSED> dkong_rom_cpu2;
-  Asset<uint32_t[128][16], COMPRESSED> dkong_sprites;
+  Asset<uint32_t[16], COMPRESSED> dkong_sprites;
   Asset<unsigned short[8], COMPRESSED> dkong_tilemap;
 public:
 	dkong();

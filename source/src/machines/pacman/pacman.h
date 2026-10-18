@@ -10,7 +10,7 @@ class pacman : public machineBase
 protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> pacman_rom;
-  Asset<uint32_t[64][16], COMPRESSED> pacman_sprites;
+  Asset<uint32_t[16], COMPRESSED> pacman_sprites;
   Asset<unsigned short[8], COMPRESSED> pacman_tilemap;
 public:
 	pacman();
@@ -39,7 +39,7 @@ protected:
 	void blit_sprite(short row, unsigned char s) override;
 	virtual const unsigned short *tileRom(unsigned short addr);
 	virtual const unsigned short *colorRom(unsigned short addr);
-	virtual const uint32_t *spriteRom(unsigned char flags, unsigned char code);
+	virtual const uint32_t *spriteRom(unsigned char code);
 
 	// Cached: hot path reads these per access; data() checks the cache on every call.
 	// Protected: mspacman uses pacman_rom in Pac-Man mode.

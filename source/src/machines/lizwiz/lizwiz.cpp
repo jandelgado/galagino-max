@@ -108,8 +108,8 @@ const unsigned short *lizwiz::colorRom(unsigned short addr) {
   return lizwiz_colormap[addr];
 }
 
-const uint32_t *lizwiz::spriteRom(unsigned char flags, unsigned char code) {
-  return lizwiz_sprites[flags][code];
+const uint32_t *lizwiz::spriteRom(unsigned char code) {
+  return lizwiz_sprites[code];
 }
 
 const Logo &lizwiz::logo(void) {

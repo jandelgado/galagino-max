@@ -13,6 +13,7 @@
 #include "dkong_sample_fall.h"
 #include "dkong_sample_roar.h"
 #include "dkong_sample_snapjaw.h"
+#include "../../emulation/spriteflip.h"
 
 dkong::dkong()
   : dkong_colormap(dkong_colormap_blob),
@@ -308,7 +309,7 @@ void dkong::blit_tile(short row, char col) {
 // games, in dkong black is not always transparent. Black pixels
 // are instead used for masking
 void dkong::blit_sprite(short row, unsigned char s) {
-  const uint32_t *spr = dkong_sprites[sprite[s].flags & 3][sprite[s].code];
+  SpriteRows2bpp spr(dkong_sprites[sprite[s].code], sprite[s].flags & 3);
   const unsigned short *colors = dkong_colormap_sprite[colortable_select][sprite[s].color];
   
   // create mask for sprites that clip left or right
@@ -332,14 +333,14 @@ void dkong::blit_sprite(short row, unsigned char s) {
   // if we are not starting to draw with the first line, then
   // skip into the sprite image
   if(y_offset < 0)
-    spr -= y_offset;  
+    spr.skip(-y_offset);  
 
   // calculate pixel lines to paint  
   unsigned short *ptr = frame_buffer + sprite[s].x + 224*startline;
   
   // 16 pixel rows per sprite
   for(char r=0;r<lines2draw;r++,ptr+=(224-16)) {
-    unsigned long pix = *spr++ & mask;
+    unsigned long pix = spr.next() & mask;
     // 16 pixel columns per tile
     for(char c=0;c<16;c++,pix>>=2) {
       unsigned short col = colors[pix&3];

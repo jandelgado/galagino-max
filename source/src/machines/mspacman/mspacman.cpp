@@ -158,8 +158,8 @@ const unsigned short *mspacman::tileRom(unsigned short addr) {
   return mspacman_tilemap[memory[addr]];
 }
 
-const uint32_t *mspacman::spriteRom(unsigned char flags, unsigned char code) {
-  return mspacman_sprites[flags][code];
+const uint32_t *mspacman::spriteRom(unsigned char code) {
+  return mspacman_sprites[code];
 }
 
 const Logo &mspacman::logo(void) {

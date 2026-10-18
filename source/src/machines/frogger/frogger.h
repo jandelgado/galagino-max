@@ -11,7 +11,7 @@ protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> frogger_rom_cpu1;
   Asset<unsigned char, COMPRESSED> frogger_rom_cpu2;
-  Asset<uint32_t[64][16], COMPRESSED> frogger_sprites;
+  Asset<uint32_t[16], COMPRESSED> frogger_sprites;
   Asset<unsigned short[8], COMPRESSED> frogger_tilemap;
 public:
 	frogger();
@@ -40,7 +40,7 @@ protected:
 	void blit_tile_scroll(short row, signed char col, short scroll);
 	virtual const unsigned short *tileRom(unsigned short addr);
 	virtual const unsigned short *colorRom(unsigned short addr);
-	virtual const uint32_t *spriteRom(unsigned char flags, unsigned char code);
+	virtual const uint32_t *spriteRom(unsigned char code);
 	
 	unsigned char snd_irq_state = 0;
 	unsigned char snd_command;

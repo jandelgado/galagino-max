@@ -45,7 +45,7 @@ protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> pooyan_rom;
   Asset<unsigned char, COMPRESSED> pooyan_snd_rom;
-  Asset<unsigned char[64][16][8], COMPRESSED> pooyan_spritemap;
+  Asset<unsigned char[16][8], COMPRESSED> pooyan_spritemap;
   Asset<uint32_t[8], COMPRESSED> pooyan_tilemap;
 public:
 	pooyan();

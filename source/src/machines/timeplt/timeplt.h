@@ -45,7 +45,7 @@ protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> timeplt_rom;
   Asset<unsigned char, COMPRESSED> timeplt_snd_rom;
-  Asset<uint32_t[256][16], COMPRESSED> timeplt_spritemap;
+  Asset<uint32_t[16], COMPRESSED> timeplt_spritemap;
   Asset<unsigned short[8], COMPRESSED> timeplt_tilemap;
 public:
   timeplt();

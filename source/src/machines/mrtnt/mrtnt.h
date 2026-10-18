@@ -11,7 +11,7 @@ class mrtnt : public pacman
 protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> mrtnt_rom;
-  Asset<uint32_t[64][16], COMPRESSED> mrtnt_sprites;
+  Asset<uint32_t[16], COMPRESSED> mrtnt_sprites;
   Asset<unsigned short[8], COMPRESSED> mrtnt_tilemap;
 public:
   mrtnt();
@@ -34,7 +34,7 @@ public:
 protected:
   const unsigned short *tileRom(unsigned short addr) override;
   const unsigned short *colorRom(unsigned short addr) override;
-  const uint32_t *spriteRom(unsigned char flags, unsigned char code) override;
+  const uint32_t *spriteRom(unsigned char code) override;
 
 private:
   // Cached: hot path reads these per access; data() checks the cache on every call.

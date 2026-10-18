@@ -28,7 +28,7 @@ protected:
   Asset<unsigned char, COMPRESSED> digdug_rom_cpu1;
   Asset<unsigned char, COMPRESSED> digdug_rom_cpu2;
   Asset<unsigned char, COMPRESSED> digdug_rom_cpu3;
-  Asset<uint32_t[256][16], COMPRESSED> digdug_sprites;
+  Asset<uint32_t[16], COMPRESSED> digdug_sprites;
   Asset<unsigned short[8], COMPRESSED> digdug_tilemap;
 public:
 	digdug()

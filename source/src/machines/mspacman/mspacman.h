@@ -23,7 +23,7 @@ protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> mspacman_auxrom;
   Asset<unsigned char, COMPRESSED> mspacman_pacrom;
-  Asset<uint32_t[64][16], COMPRESSED> mspacman_sprites;
+  Asset<uint32_t[16], COMPRESSED> mspacman_sprites;
   Asset<unsigned short[8], COMPRESSED> mspacman_tilemap;
 public:
   mspacman();
@@ -38,7 +38,7 @@ public:
 
 protected:
   const unsigned short *tileRom(unsigned short addr) override;
-  const uint32_t  *spriteRom(unsigned char flags, unsigned char code) override;
+  const uint32_t  *spriteRom(unsigned char code) override;
 
 private:
   bool decode; // true = Ms. Pac-Man mode, false = original Pac-Man mode

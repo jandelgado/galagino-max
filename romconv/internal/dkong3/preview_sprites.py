@@ -55,7 +55,7 @@ def decode():
     sprites = decode_sprites()
     # Nessun flip (flip_x=False, flip_y=False) -- corrisponde al primo blocco
     # scritto da sprites_conv.py.
-    sprite_data_noflip = [v for s in sprites for v in dump_sprite_values(s, False, False)]
+    sprite_data_noflip = [v for s in sprites for v in dump_sprite_values(s)]
 
     # Usiamo la palette dedicata agli sprite (seconda metà della palette master).
     sprite_palette_raw = generate_master_palette()[256:]

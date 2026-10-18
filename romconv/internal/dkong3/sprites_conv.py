@@ -86,16 +86,11 @@ def parse_sprite_dkong(data_chunks, sprite_index=None):
         sprite = flip_matrix_y(sprite)
     return sprite
 
-def dump_sprite_values(data, flip_x, flip_y):
-    """Converte la matrice di pixel in una lista di valori, gestendo il flip."""
+def dump_sprite_values(data):
+    """Converte la matrice di pixel in una lista di valori (non flippati)."""
     vals = []
-    y_range = reversed(range(16)) if flip_y else range(16)
-
-    for y_idx in y_range:
+    for pixel_row in data:
         val = 0
-        pixel_row = data[y_idx]
-        if flip_x:
-            pixel_row = pixel_row[::-1]
         for pixel_value in pixel_row:
             val = (val << 2) | pixel_value
         vals.append(val)
@@ -123,13 +118,9 @@ def write_header(sprites):
         f.write(f"// File generato da sprites_conv.py (modifica: flip/rotazione per sprite)\n")
         f.write(f"// Dati da: {', '.join(INPUT_ROM_FILES)}\n\n")
 
-        flat = []
-        for flip_flag in range(4):
-            flip_x = (flip_flag & 1) != 0
-            flip_y = (flip_flag & 2) != 0
-            for s in sprites:
-                flat.extend(dump_sprite_values(s, flip_x, flip_y))
-        emit_compressed(f, OUTPUT_ARRAY_NAME, "uint32_t", "[%d][%d]" % (NUM_SPRITES, SPRITE_HEIGHT), 4, flat)
+        # Non flippati: dkong3::blit_sprite applica il flip a runtime.
+        flat = [v for s in sprites for v in dump_sprite_values(s)]
+        emit_compressed(f, OUTPUT_ARRAY_NAME, "uint32_t", "[%d]" % SPRITE_HEIGHT, NUM_SPRITES, flat)
 
     print(f"\nProcesso completato! Creato '{OUTPUT_HEADER_FILE}'.")
 

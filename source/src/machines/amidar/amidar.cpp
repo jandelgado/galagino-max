@@ -4,6 +4,7 @@
 #include "amidar_spritemap.h"
 #include "amidar_tilemap.h"
 #include "amidar_cmap.h"
+#include "../../emulation/spriteflip.h"
 
 amidar::amidar()
   : amidar_audio_rom(amidar_audio_rom_blob),
@@ -122,7 +123,7 @@ void amidar::blit_tile(short row, char col) {
 }
 
 void amidar::blit_sprite(short row, unsigned char s) {
-  const uint32_t *spr = amidar_spritemap[sprite[s].flags & 3][sprite[s].code];
+  SpriteRows2bpp spr(amidar_spritemap[sprite[s].code], sprite[s].flags & 3);
   const unsigned short *colors = amidar_colormap[sprite[s].color];
 
   unsigned long mask = 0xffffffff;
@@ -138,11 +139,11 @@ void amidar::blit_sprite(short row, unsigned char s) {
     startline = y_offset;
     lines2draw = 8 - y_offset;
   }
-  if (y_offset < 0) spr -= y_offset;
+  if (y_offset < 0) spr.skip(-y_offset);
 
   unsigned short *ptr = frame_buffer + sprite[s].x + 224 * startline;
   for (char r = 0; r < lines2draw; r++, ptr += (224 - 16)) {
-    unsigned long pix = *spr++ & mask;
+    unsigned long pix = spr.next() & mask;
     for (char c = 0; c < 16; c++, pix >>= 2) {
       long index = ((pix & 2) >> 1) | ((pix & 1) << 1);
       if (pix & 3) *ptr = colors[index];

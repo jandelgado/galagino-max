@@ -158,7 +158,6 @@ def convert_tiles(gfx_data):
 
 def convert_sprites(gfx_data):
     num_sprites = len(gfx_data) // 64  # 256 sprites
-    all_orientations = []
 
     # Decode all sprites in landscape orientation (NO rotation)
     all_pixels = []
@@ -185,24 +184,18 @@ def convert_sprites(gfx_data):
         # NO rotation — keep landscape pixels as-is
         all_pixels.append(landscape)
 
-    # Generate 4 orientations: [no flip, flipY, flipX, flipXY]
-    for flip_x, flip_y in [(False, False), (False, True), (True, False), (True, True)]:
-        orientation = []
-        for sprite_pixels in all_pixels:
-            packed = []
-            y_range = list(range(16)) if not flip_y else list(reversed(range(16)))
-            for y in y_range:
-                val = 0
-                for x in range(16):
-                    if not flip_x:
-                        val |= (sprite_pixels[y][x] << (x * 2))
-                    else:
-                        val |= (sprite_pixels[y][x] << ((15 - x) * 2))
-                packed.append(val)
-            orientation.append(packed)
-        all_orientations.append(orientation)
+    # Unflipped: timeplt::blit_sprite flips at draw time.
+    sprites = []
+    for sprite_pixels in all_pixels:
+        packed = []
+        for y in range(16):
+            val = 0
+            for x in range(16):
+                val |= (sprite_pixels[y][x] << (x * 2))
+            packed.append(val)
+        sprites.append(packed)
 
-    return all_orientations
+    return sprites
 
 # ---- Write C header files ----
 def write_rom(filename, name, data):
@@ -236,12 +229,12 @@ def write_tilemap(filename, tiles, char_colors):
         f.write("};\n")
     print("Written: {} ({} tiles, 32 char palettes)".format(filename, len(tiles)))
 
-def write_spritemap(filename, all_orientations, sprite_colors):
-    num_sprites = len(all_orientations[0])
+def write_spritemap(filename, sprites, sprite_colors):
+    num_sprites = len(sprites)
     with open(filename, 'w') as f:
-        f.write("// Time Pilot spritemap: {} sprites, 16x16, 2bpp, 4 orientations\n".format(num_sprites))
-        flat = [v for orientation in all_orientations for rows in orientation for v in rows]
-        emit_compressed(f, "timeplt_spritemap", "uint32_t", "[%d][16]" % num_sprites, 4, flat)
+        f.write("// Time Pilot spritemap: {} sprites, 16x16, 2bpp, unflipped\n".format(num_sprites))
+        flat = [v for rows in sprites for v in rows]
+        emit_compressed(f, "timeplt_spritemap", "uint32_t", "[16]", num_sprites, flat)
         f.write("\n")
 
         # Sprite color palettes (64 palettes x 4 colors)
@@ -254,7 +247,7 @@ def write_spritemap(filename, all_orientations, sprite_colors):
                 f.write(",")
             f.write("  // palette {}\n".format(pal))
         f.write("};\n")
-    print("Written: {} ({} sprites x 4 orientations, 64 sprite palettes)".format(filename, num_sprites))
+    print("Written: {} ({} sprites, 64 sprite palettes)".format(filename, num_sprites))
 
 # ---- Main ----
 def main():

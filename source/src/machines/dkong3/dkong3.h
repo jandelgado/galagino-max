@@ -55,7 +55,7 @@ protected:
   Asset<unsigned char, COMPRESSED> dkong3_rom_cpu;
   Asset<unsigned char, COMPRESSED> dkong3_rom_sound_a;
   Asset<unsigned char, COMPRESSED> dkong3_rom_sound_b;
-  Asset<uint32_t[256][16], COMPRESSED> dkong3_sprites;
+  Asset<uint32_t[16], COMPRESSED> dkong3_sprites;
   Asset<unsigned short[8], COMPRESSED> dkong3_tilemap;
 public:
     dkong3();

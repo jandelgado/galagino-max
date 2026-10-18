@@ -195,8 +195,8 @@ const unsigned short *crush::colorRom(unsigned short addr) {
   return crush_colormap[addr];
 }
 
-const uint32_t *crush::spriteRom(unsigned char flags, unsigned char code) {
-  return crush_sprites[flags][code];
+const uint32_t *crush::spriteRom(unsigned char code) {
+  return crush_sprites[code];
 }
 
 const Logo &crush::logo(void) {

@@ -41,7 +41,7 @@ class ladybug : public machineBase
 protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> ladybug_rom_cpu1;
-  Asset<uint32_t[128][16], COMPRESSED> ladybug_sprites;
+  Asset<uint32_t[16], COMPRESSED> ladybug_sprites;
   Asset<unsigned short[8], COMPRESSED> ladybug_tilemap;
 public:
   ladybug();

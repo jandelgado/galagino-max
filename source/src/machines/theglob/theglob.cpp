@@ -160,8 +160,8 @@ const unsigned short *theglob::colorRom(unsigned short addr) {
   return theglob_colormap[addr];
 }
 
-const uint32_t *theglob::spriteRom(unsigned char flags, unsigned char code) {
-  return theglob_sprites[flags][code];
+const uint32_t *theglob::spriteRom(unsigned char code) {
+  return theglob_sprites[code];
 }
 
 const Logo &theglob::logo(void) {

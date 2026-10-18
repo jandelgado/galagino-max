@@ -12,7 +12,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import load_file, mame_decode, rot_galagino
 from asset_emit import emit_compressed
-from namco_hw import flip_tile, parse_chr_ref, parse_sprite_ref, pal_rgb, rgb565_swapped_packed as rgb565_swapped
+from namco_hw import parse_chr_ref, parse_sprite_ref, pal_rgb, rgb565_swapped_packed as rgb565_swapped
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "..", "romszip", "mappy.zip"))
 OUT_DIR = os.path.normpath(os.path.join("..", "..", "..", "source", "src", "machines", "mappy"))
@@ -96,22 +96,20 @@ def write_tiles(tiles):
         emit_compressed(f, "mappy_tilemap", "unsigned short", "[8]", len(tiles), flat)
 
 def write_sprites(sprites):
-    # varianti come spriteconv galaga: [0]=(fx0,fy0) [1]=(fx0,fy1) [2]=(fx1,fy0) [3]=(fx1,fy1)
+    # non flippati: mappy::blit_sprite applica il flip a runtime
     with open(os.path.join(OUT_DIR, "mappy_spritemap.h"), "w") as f:
         print("// Mappy sprites (mp1_6.3m+mp1_7.3n interallacciate) — 128 sprite 16x16 4bpp", file=f)
-        print("// [variante flip][codice][riga*2+meta']: nibble LSB-first,", file=f)
+        print("// [codice][riga*2+meta']: nibble LSB-first,", file=f)
         print("// [2r]=pixel 0-7, [2r+1]=pixel 8-15 (stile 1942 4bpp)", file=f)
         flat = []
-        for (fx, fy) in [(0,0),(0,1),(1,0),(1,1)]:
-            for s in sprites:
-                t = flip_tile(s, fx, fy)
-                for y in range(16):
-                    v = 0
-                    for x in range(16):
-                        v |= t[y][x] << (4*x)
-                    flat.append(v & 0xffffffff)
-                    flat.append(v >> 32)
-        emit_compressed(f, "mappy_sprites", "uint32_t", "[%d][32]" % len(sprites), 4, flat)
+        for t in sprites:
+            for y in range(16):
+                v = 0
+                for x in range(16):
+                    v |= t[y][x] << (4*x)
+                flat.append(v & 0xffffffff)
+                flat.append(v >> 32)
+        emit_compressed(f, "mappy_sprites", "uint32_t", "[32]", len(sprites), flat)
 
 def write_colormaps(pal_prom, char_lut, spr_lut):
     pal = [rgb565_swapped(c) for c in pal_prom]  # 32 colori

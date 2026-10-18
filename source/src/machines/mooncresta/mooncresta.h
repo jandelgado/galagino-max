@@ -68,7 +68,7 @@ class mooncresta : public machineBase
 protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned char, COMPRESSED> mooncresta_rom;
-  Asset<uint32_t[128][16], COMPRESSED> mooncresta_spritemap;
+  Asset<uint32_t[16], COMPRESSED> mooncresta_spritemap;
   Asset<unsigned short[8], COMPRESSED> mooncresta_tilemap;
 public:
   mooncresta();

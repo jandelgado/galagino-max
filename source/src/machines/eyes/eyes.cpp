@@ -109,8 +109,8 @@ const unsigned short *eyes::colorRom(unsigned short addr) {
   return eyes_colormap[addr];
 }
 
-const uint32_t *eyes::spriteRom(unsigned char flags, unsigned char code) {
-  return eyes_sprites[flags][code];
+const uint32_t *eyes::spriteRom(unsigned char code) {
+  return eyes_sprites[code];
 }
 
 const Logo &eyes::logo(void) {

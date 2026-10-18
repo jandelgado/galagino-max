@@ -105,8 +105,8 @@ const unsigned short *mrtnt::colorRom(unsigned short addr) {
   return mrtnt_colormap[addr];
 }
 
-const uint32_t *mrtnt::spriteRom(unsigned char flags, unsigned char code) {
-  return mrtnt_sprites[flags][code];
+const uint32_t *mrtnt::spriteRom(unsigned char code) {
+  return mrtnt_sprites[code];
 }
 
 const Logo &mrtnt::logo(void) {

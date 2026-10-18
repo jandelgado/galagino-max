@@ -4,6 +4,7 @@
 #include "ladybug_spritemap.h"
 #include "ladybug_cmap.h"
 #include "../../emulation/input.h"
+#include "../../emulation/spriteflip.h"
 
 ladybug::ladybug()
   : ladybug_rom_cpu1(ladybug_rom_cpu1_blob),
@@ -324,7 +325,7 @@ void ladybug::blit_tile(short row, char col) {
 // Render a single 16x16 sprite - linear scan (sprites are pre-rotated)
 // ============================================================================
 void ladybug::blit_sprite(short row, unsigned char s) {
-  const uint32_t *spr = ladybug_sprites[sprite[s].flags & 3][sprite[s].code];
+  SpriteRows2bpp spr(ladybug_sprites[sprite[s].code], sprite[s].flags & 3);
   const unsigned short *colors = ladybug_sprite_colormap[sprite[s].color & 7];
 
   // Horizontal clip mask
@@ -344,11 +345,11 @@ void ladybug::blit_sprite(short row, unsigned char s) {
   }
 
   if (y_offset < 0)
-    spr -= y_offset;
+    spr.skip(-y_offset);
 
   unsigned short *ptr = frame_buffer + sprite[s].x + 224 * startline;
   for (char r = 0; r < lines2draw; r++, ptr += (224 - 16)) {
-    unsigned long pix = *spr++ & mask;
+    unsigned long pix = spr.next() & mask;
     for (char c = 0; c < 16; c++, pix >>= 2) {
       if (pix & 3) *ptr = colors[pix & 3];
       ptr++;

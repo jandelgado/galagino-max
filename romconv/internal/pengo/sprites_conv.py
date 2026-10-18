@@ -61,14 +61,6 @@ def rotate_gfx(gfx_data, width, height):
             rotated[x][(height - 1) - y] = gfx_data[y][x]
     return rotated
 
-def flip_sprite(sprite_data, flip_x, flip_y):
-    flipped = [[0]*16 for _ in range(16)]
-    for y in range(16):
-        for x in range(16):
-            src_x = 15 - x if flip_x else x; src_y = 15 - y if flip_y else y
-            flipped[y][x] = sprite_data[src_y][src_x]
-    return flipped
-
 def dump_sprite_values(sprite_data):
     vals = []
     for y in range(16):
@@ -116,15 +108,10 @@ def main():
     final_sprites_unflipped = [rotate_gfx(s, 16, 16) for s in decoded_sprites]
     print(f"Scrittura file C per gli sprite: {OUTPUT_C_FILE}...")
     with open(OUTPUT_C_FILE, "w") as f:
-        flat = []
-        for bank in range(2):
-            for flip_val in range(4):
-                flip_y = (flip_val & 1) != 0; flip_x = (flip_val & 2) != 0
-                for i in range(64):
-                    sprite_idx = bank * 64 + i
-                    flipped = flip_sprite(final_sprites_unflipped[sprite_idx], flip_x, flip_y)
-                    flat.extend(dump_sprite_values(flipped))
-        emit_compressed(f, "pengo_sprites", "uint32_t", "[4][64][16]", 2, flat)
+        # 2 banchi x 64 sprite, non flippati: pengo::blit_sprite applica il
+        # flip a runtime.
+        flat = [v for s in final_sprites_unflipped for v in dump_sprite_values(s)]
+        emit_compressed(f, "pengo_sprites", "uint32_t", "[64][16]", 2, flat)
     create_preview(final_sprites_unflipped, 16, 16, OUTPUT_PREVIEW)
     print("--- Elaborazione SPRITE completata ---")
 
