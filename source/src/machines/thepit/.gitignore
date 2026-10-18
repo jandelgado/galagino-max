@@ -1,0 +1,5 @@
+thepit_main_rom.h
+thepit_sound_rom.h
+thepit_tiles.h
+thepit_sprites.h
+thepit_cmap.h

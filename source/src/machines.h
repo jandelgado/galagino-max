@@ -225,6 +225,10 @@
   #include "machines/llander/llander.h"
 #endif
 
+#ifdef ENABLE_THEPIT
+  #include "machines/thepit/thepit.h"
+#endif
+
 // change machine order is possible here...
 machineInfo machines[] = {
 #ifdef ENABLE_PACMAN
@@ -618,6 +622,13 @@ machineInfo machines[] = {
     llander::menuLeds,
 #endif
     MCH_LLANDER },
+#endif
+#ifdef ENABLE_THEPIT
+  { []() -> machineBase* { return new thepit(); }, thepit::logo,
+#ifdef LED_PIN
+    thepit::menuLeds,
+#endif
+    MCH_THEPIT },
 #endif
 #ifdef ENABLE_COMMANDO
   { []() -> machineBase* { return new commando(); }, commando::logo,

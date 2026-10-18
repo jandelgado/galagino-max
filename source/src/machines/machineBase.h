@@ -98,7 +98,8 @@ enum {
   MCH_ASTEROIDS,
   MCH_BALUBA,
   MCH_COMMANDO,
-  MCH_LLANDER
+  MCH_LLANDER,
+  MCH_THEPIT
 };
 
 // one inst at 3Mhz ~ 500k inst/sec = 500000/60 inst per frame
