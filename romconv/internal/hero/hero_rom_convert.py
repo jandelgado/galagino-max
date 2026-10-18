@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Extract H.E.R.O. (Activision 1984, Atari 2600) levels, graphics and tables.
 
-The game is not emulated: galagino reimplements it (see HERO.md). Only data
-blocks are emitted, at their original 2600 addresses, so the C++ code reads
-like the disassembly. Code bytes interleaved with the bank 0 graphics are
-zeroed. Also emits two palettes: Stella PAL (default) and TIA NTSC (MAME
-tia.cpp formula, HERO_NTSC_COLORS).
+The game is not emulated: galagino reimplements it (see
+source/src/machines/hero/HERO.md). Only data blocks are emitted, at their
+original 2600 addresses, so the C++ code reads like the disassembly. Code
+bytes interleaved with the bank 0 graphics are zeroed. Also emits two
+palettes: Stella PAL (default) and TIA NTSC (MAME tia.cpp formula,
+HERO_NTSC_COLORS).
 
 Takes the NTSC or the PAL cart. They differ only in colour bytes (and PAL
 frame timing in code not emitted), so PAL colours are mapped back to NTSC

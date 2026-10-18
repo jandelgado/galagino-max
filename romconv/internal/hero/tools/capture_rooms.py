@@ -3,8 +3,8 @@
 
 usage: capture_rooms.py <rom.a26> <outdir>
 Starts game 1, then pokes level $F5, screen $9C and ball x $A0 as on a first
-visit (only set by a real screen change, see HERO.md) and snapshots 3 frames
-later.
+visit (only set by a real screen change, see
+source/src/machines/hero/HERO.md) and snapshots 3 frames later.
 """
 import os
 import subprocess
