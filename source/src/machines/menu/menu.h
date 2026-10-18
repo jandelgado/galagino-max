@@ -2,26 +2,31 @@
 #define MENU_H
 
 #include <Arduino.h>
-#include "input.h"
-#include "../config.h"
-#include "../machines/machineBase.h"
+#include "../../emulation/input.h"
+#include "../../config.h"
+#include "../machineBase.h"
 
-class Menu {
+// Game selection screen, run like any machine: main creates it, asks
+// selected() each frame and deletes it to start the chosen game.
+// Logos live in Arena while the menu exists.
+class Menu : public machineBase {
 public:
-  Menu() { }
-  ~Menu() { }
+  static const int8_t NONE = -1;
 
-  void init(Input *input, const machineInfo *machines, signed char machinesCount, unsigned short *framebuffer);
-  void attract_resetTimer();
-  bool attract_gameTimeout();
-  void render_row(short row);
-  void handle();
-  void show_menu();
+  // strip starts at shown, then scrolls to the highlighted preselect
+  Menu(const machineInfo *machines, int8_t machinesCount, int8_t shown, int8_t preselect);
+  ~Menu() override;
 
-  signed char machineIndexPreselection();
-  signed char machineIndexSelected();
-  bool startMachine();
-  bool machineIndexIsMenu();
+  void start() override;
+  void prepare_frame() override;
+  void render_row(short row) override;
+#ifdef LED_PIN
+  void gameLeds(CRGB *leds) override;
+#endif
+
+  // chosen machine index, NONE until FIRE/START or menu attract
+  int8_t selected() const { return selection; }
+
 private:
   // Max logos on screen: 3 full + 1 partial while scrolling.
   static const unsigned char LOGO_CACHE_SIZE = 4;
@@ -32,25 +37,21 @@ private:
   void refreshLogoCache();
   const unsigned short *logoBuffer(const Logo &logo);
   void enterMenu();
-  void leaveMenu();
+  void select();
+  int scrollTarget(int8_t sel);
 #ifdef MENU_CYLINDER
   void render_row_cylinder(short row);
 #endif
 
-  Input *input;
-  signed char machinesCount;
-  machineBase *currentMachine;
   const machineInfo *machines;
-  unsigned short *frame_buffer;
-  unsigned char last_mask;
-  bool menuWasSelected;
-  unsigned long master_attract_timeout; // menu timeout for master attract mode which randomly start games
-  signed char machineIndexLast;
-  signed char machineIndex;
-  signed char menu_sel;
+  int8_t machinesCount;
+  int8_t menu_sel;          // highlighted machine, 1-based
+  int8_t selection = NONE;
+  unsigned int last_mask;
+  uint32_t attract_start;   // menu attract: start menu_sel when idle
   int scroll_offset = 0;
 
-  // Decoded logos, allocated from Arena only while the menu shows.
+  // Decoded logos, allocated from Arena while the menu exists.
   // slot_logo[i] owns logo_pool[i]. Decoding every frame is too slow, so a
   // logo decodes once and stays until scrolled off.
   unsigned char logo_pool_count = 0;

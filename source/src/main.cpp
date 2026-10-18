@@ -20,7 +20,7 @@
 #include "emulation/audio.h"
 #include "emulation/video.h"
 #include "emulation/input.h"
-#include "emulation/menu.h"
+#include "machines/menu/menu.h"
 #include "emulation/emulation.h"
 #include "emulation/hud.h"
 #include "emulation/selftest.h"
@@ -31,6 +31,24 @@
 signed char machinesCount = (signed char)countof(machines);
 
 machineBase *currentMachine;
+
+// non-null while the menu is the running machine
+Menu *menu;
+
+// switchTo() argument for the menu
+static const int8_t SHOW_MENU = -1;
+
+// last started game, the menu strip starts there. Boot: second logo, centred
+static int8_t lastIndex = 1;
+
+// highlighted when the menu opens: lastIndex, or the next game after an
+// attract timeout (the strip then scrolls one logo)
+static int8_t menuPreselect = 1;
+
+#ifdef MASTER_ATTRACT_GAME_TIMEOUT
+// game start time, 0 = disabled by player input
+static uint32_t attractGameStart = 0;
+#endif
 
 // the hardware supports 64 sprites
 struct sprite_S *sprite_buffer;
@@ -44,13 +62,12 @@ unsigned char *memory;
 Audio audio;  // not copy-initialized: holds atomics (ima_adpcm::Voice)
 Video video = Video();
 Input input = Input();
-Menu menu = Menu();
 #ifdef LED_PIN
   Led led = Led();
 #endif
 
 void updateAudioVideo(void);
-void renderRow(short row, bool isMenu);
+void renderRow(short row);
 void onDoAttractReset();
 void onVolumeUpDown(bool up, bool down);
 void onDoReset();
@@ -162,22 +179,11 @@ void setup() {
   sprite_buffer = (sprite_S*)malloc(128 * sizeof(sprite_S));
   audio.init();
 
-  // With a menu, a machine is created on selection, so the menu always
-  // starts from the same heap state.
-  if (machinesCount == 1) {
-    printf("Before init - Heap: Free=%d MaxAlloc=%d MinFree=%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
-    currentMachine = machines[0].create();
-    currentMachine->init(&input, frame_buffer, sprite_buffer, memory);
-    printf("After  init - Heap: Free=%d MaxAlloc=%d MinFree=%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
-    audio.start(currentMachine);
-  }
-
   input.init(machinesCount == 1);
   input.onVolumeUpDown(onVolumeUpDown);
   input.onDoReset(onDoReset);
   input.onDoAttractReset(onDoAttractReset);
 
-  menu.init(&input, machines, machinesCount, frame_buffer);
 #ifdef LED_PIN
   led.init();
 #endif
@@ -227,7 +233,7 @@ void loop(void) {
   updateAudioVideo();
 
 #ifdef LED_PIN
-  led.update(machines, currentMachine, menu.machineIndexPreselection(), menu.machineIndexSelected());
+  led.update(currentMachine);
 #endif
 }
 
@@ -238,51 +244,80 @@ static const uint32_t FRAME_US = 16667;
 // further behind the frame deadline than this: restart pacing
 static const int32_t MAX_LATE_US = 50000;
 
+// Replace the running machine (game or menu). The old one is deleted
+// first: the menu ctor resets Arena, which must not hold live assets.
+static void switchTo(int8_t index) {
+  if (currentMachine) {
+    emulation_stop();
+    video.flipReset(currentMachine->videoFlipY(), currentMachine->videoFlipX());
+    audio.stop();
+    delete currentMachine;
+  }
+
+  menu = nullptr;
+  if (index == SHOW_MENU) {
+    menu = new Menu(machines, machinesCount, lastIndex, menuPreselect);
+    currentMachine = menu;
+  }
+  else {
+    lastIndex = index;
+    menuPreselect = index;
+    currentMachine = machines[index].create();
+#ifdef MASTER_ATTRACT_GAME_TIMEOUT
+    attractGameStart = machinesCount > 1 ? millis() : 0;
+#endif
+  }
+
+  currentMachine->init(&input, frame_buffer, sprite_buffer, memory);
+  audio.start(currentMachine);
+  video.flip(currentMachine->videoFlipY(), currentMachine->videoFlipX());
+  emulation_start();
+  printf("switchTo(%d) Heap: Free=%d MaxAlloc=%d MinFree=%d\n", index, ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
+}
+
+// Idle game for too long: back to the menu with the next game preselected,
+// menu attract then starts it.
+static bool attractGameTimeout() {
+#ifdef MASTER_ATTRACT_GAME_TIMEOUT
+  if (menu || !attractGameStart) {
+    return false;
+  }
+  if (millis() - attractGameStart <= MASTER_ATTRACT_GAME_TIMEOUT) {
+    return false;
+  }
+
+  menuPreselect = (lastIndex + 1) % machinesCount;
+  printf("MASTER ATTRACT game timeout, return to menu\n");
+  return true;
+#else
+  return false;
+#endif
+}
+
 void updateAudioVideo(void) {
   static uint32_t last_yield_ms = 0;
   uint32_t t0 = micros();
 
-  bool isMenu = menu.machineIndexIsMenu();
-  if(isMenu) {
-    menu.handle();
+  // First frame, not setup(): the machine's task would starve its
+  // watchdog while BOOT_SELFTEST runs.
+  if (!currentMachine) {
+    switchTo(machinesCount == 1 ? 0 : SHOW_MENU);
   }
-  else {
-    if (menu.startMachine()) {
-      delete currentMachine;
-      currentMachine = machines[menu.machineIndexSelected()].create();
-      currentMachine->init(&input, frame_buffer, sprite_buffer, memory);
-      audio.start(currentMachine);
-      video.flip(currentMachine->videoFlipY(), currentMachine->videoFlipX());
-
-      // start new machine
-      emulation_start();
-    }
-    currentMachine->prepare_frame();
-  }
-
-  if (doReset || menu.attract_gameTimeout()) {
-    // null if reset is pressed in the menu
-    if (currentMachine) {
-      // stop current machine
-      emulation_stop();
-      video.flipReset(currentMachine->videoFlipY(), currentMachine->videoFlipX());
-
-      audio.stop();
-      delete currentMachine;
-      currentMachine = nullptr;
-
-      menu.show_menu();
-      isMenu = true;
-    }
+  else if (doReset || attractGameTimeout()) {
     doReset = false;
+    switchTo(SHOW_MENU);
   }
+  else if (menu && menu->selected() != Menu::NONE) {
+    switchTo(menu->selected());
+  }
+
+  currentMachine->prepare_frame();
 
   bool videoHalfRate = true;
 #ifndef VIDEO_HALF_RATE
-  // !isMenu first: currentMachine is null while in the menu
-  videoHalfRate = !isMenu && currentMachine->useVideoHalfRate();
+  videoHalfRate = currentMachine->useVideoHalfRate();
 #endif
-  const int renderWidth = !isMenu ? currentMachine->renderWidth() : 224;
+  const int renderWidth = currentMachine->renderWidth();
   const int renderWrite = renderWidth << 3;
   video.setViewport(renderWidth);
 
@@ -290,7 +325,7 @@ void updateAudioVideo(void) {
     // render and transmit screen at once as the display running at 80Mhz can update at full 60 hz game frame
     for(int c = 0; c < 36; c += 6) {
       for (int i = 0; i < 6; i++) {
-        renderRow(c + i, isMenu); video.write(frame_buffer, renderWrite);
+        renderRow(c + i); video.write(frame_buffer, renderWrite);
       }
 
       // audio is updated 6 times per 60 Hz frame
@@ -330,9 +365,9 @@ void updateAudioVideo(void) {
     // render and transmit screen in two halfs as the display running at 40Mhz can only update every second 60 hz game frame
     for(int half = 0; half < 2; half++) {
       for(int c = 18 * half; c < 18 * (half + 1); c += 3) {
-        renderRow(c + 0, isMenu); video.write(frame_buffer, renderWrite);
-        renderRow(c + 1, isMenu); video.write(frame_buffer, renderWrite);
-        renderRow(c + 2, isMenu); video.write(frame_buffer, renderWrite);
+        renderRow(c + 0); video.write(frame_buffer, renderWrite);
+        renderRow(c + 1); video.write(frame_buffer, renderWrite);
+        renderRow(c + 2); video.write(frame_buffer, renderWrite);
 
         // audio is refilled 6 times per screen update. The screen is updated
         // every second frame. So audio is refilled 12 times per 30 Hz frame.
@@ -355,33 +390,33 @@ void updateAudioVideo(void) {
   }
 }
 
-// render one of 36 tile rows (8 x 224 pixel lines)
 // render one of 36 strips (8 lines, width supplied by the active machine)
-void renderRow(short row, bool isMenu) {
-  if(isMenu) {
-    menu.render_row(row);
-  }
-  else {
-    memset(frame_buffer, 0, currentMachine->renderBuffer());
-    currentMachine->render_row(row);
+void renderRow(short row) {
+  memset(frame_buffer, 0, currentMachine->renderBuffer());
+  currentMachine->render_row(row);
 #ifdef DEBUG_TIMING_FPS_HUD
-    uint8_t flip = (currentMachine->videoFlipY() ? HUD_FLIP_Y : HUD_FLIP_NONE)
-                 | (currentMachine->videoFlipX() ? HUD_FLIP_X : HUD_FLIP_NONE);
-    hud_render_fps(frame_buffer, currentMachine->renderWidth(), row, flip);
+  uint8_t flip = (currentMachine->videoFlipY() ? HUD_FLIP_Y : HUD_FLIP_NONE)
+               | (currentMachine->videoFlipX() ? HUD_FLIP_X : HUD_FLIP_NONE);
+  hud_render_fps(frame_buffer, currentMachine->renderWidth(), row, flip);
 #endif
-  }
 }
 
 void onVolumeUpDown(bool up, bool down) {
   audio.volumeUpDown(up, down);
 }
 
+// in-game input disarms the game attract timeout; the menu tracks its own
 void onDoAttractReset() {
-  menu.attract_resetTimer();
+#ifdef MASTER_ATTRACT_GAME_TIMEOUT
+  if (attractGameStart) {
+    attractGameStart = 0;
+    printf("MASTER ATTRACT timer reset\n");
+  }
+#endif
 }
 
 void onDoReset() {
-  if(!menu.machineIndexIsMenu()) {
+  if (!menu) {
     doReset = true;
   }
 }

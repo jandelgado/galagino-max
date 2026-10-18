@@ -1,5 +1,5 @@
 #include "menu.h"
-#include "arena.h"
+#include "../../emulation/arena.h"
 #ifdef MENU_CYLINDER
 #include <math.h>
 
@@ -39,63 +39,98 @@ static inline unsigned short shade_RGB565(unsigned short in, uint8_t shade, uint
   b = (((y << 8) + (b - y) * k) * m) >> 16;
   return pack_RGB565(r >> 1, g, b >> 1);
 }
+
+// Per line memo of shade_RGB565(): a logo line has at most 16 colours, but
+// shading every pixel (~80 instructions) made the drum render slower than
+// SPI (51 Hz). Direct mapped, entry = colour << 16 | shaded colour.
+constexpr uint8_t SHADE_CACHE_SIZE = 64;
+constexpr unsigned short WHITE_RGB565 = 0xffff;
+
+static inline uint8_t shade_slot(unsigned short c) {
+  return (c ^ (c >> 6) ^ (c >> 11)) & (SHADE_CACHE_SIZE - 1);
+}
 #endif
 
-void Menu::init(Input *input, const machineInfo *machines,  signed char machinesCount, unsigned short *framebuffer) {
-  this->master_attract_timeout = millis();
-  this->input = input;
-  this->machines = machines;
-  this->machinesCount = machinesCount;
-  this->frame_buffer = framebuffer;
-  if (machinesCount == 1) {
-    machineIndex = 1;
-    menu_sel = 1;
+Menu::Menu(const machineInfo *machines, int8_t machinesCount, int8_t shown, int8_t preselect)
+  : machines(machines), machinesCount(machinesCount), menu_sel(preselect + 1) {
+  attract_start = millis();
+
+  // buttons still held from the reset combo (e.g. nunchuck C+Z) must be
+  // released before they count
+  last_mask = ~0u;
+
+  // start at the last game, render_row() scrolls on to the preselection
+  if(machinesCount > 3) {
+    scroll_offset = scrollTarget(shown + 1);
   }
-  else {
-    machineIndex = MCH_MENU;
-    menu_sel = 2;
-    enterMenu();
-  }
-}
-
-void Menu::show_menu() {
-  machineIndex = MCH_MENU;
-  menuWasSelected = true;
-
-  // when going back to menu, reactivate attract mode
-  master_attract_timeout = millis();
-
-  // prevent start after a reset: buttons still held from the reset
-  // combo (e.g. nunchuck C+Z) must be released before they count
-  last_mask = 0xff;
-  printf("show menu\n");
 
   enterMenu();
 }
 
-signed char Menu::machineIndexSelected() {
-  return machineIndex - 1;
+// Logo pool dies with the menu: the next machine unpacks into a clean Arena.
+Menu::~Menu() {
+  Arena::reset();
 }
 
-signed char Menu::machineIndexPreselection() {
-  return menu_sel - 1;
+// no CPU to boot: sync to vblank right away
+void Menu::start() {
+  game_started = 1;
 }
 
-bool Menu::startMachine() {
-  if(machineIndex != machineIndexLast | menuWasSelected) {
-    machineIndexLast = machineIndex;
-    menuWasSelected = false;
-    leaveMenu();
-    return true;
+void Menu::select() {
+  selection = menu_sel - 1;
+  printf("select machine #%d - %s\n", selection, mchName(machines[selection].type));
+}
+
+void Menu::prepare_frame() {
+  if(selection != NONE) { return; }
+
+  const unsigned int keymask = input->buttons_get();
+  const unsigned int pressed = keymask & ~last_mask;
+  last_mask = keymask;
+
+  // navigation restarts the menu attract countdown
+  if(pressed & (BUTTON_UP | BUTTON_DOWN | BUTTON_EXTRA)) {
+    attract_start = millis();
   }
-  return false;
+
+  if(pressed & BUTTON_UP) { menu_sel--; }
+  if(pressed & BUTTON_DOWN) { menu_sel++; }
+
+  // up to 3 logos fit the screen: clamp; more scroll: wrap
+  if(machinesCount <= 3) {
+    if(menu_sel < 1) { menu_sel = 1; }
+    if(menu_sel > machinesCount) { menu_sel = machinesCount; }
+  }
+  else {
+    if(menu_sel < 1) { menu_sel = machinesCount; }
+    if(menu_sel > machinesCount) { menu_sel = 1; }
+  }
+
+  if(pressed & (BUTTON_FIRE | BUTTON_START)) {
+    select();
+    return;
+  }
+
+#ifdef MASTER_ATTRACT_MENU_TIMEOUT
+  if(millis() - attract_start > MASTER_ATTRACT_MENU_TIMEOUT) {
+    printf("MASTER ATTRACT ");
+    select();
+  }
+#endif
 }
 
-// Pool lives for the whole menu session. The last machine is deleted by
-// now, so reset() reclaims its assets.
-void Menu::enterMenu() {
-  if(logo_pool[0]) { return; }
+// scroll_offset that puts machine sel (1-based) in the middle slot
+int Menu::scrollTarget(int8_t sel) {
+  if(sel == 1) {
+    return (machinesCount - 1) * 96;
+  }
+  return 96 * ((unsigned)(sel - 2) % machinesCount);
+}
 
+// Pool lives as long as the menu. The last machine is deleted by now, so
+// reset() reclaims its assets.
+void Menu::enterMenu() {
   Arena::reset();
   for(logo_pool_count = 0; logo_pool_count < LOGO_CACHE_SIZE; logo_pool_count++) {
     // +1: slack in case uzlib writes past dest_limit.
@@ -134,110 +169,13 @@ void Menu::enterMenu() {
 #endif
 }
 
-// Free before the machine's assets claim the arena.
-void Menu::leaveMenu() {
-  for(unsigned char i = 0; i < LOGO_CACHE_SIZE; i++) {
-    logo_pool[i] = nullptr;
-    slot_logo[i] = nullptr;
-  }
-  logo_pool_count = 0;
-#ifdef MENU_CYLINDER
-  cylinder_lut = nullptr;
-#endif
-  Arena::reset();
-}
-
-bool Menu::machineIndexIsMenu() {
-  return machineIndex == MCH_MENU;
-}
-
-bool Menu::attract_gameTimeout() {
-#ifdef MASTER_ATTRACT_GAME_TIMEOUT
-  if(machinesCount > 1 && master_attract_timeout && (millis() - master_attract_timeout > MASTER_ATTRACT_GAME_TIMEOUT)) {
-    master_attract_timeout = millis();
-
-    // select next attract machine
-    menu_sel++;
-    if (menu_sel > machinesCount)
-      menu_sel = 1;
-
-    printf("MASTER ATTRACT game timeout, return to menu\n");
-    printf("Heap: Free=%d MaxAlloc=%d MinFree=%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
-    return true;
-  }
-#endif
-  return false;
-}
-
-void Menu::attract_resetTimer() {
-  if (machineIndexIsMenu()) {
-    // in menu: restart the countdown instead of disabling it
-    master_attract_timeout = millis();
-  }
-  else if (master_attract_timeout != 0) {
-    master_attract_timeout = 0;
-    printf("MASTER ATTRACT timer reset!!!\n");
-  }
-}
-
-void Menu::handle() {
-  // get a mask of currently pressed keys
-  unsigned char keymask = input->buttons_get();
-
-  if((keymask & BUTTON_UP) && !(last_mask & BUTTON_UP))
-    menu_sel--;
-
-  if((keymask & BUTTON_DOWN) && !(last_mask & BUTTON_DOWN))
-    menu_sel++;
-
-  if(((keymask & BUTTON_FIRE) && !(last_mask & BUTTON_FIRE)) || ((keymask & BUTTON_START) && !(last_mask & BUTTON_START))) {
-    machineIndex = menu_sel;
-    printf("select machine #%d -> %d - %s\n",
-      machineIndex,
-      machines[machineIndexSelected()].type,
-      mchName(machines[machineIndexSelected()].type));
-  }
-
-  if(machinesCount <= 3) {
-    if(menu_sel < 1)
-      menu_sel = 1;
-    if(menu_sel > machinesCount)
-      menu_sel = machinesCount;
-  }
-  else {
-    if(menu_sel < 1)
-      menu_sel = machinesCount;
-    if(menu_sel > machinesCount)
-      menu_sel = 1;
-  }
-  last_mask = keymask;
-
-#ifdef MASTER_ATTRACT_MENU_TIMEOUT
-  // check for master attract timeout
-  if(master_attract_timeout && (millis() - master_attract_timeout > MASTER_ATTRACT_MENU_TIMEOUT)) {
-    master_attract_timeout = millis();  // new timeout for running game
-
-    machineIndex = menu_sel;
-    printf("MASTER ATTRACT to machine #%d -> type %d - %s\n",
-      machineIndex,
-      machines[machineIndexSelected()].type,
-      mchName(machines[machineIndexSelected()].type));
-    printf("Heap: Free=%d MaxAlloc=%d MinFree=%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
-  }
-#endif
-}
-
 void Menu::render_row(short row) {
   if(row == 0) {
     refreshLogoCache();
   }
 
   if(machinesCount <= 3) {
-    // non-scrolling menu for 2 or 3 machines. 2 machines leave rows
-    // 0-5 and 30-35 empty: clear them, else the previous strip
-    // (e.g. the countdown bar) repeats there
-    if(machinesCount == 2 && (row < 6 || row >= 30))
-      memset(frame_buffer, 0, 224 * 8 * sizeof(unsigned short));
+    // non-scrolling menu for 2 or 3 machines
     for(char i = 0; i < machinesCount; i++) {
       char offset = i * 12;
       if(machinesCount == 2) offset += 6;
@@ -271,10 +209,7 @@ void Menu::render_row(short row) {
 #endif
 
     if(row == 35) {
-      // finally scroll_offset is bound to game, something like 96 * game:
-      int new_offset = 96 * ((unsigned)(menu_sel - 2) % machinesCount);
-      if(menu_sel == 1)
-        new_offset = (machinesCount - 1) * 96;
+      int new_offset = scrollTarget(menu_sel);
 
       // check if we need to scroll
       if(new_offset != scroll_offset) {
@@ -291,10 +226,10 @@ void Menu::render_row(short row) {
   }
 
 #if defined(MASTER_ATTRACT_MENU_TIMEOUT) && defined(MASTER_ATTRACT_MENU_SHOW_COUNTDOWN)
-  if(row==0 && master_attract_timeout) {
+  if(row == 0) {
     // elapsed can exceed the timeout for one frame at the deadline.
     // Signed math clamps to 0; unsigned would wrap.
-    long elapsed = (long)(millis() - master_attract_timeout);
+    long elapsed = (long)(millis() - attract_start);
     long t_remaining = elapsed >= (long)MASTER_ATTRACT_MENU_TIMEOUT ? 0 : MASTER_ATTRACT_MENU_TIMEOUT - elapsed;
     int bar = (int)(224L * t_remaining / MASTER_ATTRACT_MENU_TIMEOUT);
     for(int x=0; x<bar && x<224; x++) {
@@ -357,7 +292,17 @@ void Menu::render_row_cylinder(short row) {
       for(short x = left; x < right; x++, sx += step) { dst[x] = img[sx >> 16]; }
     }
     else {
-      for(short x = left; x < right; x++, sx += step) { dst[x] = shade_RGB565(img[sx >> 16], l.shade, l.sat); }
+      // every slot starts as white's entry, so no valid flag is needed
+      uint32_t cache[SHADE_CACHE_SIZE];
+      const uint32_t white = ((uint32_t)WHITE_RGB565 << 16) | shade_RGB565(WHITE_RGB565, l.shade, l.sat);
+      for(uint8_t i = 0; i < SHADE_CACHE_SIZE; i++) { cache[i] = white; }
+
+      for(short x = left; x < right; x++, sx += step) {
+        const unsigned short c = img[sx >> 16];
+        uint32_t &e = cache[shade_slot(c)];
+        if((e >> 16) != c) { e = ((uint32_t)c << 16) | shade_RGB565(c, l.shade, l.sat); }
+        dst[x] = (unsigned short)e;
+      }
     }
   }
 }
@@ -450,6 +395,13 @@ unsigned short Menu::convert_RGB565_to_greyscale(unsigned short in) {
           ((avg <<  2) & 0x00f8) |   // r5-r0
           ((avg >>  3) & 0x0007));   // g5-g3
 }
+
+#ifdef LED_PIN
+// preview of the highlighted game
+void Menu::gameLeds(CRGB *leds) {
+  machines[menu_sel - 1].menuLeds(leds);
+}
+#endif
 
 const char *mchName(signed char machineType) {
 
