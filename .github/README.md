@@ -160,5 +160,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Asteroids (asteroid.zip)       | ![Asteroids marquee](/logos/asteroids.png)    |                                | Vector display rasterized |
 | Baluba-louk no Densetsu (baluba.zip) | ![Baluba-louk no Densetsu marquee](/logos/baluba.png) |                          | Star Force board |
 | Commando (commando.zip)        | ![Commando marquee](/logos/commando.png) | ![Commando screenshot](/images/commando.png) | L1-Fire START+R1=Grenade. C64 SID music: romszip/Commando.sid (HVSC) |
+| Lunar Lander (llander.zip)     | ![Lunar Lander marquee](/logos/llander.png) | ![Lunar Lander screenshot](/images/llander.png) | Rev 2. Up/down=thrust lever, FIRE=select mission/abort |
 
 ### ...

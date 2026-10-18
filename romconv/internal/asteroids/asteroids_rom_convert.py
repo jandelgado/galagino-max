@@ -21,7 +21,7 @@ PROGRAM = [
 ]
 VECTOR = [("035127-02.np3", "8cd5005e531eafa361d6b7e9eed159d164776c70")]
 
-# asteroids::MAX_LINES vec2d::Line (16 B) + StripRasterizer next/active
+# dvgMachine::MAX_LINES vec2d::Line (16 B) + StripRasterizer next/active
 # (2 x uint16_t per line) + 36 strip heads, allocated in start()
 MAX_LINES = 1024
 LINE_BUFFER_BYTES = MAX_LINES * 16 + MAX_LINES * 2 * 2 + 36 * 2

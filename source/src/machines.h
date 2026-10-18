@@ -221,6 +221,9 @@
 #ifdef ENABLE_ASTEROIDS
   #include "machines/asteroids/asteroids.h"
 #endif
+#ifdef ENABLE_LLANDER
+  #include "machines/llander/llander.h"
+#endif
 
 // change machine order is possible here...
 machineInfo machines[] = {
@@ -608,6 +611,13 @@ machineInfo machines[] = {
     asteroids::menuLeds,
 #endif
     MCH_ASTEROIDS },
+#endif
+#ifdef ENABLE_LLANDER
+  { []() -> machineBase* { return new llander(); }, llander::logo,
+#ifdef LED_PIN
+    llander::menuLeds,
+#endif
+    MCH_LLANDER },
 #endif
 #ifdef ENABLE_COMMANDO
   { []() -> machineBase* { return new commando(); }, commando::logo,

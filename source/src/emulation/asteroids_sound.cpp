@@ -1,8 +1,8 @@
 #include "asteroids_sound.h"
 #include <math.h>
 
-static const float SAMPLE_RATE = 24000.0f;
-static const float DT = 1.0f / SAMPLE_RATE;
+using discrete::DT;
+
 static const int32_t SAMPLE_MAX = 511;
 
 // MAME relative gains (asteroid_discrete gain table), peak to peak
@@ -15,9 +15,6 @@ static const float GAIN_THRUST = 600.0f * 7.6f;
 // MAME units to +-511: at 1.0 the loudest sound (explosion, volume 15)
 // peaks at about 465
 static const float MIX_GAIN = 1.0f;
-
-// noise LFSR clock 12 kHz = every 2nd sample
-static const uint8_t NOISE_DIV = 2;
 
 // Thump 555 VCO, high time in samples per DAC value: R44-R47 ladder into a
 // 2N3906 current source (22k) charging 0.22u from 1/3 to 2/3 of 5 V;
@@ -32,30 +29,6 @@ static const uint8_t EXPLODE_DIV[4] = {12, 6, 3, 5};
 
 // life: 3 kHz square, 8 samples per period
 static const uint8_t LIFE_PERIOD = 8;
-
-void AsteroidsSound::LowPass::set(float fc) {
-  a = 1.0f - expf(-2.0f * (float)M_PI * fc * DT);
-  y = 0;
-}
-
-void AsteroidsSound::BandPass::set(float fc, float damp) {
-  const float two_over_t = 2.0f * SAMPLE_RATE;
-  const float wc = SAMPLE_RATE * 2.0f * tanf((float)M_PI * fc / SAMPLE_RATE);
-  const float den = two_over_t * two_over_t + damp * wc * two_over_t + wc * wc;
-  a1 = 2.0f * (-two_over_t * two_over_t + wc * wc) / den;
-  a2 = (two_over_t * two_over_t - damp * wc * two_over_t + wc * wc) / den;
-  b0 = damp * wc * two_over_t / den;
-  x1 = x2 = y1 = y2 = 0;
-}
-
-float AsteroidsSound::BandPass::step(float x) {
-  const float y = -a1 * y1 - a2 * y2 + b0 * (x - x2);
-  x2 = x1;
-  x1 = x;
-  y2 = y1;
-  y1 = y;
-  return y;
-}
 
 // MAME: DISCRETE_RAMP (frequency falls linearly over 0.28 s), RCDISC
 // (amplitude decays from amp to 0 with tau, plus 7 floor), SQUAREWAVE with
@@ -98,10 +71,7 @@ float AsteroidsSound::Fire::step(bool on) {
 }
 
 void AsteroidsSound::reset() {
-  lfsr = 0;
-  noise_reset = 0;
-  noise_div = 0;
-  noise = 0;
+  noise.reset();
   thump_count = 0;
   thump_high = false;
   lfo_phase = saucer_phase = 0;
@@ -115,24 +85,6 @@ void AsteroidsSound::reset() {
   thrust_lp2.set(160.0f); // active low pass
   explode_lp.set(52.3f);  // RC 3042, 1u
   thrust_bp.set(89.5f, 1.0f / 7.6f);
-}
-
-// 16 bit LFSR, XNOR of bits 6 and 14 shifted in (MAME asteroid_lfsr),
-// +-0.5. Returns the new value on a 12 kHz tick, else the held one.
-float AsteroidsSound::noise_step(uint8_t reset_count) {
-  if (reset_count != noise_reset) {
-    noise_reset = reset_count;
-    lfsr = 0;
-  }
-  if (++noise_div < NOISE_DIV) {
-    return noise;
-  }
-
-  noise_div = 0;
-  const uint16_t fb = !(((lfsr >> 6) ^ (lfsr >> 14)) & 1);
-  lfsr = (lfsr << 1) | fb;
-  noise = fb ? 0.5f : -0.5f;
-  return noise;
 }
 
 float AsteroidsSound::thump_step(uint8_t reg) {
@@ -173,7 +125,7 @@ float AsteroidsSound::saucer_step(uint8_t latch) {
 
 // Noise sampled at 12 kHz / divider, scaled by the 4 bit volume.
 float AsteroidsSound::explode_step(uint8_t reg, float n) {
-  if (noise_div == 0 && ++explode_count >= EXPLODE_DIV[reg >> 6]) {
+  if (noise.ticked() && ++explode_count >= EXPLODE_DIV[reg >> 6]) {
     explode_count = 0;
     explode_hold = n;
   }
@@ -184,7 +136,7 @@ float AsteroidsSound::explode_step(uint8_t reg, float n) {
 void AsteroidsSound::render(const uint8_t *regs, int16_t *out, int n) {
   const uint8_t latch = regs[AST_SND_LATCH];
   for (int i = 0; i < n; i++) {
-    const float nz = noise_step(regs[AST_SND_NOISE_RESET]);
+    const float nz = noise.step(regs[AST_SND_NOISE_RESET]);
     float v = thump_step(regs[AST_SND_THUMP]);
     v += saucer_step(latch);
     v += ship_fire.step(latch & AST_LATCH_SHIP_FIRE);

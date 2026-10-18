@@ -180,6 +180,9 @@ void Audio::start(machineBase *machineBase) {
   if (machineType == MCH_ASTEROIDS) {
     asteroids_sound.reset();
   }
+  if (machineType == MCH_LLANDER) {
+    llander_sound.reset();
+  }
 
   for(char ay = 0; ay < NUM_AY_CHIPS; ay++) {
     for (int c = 0; c < 4; c++) {
@@ -346,6 +349,8 @@ void Audio::transmit() {
       pokey_render_buffer();
     else if(machineType == MCH_ASTEROIDS)
       asteroids_render_buffer();
+    else if(machineType == MCH_LLANDER)
+      llander_render_buffer();
   } while(bytesOut);
 }
 
@@ -533,6 +538,15 @@ void Audio::pokey_render_buffer(void) {
 void Audio::asteroids_render_buffer(void) {
   int16_t samples[64];
   asteroids_sound.render(currentMachine->soundregs, samples, 64);
+  for (int i = 0; i < 64; i++) {
+    valueToBuffer(i, samples[i]);
+  }
+}
+
+// Atari Lunar Lander discrete sound, registers in llander_sound.h
+void Audio::llander_render_buffer(void) {
+  int16_t samples[64];
+  llander_sound.render(currentMachine->soundregs, samples, 64);
   for (int i = 0; i < 64; i++) {
     valueToBuffer(i, samples[i]);
   }
