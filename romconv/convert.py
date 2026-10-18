@@ -120,6 +120,7 @@ GAMES = [
 games = GAMES if len(sys.argv[1:]) == 0 else sys.argv[1:]
 info(f"--------- Convert {'all' if games is GAMES else ' '.join(games)} ---------")
 run("internal/pokey_poly.py")
+run("internal/pyconv/make_unpack_fixture.py")
 
 for game in games:
     run(f"internal/pyconv/conv_{game}.py")
