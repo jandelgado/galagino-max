@@ -80,13 +80,25 @@ void test_output_averages_dac(void) {
 //   ff1b INX; CPX #$ff32; BNE ff11; LDX #$ff30; BRA ff11
 //   ff30 00 ff                                            wave table
 static const uint16_t GWAVE_DELAY_PC = 0xff13;
+static uint16_t countAddr = 0;
 static uint32_t delayFetches = 0;
 static m6803_read_fn_t soundRead = nullptr;
 static uint8_t countingRead(uint16_t addr) {
-  if (addr == GWAVE_DELAY_PC) {
+  if (addr == countAddr) {
     delayFetches++;
   }
   return soundRead(addr);
+}
+
+// reads of addr during run(cycles)
+static uint32_t fetchesAt(WilliamsSound &snd, uint16_t addr, uint32_t cycles) {
+  countAddr = addr;
+  delayFetches = 0;
+  soundRead = m6803_ext_read_fn;
+  m6803_ext_read_fn = countingRead;
+  snd.run(cycles);
+  m6803_ext_read_fn = soundRead;
+  return delayFetches;
 }
 
 static void gwaveRom(uint8_t *rom) {
@@ -107,13 +119,75 @@ void test_gwave_delay_skipped(void) {
   WilliamsSound snd;
   snd.attach(rom, 0xff00, ram);
   snd.reset();
-  soundRead = m6803_ext_read_fn;
-  m6803_ext_read_fn = countingRead;
-  delayFetches = 0;
-  snd.run(FRAME_CYCLES * 10);
-  m6803_ext_read_fn = soundRead;
   // stepped: 48520; skipped: only the pass cut by each 1024 cycle chunk
-  TEST_ASSERT_LESS_THAN_UINT32(500, delayFetches);
+  TEST_ASSERT_LESS_THAN_UINT32(500, fetchesAt(snd, GWAVE_DELAY_PC, FRAME_CYCLES * 10));
+}
+
+// Idle loops spin until an IRQ, which only arrives between run() calls:
+// whole passes run at once. ROM at 0xff00:
+//   ff00 LDAA #$07; STAA $0403   CRB: rising CB1 raises IRQ
+//   ff05 CLI
+//   ff06 TST $0010; BEQ ff06     wait for the IRQ handler's flag
+//   ff0b INC $0011; CLR $0010; BRA ff06
+//   ff20 LDAA $0402; INC $0010; RTI   IRQ: ack, set the flag
+// Sinistar idles in this loop, Robotron/Joust in BRA * / BEQ *.
+static void pollRom(uint8_t *rom) {
+  const uint8_t code[] = { 0x86, 0x07, 0xb7, 0x04, 0x03, 0x0e, 0x7d, 0x00, 0x10, 0x27, 0xfb,
+                           0x7c, 0x00, 0x11, 0x7f, 0x00, 0x10, 0x20, 0xf3 };
+  const uint8_t handler[] = { 0xb6, 0x04, 0x02, 0x7c, 0x00, 0x10, 0x3b };
+  memset(rom, 0, 256);
+  memcpy(rom, code, sizeof(code));
+  memcpy(rom + 0x20, handler, sizeof(handler));
+  rom[0xf8] = 0xff;  // IRQ vector 0xff20
+  rom[0xf9] = 0x20;
+  rom[0xfe] = 0xff;  // reset vector 0xff00
+  rom[0xff] = 0x00;
+}
+
+void test_idle_poll_skipped(void) {
+  static uint8_t rom[256];
+  pollRom(rom);
+  memset(ram, 0, sizeof(ram));
+  WilliamsSound snd;
+  snd.attach(rom, 0xff00, ram);
+  snd.reset();
+  snd.command(0xff);
+  // stepped: 29782 (TST 6 + BEQ 4 cycles per pass)
+  TEST_ASSERT_LESS_THAN_UINT32(1000, fetchesAt(snd, 0xff06, FRAME_CYCLES * 10));
+  TEST_ASSERT_EQUAL(0, ram[0x11]);
+  snd.command(0x01);  // IRQ: the loop must still see the flag
+  snd.run(FRAME_CYCLES);
+  TEST_ASSERT_EQUAL(1, ram[0x11]);
+}
+
+// ROM at 0xff00: CLI; BRA *
+void test_idle_branch_skipped(void) {
+  static uint8_t rom[256];
+  memset(rom, 0, sizeof(rom));
+  rom[0x00] = 0x0e;
+  rom[0x01] = 0x20;
+  rom[0x02] = 0xfe;
+  rom[0xfe] = 0xff;
+  WilliamsSound snd;
+  snd.attach(rom, 0xff00, ram);
+  snd.reset();
+  // stepped: 74454; skipped: ~2 passes per 1024 cycle chunk
+  TEST_ASSERT_LESS_THAN_UINT32(1000, fetchesAt(snd, 0xff01, FRAME_CYCLES * 10));
+}
+
+// A loop that writes memory is not idle. ROM at 0xff00: INC $0010; BRA ff00
+void test_loop_with_write_stepped(void) {
+  static uint8_t rom[256];
+  memset(rom, 0, sizeof(rom));
+  const uint8_t code[] = { 0x7c, 0x00, 0x10, 0x20, 0xfb };
+  memcpy(rom, code, sizeof(code));
+  rom[0xfe] = 0xff;
+  memset(ram, 0, sizeof(ram));
+  WilliamsSound snd;
+  snd.attach(rom, 0xff00, ram);
+  snd.reset();
+  snd.run(FRAME_CYCLES);
+  TEST_ASSERT_EQUAL(210, ram[0x10]);  // stepped: 1489 passes of 10 cycles
 }
 
 // Skipping keeps the output bit exact and the timing: 200 passes x 6
@@ -295,6 +369,9 @@ int main(int, char **) {
   RUN_TEST(test_output_averages_dac);
   RUN_TEST(test_gwave_delay_skipped);
   RUN_TEST(test_gwave_delay_timing);
+  RUN_TEST(test_idle_poll_skipped);
+  RUN_TEST(test_idle_branch_skipped);
+  RUN_TEST(test_loop_with_write_stepped);
 #ifdef HAVE_ROM
   RUN_TEST(test_silent_without_command);
   RUN_TEST(test_command_makes_sound);

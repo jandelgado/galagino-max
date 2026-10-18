@@ -33,6 +33,7 @@ private:
 
   void step();
   int skipDelay();
+  int skipIdle(int32_t owed);
   void push(int16_t v);
   int16_t level() const;
   static uint8_t read(uint16_t addr);
@@ -44,6 +45,9 @@ private:
   const uint8_t *rom = nullptr;
   uint16_t romBase = 0;
   uint16_t delayPc = 0;     // DECA of the GWAVE delay loop, 0: none
+  m6803_state idle;         // state after the last backward jump
+  uint32_t idleCycles = 0;  // cycles since then
+  bool touched = false;     // memory write or PIA access since then
   uint8_t *ram = nullptr;
   int32_t budget = 0;       // 6808 cycles owed, in units of 1 / MAIN_HZ
   uint32_t outPhase = 0;    // 24 kHz sample clock, in units of 1 / SOUND_HZ

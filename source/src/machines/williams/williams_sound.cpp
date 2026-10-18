@@ -45,6 +45,8 @@ void WilliamsSound::reset() {
   wr = rd = 0;
   memset(&cpu, 0, sizeof(cpu));
   m6800_reset(&cpu);
+  idleCycles = 0;
+  touched = true;  // no pass recorded yet
 }
 
 // snd_cmd_w: the two high bits are pulled up; CB1 low only for 0xff (idle)
@@ -78,9 +80,14 @@ void WilliamsSound::step() {
   }
 
   const int32_t held = level();  // a DAC or speech change lands at the end of the step
+  const uint16_t pc = cpu.PC;
   // an IRQ entry at the loop is stepped: m6800_step() takes it
-  const int cycles = cpu.PC == delayPc && !(cpu.irq_pending && !(cpu.CC & M6803_CC_I))
-                       ? skipDelay() : m6800_step(&cpu);
+  int cycles = cpu.PC == delayPc && !(cpu.irq_pending && !(cpu.CC & M6803_CC_I))
+                 ? skipDelay() : m6800_step(&cpu);
+  idleCycles += cycles;
+  if (cpu.PC <= pc) {  // backward jump: a loop pass ended
+    cycles += skipIdle(budget - cycles * (int32_t)MAIN_HZ);
+  }
   budget -= cycles * (int32_t)MAIN_HZ;
 
   // 24 kHz output: the DAC level averaged over each sample period. The
@@ -127,6 +134,25 @@ int WilliamsSound::skipDelay() {
   return (int)(passes * DELAY_PASS);
 }
 
+// A pass that came back to the same PC with the same registers, without
+// writes or PIA accesses, repeats unchanged until an IRQ (Sinistar's
+// TST/BEQ flag poll, Robotron's BRA *). The IRQ line only moves between
+// run() calls, so the whole passes that fit the budget run at once.
+int WilliamsSound::skipIdle(int32_t owed) {
+  const bool same = !touched && cpu.PC == idle.PC && cpu.A == idle.A && cpu.B == idle.B &&
+                    cpu.X == idle.X && cpu.SP == idle.SP && cpu.CC == idle.CC &&
+                    cpu.wai_state == idle.wai_state;
+  const uint32_t pass = idleCycles;
+  idle = cpu;
+  idleCycles = 0;
+  touched = false;
+  // an unmasked IRQ line is taken on the next step
+  if (!same || owed <= 0 || (pia.irq() && !(cpu.CC & M6803_CC_I))) {
+    return 0;
+  }
+  return (int)((uint32_t)owed / MAIN_HZ / pass * pass);
+}
+
 int16_t WilliamsSound::level() const {
   int32_t v = (int32_t)dacValue - 0x80;
   if (speech) {
@@ -159,6 +185,7 @@ uint8_t WilliamsSound::read(uint16_t addr) {
     return s.ram[addr];
   }
   if ((addr & PIA_MASK) == PIA_BASE) {
+    s.touched = true;
     return s.pia.read(addr & 3);
   }
   if (addr >= s.romBase) {
@@ -169,6 +196,7 @@ uint8_t WilliamsSound::read(uint16_t addr) {
 
 void WilliamsSound::write(uint16_t addr, uint8_t val) {
   WilliamsSound &s = *active;
+  s.touched = true;
   if (addr < RAM_END) {
     s.ram[addr] = val;
     return;
