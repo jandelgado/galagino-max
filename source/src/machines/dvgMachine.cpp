@@ -24,7 +24,9 @@ static uint16_t glow565(uint8_t level) {
 }
 
 dvgMachine::dvgMachine(uint8_t (*read)(m6502_t *, uint16_t),
-                       void (*write)(m6502_t *, uint16_t, uint8_t)) {
+                       void (*write)(m6502_t *, uint16_t, uint8_t),
+                       Interrupt interrupt)
+  : interrupt(interrupt) {
   static_assert(VRAM_OFS + MAX_VRAM_SIZE <= RAMSIZE, "vector machine RAM does not fit");
   memset(&m_cpu, 0, sizeof(m_cpu));
   m_cpu.read = read;
@@ -62,19 +64,24 @@ void dvgMachine::start() {
 void dvgMachine::reset() {
   machineBase::reset();
   cycles = 0;
-  next_nmi = CYCLES_PER_NMI;
+  next_int = CYCLES_PER_INT;
   m6502_reset(&m_cpu);
 }
 
 void dvgMachine::run_frame() {
   frame_input();
 
-  // NMI every 6144 cycles; the self test switch that masks it is never on
+  // interrupt every 6144 cycles; the self test switch that masks the
+  // Asteroids board NMI is never on
   const uint32_t end = cycles + CYCLES_PER_FRAME;
   while ((int32_t)(cycles - end) < 0) {
-    if ((int32_t)(cycles - next_nmi) >= 0) {
-      m_cpu.nmi = 1;
-      next_nmi += CYCLES_PER_NMI;
+    if ((int32_t)(cycles - next_int) >= 0) {
+      if (interrupt == IRQ) {
+        m_cpu.irq = 1;
+      } else {
+        m_cpu.nmi = 1;
+      }
+      next_int += CYCLES_PER_INT;
     }
     cycles += m6502_step(&m_cpu);
   }

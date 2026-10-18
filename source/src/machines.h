@@ -257,6 +257,12 @@
 #ifdef ENABLE_BZONE
   #include "machines/bzone/bzone.h"
 #endif
+#ifdef ENABLE_TEMPEST
+  #include "machines/tempest/tempest.h"
+#endif
+#ifdef ENABLE_SPACDUEL
+  #include "machines/spacduel/spacduel.h"
+#endif
 #ifdef ENABLE_STARWARS
   #include "machines/starwars/starwars.h"
 #endif
@@ -707,6 +713,20 @@ machineInfo machines[] = {
     bzone::menuLeds,
 #endif
     MCH_BZONE },
+#endif
+#ifdef ENABLE_TEMPEST
+  { []() -> machineBase* { return new tempest(); }, tempest::logo,
+#ifdef LED_PIN
+    tempest::menuLeds,
+#endif
+    MCH_TEMPEST },
+#endif
+#ifdef ENABLE_SPACDUEL
+  { []() -> machineBase* { return new spacduel(); }, spacduel::logo,
+#ifdef LED_PIN
+    spacduel::menuLeds,
+#endif
+    MCH_SPACDUEL },
 #endif
 #ifdef ENABLE_STARWARS
   { []() -> machineBase* { return new starwars(); }, starwars::logo,

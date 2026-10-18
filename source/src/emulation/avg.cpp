@@ -65,11 +65,37 @@ static AVG_INLINE uint8_t line_color(const Memory &m, const State &s, uint8_t z)
     const uint16_t level = (((z >> 1) * s.intensity) >> 3) + 15;
     return level < 16 || !s.color ? 0 : (s.color << SW_COLOR_SHIFT) | (level >> 4);
   }
-  return (z >> 1) == 1 ? s.intensity : (z & 0xe);
+  const uint8_t level = (z >> 1) == 1 ? s.intensity : (z & 0xe);
+  if (m.variant == COLOR) {
+    // MAME avg_strobe3: color111(STAT color), black lines skipped
+    return level && s.color ? (s.color << SW_COLOR_SHIFT) | level : 0;
+  }
+  if (m.variant != TEMPEST) {
+    return level;
+  }
+
+  // MAME tempest_strobe3: color RAM bits are inverted, 0xf is black
+  static const uint8_t BLACK = 0xf;
+  const uint8_t value = m.colorram[s.color] & 0xf;
+  if (!level || value == BLACK) {
+    return 0;
+  }
+  const uint8_t l = (level + 1) >> 1;
+  return (value << TP_COLOR_SHIFT) | (l < TP_LEVEL_MASK ? l : TP_LEVEL_MASK);
 }
 
-// MAME avg_strobe2 STAT, bzone_strobe2 and starwars_strobe2 variants
+// MAME avg_strobe2 STAT (color), bzone_strobe2, starwars_strobe2 and tempest_strobe2 variants
 static void stat(const Memory &m, State &s, uint16_t dvy) {
+  if (m.variant == TEMPEST) {
+    // MAME tempest_strobe2: bit 11 selects color RAM index or intensity
+    if (dvy & 0x800) {
+      s.color = dvy & 0xf;
+    } else {
+      s.intensity = (dvy >> 4) & 0xf;
+    }
+    return;
+  }
+
   if (m.variant == STARWARS) {
     s.intensity = dvy & 0xff;
     s.color = (dvy >> 8) & 7;
@@ -77,6 +103,10 @@ static void stat(const Memory &m, State &s, uint16_t dvy) {
   }
 
   s.intensity = (dvy >> 4) & 0xf;
+  if (m.variant == COLOR) {
+    s.color = dvy & 7;
+    return;
+  }
   if (!(dvy & 0x400)) {
     s.lst = dvy & 0x200;
     s.hst = !s.lst;
@@ -212,6 +242,9 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
         }
         break;
       case OP_JMPL:
+        if (mem.variant == TEMPEST && !dvy) {
+          return n; // frame end (MAME avg_common_strobe2)
+        }
         pc = dvy << 1;
         break;
     }
