@@ -176,5 +176,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Phozon (phozon.zip)           | ![Phozon marquee](/logos/phozon.png) | ![Phozon screenshot](/images/phozon.png) |  |
 | Green Beret (gberet.zip)      | ![Green Beret marquee](/logos/gberet.png) | ![Green Beret screenshot](/images/gberet.png) | FIRE=knife, START=special weapon |
 | H.E.R.O. (H.E.R.O..zip)       | ![H.E.R.O. marquee](/logos/hero.png) | ![H.E.R.O. screenshot](/images/hero.png) | Atari 2600 native remake: game logic rewritten in C++, levels and graphics from the Activision cartridge ROM (romszip/H.E.R.O..zip or H.E.R.O.-pal.bin). No 6502/TIA emulation. UP=fly, DOWN=dynamite, FIRE=laser |
+| Ghosts'n Goblins (gng.zip)    | ![Ghosts'n Goblins marquee](/logos/gng.png) | ![Ghosts'n Goblins screenshot](/images/gng.png) | FIRE=lance, START=jump. C64 SID music: romszip/Ghosts_n_Goblins.sid (HVSC) |
 
 ### ...

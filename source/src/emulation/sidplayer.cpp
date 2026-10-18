@@ -64,6 +64,7 @@ bool SidPlayer::load(const PsidInfo &tune, uint8_t *mem, uint16_t mem_size) {
   info = tune;
   ram = mem;
   ram_size = mem_size;
+  alias_from = alias_to = alias_size = 0;
   samples_per_play = Sid::SAMPLE_RATE / (tune.clock == SID_NTSC ? NTSC_PLAY_HZ : PAL_PLAY_HZ);
   playing = false;
   return true;
@@ -91,6 +92,22 @@ void SidPlayer::jsr(uint16_t addr, uint8_t a) {
     return;
   }
   playing = call(addr, a, PLAY_MAX_CYCLES);
+}
+
+void SidPlayer::alias(uint16_t from, uint16_t to, uint16_t size) {
+  alias_from = from;
+  alias_to = to;
+  alias_size = size;
+}
+
+// RAM byte behind an aliased address, nullptr outside the alias
+uint8_t *SidPlayer::aliased(uint16_t addr) {
+  const uint16_t aofs = addr - alias_from;
+  if (aofs >= alias_size) {
+    return nullptr;
+  }
+  const uint16_t ofs = alias_to + aofs - info.load;
+  return ofs < ram_size ? ram + ofs : nullptr;
 }
 
 void SidPlayer::render(int16_t *out, int n) {
@@ -142,6 +159,10 @@ uint8_t SidPlayer::read(m6502_t *cpu, uint16_t addr) {
   if (ofs < p->ram_size) {
     return p->ram[ofs];
   }
+  const uint8_t *mirror = p->aliased(addr);
+  if (mirror) {
+    return *mirror;
+  }
 
   // SID reads (OSC3/ENV3) are not emulated: count them too
   p->stray_count++;
@@ -157,6 +178,11 @@ void SidPlayer::write(m6502_t *cpu, uint16_t addr, uint8_t val) {
   const uint16_t ofs = addr - p->info.load;
   if (ofs < p->ram_size) {
     p->ram[ofs] = val;
+    return;
+  }
+  uint8_t *mirror = p->aliased(addr);
+  if (mirror) {
+    *mirror = val;
     return;
   }
   if (addr >= SID_BASE && addr < SID_END) {

@@ -68,7 +68,7 @@ typedef struct m6809_state_S {
 /* Reset the CPU - sets PC from reset vector at 0xFFFE */
 void m6809_reset(m6809_state *s);
 
-/* Execute one instruction, returns cycles consumed */
+/* Execute count instructions, returns the cycles they consumed */
 IRAM_ATTR int m6809_step(m6809_state *s, char count);
 
 /* Signal an IRQ (active while pending flag set) */

@@ -108,6 +108,10 @@
   #include "machines/commando/commando.h"
 #endif
 
+#ifdef ENABLE_GNG
+  #include "machines/gng/gng.h"
+#endif
+
 #ifdef ENABLE_MOONCRESTA
   #include "machines/mooncresta/mooncresta.h"
 #endif
@@ -780,6 +784,13 @@ machineInfo machines[] = {
     commando::menuLeds,
 #endif
     MCH_COMMANDO },
+#endif
+#ifdef ENABLE_GNG
+  { []() -> machineBase* { return new gng(); }, gng::logo,
+#ifdef LED_PIN
+    gng::menuLeds,
+#endif
+    MCH_GNG },
 #endif
 };
 

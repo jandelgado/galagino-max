@@ -150,6 +150,7 @@ void Audio::start(machineBase *machineBase) {
   else if (machineType == MCH_MPATROL)    { AY = 2; AY_INC = 5; AY_VOL = 5;  } // 894 kHz, as motorace
   else if (machineType == MCH_SCREGG)     { AY = 2; AY_INC = 8; AY_VOL = 7;  }
   else if (machineType == MCH_COMMANDO)   { AY = 2; AY_INC = 4; AY_VOL = 5;  } // SSG 750 kHz
+  else if (machineType == MCH_GNG)        { AY = 2; AY_INC = 4; AY_VOL = 5;  } // SSG 750 kHz
   else if (machineType == MCH_THEPIT)     { AY = 1; AY_INC = 8; AY_VOL = 11; } // 1.536 MHz
 
   if (machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
@@ -309,7 +310,7 @@ void Audio::transmit() {
       continue;
 
     // render the next audio chunk if data has actually been sent
-    if (machineType == MCH_COMMANDO || machineType == MCH_CBDASH)
+    if (machineType == MCH_COMMANDO || machineType == MCH_CBDASH || machineType == MCH_GNG)
       sid_ay_render_buffer();
     else if (machineType == MCH_BUBLBOBL)
       sid_render_buffer();
@@ -575,7 +576,7 @@ void Audio::bzone_render_buffer(void) {
 }
 
 // C64 SID music from the machine's SidPlayer plus AY sound effects:
-// commando (SSG part of both YM2203), cbdash
+// commando, gng (SSG part of both YM2203), cbdash
 void Audio::sid_ay_render_buffer(void) {
   int16_t samples[64];
   currentMachine->renderSid(samples, 64);
