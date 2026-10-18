@@ -151,9 +151,10 @@ void Audio::start(machineBase *machineBase) {
   else if (machineType == MCH_THEPIT)     { AY = 1; AY_INC = 8; AY_VOL = 11; } // 1.536 MHz
 
   if (machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
-      machineType == MCH_CCASTLES || machineType == MCH_BZONE || machineType == MCH_STARWARS) {
+      machineType == MCH_CCASTLES || machineType == MCH_BZONE || machineType == MCH_STARWARS ||
+      machineType == MCH_MISSILE) {
     const int32_t clocks = machineType == MCH_ATETRIS   ? Pokey::CLOCKS_1789KHZ
-                         : machineType == MCH_CCASTLES ? Pokey::CLOCKS_1250KHZ
+                         : (machineType == MCH_CCASTLES || machineType == MCH_MISSILE) ? Pokey::CLOCKS_1250KHZ
                                                        : Pokey::CLOCKS_1512KHZ;
     for (int n = 0; n < MAX_POKEYS; n++) {
       pokey[n].reset(clocks);
@@ -335,7 +336,7 @@ void Audio::transmit() {
     else if(machineType == MCH_ZAXXON)
       zaxxon_render_buffer();
     else if(machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
-            machineType == MCH_CCASTLES || machineType == MCH_STARWARS)
+            machineType == MCH_CCASTLES || machineType == MCH_STARWARS || machineType == MCH_MISSILE)
       pokey_render_buffer();
     else if(machineType == MCH_ASTEROIDS)
       asteroids_render_buffer();
@@ -507,7 +508,8 @@ void Audio::zaxxonStopChannel(int ch) {
   zx_active[ch] = false;
 }
 
-// Atari POKEY (Centipede, Millipede, Tetris, Crystal Castles, Star Wars): chip n
+// Atari POKEY (Centipede, Millipede, Tetris, Crystal Castles, Star Wars,
+// Missile Command): chip n
 // registers at soundregs[n * Pokey::REG_COUNT], see pokey.h. MAME routes every
 // POKEY at the same gain, so the chips are summed; Star Wars' four at half
 // level, plus the TMS5220 at 2.5 times a POKEY (MAME 0.50 vs 0.20).
