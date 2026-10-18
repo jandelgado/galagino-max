@@ -169,5 +169,7 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Star Wars (starwars.zip)       | ![Star Wars marquee](/logos/starwars.png) | ![Star Wars screenshot](/images/starwars.png) | Atari classic with early 3D vector graphics and working speech output. Set 1. Stick moves the yoke, position held on release. FIRE=trigger |
 | Missile Command (missile.zip) | ![Missile Command marquee](/logos/missile.png) | ![Missile Command screenshot](/images/missile.png) | Rev 3. Stick moves the cursor. Auto-aim: FIRE launches from the nearest non-empty base to the cross-hair. Controller L1/A/R1=left/center/right base |
 | Moon Patrol (mpatrol.zip)     | ![Moon Patrol marquee](/logos/mpatrol.png) | ![Moon Patrol screenshot](/images/mpatrol.png) | UP=jump, FIRE=fire |
+| Star Jacker (starjack.zip)    | ![Star Jacker marquee](/logos/starjack.png) | ![Star Jacker screenshot](/images/starjack.png) | Sega System 1. FIRE=laser, controller B=short-range shot |
+| Regulus (regulus.zip)         | ![Regulus marquee](/logos/regulus.png) | ![Regulus screenshot](/images/regulus.png) | Sega System 1, unencrypted US set. FIRE=laser, START=bomb |
 
 ### ...
