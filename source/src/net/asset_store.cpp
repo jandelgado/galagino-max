@@ -22,19 +22,19 @@ bool AssetStore::holds(const BundleRef &ref) {
   if (tag.magic != TAG_MAGIC || tag.commit != COMMIT_WORD) {
     return false;
   }
-  return tag.length == ref.length && !memcmp(tag.hash, ref.hash, sizeof(tag.hash));
+  return tag.length == ref.wireLength && !memcmp(tag.hash, ref.hash, sizeof(tag.hash));
 }
 
 bool AssetStore::begin(const BundleRef &ref) {
   written = 0;
   pending = {};
-  if (region.size() < TAG_BYTES || ref.length > region.size() - TAG_BYTES) {
+  if (region.size() < TAG_BYTES || ref.wireLength > region.size() - TAG_BYTES) {
     return false;
   }
 
   // erasing a mapped region would leave stale data in the flash cache
   region.unmap();
-  const uint32_t dataBytes = (ref.length + SECTOR - 1) / SECTOR * SECTOR;
+  const uint32_t dataBytes = (ref.wireLength + SECTOR - 1) / SECTOR * SECTOR;
   if (!region.erase(0, TAG_BYTES + dataBytes)) {
     return false;
   }
@@ -43,7 +43,7 @@ bool AssetStore::begin(const BundleRef &ref) {
 }
 
 bool AssetStore::append(const uint8_t *data, uint32_t length) {
-  if (length > pending.length - written) {
+  if (length > pending.wireLength - written) {
     return false;
   }
   if (!region.write(TAG_BYTES + written, data, length)) {
@@ -54,10 +54,10 @@ bool AssetStore::append(const uint8_t *data, uint32_t length) {
 }
 
 bool AssetStore::commit() {
-  if (!pending.length || written != pending.length) {
+  if (!pending.wireLength || written != pending.wireLength) {
     return false;
   }
-  Tag tag = {TAG_MAGIC, pending.length, {}, COMMIT_WORD};
+  Tag tag = {TAG_MAGIC, pending.wireLength, {}, COMMIT_WORD};
   memcpy(tag.hash, pending.hash, sizeof(tag.hash));
   return region.write(0, (const uint8_t *)&tag, sizeof(tag));
 }

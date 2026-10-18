@@ -1,25 +1,22 @@
 #include <cstring>
+#include "bundle.h"
 #include "bundle_unpack.h"
 
-static constexpr uint32_t MAGIC = 0x42474C47;  // "GLGB"
-static constexpr uint16_t VERSION = 2;
-static constexpr uint32_t ALIGN = 4;
-// flags, romconv bundle.py
-static constexpr uint32_t FLAG_RAW = 0;
-static constexpr uint32_t FLAG_PACKED = 1;
-static constexpr uint32_t FLAG_LZMA = 2;
+static constexpr uint32_t FLAG_RAW = Bundle::FLAG_RAW;
+static constexpr uint32_t FLAG_PACKED = Bundle::FLAG_PACKED;
+static constexpr uint32_t FLAG_LZMA = Bundle::FLAG_LZMA;
 
-static uint32_t read32(const uint8_t *p) {
+uint32_t BundleUnpacker::read32(const uint8_t *p) {
   return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
-static void put32(uint8_t *p, uint32_t v) {
+void BundleUnpacker::put32(uint8_t *p, uint32_t v) {
   for (uint32_t i = 0; i < 4; i++) {
     p[i] = (uint8_t)(v >> (8 * i));
   }
 }
 
-static uint32_t align4(uint32_t n) {
+uint32_t BundleUnpacker::align4(uint32_t n) {
   return (n + ALIGN - 1) & ~(ALIGN - 1);
 }
 
@@ -103,7 +100,7 @@ bool BundleUnpacker::header(const uint8_t *&data, uint32_t &length) {
 
 // in order, aligned, not overlapping; flags the wire may carry
 bool BundleUnpacker::validHeader() const {
-  if (read32(table) != MAGIC || (table[4] | (table[5] << 8)) != VERSION) {
+  if (read32(table) != Bundle::MAGIC || (table[4] | (table[5] << 8)) != Bundle::VERSION) {
     return false;
   }
 

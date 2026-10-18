@@ -39,12 +39,18 @@ struct FlashAsset<T, PLAIN> {
 
 // block: where unpack() puts it (omitted: ARENA_ANY, first fit). Shares
 // count's word: ~400 blobs in flash.
+// packed == nullptr: remote asset (ASSETS_REMOTE), resolved by id in the
+// mounted bundle. id only exists in ASSETS_REMOTE builds: mode 1 blobs keep
+// their size.
 template<typename T>
 struct FlashAsset<T, COMPRESSED> {
     const uint8_t *packed;
     uint32_t packedLen;
     uint32_t count : 30;
     ArenaBlock block : 2;
+#ifdef ASSETS_REMOTE
+    uint32_t id;
+#endif
 };
 
 template<typename T>
@@ -56,7 +62,7 @@ public:
 #ifdef ASSETS_REMOTE
     // once per machine, never in data(): no per-frame cost
     constexpr Asset(const FlashAsset<T, PLAIN> &blob)
-      : data_(blob.data ? blob.data : (const T *)Bundle::find(blob.id, blob.count * sizeof(T))),
+      : data_(blob.data ? blob.data : (const T *)Bundle::find(blob.id, Bundle::FLAG_RAW)),
         count_(blob.count) { }
 #else
     constexpr Asset(const FlashAsset<T, PLAIN> &blob)
@@ -84,8 +90,15 @@ public:
     constexpr Asset(const uint8_t *packed, uint32_t packedLen, uint32_t count,
                     ArenaBlock block = ARENA_ANY)
       : packed(packed), packedLen(packedLen), count(count), block(block), current(nullptr) { }
+#ifdef ASSETS_REMOTE
+    // once per machine; id 0: no asset (AnyAsset's empty side)
+    Asset(const FlashAsset<T, COMPRESSED> &blob)
+      : Asset(blob.packed || !blob.id ? blob.packed : (const uint8_t *)Bundle::find(blob.id, Bundle::FLAG_PACKED),
+              blob.packedLen, blob.count, blob.block) { }
+#else
     constexpr Asset(const FlashAsset<T, COMPRESSED> &blob)
       : Asset(blob.packed, blob.packedLen, blob.count, blob.block) { }
+#endif
 
     // No release(): the cache dies with its machine, Arena::reset() frees
     // the memory. Menu logos (logo.h) use decodeInto().
@@ -109,6 +122,12 @@ public:
     // Packed layout (romconv asset_emit.py): 1 LZMA properties byte
     // (lc/lp/pb), then a raw LZMA1 stream with end marker.
     void decodeInto(T *dst) const {
+#ifdef ASSETS_REMOTE
+      if (!packed) {
+        printf("Asset: remote asset missing in the mounted bundle\n");
+        abort();
+      }
+#endif
       const SizeT outLen = count * sizeof(T);
 
       // dst holds the whole output, so back-references read from it: no

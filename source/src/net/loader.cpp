@@ -36,7 +36,7 @@ static void hashHex(const BundleRef &ref, char *hex) {
 static bool download(const BundleRef &ref, const char *hex) {
   // erase before WiFi: 720 KB takes ~2 s, no reason to hold WiFi meanwhile
   if (!store.begin(ref)) {
-    printf("loader: error bundle %u bytes does not fit the assets partition\n", ref.length);
+    printf("loader: error bundle %u bytes does not fit the assets partition\n", ref.wireLength);
     return false;
   }
 
@@ -65,7 +65,7 @@ static bool download(const BundleRef &ref, const char *hex) {
   }
   if (!got) {
     printf("loader: error download failed, HTTP %d, %u of %u bytes\n", body.status(), body.received(),
-           ref.length);
+           ref.wireLength);
     return false;
   }
   printf("loader: %u bytes in %u ms\n", body.received(), ms);
@@ -99,7 +99,7 @@ bool Loader::prepare(const BundleRef *ref) {
   }
 
   const uint8_t *bundle = store.bundle();
-  if (!bundle || !Bundle::mount(bundle, ref->length)) {
+  if (!bundle || !Bundle::mount(bundle, ref->wireLength)) {
     printf("loader: error bundle header invalid\n");
     return false;
   }

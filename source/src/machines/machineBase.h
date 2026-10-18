@@ -280,9 +280,16 @@ struct machineInfo {
   // reserved Arena bytes per block (romconv plan), nullptr: none
   const ArenaPlan *arena;
 #ifdef ASSETS_REMOTE
-  // remote PLAIN assets, nullptr: built in
+  // remote assets (<game>_bundle.h), nullptr: built in
   const BundleRef *bundle;
 #endif
 };
+
+// machines.h entry tail: the bundle field exists only in ASSETS_REMOTE builds
+#ifdef ASSETS_REMOTE
+#define BUNDLE_REF(ref) , ref
+#else
+#define BUNDLE_REF(ref)
+#endif
 
 #endif

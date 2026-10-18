@@ -58,7 +58,7 @@ public:
 static const uint32_t REGION_BYTES = 64 * 1024;
 
 static BundleRef ref(uint8_t tag, uint32_t length) {
-  BundleRef r = {{tag, 2, 3, 4, 5, 6, 7, 8}, length};
+  BundleRef r = {{tag, 2, 3, 4, 5, 6, 7, 8}, length, length, "T"};
   return r;
 }
 
@@ -91,7 +91,7 @@ static void test_full_write_commit_holds(void) {
   FakeRegion region(REGION_BYTES);
   AssetStore store(region);
   const BundleRef a = ref(1, 10001);
-  const std::vector<uint8_t> d = payload(a.length, 1);
+  const std::vector<uint8_t> d = payload(a.wireLength, 1);
   TEST_ASSERT_TRUE(store.begin(a));
   writeAll(store, d);
   TEST_ASSERT_TRUE(store.commit());
@@ -103,9 +103,9 @@ static void test_partial_write_not_held(void) {
   FakeRegion region(REGION_BYTES);
   AssetStore store(region);
   const BundleRef a = ref(1, 10000);
-  const std::vector<uint8_t> d = payload(a.length, 1);
+  const std::vector<uint8_t> d = payload(a.wireLength, 1);
   TEST_ASSERT_TRUE(store.begin(a));
-  TEST_ASSERT_TRUE(store.append(d.data(), a.length / 2));
+  TEST_ASSERT_TRUE(store.append(d.data(), a.wireLength / 2));
   TEST_ASSERT_FALSE(store.holds(a));
   TEST_ASSERT_FALSE(store.commit());
   TEST_ASSERT_FALSE(store.holds(a));
@@ -133,13 +133,13 @@ static void test_rewrite_invalidates_old(void) {
   const BundleRef a = ref(1, 5000);
   const BundleRef b = ref(2, 6000);
   TEST_ASSERT_TRUE(store.begin(a));
-  writeAll(store, payload(a.length, 1));
+  writeAll(store, payload(a.wireLength, 1));
   TEST_ASSERT_TRUE(store.commit());
 
   // power loss while bundle b is half written
   TEST_ASSERT_TRUE(store.begin(b));
-  const std::vector<uint8_t> d = payload(b.length, 2);
-  TEST_ASSERT_TRUE(store.append(d.data(), b.length / 2));
+  const std::vector<uint8_t> d = payload(b.wireLength, 2);
+  TEST_ASSERT_TRUE(store.append(d.data(), b.wireLength / 2));
   AssetStore afterReboot(region);
   TEST_ASSERT_FALSE(afterReboot.holds(a));
   TEST_ASSERT_FALSE(afterReboot.holds(b));
@@ -150,7 +150,7 @@ static void test_other_hash_not_held(void) {
   AssetStore store(region);
   const BundleRef a = ref(1, 5000);
   TEST_ASSERT_TRUE(store.begin(a));
-  writeAll(store, payload(a.length, 1));
+  writeAll(store, payload(a.wireLength, 1));
   TEST_ASSERT_TRUE(store.commit());
   TEST_ASSERT_FALSE(store.holds(ref(9, 5000)));
   TEST_ASSERT_FALSE(store.holds(ref(1, 5001)));
@@ -161,7 +161,7 @@ static void test_begin_unmaps(void) {
   AssetStore store(region);
   const BundleRef a = ref(1, 5000);
   TEST_ASSERT_TRUE(store.begin(a));
-  writeAll(store, payload(a.length, 1));
+  writeAll(store, payload(a.wireLength, 1));
   TEST_ASSERT_TRUE(store.commit());
   TEST_ASSERT_NOT_NULL(store.bundle());
   TEST_ASSERT_TRUE(store.begin(ref(2, 5000)));
@@ -173,7 +173,7 @@ static void test_map_failure_holds_nothing(void) {
   AssetStore store(region);
   const BundleRef a = ref(1, 5000);
   TEST_ASSERT_TRUE(store.begin(a));
-  writeAll(store, payload(a.length, 1));
+  writeAll(store, payload(a.wireLength, 1));
   TEST_ASSERT_TRUE(store.commit());
   region.mapFails = true;
   TEST_ASSERT_FALSE(store.holds(a));

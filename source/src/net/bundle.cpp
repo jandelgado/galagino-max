@@ -1,11 +1,8 @@
 #include <cstring>
 #include "bundle.h"
 
-static constexpr uint32_t MAGIC = 0x42474C47;  // "GLGB"
-static constexpr uint16_t VERSION = 1;
 static constexpr uint32_t HEADER_BYTES = 8;
 static constexpr uint32_t ENTRY_BYTES = 20;
-static constexpr uint32_t FLAG_RAW = 0;   // only form in the slice
 static constexpr uint32_t ALIGN = 4;      // uint32_t assets read in place
 
 struct Entry {
@@ -15,6 +12,13 @@ struct Entry {
   uint32_t raw;
   uint32_t flags;
 };
+
+// C++11: odr-used static constexpr members need a definition
+constexpr uint32_t Bundle::FLAG_RAW;
+constexpr uint32_t Bundle::FLAG_PACKED;
+constexpr uint32_t Bundle::FLAG_LZMA;
+constexpr uint32_t Bundle::MAGIC;
+constexpr uint16_t Bundle::VERSION;
 
 static const uint8_t *mounted = nullptr;
 static uint16_t entryCount = 0;
@@ -28,9 +32,15 @@ static Entry entryAt(const uint8_t *base, uint16_t i) {
   return {read32(p), read32(p + 4), read32(p + 8), read32(p + 12), read32(p + 16)};
 }
 
-// every entry inside the bundle, raw and aligned
+// every entry inside the bundle, aligned, a cache entry form
 static bool entryValid(const Entry &e, uint32_t length) {
-  if (e.flags != FLAG_RAW || e.stored != e.raw || e.offset % ALIGN) {
+  if (e.offset % ALIGN) {
+    return false;
+  }
+  if (e.flags == Bundle::FLAG_RAW && e.stored != e.raw) {
+    return false;
+  }
+  if (e.flags != Bundle::FLAG_RAW && e.flags != Bundle::FLAG_PACKED) {
     return false;
   }
   return e.offset <= length && e.stored <= length - e.offset;
@@ -65,11 +75,11 @@ void Bundle::unmount() {
   entryCount = 0;
 }
 
-const void *Bundle::find(uint32_t id, uint32_t rawLen) {
+const void *Bundle::find(uint32_t id, uint32_t flags) {
   for (uint16_t i = 0; i < entryCount; i++) {
     const Entry e = entryAt(mounted, i);
     if (e.id == id) {
-      return e.raw == rawLen ? mounted + e.offset : nullptr;
+      return e.flags == flags ? mounted + e.offset : nullptr;
     }
   }
   return nullptr;

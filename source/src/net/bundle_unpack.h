@@ -35,6 +35,7 @@ private:
   static constexpr uint32_t HEADER_BYTES = 8;
   static constexpr uint32_t ENTRY_BYTES = 20;
   static constexpr uint32_t TABLE_MAX = HEADER_BYTES + ENTRY_BYTES * MAX_ENTRIES;
+  static constexpr uint32_t ALIGN = 4;
 
   enum State { HEADER, PAD, BODY, DONE, FAILED };
 
@@ -46,6 +47,9 @@ private:
     uint32_t flags;
   };
 
+  static uint32_t read32(const uint8_t *p);
+  static void put32(uint8_t *p, uint32_t v);
+  static uint32_t align4(uint32_t n);
   Entry entry(uint16_t i) const;
   uint32_t cacheBytes(const Entry &e) const;
   uint32_t cacheOffset(uint16_t i) const;
