@@ -72,6 +72,79 @@ void test_output_averages_dac(void) {
   TEST_ASSERT_TRUE(n > 300);
 }
 
+// GWAVE delay loop (LDAA dir; DECA; BNE *-1; LDAA 0,X) runs as a whole,
+// not opcode by opcode. ROM at 0xff00, PIA port A = DAC:
+//   ff00 LDAA #$FF; STAA $0400; LDAA #$04; STAA $0401   DDRA out, CRA: ORA
+//   ff0a LDAA #200; STAA $10; LDX #$ff30
+//   ff11 LDAA $10; DECA; BNE ff13; LDAA 0,X; STAA $0400  wave byte to DAC
+//   ff1b INX; CPX #$ff32; BNE ff11; LDX #$ff30; BRA ff11
+//   ff30 00 ff                                            wave table
+static const uint16_t GWAVE_DELAY_PC = 0xff13;
+static uint32_t delayFetches = 0;
+static m6803_read_fn_t soundRead = nullptr;
+static uint8_t countingRead(uint16_t addr) {
+  if (addr == GWAVE_DELAY_PC) {
+    delayFetches++;
+  }
+  return soundRead(addr);
+}
+
+static void gwaveRom(uint8_t *rom) {
+  const uint8_t code[] = { 0x86, 0xff, 0xb7, 0x04, 0x00, 0x86, 0x04, 0xb7, 0x04, 0x01,
+                           0x86, 0xc8, 0x97, 0x10, 0xce, 0xff, 0x30,
+                           0x96, 0x10, 0x4a, 0x26, 0xfd, 0xa6, 0x00, 0xb7, 0x04, 0x00,
+                           0x08, 0x8c, 0xff, 0x32, 0x26, 0xf0, 0xce, 0xff, 0x30, 0x20, 0xeb };
+  memcpy(rom, code, sizeof(code));
+  rom[0x30] = 0x00;
+  rom[0x31] = 0xff;
+  rom[0xfe] = 0xff;  // reset vector 0xff00
+  rom[0xff] = 0x00;
+}
+
+void test_gwave_delay_skipped(void) {
+  static uint8_t rom[256];
+  gwaveRom(rom);
+  WilliamsSound snd;
+  snd.attach(rom, 0xff00, ram);
+  snd.reset();
+  soundRead = m6803_ext_read_fn;
+  m6803_ext_read_fn = countingRead;
+  delayFetches = 0;
+  snd.run(FRAME_CYCLES * 10);
+  m6803_ext_read_fn = soundRead;
+  // stepped: 48520; skipped: only the pass cut by each 1024 cycle chunk
+  TEST_ASSERT_LESS_THAN_UINT32(500, delayFetches);
+}
+
+// Skipping keeps the output bit exact and the timing: 200 passes x 6
+// cycles + 19 cycles per wave byte = 1219 cycles at 894886 Hz, square wave
+// of 2438 cycles (367 Hz).
+// Each half wave is ~32.7 output samples at 24 kHz, all 0x00 or 0xff.
+void test_gwave_delay_timing(void) {
+  static uint8_t rom[256];
+  gwaveRom(rom);
+  WilliamsSound snd;
+  snd.attach(rom, 0xff00, ram);
+  snd.reset();
+  int high = 0, edges = 0, n = 0, last = 0;
+  uint32_t h = 2166136261u;
+  for (int f = 0; f < 10; f++) {
+    snd.run(FRAME_CYCLES);
+    for (int v = snd.sample(); v != WilliamsSound::EMPTY; v = snd.sample(), n++) {
+      h = (h ^ (uint16_t)v) * 16777619u;
+      if (n >= 100) {  // past start-up
+        high += v > 0;
+        edges += (v > 0) != (last > 0);
+      }
+      last = v;
+    }
+  }
+  TEST_ASSERT_TRUE(n > 3000);
+  TEST_ASSERT_INT_WITHIN(n / 50, (n - 100) / 2, high);
+  TEST_ASSERT_INT_WITHIN(3, (n - 100) * 2 / 65, edges);
+  TEST_ASSERT_EQUAL_HEX32(0x8136ec24, h);  // stepped opcode by opcode
+}
+
 #ifdef HAVE_ROM
 static WilliamsSound &boot(WilliamsSound &snd) {
   static bool once = false;
@@ -194,16 +267,40 @@ void test_speech_cvsd_from_pia(void) {
   }
 }
 
+#ifdef HAVE_ROM
+// every command's output equals the one recorded before the GWAVE skip
+void test_defender_output_hash(void) {
+  uint32_t h = 2166136261u;
+  for (int cmd = 0; cmd < 0x40; cmd++) {
+    WilliamsSound snd;
+    boot(snd);
+    snd.command(0xff);
+    snd.run(FRAME_CYCLES * 10);
+    for (int f = 0; f < 30; f++) {
+      snd.command(f == 0 ? cmd : 0xff);
+      snd.run(FRAME_CYCLES);
+      for (int v = snd.sample(); v != WilliamsSound::EMPTY; v = snd.sample()) {
+        h = (h ^ (uint16_t)v) * 16777619u;
+      }
+    }
+  }
+  TEST_ASSERT_EQUAL_HEX32(0x5c72b9f5, h);  // stepped opcode by opcode
+}
+#endif
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_command_during_masked_irq);
   RUN_TEST(test_speech_cvsd_from_pia);
   RUN_TEST(test_output_averages_dac);
+  RUN_TEST(test_gwave_delay_skipped);
+  RUN_TEST(test_gwave_delay_timing);
 #ifdef HAVE_ROM
   RUN_TEST(test_silent_without_command);
   RUN_TEST(test_command_makes_sound);
   RUN_TEST(test_ring_produces_400_samples_per_frame);
   RUN_TEST(test_mix_fits_range);
+  RUN_TEST(test_defender_output_hash);
 #endif
   return UNITY_END();
 }

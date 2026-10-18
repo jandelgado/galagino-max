@@ -6,11 +6,28 @@ WilliamsSound *WilliamsSound::active = nullptr;
 // speech on the DAC scale: MAME mixes DAC 0.25, CVSD 0.8; tuned on device
 static const int32_t SPEECH_GAIN = 192;  // CVSD full scale -> +-192
 
+// GWAVE's delay `LDAA dir; DECA; BNE *-1; LDAA 0,X`: the 6808's hottest
+// code (Sinistar 67 %, Robotron 52 % of its opcodes)
+static const uint8_t GWAVE_DELAY[] = { 0x96, 0x00, 0x4a, 0x26, 0xfd, 0xa6, 0x00 };
+static const uint32_t GWAVE_ANY = 1;  // direct page address
+
 void WilliamsSound::attach(const uint8_t *r, uint16_t base, uint8_t *ram256, bool sp) {
   rom = r;
   speech = sp;
   romBase = base;
   ram = ram256;
+  delayPc = 0;
+  const uint32_t len = 0x10000 - base;
+  for (uint32_t a = 0; a + sizeof(GWAVE_DELAY) <= len; a++) {
+    uint32_t i = 0;
+    while (i < sizeof(GWAVE_DELAY) && (i == GWAVE_ANY || rom[a + i] == GWAVE_DELAY[i])) {
+      i++;
+    }
+    if (i == sizeof(GWAVE_DELAY)) {
+      delayPc = (uint16_t)(base + a + 2);
+      return;
+    }
+  }
 }
 
 void WilliamsSound::reset() {
@@ -61,7 +78,9 @@ void WilliamsSound::step() {
   }
 
   const int32_t held = level();  // a DAC or speech change lands at the end of the step
-  const int cycles = m6800_step(&cpu);
+  // an IRQ entry at the loop is stepped: m6800_step() takes it
+  const int cycles = cpu.PC == delayPc && !(cpu.irq_pending && !(cpu.CC & M6803_CC_I))
+                       ? skipDelay() : m6800_step(&cpu);
   budget -= cycles * (int32_t)MAIN_HZ;
 
   // 24 kHz output: the DAC level averaged over each sample period. The
@@ -78,6 +97,34 @@ void WilliamsSound::step() {
   }
   outPhase += phase;
   dacArea += held * (int32_t)phase;
+}
+
+// The delay passes that fit the cycles still owed, at once: the loop only
+// counts A down, the DAC holds. A pass that does not fit is stepped, so the
+// 6808 stops where stepping would and sees PIA changes at the same cycle.
+int WilliamsSound::skipDelay() {
+  uint32_t passes = cpu.A ? cpu.A : 256;
+  const uint32_t fit = (uint32_t)budget / (DELAY_PASS * MAIN_HZ);
+  if (passes > fit) {
+    passes = fit;
+  }
+  if (!passes) {
+    return m6800_step(&cpu);
+  }
+  const uint8_t last = (uint8_t)(cpu.A - passes + 1);  // A at the final DECA
+  cpu.A = (uint8_t)(cpu.A - passes);
+  cpu.CC &= ~(M6803_CC_N | M6803_CC_Z | M6803_CC_V);
+  if (last == 0x80) {
+    cpu.CC |= M6803_CC_V;
+  }
+  if (!cpu.A) {
+    cpu.CC |= M6803_CC_Z;
+  }
+  if (cpu.A & 0x80) {
+    cpu.CC |= M6803_CC_N;
+  }
+  cpu.PC = cpu.A ? delayPc : delayPc + 3;
+  return (int)(passes * DELAY_PASS);
 }
 
 int16_t WilliamsSound::level() const {
