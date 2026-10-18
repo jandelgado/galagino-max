@@ -18,16 +18,17 @@
 class gng : public machineBase {
 protected:
   // ROM assets: Arena residents unpacked in the ctor (largest first, to
-  // fit Arena's two blocks), bank/sound ROM and bg tiles stay in flash
-  Asset<unsigned char, COMPRESSED> gng_rom;
+  // fit Arena's two blocks). Main ROM and bg tiles stay in flash: the main
+  // ROM compresses worst of all, the bg tiles do not fit.
+  Asset<unsigned char, PLAIN> gng_rom;
   Asset<uint32_t[32], COMPRESSED> gng_sprites0;
   Asset<uint32_t[32], COMPRESSED> gng_sprites1;
   Asset<uint32_t[32], COMPRESSED> gng_sprites2;
   Asset<unsigned short[8], COMPRESSED> gng_chars;
   Asset<unsigned short, COMPRESSED> gng_tile_map;
   Asset<uint32_t[32], PLAIN> gng_tiles;
-  Asset<unsigned char, PLAIN> gng_bank;
-  Asset<unsigned char, PLAIN> gng_sound;
+  Asset<unsigned char, COMPRESSED> gng_bank;
+  Asset<unsigned char, COMPRESSED> gng_sound;
   Asset<unsigned char, PLAIN> gng_sid;
 
 public:

@@ -4,13 +4,14 @@
 # Emits the array plus a constexpr FlashAsset `<name>_blob` describing it. The
 # machine owns an Asset member built from the blob, so the unpack cache
 # dies with the machine. Menu logos wrap the blob in a Logo (logoconv.py).
+import lzma
 import struct
 
-import zopfli.zlib
-
-# zopfli emits a standard zlib stream, ~5% smaller than zlib level 9, so
-# the firmware's uzlib decoder is unchanged. Costs converter run time only.
-ZOPFLI_ITERATIONS = 15
+# Raw LZMA1 stream, decoded on the ESP32 by LzmaDec into the Arena. lc=lp=0
+# keeps the decoder's probability table at 5.5 KB (free lc/lp: up to 28 KB,
+# saves only ~5 KB flash over all assets). pb does not change decoder RAM,
+# so it is searched per asset.
+LZMA_PB_RANGE = range(5)
 
 _WIDTH = {"unsigned char": 1, "signed char": 1, "unsigned short": 2, "uint32_t": 4}
 _PACK  = {"unsigned char": "B", "signed char": "B", "unsigned short": "<H", "uint32_t": "<L"}
@@ -20,14 +21,39 @@ def _hex_block(data, per_line=16):
     rows = [",".join(hexs[i:i + per_line]) for i in range(0, len(hexs), per_line)]
     return ",\n  ".join(rows)
 
+def _lzma_props_byte(lc, lp, pb):
+    return (pb * 5 + lp) * 9 + lc
+
+def lzma_compress(raw):
+    """Properties byte + raw LZMA1 stream (with end marker), smallest pb."""
+    best = None
+    for pb in LZMA_PB_RANGE:
+        filters = [{"id": lzma.FILTER_LZMA1, "preset": 9 | lzma.PRESET_EXTREME,
+                    "dict_size": max(len(raw), 4096), "lc": 0, "lp": 0, "pb": pb}]
+        stream = lzma.compress(raw, format=lzma.FORMAT_RAW, filters=filters)
+        if best is None or len(stream) < len(best):
+            best = bytes([_lzma_props_byte(0, 0, pb)]) + stream
+    if lzma_decompress(best) != raw:
+        raise RuntimeError("lzma round-trip mismatch")
+    return best
+
+def lzma_decompress(packed):
+    """Inverse of lzma_compress()."""
+    props = packed[0]
+    lc, rest = props % 9, props // 9
+    lp, pb = rest % 5, rest // 5
+    # dictionary only needs to cover the largest asset
+    filters = [{"id": lzma.FILTER_LZMA1, "dict_size": 1 << 22, "lc": lc, "lp": lp, "pb": pb}]
+    return lzma.decompress(packed[1:], format=lzma.FORMAT_RAW, filters=filters)
+
 def emit_compressed(f, name, ctype, inner_dims, count, flat_values):
-    """Write a zlib-compressed FlashAsset<ctype inner_dims> definition.
+    """Write an LZMA-compressed FlashAsset<ctype inner_dims> definition.
 
     flat_values: ints in C initializer (row-major) order.
     """
     width = _WIDTH[ctype]
     raw = b"".join(struct.pack(_PACK[ctype], v & ((1 << (8 * width)) - 1)) for v in flat_values)
-    packed = zopfli.zlib.compress(raw, numiterations=ZOPFLI_ITERATIONS)
+    packed = lzma_compress(raw)
     ratio = 100.0 * (1.0 - len(packed) / len(raw)) if raw else 0.0
 
     print('#include "../../emulation/asset.h"', file=f)

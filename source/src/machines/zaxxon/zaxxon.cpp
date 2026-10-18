@@ -67,8 +67,8 @@ zaxxon::zaxxon()
   // largest first, or Arena's two blocks overflow
   zaxxon_bgtiles.data();
   zaxxon_spritetiles.data();
-  zaxxon_rom_main.data();
   zaxxon_chartiles.data();
+  zaxxon_tilemap_color.data();
   zaxxon_palette.data();
   zaxxon_fgcolor_codes.data();
 

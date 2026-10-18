@@ -133,8 +133,7 @@ int Menu::scrollTarget(int8_t sel) {
 void Menu::enterMenu() {
   Arena::reset();
   for(logo_pool_count = 0; logo_pool_count < LOGO_CACHE_SIZE; logo_pool_count++) {
-    // +1: slack in case uzlib writes past dest_limit.
-    logo_pool[logo_pool_count] = Arena::alloc<unsigned short>(LOGO_PIXELS + 1);
+    logo_pool[logo_pool_count] = Arena::alloc<unsigned short>(LOGO_PIXELS);
     slot_logo[logo_pool_count] = nullptr;
   }
 

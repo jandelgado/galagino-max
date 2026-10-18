@@ -6,9 +6,10 @@ capcom/gng.cpp (charlayout, tilelayout, spritelayout). Formats match
 commando: chars unsigned short[8] (pixel x at bits 2x), tiles and sprites
 uint32_t[32] (row y = words 2y, 2y+1, pixel x in nibble x).
 
-  gng_rom      CPU $4000-$FFFF (mm_c_04 + mm_c_03), Arena
-  gng_bank     banked $4000-$5FFF pages 0-3 (mm_c_05), PLAIN: Arena full
-  gng_sound    sound Z80 ROM up to SOUND_SIZE, PLAIN: Arena full
+  gng_rom      CPU $4000-$FFFF (mm_c_04 + mm_c_03), PLAIN: compresses
+               worst, so it leaves the Arena to bank + sound ROM
+  gng_bank     banked $4000-$5FFF pages 0-3 (mm_c_05), Arena
+  gng_sound    sound Z80 ROM up to SOUND_SIZE, Arena
   gng_chars    1024 fg chars, Arena
   gng_tiles    unique bg tiles, PLAIN (128 KB raw, read per visible tile)
   gng_tile_map bg tile code -> gng_tiles index, Arena
@@ -85,15 +86,15 @@ def write(name, emit):
 
 def convert_cpu():
     fixed = rom("mm_c_04") + rom("mm_c_03")
-    write("gng_rom.h", lambda f: emit_compressed(f, "gng_rom", "unsigned char", "", len(fixed), fixed))
+    write("gng_rom.h", lambda f: emit_plain(f, "gng_rom", "unsigned char", "", len(fixed), byte_body(fixed)))
     bank = rom("mm_c_05")
-    write("gng_bank.h", lambda f: emit_plain(f, "gng_bank", "unsigned char", "", len(bank), byte_body(bank)))
+    write("gng_bank.h", lambda f: emit_compressed(f, "gng_bank", "unsigned char", "", len(bank), bank))
 
     sound = rom("gg2.bin")
     if any(b != 0xff for b in sound[SOUND_SIZE:]):
         fatal("gg2.bin: data above SOUND_SIZE")
     sound = sound[:SOUND_SIZE]
-    write("gng_sound.h", lambda f: emit_plain(f, "gng_sound", "unsigned char", "", len(sound), byte_body(sound)))
+    write("gng_sound.h", lambda f: emit_compressed(f, "gng_sound", "unsigned char", "", len(sound), sound))
     return len(fixed)
 
 

@@ -191,7 +191,7 @@ def parse_tile_1942(b0,b1,b2):
     # show_chr_3bpp(tile)
     return tile
     
-def parse_tilemap_1942(id, files, outname):
+def parse_tilemap_1942(id, files, outname, compress=False):
     # in 1942 the tiles use 3 bit color indices with one bit in a serperate file each
     data = [ [],[],[] ]
     for fidx in range(len(files)):
@@ -216,9 +216,13 @@ def parse_tilemap_1942(id, files, outname):
     f = open(outname, "w")
 
     # Unflipped tiles only: 1942.cpp flips at blit time, 1/4 the size.
-    tiles_str = [" { " + dump_tile_1942(t) + " }" for t in tiles]
-    body = ",\n".join(tiles_str)
-    emit_plain(f, id, "uint32_t", "[32]", len(tiles), body)
+    tiles_str = [dump_tile_1942(t) for t in tiles]
+    if compress:
+        flat = [int(v, 16) for t in tiles_str for v in t.split(",")]
+        emit_compressed(f, id, "uint32_t", "[32]", len(tiles), flat)
+    else:
+        body = ",\n".join(" { " + t + " }" for t in tiles_str)
+        emit_plain(f, id, "uint32_t", "[32]", len(tiles), body)
 
     f.close()
         
@@ -392,7 +396,7 @@ if args and args[0] == "-c":
 
 if len(args) == 8:
     # 6 files are 1942 tiles which have a very different format
-    parse_tilemap_1942(args[0], (args[1:3], args[3:5], args[5:7]), args[7])
+    parse_tilemap_1942(args[0], (args[1:3], args[3:5], args[5:7]), args[7], compress)
 elif len(args) == 3:
     parse_charmap(args[0], args[1], args[2], compress)
 elif len(args) == 4:

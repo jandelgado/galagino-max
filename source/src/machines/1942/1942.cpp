@@ -14,13 +14,11 @@ _1942::_1942()
   last_coin = 0;
 
   _1942_sprites.data();
-  _1942_rom_cpu1.data();
+  _1942_tilemap.data();
   _1942_rom_cpu1_b0.data();
-  _1942_rom_cpu1_b2.data();
   _1942_rom_cpu2.data();
-  _1942_colormap_tiles.data();
   _1942_charmap.data();
-  _1942_rom_cpu1_b1.data();
+  _1942_colormap_tiles.data();
 }
 
 void _1942::start(void) {

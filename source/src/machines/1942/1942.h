@@ -23,14 +23,15 @@ class _1942 : public machineBase
 protected:
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned short[8], COMPRESSED> _1942_charmap;
-  Asset<unsigned char, COMPRESSED> _1942_rom_cpu1;
+  // rom_cpu1, b1, b2 compress worst: flash, the Arena holds the tilemap
+  Asset<unsigned char, PLAIN> _1942_rom_cpu1;
   Asset<unsigned char, COMPRESSED> _1942_rom_cpu1_b0;
-  Asset<unsigned char, COMPRESSED> _1942_rom_cpu1_b1;
-  Asset<unsigned char, COMPRESSED> _1942_rom_cpu1_b2;
+  Asset<unsigned char, PLAIN> _1942_rom_cpu1_b1;
+  Asset<unsigned char, PLAIN> _1942_rom_cpu1_b2;
   Asset<unsigned char, COMPRESSED> _1942_rom_cpu2;
   Asset<uint32_t[32], COMPRESSED> _1942_sprites;
   Asset<unsigned short[32][8], COMPRESSED> _1942_colormap_tiles;
-  Asset<uint32_t[32], PLAIN> _1942_tilemap;
+  Asset<uint32_t[32], COMPRESSED> _1942_tilemap;
 public:
 	_1942();
 

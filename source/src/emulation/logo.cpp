@@ -1,7 +1,7 @@
 #include <cstring>
 #include "logo.h"
 
-// Inflate into the tail of dst, then expand front to back in place, so no
+// Decode into the tail of dst, then expand front to back in place, so no
 // extra buffer. Writes (2 bytes per pixel) never overtake reads (0.5 bytes
 // per pixel, starting at 3/4): byte i is read before pixels 2i and 2i+1
 // overwrite bytes 4i..4i+3. They meet only after the last byte.
