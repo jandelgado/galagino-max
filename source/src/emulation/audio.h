@@ -15,6 +15,7 @@
 #include "pokey.h"
 #include "asteroids_sound.h"
 #include "llander_sound.h"
+#include "bzone_sound.h"
 #include "ima_adpcm.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 4)
@@ -65,6 +66,7 @@ private:
   void vanguard_render_buffer(void);
   void zaxxon_render_buffer(void);
   void pokey_render_buffer(void);
+  void bzone_render_buffer(void);
   void asteroids_render_buffer(void);
   void llander_render_buffer(void);
   void commando_render_buffer(void);
@@ -263,6 +265,7 @@ private:
   Pokey pokey[MAX_POKEYS];
   AsteroidsSound asteroids_sound;
   LlanderSound llander_sound;
+  BzoneSound bzone_sound;
 };
 
 #endif

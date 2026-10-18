@@ -516,6 +516,7 @@ const char *mchName(signed char machineType) {
     case MCH_BUBLBOBL:      return "Bubble Bobble";
     case MCH_ATETRIS:       return "Tetris";
     case MCH_CCASTLES:      return "Crystal Castles";
+    case MCH_BZONE:         return "Battle Zone";
   }
 
   return "";

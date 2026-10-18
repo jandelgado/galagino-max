@@ -165,5 +165,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Bubble Bobble (boblbobl.zip)   | ![Bubble Bobble marquee](/logos/bublbobl.png) | ![Bubble Bobble screenshot](/images/boblbobl.png) | Bootleg "Bobble Bobble", no MCU, needs parent bublbobl.zip. UP=jump. C64 SID music: romszip/Bubble_Bobble.sid (HVSC), effects recorded from MAME (samples/bublbobl_samples.zip) |
 | Tetris (atetris.zip)           | ![Tetris marquee](/logos/atetris.png) | ![Tetris screenshot](/images/atetris.png) | Atari, set 1. FIRE=rotate. Screen dynamically scaled and cropped in game for best view: playfield cropped to the player 1 side, other screens scaled from 336 to 240 columns |
 | Crystal Castles (ccastlesj.zip) | ![Crystal Castles marquee](/logos/ccastles.png) | ![Crystal Castles screenshot](/images/ccastles.png) | Joystick version, needs parent ccastles.zip. FIRE=jump |
+| Battle Zone (bzone.zip)        | ![Battle Zone marquee](/logos/bzone.png) | ![Battle Zone screenshot](/images/bzone.png) | Rev 2. Up/down=both treads, left/right=spin, diagonals=one tread |
 
 ### ...
