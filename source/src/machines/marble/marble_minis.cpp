@@ -4,7 +4,8 @@
 #include "marble_physics.h"
 #include "marble_rng.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 // 1:1 port of tools/marble_mini.py (function names as there; Marble Love
 // array-9-init-and-dispatch-18ffa.ts, array-9-clear-and-dispatch.ts, refresh-helper-1912c.ts,
@@ -405,4 +406,4 @@ void contact_1924e(Mem &m, uint32_t a2) { marble_minis::contact(m, a2); }
 
 }  // namespace marble_enemies
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

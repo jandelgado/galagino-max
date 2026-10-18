@@ -6,7 +6,8 @@
 #include "marble_rng.h"
 #include "marble_sound.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 // 1:1 port of tools/marble_bird.py (function names as there; Marble Love
 // scroll-range-144e4.ts mode 4, state-sub-19baa.ts, state-sub-19a40.ts,
@@ -278,4 +279,4 @@ void contact_19d94(Mem &m, uint32_t a2) { marble_birds::contact(m, a2); }
 
 }  // namespace marble_enemies
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

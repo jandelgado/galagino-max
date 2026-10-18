@@ -1,6 +1,7 @@
 #include "marble_mem.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -163,4 +164,4 @@ uint8_t Mem::record(uint16_t code, uint8_t q) const {
 
 }  // namespace marble_physics
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

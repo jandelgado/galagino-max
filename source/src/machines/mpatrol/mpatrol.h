@@ -4,7 +4,8 @@
 #include "../machineBase.h"
 #include "../../emulation/ay8910.h"
 
-#ifdef ENABLE_MPATROL
+#include "../../catalog.h"
+#ifdef GAME_MPATROL
 
 #include "mpatrol_logo.h"
 #include "mpatrol_dipswitches.h"
@@ -110,5 +111,5 @@ private:
   Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
 };
 
-#endif // ENABLE_MPATROL
+#endif // GAME_MPATROL
 #endif // MPATROL_H

@@ -1,4 +1,5 @@
-#ifdef ENABLE_HERO
+#include "../../catalog.h"
+#ifdef GAME_HERO
 
 #include "hero_data.h"
 #include "hero_rom.h"
@@ -14,4 +15,4 @@ uint8_t b1(uint16_t addr) { return hero_b1[addr - HERO_B1_FIRST]; }
 
 } // namespace hero_data
 
-#endif // ENABLE_HERO
+#endif // GAME_HERO

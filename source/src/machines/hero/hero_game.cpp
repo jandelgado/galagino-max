@@ -1,4 +1,5 @@
-#ifdef ENABLE_HERO
+#include "../../catalog.h"
+#ifdef GAME_HERO
 
 #include "hero_game.h"
 #include "hero_data.h"
@@ -1106,4 +1107,4 @@ void tick(Game &g, const Input &in) {
 
 } // namespace hero_game
 
-#endif // ENABLE_HERO
+#endif // GAME_HERO

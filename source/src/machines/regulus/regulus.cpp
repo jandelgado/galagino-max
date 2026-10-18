@@ -1,4 +1,5 @@
-#ifdef ENABLE_REGULUS
+#include "../../catalog.h"
+#ifdef GAME_REGULUS
 
 #include "regulus.h"
 #include "regulus_logo.h"
@@ -44,4 +45,4 @@ void regulus::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_REGULUS
+#endif // GAME_REGULUS

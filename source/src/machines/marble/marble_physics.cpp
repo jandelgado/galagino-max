@@ -7,7 +7,8 @@
 #include "marble_rng.h"
 #include "marble_sound.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 // 1:1 port of tools/marble_sim.py (function names and order as there). Integer
 // semantics of the 68010: word results wrap at 16 bits, long results at 32 bits (done in
@@ -1742,4 +1743,4 @@ void score(Mem &m, uint32_t player, uint8_t k) {
 
 }  // namespace marble_physics
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

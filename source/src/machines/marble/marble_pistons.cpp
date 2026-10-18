@@ -5,7 +5,8 @@
 #include "marble_rng.h"
 #include "marble_sound.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 // 1:1 port of tools/marble_piston.py (function names as there; Marble Love state-sub-186ac.ts,
 // read-abs-long-1844a.ts, state-sub-1881c.ts, sprite-coords.ts 0x18972, sprite-derive.ts
@@ -232,4 +233,4 @@ bool contact_1881c(Mem &m, uint32_t a2) { return marble_pistons::contact_1881c(m
 
 }  // namespace marble_enemies
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

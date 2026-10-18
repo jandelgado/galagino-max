@@ -10,7 +10,8 @@
 #include "gberet.h"
 #include "../../emulation/input.h"
 
-#ifdef ENABLE_GBERET
+#include "../../catalog.h"
+#ifdef GAME_GBERET
 
 #include "gberet_rom.h"
 #include "gberet_tilemap.h"
@@ -250,4 +251,4 @@ void gberet::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_GBERET
+#endif // GAME_GBERET

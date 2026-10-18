@@ -1,6 +1,7 @@
 #include "marble_particles.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 #include "marble_rng.h"
 
@@ -83,4 +84,4 @@ void clear(Mem &m) { m.wb(COUNT, 0); }
 
 }  // namespace marble_particles
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

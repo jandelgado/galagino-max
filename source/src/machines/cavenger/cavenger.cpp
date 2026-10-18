@@ -1,4 +1,5 @@
-#ifdef ENABLE_CAVENGER
+#include "../../catalog.h"
+#ifdef GAME_CAVENGER
 
 #include "cavenger.h"
 #include "cavenger_rom.h"
@@ -214,4 +215,4 @@ void cavenger::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_CAVENGER
+#endif // GAME_CAVENGER

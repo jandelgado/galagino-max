@@ -5,7 +5,8 @@
 #include "marble_physics.h"
 #include "marble_sound.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 // 1:1 port of tools/marble_slinky.py (function names as there; Marble Love state-sub-14c46.ts,
 // sub-14966.ts, helper-15148.ts, state-dispatch-15460.ts, state-sub-15670.ts,
@@ -600,4 +601,4 @@ void contact_14e92(Mem &m, uint32_t a2) { marble_slinkies::contact(m, a2); }
 
 }  // namespace marble_enemies
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

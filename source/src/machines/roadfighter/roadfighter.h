@@ -5,7 +5,8 @@
 #include "../../emulation/sn76489.h"
 #include "../../emulation/seqlock.h"
 
-#ifdef ENABLE_ROADFIGHTER
+#include "../../catalog.h"
+#ifdef GAME_ROADFIGHTER
 
 #include "../../cpus/m6809/m6809.h"
 #include "roadfighter_palette.h"      // tile/sprite colormap (palette+clut bakate)
@@ -151,5 +152,5 @@ protected:
   static const int DAC_GAIN = 2;
 };
 
-#endif // ENABLE_ROADFIGHTER
+#endif // GAME_ROADFIGHTER
 #endif // ROADFIGHTER_H

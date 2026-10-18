@@ -6,7 +6,8 @@
 // ============================================================================
 #include "roadfighter.h"
 
-#ifdef ENABLE_ROADFIGHTER
+#include "../../catalog.h"
+#ifdef GAME_ROADFIGHTER
 
 #include "roadfighter_rom_main.h"
 #include "roadfighter_rom_audio.h"
@@ -461,4 +462,4 @@ void roadfighter::blit_sprite_strip(int tcol, unsigned char s) {
   }
 }
 
-#endif // ENABLE_ROADFIGHTER
+#endif // GAME_ROADFIGHTER

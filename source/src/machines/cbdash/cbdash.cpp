@@ -1,4 +1,5 @@
-#ifdef ENABLE_CBDASH
+#include "../../catalog.h"
+#ifdef GAME_CBDASH
 
 #include "cbdash.h"
 #include "cbdash_logo.h"
@@ -533,4 +534,4 @@ void cbdash::renderAudio(int16_t *out, int n) {
   audioClampAll(out, n, AUDIO_MAX);
 }
 
-#endif // ENABLE_CBDASH
+#endif // GAME_CBDASH

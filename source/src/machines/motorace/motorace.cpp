@@ -10,7 +10,8 @@
 #include "motorace.h"
 #include "../../emulation/input.h"
 
-#ifdef ENABLE_MOTORACE
+#include "../../catalog.h"
+#ifdef GAME_MOTORACE
 
 #include "motorace_rom.h"
 #include "motorace_snd_rom.h"
@@ -367,4 +368,4 @@ const Logo &motorace::logo(void) {
   return motorace_logo;
 }
 
-#endif // ENABLE_MOTORACE
+#endif // GAME_MOTORACE

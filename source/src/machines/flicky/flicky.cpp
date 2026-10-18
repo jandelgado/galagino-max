@@ -1,4 +1,5 @@
-#ifdef ENABLE_FLICKY
+#include "../../catalog.h"
+#ifdef GAME_FLICKY
 
 #include "flicky.h"
 #include "flicky_logo.h"
@@ -48,4 +49,4 @@ void flicky::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_FLICKY
+#endif // GAME_FLICKY

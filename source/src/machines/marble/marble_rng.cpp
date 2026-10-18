@@ -1,6 +1,7 @@
 #include "marble_rng.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 namespace marble_rng {
 
@@ -29,4 +30,4 @@ uint16_t rng(marble_physics::Mem &m, uint16_t n) {
 
 }  // namespace marble_rng
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

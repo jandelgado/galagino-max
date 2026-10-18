@@ -1,4 +1,5 @@
-#ifdef ENABLE_VULGUS
+#include "../../catalog.h"
+#ifdef GAME_VULGUS
 
 #include "vulgus.h"
 #include "vulgus_rom_main.h"
@@ -284,4 +285,4 @@ void vulgus::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_VULGUS
+#endif // GAME_VULGUS

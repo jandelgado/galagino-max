@@ -1,4 +1,5 @@
-#ifdef ENABLE_RAFLESIA
+#include "../../catalog.h"
+#ifdef GAME_RAFLESIA
 
 #include "raflesia.h"
 #include "raflesia_logo.h"
@@ -42,4 +43,4 @@ void raflesia::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_RAFLESIA
+#endif // GAME_RAFLESIA

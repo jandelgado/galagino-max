@@ -1,4 +1,5 @@
-#if defined(ENABLE_TRON) || defined(ENABLE_DOTRON)
+#include "../../catalog.h"
+#if defined(GAME_TRON) || defined(GAME_DOTRON)
 
 #include "mcr_ssio.h"
 #include <string.h>

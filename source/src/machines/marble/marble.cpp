@@ -1,6 +1,7 @@
 #include "marble.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 #include "marble_camera.h"
 #include "marble_drawlist.h"
@@ -294,4 +295,4 @@ void marble::menuLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_MARBLE
+#endif // GAME_MARBLE

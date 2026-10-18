@@ -6,7 +6,8 @@
 // SN76489A behind the Konami latch and the VLM5030. Music tempo comes from
 // an NMI every 32 lines, the game loop from the vblank IRQ.
 // ============================================================================
-#ifdef ENABLE_YIEAR
+#include "../../catalog.h"
+#ifdef GAME_YIEAR
 
 #include "yiear.h"
 #include "../../emulation/input.h"
@@ -305,4 +306,4 @@ void yiear::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_YIEAR
+#endif // GAME_YIEAR

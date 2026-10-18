@@ -4,7 +4,8 @@
 #include "marble_rng.h"
 #include "marble_sound.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 // Port of tools/marble_flow.py (Marble Love TS: game-tick-timers.ts, timer-cascade.ts,
 // main-loop-init-1101e.ts, player-slot-iter-118d2.ts, state-sub-18a88.ts). Frame counts of
@@ -382,4 +383,4 @@ void raceLoaded(Flow &f, Mem &m) {
 
 }  // namespace marble_flow
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

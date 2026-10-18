@@ -1,4 +1,5 @@
-#ifdef ENABLE_MIKIE
+#include "../../catalog.h"
+#ifdef GAME_MIKIE
 
 #include "mikie.h"
 #include "mikie_rom_main.h"
@@ -283,4 +284,4 @@ void mikie::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_MIKIE
+#endif // GAME_MIKIE

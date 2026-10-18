@@ -6,7 +6,8 @@
 // trg2 every field, trg3 (the game's frame IRQ) every second field. Main
 // and sound CPU are interleaved in 240 slices per field.
 // ============================================================================
-#ifdef ENABLE_TRON
+#include "../../catalog.h"
+#ifdef GAME_TRON
 
 #include "tron.h"
 #include "../../emulation/input.h"

@@ -1,4 +1,5 @@
-#ifdef ENABLE_HERO
+#include "../../catalog.h"
+#ifdef GAME_HERO
 
 #include "hero_room.h"
 #include "hero_data.h"
@@ -84,4 +85,4 @@ void step(uint8_t &level, uint8_t &screen, int dir) {
 
 } // namespace hero_room
 
-#endif // ENABLE_HERO
+#endif // GAME_HERO

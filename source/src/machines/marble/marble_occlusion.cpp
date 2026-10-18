@@ -1,6 +1,7 @@
 #include "marble_occlusion.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 #include "marble_physics.h"
 
@@ -297,4 +298,4 @@ void bird(Mem &m, uint32_t obj) { occlusion_264aa(m, obj, BIRD_BOX); }
 
 }  // namespace marble_occlusion
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

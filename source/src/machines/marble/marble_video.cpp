@@ -1,6 +1,7 @@
 #include "marble_video.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 #include <string.h>
 #include "../../emulation/asset.h"
@@ -246,4 +247,4 @@ void renderRow(const Level &l, const VideoState &v, int row, uint16_t *dst) {
 
 }  // namespace marble_video
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

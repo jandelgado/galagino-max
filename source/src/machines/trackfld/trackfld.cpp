@@ -7,7 +7,8 @@
 // cycle timer and the VLM5030, whose ST/RST pins come from address bits.
 // Both CPUs and the VLM share one timeline in 6809 cycles.
 // ============================================================================
-#ifdef ENABLE_TRACKFLD
+#include "../../catalog.h"
+#ifdef GAME_TRACKFLD
 
 #include "trackfld.h"
 #include "../../emulation/input.h"
@@ -429,4 +430,4 @@ void trackfld::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_TRACKFLD
+#endif // GAME_TRACKFLD

@@ -10,7 +10,8 @@
 #include "mpatrol.h"
 #include "../../emulation/input.h"
 
-#ifdef ENABLE_MPATROL
+#include "../../catalog.h"
+#ifdef GAME_MPATROL
 
 #include "mpatrol_rom.h"
 #include "mpatrol_snd_rom.h"
@@ -371,4 +372,4 @@ void mpatrol::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_MPATROL
+#endif // GAME_MPATROL

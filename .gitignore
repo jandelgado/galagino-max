@@ -1,4 +1,5 @@
 # romconv output outside the machine dirs
+source/src/catalog.h
 source/src/emulation/pokey_poly.h
 source/test/**/*_fixture.h
 

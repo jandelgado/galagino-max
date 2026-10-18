@@ -1,4 +1,5 @@
-#ifdef ENABLE_WBOY
+#include "../../catalog.h"
+#ifdef GAME_WBOY
 
 #include "wboy.h"
 #include "wboy_logo.h"
@@ -48,4 +49,4 @@ void wboy::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_WBOY
+#endif // GAME_WBOY

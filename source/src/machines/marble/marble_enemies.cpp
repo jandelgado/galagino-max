@@ -9,7 +9,8 @@
 #include "marble_pistons.h"
 #include "marble_sound.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 // 1:1 port of tools/marble_enemy.py (function names as there; Marble Love sub-158f6.ts,
 // helper-182ba.ts, helper-1bc88.ts, scroll-sub-15a12.ts, state-sub-15bd0.ts). Integer
@@ -483,4 +484,4 @@ void remove_15bd0(Mem &m, uint32_t a2, Score s, Clear c) {
 
 }  // namespace marble_enemies
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE
