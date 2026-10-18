@@ -138,6 +138,32 @@ static void test_bad_headers(void) {
   TEST_ASSERT_TRUE_MESSAGE(rejects(w), "unknown flag");
 }
 
+// romconv writes lc = lp = 0 only: other props need more probability RAM
+// than the Arena has left during a download, and the loader's Arena::alloc
+// aborts instead of failing. Reject them before allocating.
+static size_t largestAlloc = 0;
+static void *countingAlloc(ISzAllocPtr, size_t size) {
+  largestAlloc = size > largestAlloc ? size : largestAlloc;
+  return malloc(size);
+}
+static const ISzAlloc counting = {countingAlloc, heapFree};
+
+static bool rejectsProps(uint8_t props) {
+  std::vector<uint8_t> w(wire, wire + sizeof(wire));
+  w[get32(w, 8 + 20 + 4)] = props;  // entry 1: LZMA, props byte first
+  largestAlloc = 0;
+  BundleUnpacker u(collect, nullptr, dict, &counting);
+  return !feedAll(u, w.data(), w.size(), w.size());
+}
+
+static void test_bad_props(void) {
+  const size_t PROBS_LC0_LP0 = (1846 + 768) * 2;
+  TEST_ASSERT_TRUE_MESSAGE(rejectsProps(8), "lc 8");
+  TEST_ASSERT_TRUE_MESSAGE(largestAlloc <= PROBS_LC0_LP0, "lc 8 allocated");
+  TEST_ASSERT_TRUE_MESSAGE(rejectsProps(9), "lp 1");
+  TEST_ASSERT_TRUE_MESSAGE(largestAlloc <= PROBS_LC0_LP0, "lp 1 allocated");
+}
+
 static void test_sink_refuses(void) {
   refuse = true;
   BundleUnpacker u(collect, nullptr, dict, &alloc);
@@ -153,6 +179,7 @@ int main(int, char **) {
   RUN_TEST(test_truncated_stream);
   RUN_TEST(test_trailing_bytes);
   RUN_TEST(test_bad_headers);
+  RUN_TEST(test_bad_props);
   RUN_TEST(test_sink_refuses);
   return UNITY_END();
 }

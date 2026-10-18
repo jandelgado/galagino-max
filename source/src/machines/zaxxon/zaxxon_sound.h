@@ -15,6 +15,7 @@ static const uint8_t ZAXXON_TRIG_BASE = 4;
 // an IMA-ADPCM sample. regs[0..2] = PPI ports A/B/C. Output +-500.
 class ZaxxonSound {
 public:
+  ZaxxonSound();
   void render(const uint8_t *regs, int16_t *out, int n);
 
 private:
@@ -27,6 +28,7 @@ private:
 
   // Port A (regs[0]) is edge-decoded each render call against prev, like
   // MAME's m_sound_state; trig_seen is the last counter value seen.
+  const uint8_t *sample[CHANNELS];  // IMA-ADPCM stream per channel
   uint8_t prev = 0;
   uint8_t trig_seen[TRIGGERED] = {};
   bool active[CHANNELS] = {};

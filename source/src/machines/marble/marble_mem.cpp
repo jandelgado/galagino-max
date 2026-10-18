@@ -31,7 +31,7 @@ void fail(const char *what, uint32_t addr) {
 // marble_tables in flash (PLAIN) or unpacked into its planned Arena block,
 // as romconv's Arena plan picks per layout
 static const uint8_t *loadTables(const FlashAsset<unsigned char, PLAIN> &b) {
-  return b.data;
+  return Asset<unsigned char, PLAIN>(b).data();  // resolves remote blobs
 }
 
 static const uint8_t *loadTables(const FlashAsset<unsigned char, COMPRESSED> &b) {

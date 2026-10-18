@@ -48,7 +48,10 @@ h = open(os.path.join(machines, "mspacman", "mspacman_bundle.h")).read()
 hash_c = ", ".join("0x%02x" % b for b in bundle_hash(wire))
 ref = ("static constexpr BundleRef mspacman_bundle = { { %s }, %du, %du, \"MSPACMAN\" };"
        % (hash_c, len(wire), info["entry"]))
-assert '#include "../../net/bundle.h"' in h and "#ifndef ENABLE_MSPACMAN" in h
+# ref only if some dir of the class hierarchy is remote: mspacman built in
+# with pacman's assets, or pacman built in for an ENABLE_MSPACMAN-only env
+guard = "#if !defined(BUILTIN_MSPACMAN) || !defined(BUILTIN_PACMAN)"
+assert '#include "../../net/bundle.h"' in h and guard in h, h
 assert ref in h, h
 assert "#define mspacman_bundle_ref (&mspacman_bundle)" in h
 assert "#define mspacman_bundle_ref nullptr" in h
@@ -61,7 +64,7 @@ os.makedirs(os.path.join(machines, "1943"))
 bundles.make_bundle("1943", assets, machines, server)
 h = open(os.path.join(machines, "1943", "1943_bundle.h")).read()
 assert "static constexpr BundleRef _1943_bundle = " in h and "#define _1943_bundle_ref" in h
-assert "#ifndef ENABLE_1943" in h
+assert "#if !defined(BUILTIN_1943)" in h
 print("3. digit-led symbol: OK")
 
 # 4. oversize entry fails

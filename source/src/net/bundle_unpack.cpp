@@ -202,6 +202,11 @@ bool BundleUnpacker::body(const uint8_t *&data, uint32_t &length) {
 }
 
 bool BundleUnpacker::startLzma(uint8_t props) {
+  // props = (pb * 5 + lp) * 9 + lc; romconv writes lc = lp = 0. Others
+  // need more probabilities than the Arena holds during a download.
+  if (props % 9 || props / 9 % 5) {
+    return false;
+  }
   const Byte p[LZMA_PROPS_SIZE] = {
     props, (Byte)PLAIN_DICT_BYTES, (Byte)(PLAIN_DICT_BYTES >> 8), (Byte)(PLAIN_DICT_BYTES >> 16),
     (Byte)(PLAIN_DICT_BYTES >> 24)
