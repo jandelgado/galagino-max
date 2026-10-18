@@ -21,6 +21,8 @@
 class AssetCache {
 public:
   static constexpr uint32_t TAG_BYTES = 4096;
+  // erase progress for the loader screen: 0 first, then after every sector
+  typedef void (*Progress)(void *ctx, uint32_t done, uint32_t total);
 
   explicit AssetCache(FlashRegion &region) : region(region) { }
 
@@ -28,7 +30,7 @@ public:
   const uint8_t *find(const BundleRef &ref);
   // picks and erases the slot; false if entryLength + TAG_BYTES exceeds
   // the region or flash fails
-  bool begin(const BundleRef &ref);
+  bool begin(const BundleRef &ref, Progress progress = nullptr, void *ctx = nullptr);
   bool append(const uint8_t *data, uint32_t length);
   // writes the tag; false unless entryLength bytes were appended
   bool commit();
@@ -45,7 +47,7 @@ private:
   static uint32_t span(uint32_t length);
   bool tagAt(const uint8_t *base, uint32_t pos, Tag &tag) const;
   bool overlapped(uint32_t from, uint32_t to, uint32_t &at);
-  bool evict(uint32_t from, uint32_t to);
+  bool evict(uint32_t from, uint32_t to, Progress progress, void *ctx);
 
   FlashRegion &region;
   BundleRef pending = {};

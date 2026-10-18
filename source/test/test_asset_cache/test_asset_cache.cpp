@@ -211,6 +211,42 @@ static void test_erase_unmapped(void) {
   TEST_ASSERT_FALSE(region.eraseWhileMapped);
 }
 
+struct EraseLog {
+  uint32_t calls = 0;
+  uint32_t first = 1;
+  uint32_t last = 0;
+  uint32_t total = 0;
+  bool steps4k = true;
+};
+
+static void logErase(void *ctx, uint32_t done, uint32_t total) {
+  EraseLog *log = (EraseLog *)ctx;
+  if (log->calls == 0) {
+    log->first = done;
+  }
+  else if (done != log->last + 4 * KB) {
+    log->steps4k = false;
+  }
+  log->calls++;
+  log->last = done;
+  log->total = total;
+}
+
+// loader screen bar: empty at the start, one step per 4 KB sector, so a
+// small slot (a few sectors) still moves the bar
+static void test_erase_progress(void) {
+  FakeRegion region(REGION_BYTES);
+  AssetCache cache(region);
+  EraseLog log;
+  TEST_ASSERT_TRUE(cache.begin(ref(1, 28 * KB), logErase, &log));
+  const uint32_t slot = AssetCache::TAG_BYTES + 28 * KB;
+  TEST_ASSERT_EQUAL_UINT32(0, log.first);
+  TEST_ASSERT_EQUAL_UINT32(slot, log.total);
+  TEST_ASSERT_EQUAL_UINT32(slot, log.last);
+  TEST_ASSERT_EQUAL_UINT32(slot / (4 * KB) + 1, log.calls);
+  TEST_ASSERT_TRUE(log.steps4k);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_find_after_commit);
@@ -221,5 +257,6 @@ int main(int, char **) {
   RUN_TEST(test_overlap_evicts_tag);
   RUN_TEST(test_too_big);
   RUN_TEST(test_erase_unmapped);
+  RUN_TEST(test_erase_progress);
   return UNITY_END();
 }

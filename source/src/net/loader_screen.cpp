@@ -35,10 +35,12 @@ void LoaderScreen::line(const char *text) {
   draw();
 }
 
+// start (empty bar) and end always drawn, between at most every PROGRESS_MS
 void LoaderScreen::progress(uint32_t gotBytes, uint32_t totalBytes) {
+  const bool edge = gotBytes == 0 || gotBytes == totalBytes || totalBytes != total;
   got = gotBytes;
   total = totalBytes;
-  if (millis() - lastDraw < PROGRESS_MS && got != total) {
+  if (!edge && millis() - lastDraw < PROGRESS_MS) {
     return;
   }
   draw();

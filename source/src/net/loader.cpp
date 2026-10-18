@@ -65,19 +65,27 @@ static bool fail(LoaderScreen &screen, const char *text) {
   return false;
 }
 
+static void eraseProgress(void *ctx, uint32_t done, uint32_t total) {
+  ((LoaderScreen *)ctx)->progress(done, total);
+}
+
 static bool download(const BundleRef &ref, const char *hex, LoaderScreen &screen) {
-  // erase before WiFi: up to 1 MB takes seconds, no reason to hold WiFi meanwhile
+  // connecting takes ~1.7 s: let it run while the slot erases
+  const bool started = Wifi::begin();
   screen.line("ERASE");
-  if (!cache.begin(ref)) {
+  const uint32_t eraseStart = millis();
+  if (!cache.begin(ref, eraseProgress, &screen)) {
+    Wifi::down();
     printf("loader: entry %u bytes\n", ref.entryLength);
     return fail(screen, "FLASH");
   }
+  printf("loader: erased in %u ms\n", millis() - eraseStart);
 
   char url[128];
   snprintf(url, sizeof(url), "%s/g/%s", GALAGINO_ASSETS_URL, hex);
   printf("loader: GET %s\n", url);
 
-  const bool connected = Wifi::up();
+  const bool connected = started && Wifi::up();
   screen.line(connected ? "WIFI OK" : "WIFI");
   char get[LINE_BYTES];
   snprintf(get, sizeof(get), "GET %s", hex);

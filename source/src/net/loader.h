@@ -10,9 +10,10 @@ class LoaderScreen;
 //
 //   ref == nullptr (built in)       -> unmount, true
 //   cache holds ref                 -> mount
-//   else  pick + erase a cache slot, WiFi up, GET /g/<hex>: SHA-256 over
-//         the bundle, PLAIN entries decoded into the slot, commit the tag
-//         last, WiFi down -> mount. Progress on screen.
+//   else  WiFi begins connecting while a cache slot is picked and erased,
+//         WiFi up, GET /g/<hex>: SHA-256 over the bundle, PLAIN entries
+//         decoded into the slot, commit the tag last, WiFi down -> mount.
+//         Erase and download progress on screen.
 //
 // False: download failed (error shown until a button press), nothing
 // mounted, caller returns to the menu.

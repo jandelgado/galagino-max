@@ -63,7 +63,7 @@ bool AssetCache::overlapped(uint32_t from, uint32_t to, uint32_t &at) {
 }
 
 // tags first: an entry cut by the slot must not survive a power loss
-bool AssetCache::evict(uint32_t from, uint32_t to) {
+bool AssetCache::evict(uint32_t from, uint32_t to, Progress progress, void *ctx) {
   uint32_t at;
   while (overlapped(from, to, at)) {
     // erasing a mapped region would leave stale data in the flash cache
@@ -73,10 +73,23 @@ bool AssetCache::evict(uint32_t from, uint32_t to) {
     }
   }
   region.unmap();
-  return region.erase(from, to - from);
+
+  // sector by sector: a small slot is only a few sectors, the bar must move
+  if (progress) {
+    progress(ctx, 0, to - from);
+  }
+  for (uint32_t at = from; at < to; at += SECTOR) {
+    if (!region.erase(at, SECTOR)) {
+      return false;
+    }
+    if (progress) {
+      progress(ctx, at + SECTOR - from, to - from);
+    }
+  }
+  return true;
 }
 
-bool AssetCache::begin(const BundleRef &ref) {
+bool AssetCache::begin(const BundleRef &ref, Progress progress, void *ctx) {
   written = 0;
   pending = {};
   if (region.size() < TAG_BYTES || ref.entryLength > region.size() - TAG_BYTES) {
@@ -105,7 +118,7 @@ bool AssetCache::begin(const BundleRef &ref) {
   const uint32_t need = span(ref.entryLength);
   slot = newestEnd + need <= region.size() ? newestEnd : 0;
 
-  if (!evict(slot, slot + need)) {
+  if (!evict(slot, slot + need, progress, ctx)) {
     return false;
   }
   pending = ref;
