@@ -8,7 +8,9 @@ rocnrope::rocnrope()
   : rocnrope_audio_rom(rocnrope_audio_rom_blob),
     rocnrope_main_rom(rocnrope_main_rom_blob),
     rocnrope_spritemap(rocnrope_spritemap_blob),
-    rocnrope_tilemap(rocnrope_tilemap_blob) {
+    rocnrope_tilemap(rocnrope_tilemap_blob),
+    work_ram(Arena::alloc<uint8_t>(WORK_RAM_BYTES)),
+    snd_ram(Arena::alloc<uint8_t>(SND_RAM_BYTES)) {
 	// In ctor: m6809_reset() reads the reset vector through these.
 	main_rom_ptr = rocnrope_main_rom.data();
 	audio_rom_ptr = rocnrope_audio_rom.data();
@@ -16,8 +18,8 @@ rocnrope::rocnrope()
 
 void rocnrope::reset() {
   machineBase::reset();
-  memset(work_ram, 0, sizeof(work_ram));
-  memset(snd_ram,  0, sizeof(snd_ram));
+  memset(work_ram, 0, WORK_RAM_BYTES);
+  memset(snd_ram,  0, SND_RAM_BYTES);
   memset(ay_addr,  0, sizeof(ay_addr));
   memset(ay_regs,  0, sizeof(ay_regs));
   irq_mask     = 0;

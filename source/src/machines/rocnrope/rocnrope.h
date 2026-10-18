@@ -100,7 +100,10 @@ private:
   // Kept SEPARATE from memory[] which holds sprite/video RAM (CPU 0x4000-0x5FFF).
   // The RAM test writes different patterns to work RAM and sprite/video RAM;
   // sharing memory[] for both caused the self-test to fail.
-  uint8_t work_ram[0x2000];
+  // In the Arena, like snd_ram: the machine object lives in the system
+  // heap, whose blocks after WiFi are too small for it.
+  static const uint16_t WORK_RAM_BYTES = 0x2000;
+  uint8_t *const work_ram;
 
   // M6809 main CPU state
   m6809_state main_cpu;
@@ -112,7 +115,8 @@ private:
   uint8_t soundlatch    = 0;
 
   // Sound CPU state (timeplt_audio)
-  uint8_t snd_ram[1024];
+  static const uint16_t SND_RAM_BYTES = 1024;
+  uint8_t *const snd_ram;
   uint8_t ay_addr[2];
   uint8_t ay_regs[2][16];
   unsigned long snd_icnt = 0;

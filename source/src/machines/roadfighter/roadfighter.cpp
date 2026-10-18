@@ -18,7 +18,10 @@ roadfighter::roadfighter()
   : roadfighter_rom_audio(roadfighter_rom_audio_blob),
     roadfighter_rom_main_raw(roadfighter_rom_main_raw_blob),
     roadfighter_sprites(roadfighter_sprites_blob),
-    roadfighter_tiles(roadfighter_tiles_blob) {
+    roadfighter_tiles(roadfighter_tiles_blob),
+    snd_ram(Arena::alloc<unsigned char>(SND_RAM_BYTES)),
+    vblank(*Arena::create<Seqlock<VideoState>>()),
+    video(*Arena::create<VideoState>()) {
 	// In ctor: m6809_reset() reads the reset vector through these.
 	main_raw_ptr = roadfighter_rom_main_raw.data();
 	audio_rom_ptr = roadfighter_rom_audio.data();
@@ -59,7 +62,7 @@ void roadfighter::reset() {
   //roadf_set_m6809_callbacks();
 
   memset(&main_cpu, 0, sizeof(main_cpu));
-  memset(snd_ram, 0, sizeof(snd_ram));
+  memset(snd_ram, 0, SND_RAM_BYTES);
   sound_latch = 0;
   sn_latch = 0;
   snd_icnt = 0;

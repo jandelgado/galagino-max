@@ -2,6 +2,8 @@
 #define ARENA_H
 
 #include <cstdint>
+#include <new>
+#include <type_traits>
 #include "arena_layout.h"
 
 // Where an asset unpacks: ANY = first fit (A, then B); A/B = that block's
@@ -75,6 +77,15 @@ public:
     template<typename T>
     static T *alloc(uint32_t count) {
         return (T *)alloc(count * sizeof(T), alignof(T));
+    }
+
+    // One T built in the Arena, never destroyed: reset() drops it. For
+    // machine state too big for the machine object, which lives in the
+    // system heap (after WiFi its largest block is ~14 KB).
+    template<typename T>
+    static T *create() {
+        static_assert(std::is_trivially_destructible<T>::value, "Arena never runs destructors");
+        return new (alloc<T>(1)) T();
     }
 
     // diagnostics only
