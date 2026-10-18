@@ -104,60 +104,61 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 
 | Game                           | Marquee                       | Screenshot                     | Notes |
 | ---                            | ---                           | ---                            | ---   |
-| Pac-Man (pacman.zip)           | ![ ](/logos/pacman.png)       | ![ ](/images/pacman.gif)       |       |
-| Galaga (galaga.zip)            | ![ ](/logos/galaga.png)       | ![ ](/images/galagino.gif)     |       |
-| Dig Dug (digdug.zip)           | ![ ](/logos/digdug.png)       | ![ ](/images/digdug.png)       |       |
-| Frogger (frogger.zip)          | ![ ](/logos/frogger.png)      | ![ ](/images/frogger.png)      |       |
-| Donkey Kong (dkong.zip)        | ![ ](/logos/dkong.png)        | ![ ](/images/dkong.gif)        |       |
-| 1942 (1942.zip)                | ![ ](/logos/1942.png)         | ![ ](/images/1942.png)         | L1-Fire R1-Loop |
-| Lizard Wizard (lizwiz.zip)     | ![ ](/logos/lizwiz.png)       | ![ ](/images/lizwiz.png)       |       |
-| Eyes (eyes.zip)                | ![ ](/logos/eyes.png)         | ![ ](/images/eyes.png)         |       |
-| Mr. TNT (mrtnt.zip)            | ![ ](/logos/mrtnt.png)        | ![ ](/images/mrtnt.png)        |       |
-| The Glob (theglobp.zip)        | ![ ](/logos/theglob.png)      | ![ ](/images/theglob.png)      |       |
-| Crush Roller (crush.zip)       | ![ ](/logos/crush.png)        | ![ ](/images/crush.png)        |       |
-| Ant Eater (anteater.zip)       | ![ ](/logos/anteater.png)     | ![ ](/images/anteater.png)     |       |
-| Bombjack (bombjack.zip)        | ![ ](/logos/bombjack.png)     | ![ ](/images/bombjack.png)     |       |
-| Mr. Do! (mrdo.zip)             | ![ ](/logos/mrdo.png)         | ![ ](/images/mrdo.png)         |       |
-| Bagman (bagmanm2.zip)          | ![ ](/logos/bagman.png)       | ![ ](/images/bagman.png)       |       |
-| Pengo (pengo2u.zip)            | ![ ](/logos/pengo.png)        | ![ ](/images/pengo.png)        |       |
-| MsPacman (mspacman.zip)        | ![ ](/logos/mspacman.png)     | ![ ](/images/mspacman.png)     |       |
-| Galaxian (galaxian.zip)        | ![ ](/logos/galaxian.png)     | ![ ](/images/galaxian.png)     |       |
-| LadyBug (ladybug.zip)          | ![ ](/logos/ladybug.png)      | ![ ](/images/ladybug.png)      |       |
-| Space Invaders (invaders.zip)  | ![ ](/logos/invaders.png)     | ![ ](/images/invaders.png)     |       |
-| Time Pilot (timeplt.zip)       | ![ ](/logos/timeplt.png)      | ![ ](/images/timeplt.png)      |       |
-| Gyruss (gyruss.zip)            | ![ ](/logos/gyruss.png)       | ![ ](/images/gyruss.png)       |       |
-| Tutankham (tutankhm.zip)       | ![ ](/logos/tutankhm.png)     | ![ ](/images/tutankham.png)    | ABXY=Fire START+COIN+L1+R1=Bomb |
-| Donkey Kong Jr. (dkongjrj.zip) | ![ ](/logos/dkongjr.png)      | ![ ](/images/dkongjr.png)      |       |
-| Star Force (starforc.zip)      | ![ ](/logos/starforce.png)    | ![ ](/images/starforce.png)    |       |
-| Moon Cresta (mooncrst.zip)     | ![ ](/logos/mooncresta.png)   | ![ ](/images/mooncresta.png)   |       |
-| Scramble (scramble.zip)        | ![_](/logos/scramble.png)     | ![_](/images/scramble.png)     | A+X=Fire B+Y+R1=Bomb |
-| Super Cobra (scobra.zip)       | ![_](/logos/supercobra.png)   | ![_](/images/supercobra.png)   |       |
-| Donkey Kong 3 (dkong3.zip)     | ![_](/logos/dkong3.png)       | ![_](/images/dkong3.png)       |       |
-| Pooyan (pooyan.zip)            | ![_](/logos/pooyan.png)       | ![_](/images/pooyan.png)       |       |
-| Phoenix (phoenix.zip)          | ![_](/logos/phoenix.png)      | ![_](/images/phoenix.png)      |       |
-| Burger Time (btime.zip)        | ![_](/logos/burgertime.png)   | ![_](/images/burgertime.png)   |       |
-| Xevious (xevious.zip)          | ![_](/logos/xevious.png)      | ![_](/images/xevious.png)      |       |
-| Bump 'n' Jump (bnj.zip)        | ![_](/logos/bnj.png)          | ![_](/images/bnj.png)          |       |
-| Mappy (mappy.zip)              | ![_](/logos/mappy.png)        | ![_](/images/mappy.png)        |       |
-| Gaplus (gaplus.zip)            | ![_](/logos/gaplus.png)       | ![_](/images/gaplus.png)       |       |
-| Alibaba (alibaba.zip)          | ![_](/logos/alibaba.png)      | ![_](/images/alibaba.png)      |       |
-| Amidar (amidar.zip)            | ![_](/logos/amidar.png)       | ![_](/images/amidar.png)       |       |
-| Turtles (turtles.zip)          | ![_](/logos/turtles.png)      | ![_](/images/turtles.png)      |       |
-| Circus Charlie (circusc.zip)   | ![_](/logos/circusc.png)      | ![_](/images/circusc.png)      |       |
-| Roc'n Rope (rocnrope.zip)      | ![_](/logos/rocnrope.png)     | ![_](/images/rocnrope.png)     |       |
-| Tower of Druaga (todruaga.zip) | ![_](/logos/todruaga.png)     | ![_](/images/todruaga.png)     |       |
-| Van Van Car (vanvan.zip)       | ![_](/logos/vanvan.png)       | ![_](/images/vanvan.png)       |       |
-| Pinball Action (pbaction.zip)  | ![_](/logos/pbaction.png)     | ![_](/images/pbaction.png)     |       |
-| Fantasy Island (fantasyu.zip)  | ![_](/logos/fantasy.png)      | ![_](/images/fantasy.png)      |       |
-| Nibbler (nibblerp.zip)         | ![_](/logos/nibbler.png)      | ![_](/images/nibbler.png)      |       |
-| Vanguard (vanguard.zip)        | ![_](/logos/vanguard.png)     | ![_](/images/vanguard.png)     |       |
-| Scrambled Egg (scregg.zip)     | ![_](/logos/scregg.png)       | ![_](/images/scregg.png)       | Broken             |
-| Road Fighter (roadf2.zip)      | ![_](/logos/roadfighter.png)  | ![_](/images/roadfighter.png)  |  |                
-| Motorace USA (motorace.zip)    | ![_](/logos/motorace.png)     | ![_](/images/motorace.png)     | x.y = 256x240      |
-| Zaxxon (zaxxon.zip)            | ![_](/logos/zaxxon.png)       |                                | US Rev D. Audio samples: zaxxon-audio.zip |
-| Centipede (centiped.zip)            | ![_](/logos/centipede.png)       |                                |  |
-| Millipede (milliped.zip)            | ![_](/logos/milliped.png)        |                                |  |
-| Asteroids (asteroid.zip)       | ![_](/logos/asteroids.png)    |                                | Vector display rasterized |
-| Baluba-louk no Densetsu (baluba.zip) | ![_](/logos/baluba.png) |                          | Star Force board |
+| Pac-Man (pacman.zip)           | ![Pac-Man marquee](/logos/pacman.png)       | ![Pac-Man screenshot](/images/pacman.gif)       |       |
+| Galaga (galaga.zip)            | ![Galaga marquee](/logos/galaga.png)       | ![Galaga screenshot](/images/galagino.gif)     |       |
+| Dig Dug (digdug.zip)           | ![Dig Dug marquee](/logos/digdug.png)       | ![Dig Dug screenshot](/images/digdug.png)       |       |
+| Frogger (frogger.zip)          | ![Frogger marquee](/logos/frogger.png)      | ![Frogger screenshot](/images/frogger.png)      |       |
+| Donkey Kong (dkong.zip)        | ![Donkey Kong marquee](/logos/dkong.png)        | ![Donkey Kong screenshot](/images/dkong.gif)        |       |
+| 1942 (1942.zip)                | ![1942 marquee](/logos/1942.png)         | ![1942 screenshot](/images/1942.png)         | L1-Fire R1-Loop |
+| Lizard Wizard (lizwiz.zip)     | ![Lizard Wizard marquee](/logos/lizwiz.png)       | ![Lizard Wizard screenshot](/images/lizwiz.png)       |       |
+| Eyes (eyes.zip)                | ![Eyes marquee](/logos/eyes.png)         | ![Eyes screenshot](/images/eyes.png)         |       |
+| Mr. TNT (mrtnt.zip)            | ![Mr. TNT marquee](/logos/mrtnt.png)        | ![Mr. TNT screenshot](/images/mrtnt.png)        |       |
+| The Glob (theglobp.zip)        | ![The Glob marquee](/logos/theglob.png)      | ![The Glob screenshot](/images/theglob.png)      |       |
+| Crush Roller (crush.zip)       | ![Crush Roller marquee](/logos/crush.png)        | ![Crush Roller screenshot](/images/crush.png)        |       |
+| Ant Eater (anteater.zip)       | ![Ant Eater marquee](/logos/anteater.png)     | ![Ant Eater screenshot](/images/anteater.png)     |       |
+| Bombjack (bombjack.zip)        | ![Bombjack marquee](/logos/bombjack.png)     | ![Bombjack screenshot](/images/bombjack.png)     |       |
+| Mr. Do! (mrdo.zip)             | ![Mr. Do! marquee](/logos/mrdo.png)         | ![Mr. Do! screenshot](/images/mrdo.png)         |       |
+| Bagman (bagmanm2.zip)          | ![Bagman marquee](/logos/bagman.png)       | ![Bagman screenshot](/images/bagman.png)       |       |
+| Pengo (pengo2u.zip)            | ![Pengo marquee](/logos/pengo.png)        | ![Pengo screenshot](/images/pengo.png)        |       |
+| MsPacman (mspacman.zip)        | ![MsPacman marquee](/logos/mspacman.png)     | ![MsPacman screenshot](/images/mspacman.png)     |       |
+| Galaxian (galaxian.zip)        | ![Galaxian marquee](/logos/galaxian.png)     | ![Galaxian screenshot](/images/galaxian.png)     |       |
+| LadyBug (ladybug.zip)          | ![LadyBug marquee](/logos/ladybug.png)      | ![LadyBug screenshot](/images/ladybug.png)      |       |
+| Space Invaders (invaders.zip)  | ![Space Invaders marquee](/logos/invaders.png)     | ![Space Invaders screenshot](/images/invaders.png)     |       |
+| Time Pilot (timeplt.zip)       | ![Time Pilot marquee](/logos/timeplt.png)      | ![Time Pilot screenshot](/images/timeplt.png)      |       |
+| Gyruss (gyruss.zip)            | ![Gyruss marquee](/logos/gyruss.png)       | ![Gyruss screenshot](/images/gyruss.png)       |       |
+| Tutankham (tutankhm.zip)       | ![Tutankham marquee](/logos/tutankhm.png)     | ![Tutankham screenshot](/images/tutankham.png)    | ABXY=Fire START+COIN+L1+R1=Bomb |
+| Donkey Kong Jr. (dkongjrj.zip) | ![Donkey Kong Jr. marquee](/logos/dkongjr.png)      | ![Donkey Kong Jr. screenshot](/images/dkongjr.png)      |       |
+| Star Force (starforc.zip)      | ![Star Force marquee](/logos/starforce.png)    | ![Star Force screenshot](/images/starforce.png)    |       |
+| Moon Cresta (mooncrst.zip)     | ![Moon Cresta marquee](/logos/mooncresta.png)   | ![Moon Cresta screenshot](/images/mooncresta.png)   |       |
+| Scramble (scramble.zip)        | ![Scramble marquee](/logos/scramble.png)     | ![Scramble screenshot](/images/scramble.png)     | A+X=Fire B+Y+R1=Bomb |
+| Super Cobra (scobra.zip)       | ![Super Cobra marquee](/logos/supercobra.png)   | ![Super Cobra screenshot](/images/supercobra.png)   |       |
+| Donkey Kong 3 (dkong3.zip)     | ![Donkey Kong 3 marquee](/logos/dkong3.png)       | ![Donkey Kong 3 screenshot](/images/dkong3.png)       |       |
+| Pooyan (pooyan.zip)            | ![Pooyan marquee](/logos/pooyan.png)       | ![Pooyan screenshot](/images/pooyan.png)       |       |
+| Phoenix (phoenix.zip)          | ![Phoenix marquee](/logos/phoenix.png)      | ![Phoenix screenshot](/images/phoenix.png)      |       |
+| Burger Time (btime.zip)        | ![Burger Time marquee](/logos/burgertime.png)   | ![Burger Time screenshot](/images/burgertime.png)   |       |
+| Xevious (xevious.zip)          | ![Xevious marquee](/logos/xevious.png)      | ![Xevious screenshot](/images/xevious.png)      |       |
+| Bump 'n' Jump (bnj.zip)        | ![Bump 'n' Jump marquee](/logos/bnj.png)          | ![Bump 'n' Jump screenshot](/images/bnj.png)          |       |
+| Mappy (mappy.zip)              | ![Mappy marquee](/logos/mappy.png)        | ![Mappy screenshot](/images/mappy.png)        |       |
+| Gaplus (gaplus.zip)            | ![Gaplus marquee](/logos/gaplus.png)       | ![Gaplus screenshot](/images/gaplus.png)       |       |
+| Alibaba (alibaba.zip)          | ![Alibaba marquee](/logos/alibaba.png)      | ![Alibaba screenshot](/images/alibaba.png)      |       |
+| Amidar (amidar.zip)            | ![Amidar marquee](/logos/amidar.png)       | ![Amidar screenshot](/images/amidar.png)       |       |
+| Turtles (turtles.zip)          | ![Turtles marquee](/logos/turtles.png)      | ![Turtles screenshot](/images/turtles.png)      |       |
+| Circus Charlie (circusc.zip)   | ![Circus Charlie marquee](/logos/circusc.png)      | ![Circus Charlie screenshot](/images/circusc.png)      |       |
+| Roc'n Rope (rocnrope.zip)      | ![Roc'n Rope marquee](/logos/rocnrope.png)     | ![Roc'n Rope screenshot](/images/rocnrope.png)     |       |
+| Tower of Druaga (todruaga.zip) | ![Tower of Druaga marquee](/logos/todruaga.png)     | ![Tower of Druaga screenshot](/images/todruaga.png)     |       |
+| Van Van Car (vanvan.zip)       | ![Van Van Car marquee](/logos/vanvan.png)       | ![Van Van Car screenshot](/images/vanvan.png)       |       |
+| Pinball Action (pbaction.zip)  | ![Pinball Action marquee](/logos/pbaction.png)     | ![Pinball Action screenshot](/images/pbaction.png)     |       |
+| Fantasy Island (fantasyu.zip)  | ![Fantasy Island marquee](/logos/fantasy.png)      | ![Fantasy Island screenshot](/images/fantasy.png)      |       |
+| Nibbler (nibblerp.zip)         | ![Nibbler marquee](/logos/nibbler.png)      | ![Nibbler screenshot](/images/nibbler.png)      |       |
+| Vanguard (vanguard.zip)        | ![Vanguard marquee](/logos/vanguard.png)     | ![Vanguard screenshot](/images/vanguard.png)     |       |
+| Scrambled Egg (scregg.zip)     | ![Scrambled Egg marquee](/logos/scregg.png)       | ![Scrambled Egg screenshot](/images/scregg.png)       | Broken             |
+| Road Fighter (roadf2.zip)      | ![Road Fighter marquee](/logos/roadfighter.png)  | ![Road Fighter screenshot](/images/roadfighter.png)  |  |                
+| Motorace USA (motorace.zip)    | ![Motorace USA marquee](/logos/motorace.png)     | ![Motorace USA screenshot](/images/motorace.png)     | x.y = 256x240      |
+| Zaxxon (zaxxon.zip)            | ![Zaxxon marquee](/logos/zaxxon.png)       |                                | US Rev D. Audio samples: zaxxon-audio.zip |
+| Centipede (centiped.zip)            | ![Centipede marquee](/logos/centipede.png)       |                                |  |
+| Millipede (milliped.zip)            | ![Millipede marquee](/logos/milliped.png)        |                                |  |
+| Asteroids (asteroid.zip)       | ![Asteroids marquee](/logos/asteroids.png)    |                                | Vector display rasterized |
+| Baluba-louk no Densetsu (baluba.zip) | ![Baluba-louk no Densetsu marquee](/logos/baluba.png) |                          | Star Force board |
+| Commando (commando.zip)        | ![Commando marquee](/logos/commando.png) | ![Commando screenshot](/images/commando.png) | L1-Fire START+R1=Grenade. C64 SID music: romszip/Commando.sid (HVSC) |
 
 ### ...
