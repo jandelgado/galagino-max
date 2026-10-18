@@ -150,8 +150,11 @@ void Audio::start(machineBase *machineBase) {
   else if (machineType == MCH_COMMANDO)   { AY = 2; AY_INC = 4; AY_VOL = 5;  } // SSG 750 kHz
   else if (machineType == MCH_THEPIT)     { AY = 1; AY_INC = 8; AY_VOL = 11; } // 1.536 MHz
 
-  if (machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS) {
-    const int32_t clocks = machineType == MCH_ATETRIS ? Pokey::CLOCKS_1789KHZ : Pokey::CLOCKS_1512KHZ;
+  if (machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
+      machineType == MCH_CCASTLES) {
+    const int32_t clocks = machineType == MCH_ATETRIS   ? Pokey::CLOCKS_1789KHZ
+                         : machineType == MCH_CCASTLES ? Pokey::CLOCKS_1250KHZ
+                                                       : Pokey::CLOCKS_1512KHZ;
     for (int n = 0; n < MAX_POKEYS; n++) {
       pokey[n].reset(clocks);
     }
@@ -328,7 +331,8 @@ void Audio::transmit() {
       vanguard_render_buffer();
     else if(machineType == MCH_ZAXXON)
       zaxxon_render_buffer();
-    else if(machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS)
+    else if(machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
+            machineType == MCH_CCASTLES)
       pokey_render_buffer();
     else if(machineType == MCH_ASTEROIDS)
       asteroids_render_buffer();
@@ -498,12 +502,13 @@ void Audio::zaxxonStopChannel(int ch) {
   zx_active[ch] = false;
 }
 
-// Atari POKEY (Centipede, Millipede, Tetris): chip n registers at
+// Atari POKEY (Centipede, Millipede, Tetris, Crystal Castles): chip n registers at
 // soundregs[n * Pokey::REG_COUNT], see pokey.h. MAME routes every POKEY at
 // the same gain, so the chips are summed.
 void Audio::pokey_render_buffer(void) {
   static const int32_t SAMPLE_MAX = 511;
-  const int chips = (machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS) ? 2 : 1;
+  const int chips =
+      (machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS || machineType == MCH_CCASTLES) ? 2 : 1;
   int16_t samples[MAX_POKEYS][64];
   for (int n = 0; n < chips; n++) {
     pokey[n].render(currentMachine->soundregs + n * Pokey::REG_COUNT, samples[n], 64);

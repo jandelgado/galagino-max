@@ -237,6 +237,10 @@
   #include "machines/atetris/atetris.h"
 #endif
 
+#ifdef ENABLE_CCASTLES
+  #include "machines/ccastles/ccastles.h"
+#endif
+
 // change machine order is possible here...
 machineInfo machines[] = {
 #ifdef ENABLE_PACMAN
@@ -651,6 +655,13 @@ machineInfo machines[] = {
     atetris::menuLeds,
 #endif
     MCH_ATETRIS },
+#endif
+#ifdef ENABLE_CCASTLES
+  { []() -> machineBase* { return new ccastles(); }, ccastles::logo,
+#ifdef LED_PIN
+    ccastles::menuLeds,
+#endif
+    MCH_CCASTLES },
 #endif
 #ifdef ENABLE_COMMANDO
   { []() -> machineBase* { return new commando(); }, commando::logo,
