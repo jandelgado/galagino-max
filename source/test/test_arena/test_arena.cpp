@@ -61,6 +61,44 @@ static void test_extras_key(void) {
   TEST_ASSERT_EQUAL_UINT32(0, arenaExtrasKey(extras, 0, false));
 }
 
+// LZMA probability table of an unpack: borrowed from the top of the free
+// gap, given back after the decode, so it never costs a later allocation
+static void test_scratch_is_transient(void) {
+  uint8_t *s = Arena::scratch(5228);
+  TEST_ASSERT_NOT_NULL(s);
+  TEST_ASSERT_TRUE(inRange(s, baseA, baseA + Arena::BLOCK_A_SIZE));
+  TEST_ASSERT_EQUAL_PTR(baseA + Arena::BLOCK_A_SIZE - 5228, s);
+  TEST_ASSERT_TRUE(Arena::release(s));
+  // whole block A first fit again
+  TEST_ASSERT_EQUAL_PTR(baseA, Arena::alloc(Arena::BLOCK_A_SIZE));
+}
+
+static void test_scratch_one_at_a_time(void) {
+  uint8_t *s = Arena::scratch(5228);
+  TEST_ASSERT_NOT_NULL(s);
+  TEST_ASSERT_NULL(Arena::scratch(100));  // the other core: falls back to malloc
+  TEST_ASSERT_FALSE(Arena::release(baseB));  // not the scratch: caller frees it
+  TEST_ASSERT_TRUE(Arena::release(s));
+  TEST_ASSERT_NOT_NULL(Arena::scratch(100));
+}
+
+static void test_scratch_below_reservation(void) {
+  const ArenaPlan p = {1000, 0};
+  Arena::reserve(&p);
+  uint8_t *s = Arena::scratch(64);
+  TEST_ASSERT_EQUAL_PTR(baseA + Arena::BLOCK_A_SIZE - 1000 - 64, s);
+  // allocations meanwhile stay below it
+  TEST_ASSERT_EQUAL_PTR(baseA, Arena::alloc(Arena::BLOCK_A_SIZE - 1000 - 64));
+  TEST_ASSERT_TRUE(Arena::release(s));
+}
+
+static void test_scratch_no_room(void) {
+  Arena::alloc(Arena::BLOCK_A_SIZE);
+  Arena::alloc(Arena::BLOCK_B_SIZE - 100);
+  TEST_ASSERT_NULL(Arena::scratch(5228));  // no abort: heap fallback
+  TEST_ASSERT_NOT_NULL(Arena::scratch(100));
+}
+
 int main(int, char **) {
   Arena::init();
   UNITY_BEGIN();
@@ -69,5 +107,9 @@ int main(int, char **) {
   RUN_TEST(test_reset_clears_reservation);
   RUN_TEST(test_null_plan_is_no_reservation);
   RUN_TEST(test_extras_key);
+  RUN_TEST(test_scratch_is_transient);
+  RUN_TEST(test_scratch_one_at_a_time);
+  RUN_TEST(test_scratch_below_reservation);
+  RUN_TEST(test_scratch_no_room);
   return UNITY_END();
 }

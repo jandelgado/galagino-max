@@ -140,9 +140,9 @@ public:
       SizeT destLen = outLen;
       SizeT srcLen = packedLen - 1;
       ELzmaStatus status;
-      // probability table only, 5.5 KB at lc=lp=0, freed before return
+      // probability table only, 5.2 KB at lc=lp=0, freed before return
       SRes res = LzmaDecode((Byte *)dst, &destLen, packed + 1, &srcLen,
-                            props, LZMA_PROPS_SIZE, LZMA_FINISH_END, &status, &heapAlloc);
+                            props, LZMA_PROPS_SIZE, LZMA_FINISH_END, &status, &probsAlloc);
 
       if (res != SZ_OK || destLen != outLen) {
         printf("Asset: decompress failed (res=%d, status=%d, got %u/%u bytes)\n",
@@ -174,9 +174,19 @@ private:
       current = buf;
     }
 
-    static void *heapAllocFn(ISzAllocPtr, size_t size) { return malloc(size); }
-    static void heapFreeFn(ISzAllocPtr, void *address) { free(address); }
-    static constexpr ISzAlloc heapAlloc = { heapAllocFn, heapFreeFn };
+    // Arena scratch first: the system heap is small and, after WiFi,
+    // fragmented (largest block ~14 KB); malloc only if the Arena gap is
+    // too small or the other core is decoding
+    static void *probsAllocFn(ISzAllocPtr, size_t size) {
+      void *p = Arena::scratch(size);
+      return p ? p : malloc(size);
+    }
+    static void probsFreeFn(ISzAllocPtr, void *address) {
+      if (!Arena::release(address)) {
+        free(address);
+      }
+    }
+    static constexpr ISzAlloc probsAlloc = { probsAllocFn, probsFreeFn };
 
     const uint8_t *packed;
     uint32_t packedLen;
@@ -186,6 +196,6 @@ private:
 };
 
 template<typename T>
-constexpr ISzAlloc Asset<T, COMPRESSED>::heapAlloc;
+constexpr ISzAlloc Asset<T, COMPRESSED>::probsAlloc;
 
 #endif

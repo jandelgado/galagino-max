@@ -88,6 +88,14 @@ public:
         return new (alloc<T>(1)) T();
     }
 
+    // Transient buffer at the top of a block's free gap (A first), for
+    // the LZMA probability table of one unpack: no lasting Arena cost and
+    // no system heap. One at a time; nullptr if taken (other core) or no
+    // gap fits: the caller falls back to malloc. Alignment 4.
+    static uint8_t *scratch(uint32_t bytes);
+    // true if p is the scratch, now given back; false: p is not ours
+    static bool release(const void *p);
+
     // diagnostics only
     static uint32_t bytesUsed();
 
@@ -104,6 +112,10 @@ private:
     static uint32_t limitB;
     static uint32_t plannedA;
     static uint32_t plannedB;
+    // scratch: at the lowered limit of its block, nullptr if free;
+    // scratchLimit: that limit before
+    static uint8_t *scratchPtr;
+    static uint32_t scratchLimit;
 };
 
 #endif
