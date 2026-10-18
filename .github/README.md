@@ -171,5 +171,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Moon Patrol (mpatrol.zip)     | ![Moon Patrol marquee](/logos/mpatrol.png) | ![Moon Patrol screenshot](/images/mpatrol.png) | UP=jump, FIRE=fire |
 | Star Jacker (starjack.zip)    | ![Star Jacker marquee](/logos/starjack.png) | ![Star Jacker screenshot](/images/starjack.png) | Sega System 1. FIRE=laser, controller B=short-range shot |
 | Regulus (regulus.zip)         | ![Regulus marquee](/logos/regulus.png) | ![Regulus screenshot](/images/regulus.png) | Sega System 1, unencrypted US set. FIRE=laser, START=bomb |
+| Boulder Dash (cbdash.zip)     | ![Boulder Dash marquee](/logos/cbdash.png) | ![Boulder Dash screenshot](/images/cbdash.png) | Data East DECO Cassette version. Slow tape loader removed. Experimental smooth scrolling. C64 SID music: romszip/Boulder_Dash.sid (HVSC) |
 
 ### ...
