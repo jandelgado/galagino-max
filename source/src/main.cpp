@@ -233,6 +233,10 @@ void loop(void) {
 
 // max time between full rate frames giving the idle task CPU time
 static const uint32_t IDLE_YIELD_MS = 1000;
+// full rate frame period, 60.0 Hz
+static const uint32_t FRAME_US = 16667;
+// further behind the frame deadline than this: restart pacing
+static const int32_t MAX_LATE_US = 50000;
 
 void updateAudioVideo(void) {
   static uint32_t last_yield_ms = 0;
@@ -295,18 +299,28 @@ void updateAudioVideo(void) {
 
     emulation_videoRendered();
 
-    // one screen at 60 Hz is 16.6ms
-    unsigned long t1 = (micros() - t0) / 1000;  // calculate time in milliseconds
-    if(t1 < 16) {
-      vTaskDelay(16 - t1);
+    // Deadline pacing at 60.0 Hz: delays alternate 16/17/17 ms. A fixed 16 ms
+    // pad ran at 62.5 Hz, games 4% fast, and beat against the 60 Hz panel: a
+    // skipped frame (scroll jerk) about every second.
+    static uint32_t next_us = 0;
+    next_us += FRAME_US;
+    const int32_t wait_us = (int32_t)(next_us - micros());
+    if(wait_us > 0) {
+      vTaskDelay((wait_us + 999) / 1000);
       last_yield_ms = millis();
     }
-    // Idle task needs CPU time within the task watchdog timeout. Not every
-    // frame: a 1 tick delay pushes a frame just over 16 ms to 17 ms (the
-    // next tick), missing the 60 Hz display refresh.
-    else if(millis() - last_yield_ms > IDLE_YIELD_MS) {
-      vTaskDelay(1);
-      last_yield_ms = millis();
+    else {
+      // far behind (stall, machine start): restart, no catch-up burst
+      if(wait_us < -MAX_LATE_US) {
+        next_us = micros();
+      }
+
+      // Idle task needs CPU time within the task watchdog timeout. Not every
+      // frame: a 1 tick delay pushes a late frame further behind.
+      if(millis() - last_yield_ms > IDLE_YIELD_MS) {
+        vTaskDelay(1);
+        last_yield_ms = millis();
+      }
     }
 
     // physical refresh is 60Hz. So send vblank trigger once a frame
