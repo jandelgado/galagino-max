@@ -5,8 +5,10 @@
 static const uint32_t PSID_MIN_HEADER = 0x76;
 static const uint8_t OFS_VERSION = 0x04, OFS_DATA = 0x06, OFS_LOAD = 0x08;
 static const uint8_t OFS_INIT = 0x0a, OFS_PLAY = 0x0c, OFS_SONGS = 0x0e;
-static const uint8_t OFS_START = 0x10, OFS_SPEED = 0x12;
+static const uint8_t OFS_START = 0x10, OFS_SPEED = 0x12, OFS_FLAGS = 0x76;
 static const uint16_t MAX_VERSION = 4;
+static const uint16_t FLAGS_VERSION = 2;           // v1 headers end before the flags
+static const uint8_t CLOCK_SHIFT = 2, CLOCK_MASK = 3, CLOCK_NTSC = 2; // 1 PAL, 3 both
 
 static uint16_t be16(const uint8_t *p) { return (p[0] << 8) | p[1]; }
 static uint32_t be32(const uint8_t *p) { return ((uint32_t)be16(p) << 16) | be16(p + 2); }
@@ -26,6 +28,10 @@ bool psidParse(const uint8_t *file, uint32_t len, PsidInfo *info) {
   info->play = be16(file + OFS_PLAY);
   info->songs = be16(file + OFS_SONGS);
   info->start_song = be16(file + OFS_START);
+  info->clock = SID_PAL;
+  if (version >= FLAGS_VERSION && ((be16(file + OFS_FLAGS) >> CLOCK_SHIFT) & CLOCK_MASK) == CLOCK_NTSC) {
+    info->clock = SID_NTSC;
+  }
   info->payload = file + data;
   info->payload_len = len - data;
 
@@ -58,6 +64,7 @@ bool SidPlayer::load(const PsidInfo &tune, uint8_t *mem, uint16_t mem_size) {
   info = tune;
   ram = mem;
   ram_size = mem_size;
+  samples_per_play = Sid::SAMPLE_RATE / (tune.clock == SID_NTSC ? NTSC_PLAY_HZ : PAL_PLAY_HZ);
   playing = false;
   return true;
 }
@@ -67,7 +74,7 @@ void SidPlayer::start(uint8_t song) {
   memcpy(ram, info.payload, info.payload_len);
   memset(ram + info.payload_len, 0, ram_size - info.payload_len);
   memset(low, 0, sizeof(low));
-  sid.reset();
+  sid.reset(info.clock);
 
   memset(&cpu, 0, sizeof(cpu));
   cpu.read = read;
@@ -94,7 +101,7 @@ void SidPlayer::render(int16_t *out, int n) {
     }
     if (samples_to_play == 0) {
       playing = call(info.play, 0, PLAY_MAX_CYCLES);
-      samples_to_play = SAMPLES_PER_PLAY;
+      samples_to_play = samples_per_play;
     }
 
     const int chunk = n < (int)samples_to_play ? n : (int)samples_to_play;

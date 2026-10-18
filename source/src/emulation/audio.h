@@ -69,7 +69,7 @@ private:
   void bzone_render_buffer(void);
   void asteroids_render_buffer(void);
   void llander_render_buffer(void);
-  void commando_render_buffer(void);
+  void sid_ay_render_buffer(void);
   void sid_render_buffer(void);
   void zaxxonStartChannel(int ch, ZaxxonPlayMode mode);
   void zaxxonStopChannel(int ch);

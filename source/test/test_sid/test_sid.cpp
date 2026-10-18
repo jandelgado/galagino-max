@@ -15,9 +15,11 @@ static int16_t buf[RATE];
 void setUp(void) { sid.reset(); }
 void tearDown(void) {}
 
-static void setFreq(uint32_t hz) {
-  // SID frequency register: hz * 2^24 / 985248 (PAL clock)
-  const uint32_t reg = (uint32_t)(((uint64_t)hz << 24) / 985248);
+static const uint32_t PAL_CLOCK = 985248, NTSC_CLOCK = 1022727;
+
+static void setFreq(uint32_t hz, uint32_t clock = PAL_CLOCK) {
+  // SID frequency register: hz * 2^24 / clock
+  const uint32_t reg = (uint32_t)(((uint64_t)hz << 24) / clock);
   sid.write(FREQ_LO, reg & 0xff);
   sid.write(FREQ_HI, reg >> 8);
 }
@@ -39,8 +41,9 @@ static void test_silent_after_reset(void) {
   TEST_ASSERT_LESS_OR_EQUAL(2, peak(buf, RATE));
 }
 
-static void test_triangle_pitch(void) {
-  setFreq(1000);
+// rising zero crossings of a 1 s triangle tone at hz
+static int triangleCycles(uint32_t hz, uint32_t clock) {
+  setFreq(hz, clock);
   sid.write(AD, 0x00);
   sid.write(SR, 0xf0);
   sid.write(MODE_VOL, 0x0f);
@@ -54,7 +57,17 @@ static void test_triangle_pitch(void) {
       rising++;
     }
   }
-  TEST_ASSERT_INT_WITHIN(10, 1000, rising);
+  return rising;
+}
+
+static void test_triangle_pitch(void) {
+  TEST_ASSERT_INT_WITHIN(10, 1000, triangleCycles(1000, PAL_CLOCK));
+}
+
+// NTSC tunes write register values for the faster clock: 3.8% higher
+static void test_ntsc_pitch(void) {
+  sid.reset(SID_NTSC);
+  TEST_ASSERT_INT_WITHIN(10, 1000, triangleCycles(1000, NTSC_CLOCK));
 }
 
 static void test_single_voice_level(void) {
@@ -111,6 +124,7 @@ int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_silent_after_reset);
   RUN_TEST(test_triangle_pitch);
+  RUN_TEST(test_ntsc_pitch);
   RUN_TEST(test_single_voice_level);
   RUN_TEST(test_release_fades_to_floor);
   RUN_TEST(test_lowpass_attenuates);
