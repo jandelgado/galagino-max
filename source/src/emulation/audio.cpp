@@ -154,8 +154,8 @@ void Audio::start(machineBase *machineBase) {
 
   if (machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
       machineType == MCH_CCASTLES || machineType == MCH_BZONE || machineType == MCH_STARWARS ||
-      machineType == MCH_MISSILE) {
-    const int32_t clocks = machineType == MCH_ATETRIS   ? Pokey::CLOCKS_1789KHZ
+      machineType == MCH_MISSILE || machineType == MCH_HERO) {
+    const int32_t clocks = (machineType == MCH_ATETRIS || machineType == MCH_HERO) ? Pokey::CLOCKS_1789KHZ
                          : (machineType == MCH_CCASTLES || machineType == MCH_MISSILE) ? Pokey::CLOCKS_1250KHZ
                                                        : Pokey::CLOCKS_1512KHZ;
     for (int n = 0; n < MAX_POKEYS; n++) {
@@ -339,7 +339,8 @@ void Audio::transmit() {
     else if(machineType == MCH_ZAXXON)
       zaxxon_render_buffer();
     else if(machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
-            machineType == MCH_CCASTLES || machineType == MCH_STARWARS || machineType == MCH_MISSILE)
+            machineType == MCH_CCASTLES || machineType == MCH_STARWARS || machineType == MCH_MISSILE ||
+            machineType == MCH_HERO)
       pokey_render_buffer();
     else if(machineType == MCH_ASTEROIDS)
       asteroids_render_buffer();

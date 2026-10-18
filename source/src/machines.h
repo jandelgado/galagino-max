@@ -182,6 +182,9 @@
 #ifdef ENABLE_GBERET
   #include "machines/gberet/gberet.h"
 #endif
+#ifdef ENABLE_HERO
+  #include "machines/hero/hero.h"
+#endif
 
 #ifdef ENABLE_VANVAN
   #include "machines/vanvan/vanvan.h"
@@ -763,6 +766,13 @@ machineInfo machines[] = {
     gberet::menuLeds,
 #endif
     MCH_GBERET },
+#endif
+#ifdef ENABLE_HERO
+  { []() -> machineBase* { return new hero(); }, hero::logo,
+#ifdef LED_PIN
+    hero::menuLeds,
+#endif
+    MCH_HERO },
 #endif
 #ifdef ENABLE_COMMANDO
   { []() -> machineBase* { return new commando(); }, commando::logo,

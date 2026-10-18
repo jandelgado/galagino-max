@@ -78,6 +78,7 @@ GAMES = [
     "cbdash",
     "phozon",
     "gberet",
+    "hero",
 ]
 
 games = GAMES if len(sys.argv[1:]) == 0 else sys.argv[1:]
