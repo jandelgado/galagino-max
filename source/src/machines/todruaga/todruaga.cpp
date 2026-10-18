@@ -46,14 +46,8 @@ void todruaga::install_rom_direct(void) {
 }
 
 void todruaga::io_chips_reset(void) {
-  for (int c = 0; c < 2; c++) {
-    memset(io[c].ram, 0, sizeof(io[c].ram));
-    io[c].lastcoins = io[c].lastbuttons = 0;
-    io[c].credits = 0;
-    io[c].coins[0] = io[c].coins[1] = 0;
-    io[c].coins_per_cred[0] = io[c].coins_per_cred[1] = 1;
-    io[c].creds_per_coin[0] = io[c].creds_per_coin[1] = 1;
-  }
+  io[0].reset();
+  io[1].reset();
 }
 
 // ============================================================================
@@ -116,7 +110,7 @@ unsigned char IRAM_ATTR todruaga::m6809_read(m6809_state *s, uint16_t addr) {
   }
 
   if ((addr & 0xFFE0) == 0x4800)          // namcoio 0/1: 4 bit, alti a 1
-    return 0xF0 | io[(addr >> 4) & 1].ram[addr & 0x0F];
+    return io[(addr >> 4) & 1].read(addr);
 
   if (addr >= 0x8000)                     // ROM 32KB (mappy: 24KB da 0xA000)
     return rom_main[addr - 0x8000];
@@ -158,7 +152,7 @@ void IRAM_ATTR todruaga::m6809_write(m6809_state *s, uint16_t addr, uint8_t val)
   }
 
   if ((addr & 0xFFE0) == 0x4800) {        // namcoio: RAM 4 bit
-    io[(addr >> 4) & 1].ram[addr & 0x0F] = val & 0x0F;
+    io[(addr >> 4) & 1].write(addr, val);
     return;
   }
 
@@ -202,8 +196,9 @@ void todruaga::run_frame(void) {
     m6809_irq(&sub_cpu);
 
   if (!io_reset) {
-    customio_run_58(0);
-    customio_run_56(1);
+    io[0].run58([this](uint8_t p) { return io_in(0, p); }, [](uint8_t) {});
+    io[1].run56([this](uint8_t p) { return io_in(1, p); },
+                [this](uint8_t v) { dipmux_sel = v; });
   }
 }
 
@@ -248,185 +243,6 @@ unsigned char todruaga::io_in(unsigned char chip, unsigned char port) {
     case 3: return TODRUAGA_DSW0 & 0x0F;
   }
   return 0x0F;
-}
-
-// credit mode: il chip conta monete/start da solo e riporta i crediti in
-// BCD. swap=2 (58XX): decine/unita' in ram[2]/ram[3]; swap=0 (56XX):
-// in ram[0]/ram[1]. ram[4]=P1, ram[6]=P2, ram[5]/[7]=bottoni/start level|edge
-void todruaga::handle_coins(unsigned char chip, unsigned char swap) {
-  nio_S *c = &io[chip];
-  int credit_add = 0, credit_sub = 0;
-
-  int val = ~io_in(chip, 0);              // COINS (pin 38-41)
-  int toggled = val ^ c->lastcoins;
-  c->lastcoins = val;
-
-  if (val & toggled & 0x01) {             // coin 1
-    c->coins[0]++;
-    if (c->coins[0] >= (c->coins_per_cred[0] & 7)) {
-      credit_add = c->creds_per_coin[0] - (c->coins_per_cred[0] >> 3);
-      c->coins[0] -= c->coins_per_cred[0] & 7;
-    } else if (c->coins_per_cred[0] & 8)
-      credit_add = 1;
-  }
-  if (val & toggled & 0x02) {             // coin 2
-    c->coins[1]++;
-    if (c->coins[1] >= (c->coins_per_cred[1] & 7)) {
-      credit_add = c->creds_per_coin[1] - (c->coins_per_cred[1] >> 3);
-      c->coins[1] -= c->coins_per_cred[1] & 7;
-    } else if (c->coins_per_cred[1] & 8)
-      credit_add = 1;
-  }
-  if (val & toggled & 0x08)               // service
-    credit_add = 1;
-
-  val = ~io_in(chip, 3);                  // BUTTONS (pin 30-33)
-  toggled = val ^ c->lastbuttons;
-  c->lastbuttons = val;
-
-  if ((c->ram[8 + 1] & 0x0F) == 0) {      // ram[9]==0: start abilitati
-    if (val & toggled & 0x04) {           // start 1
-      if (c->credits >= 1) credit_sub = 1;
-    } else if (val & toggled & 0x08) {    // start 2
-      if (c->credits >= 2) credit_sub = 2;
-    }
-  }
-
-  c->credits += credit_add - credit_sub;
-
-  c->ram[0 ^ swap] = (c->credits / 10) & 0x0F;
-  c->ram[1 ^ swap] = (c->credits % 10) & 0x0F;
-  if (credit_add) c->ram[2 ^ swap] = credit_add & 0x0F;
-  if (credit_sub) c->ram[3 ^ swap] = credit_sub & 0x0F;
-
-  c->ram[4] = (~io_in(chip, 1)) & 0x0F;                          // P1
-  c->ram[5] = (((val & 0x05) << 1) | (val & toggled & 0x05)) & 0x0F;
-  c->ram[6] = (~io_in(chip, 2)) & 0x0F;                          // P2
-  c->ram[7] = ((val & 0x0A) | ((val & toggled & 0x0A) >> 1)) & 0x0F;
-}
-
-void todruaga::customio_run_58(unsigned char chip) {
-  nio_S *c = &io[chip];
-
-  switch (c->ram[8] & 0x0F) {
-    case 0:   // nop
-      break;
-
-    case 1:   // lettura diretta degli switch
-      c->ram[4] = (~io_in(chip, 0)) & 0x0F;
-      c->ram[5] = (~io_in(chip, 1)) & 0x0F;
-      c->ram[6] = (~io_in(chip, 2)) & 0x0F;
-      c->ram[7] = (~io_in(chip, 3)) & 0x0F;
-      break;
-
-    case 2:   // coinage
-      c->coins_per_cred[0] = c->ram[9]  & 0x0F;
-      c->creds_per_coin[0] = c->ram[10] & 0x0F;
-      c->coins_per_cred[1] = c->ram[11] & 0x0F;
-      c->creds_per_coin[1] = c->ram[12] & 0x0F;
-      break;
-
-    case 3:   // credit mode
-      handle_coins(chip, 2);
-      break;
-
-    case 4:   // lettura DIP multiplexata (pin 13 -> LS157 select)
-      dipmux_sel = 0;
-      c->ram[0] = (~io_in(chip, 0)) & 0x0F;
-      c->ram[2] = (~io_in(chip, 1)) & 0x0F;
-      c->ram[4] = (~io_in(chip, 2)) & 0x0F;
-      c->ram[6] = (~io_in(chip, 3)) & 0x0F;
-      dipmux_sel = 1;
-      c->ram[1] = (~io_in(chip, 0)) & 0x0F;
-      c->ram[3] = (~io_in(chip, 1)) & 0x0F;
-      c->ram[5] = (~io_in(chip, 2)) & 0x0F;
-      c->ram[7] = (~io_in(chip, 3)) & 0x0F;
-      break;
-
-    case 5: { // bootup check: XOR ripetuti pilotati da un LFSR a 7 bit
-      #define NEXT(n) ((((n) & 1) ? (n) ^ 0x90 : (n)) >> 1)
-      int i, n, rng, seed;
-
-      n = ((c->ram[9] & 0x0F) * 16 + (c->ram[10] & 0x0F)) & 0x7F;
-      seed = 0x22;
-      for (i = 0; i < n; i++)
-        seed = NEXT(seed);
-
-      for (i = 1; i < 8; i++) {
-        n = 0;
-        rng = seed;
-        if (rng & 1) n ^= ~(c->ram[11] & 0x0F);
-        rng = NEXT(rng);
-        seed = rng;
-        if (rng & 1) n ^= ~(c->ram[10] & 0x0F);
-        rng = NEXT(rng);
-        if (rng & 1) n ^= ~(c->ram[9] & 0x0F);
-        rng = NEXT(rng);
-        if (rng & 1) n ^= ~(c->ram[15] & 0x0F);
-        rng = NEXT(rng);
-        if (rng & 1) n ^= ~(c->ram[14] & 0x0F);
-        rng = NEXT(rng);
-        if (rng & 1) n ^= ~(c->ram[13] & 0x0F);
-        rng = NEXT(rng);
-        if (rng & 1) n ^= ~(c->ram[12] & 0x0F);
-
-        c->ram[i] = (~n) & 0x0F;
-      }
-      c->ram[0] = (c->ram[9] & 0x0F) == 0x0F ? 0x0F : 0x00;
-      #undef NEXT
-      break;
-    }
-  }
-}
-
-void todruaga::customio_run_56(unsigned char chip) {
-  nio_S *c = &io[chip];
-
-  switch (c->ram[8] & 0x0F) {
-    case 0:   // nop
-      break;
-
-    case 1:   // lettura diretta degli switch (56XX: scrive ram[0..3]!)
-      c->ram[0] = (~io_in(chip, 0)) & 0x0F;
-      c->ram[1] = (~io_in(chip, 1)) & 0x0F;
-      c->ram[2] = (~io_in(chip, 2)) & 0x0F;
-      c->ram[3] = (~io_in(chip, 3)) & 0x0F;
-      dipmux_sel = c->ram[9] & 1;   // out0(ram[9]) -> LS157 select
-      break;
-
-    case 2:   // coinage
-      c->coins_per_cred[0] = c->ram[9]  & 0x0F;
-      c->creds_per_coin[0] = c->ram[10] & 0x0F;
-      c->coins_per_cred[1] = c->ram[11] & 0x0F;
-      c->creds_per_coin[1] = c->ram[12] & 0x0F;
-      break;
-
-    case 4:   // credit mode (56XX: BCD in ram[0]/ram[1], swap=0)
-      handle_coins(chip, 0);
-      break;
-
-    case 8: { // bootup check a checksum: ram[0..1] = somma di ram[9..15]
-      int sum = 0;
-      for (int i = 9; i < 16; i++)
-        sum += c->ram[i] & 0x0F;
-      c->ram[0] = (sum >> 4) & 0x0F;
-      c->ram[1] = sum & 0x0F;
-      break;
-    }
-
-    case 9:   // lettura DIP multiplexata (pin 13 -> LS157 select)
-      dipmux_sel = 0;
-      c->ram[0] = (~io_in(chip, 0)) & 0x0F;
-      c->ram[2] = (~io_in(chip, 1)) & 0x0F;
-      c->ram[4] = (~io_in(chip, 2)) & 0x0F;
-      c->ram[6] = (~io_in(chip, 3)) & 0x0F;
-      dipmux_sel = 1;
-      c->ram[1] = (~io_in(chip, 0)) & 0x0F;
-      c->ram[3] = (~io_in(chip, 1)) & 0x0F;
-      c->ram[5] = (~io_in(chip, 2)) & 0x0F;
-      c->ram[7] = (~io_in(chip, 3)) & 0x0F;
-      break;
-  }
 }
 
 // ============================================================================

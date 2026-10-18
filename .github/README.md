@@ -172,5 +172,7 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Star Jacker (starjack.zip)    | ![Star Jacker marquee](/logos/starjack.png) | ![Star Jacker screenshot](/images/starjack.png) | Sega System 1. FIRE=laser, controller B=short-range shot |
 | Regulus (regulus.zip)         | ![Regulus marquee](/logos/regulus.png) | ![Regulus screenshot](/images/regulus.png) | Sega System 1, unencrypted US set. FIRE=laser, START=bomb |
 | Boulder Dash (cbdash.zip)     | ![Boulder Dash marquee](/logos/cbdash.png) | ![Boulder Dash screenshot](/images/cbdash.png) | Data East DECO Cassette version. Slow tape loader removed. Experimental smooth scrolling. C64 SID music: romszip/Boulder_Dash.sid (HVSC) |
+| Up'n Down (upndown.zip)       | ![Up'n Down marquee](/logos/upndown.png) | ![Up'n Down screenshot](/images/upndown.png) | Sega System 1, unencrypted US set upndownu. FIRE=jump |
+| Phozon (phozon.zip)           | ![Phozon marquee](/logos/phozon.png) | ![Phozon screenshot](/images/phozon.png) |  |
 
 ### ...

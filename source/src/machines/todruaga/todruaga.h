@@ -18,6 +18,7 @@
 // ============================================================================
 
 #include "../machineBase.h"
+#include "../namcoio.h"
 #include "../../cpus/m6809/m6809.h"
 #include "todruaga_rom_main.h"
 #include "todruaga_rom_sub.h"
@@ -84,18 +85,7 @@ private:
 
     // --- Namco custom I/O: chip 0 = 58XX (crediti/input), chip 1 = 56XX
     // (DIP switch); protocolli da MAME namcoio.cpp ---
-    struct nio_S {
-        unsigned char ram[16];      // 16 nibble visti dalla CPU (0xF0 | val)
-        int lastcoins, lastbuttons;
-        int credits;
-        int coins[2];
-        int coins_per_cred[2];
-        int creds_per_coin[2];
-    };
     void io_chips_reset(void);
-    void customio_run_58(unsigned char chip);
-    void customio_run_56(unsigned char chip);
-    void handle_coins(unsigned char chip, unsigned char swap);
     unsigned char io_in(unsigned char chip, unsigned char port);
 
     m6809_state main_cpu;
@@ -112,7 +102,7 @@ private:
     const unsigned short (*cmap_prio)[4];        // 512B
     const unsigned short (*cmap_sprites)[16];    // 2KB (64 gruppi x 16)
 
-    nio_S io[2];
+    NamcoIO io[2];
     unsigned char dipmux_sel;      // LS157: 0 = DSW2 nibble basso, 1 = alto
 
     // mainlatch LS259 @0x5000 main / 0x2000 sub (A0 = dato), come mappy:
