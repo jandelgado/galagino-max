@@ -19,6 +19,20 @@ void supercobra::start(void) {
   rom_audio_ptr = supercobra_audio_rom.data();
 }
 
+void supercobra::init(Input *input, unsigned short *framebuffer, sprite_S *spritebuffer, unsigned char *memorybuffer) {
+  scramble::init(input, framebuffer, spritebuffer, memorybuffer);
+
+  cpu_ram       = memory + CPU1_RAM_OFFSET;
+  video_ram1    = memory + CPU1_VRAM1_OFFSET;
+  video_ram2    = memory + CPU1_VRAM2_OFFSET;
+  attribute_ram = memory + CPU1_ATTR_OFFSET;
+  sprite_ram    = memory + CPU1_SPRITE_OFFSET;
+  bullet_ram    = memory + CPU1_BULLET_OFFSET;
+  cpu_ram2      = memory + CPU1_RAM2_OFFSET;
+  obj_ram       = memory + CPU1_OBJRAM_OFFSET;
+  cpu2_ram      = memory + CPU2_RAM_OFFSET;
+}
+
 unsigned char supercobra::opZ80(unsigned short Addr) {
   if (current_cpu == 0 && Addr < CPU1_ROM_SIZE)
     return rom_main_ptr[Addr];

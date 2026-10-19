@@ -21,6 +21,19 @@ void scramble::start() {
   rom_audio_ptr = scramble_audio_rom.data();
 }
 
+void scramble::init(Input *input, unsigned short *framebuffer, sprite_S *spritebuffer, unsigned char *memorybuffer) {
+  machineBase::init(input, framebuffer, spritebuffer, memorybuffer);
+
+  cpu_ram       = memory + CPU1_RAM_OFFSET;
+  video_ram     = memory + CPU1_VRAM_OFFSET;
+  attribute_ram = memory + CPU1_ATTR_OFFSET;
+  sprite_ram    = memory + CPU1_SPRITE_OFFSET;
+  bullet_ram    = memory + CPU1_BULLET_OFFSET;
+  cpu_ram2      = memory + CPU1_RAM2_OFFSET;
+  obj_ram       = memory + CPU1_OBJRAM_OFFSET;
+  cpu2_ram      = memory + CPU2_RAM_OFFSET;
+}
+
 unsigned char scramble::opZ80(unsigned short Addr) {
   if (current_cpu == 0 && Addr < 0x4000)
     return rom_main_ptr[Addr];
