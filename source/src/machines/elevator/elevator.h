@@ -23,6 +23,31 @@
 // Controls: FIRE shoots, FIRE with UP held or B jumps.
 
 class elevator : public machineBase {
+protected:
+  // Taito SJ games without MCU (MAME nomcu) differ in ROMs, DIPs, idle loops,
+  // controls and orientation
+  enum Orientation : uint8_t { ROT0, ROT180 };
+  enum JumpKey : uint8_t {
+    JUMP_FIRE_UP,  // FIRE with UP held (or B) presses IN0 b5 instead of b4
+    JUMP_NONE      // FIRE is IN0 b4 always (1 button game)
+  };
+  static constexpr uint16_t IRQ_ONLY = 0xffff;  // mainIdleFlag: loop left by IRQ only
+  struct Variant {
+    uint16_t mainIdlePc;     // 0: no idle skip; loop polls RAM flag until 0
+    uint16_t mainIdleFlag;   // RAM offset (8000-based) or IRQ_ONLY
+    uint16_t soundIdlePc;    // 0: no idle skip; loop polls flag until a bit is set
+    uint16_t soundIdleFlag;  // sound RAM offset (4000-based)
+    uint8_t soundIdleMask;   // bits that end the sound loop
+    uint8_t dsw1, dsw2, dsw3;
+    Orientation orientation;
+    JumpKey jump;
+  };
+  elevator(const FlashAsset<unsigned char, COMPRESSED> &mainBlob,
+           const FlashAsset<unsigned char, COMPRESSED> &soundBlob,
+           const FlashAsset<unsigned char, COMPRESSED> &gfxBlob,
+           const FlashAsset<unsigned char, COMPRESSED> &orderBlob, const Variant &v);
+
+private:
   Asset<unsigned char, COMPRESSED> elevator_main_rom;
   Asset<unsigned char, COMPRESSED> elevator_sound_rom;
   Asset<unsigned char, COMPRESSED> elevator_gfx_rom;
@@ -46,6 +71,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
+  void renderStrip(short row);
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;
@@ -113,8 +139,10 @@ private:
   void drawSprites(uint8_t y0);
   void drawSpriteLine(const sprite_S &s, uint8_t y, uint16_t *dst);
 
+  const Variant variant;
   const uint8_t *main_rom = nullptr;
   const uint8_t *sound_rom = nullptr;
+  uint16_t sound_rom_size = 0;
   const uint8_t *gfx_rom = nullptr;
   const uint8_t *draw_order = nullptr;  // [d300 & 0x1f][4], back to front
   uint8_t *charram;                     // Arena

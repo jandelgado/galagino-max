@@ -1,11 +1,13 @@
 #include "../../catalog.h"
-#ifdef GAME_ELEVATOR
+#if defined(GAME_ELEVATOR) || defined(GAME_JUNGLEH)
 
 #include "elevator.h"
+#ifdef GAME_ELEVATOR
 #include "elevator_main_rom.h"
 #include "elevator_sound_rom.h"
 #include "elevator_gfx_rom.h"
 #include "elevator_draw_order.h"
+#endif
 
 // Z80 opcode cycle table (static in Tables.h). The host test includes
 // Z80.c, and with it Tables.h, into the same translation unit.
@@ -29,7 +31,7 @@ static constexpr uint16_t BANK1_ROM = 0x7000;   // bank 1: 6000-6fff empty, 7000
 static constexpr uint16_t BANK1_OFS = 0x8000;   // ic52 in elevator_main_rom
 static constexpr uint16_t MAIN_ROM_END = 0x8000;
 static constexpr uint16_t GFX_ROM_SIZE = 0x8000;
-static constexpr uint16_t SOUND_ROM_END = 0x2000;
+static constexpr uint16_t SOUND_ROM_END = 0x4000;   // 4000+: RAM, AYs, latch
 static constexpr uint8_t BANK_SEL = 0x80;
 // d600 video mode
 static constexpr uint8_t MODE_SPR_PAGE = 0x04;   // sprite RAM d180 page
@@ -77,12 +79,32 @@ static inline uint8_t soundChip(unsigned short Addr) {
   return pair < 2 ? 1 + pair : 3;
 }
 
+// Idle loops (ROM disassembly), left only through an interrupt handler
+// that changes the polled flag: stepping them is wasted host time
+// (profile: main 78 %, sound 93 % of all instructions).
+// main, bank 0: 73f2 ld a,($80ab) / or a / jr nz,$73f2 (vblank IRQ clears)
+// sound: 0164 ei / ld ix,$4000 / bit 0,(ix+0) / jp z,$01d8; 01d8 jp $0164
+#ifdef GAME_ELEVATOR
+static constexpr uint16_t ELEVATOR_MAIN_IDLE_PC = 0x73f2, ELEVATOR_MAIN_IDLE_FLAG = 0x00ab;
+static constexpr uint16_t ELEVATOR_SOUND_IDLE_PC = 0x0164, ELEVATOR_SOUND_IDLE_FLAG = 0x0000;
+
 elevator::elevator()
-  : elevator_main_rom(elevator_main_rom_blob), elevator_sound_rom(elevator_sound_rom_blob),
-    elevator_gfx_rom(elevator_gfx_rom_blob), elevator_draw_order(elevator_draw_order_blob),
-    charram(Arena::alloc<uint8_t>(CHARRAM_SIZE)) {
+  : elevator(elevator_main_rom_blob, elevator_sound_rom_blob, elevator_gfx_rom_blob,
+             elevator_draw_order_blob,
+             Variant{ELEVATOR_MAIN_IDLE_PC, ELEVATOR_MAIN_IDLE_FLAG, ELEVATOR_SOUND_IDLE_PC,
+                     ELEVATOR_SOUND_IDLE_FLAG, 0x01, ELEVATOR_DSW1, ELEVATOR_DSW2, ELEVATOR_DSW3, ROT0,
+                     JUMP_FIRE_UP}) { }
+#endif
+
+elevator::elevator(const FlashAsset<unsigned char, COMPRESSED> &mainBlob,
+                   const FlashAsset<unsigned char, COMPRESSED> &soundBlob,
+                   const FlashAsset<unsigned char, COMPRESSED> &gfxBlob,
+                   const FlashAsset<unsigned char, COMPRESSED> &orderBlob, const Variant &v)
+  : elevator_main_rom(mainBlob), elevator_sound_rom(soundBlob), elevator_gfx_rom(gfxBlob),
+    elevator_draw_order(orderBlob), variant(v), charram(Arena::alloc<uint8_t>(CHARRAM_SIZE)) {
   main_rom = elevator_main_rom.data();
   sound_rom = elevator_sound_rom.data();
+  sound_rom_size = elevator_sound_rom.size();
   gfx_rom = elevator_gfx_rom.data();
   draw_order = elevator_draw_order.data();
 
@@ -186,23 +208,24 @@ unsigned char elevator::rdIo(uint8_t reg) {
     }
     case 0x8: return in0();
     case 0x9: return 0xff;   // IN1: player 2
-    case 0xa: return ELEVATOR_DSW1;
+    case 0xa: return variant.dsw1;
     case 0xb: return in2();
     case 0xc: return IN3_IDLE;
     case 0xd: return IN4_IDLE | (soundregs[16 * AY_SOUND_STATUS + AY_PORT_A] & 0xf0);
     case 0xf:
       if (ay_addr[0] == AY_PORT_A) {
-        return ELEVATOR_DSW2;
+        return variant.dsw2;
       }
       if (ay_addr[0] == AY_PORT_B) {
-        return ELEVATOR_DSW3;
+        return variant.dsw3;
       }
       return soundregs[ay_addr[0]];
   }
   return 0;
 }
 
-// FIRE shoots; with UP held, FIRE jumps instead (one GPIO action button)
+// FIRE shoots; with UP held, FIRE jumps instead (one GPIO action button).
+// JUMP_NONE: FIRE is button 1 only.
 uint8_t elevator::in0(void) {
   const unsigned int keys = input->buttons_get();
   const bool fire = keys & (BUTTON_FIRE | BUTTON_A);
@@ -213,6 +236,10 @@ uint8_t elevator::in0(void) {
   if (keys & BUTTON_RIGHT) { v &= ~IN0_RIGHT; }
   if (keys & BUTTON_DOWN) { v &= ~IN0_DOWN; }
   if (up) { v &= ~IN0_UP; }
+  if (variant.jump == JUMP_NONE) {
+    if (fire) { v &= ~IN0_SHOOT; }
+    return v;
+  }
   if (fire && !up) { v &= ~IN0_SHOOT; }
   if ((fire && up) || (keys & BUTTON_B)) { v &= ~IN0_JUMP; }
   return v;
@@ -290,7 +317,7 @@ void elevator::wrIo(uint8_t reg, unsigned char Value) {
 
 unsigned char elevator::rdSound(unsigned short Addr) {
   if (Addr < SOUND_ROM_END) {
-    return sound_rom[Addr];
+    return Addr < sound_rom_size ? sound_rom[Addr] : 0;
   }
   if ((Addr & 0xfc00) == 0x4000) {
     return memory[SND_RAM_OFS + (Addr & 0x3ff)];
@@ -404,29 +431,21 @@ void elevator::updateNmi(void) {
 
 // ---- Frame ----
 
-// Idle loops (ROM disassembly), left only through an interrupt handler
-// that changes the polled flag: stepping them is wasted host time
-// (profile: main 78 %, sound 93 % of all instructions). Skipped while the
-// flag is unchanged and no interrupt is pending: the CPU idles out the
-// slice, as the loop would.
-// main, bank 0: 73f2 ld a,($80ab) / or a / jr nz,$73f2 (vblank IRQ clears)
-static constexpr uint16_t MAIN_IDLE_PC = 0x73f2;
-static constexpr uint16_t MAIN_IDLE_FLAG = 0x00ab;   // $80ab
-// sound: 0164 ei / ld ix,$4000 / bit 0,(ix+0) / jp z,$01d8; 01d8 jp $0164
-static constexpr uint16_t SOUND_IDLE_PC = 0x0164;
-static constexpr uint16_t SOUND_IDLE_FLAG = 0x0000;  // $4000 b0
-
+// Idle loops (Variant): skipped while the flag is unchanged and no
+// interrupt is pending: the CPU idles out the slice, as the loop would.
 bool elevator::isIdle(uint8_t c) {
   const Z80 &z = cpu[c];
   if (!(z.IFF & IFF_1)) {
     return false;
   }
   if (c == MAIN_CPU) {
-    return z.PC.W == MAIN_IDLE_PC && !(bank_ctrl & BANK_SEL) && !main_irq &&
-           memory[RAM_OFS + MAIN_IDLE_FLAG];
+    if (!variant.mainIdlePc || z.PC.W != variant.mainIdlePc || (bank_ctrl & BANK_SEL) || main_irq) {
+      return false;
+    }
+    return variant.mainIdleFlag == IRQ_ONLY || memory[RAM_OFS + variant.mainIdleFlag];
   }
-  return z.PC.W == SOUND_IDLE_PC && !sound_irq && !nmi_pending &&
-         !(memory[SND_RAM_OFS + SOUND_IDLE_FLAG] & 1);
+  return variant.soundIdlePc && z.PC.W == variant.soundIdlePc && !sound_irq && !nmi_pending &&
+         !(memory[SND_RAM_OFS + variant.soundIdleFlag] & variant.soundIdleMask);
 }
 
 // one instruction, pending interrupts first (HOLD_LINE: kept until
@@ -652,11 +671,28 @@ void IRAM_ATTR elevator::drawSprites(uint8_t y0) {
 }
 
 // strips 4..31 = native lines 16..239, back to front per the priority PROM
+// ROT180: panel strip row shows native strip FIRST_ROW + LAST_ROW - 1 - row
+// turned 180 degrees; reversing the whole strip buffer turns it (the crop
+// is symmetric, native x 8..247)
 void IRAM_ATTR elevator::render_row(short row) {
   if (row < FIRST_ROW || row >= LAST_ROW) {
     return;
   }
+  if (variant.orientation == ROT0) {
+    renderStrip(row);
+    return;
+  }
 
+  renderStrip(FIRST_ROW + LAST_ROW - 1 - row);
+  uint16_t *a = frame_buffer, *b = frame_buffer + 8 * WIDTH - 1;
+  while (a < b) {
+    const uint16_t t = *a;
+    *a++ = *b;
+    *b-- = t;
+  }
+}
+
+void IRAM_ATTR elevator::renderStrip(short row) {
   const uint8_t y0 = VIS_TOP + 8 * (row - FIRST_ROW);
   const uint16_t bg = palette[8 * (video.colorbank[1] & 7)];
   for (int i = 0; i < 8 * WIDTH; i++) {

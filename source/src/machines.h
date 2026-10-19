@@ -270,6 +270,12 @@
     #include "machines/mhavoc/mhavoc_bundle.h"
   #endif
 #endif
+#ifdef GAME_JUNGLEH
+  #include "machines/jungleh/jungleh.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/jungleh/jungleh_bundle.h"
+  #endif
+#endif
 #ifdef GAME_MOTOS
   #include "machines/motos/motos.h"
   #ifdef ASSETS_REMOTE
@@ -1508,6 +1514,13 @@ constexpr machineInfo machines[] = {
     mhavoc::menuLeds,
 #endif
     MCH_MHAVOC, nullptr BUNDLE_REF(mhavoc_bundle_ref) },
+#endif
+#ifdef GAME_JUNGLEH
+  { createMachine<jungleh>, jungleh::logo,
+#ifdef LED_PIN
+    jungleh::menuLeds,
+#endif
+    MCH_JUNGLEH, nullptr BUNDLE_REF(jungleh_bundle_ref) },
 #endif
 #ifdef GAME_MOTOS
   { createMachine<motos>, motos::logo,
