@@ -22,6 +22,7 @@ class system1 : public machineBase {
 private:
   // ROM assets, unpacked into the Arena by the ctor (declared first: init order)
   Asset<uint32_t[8], COMPRESSED> tile_rom;
+  Asset<unsigned short, COMPRESSED> tile_map;
   Asset<unsigned char, COMPRESSED> main_rom;
   Asset<unsigned char, COMPRESSED> sprite_rom;
   Asset<unsigned char, COMPRESSED> sound_rom;
@@ -45,6 +46,7 @@ protected:
     const FlashAsset<unsigned char, COMPRESSED> &main_cpu;
     const FlashAsset<unsigned char, COMPRESSED> &sound_cpu;
     const FlashAsset<uint32_t[8], COMPRESSED> &tiles;
+    const FlashAsset<unsigned short, COMPRESSED> &tileMap;
     const FlashAsset<unsigned char, COMPRESSED> &sprites;
     const FlashAsset<unsigned char, COMPRESSED> &lookup;
   };
@@ -113,14 +115,13 @@ private:
   void drawSprites(int strip);
   void mixStrip(int strip);
 
-  const uint32_t (*tiles)[8];
+  system1_video::TileSet tiles;
   const uint8_t *mainRom;
   const uint8_t *spriteRom;
   const uint8_t *soundRom;
   const uint8_t *prom;
   uint16_t mainRomSize;
   uint16_t soundRomSize;
-  uint16_t tileMask;
   uint8_t spriteBanks;
   const Config config;
   int firstStrip;

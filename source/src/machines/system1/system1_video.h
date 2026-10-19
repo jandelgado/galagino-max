@@ -67,6 +67,16 @@ inline __attribute__((always_inline)) Tile tileAt(const uint8_t *page, int index
   return t;
 }
 
+// Tile gfx deduplicated by romconv: code -> unique tile via map
+struct TileSet {
+  const uint32_t (*gfx)[8];
+  const uint16_t *map;
+  uint16_t mask;  // code mask, map size - 1
+  inline __attribute__((always_inline)) const uint32_t *operator[](uint16_t code) const {
+    return gfx[map[code & mask]];
+  }
+};
+
 // palette RAM index within the layer's 0x200 block
 inline uint16_t tilePen(uint8_t color, uint8_t pix) { return ((color & 0x3f) << 3) | pix; }
 
@@ -77,11 +87,11 @@ inline uint8_t mixIndex(bool sprOpaque, uint8_t fgPix, uint8_t fgColor, uint8_t 
 }
 
 // tiles are column-major: word = pixel column, native row 0 in bits 23..21
-inline uint8_t tilePixel(const uint8_t *page, const uint32_t (*tiles)[8], uint16_t tileMask,
-                         uint8_t x, uint8_t y, uint8_t &color) {
+inline uint8_t tilePixel(const uint8_t *page, const TileSet &tiles, uint8_t x, uint8_t y,
+                         uint8_t &color) {
   const Tile t = tileAt(page, (y >> 3) * PAGE_COLS + (x >> 3));
   color = t.color;
-  return (tiles[t.code & tileMask][x & 7] >> (3 * (7 - (y & 7)))) & 7;
+  return (tiles[t.code][x & 7] >> (3 * (7 - (y & 7)))) & 7;
 }
 
 // Lookup PROM source (0 sprite, 1 fg, 2/3 bg) per tile priority pair p =
@@ -106,8 +116,7 @@ inline bool buildMixSel(const uint8_t *prom, uint16_t *sel) {
 struct LineSrc {
   const uint8_t *fgPage;
   const uint8_t *bgPage;
-  const uint32_t (*tiles)[8];
-  uint16_t tileMask;
+  TileSet tiles;
   const uint16_t *pal;
   const uint16_t *mixSel;  // buildMixSel
   bool clearShowsBg;       // buildMixSel
@@ -129,7 +138,7 @@ inline __attribute__((always_inline)) const uint16_t *bgTile(const LineSrc &f, u
                                                               uint8_t by, uint32_t &bw,
                                                               int &pri) {
   const Tile t = tileAt(f.bgPage, (by >> 3) * PAGE_COLS + (bx >> 3));
-  bw = f.tiles[t.code & f.tileMask][bx & 7] << (3 * (by & 7));
+  bw = f.tiles[t.code][bx & 7] << (3 * (by & 7));
   pri = t.color >> 6;
   return &f.pal[BG_PENS | tilePen(t.color, 0)];
 }
@@ -189,7 +198,7 @@ inline void renderLine(const LineSrc &f, int x, uint32_t sprTiles, uint16_t *out
     const int y = ty * TILE_SIZE;
     const Tile t = tileAt(f.fgPage, ty * PAGE_COLS + (x >> 3));
     Run r;
-    r.fw = f.tiles[t.code & f.tileMask][x & 7];
+    r.fw = f.tiles[t.code][x & 7];
     const bool sprite = (sprTiles >> ty) & 1;
     if (r.fw == 0 && !sprite && f.clearShowsBg) {
       continue;

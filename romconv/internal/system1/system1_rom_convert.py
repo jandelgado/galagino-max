@@ -12,8 +12,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..", "..", "..")
 MACHINES = os.path.join(ROOT, "source", "src", "machines")
 
-ARENA_CAPACITY = 182000
-ARENA_BLOCK = 91000
+ARENA_BLOCKS = (91000, 110500)  # source/src/emulation/arena.h BLOCK_A_SIZE, BLOCK_B_SIZE
 MIX_NO_COLLIDE = 0x04
 
 # MAME ROM_START per game, regions in load order
@@ -74,7 +73,73 @@ GAMES = {
                     ("epr-5515.93", "aedff8ce07ab16942037e5aff212652e51c19e71")],
         "lookup": [("pr-5317.106", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
     },
+    # raflesiau: unencrypted set, main ROMs in subdir raflesiau/ of raflesia.zip
+    "raflesia": {
+        "main": [("raflesiau/epr-7433.129", "4c02e052c01099478adb5bb595c035aff862dd45"),
+                 ("raflesiau/epr-7434.130", "7bba493c8493611952e029dc8782916cc25db82a"),
+                 ("raflesiau/epr-7435.131", "5bffdcdf543f47ccf2ed0cabf1ef9e42857d59f9"),
+                 ("raflesiau/epr-7436.132", "aecf33c777e8f4a7323d72dd3f2ca5d12cc798e7"),
+                 ("raflesiau/epr-7437.133", "a97654ff82ffa051ee14359733c2b9a952134d4e"),
+                 ("raflesiau/epr-7438.134", "c353ed4d21661ea0721d8b85d6bfefe502373d7b")],
+        "sound": [("epr-7420.120", "9cb18e3002c32f658e4725707069f9cd2f496507")],
+        "tiles": [("epr-7419.62", "78c4d380d5558212e535c3262223137447d64818"),
+                  ("epr-7418.61", "48be9337f704a11ac1fdeb64a3b3518c796bcdd0"),
+                  ("epr-7417.64", "5cfd19241c54782c262bbb23c6f682534e77feb7"),
+                  ("epr-7416.63", "78bb1c4651bd63a9f776766d2eac4f1c09242ed5"),
+                  ("epr-7415.66", "b04ee35f603c6c9923ba888914eb43a8b7753d92"),
+                  ("epr-7414.65", "bdc0185d133f7bbe287106882bacde846634ffa4")],
+        "sprites": [("epr-7407.117", "c6f06144b708055b31fbcba9f38b63736db789d8"),
+                    ("epr-7409.04", "e63f0422814423be91d8e1937a13d19693a1a5fc"),
+                    ("epr-7408.110", "8476c2c01920f0492cf643929d4f023f3afe0164"),
+                    ("epr-7410.05", "d0ad845bfe83412ac8d43125e1c50d0581a5b47e")],
+        "lookup": [("pr-5317.76", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
+    },
+    # swat: 315-5048 encrypted main CPU (0000-7fff), decrypted here
+    "swat": {
+        "main": [("epr5807b.129", "56e9d9a33f04b4d5971c0db24cc8719a52e64678"),
+                 ("epr-5808.130", "e8aa72f2835d38367be5e8a9313e51b64f452ee7"),
+                 ("epr-5809.131", "a0b4f0c2e537bd16f7345590da00f2622947d7e4"),
+                 ("epr-5810.132", "e740cbe239d379705fdffb3e500d6f5a2fece2e2"),
+                 ("epr-5811.133", "abf1f23dc26a7518357d0c1749e869b539c3bbed"),
+                 ("epr-5812.134", "adc8dcf643d8d0b0a1d0dda0494567263ea11a00")],
+        "sound": [("epr-5819.3", "06062648b9ebc70b4b5c30b043f537adc0052047")],
+        "tiles": [("epr-5818.82", "ad217cd8dad178f3f2f1fd44a58adcc4887fb6b7"),
+                  ("epr-5817.65", "da7378e8d12cc2970df2efa075c944c79b3b74d2"),
+                  ("epr-5816.81", "78ae13a38d6368e44ba95642cce7f5515a5b6022"),
+                  ("epr-5815.64", "a0b97e016e5cf43f223ecb6c5fe7dec7c8e9c098"),
+                  ("epr-5814.80", "bbb0afe2b195d60418014c36acf3de95adfd90d8"),
+                  ("epr-5813.63", "06b1d23cacfef3017e5951dc10e8471e9b3103d5")],
+        "sprites": [("epr-5805.86", "55c54e54f052187ddd957131e56400c9c432a6b2"),
+                    ("epr-5806.93", "e4e9f929ab8ae7da74f885481cf94335d7553a1c")],
+        "lookup": [("pr-5317.106", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
+        "crypt": "315-5048",
+    },
 }
+
+# MAME segacrpt_device.cpp sega_315_5048_device::decrypt(): per row
+# (A0, A4, A8, A12) an opcode and a data entry, indexed by src bits 3, 5
+CRYPT = {
+    "315-5048": [
+        (0x88, 0x08, 0x80, 0x00), (0xa0, 0xa8, 0x80, 0x88),
+        (0x88, 0x08, 0x80, 0x00), (0x88, 0xa8, 0x80, 0xa0),
+        (0xa0, 0x80, 0x20, 0x00), (0x88, 0x08, 0x80, 0x00),
+        (0xa0, 0xa8, 0x80, 0x88), (0x88, 0x08, 0x80, 0x00),
+        (0x28, 0x20, 0xa8, 0xa0), (0xa0, 0xa8, 0x80, 0x88),
+        (0x88, 0xa8, 0x80, 0xa0), (0x28, 0x20, 0xa8, 0xa0),
+        (0xa0, 0x80, 0x20, 0x00), (0xa0, 0xa8, 0x80, 0x88),
+        (0x28, 0x20, 0xa8, 0xa0), (0xa0, 0xa8, 0x80, 0x88),
+        (0xa0, 0x80, 0x20, 0x00), (0xa0, 0x80, 0x20, 0x00),
+        (0xa0, 0x20, 0x80, 0x00), (0x88, 0xa8, 0x80, 0xa0),
+        (0xa0, 0x20, 0x80, 0x00), (0xa0, 0x20, 0x80, 0x00),
+        (0xa0, 0x20, 0x80, 0x00), (0xa0, 0x20, 0x80, 0x00),
+        (0xa0, 0x80, 0x20, 0x00), (0xa0, 0x80, 0x20, 0x00),
+        (0x88, 0xa8, 0x80, 0xa0), (0x28, 0x20, 0xa8, 0xa0),
+        (0xa0, 0xa8, 0x80, 0x88), (0xa0, 0x80, 0x20, 0x00),
+        (0x28, 0x20, 0xa8, 0xa0), (0xa0, 0xa8, 0x80, 0x88),
+    ],
+}
+CRYPT_SIZE = 0x8000
+CRYPT_BITS = 0xa8  # bits 3, 5, 7 are swapped/inverted, the rest pass through
 
 
 def load(zip_path, files):
@@ -83,6 +148,24 @@ def load(zip_path, files):
 
 def bit(v, n):
     return (v >> n) & 1
+
+
+# MAME segacrpt decode(): data image of the whole ROM, opcode image of 0000-7fff
+def sega_decrypt(rom, table):
+    data = bytearray(rom)
+    ops = bytearray(CRYPT_SIZE)
+    for a in range(CRYPT_SIZE):
+        src = rom[a]
+        row = bit(a, 0) | bit(a, 4) << 1 | bit(a, 8) << 2 | bit(a, 12) << 3
+        col = bit(src, 3) | bit(src, 5) << 1
+        xor = 0
+        if src & 0x80:
+            col = 3 - col
+            xor = CRYPT_BITS
+        keep = src & ~CRYPT_BITS
+        ops[a] = keep | (table[2 * row][col] ^ xor)
+        data[a] = keep | (table[2 * row + 1][col] ^ xor)
+    return bytes(data), bytes(ops)
 
 
 # charlayout: 3 planes RGN_FRAC(n,3), plane 0 = MSB, byte bit 7 = left pixel.
@@ -102,6 +185,20 @@ def decode_tiles(rom):
                 w = (w << 3) | px
             out.append(w)
     return out, count
+
+
+# Unique tiles in first-use order plus code -> unique index map (Arena budget)
+def dedupe_tiles(words):
+    index = {}
+    unique = []
+    tile_map = []
+    for c in range(len(words) // 8):
+        key = tuple(words[c * 8:c * 8 + 8])
+        if key not in index:
+            index[key] = len(index)
+            unique.extend(key)
+        tile_map.append(index[key])
+    return unique, len(index), tile_map
 
 
 def palette565():
@@ -134,8 +231,12 @@ def main(game):
     spec = GAMES[game]
     zip_path = os.path.join(ROOT, "romszip", f"{game}.zip")
     main_rom = load(zip_path, spec["main"])
+    opcodes = None
+    if "crypt" in spec:
+        main_rom, opcodes = sega_decrypt(main_rom, CRYPT[spec["crypt"]])
     sound = load(zip_path, spec["sound"])
     tiles, tile_count = decode_tiles(load(zip_path, spec["tiles"]))
+    tiles, unique_count, tile_map = dedupe_tiles(tiles)
     sprites = load(zip_path, spec["sprites"])
     lookup = load(zip_path, spec["lookup"])
     assert len(sprites) % 0x8000 == 0, "sprite ROM is banked in 0x8000 units"
@@ -144,19 +245,24 @@ def main(game):
 
     emit(game, "main_rom", "unsigned char", "", len(main_rom), main_rom)
     emit(game, "sound_rom", "unsigned char", "", len(sound), sound)
-    emit(game, "tiles", "uint32_t", "[8]", tile_count, tiles)
+    emit(game, "tiles", "uint32_t", "[8]", unique_count, tiles)
+    emit(game, "tile_map", "unsigned short", "", tile_count, tile_map)
     emit(game, "sprites", "unsigned char", "", len(sprites), sprites)
     emit(game, "lookup_prom", "unsigned char", "", len(lookup), lookup)
+    if opcodes:
+        emit(game, "opcodes", "unsigned char", "", len(opcodes), opcodes)
     write_palette()
 
-    sizes = sorted([len(tiles) * 4, len(main_rom), len(sprites), len(sound), len(lookup)],
-                   reverse=True)
+    sizes = [len(tiles) * 4, len(tile_map) * 2, len(main_rom), len(sprites), len(sound), len(lookup)]
+    if opcodes:
+        sizes.append(len(opcodes))
+    sizes.sort(reverse=True)
     blocks = [0, 0]
     for s in sizes:
-        i = 0 if blocks[0] + s <= ARENA_BLOCK else 1
+        i = 0 if blocks[0] + s <= ARENA_BLOCKS[0] else 1
         blocks[i] += s
-        assert blocks[i] <= ARENA_BLOCK, f"{game}: asset {s} does not fit an Arena block"
-    print(f"{game}: Arena {sum(sizes)} / {ARENA_CAPACITY} (blocks {blocks[0]}, {blocks[1]})")
+        assert blocks[i] <= ARENA_BLOCKS[i], f"{game}: asset {s} does not fit an Arena block"
+    print(f"{game}: Arena {sum(sizes)} / {sum(ARENA_BLOCKS)} (blocks {blocks[0]}, {blocks[1]})")
 
 
 if __name__ == "__main__":

@@ -282,6 +282,9 @@
 #ifdef ENABLE_GRAVITAR
   #include "machines/gravitar/gravitar.h"
 #endif
+#ifdef ENABLE_BWIDOW
+  #include "machines/bwidow/bwidow.h"
+#endif
 #ifdef ENABLE_BERZERK
   #include "machines/berzerk/berzerk.h"
 #endif
@@ -302,6 +305,12 @@
 #endif
 #ifdef ENABLE_UPNDOWN
   #include "machines/upndown/upndown.h"
+#endif
+#ifdef ENABLE_RAFLESIA
+  #include "machines/raflesia/raflesia.h"
+#endif
+#ifdef ENABLE_SWAT
+  #include "machines/swat/swat.h"
 #endif
 #ifdef ENABLE_CBDASH
   #include "machines/cbdash/cbdash.h"
@@ -762,6 +771,13 @@ constexpr machineInfo machines[] = {
 #endif
     MCH_GRAVITAR },
 #endif
+#ifdef ENABLE_BWIDOW
+  { createMachine<bwidow>, bwidow::logo,
+#ifdef LED_PIN
+    bwidow::menuLeds,
+#endif
+    MCH_BWIDOW },
+#endif
 #ifdef ENABLE_BERZERK
   { createMachine<berzerk>, berzerk::logo,
 #ifdef LED_PIN
@@ -810,6 +826,20 @@ constexpr machineInfo machines[] = {
     upndown::menuLeds,
 #endif
     MCH_UPNDOWN },
+#endif
+#ifdef ENABLE_RAFLESIA
+  { createMachine<raflesia>, raflesia::logo,
+#ifdef LED_PIN
+    raflesia::menuLeds,
+#endif
+    MCH_RAFLESIA },
+#endif
+#ifdef ENABLE_SWAT
+  { createMachine<swat>, swat::logo,
+#ifdef LED_PIN
+    swat::menuLeds,
+#endif
+    MCH_SWAT },
 #endif
 #ifdef ENABLE_CBDASH
   { createMachine<cbdash>, cbdash::logo,

@@ -8,6 +8,7 @@ static uint8_t spriteRam[SPRITES * SPRITE_BYTES];
 static uint8_t spriteRom[SPRITE_BANK];
 static uint8_t vram[2 * PAGE_BYTES];
 static uint32_t tiles[2][8];
+static const uint16_t tileMap[2] = {0, 1};
 static uint8_t prom[256];
 static Collision col;
 
@@ -28,7 +29,7 @@ static void sprite(int n, uint8_t top, uint8_t lines, uint16_t x512) {
 }
 
 static Collision::Frame frame(uint8_t mode = 0, Visarea vis = VISAREA_SCROLL) {
-  Collision::Frame f = {spriteRam, spriteRom, 1, vram, tiles, 1, prom, mode, vis};
+  Collision::Frame f = {spriteRam, spriteRom, 1, vram, {tiles, tileMap, 1}, prom, mode, vis};
   return f;
 }
 
@@ -113,6 +114,58 @@ static void test_collision_respects_visarea(void) {
   TEST_ASSERT_EQUAL_HEX8(0xff, col.sprRead(0 + 32 * 1));
 }
 
+// line buffer starts empty on every line: same x on the next line is no hit
+static void test_line_buffer_per_line(void) {
+  sprite(0, 10, 1, 100);
+  sprite(1, 11, 1, 100);
+  col.scan(frame());
+  TEST_ASSERT_FALSE(col.hit());
+}
+
+// and on every frame
+static void test_line_buffer_per_frame(void) {
+  sprite(0, 10, 1, 100);
+  col.scan(frame());
+  sprite(0, 50, 1, 300);
+  sprite(1, 10, 1, 100);
+  col.scan(frame());
+  TEST_ASSERT_FALSE(col.hit());
+}
+
+// fg tile 7 (x 56..63) under part of sprite 1 only: lookups follow each unit
+static void test_fg_per_unit(void) {
+  sprite(0, 10, 1, 96);   // fg x 48..51, tile 6
+  sprite(1, 10, 1, 110);  // fg x 55..58, crosses into tile 7
+  vram[FG_PAGE + 2 * (1 * PAGE_COLS + 7)] = 1;
+  col.scan(frame());
+  TEST_ASSERT_EQUAL_HEX8(0xfe, col.mixRead(0));  // summary bit 7 set by sprite 1
+  TEST_ASSERT_EQUAL_HEX8(0xff, col.mixRead(1));
+}
+
+// overlap only at unit 32: sprite 1's pixel at 31..32 spans two line words
+static void test_pixel_across_words(void) {
+  sprite(0, 10, 1, 32);  // units 32..39
+  sprite(1, 10, 1, 25);  // units 25..32
+  col.scan(frame(0, VISAREA_FULL));
+  TEST_ASSERT_EQUAL_HEX8(0xff, col.sprRead(0 + 32 * 1));
+}
+
+// PROM collides fg priority 2 only: same tile at priority 0 is no hit
+static void test_fg_priority(void) {
+  const uint8_t FG_PRI2_IDX = 0x18;  // spr opaque, fg opaque prio 2, bg transparent
+  const uint8_t PRI2 = 2 << 3;       // tile word bits 11-12
+  prom[COLLIDE_SPRITE_FG] = 0x0c;
+  prom[FG_PRI2_IDX] = 0x00;
+  sprite(0, 10, 1, 100);  // fg tile (6, 1)
+  vram[FG_PAGE + 2 * (1 * PAGE_COLS + 6)] = 1;
+  col.scan(frame());
+  TEST_ASSERT_FALSE(col.hit());
+
+  vram[FG_PAGE + 2 * (1 * PAGE_COLS + 6) + 1] = PRI2;
+  col.scan(frame());
+  TEST_ASSERT_EQUAL_HEX8(0xff, col.mixRead(0));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_sprite_pair);
@@ -121,5 +174,10 @@ int main(int, char **) {
   RUN_TEST(test_blank_no_hits);
   RUN_TEST(test_offscreen_ignored);
   RUN_TEST(test_collision_respects_visarea);
+  RUN_TEST(test_line_buffer_per_line);
+  RUN_TEST(test_line_buffer_per_frame);
+  RUN_TEST(test_fg_per_unit);
+  RUN_TEST(test_pixel_across_words);
+  RUN_TEST(test_fg_priority);
   return UNITY_END();
 }

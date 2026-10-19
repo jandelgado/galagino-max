@@ -3,3 +3,4 @@ regulus_sound_rom.h
 regulus_tiles.h
 regulus_sprites.h
 regulus_lookup_prom.h
+regulus_tile_map.h

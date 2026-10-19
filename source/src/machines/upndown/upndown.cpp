@@ -5,12 +5,13 @@
 #include "upndown_main_rom.h"
 #include "upndown_sound_rom.h"
 #include "upndown_tiles.h"
+#include "upndown_tile_map.h"
 #include "upndown_sprites.h"
 #include "upndown_lookup_prom.h"
 
 // full 256 px visarea (sys1ppi); one button: FIRE jumps
 upndown::upndown() : system1(Roms{
-    upndown_main_rom_blob, upndown_sound_rom_blob, upndown_tiles_blob,
+    upndown_main_rom_blob, upndown_sound_rom_blob, upndown_tiles_blob, upndown_tile_map_blob,
     upndown_sprites_blob, upndown_lookup_prom_blob,
 }, Config{system1_video::VISAREA_FULL, false}) { }
 

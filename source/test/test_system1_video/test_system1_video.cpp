@@ -5,8 +5,14 @@
 using namespace system1_video;
 
 static uint8_t bank[SPRITE_BANK];
+static uint16_t MAP[64];  // identity tile map
 
-void setUp(void) { memset(bank, 0, sizeof(bank)); }
+void setUp(void) {
+  memset(bank, 0, sizeof(bank));
+  for (int i = 0; i < 64; i++) {
+    MAP[i] = i;
+  }
+}
 void tearDown(void) {}
 
 // ROT270: row = 271 - x for both visareas, x0 is the bottom row
@@ -47,11 +53,12 @@ static void test_mix_index(void) {
 
 static void test_tile_pixel(void) {
   uint32_t tiles[2][8] = {};
-  tiles[1][3] = 5u << 3;  // column 3, row 6 = pen 5
+  tiles[0][3] = 5u << 3;  // column 3, row 6 = pen 5
+  const uint16_t map[2] = {1, 0};  // code 1 -> unique tile 0
   uint8_t page[PAGE_BYTES] = {};
   page[2 * (1 * PAGE_COLS + 2)] = 0x21;  // tile (col 2, row 1): code 0x21 & mask = 1, color 1
   uint8_t color = 0;
-  TEST_ASSERT_EQUAL(5, tilePixel(page, tiles, 1, 2 * 8 + 3, 1 * 8 + 6, color));
+  TEST_ASSERT_EQUAL(5, tilePixel(page, TileSet{tiles, map, 1}, 2 * 8 + 3, 1 * 8 + 6, color));
   TEST_ASSERT_EQUAL(1, color);
 }
 
@@ -111,8 +118,8 @@ static uint32_t rnd(void) {
 static void referenceLine(const LineSrc &f, const uint8_t *prom, int x, uint16_t *out) {
   for (int y = 0; y < VIS_LINES; y++) {
     uint8_t fgColor, bgColor;
-    const uint8_t fp = tilePixel(f.fgPage, f.tiles, f.tileMask, x, y, fgColor);
-    const uint8_t bp = tilePixel(f.bgPage, f.tiles, f.tileMask, bgCol(2 * x, f.scroll),
+    const uint8_t fp = tilePixel(f.fgPage, f.tiles, x, y, fgColor);
+    const uint8_t bp = tilePixel(f.bgPage, f.tiles, bgCol(2 * x, f.scroll),
                                  bgY(y, f.scrollY), bgColor);
     const uint16_t spr = out[y];
     const uint8_t source = prom[mixIndex(spr != 0, fp, fgColor, bp, bgColor)] & MIX_SOURCE;
@@ -157,7 +164,7 @@ static void test_render_line(void) {
     const bool clearShowsBg = buildMixSel(prom, sel);
     TEST_ASSERT_TRUE(clearShowsBg || !(round & 1));
 
-    const LineSrc f = {fgPage, bgPage, tiles, 63, pal, sel, clearShowsBg,
+    const LineSrc f = {fgPage, bgPage, {tiles, MAP, 63}, pal, sel, clearShowsBg,
                        (int)(rnd() % 1024) - 512, (uint8_t)rnd()};
     const int x = rnd() % 256;
     const uint32_t sprTiles = rnd() & rnd() & rnd();

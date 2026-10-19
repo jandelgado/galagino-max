@@ -16,8 +16,7 @@ public:
     const uint8_t *spriteRom;
     uint8_t spriteBanks;
     const uint8_t *vram;
-    const uint32_t (*tiles)[8];
-    uint16_t tileMask;
+    system1_video::TileSet tiles;
     const uint8_t *prom;
     uint8_t videoMode;
     system1_video::Visarea vis;
@@ -38,19 +37,20 @@ private:
   static constexpr uint16_t MIX_MASK = 0x3f;
   static constexpr uint16_t SPR_MASK = 0x3ff;
   static constexpr uint8_t IDLE_BITS = 0x7e;
-  static constexpr int8_t EMPTY = -1;
   static constexpr int LINE_UNITS = 512;
+  static constexpr int LINE_WORDS = LINE_UNITS / 32;
 
   void drawLine(const Frame &f, const system1_video::Sprite *list, int count, int y);
-  void mixLine(const Frame &f, int y, int scroll, uint8_t yscroll);
+  void mixLine(const Frame &f, int y, int scroll, uint8_t yscroll, uint16_t pairs);
 
   uint8_t mix[MIX_MASK + 1];
   uint8_t spr[SPR_MASK + 1];
   uint8_t mixSummary;
   uint8_t sprSummary;
-  int8_t line[LINE_UNITS];  // sprite number per 512 unit, EMPTY = none
-  int lineLo;               // touched span of line[]
-  int lineHi;
+  // line buffer: sprite number per 512 unit, valid where its occupied bit is
+  // set; mixLine visits set bits only (SWAT: ~55 of 512 units per line)
+  int8_t line[LINE_UNITS];
+  uint32_t occupied[LINE_WORDS];
 };
 
 #endif

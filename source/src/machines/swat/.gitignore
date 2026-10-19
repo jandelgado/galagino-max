@@ -1,0 +1,7 @@
+swat_main_rom.h
+swat_opcodes.h
+swat_sound_rom.h
+swat_tiles.h
+swat_tile_map.h
+swat_sprites.h
+swat_lookup_prom.h

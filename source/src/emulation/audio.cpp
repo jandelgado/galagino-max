@@ -197,7 +197,7 @@ void Audio::start(machineBase *machineBase) {
   if (machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
       machineType == MCH_CCASTLES || machineType == MCH_BZONE || machineType == MCH_STARWARS ||
       machineType == MCH_MISSILE || machineType == MCH_HERO || machineType == MCH_TEMPEST ||
-      machineType == MCH_SPACDUEL || machineType == MCH_GRAVITAR) {
+      machineType == MCH_SPACDUEL || machineType == MCH_GRAVITAR || machineType == MCH_BWIDOW) {
     const int32_t clocks = (machineType == MCH_ATETRIS || machineType == MCH_HERO) ? Pokey::CLOCKS_1789KHZ
                          : (machineType == MCH_CCASTLES || machineType == MCH_MISSILE) ? Pokey::CLOCKS_1250KHZ
                                                        : Pokey::CLOCKS_1512KHZ;
@@ -363,7 +363,7 @@ void Audio::transmit() {
     else if (currentMachine->hasNamco15xxAudio())
       namco_15xx_render_buffer();
     else if (machineType == MCH_MRDO || machineType == MCH_LADYBUG || machineType == MCH_STARFORCE || machineType == MCH_BALUBA || machineType == MCH_VANVAN || machineType == MCH_CIRCUSC || machineType == MCH_ROADFIGHTER || machineType == MCH_TP84 ||
-             machineType == MCH_STARJACK || machineType == MCH_REGULUS || machineType == MCH_UPNDOWN || machineType == MCH_GBERET)
+             machineType == MCH_STARJACK || machineType == MCH_REGULUS || machineType == MCH_UPNDOWN || machineType == MCH_RAFLESIA || machineType == MCH_SWAT || machineType == MCH_GBERET)
       sn76489_render_buffer();
     else if (machineType == MCH_DKONG || machineType == MCH_DKONGJR)
       i8048_render_buffer();
@@ -384,7 +384,7 @@ void Audio::transmit() {
     else if(machineType == MCH_CENTIPEDE || machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS ||
             machineType == MCH_CCASTLES || machineType == MCH_STARWARS || machineType == MCH_MISSILE ||
             machineType == MCH_HERO || machineType == MCH_TEMPEST || machineType == MCH_SPACDUEL ||
-            machineType == MCH_GRAVITAR)
+            machineType == MCH_GRAVITAR || machineType == MCH_BWIDOW)
       pokey_render_buffer();
     else if(machineType == MCH_ASTEROIDS)
       asteroids_render_buffer();
@@ -571,7 +571,8 @@ void Audio::pokey_render_buffer(void) {
   const bool speech = machineType == MCH_STARWARS;
   const int chips = machineType == MCH_STARWARS ? 4
       : (machineType == MCH_MILLIPEDE || machineType == MCH_ATETRIS || machineType == MCH_CCASTLES ||
-         machineType == MCH_TEMPEST || machineType == MCH_SPACDUEL || machineType == MCH_GRAVITAR) ? 2 : 1;
+         machineType == MCH_TEMPEST || machineType == MCH_SPACDUEL || machineType == MCH_GRAVITAR ||
+         machineType == MCH_BWIDOW) ? 2 : 1;
   const int shift = chips > 2 ? 1 : 0;
   int16_t samples[MAX_POKEYS][64];
   for (int n = 0; n < chips; n++) {
@@ -977,7 +978,8 @@ void Audio::sn76489_render_buffer(void) {
   // tp84: 3x SN76489 @ 1.79 MHz (XTAL 14.318/8): 1789773 / 16 / 24000 = 4.7
   if (machineType == MCH_TP84) sn_inc[0] = sn_inc[1] = sn_inc[2] = 5;
   // System 1: sn1 2 MHz, sn2 4 MHz
-  if (machineType == MCH_STARJACK || machineType == MCH_REGULUS || machineType == MCH_UPNDOWN) sn_inc[0] = 5;
+  if (machineType == MCH_STARJACK || machineType == MCH_REGULUS || machineType == MCH_UPNDOWN ||
+      machineType == MCH_RAFLESIA || machineType == MCH_SWAT) sn_inc[0] = 5;
   // Green Beret: SN76489A @ 1.536 MHz -> 1536000 / 16 / 24000 = 4
   if (machineType == MCH_GBERET) sn_inc[0] = 4;
 

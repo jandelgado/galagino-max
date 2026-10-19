@@ -12,6 +12,12 @@ enum Opcode : uint8_t {
 
 static const int16_t WINDOW_FAR = 1280; // MAME vg_flush 0x5000000 >> 16
 
+// Draw time = vector time (normalize()) plus a fixed cost per instruction.
+// MAME adds 8 clocks per state machine step; 32 per instruction matches
+// its Black Widow redraw rate (1.4 vs 1.33 GOs per frame on the screen
+// after game over).
+static const uint32_t DRAW_CLOCKS_PER_STEP = 32;
+
 void State::reset(int32_t xc, int32_t yc) {
   *this = State{};
   xcenter = xpos = xc;
@@ -130,8 +136,10 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
   uint8_t glyph_sp = 0; // stack depth inside a glyph routine, 0: outside
   bool in_run = false;
   int16_t run_x = 0, run_y = 0;
+  s.draw_clocks = 0;
 
   for (uint16_t step = 0; step < MAX_STEPS && n < max; step++) {
+    s.draw_clocks += DRAW_CLOCKS_PER_STEP;
     // h1: high byte of word 0; Battle Zone clip latch on the way
     const uint8_t hi = fetch(mem, pc + hi_ofs);
     if (!s.hst) {
@@ -193,6 +201,7 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
       case OP_VCTR:
       case OP_SVEC: {
         const uint32_t cycles = normalize(dvx, dvy, s.bin_scale, op1);
+        s.draw_clocks += cycles;
         const int32_t x0 = s.xpos, y0 = s.ypos;
         s.xpos += deflect(dvx, cycles, s.scale);
         s.ypos -= deflect(dvy, cycles, s.scale);

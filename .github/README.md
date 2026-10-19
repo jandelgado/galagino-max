@@ -186,5 +186,8 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Defender (defender.zip)       | ![Defender marquee](/logos/defender.png) | ![Defender screenshot](/images/defender.png) | Up/down=altitude, left/right=thrust (reverses first), FIRE=fire, START=smart bomb, START+left/right=hyperspace. 292 columns merged into 239 |
 | Robotron: 2084 (robotron.zip) | ![Robotron: 2084 marquee](/logos/robotron.png) | ![Robotron: 2084 screenshot](/images/robotron.png) | Twin sticks on one stick: FIRE aims where the stick points and locks the aim while held. Controller X/B/A/Y fire up/right/down/left |
 | Joust (joust.zip)             | ![Joust marquee](/logos/joust.png) | ![Joust screenshot](/images/joust.png) | 1 player. Left/right=run, FIRE=flap |
+| Rafflesia (raflesia.zip)      | ![Rafflesia marquee](/logos/raflesia.png) | ![Rafflesia screenshot](/images/raflesia.png) | Sega System 1. FIRE=fire |
+| SWAT (swat.zip)               | ![SWAT marquee](/logos/swat.png) | ![SWAT screenshot](/images/swat.png) | Sega System 1. FIRE=fire, START=bomb |
+| Black Widow (bwidow.zip)      | ![Black Widow marquee](/logos/bwidow.png) | ![Black Widow screenshot](/images/bwidow.png) | Twin sticks on one stick: FIRE aims where the stick points and locks the aim while held. Controller X/B/A/Y fire up/right/down/left |
 
 ### ...
