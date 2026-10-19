@@ -75,7 +75,7 @@ static unsigned short frame_buffer[240 * 8];
 static sprite_S sprites[128];
 static unsigned char memory[RAMSIZE];
 
-static const uint32_t ATTRACT_FRAMES = 1800, BOOT_SOUND_FRAMES = 240;
+static const uint32_t ATTRACT_FRAMES = 1800, BOOT_SOUND_FRAMES = 240, BLANK_FROM = 600;
 
 static void boot(void) {
   static bool booted = false;
@@ -96,10 +96,15 @@ static void boot(void) {
   machine->gamma.read = countedGammaRead;
 }
 
+static uint32_t blankFrames; // after BLANK_FROM: frames whose published list is empty
+
 static void runTo(uint32_t f) {
   while (frame < f) {
     machine->run_frame();
     frame++;
+    uint16_t count = 0;
+    machine->go_list->visit([&count](const dvgMachine::GoList &g) { count = g.count; });
+    blankFrames += frame >= BLANK_FROM && !count;
   }
 }
 
@@ -112,19 +117,21 @@ static uint32_t nonZero(const uint8_t *p, uint32_t n) {
 }
 
 // attract mode: AVG lists drawn, every byte alpha sends is read by gamma,
-// lists fit dvgMachine::MAX_LINES
+// lists fit dvgMachine::MAX_LINES. The IRQ handler's beam refresh GOs
+// (JSRL to ROM, no lines) between two game lists keep the screen.
 static void test_boots_to_attract(void) {
   boot();
   runTo(ATTRACT_FRAMES);
   const uint32_t vram = nonZero(&memory[dvgMachine::VRAM_OFS], 0x1000);
-  printf("GOs %u, max lines %u, vram %u, alpha->gamma %u written %u read\n", gos, maxLines, vram,
-         gammaWrites, alphaReads);
+  printf("GOs %u, max lines %u, vram %u, alpha->gamma %u written %u read, blank frames %u\n", gos,
+         maxLines, vram, gammaWrites, alphaReads, blankFrames);
   TEST_ASSERT_TRUE(machine->game_started);
   TEST_ASSERT_GREATER_THAN_UINT32(ATTRACT_FRAMES / 2, gos);
   TEST_ASSERT_GREATER_THAN_UINT32(500, vram);
   TEST_ASSERT_GREATER_THAN_UINT32(0, gammaWrites);
   TEST_ASSERT_UINT32_WITHIN(1, gammaWrites, alphaReads);
   TEST_ASSERT_LESS_THAN_UINT16(dvgMachine::MAX_LINES, maxLines);
+  TEST_ASSERT_EQUAL_UINT32(0, blankFrames);
 }
 
 // demo sounds on: gamma plays the power-up sounds in the first seconds

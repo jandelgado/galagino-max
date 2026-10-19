@@ -81,6 +81,9 @@ static const uint32_t CLOCK_2K4_BIT = 0x400;    // MAME clock_r: total cycles bi
 // AVG 12.096 MHz in alpha cycles (2.5 MHz)
 static const uint32_t AVG_CLOCKS_NUM = 25, AVG_CLOCKS_DEN = 121;
 
+// AVG word 0 of the beam refresh GO: JSRL 0x1fc4
+static const uint8_t REFRESH_LO = 0xe2, REFRESH_HI = 0xaf;
+
 // START: coin, then FIRE once the game shows PRESS START
 static const uint8_t COIN_FRAMES = 6, FIRE_FROM = 40, FIRE_TO = 46;
 
@@ -291,7 +294,16 @@ void mhavoc::alpha_write(m6502_t *cpu, uint16_t a, uint8_t v) {
   }
   switch (a) {
     case OUT0: m->out0(v); break;
-    case AVG_GO: m->go(); break;
+    case AVG_GO:
+      // the IRQ handler (0x8781) patches VRAM word 0 to JSRL 0x1fc4 (a
+      // ROM routine without lines) and GOs while the AVG idles: the
+      // beam refresh keeps the last game list on screen
+      if (m->memory[VRAM_OFS] == REFRESH_LO && m->memory[VRAM_OFS + 1] == REFRESH_HI) {
+        m->decode_frame(nullptr);
+      } else {
+        m->go();
+      }
+      break;
     case AVG_RESET:
       // MAME mhavoc_vgrst: halts the AVG
       m->avg_state.scale = m->avg_state.bin_scale = m->avg_state.color = 0;
