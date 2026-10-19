@@ -75,7 +75,7 @@ static unsigned short frame_buffer[240 * 8];
 static sprite_S sprites[128];
 static unsigned char memory[RAMSIZE];
 
-static const uint32_t ATTRACT_FRAMES = 1800;
+static const uint32_t ATTRACT_FRAMES = 1800, BOOT_SOUND_FRAMES = 240;
 
 static void boot(void) {
   static bool booted = false;
@@ -126,11 +126,33 @@ static void test_boots_to_attract(void) {
   TEST_ASSERT_UINT32_WITHIN(1, gammaWrites, alphaReads);
   TEST_ASSERT_LESS_THAN_UINT16(dvgMachine::MAX_LINES, maxLines);
 }
+
+// demo sounds on: gamma plays the power-up sounds in the first seconds
+// (MAME: AUDC writes in frames 34-200 at 50 Hz) and renderAudio() mixes
+// them. Later attract music depends on a RANDOM bit (alpha 0x84a1).
+static void test_boot_sound(void) {
+  boot();
+  uint32_t loud = 0, peak = 0;
+  while (frame < BOOT_SOUND_FRAMES) {
+    runTo(frame + 1);
+    int16_t out[AUDIO_CHUNK];
+    machine->renderAudio(out, AUDIO_CHUNK);
+    for (int i = 0; i < AUDIO_CHUNK; i++) {
+      const uint32_t a = out[i] < 0 ? -out[i] : out[i];
+      peak = a > peak ? a : peak;
+      loud += a > 16;
+    }
+  }
+  printf("audio: %u loud samples, peak %u\n", loud, peak);
+  TEST_ASSERT_GREATER_THAN_UINT32(1000, loud);
+  TEST_ASSERT_LESS_OR_EQUAL_UINT32(AUDIO_MAX, peak);
+}
 #endif
 
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  RUN_TEST(test_boot_sound);
   RUN_TEST(test_boots_to_attract);
 #endif
   return UNITY_END();

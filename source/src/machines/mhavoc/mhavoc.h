@@ -31,6 +31,12 @@ public:
   signed char machineType() override { return MCH_MHAVOC; }
   void reset() override;
   void run_frame() override;
+  // MAME mixes each POKEY at 0.25, Black Widow's two at 0.5: half their sum
+  void renderAudio(int16_t *out, int n) override {
+    Pokey::renderBank(pokey, soundregs, out, n);
+    audioShiftRight(out, n, 1);
+    audioClampAll(out, n, AUDIO_MAX);
+  }
   static const Logo &logo() { return mhavoc_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
