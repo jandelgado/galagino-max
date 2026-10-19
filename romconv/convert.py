@@ -21,6 +21,7 @@ GAMES = [
     "commando",
     "crush",
     "digdug",
+    "digdug2",
     "dkong",
     "dkong3",
     "dkongjr",

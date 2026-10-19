@@ -129,6 +129,7 @@ enum {
   MCH_BWIDOW,
   MCH_SWAT,
   MCH_1943,
+  MCH_DIGDUG2,
   MCH_SELFTEST
 };
 
