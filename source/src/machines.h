@@ -189,6 +189,9 @@
 #ifdef ENABLE_HERO
   #include "machines/hero/hero.h"
 #endif
+#ifdef ENABLE_MARBLE
+  #include "machines/marble/marble.h"
+#endif
 
 #ifdef ENABLE_VANVAN
   #include "machines/vanvan/vanvan.h"
@@ -817,6 +820,13 @@ machineInfo machines[] = {
     hero::menuLeds,
 #endif
     MCH_HERO },
+#endif
+#ifdef ENABLE_MARBLE
+  { []() -> machineBase* { return new marble(); }, marble::logo,
+#ifdef LED_PIN
+    marble::menuLeds,
+#endif
+    MCH_MARBLE },
 #endif
 #ifdef ENABLE_COMMANDO
   { []() -> machineBase* { return new commando(); }, commando::logo,
