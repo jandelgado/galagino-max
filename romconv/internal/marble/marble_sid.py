@@ -1,12 +1,22 @@
 """Marble Madness sound (MARBLE.md "Sound"): MAME captures of the arcade's YM2151 / POKEY
-writes per command (tools/mame_sound.lua, romszip/marble_sound.zip) become songs of the C64
+writes per command (tools/mame_sound.lua) become songs of the C64
 tune's own player (Marble_Madness.sid, format in MARBLE.md): jingles as songs that replace
 the music, effects as one track songs on slot 1 / SID voice 0 started by a 6502 stub over the
 music, a silent song for STOP. Timing: tempo 0x3840, duration index k = 2^(7-k) frames,
-every length a chain of events (frame exact)."""
+every length a chain of events (frame exact).
+
+The capture is not distributed: extract() reduces it to the note lists in
+marble_sound_notes.json (no ROM or register data), which build() reads.
+
+usage: python3 marble_sid.py --extract CAPTURE.zip   (rewrites marble_sound_notes.json)"""
+import json
 import math
+import os
 import struct
+import sys
 import zipfile
+
+NOTES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "marble_sound_notes.json")
 
 LOAD = 0x2700
 SONG_TABLE, SONGS_MAX = 0x3dc0, 32
@@ -164,23 +174,22 @@ def mono(notes):
     return out
 
 
-def jingle_tracks(text, melody, sustain, imel, isus):
+def jingle_notes(text, melody, sustain):
+    """-> note lists [(start, length, midi)]: melody, then one per sustain channel"""
     ns = ym_notes(text)
     mel = mono(sorted((round(t), round(d) if d > 0 else 128, m) for t, d, c, m in ns if c in melody))
     top = max((m for _, _, m in mel), default=0)
     shift = 0
     while top + shift > TOP_NOTE:
         shift -= 12
-    mel = [(s, l, fit(m + shift, TOP_NOTE)) for s, l, m in mel]
-    tracks = [track(mel, imel)]
+    out = [[(s, l, fit(m + shift, TOP_NOTE)) for s, l, m in mel]]
     for c in sustain:
-        sus = mono(sorted((round(t), round(d) if d > 0 else 128, fit(m, TOP_NOTE)) for t, d, cc, m in ns if cc == c))
-        tracks.append(track(sus, isus))
-    return tracks
+        out.append(mono(sorted((round(t), round(d) if d > 0 else 128, fit(m, TOP_NOTE)) for t, d, cc, m in ns if cc == c)))
+    return out
 
 
-def effect_track(text, inst):
-    """One track: frames of equal (rounded) pitch become one note."""
+def effect_notes(text):
+    """One note list: frames of equal (rounded) pitch become one note."""
     pitches = pokey_pitch_frames(text) if pokey_sound(text) else ym_pitch_frames(text)
     notes, k = [], 0
     while k < len(pitches):
@@ -191,10 +200,8 @@ def effect_track(text, inst):
         while k < len(pitches) and pitches[k] is not None and fit(pitches[k], TOP_NOTE) == n:
             k += 1
         notes.append((s, k - s, n))
-    if not notes:
-        return None
     # track() plays a note for gate + 1 frames: gate = length - 1 keeps the frame timing
-    return track([(s, max(1, l - 1), n) for s, l, n in notes], inst)
+    return [(s, max(1, l - 1), n) for s, l, n in notes]
 
 
 def descriptor(ident, tracks, mask, priority):
@@ -285,11 +292,33 @@ class Tune:
         return bytes(hdr) + struct.pack("<H", LOAD) + bytes(self.pay)
 
 
-def build(sid_bytes, zip_path):
-    """-> (file bytes, command table [(kind, arg)] * 128, silent song, stub address, alias
-    page, ram size, effect index by command, song by command)"""
+def extract(zip_path):
+    """MAME capture -> {"jingles": {cmd: [notes per track]}, "effects": {cmd: notes}}"""
     with zipfile.ZipFile(zip_path) as z:
         caps = {int(n[4:6], 16): z.read(n).decode() for n in z.namelist()}
+    return {"jingles": {"%02x" % c: jingle_notes(caps[c], mel, sus) for c, (mel, sus, _, _) in JINGLES.items()},
+            "effects": {"%02x" % c: effect_notes(caps[c]) for c in EFFECTS}}
+
+
+def save_notes(notes, path=NOTES_FILE):
+    """one note list per line"""
+    row = lambda ns: json.dumps([list(n) for n in ns], separators=(",", ":"))
+    jingles = [f'    "{c}": [\n' + ",\n".join("      " + row(t) for t in ts) + "\n    ]"
+               for c, ts in notes["jingles"].items()]
+    effects = [f'    "{c}": {row(ns)}' for c, ns in notes["effects"].items()]
+    with open(path, "w", newline="\n") as f:
+        f.write('{\n  "jingles": {\n' + ",\n".join(jingles) + '\n  },\n  "effects": {\n'
+                + ",\n".join(effects) + "\n  }\n}\n")
+
+
+def load_notes(path=NOTES_FILE):
+    with open(path) as f:
+        return json.load(f)
+
+
+def build(sid_bytes, notes):
+    """notes: load_notes() -> (file bytes, command table [(kind, arg)] * 128, silent song,
+    stub address, alias page, ram size, effect index by command, song by command)"""
     tune = Tune(sid_bytes)
     table = [(IGNORE, 0)] * 128
     for c, s in MUSIC.items():
@@ -299,15 +328,16 @@ def build(sid_bytes, zip_path):
         table[c] = (SONG, silent)
     songs = {}
     for c, (mel, sus, im, isus) in JINGLES.items():
-        songs[c] = tune.song(b"JI%02X" % c, jingle_tracks(caps[c], mel, sus, im, isus))
+        mel_notes, *sus_notes = notes["jingles"]["%02x" % c]
+        songs[c] = tune.song(b"JI%02X" % c, [track(mel_notes, im)] + [track(n, isus) for n in sus_notes])
         table[c] = (SONG, songs[c])
     fx, index = [], {}
     for c, inst in EFFECTS.items():
-        t = effect_track(caps[c], inst)
-        if t is None:
+        ns = notes["effects"]["%02x" % c]
+        if not ns:
             print(f"marble sound: 0x{c:02x} has no output, ignored")
             continue
-        _, ptrs, lens = tune.piece(b"FX%02X" % c, [t], 0x01, 0xC0)
+        _, ptrs, lens = tune.piece(b"FX%02X" % c, [track(ns, inst)], 0x01, 0xC0)
         index[c] = len(fx)
         table[c] = (EFFECT, len(fx))
         fx.append((ptrs[0], lens[0]))
@@ -323,3 +353,10 @@ def selfcheck():
     assert fit(107, 95) == 95 and fit(108, 95) == 84
     assert track([(2, 3, 60)], 11) == [0x81, 11, 0x80, 6, 60, 5 | 0, 0xFF, 0xFF]
     assert mono([(0, 10, 60), (5, 3, 62)]) == [(0, 4, 60), (5, 3, 62)]
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3 or sys.argv[1] != "--extract":
+        sys.exit(__doc__)
+    save_notes(extract(sys.argv[2]))
+    print(f"wrote {NOTES_FILE}")

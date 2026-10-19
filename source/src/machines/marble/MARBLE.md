@@ -2319,11 +2319,16 @@ when `mame_trace.lua` runs alongside (wrapper `dofile`s both).
 # effects WIN=150, jingle candidates WIN=600; 24 / 4 commands per run (the practice race
 # times out after about 3980 frames)
 MODE=capture OUT=$D/out CMDS=1f,20,... WIN=150 FRAMES=5200 ... -autoboot_script $R/romconv/internal/marble/tools/mame_sound.lua
-(cd $D/out && python3 -m zipfile -c $R/romszip/marble_sound.zip cmd_*.txt)
+(cd $D/out && python3 -m zipfile -c $D/marble_sound.zip cmd_*.txt)
+# reduce to note lists, the converter's only sound input besides the HVSC tune
+python3 romconv/internal/marble/marble_sid.py --extract $D/marble_sound.zip
 # goal: practice crossing y 63
 MODE=log NOCOIN=1 OUT=$D/g0 MARBLE_LEVEL=0 MARBLE_PLACE=900:604:492:-36 \
   MARBLE_PLACE_V=900:0:131072 MARBLE_RACE_UNTIL=1000 ... -autoboot_script $D/both.lua
 ```
+
+The capture holds the arcade's register writes and is not distributed;
+`marble_sound_notes.json` (next to marble_sid.py) keeps only the extracted notes.
 
 Remake: `romconv/internal/marble/marble_sid.py` builds the jingles and effects as songs of
 the C64 player (appended to the payload, song table entries, a silent song, a 6502 stub that

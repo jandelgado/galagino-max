@@ -42,7 +42,6 @@ import marble_sid as msid
 
 ROOT = os.path.join(md.HERE, "..", "..", "..")
 OUT = os.path.join(ROOT, "source", "src", "machines", "marble", "marble_rom.h")
-SOUND_ZIP = os.path.join(ROOT, "romszip", "marble_sound.zip")
 SID_FILE = os.path.join(ROOT, "romszip", "Marble_Madness.sid")
 SOUND_FIXTURE = os.path.join(ROOT, "source", "test", "test_marble_sound", "marble_sound_fixture.h")
 SOUND_BUDGET = 10240
@@ -1545,11 +1544,10 @@ def particle_palettes(rom):
 def emit_sound(f, size):
     """Phase 5 (MARBLE.md "Sound"): the C64 tune with jingle / effect songs, command table."""
     msid.selfcheck()
-    for p, what in ((SOUND_ZIP, "tools/mame_sound.lua capture"),
-                    (SID_FILE, "HVSC GAMES/M-R/Marble_Madness.sid")):
-        if not os.path.exists(p):
-            fatal(f"missing {os.path.abspath(p)} ({what})")
-    sid, table, silent, stub, alias, ram, index, songs = msid.build(open(SID_FILE, "rb").read(), SOUND_ZIP)
+    if not os.path.exists(SID_FILE):
+        fatal(f"missing {os.path.abspath(SID_FILE)}: download GAMES/M-R/Marble_Madness.sid "
+              "from the HVSC (hvsc.c64.org) into romszip/")
+    sid, table, silent, stub, alias, ram, index, songs = msid.build(open(SID_FILE, "rb").read(), msid.load_notes())
     print("static const uint8_t MARBLE_SND_IGNORE = 0, MARBLE_SND_SONG = 1, MARBLE_SND_EFFECT = 2;", file=f)
     print("struct MarbleSoundCmd { uint8_t kind; uint8_t arg; };", file=f)
     print("static const MarbleSoundCmd marble_sound_cmds[128] = {\n  "
