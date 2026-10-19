@@ -203,5 +203,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Super Xevious (sxevious.zip)  | ![Super Xevious marquee](/logos/sxevious.png) | ![Super Xevious screenshot](/images/sxevious.png) | Needs xevious.zip |
 | Mikie (mikie.zip)             | ![Mikie marquee](/logos/mikie.png) | ![Mikie screenshot](/images/mikie.png) | FIRE=button 1, START=button 2 |
 | Vulgus (vulgus.zip)           | ![Vulgus marquee](/logos/vulgus.png) | ![Vulgus screenshot](/images/vulgus.png) | FIRE=shot, START=bomb |
+| Cosmic Avenger (cavenger.zip) | ![Cosmic Avenger marquee](/logos/cavenger.png) | ![Cosmic Avenger screenshot](/images/cavenger.png) | FIRE=fire, START=bomb |
 
 ### ...

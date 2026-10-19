@@ -345,6 +345,9 @@
 #ifdef ENABLE_SXEVIOUS
   #include "machines/sxevious/sxevious.h"
 #endif
+#ifdef ENABLE_CAVENGER
+  #include "machines/cavenger/cavenger.h"
+#endif
 #ifdef ENABLE_VULGUS
   #include "machines/vulgus/vulgus.h"
 #endif
@@ -959,6 +962,13 @@ constexpr machineInfo machines[] = {
     sxevious::menuLeds,
 #endif
     MCH_SXEVIOUS },
+#endif
+#ifdef ENABLE_CAVENGER
+  { createMachine<cavenger>, cavenger::logo,
+#ifdef LED_PIN
+    cavenger::menuLeds,
+#endif
+    MCH_CAVENGER },
 #endif
 #ifdef ENABLE_VULGUS
   { createMachine<vulgus>, vulgus::logo,
