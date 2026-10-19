@@ -70,6 +70,23 @@ static uint8_t countedGammaRead(m6502_t *c, uint16_t a) {
   return gammaRead(c, a);
 }
 
+// opcode fetches at the idle loop entries: gamma main loop, alpha IRQ
+// wait, alpha delay loop, alpha wait for the gamma reply
+static const uint16_t IDLE_PC[4] = {0x802c, 0x821c, 0x91ca, 0x917a};
+static uint32_t idleFetches[4], instructions[2]; // instructions: alpha, gamma
+static uint8_t fetchGamma(m6502_t *c, uint16_t a) {
+  idleFetches[0] += a == IDLE_PC[0];
+  instructions[1]++;
+  return gammaRead(c, a);
+}
+static uint8_t fetchAlpha(m6502_t *c, uint16_t a) {
+  idleFetches[1] += a == IDLE_PC[1];
+  instructions[0]++;
+  idleFetches[2] += a == IDLE_PC[2];
+  idleFetches[3] += a == IDLE_PC[3];
+  return alphaRead(c, a);
+}
+
 static Input input;
 static unsigned short frame_buffer[240 * 8];
 static sprite_S sprites[128];
@@ -94,6 +111,8 @@ static void boot(void) {
   machine->m_cpu.write = countedAlphaWrite;
   gammaRead = machine->gamma.read;
   machine->gamma.read = countedGammaRead;
+  machine->m_cpu.fetch = fetchAlpha;
+  machine->gamma.fetch = fetchGamma;
 }
 
 static uint32_t blankFrames; // after BLANK_FROM: frames whose published list is empty
@@ -154,6 +173,25 @@ static void test_boot_sound(void) {
   TEST_ASSERT_GREATER_THAN_UINT32(1000, loud);
   TEST_ASSERT_LESS_OR_EQUAL_UINT32(AUDIO_MAX, peak);
 }
+
+// idle loops are skipped, not stepped: a few fetches per frame (gamma
+// re-enters its loop after each of its ~10 interrupts per frame, alpha
+// steps the pass cut by each slice end) instead
+// of 214 / 108 / 324 / 128
+static void test_idle_loops_skipped(void) {
+  boot();
+  runTo(ATTRACT_FRAMES);
+  memset(idleFetches, 0, sizeof(idleFetches));
+  memset(instructions, 0, sizeof(instructions));
+  const uint32_t frames = 600;
+  runTo(ATTRACT_FRAMES + frames);
+  printf("idle fetches per frame: gamma %u, alpha wait %u, alpha delay %u, alpha reply wait %u\n",
+         idleFetches[0] / frames, idleFetches[1] / frames, idleFetches[2] / frames, idleFetches[3] / frames);
+  printf("instructions per frame: alpha %u, gamma %u\n", instructions[0] / frames, instructions[1] / frames);
+  for (int i = 0; i < 4; i++) {
+    TEST_ASSERT_LESS_THAN_UINT32(40 * frames, idleFetches[i]);
+  }
+}
 #endif
 
 int main(int, char **) {
@@ -161,6 +199,7 @@ int main(int, char **) {
 #ifdef HAVE_ROM
   RUN_TEST(test_boot_sound);
   RUN_TEST(test_boots_to_attract);
+  RUN_TEST(test_idle_loops_skipped);
 #endif
   return UNITY_END();
 }

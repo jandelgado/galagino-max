@@ -81,6 +81,34 @@ static const uint32_t CLOCK_2K4_BIT = 0x400;    // MAME clock_r: total cycles bi
 // AVG 12.096 MHz in alpha cycles (2.5 MHz)
 static const uint32_t AVG_CLOCKS_NUM = 25, AVG_CLOCKS_DEN = 121;
 
+// Idle loops, from the MAME dasm of the rev 3 ROMs:
+//   gamma 802c: main loop, polls lda #$02 / bit $2800 (alpha received) with
+//     the output queue 0556/0557 and the command queue 05da/05db; only the
+//     NMI and IRQ handlers fill them. Skipped while both queues are empty
+//     (or alpha has not taken the last byte) and no interrupt is due.
+//   alpha 821c: lsr $0814 / bcc $821c, waits for the IRQ handler to set
+//     0814 bit 0. Skipped while 0814 is 0.
+//   alpha 91ca: sbc #$01 / bcs $91ca, delay after gamma commands, 5 cycles
+//     a pass. Whole passes that fit the slice are skipped, the last one is
+//     stepped (sbc rewrites all flags).
+//   alpha 917a: inc $bd / bpl / lda #$04 / bit $1200 / beq $917a, waits for
+//     the gamma reply (IN0 gamma transmitted), 17 cycles a pass; $bd counts
+//     passes up to a timeout at 0x80. gamma answers between slices only, so
+//     whole passes that fit the slice are skipped while $bd stays below
+//     0x7f.
+static const uint16_t GAMMA_IDLE_PC = 0x802c, ALPHA_WAIT_PC = 0x821c, ALPHA_DELAY_PC = 0x91ca;
+static const uint16_t ALPHA_REPLY_PC = 0x917a, ALPHA_REPLY_COUNT = 0x00bd;
+static const uint32_t REPLY_PASS_CYCLES = 17;
+static const uint8_t REPLY_LAST_PASS = 0x7f;
+static const uint16_t GAMMA_OUT_HEAD = 0x0556, GAMMA_OUT_TAIL = 0x0557;
+static const uint16_t GAMMA_CMD_HEAD = 0x05da, GAMMA_CMD_TAIL = 0x05db;
+static const uint16_t ALPHA_WAIT_FLAG = 0x0814; // in 0800-09ff
+static const uint32_t DELAY_PASS_CYCLES = 5;
+
+static bool irq_due(const m6502_t &cpu) {
+  return cpu.nmi || (cpu.irq && !(cpu.p & M6502_FI));
+}
+
 // AVG word 0 of the beam refresh GO: JSRL 0x1fc4
 static const uint8_t REFRESH_LO = 0xe2, REFRESH_HI = 0xaf;
 
@@ -156,10 +184,46 @@ void mhavoc::step_gamma(uint32_t alpha_cycles) {
     return;
   }
   while (gamma_debt > 1) {
+    if (gamma.pc == GAMMA_IDLE_PC && gamma_idle()) {
+      gamma_cycles += gamma_debt / 2;
+      gamma_debt &= 1;
+      return;
+    }
     const int c = m6502_step(&gamma);
     gamma_cycles += c;
     gamma_debt -= 2 * c;
   }
+}
+
+bool mhavoc::gamma_idle() const {
+  const uint8_t *ram = memory + GAMMA_RAM_OFS;
+  return !irq_due(gamma) && (!alpha_rcvd || ram[GAMMA_OUT_HEAD] == ram[GAMMA_OUT_TAIL]) &&
+         ram[GAMMA_CMD_HEAD] == ram[GAMMA_CMD_TAIL];
+}
+
+// alpha idle loops (see ALPHA_WAIT_PC); returns true when the rest of the
+// slice is idle
+bool mhavoc::skip_alpha(uint32_t slice_end) {
+  if (m_cpu.pc == ALPHA_WAIT_PC) {
+    if (!irq_due(m_cpu) && !memory[RAM_HIGH_OFS + ALPHA_WAIT_FLAG - RAM_HIGH]) {
+      cycles = slice_end;
+      return true;
+    }
+  } else if (m_cpu.pc == ALPHA_DELAY_PC && !(m_cpu.p & M6502_FD) && !irq_due(m_cpu)) {
+    const uint32_t fit = (slice_end - cycles) / DELAY_PASS_CYCLES;
+    const uint8_t passes = fit < m_cpu.a ? fit : m_cpu.a;
+    m_cpu.a -= passes;
+    cycles += passes * DELAY_PASS_CYCLES;
+  } else if (m_cpu.pc == ALPHA_REPLY_PC && !gamma_xmtd && !irq_due(m_cpu)) {
+    uint8_t &count = memory[ALPHA_REPLY_COUNT];
+    if (count < REPLY_LAST_PASS) {
+      const uint32_t fit = (slice_end - cycles) / REPLY_PASS_CYCLES;
+      const uint8_t passes = fit < uint8_t(REPLY_LAST_PASS - count) ? fit : REPLY_LAST_PASS - count;
+      count += passes;
+      cycles += passes * REPLY_PASS_CYCLES;
+    }
+  }
+  return false;
 }
 
 void mhavoc::control_input() {
@@ -183,7 +247,7 @@ void mhavoc::run_frame() {
       slice_end = end;
     }
     const uint32_t from = cycles;
-    while ((int32_t)(cycles - slice_end) < 0) {
+    while ((int32_t)(cycles - slice_end) < 0 && !skip_alpha(slice_end)) {
       cycles += m6502_step(&m_cpu);
     }
     step_gamma(cycles - from);

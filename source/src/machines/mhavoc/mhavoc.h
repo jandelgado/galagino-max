@@ -64,6 +64,8 @@ private:
   void out0(uint8_t v);
   void tick();
   void step_gamma(uint32_t alpha_cycles);
+  bool gamma_idle() const;
+  bool skip_alpha(uint32_t slice_end);
   avg::Memory avg_memory() const;
   bool pokey_running(uint8_t n) const;
   uint8_t pokey_read(uint8_t n, uint8_t reg);
