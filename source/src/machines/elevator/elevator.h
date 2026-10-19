@@ -35,6 +35,7 @@ public:
   signed char machineType() override { return MCH_ELEVATOR; }
   const int renderWidth() override { return WIDTH; }
   const int renderBuffer() override { return WIDTH * 2 * 8; }
+  void renderAudio(int16_t *out, int n) override;
   void reset() override;
   void start() override;
 
@@ -135,10 +136,24 @@ private:
   uint16_t sound_irq_slices = 0;
   uint8_t ay_addr[4] = {};  // register select per chip, regs in soundregs[16 * chip]
 
+  // MAME mix: AY#0 0.15, AY#1 0.5, AY#2 0.5, AY#3 1.0 (AY#0 rounded up)
   static const uint8_t AY_INC = 8;   // 1.5 MHz / 8 / 24 kHz
-  static const uint8_t AY_GAIN = 5;
-  Ay8910 ay[4] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN),
-                  Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
+  static const uint8_t AY3_GAIN = 4;
+  Ay8910 ay[4] = {Ay8910(AY_INC, 1), Ay8910(AY_INC, AY3_GAIN / 2),
+                  Ay8910(AY_INC, AY3_GAIN / 2), Ay8910(AY_INC, AY3_GAIN)};
+
+  // 8 bit DAC on AY#1 port A, volume ladder on port B. The sound CPU
+  // writes it at any time: sampled at 24 kHz in run_frame(), popped per
+  // output sample in renderAudio() (circusc pattern)
+  static const uint16_t DAC_RING = 1024;   // 2.5 frames
+  volatile int16_t dac_ring[DAC_RING] = {};
+  volatile uint16_t dac_wr = 0, dac_rd = 0;
+  int16_t dac_last = 0;     // audio core
+  uint16_t dac_acc = 0;
+  int16_t dac_sample = 0;   // current DAC output, emulation core
+
+  void updateDac(void);
+  void pushDac(void);
 };
 
 #endif

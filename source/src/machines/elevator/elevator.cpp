@@ -42,6 +42,11 @@ static uint32_t spread[256];
 static constexpr uint8_t AY_PORT_A = 14, AY_PORT_B = 15;
 static constexpr uint8_t AY_SOUND_STATUS = 2;   // port A -> main CPU IN4 b4-7
 static constexpr uint8_t AY_NMI_MASK = 3;       // port B b0: 1 masks the latch NMI
+static constexpr uint8_t AY_DAC = 1;            // port A DAC data, port B DAC volume
+static constexpr uint8_t SOUND_ON = 0x02;       // d50e b1, 0 mutes all chips (MAME)
+// DAC full scale: MAME route 0.15 of AY#3's full output (3 voices x 15 x gain)
+static constexpr int32_t DAC_FULL = 3 * 15 * 4 * 15 / 100;
+static constexpr uint16_t SAMPLES_PER_FRAME = 24000 / 60;
 
 // IN0 active low
 static constexpr uint8_t IN0_LEFT = 0x01, IN0_RIGHT = 0x02, IN0_DOWN = 0x04, IN0_UP = 0x08;
@@ -91,7 +96,11 @@ void elevator::reset() {
   latch_full = sema2 = nmi_line = nmi_pending = false;
   main_irq = sound_irq = false;
   sound_irq_slices = 0;
+  dac_acc = 0;
+  dac_sample = dac_last = 0;
+  dac_rd = dac_wr;
   updateNmi();
+  updateDac();
 }
 
 void elevator::start() {
@@ -306,6 +315,9 @@ void elevator::wrSound(unsigned short Addr, unsigned char Value) {
     if (chip == AY_NMI_MASK && ay_addr[chip] == AY_PORT_B) {
       updateNmi();
     }
+    if (chip == AY_DAC && ay_addr[chip] >= AY_PORT_A) {
+      updateDac();
+    }
     return;
   }
 
@@ -317,6 +329,55 @@ void elevator::wrSound(unsigned short Addr, unsigned char Value) {
     }
     soundlatch &= 0x7f;
   }
+}
+
+// MAME taitosj_dacvol_ladder: inverted port B bits through 680k .. 4.7k,
+// share of the full ladder in 1/256
+static uint16_t dacVolume(uint8_t portB) {
+  static const uint32_t SIEMENS[8] = {1470, 3030, 6667, 12195, 25641, 50000, 100000, 212766};  // 1e9 / R
+  uint32_t on = 0, all = 0;
+  for (uint8_t i = 0; i < 8; i++) {
+    all += SIEMENS[i];
+    if (!(portB & (1 << i))) {
+      on += SIEMENS[i];
+    }
+  }
+  return (uint16_t)((on * 256 + all / 2) / all);
+}
+
+// DAC 8 bit R2R between -volume and +volume (MAME DAC_INPUT_RANGE_HI/LO)
+void elevator::updateDac(void) {
+  const uint8_t *regs = &soundregs[16 * AY_DAC];
+  const int32_t level = 2 * regs[AY_PORT_A] - 255;
+  dac_sample = (int16_t)(level * dacVolume(regs[AY_PORT_B]) * DAC_FULL / (255 * 256));
+}
+
+// one 24 kHz DAC sample into the ring, dropped when the ring is full
+void elevator::pushDac(void) {
+  const uint16_t next = (dac_wr + 1) & (DAC_RING - 1);
+  if (next == dac_rd) {
+    return;
+  }
+  dac_ring[dac_wr] = dac_sample;
+  dac_wr = next;
+}
+
+void elevator::renderAudio(int16_t *out, int n) {
+  if (!(bank_ctrl & SOUND_ON)) {
+    memset(out, 0, n * sizeof(*out));
+    dac_rd = dac_wr;
+    return;
+  }
+
+  Ay8910::renderBank(ay, soundregs, out, n);
+  for (int i = 0; i < n; i++) {
+    if (dac_rd != dac_wr) {
+      dac_last = dac_ring[dac_rd];
+      dac_rd = (dac_rd + 1) & (DAC_RING - 1);
+    }
+    out[i] += dac_last;
+  }
+  audioClampAll(out, n, AUDIO_MAX);
 }
 
 // NMI = (latch full AND AY#3 port B b0 low) OR semaphore 2, rising edge
@@ -354,6 +415,11 @@ void elevator::run_frame(void) {
     }
     for (uint8_t i = 0; i < SOUND_STEPS; i++) {
       stepCpu(SOUND_CPU);
+    }
+    dac_acc += SAMPLES_PER_FRAME;
+    if (dac_acc >= SLICES) {
+      dac_acc -= SLICES;
+      pushDac();
     }
     if (++sound_irq_slices >= SOUND_IRQ_SLICES) {
       sound_irq_slices = 0;
