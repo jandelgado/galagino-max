@@ -106,6 +106,10 @@ protected:
   // bank = video mode bit 6, bit 2
   enum Bank : uint8_t { BANK_NONE, BANK_44 };
 
+  // P1 button bits: generic = FIRE on bit 2, START/B on bit 1; swapped for
+  // sets whose MAME BUTTON1 sits on bit 1 (Heavy Metal)
+  enum Buttons : uint8_t { BUTTONS_GENERIC, BUTTONS_SWAPPED };
+
   struct Config {
     system1_video::Visarea vis;
     bool startButton2;  // START presses BUTTON2 (Regulus: bomb)
@@ -113,6 +117,7 @@ protected:
     Orientation orientation;  // omitted: ROT270
     system1_video::Window window;  // ROT0 only
     Bank bank;          // omitted: BANK_NONE
+    Buttons buttons;    // omitted: BUTTONS_GENERIC
   };
   system1(const Roms &roms, const Config &config);
 

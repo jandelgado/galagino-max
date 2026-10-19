@@ -339,6 +339,9 @@
 #ifdef ENABLE_FOURDWARRIO
   #include "machines/fourdwarrio/fourdwarrio.h"
 #endif
+#ifdef ENABLE_HVYMETAL
+  #include "machines/hvymetal/hvymetal.h"
+#endif
 #ifdef ENABLE_1943
   #include "machines/1943/1943.h"
 #endif
@@ -933,6 +936,13 @@ constexpr machineInfo machines[] = {
     fourdwarrio::menuLeds,
 #endif
     MCH_FOURDWARRIO },
+#endif
+#ifdef ENABLE_HVYMETAL
+  { createMachine<hvymetal>, hvymetal::logo,
+#ifdef LED_PIN
+    hvymetal::menuLeds,
+#endif
+    MCH_HVYMETAL },
 #endif
 #ifdef ENABLE_1943
   { createMachine<_1943>, _1943::logo,
