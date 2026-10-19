@@ -205,5 +205,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Vulgus (vulgus.zip)           | ![Vulgus marquee](/logos/vulgus.png) | ![Vulgus screenshot](/images/vulgus.png) | FIRE=shot, START=bomb |
 | Cosmic Avenger (cavenger.zip) | ![Cosmic Avenger marquee](/logos/cavenger.png) | ![Cosmic Avenger screenshot](/images/cavenger.png) | FIRE=fire, START=bomb |
 | Gardia (gardia.zip)           | ![Gardia marquee](/logos/gardia.png) | ![Gardia screenshot](/images/gardia.png) | Sega System 1. FIRE=button 1, START=button 2 |
+| Pleiads (pleiads.zip)         | ![Pleiads marquee](/logos/pleiads.png) | ![Pleiads screenshot](/images/pleiads.png) | FIRE=fire |
 
 ### ...
