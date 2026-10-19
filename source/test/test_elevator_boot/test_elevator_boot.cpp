@@ -33,8 +33,15 @@ static elevator *machine;
 static uint32_t frame;
 static uint32_t latchWrites, soundLatchReads;
 
+// opcode fetches at the idle loop entry per CPU
+static const uint16_t IDLE_PC[2] = {0x73f2, 0x0164};
+static uint32_t idleFetches[2];
+
 extern "C" {
-unsigned char OpZ80_INL(unsigned short a) { return machine->opZ80(a); }
+unsigned char OpZ80_INL(unsigned short a) {
+  idleFetches[machine->current_cpu] += a == IDLE_PC[machine->current_cpu];
+  return machine->opZ80(a);
+}
 unsigned char OpPrefixZ80_INL(unsigned short a) { return machine->opZ80(a); }
 unsigned char RdZ80(unsigned short a) {
   if (machine->current_cpu == elevator::SOUND_CPU && (a & 0xf803) == 0x5000) {
@@ -108,12 +115,26 @@ static void test_boots_to_attract(void) {
   TEST_ASSERT_GREATER_THAN_UINT32(0, latchWrites);
   TEST_ASSERT_GREATER_THAN_UINT32(0, soundLatchReads);
 }
+
+// idle loops (main: wait for the vblank IRQ, sound: wait for IRQ/NMI) are
+// skipped, not stepped: a few fetches per frame instead of ~1700 / ~900
+static void test_idle_loops_skipped(void) {
+  boot();
+  runTo(ATTRACT_FRAMES);
+  idleFetches[0] = idleFetches[1] = 0;
+  const uint32_t frames = 600;
+  runTo(ATTRACT_FRAMES + frames);
+  printf("idle fetches per frame: main %u, sound %u\n", idleFetches[0] / frames, idleFetches[1] / frames);
+  TEST_ASSERT_LESS_THAN_UINT32(10 * frames, idleFetches[0]);
+  TEST_ASSERT_LESS_THAN_UINT32(10 * frames, idleFetches[1]);
+}
 #endif
 
 int main(int, char **) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   RUN_TEST(test_boots_to_attract);
+  RUN_TEST(test_idle_loops_skipped);
 #endif
   return UNITY_END();
 }

@@ -392,8 +392,36 @@ void elevator::updateNmi(void) {
 
 // ---- Frame ----
 
+// Idle loops (ROM disassembly), left only through an interrupt handler
+// that changes the polled flag: stepping them is wasted host time
+// (profile: main 78 %, sound 93 % of all instructions). Skipped while the
+// flag is unchanged and no interrupt is pending; instruction counts drive
+// all timing here, so nothing needs charging.
+// main, bank 0: 73f2 ld a,($80ab) / or a / jr nz,$73f2 (vblank IRQ clears)
+static constexpr uint16_t MAIN_IDLE_PC = 0x73f2;
+static constexpr uint16_t MAIN_IDLE_FLAG = 0x00ab;   // $80ab
+// sound: 0164 ei / ld ix,$4000 / bit 0,(ix+0) / jp z,$01d8; 01d8 jp $0164
+static constexpr uint16_t SOUND_IDLE_PC = 0x0164;
+static constexpr uint16_t SOUND_IDLE_FLAG = 0x0000;  // $4000 b0
+
+bool elevator::isIdle(uint8_t c) {
+  const Z80 &z = cpu[c];
+  if (!(z.IFF & IFF_1)) {
+    return false;
+  }
+  if (c == MAIN_CPU) {
+    return z.PC.W == MAIN_IDLE_PC && !(bank_ctrl & BANK_SEL) && !main_irq &&
+           memory[RAM_OFS + MAIN_IDLE_FLAG];
+  }
+  return z.PC.W == SOUND_IDLE_PC && !sound_irq && !nmi_pending &&
+         !(memory[SND_RAM_OFS + SOUND_IDLE_FLAG] & 1);
+}
+
 // one instruction, pending interrupts first (HOLD_LINE: kept until taken)
 void elevator::stepCpu(uint8_t c) {
+  if (isIdle(c)) {
+    return;
+  }
   current_cpu = c;
   Z80 &z = cpu[c];
   if (c == SOUND_CPU && nmi_pending) {
@@ -519,6 +547,7 @@ void IRAM_ATTR elevator::drawLayer(uint8_t w, uint8_t y0) {
   for (uint8_t c = 0; c < 32; c++) {
     const uint8_t x0 = (8 * c + scrollx) & 0xff;
     const int px0 = x0 - CROP;
+    const bool inside = px0 >= 0 && px0 <= WIDTH - 8;   // no wrap, no clip
     const uint8_t dy = video.colscroll[32 * w + c] + sy;
 
     for (uint8_t l = 0; l < 8; l++) {
@@ -530,6 +559,16 @@ void IRAM_ATTR elevator::drawLayer(uint8_t w, uint8_t y0) {
       }
 
       uint16_t *dst = frame_buffer + l * WIDTH;
+      if (inside) {
+        uint16_t *d = dst + px0;
+        for (uint32_t r = row; r; r >>= 4, d++) {
+          if (r & 7) {
+            *d = pal[r & 7];
+          }
+        }
+        continue;
+      }
+
       for (uint8_t k = 0; k < 8; k++) {
         const uint8_t p = (row >> (4 * k)) & 7;
         const int px = (px0 + k) & 0xff;   // native x wraps at 256

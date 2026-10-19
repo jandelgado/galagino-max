@@ -87,6 +87,7 @@ private:
   uint8_t in2(void);
   void updateNmi(void);
   void stepCpu(uint8_t c);
+  bool isIdle(uint8_t c);
 
   // render inputs as of the vblank IRQ (seqlock.h); tile RAM with them,
   // else freshly written rows show at the scroll edge. Character RAM stays
