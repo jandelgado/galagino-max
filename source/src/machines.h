@@ -263,6 +263,9 @@
 #ifdef ENABLE_SPACDUEL
   #include "machines/spacduel/spacduel.h"
 #endif
+#ifdef ENABLE_GRAVITAR
+  #include "machines/gravitar/gravitar.h"
+#endif
 #ifdef ENABLE_BERZERK
   #include "machines/berzerk/berzerk.h"
 #endif
@@ -730,6 +733,13 @@ machineInfo machines[] = {
     spacduel::menuLeds,
 #endif
     MCH_SPACDUEL },
+#endif
+#ifdef ENABLE_GRAVITAR
+  { []() -> machineBase* { return new gravitar(); }, gravitar::logo,
+#ifdef LED_PIN
+    gravitar::menuLeds,
+#endif
+    MCH_GRAVITAR },
 #endif
 #ifdef ENABLE_BERZERK
   { []() -> machineBase* { return new berzerk(); }, berzerk::logo,
