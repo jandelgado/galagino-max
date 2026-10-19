@@ -65,6 +65,7 @@ public:
   }
 
   uint8_t portB() const { return latch[PORT_B]; }
+  uint8_t portC() const { return latch[PORT_C]; }
 
 private:
   static constexpr uint8_t PORT_A = 0;
