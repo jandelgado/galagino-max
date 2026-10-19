@@ -100,6 +100,35 @@ Arcade style boot screen: with RAM, ROM etc. infos and LED test. Takes about
 5s.  Enable with `#define BOOT_SELFTEST` in `config_local.h`, or add `-D
 BOOT_SELFTEST` to `build_flags` in `platformio.ini`. 
 
+### Load ROMs over WiFi
+
+Puts all games on an ESP32 with 4 MB flash and no PSRAM. A set of games is
+built into the firmware. Every other game downloads its ROM data over HTTP
+when started and stays cached in a 1 MB flash partition, oldest download
+evicted first. Menu entries not cached yet show a NET marker.
+
+1. Configure in `config_local.h`:
+
+   ```c
+   #define GALAGINO_WIFI_SSID   "my-ssid"
+   #define GALAGINO_WIFI_PASS   "my-password"
+   #define GALAGINO_ASSETS_URL  "http://192.168.1.2:8080"  // IP, no DNS
+   ```
+
+2. Build the bundles: `romconv/convert.sh` also writes one bundle per
+   downloadable game to `galagino-server/data/g/<hash>`. The firmware
+   embeds the hashes, so rebuild it after each conversion.
+
+3. Serve the bundles, e.g. with Python:
+
+   ```sh
+   python3 -m http.server 8080 --directory galagino-server/data
+   ```
+
+4. Flash env `remote_azDeliveryDevKitV4` (`pio run -e
+   remote_azDeliveryDevKitV4 -t upload` in `source/`). Its `ENABLE_<X>`
+   flags pick the built-in games.
+
 ### Games
 
 | Game                           | Marquee                       | Screenshot                     | Notes |
