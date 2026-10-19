@@ -60,7 +60,8 @@ static unsigned char memory[RAMSIZE];
 
 // credit counter (MAME jungleh: $8169 0 -> 1 on a coin, 0 after start)
 static const uint16_t CREDITS = 0x0169;
-static const uint32_t COIN_FRAME = 1000, START_FRAME = 1200;
+static const uint32_t COIN_FRAME = 1000, START_FRAME = 1200, PLAY_FRAME = 1300;
+static uint32_t dacSamples;   // DAC ring samples after start that are not 0
 
 static void boot(void) {
   static bool booted = false;
@@ -85,8 +86,16 @@ static void runTo(uint32_t f) {
     if (frame >= START_FRAME && frame < START_FRAME + 5) {
       keys = BUTTON_START;
     }
+    if (frame > PLAY_FRAME && frame % 60 < 5) {
+      keys = BUTTON_FIRE;   // jump now and then, as the MAME probe did
+    }
     machine->run_frame();
     frame++;
+    // drain the DAC ring as renderAudio() would
+    for (uint16_t i = machine->dac_rd; i != machine->dac_wr; i = (i + 1) & (elevator::DAC_RING - 1)) {
+      dacSamples += frame > START_FRAME && machine->dac_ring[i] != 0;
+    }
+    machine->dac_rd = machine->dac_wr;
   }
   keys = 0;
 }
@@ -137,6 +146,16 @@ static void test_idle_loops_skipped(void) {
   TEST_ASSERT_LESS_THAN_UINT32(10 * frames, idleFetches[1]);
 }
 
+// the Tarzan yell goes through the DAC on AY#1 ports A (data) and B
+// (volume); the idle loop keeps it at volume 0. MAME (FIRE every second
+// from frame 1300): DAC volume on from frame 1701
+static void test_tarzan_yell_on_dac(void) {
+  boot();
+  runTo(START_FRAME + 1200);
+  printf("DAC samples not 0: %u\n", dacSamples);
+  TEST_ASSERT_GREATER_THAN_UINT32(24000, dacSamples);   // over 1 s of yell
+}
+
 // IN0 (d408): 8-way stick, FIRE = button 1 even with UP held (no jump key)
 static void test_inputs_map(void) {
   boot();
@@ -159,6 +178,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_idle_loops_skipped);
   RUN_TEST(test_coin_and_start);
   RUN_TEST(test_inputs_map);
+  RUN_TEST(test_tarzan_yell_on_dac);
 #endif
   return UNITY_END();
 }
