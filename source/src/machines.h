@@ -321,6 +321,12 @@
 #ifdef ENABLE_SWAT
   #include "machines/swat/swat.h"
 #endif
+#ifdef ENABLE_FLICKY
+  #include "machines/flicky/flicky.h"
+#endif
+#ifdef ENABLE_PITFALL2
+  #include "machines/pitfall2/pitfall2.h"
+#endif
 #ifdef ENABLE_1943
   #include "machines/1943/1943.h"
 #endif
@@ -873,6 +879,20 @@ constexpr machineInfo machines[] = {
     swat::menuLeds,
 #endif
     MCH_SWAT },
+#endif
+#ifdef ENABLE_FLICKY
+  { createMachine<flicky>, flicky::logo,
+#ifdef LED_PIN
+    flicky::menuLeds,
+#endif
+    MCH_FLICKY },
+#endif
+#ifdef ENABLE_PITFALL2
+  { createMachine<pitfall2>, pitfall2::logo,
+#ifdef LED_PIN
+    pitfall2::menuLeds,
+#endif
+    MCH_PITFALL2 },
 #endif
 #ifdef ENABLE_1943
   { createMachine<_1943>, _1943::logo,

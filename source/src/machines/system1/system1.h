@@ -7,6 +7,7 @@
 #include "system1_video.h"
 #include "system1_collision.h"
 #include "system1_ppi.h"
+#include "system1_pio.h"
 
 // Sega System 1 board, 8255 variant (MAME sega/system1.cpp sys1ppi):
 //
@@ -42,6 +43,8 @@ public:
   void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   void prepare_frame(void) override;
   void render_row(short row) override;
+  const int renderWidth() override;
+  const int renderBuffer() override { return renderWidth() * 2 * STRIP_LINES; }
 
 protected:
   struct Roms {
@@ -52,9 +55,19 @@ protected:
     const FlashAsset<unsigned char, COMPRESSED> &sprites;
     const FlashAsset<unsigned char, COMPRESSED> &lookup;
   };
+  // sound latch / video mode chip: 8255 PPI (sys1ppi) or Z80 PIO (sys1pio)
+  enum Board : uint8_t { BOARD_PPI, BOARD_PIO };
+
+  // ROT270: panel row = native x (column games). ROT0: panel row = native
+  // line, a 240 px window into the 256 px line (landscape games, upright)
+  enum Orientation : uint8_t { ROT270, ROT0 };
+
   struct Config {
     system1_video::Visarea vis;
     bool startButton2;  // START presses BUTTON2 (Regulus: bomb)
+    Board board;        // omitted in an initializer: BOARD_PPI
+    Orientation orientation;  // omitted: ROT270
+    system1_video::Window window;  // ROT0 only
   };
   system1(const Roms &roms, const Config &config);
 
@@ -111,9 +124,15 @@ private:
   void irqLines();
   uint8_t readP1();
   uint8_t readSystem();
+  bool takeSoundNmi();
+  uint8_t ackSoundLatch();
+  uint8_t videoMode() const;
   void startVblank();
   void drawSprites(int strip);
   void mixStrip(int strip);
+  void renderRot0(int strip);
+  int playerX() const;
+  system1_video::LineSrc lineSrc() const;
 
   system1_video::TileSet tiles;
   const uint8_t *mainRom;
@@ -126,8 +145,10 @@ private:
   const Config config;
   int firstStrip;
   int lastStrip;
+  int16_t winX;  // ROT0: native x of panel column 0, 0..16
 
   Ppi8255 ppi;
+  Z80Pio pio;
   bool mainIrq;              // HOLD_LINE: pending until the CPU enables interrupts
   bool soundIrq;
   uint16_t palette[PALETTE_USED];

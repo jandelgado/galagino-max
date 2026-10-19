@@ -62,6 +62,29 @@ static void test_tile_pixel(void) {
   TEST_ASSERT_EQUAL(1, color);
 }
 
+// ROT0 games store tiles by row: same pixels through tilePixel
+static void test_tile_pixel_layouts(void) {
+  uint32_t byColumn[1][8] = {};
+  uint32_t byRow[1][8] = {};
+  for (int x = 0; x < 8; x++) {
+    for (int y = 0; y < 8; y++) {
+      const uint32_t pen = (x * 3 + y * 5) & 7;
+      byColumn[0][x] |= pen << (3 * (7 - y));
+      byRow[0][y] |= pen << (3 * (7 - x));
+    }
+  }
+  const uint16_t map[1] = {0};
+  const uint8_t page[PAGE_BYTES] = {};
+  const TileSet col = {byColumn, map, 0, TILES_BY_COLUMN};
+  const TileSet row = {byRow, map, 0, TILES_BY_ROW};
+  for (int x = 0; x < 8; x++) {
+    for (int y = 0; y < 8; y++) {
+      uint8_t color;
+      TEST_ASSERT_EQUAL(tilePixel(page, col, x, y, color), tilePixel(page, row, x, y, color));
+    }
+  }
+}
+
 static void test_decode_sprites(void) {
   uint8_t ram[SPRITES * SPRITE_BYTES] = {};
   const uint8_t e[SPRITE_BYTES] = {0x0f, 0x1f, 0x34, 0xe1, 0x20, 0x00, 0x00, 0x40};
@@ -181,6 +204,131 @@ static void test_render_line(void) {
   }
 }
 
+// ROT0 reference: one native line y, pixels x0 .. x0 + n - 1, sprite pens
+// already in out (index i = native x - x0)
+static void referenceRow(const LineSrc &f, const uint8_t *prom, int y, int x0, int n,
+                         uint16_t *out) {
+  for (int i = 0; i < n; i++) {
+    const int x = x0 + i;
+    uint8_t fgColor, bgColor;
+    const uint8_t fp = tilePixel(f.fgPage, f.tiles, x, y, fgColor);
+    const uint8_t bp = tilePixel(f.bgPage, f.tiles, bgCol(2 * x, f.scroll),
+                                 bgY(y, f.scrollY), bgColor);
+    const uint16_t spr = out[i];
+    const uint8_t source = prom[mixIndex(spr != 0, fp, fgColor, bp, bgColor)] & MIX_SOURCE;
+    if (source == 0) {
+      out[i] = f.pal[spr];
+    } else if (source == 1) {
+      out[i] = f.pal[FG_PENS | tilePen(fgColor, fp)];
+    } else {
+      out[i] = f.pal[BG_PENS | tilePen(bgColor, bp)];
+    }
+  }
+}
+
+// random pages, PROM, scroll (odd and negative), window start and sprite
+// pens over tiles stored by row; sprCols marks the native tile columns
+static void test_render_row(void) {
+  static uint32_t tiles[64][8];
+  static uint8_t fgPage[PAGE_BYTES], bgPage[PAGE_BYTES], prom[256];
+  static uint16_t pal[0x600];
+  uint16_t sel[16];
+
+  for (int round = 0; round < 400; round++) {
+    for (int t = 0; t < 64; t++) {
+      for (int c = 0; c < 8; c++) {
+        tiles[t][c] = t < 32 ? 0 : rnd() & rnd() & 0xffffff;
+      }
+    }
+    for (int i = 0; i < PAGE_BYTES; i++) {
+      fgPage[i] = rnd();
+      bgPage[i] = rnd();
+    }
+    for (int i = 0; i < 256; i++) {
+      prom[i] = rnd();
+      if ((round & 1) && (i & 3) == 3) {
+        prom[i] = (prom[i] & ~MIX_SOURCE) | 2;
+      }
+    }
+    for (int i = 0; i < 0x600; i++) {
+      pal[i] = rnd();
+    }
+    const bool clearShowsBg = buildMixSel(prom, sel);
+    const LineSrc f = {fgPage, bgPage, {tiles, MAP, 63, TILES_BY_ROW}, pal, sel, clearShowsBg,
+                       (int)(rnd() % 1024) - 512, (uint8_t)rnd()};
+    const int y = rnd() % VIS_LINES;
+    const bool full = round % 4 == 0;  // HUD rows render all 256 columns
+    const int x0 = full ? 0 : rnd() % 17;
+    const int n = full ? 256 : 240;
+    const uint32_t sprCols = rnd() & rnd();
+
+    uint16_t want[256] = {}, got[256] = {};
+    for (int i = 0; i < n; i++) {
+      if ((sprCols >> ((x0 + i) / TILE_SIZE)) & 1) {
+        want[i] = got[i] = (rnd() & 1) ? rnd() % 0x200 : 0;
+      }
+    }
+    referenceRow(f, prom, y, x0, n, want);
+    renderRow(f, y, x0, n, sprCols, got);
+    TEST_ASSERT_EQUAL_HEX16_ARRAY(want, got, n);
+  }
+}
+
+// ROT0 sprite line: pens clipped to the window, sprCols per native tile column
+static void test_sprite_row_clip(void) {
+  static uint8_t bank[SPRITE_BANK] = {};
+  bank[0x10] = 0x12;  // pixels 1, 2
+  bank[0x11] = 0x30;  // pixel 3, transparent 0
+  bank[0x12] = 0xff;  // end
+  Sprite s = {};
+  s.top = 5;
+  s.bottom = 6;
+  s.stride = 0;
+  s.addr = 0x10;
+  uint16_t out[240] = {};
+
+  // pixels at native x 6..9 (x 9 transparent), window starts at 7
+  const uint32_t cols = spriteRow(bank, s, 6, 0x20, 5, 7, 240, out);
+  TEST_ASSERT_EQUAL_HEX16(0x22, out[0]);  // x 7
+  TEST_ASSERT_EQUAL_HEX16(0x23, out[1]);  // x 8
+  TEST_ASSERT_EQUAL_HEX16(0, out[2]);     // x 9 transparent
+  TEST_ASSERT_EQUAL_HEX32(0x3, cols);     // tiles 0 (x 7) and 1 (x 8)
+
+  // right edge: native x 254..257, window 16..255 -> output 238, 239 only
+  memset(out, 0, sizeof(out));
+  const uint32_t right = spriteRow(bank, s, 254, 0x10, 5, 16, 240, out);
+  TEST_ASSERT_EQUAL_HEX16(0x11, out[238]);
+  TEST_ASSERT_EQUAL_HEX16(0x12, out[239]);
+  TEST_ASSERT_EQUAL_HEX32(1u << 31, right);
+
+  // line outside the sprite: nothing
+  memset(out, 0, sizeof(out));
+  TEST_ASSERT_EQUAL_HEX32(0, spriteRow(bank, s, 100, 0x10, 6, 0, 240, out));
+  TEST_ASSERT_EQUAL_HEX16(0, out[100]);
+}
+
+// player x 8..248 maps onto the window range, no player -> centered
+static void test_window_target(void) {
+  const Window w = {5, 10, 0, 24, 5};
+  TEST_ASSERT_EQUAL(7, windowTarget(w, NO_PLAYER));
+  TEST_ASSERT_EQUAL(5, windowTarget(w, 0));
+  TEST_ASSERT_EQUAL(5, windowTarget(w, 8));
+  TEST_ASSERT_EQUAL(10, windowTarget(w, 248));
+  TEST_ASSERT_EQUAL(10, windowTarget(w, 255));
+  for (int x = 1; x < 256; x++) {
+    TEST_ASSERT_TRUE(windowTarget(w, x) >= windowTarget(w, x - 1));
+  }
+  const Window fixed = {8, 8, NO_PLAYER, 0, 0};
+  TEST_ASSERT_EQUAL(8, windowTarget(fixed, 128));
+}
+
+// 1 px per frame toward the target: respawns and screen flips do not jump
+static void test_window_ease(void) {
+  TEST_ASSERT_EQUAL(6, easeWindow(5, 10));
+  TEST_ASSERT_EQUAL(9, easeWindow(10, 5));
+  TEST_ASSERT_EQUAL(7, easeWindow(7, 7));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_visarea_rows);
@@ -189,10 +337,15 @@ int main(int, char **) {
   RUN_TEST(test_tile_decode);
   RUN_TEST(test_mix_index);
   RUN_TEST(test_tile_pixel);
+  RUN_TEST(test_tile_pixel_layouts);
   RUN_TEST(test_decode_sprites);
   RUN_TEST(test_walk_row_forward);
   RUN_TEST(test_walk_row_mirrored);
   RUN_TEST(test_walk_row_unterminated);
   RUN_TEST(test_render_line);
+  RUN_TEST(test_render_row);
+  RUN_TEST(test_sprite_row_clip);
+  RUN_TEST(test_window_target);
+  RUN_TEST(test_window_ease);
   return UNITY_END();
 }
