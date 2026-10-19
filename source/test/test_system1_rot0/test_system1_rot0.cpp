@@ -9,12 +9,14 @@
 // machine's window. Needs the romconv headers (./convert.sh flicky pitfall2).
 // Machine state is private: this test opens it up. Arduino.h / FastLED.h /
 // esp_attr.h here are host stubs.
-#if __has_include("../../src/machines/flicky/flicky_main_rom.h")
-#define HAVE_FLICKY 1
+#if __has_include("../../src/machines/flicky/flicky_main_rom.h") && \
+    __has_include("../../src/machines/pitfall2/pitfall2_main_rom.h")
+#define HAVE_ROMS 1
 #define ENABLE_FLICKY
+#define ENABLE_PITFALL2
 #endif
 
-#ifdef HAVE_FLICKY
+#ifdef HAVE_ROMS
 #include "../../src/machines/system1/system1_collision.cpp"  // before Z80.h: its `word` macro
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
@@ -24,6 +26,7 @@
 #define protected public
 #include "../../src/machines/system1/system1.cpp"
 #include "../../src/machines/flicky/flicky.cpp"
+#include "../../src/machines/pitfall2/pitfall2.cpp"
 #undef private
 #undef protected
 
@@ -36,6 +39,7 @@ struct MameFrame {
 };
 
 #include "mame_flicky.h"
+#include "mame_pitfall2.h"
 
 using namespace system1_video;
 
@@ -72,11 +76,17 @@ static uint32_t crc32(const uint8_t *p, size_t n) {
   return ~c;
 }
 
-// Arena::init() before the ctor: it unpacks the ROMs
+// Arena ready before the ctor: it unpacks the ROMs. One Arena per process,
+// emptied for the next machine as main's switchTo() does.
 template <class M> static void boot() {
+  static bool arena = false;
   delete machine;
   machine = nullptr;
-  Arena::init();
+  if (!arena) {
+    Arena::init();
+    arena = true;
+  }
+  Arena::reset();
   machine = new M();
   machine->init(&input, frame_buffer, sprite_buf, memory);
   machine->reset();
@@ -122,15 +132,20 @@ static int compare(const MameFrame &f, int winX) {
     machine->render_row(strip);
     for (int l = 0; l < 8; l++) {
       const int y = strip * 8 + l - ROT0_FIRST_ROW;
-      const int w = y < machine->config.window.hudLines ? machine->config.window.hudX : winX;
       if (ppm) {
         dumpLine(ppm, y, &frame_buffer[l * ROT0_WIDTH]);
       }
+
+      // HUD lines mix fg at hudX with bg at winX: MAME has no such window
+      const bool hud = y < machine->config.window.hudLines;
+      if (hud && winX != machine->config.window.hudX) {
+        continue;
+      }
       const uint32_t got = crc32((const uint8_t *)&frame_buffer[l * ROT0_WIDTH],
                                  ROT0_WIDTH * sizeof(uint16_t));
-      if (got != f.crc[y][w]) {
+      if (got != f.crc[y][winX]) {
         if (bad == 0) {
-          printf("frame %u: first bad line %d (window %d)\n", f.frame, y, w);
+          printf("frame %u: first bad line %d (window %d)\n", f.frame, y, winX);
           fflush(stdout);
         }
         bad++;
@@ -155,12 +170,63 @@ static void test_flicky_frames(void) {
     TEST_ASSERT_EQUAL_MESSAGE(0, compare(f, 8), "flicky lines differ from MAME");
   }
 }
+
+// any window in 5..10 matches MAME (HUD lines checked at their own x 5)
+static void test_pitfall2_frames(void) {
+  boot<pitfall2>();
+  for (const MameFrame &f : MAME_PITFALL2) {
+    load(f);
+    TEST_ASSERT_EQUAL_MESSAGE(0, compare(f, 5), "pitfall2 lines differ from MAME (window 5)");
+    TEST_ASSERT_EQUAL_MESSAGE(0, compare(f, 10), "pitfall2 lines differ from MAME (window 10)");
+  }
+}
+
+// the window settles where Harry (sprite 0) puts it, 1 px per frame
+static void test_pitfall2_window_follows(void) {
+  boot<pitfall2>();
+  for (const MameFrame &f : MAME_PITFALL2) {
+    load(f);
+    const int px = machine->playerX();
+    TEST_ASSERT_TRUE(px >= 0);
+    for (int i = 0; i < 6; i++) {
+      machine->prepare_frame();
+    }
+    TEST_ASSERT_EQUAL(windowTarget(machine->config.window, px), machine->winX);
+  }
+}
+
+// boots the real ROM, coin + start, returns the peak |sample| of 1200 frames
+template <class M> static int audioPeak() {
+  boot<M>();
+  int peak = 0;
+  for (int frame = 0; frame < 1200; frame++) {
+    keys = frame >= 300 && frame < 310 ? BUTTON_COIN : 0;
+    keys |= frame >= 400 && frame < 410 ? BUTTON_START : 0;
+    machine->run_frame();
+    for (int c = 0; c < 6; c++) {
+      int16_t out[64];
+      machine->renderAudio(out, 64);
+      for (int i = 0; i < 64; i++) {
+        peak = abs(out[i]) > peak ? abs(out[i]) : peak;
+      }
+    }
+  }
+  keys = 0;
+  return peak;
+}
+
+static void test_flicky_audio(void) { TEST_ASSERT_GREATER_THAN(0, audioPeak<flicky>()); }
+static void test_pitfall2_audio(void) { TEST_ASSERT_GREATER_THAN(0, audioPeak<pitfall2>()); }
 #endif
 
 int main(int, char **) {
   UNITY_BEGIN();
-#ifdef HAVE_FLICKY
+#ifdef HAVE_ROMS
   RUN_TEST(test_flicky_frames);
+  RUN_TEST(test_pitfall2_frames);
+  RUN_TEST(test_pitfall2_window_follows);
+  RUN_TEST(test_flicky_audio);
+  RUN_TEST(test_pitfall2_audio);
 #endif
   return UNITY_END();
 }

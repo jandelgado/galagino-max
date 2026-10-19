@@ -194,5 +194,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Gorf (gorf.zip)               | ![Gorf marquee](/logos/gorf.png) | ![Gorf screenshot](/images/gorf.png) | Votrax SC-01 speech, needs votrsc01.zip. 320 rows merged into 288. FIRE=fire |
 | Solomon's Key (solomon.zip)   | ![Solomon's Key marquee](/logos/solomon.png) | ![Solomon's Key screenshot](/images/solomon.png) | FIRE=magic, START=fireball. 8 px cropped per side; build flag SOLOMON_SCALE drops every 16th column, SOLOMON_SCROLL moves the view with the player |
 | Flicky (flicky.zip)           | ![Flicky marquee](/logos/flicky.png) | ![Flicky screenshot](/images/flicky.png) | Sega System 1, unencrypted set flickys2. FIRE=jump |
+| Pitfall II (pitfall2u.zip)    | ![Pitfall II marquee](/logos/pitfall2.png) | ![Pitfall II screenshot](/images/pitfall2.png) | Sega System 1, unencrypted US set, needs parent pitfall2.zip. The view follows the player. FIRE=jump |
 
 ### ...

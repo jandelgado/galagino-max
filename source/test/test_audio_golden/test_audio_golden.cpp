@@ -49,9 +49,9 @@ static const uint32_t GOLDEN_AY_BOMBJACK = 0x432754b5;
 static const uint32_t GOLDEN_AY_GYRUSS = 0x4fbc7d26;
 static const uint32_t GOLDEN_AY_MOTORACE = 0xa43fe198;
 static const uint32_t GOLDEN_AY_FM_1943 = 0x23acec14;
-static const uint32_t GOLDEN_SN_MRDO = 0xa5e67bf0;
-static const uint32_t GOLDEN_SN_TP84 = 0xc6d3a787;
-static const uint32_t GOLDEN_SN_REGULUS = 0x0eba343a;
+static const uint32_t GOLDEN_SN_MRDO = 0x9b140038;    // 2026-10-16: exact 4 MHz
+static const uint32_t GOLDEN_SN_TP84 = 0xc7c6d55f;    // 2026-10-16: exact 2 MHz
+static const uint32_t GOLDEN_SN_REGULUS = 0x422c64d8; // 2026-10-16: exact 2 + 4 MHz
 static const uint32_t GOLDEN_SN_GBERET = 0x85b40557;
 static const uint32_t GOLDEN_NAMCO_PACMAN = 0x3807797a;
 static const uint32_t GOLDEN_NAMCO15XX_MAPPY = 0xdd0ba59e;
@@ -760,15 +760,32 @@ static int16_t peak(Sn76489 &sn) {
 static const uint8_t SN_LATCH = 0x80;
 static uint8_t snLatch(int ch, bool volume, uint8_t low) { return SN_LATCH | ch << 5 | (volume ? 0x10 : 0) | low; }
 
-// tone: latch carries bits 0-3, data byte bits 4-9; period 110 at inc 11
-// toggles every 10 samples
+// tone: latch carries bits 0-3, data byte bits 4-9; period 110 at 4 MHz
+// toggles every 10.56 samples
 static void test_sn_write_tone(void) {
   Sn76489 sn(Sn76489::INC_4MHZ);
   sn.write(snLatch(0, false, 110 & 0x0f));
   sn.write(110 >> 4);
   sn.write(snLatch(0, true, 0));  // volume 0 = loudest
-  TEST_ASSERT_INT_WITHIN(2, 10 * AUDIO_CHUNK / 10, toggles(sn, 10));  // 640 samples / 10
+  TEST_ASSERT_INT_WITHIN(2, 61, toggles(sn, 10));  // 640 samples / 10.56
 }
+
+// pitch: a tone of period p toggles at clock / 16 / p per second (MAME
+// sn76496). 100 chunks = 6400 samples; within 0.3 %, the chips of one board
+// (System 1: 2 + 4 MHz) must not drift apart
+static void snPitch(int inc, double clock) {
+  const int p = 100;
+  Sn76489 sn(inc);
+  sn.write(snLatch(0, false, p & 0x0f));
+  sn.write(p >> 4);
+  sn.write(snLatch(0, true, 0));
+  const double sampleRate = 24000.0;
+  const double want = 100.0 * AUDIO_CHUNK * clock / 16 / p / sampleRate;
+  TEST_ASSERT_INT_WITHIN((int)(want * 0.003) + 1, (int)(want + 0.5), toggles(sn, 100));
+}
+
+static void test_sn_pitch_4mhz(void) { snPitch(Sn76489::INC_4MHZ, 4000000.0); }
+static void test_sn_pitch_2mhz(void) { snPitch(Sn76489::INC_2MHZ, 2000000.0); }
 
 // volume: latch sets it; a data byte after a volume latch sets it too (MAME)
 static void test_sn_write_volume(void) {
@@ -867,6 +884,8 @@ int main(int, char **) {
   RUN_TEST(test_ym2203_no_fm);
   RUN_TEST(test_ym2203_init);
   RUN_TEST(test_sn_init);
+  RUN_TEST(test_sn_pitch_4mhz);
+  RUN_TEST(test_sn_pitch_2mhz);
   RUN_TEST(test_sn_write_tone);
   RUN_TEST(test_sn_write_volume);
   RUN_TEST(test_sn_write_noise_follows_tone2);

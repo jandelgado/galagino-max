@@ -24,10 +24,11 @@ public:
       return;
     }
 
-    // output mode: MAME data_write drops RDY and raises it again, so every
-    // write is an edge, even before the sound CPU acknowledged the last one
+    // output and bidirectional mode (Flicky, Pitfall II: port A mode 2):
+    // MAME data_write drops RDY and raises it again, so every write is an
+    // edge, even before the sound CPU acknowledged the last one
     port[index].out = v;
-    if (port[index].mode == MODE_OUTPUT) {
+    if (port[index].mode == MODE_OUTPUT || port[index].mode == MODE_BIDIRECTIONAL) {
       port[index].ready = false;
       raiseReady(index);
     }
@@ -59,6 +60,7 @@ private:
   static constexpr uint8_t CONTROL_SELECT = 0x02;
   static constexpr uint8_t MODE_OUTPUT = 0;
   static constexpr uint8_t MODE_INPUT = 1;
+  static constexpr uint8_t MODE_BIDIRECTIONAL = 2;
   static constexpr uint8_t MODE_BIT = 3;
   static constexpr uint8_t WORD_TYPE = 0x0f;
   static constexpr uint8_t WORD_MODE = 0x0f;       // mmxx1111
