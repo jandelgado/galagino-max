@@ -2,8 +2,8 @@
 
 Basis for a galagino remake: graphics, levels and music come from the ROM, the logic is
 reimplemented in C++ (no 68010 emulation). The game logic is ported from Marble Love
-(https://github.com/magno73/marble-love, MIT), a function-by-function TypeScript port of
-the arcade ROM, named by ROM address. Facts below were read from the disassembly
+(https://github.com/magno73/marble-love, MIT, notice in LICENSE-marble-love), a
+function-by-function TypeScript port of the arcade ROM, named by ROM address. Facts below were read from the disassembly
 (capstone, romconv/internal/marble/tools) unless marked otherwise.
 
 ## ROM (MAME `marble`, set 1, atari/atarisy1.cpp)
