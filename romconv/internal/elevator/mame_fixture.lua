@@ -1,11 +1,15 @@
--- MAME elevatorb autoboot: at each frame of FRAMES dump the video state of
+-- MAME Taito SJ (elevatorb, jungleh) autoboot: at each frame of FRAMES dump the video state of
 -- that frame and the one before (<frame>.txt, hex, one line each: tilemaps
 -- 1-3, colscroll, sprite RAM, palette, scroll, colorbank, video mode,
 -- priority), character RAM of the frame (third line), plus a snapshot.
 -- Attract mode only, no input.
 local shares = manager.machine.memory.shares
-local FRAMES = { [690] = true, [1200] = true, [1500] = true, [2100] = true }
-local LAST = 2100
+-- env FRAMES: comma separated frame numbers (default: elevatorb's)
+local FRAMES, LAST = {}, 0
+for n in (os.getenv("FRAMES") or "690,1200,1500,2100"):gmatch("%d+") do
+  FRAMES[tonumber(n)] = true
+  LAST = math.max(LAST, tonumber(n))
+end
 
 local function hex(name, n)
   local s = shares[":" .. name]

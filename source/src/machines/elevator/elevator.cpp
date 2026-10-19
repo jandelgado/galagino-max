@@ -37,6 +37,7 @@ static constexpr uint8_t BANK_SEL = 0x80;
 static constexpr uint8_t MODE_SPR_PAGE = 0x04;   // sprite RAM d180 page
 static constexpr uint8_t MODE_LAYER1 = 0x10;     // 0x20, 0x40: tilemaps 2, 3
 static constexpr uint8_t MODE_SPRITES = 0x80;
+static constexpr uint8_t MODE_FLIP_XY = 0x03;
 
 // video geometry (MAME taitosj_v.cpp)
 static constexpr uint8_t FIRST_ROW = 4, LAST_ROW = 32;  // panel strips of lines 16..239
@@ -545,6 +546,7 @@ void elevator::prepare_frame(void) {
   for (uint8_t i = 0; i < PENS; i++) {
     palette[i] = pen(video.pal[2 * i], video.pal[2 * i + 1]);
   }
+  turned = variant.orientation == ROT180 && (video.mode & MODE_FLIP_XY) == MODE_FLIP_XY;
   prepareSprites();
 }
 
@@ -568,9 +570,11 @@ void elevator::prepareSprites(void) {
       continue;
     }
 
+    // turned: MAME draws at 238 - x, 242 - y, flipped, then the ROT180
+    // screen turns it back: x + 2, y - 2
     sprite_S &d = sprite[active_sprites++];
-    d.x = (uint8_t)(s[0] - 1);
-    d.y = sy;
+    d.x = (uint8_t)(s[0] - 1 + (turned ? 2 : 0));
+    d.y = (uint8_t)(sy - (turned ? 2 : 0));
     d.code = s[3] & 0x3f;
     d.flags = (s[3] & 0x40) ? 1 : 0;   // character RAM bank
     d.color = 2 * ((video.colorbank[1] >> 4) & 3) + ((s[2] >> 2) & 1);
@@ -584,14 +588,17 @@ static inline uint32_t charRow(const uint8_t *c) {
 }
 
 // tilemap w on native lines y0..y0+7: source column c lands at native x
-// 8c + scrollx, its lines move by colscroll[c] + scrolly (MAME copy_layer)
+// 8c + scrollx, its lines move by colscroll[c] + scrolly (MAME copy_layer).
+// turned: MAME's flipped scroll x, seen through the ROT180 screen, has the
+// fine scroll and fudge negated; y is the same.
 void IRAM_ATTR elevator::drawLayer(uint8_t w, uint8_t y0) {
   static const int8_t FUDGE1[LAYERS] = {3, 1, -1};
   static const int8_t FUDGE2[LAYERS] = {8, 10, 12};
 
   const uint8_t sx = video.scroll[2 * w];
   const uint8_t sy = video.scroll[2 * w + 1];
-  const int scrollx = -(sx & 0xf8) + ((sx + FUDGE1[w]) & 7) + FUDGE2[w];
+  const int fine = ((sx + FUDGE1[w]) & 7) + FUDGE2[w];
+  const int scrollx = -(sx & 0xf8) + (turned ? -fine : fine);
   const uint8_t cb = w == 2 ? video.colorbank[1] : video.colorbank[0] >> (4 * w);
   const uint8_t *chars = charram + ((cb & 0x08) ? CHAR_BANK : 0);
   const uint16_t *pal = &palette[8 * (cb & 7)];
@@ -670,15 +677,17 @@ void IRAM_ATTR elevator::drawSprites(uint8_t y0) {
   }
 }
 
-// strips 4..31 = native lines 16..239, back to front per the priority PROM
-// ROT180: panel strip row shows native strip FIRST_ROW + LAST_ROW - 1 - row
-// turned 180 degrees; reversing the whole strip buffer turns it (the crop
-// is symmetric, native x 8..247)
+// strips 4..31 = native lines 16..239, back to front per the priority PROM.
+// ROT180 screen: the game sets flip x+y in play (turned), MAME draws the
+// flipped picture and the screen turns it upright again: drawn like ROT0
+// with turned offsets. Without flip, panel strip row shows native strip
+// FIRST_ROW + LAST_ROW - 1 - row turned 180 degrees; reversing the whole
+// strip buffer turns it (the crop is symmetric, native x 8..247).
 void IRAM_ATTR elevator::render_row(short row) {
   if (row < FIRST_ROW || row >= LAST_ROW) {
     return;
   }
-  if (variant.orientation == ROT0) {
+  if (variant.orientation == ROT0 || turned) {
     renderStrip(row);
     return;
   }

@@ -132,6 +132,7 @@ private:
   Seqlock<VideoState> vblank;
   VideoState video = {};
   uint16_t palette[PENS];
+  bool turned = false;  // ROT180 game with flip x+y set: video core
 
   void publishVideo(void);
   void prepareSprites(void);
