@@ -61,7 +61,7 @@ static void test_title_level(void) {
   TEST_ASSERT_EQUAL_HEX32(MARBLE_ATT_FIX_MAP_CRC, crc32(map, info.rows * 36 * 2));
   TEST_ASSERT_EQUAL_HEX32(MARBLE_ATT_FIX_TILES_CRC, crc32(tiles, info.tiles * 64));
   TEST_ASSERT_EQUAL_HEX32(MARBLE_ATT_FIX_PAL_CRC,
-                          crc32(marble_pf_palette[MARBLE_TITLE_LEVEL], 32 * 2));
+                          crc32(marble_pf_palette()[MARBLE_TITLE_LEVEL], 32 * 2));
 }
 
 // particle colours: title sets 0/1 (palette set 0), palette fill variants of 0x26cfa;
@@ -74,7 +74,7 @@ static void test_particle_data(void) {
   TEST_ASSERT_NOT_EQUAL(0xff, marble_mo_code_first[1]);
   TEST_ASSERT_NOT_EQUAL(0xff, marble_mo_code_first[3]);
   TEST_ASSERT_EQUAL_HEX32(MARBLE_ATT_FIX_PART_TILES_CRC,
-                          crc32(marble_mo_tiles[marble_mo_code_first[1]], 4 * 64));
+                          crc32(marble_mo_tiles()[marble_mo_code_first[1]], 4 * 64));
 }
 
 using marble_physics::Mem;
@@ -160,8 +160,8 @@ static void test_defaults_once(void) {
 
 // title strings and the '#' of the table ranks have glyphs
 static void test_title_glyphs(void) {
-  TEST_ASSERT_NOT_EQUAL(MARBLE_HUD_NO_GLYPH, marble_hud_glyph['#']);
-  TEST_ASSERT_NOT_EQUAL(MARBLE_HUD_NO_GLYPH, marble_hud_glyph['@']);
+  TEST_ASSERT_NOT_EQUAL(MARBLE_HUD_NO_GLYPH, marble_hud_glyph()['#']);
+  TEST_ASSERT_NOT_EQUAL(MARBLE_HUD_NO_GLYPH, marble_hud_glyph()['@']);
   TEST_ASSERT_EQUAL_STRING("TROUBLEMAKERS", marble_s_trouble);
 }
 #endif

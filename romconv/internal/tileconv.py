@@ -194,7 +194,7 @@ def parse_tile_1942(b0,b1,b2):
     # show_chr_3bpp(tile)
     return tile
     
-def parse_tilemap_1942(id, files, outname, compress=False, split=0):
+def parse_tilemap_1942(id, files, outname, compress=False, split=0, plain=False):
     # in 1942 the tiles use 3 bit color indices with one bit in a serperate file each
     data = [ [],[],[] ]
     for fidx in range(len(files)):
@@ -222,8 +222,12 @@ def parse_tilemap_1942(id, files, outname, compress=False, split=0):
     tiles_str = [dump_tile_1942(t) for t in tiles]
     if split:
         # two assets <id>_a (tiles 0..split-1), <id>_b (the rest): each fits
-        # one Arena block
+        # one Arena block, or part a stays in flash (plain)
         for part, chunk in (("a", tiles_str[:split]), ("b", tiles_str[split:])):
+            if plain and part == "a":
+                body = ",\n".join(" { " + t + " }" for t in chunk)
+                emit_plain(f, f"{id}_{part}", "uint32_t", "[32]", len(chunk), body)
+                continue
             flat = [int(v, 16) for t in chunk for v in t.split(",")]
             emit_compressed(f, f"{id}_{part}", "uint32_t", "[32]", len(chunk), flat)
     elif compress:
@@ -398,7 +402,7 @@ def parse_charmap_bagman(id, innames, outname, compress=False):
     f.close()
 
 # -c: compress, -p: 1942 format chars PLAIN, -s N: 1942 tiles as two
-# compressed assets split at tile N
+# compressed assets split at tile N (-p -s N: tiles 0..N-1 PLAIN)
 args = sys.argv[1:]
 compress = False
 plain = False
@@ -414,7 +418,7 @@ while args and args[0] in ("-c", "-p", "-s"):
 
 if len(args) == 8:
     # 6 files are 1942 tiles which have a very different format
-    parse_tilemap_1942(args[0], (args[1:3], args[3:5], args[5:7]), args[7], compress, split)
+    parse_tilemap_1942(args[0], (args[1:3], args[3:5], args[5:7]), args[7], compress, split, plain)
 elif len(args) == 3:
     parse_charmap(args[0], args[1], args[2], compress, plain)
 elif len(args) == 4:

@@ -24,7 +24,6 @@ struct Mo {
 };
 static const Mo MARBLE_MOS[] = {{0x05, 0, 0, 2}, {0x03, 8, 0, 2}, {0x07, 0, 3, 1}};
 static const int16_t MARBLE_H = 16;
-static const uint8_t MO_TILES = sizeof(marble_mo_tiles) / sizeof(marble_mo_tiles[0]);
 
 inline uint8_t reverse8(uint8_t b) {
   b = (uint8_t)((b >> 4) | (b << 4));
@@ -37,6 +36,7 @@ inline uint8_t reverse8(uint8_t b) {
 // past MASKS are never read.
 uint8_t hide8(const VideoState &v, uint8_t first, uint8_t n, int ly, int lx) {
   const int end = first + n < MASKS ? first + n : MASKS;
+  const uint8_t (*tiles)[8] = marble_mask_tiles();
   uint8_t hide = 0;
   for (int i = first; i < end; i++) {
     const Mask &e = v.masks[i];
@@ -45,7 +45,7 @@ uint8_t hide8(const VideoState &v, uint8_t first, uint8_t n, int ly, int lx) {
     if (r < 0 || r >= (((e.code >> 11) & 7) + 1) * 8 || s <= -8 || s >= 8) { continue; }
     const uint16_t t = marble_mask_index((e.code & 0x7ff) + (r >> 3));
     if (t == 0xffff) { continue; }
-    uint8_t b = marble_mask_tiles[t][r & 7];
+    uint8_t b = tiles[t][r & 7];
     if (e.code & 0x8000) { b = reverse8(b); }
     hide |= s >= 0 ? b >> s : (uint8_t)(b << -s);
   }
@@ -60,10 +60,10 @@ void drawMarble(const VideoState &v, int y, uint16_t *dst) {
     const int ty = y - v.my - o.dy;
     if (ty < 0 || ty >= o.h * 8 || o.code >= MARBLE_MO_CODES) { continue; }
     const uint8_t first = marble_mo_code_first[o.code];
-    if (first == 0xff || first + o.h > MO_TILES) { continue; }
+    if (first == 0xff || first + o.h > MARBLE_MO_TILES) { continue; }
 
     const uint8_t hide = hide8(v, v.mask, v.nmask, y - v.my, o.dx);
-    const uint8_t *px = marble_mo_tiles[first + (ty >> 3)] + (ty & 7) * 8;
+    const uint8_t *px = marble_mo_tiles()[first + (ty >> 3)] + (ty & 7) * 8;
     const int x0 = v.mx + o.dx - v.sx;
     for (int k = 0; k < 8; k++) {
       const int x = x0 + k;
@@ -88,7 +88,7 @@ void drawPart(const VideoState &v, const Part &p, int y0, uint16_t *strip) {
 
     uint16_t *dst = strip + line * OUT_W;
     for (uint8_t h = 0; h < 2; h++) {
-      const uint8_t *px = marble_mo_tiles[marble_mo_code_first[HALVES[h]] + (ty >> 3)] + (ty & 7) * 8;
+      const uint8_t *px = marble_mo_tiles()[marble_mo_code_first[HALVES[h]] + (ty >> 3)] + (ty & 7) * 8;
       const int x0 = p.x + h * 8;
       for (int k = 0; k < 8; k++) {
         const int x = x0 + k;
@@ -174,9 +174,10 @@ void drawObj(const Level &l, const VideoState &v, const Obj &o, int y0, uint16_t
     return;
   }
   if (o.frame >= s.nframes) { return; }
-  const MarbleSpriteFrame &f = s.frames[o.frame];
+  const MarbleSpriteFrame &f = s.frames()[o.frame];
+  const MarbleSpriteCol *cols = s.cols() + f.first;
   for (uint8_t c = 0; c < f.ncols; c++) {
-    drawCol(l, v, o, s.cols[f.first + c], s.ntiles, p, y0, dst);
+    drawCol(l, v, o, cols[c], s.ntiles, p, y0, dst);
   }
 }
 

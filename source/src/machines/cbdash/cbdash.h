@@ -18,7 +18,7 @@ class cbdash : public machineBase {
   Asset<unsigned char, COMPRESSED> cbdash_rom_sound;
   Asset<unsigned char, COMPRESSED> cbdash_rom_bios;
   Asset<unsigned char, COMPRESSED> cbdash_rom_audio;
-  Asset<unsigned char, PLAIN> cbdash_sid;
+  Asset<unsigned char, COMPRESSED> cbdash_sid;
 
 public:
   cbdash();

@@ -38,8 +38,8 @@ inline int16_t s16(uint32_t v) { return (int16_t)v; }
 
 [[noreturn]] void fail(const char *what, uint32_t addr);
 
-// Unpacks the program ROM blocks to the Arena and reserves the terrain buffer. Once per
-// machine instance, before the first Mem: the buffers die with the Arena.
+// Unpacks the program ROM blocks and marble_tables to the Arena and reserves the terrain
+// buffer. Once per machine instance, before the first Mem: the buffers die with the Arena.
 void loadRom();
 
 class Mem {

@@ -157,9 +157,9 @@ static void test_masks_hide_marble(void) {
 static void refFrame(const marble_level::Level &l, const marble_video::VideoState &v,
                      uint16_t *img) {
   const MarbleSpriteSet &s = marble_sprites[marble_sprite_race[0]];
-  const MarbleSpriteFrame &f = s.frames[v.objs[0].frame];
+  const MarbleSpriteFrame &f = s.frames()[v.objs[0].frame];
   for (uint8_t c = 0; c < f.ncols; c++) {
-    const MarbleSpriteCol &col = s.cols[f.first + c];
+    const MarbleSpriteCol &col = s.cols()[f.first + c];
     for (int t = 0; t < (col.h & 0x7f); t++) {
       for (int ty = 0; ty < 8; ty++) {
         for (int k = 0; k < 8; k++) {
@@ -243,7 +243,7 @@ static bool masked(const marble_video::VideoState &v, const marble_video::Obj &o
     if (c < 0 || c >= 8 || r < 0 || r >= (((e.code >> 11) & 7) + 1) * 8) continue;
     const uint16_t t = marble_mask_index((e.code & 0x7ff) + r / 8);
     if (t == 0xffff) continue;
-    const uint8_t b = marble_mask_tiles[t][r % 8];
+    const uint8_t b = marble_mask_tiles()[t][r % 8];
     if ((e.code & HFLIP) ? (b >> c) & 1 : (b >> (7 - c)) & 1) return true;
   }
   return false;
@@ -262,9 +262,9 @@ static void refObj(const marble_level::Level &l, const marble_video::VideoState 
                                 : marble_sprite_pal[v.level][row];
   const MarbleSpriteCol star = {0, 0, 1, (uint16_t)(MARBLE_STAR_TILE + o.frame)};
   const bool isStar = death && (o.set & SET_STAR);
-  const uint8_t ncols = isStar ? 1 : s.frames[o.frame].ncols;
+  const uint8_t ncols = isStar ? 1 : s.frames()[o.frame].ncols;
   for (uint8_t c = 0; c < ncols; c++) {
-    const MarbleSpriteCol &col = isStar ? star : s.cols[s.frames[o.frame].first + c];
+    const MarbleSpriteCol &col = isStar ? star : s.cols()[s.frames()[o.frame].first + c];
     for (int t = 0; t < (col.h & 0x7f); t++) {
       for (int ty = 0; ty < 8; ty++) {
         for (int k = 0; k < 8; k++) {
@@ -322,7 +322,7 @@ static void test_object_masks(void) {
   const marble_level::Level l =
       guardedLevel(store.load(0), marble_sprites[marble_sprite_race[0]].ntiles);
   const MarbleSpriteSet &set = marble_sprites[marble_sprite_race[0]];
-  const MarbleSpriteCol &c0 = set.cols[set.frames[0].first];
+  const MarbleSpriteCol &c0 = set.cols()[set.frames()[0].first];
   uint32_t crc = 0;
   for (int16_t x : EDGE_X) {
     for (int16_t y : EDGE_Y) {
@@ -356,7 +356,7 @@ static void test_mask_pool(void) {
   using namespace marble_video;
   const marble_level::Level &l = store.load(0);
   const MarbleSpriteSet &set = marble_sprites[marble_sprite_race[0]];
-  const MarbleSpriteCol &c0 = set.cols[set.frames[0].first];
+  const MarbleSpriteCol &c0 = set.cols()[set.frames()[0].first];
   TEST_ASSERT_EQUAL_PTR((const void *)&((VideoState *)nullptr)->objs[0],
                         (const void *)&((VideoState *)nullptr)->masks[MASKS]);
 
@@ -409,9 +409,9 @@ static void test_death_edges(void) {
   const MarbleSpriteSet &s = marble_death_set;
   uint8_t big = MARBLE_DEATH_FIRST;  // player death frame with the most columns
   for (uint8_t f = MARBLE_DEATH_FIRST; f < PLAYER_END; f++) {
-    if (s.frames[f].ncols > s.frames[big].ncols) big = f;
+    if (s.frames()[f].ncols > s.frames()[big].ncols) big = f;
   }
-  const MarbleSpriteCol &c0 = s.cols[s.frames[big].first];
+  const MarbleSpriteCol &c0 = s.cols()[s.frames()[big].first];
   uint32_t crc = 0;
   for (int16_t x : EDGE_X) {
     for (int16_t y : EDGE_Y) {
@@ -453,13 +453,13 @@ static void test_steelie_edges(void) {
   const marble_level::Level l = guardedLevel(store.load(RACE), rs.ntiles);
   uint8_t steelie = 0xff;
   for (uint8_t f = 0; f < rs.nhdr; f++) {
-    if (FRAMES_BASE + 2 * (uint32_t)rs.addr[f] == STEELIE_FRAME) steelie = f;
+    if (FRAMES_BASE + 2 * (uint32_t)rs.addr()[f] == STEELIE_FRAME) steelie = f;
   }
   TEST_ASSERT_NOT_EQUAL(0xff, steelie);
   const MarbleSpriteSet &ds = marble_death_set;
   uint8_t big = MARBLE_DEATH_FIRST;
   for (uint8_t f = MARBLE_DEATH_FIRST; f < PLAYER_END; f++) {
-    if (ds.frames[f].ncols > ds.frames[big].ncols) big = f;
+    if (ds.frames()[f].ncols > ds.frames()[big].ncols) big = f;
   }
   uint32_t crc = 0;
   for (int16_t x : EDGE_X) {
@@ -475,7 +475,7 @@ static void test_steelie_edges(void) {
       v.objs[1] = {big, SET_DEATH | SET_RACE5, ox, oy, 1, 1};
       v.objs[2] = {(uint8_t)(PLAYER_END - 1), SET_DEATH | SET_SHARDS, ox, oy, 0, 0};
       v.masks[0] = {FULL_MASK, -8, -8};
-      v.masks[1] = {FULL_MASK, ds.cols[ds.frames[big].first].x, ds.cols[ds.frames[big].first].y};
+      v.masks[1] = {FULL_MASK, ds.cols()[ds.frames()[big].first].x, ds.cols()[ds.frames()[big].first].y};
       crc = crc32((const uint8_t *)&crc, sizeof(crc), checkRef(l, v));
     }
   }
@@ -495,9 +495,9 @@ static void test_slinky_edges(void) {
   const uint8_t end = marble_physics::deathFrame(SLINKY_LAST_HDR) + 1;  // minis after
   uint8_t big = first;
   for (uint8_t f = first; f < end; f++) {
-    if (ds.frames[f].ncols > ds.frames[big].ncols) big = f;
+    if (ds.frames()[f].ncols > ds.frames()[big].ncols) big = f;
   }
-  const MarbleSpriteCol &c0 = ds.cols[ds.frames[big].first];
+  const MarbleSpriteCol &c0 = ds.cols()[ds.frames()[big].first];
   uint32_t crc = 0;
   for (int16_t x : EDGE_X) {
     for (int16_t y : EDGE_Y) {
@@ -528,7 +528,7 @@ static void test_acid_edges(void) {
   const uint8_t end = marble_physics::deathFrame(ACID_LAST_HDR) + 1;  // minis after
   uint8_t big = PLAYER_END;
   for (uint8_t f = PLAYER_END; f < end; f++) {
-    if (ds.frames[f].ncols > ds.frames[big].ncols) big = f;
+    if (ds.frames()[f].ncols > ds.frames()[big].ncols) big = f;
   }
   uint32_t crc = 0;
   for (int16_t x : EDGE_X) {
@@ -559,9 +559,9 @@ static void test_bird_edges(void) {
   const uint8_t first = marble_physics::deathFrame(BIRD_FIRST_HDR);  // the last enemy frames
   uint8_t big = first;
   for (uint8_t f = first; f < ds.nframes; f++) {
-    if (ds.frames[f].ncols > ds.frames[big].ncols) big = f;
+    if (ds.frames()[f].ncols > ds.frames()[big].ncols) big = f;
   }
-  const MarbleSpriteCol &c0 = ds.cols[ds.frames[big].first];
+  const MarbleSpriteCol &c0 = ds.cols()[ds.frames()[big].first];
   uint32_t crc = 0;
   for (int16_t x : EDGE_X) {
     for (int16_t y : EDGE_Y) {
@@ -683,7 +683,7 @@ static void test_shade_colour(void) {
   const MarbleSpriteSet &set = marble_sprites[marble_sprite_race[2]];
   uint8_t frame = 0xff;
   for (uint8_t f = set.nhdr; f < set.nframes && frame == 0xff; f++) {
-    if (set.frames[f].ncols) frame = f;
+    if (set.frames()[f].ncols) frame = f;
   }
   TEST_ASSERT_NOT_EQUAL(0xff, frame);
   int lit[3] = {};

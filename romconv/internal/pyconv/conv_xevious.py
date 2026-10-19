@@ -10,6 +10,6 @@ run_in_workdir("xevious_rom_convert.py")
 
 info("Namco 54xx ROM (ships in galaga.zip, shared with Galaga)")
 run("internal/unpack.py", "galaga.zip")
-run("internal/romconv.py", "namco54_rom", "./roms/54xx.bin", "../source/src/machines/namco54/namco54_rom.h")
+run("internal/romconv.py", "-c", "namco54_rom", "./roms/54xx.bin", "../source/src/machines/namco54/namco54_rom.h")
 
 info("--- Success ---")

@@ -39,7 +39,7 @@ static inline unsigned short xy_swap(unsigned short local_offset) {
   return 32 * y + x;
 }
 
-// Unpack eagerly, largest first: only this order fits Arena's two blocks.
+// Unpack eagerly, largest first: not every order fits Arena's two blocks.
 // In start(), not ctor: bnj inherits the ctor but replaces start().
 void burgertime::start() {
   burgertime_chartiles.data();

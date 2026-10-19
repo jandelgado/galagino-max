@@ -6,7 +6,7 @@
 #include "bombjack_fg_tiles.h"
 #include "bombjack_sprites.h"
 
-// Unpack eagerly, largest first: only this order fits Arena's two blocks.
+// Unpack eagerly, largest first: not every order fits Arena's two blocks.
 // Also caches the pointers the hot paths read (see bombjack.h).
 bombjack::bombjack()
   : bombjack_bg_maps(bombjack_bg_maps_blob),
@@ -33,7 +33,7 @@ unsigned char bombjack::opZ80(unsigned short Addr) {
   if (current_cpu == 0)
     return rom_cpu1_ptr[Addr];
   else
-    return rom_cpu2_ptr[Addr];
+    return Addr < AUDIO_ROM_SIZE ? rom_cpu2_ptr[Addr] : 0xFF;
 }
 
 unsigned char bombjack::rdZ80(unsigned short Addr) {
@@ -97,7 +97,7 @@ unsigned char bombjack::rdZ80(unsigned short Addr) {
 
     // --- Audio CPU Read Logic ---
     // Handle ROM reads
-    if (Addr <= 0x3FFF) { return rom_cpu2_ptr[Addr]; }
+    if (Addr < AUDIO_ROM_SIZE) { return rom_cpu2_ptr[Addr]; }
 
     // Handle RAM reads
     if (Addr >= 0x4000 && Addr <= 0x47FF) { return memory[(Addr - 0x4000 + 0x1000 + 0x400 + 0x400 + 0x80 + 2)]; }

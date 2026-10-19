@@ -1,6 +1,6 @@
 #include "1942.h"
 
-// Unpack eagerly, largest first: only this order fits Arena's two blocks.
+// Unpack eagerly, largest first: not every order fits Arena's two blocks.
 _1942::_1942()
   : _1942_charmap(_1942_charmap_blob),
     _1942_rom_cpu1(_1942_rom_cpu1_blob),

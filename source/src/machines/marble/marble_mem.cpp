@@ -8,6 +8,8 @@
 #include "../../emulation/asset.h"
 #include "marble_rom.h"
 
+const uint8_t *marble_tables = nullptr;  // loadRom(): marble_tables_blob in the Arena
+
 namespace marble_physics {
 
 static const uint8_t RACES = 6;
@@ -29,6 +31,11 @@ void loadRom() {
   const Asset<unsigned char, COMPRESSED> p(marble_prog_blob);
   prog = Arena::alloc<uint8_t>(p.size());
   p.decodeInto(prog);
+
+  const Asset<unsigned char, COMPRESSED> t(marble_tables_blob);
+  uint8_t *tables = Arena::alloc(t.size(), alignof(uint16_t));
+  t.decodeInto(tables);
+  marble_tables = tables;
 
   terrainBuf = Arena::alloc(MARBLE_TERRAIN_MAX, alignof(uint16_t));
   loadedRace = NO_RACE;
@@ -76,7 +83,7 @@ int16_t Mem::edgeFrom(uint8_t col, uint8_t d) const {
   if (col >= 36 || ult % 0x90 || frame >= terrain->nedges) { fail("terrain edges", ult); }
 
   // ascending list ending in maxd - 1: the scan stops there for d < maxd
-  const uint8_t *p = marble_edge_lists + terrain->edges[36 * frame + col];
+  const uint8_t *p = marble_edge_lists() + terrain->edges()[36 * frame + col];
   while (*p < d) { p++; }
   return *p;
 }
@@ -90,12 +97,13 @@ const MarbleSpriteSet &spriteSet(uint8_t level) {
 static uint8_t frameOf(const MarbleSpriteSet &s, uint32_t hdr, const char *what) {
   static const uint32_t FRAMES_BASE = 0x20000;  // frame headers: 0x20000 + addr * 2
   const uint32_t key = (hdr - FRAMES_BASE) >> 1;
+  const uint16_t *addr = s.addr();
   uint8_t lo = 0, hi = s.nhdr;
   while (lo < hi) {
     const uint8_t mid = (lo + hi) / 2;
-    if (s.addr[mid] < key) { lo = mid + 1; } else { hi = mid; }
+    if (addr[mid] < key) { lo = mid + 1; } else { hi = mid; }
   }
-  if (hdr < FRAMES_BASE || lo == s.nhdr || s.addr[lo] != key) { fail(what, hdr); }
+  if (hdr < FRAMES_BASE || lo == s.nhdr || addr[lo] != key) { fail(what, hdr); }
   return lo;
 }
 
@@ -110,7 +118,7 @@ uint8_t deathFrame(uint32_t hdr) { return frameOf(marble_death_set, hdr, "death 
 int16_t Mem::stripFrame(int16_t i) const {
   static const uint8_t STRIP_N = 23;
   const MarbleSpriteSet &s = spriteSet(rw(RACE));
-  if (i < 0 || i >= STRIP_N || s.nhdr + i >= s.nframes || !s.frames[s.nhdr + i].ncols) { return -1; }
+  if (i < 0 || i >= STRIP_N || s.nhdr + i >= s.nframes || !s.frames()[s.nhdr + i].ncols) { return -1; }
   return s.nhdr + i;
 }
 
@@ -134,13 +142,13 @@ uint16_t Mem::vertexCode(int16_t d, int16_t f) const {
     idx = ((p[0] << 8 | p[1]) >> (6 - 10 * f % 8)) & 0x3ff;
   }
   if (idx >= terrain->ncodes) { fail("terrain code index", idx); }
-  return terrain->codes[idx];
+  return terrain->codes()[idx];
 }
 
 uint8_t Mem::record(uint16_t code, uint8_t q) const {
   const uint32_t i = (uint32_t)code + q;
   if (i >= terrain->nrecords) { fail("terrain record", i); }
-  return terrain->records[i];
+  return terrain->records()[i];
 }
 
 }  // namespace marble_physics

@@ -33,7 +33,7 @@ const Level &Store::load(uint8_t n) {
     sprSet = set;
   }
   race = n;
-  level = {marble_levels[n].rows, marble_levels[n].tiles, map, pixels, marble_pf_palette[n],
+  level = {marble_levels[n].rows, marble_levels[n].tiles, map, pixels, marble_pf_palette()[n],
            sprites};
   return level;
 }

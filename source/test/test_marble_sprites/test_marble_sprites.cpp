@@ -61,11 +61,11 @@ static void test_tiles_decode(void) {
 static void test_frames_in_range(void) {
   for (uint8_t k = 0; k < sizeof(marble_sprite_tiles) / sizeof(marble_sprite_tiles[0]); k++) {
     const MarbleSpriteSet &s = marble_sprites[k];
-    for (uint8_t i = 1; i < s.nhdr; i++) { TEST_ASSERT_TRUE(s.addr[i - 1] < s.addr[i]); }
+    for (uint8_t i = 1; i < s.nhdr; i++) { TEST_ASSERT_TRUE(s.addr()[i - 1] < s.addr()[i]); }
     for (uint8_t f = 0; f < s.nframes; f++) {
-      const MarbleSpriteFrame &fr = s.frames[f];
+      const MarbleSpriteFrame &fr = s.frames()[f];
       for (uint8_t c = 0; c < fr.ncols; c++) {
-        const MarbleSpriteCol &col = s.cols[fr.first + c];
+        const MarbleSpriteCol &col = s.cols()[fr.first + c];
         TEST_ASSERT_TRUE((col.h & 0x7f) >= 1);
         TEST_ASSERT_TRUE(col.tile >= MARBLE_DEATH_TILES);
         TEST_ASSERT_TRUE(col.tile + (col.h & 0x7f) <= s.ntiles);
@@ -90,12 +90,12 @@ static void test_death_set(void) {
     TEST_ASSERT_TRUE((buf[i] >> 4) < PENS && (buf[i] & 15) < PENS);
   }
 
-  for (uint8_t i = 1; i < s.nhdr; i++) { TEST_ASSERT_TRUE(s.addr[i - 1] < s.addr[i]); }
+  for (uint8_t i = 1; i < s.nhdr; i++) { TEST_ASSERT_TRUE(s.addr()[i - 1] < s.addr()[i]); }
   for (uint8_t f = 0; f < s.nframes; f++) {
-    const MarbleSpriteFrame &fr = s.frames[f];
+    const MarbleSpriteFrame &fr = s.frames()[f];
     TEST_ASSERT_TRUE(fr.ncols > 0);
     for (uint8_t c = 0; c < fr.ncols; c++) {
-      const MarbleSpriteCol &col = s.cols[fr.first + c];
+      const MarbleSpriteCol &col = s.cols()[fr.first + c];
       TEST_ASSERT_TRUE((col.h & 0x7f) >= 1);
       TEST_ASSERT_TRUE(col.tile + (col.h & 0x7f) <= s.ntiles);
     }
@@ -108,7 +108,7 @@ static void test_death_set(void) {
       const uint32_t hdrs[2] = {seg.ticks[t].frame_hdr, seg.ticks[t].shard_hdr};
       for (uint32_t h : hdrs) {
         if (!h) { continue; }
-        TEST_ASSERT_EQUAL_UINT16((h - FRAMES_BASE) >> 1, s.addr[marble_physics::deathFrame(h)]);
+        TEST_ASSERT_EQUAL_UINT16((h - FRAMES_BASE) >> 1, s.addr()[marble_physics::deathFrame(h)]);
         drawn++;
       }
     }
@@ -128,7 +128,7 @@ static void test_published_objects(void) {
       for (uint8_t i = 0; i < tk.n; i++) {
         const MarbleSprObj &o = seg.objs[tk.first + i];
         TEST_ASSERT_TRUE(o.frame < set.nframes);
-        TEST_ASSERT_TRUE(set.frames[o.frame].ncols > 0);
+        TEST_ASSERT_TRUE(set.frames()[o.frame].ncols > 0);
         TEST_ASSERT_TRUE((o.set == SET_SHADE) == (o.frame >= set.nhdr));
         TEST_ASSERT_TRUE(o.set == SET_SHADE || o.set == 3 || o.set == 5 || o.set == 6 ||
                          o.set == 7);

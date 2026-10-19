@@ -23,7 +23,7 @@ def main():
         for name in ("shot", "invhit"):
             with open(os.path.join(SAMPLES_DIR, f"invaders_{name}.s8"), "rb") as s8:
                 pcm = np.frombuffer(s8.read(), dtype=np.int8)
-            size = emit_adpcm(f, f"si_sample_{name}", pcm)
+            size = emit_adpcm(f, f"si_sample_{name}", pcm, compress=True)
             f.write("\n")
             print(f"  si_sample_{name}: {len(pcm)} -> {size} bytes")
 

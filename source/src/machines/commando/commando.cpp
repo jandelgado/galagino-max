@@ -74,18 +74,18 @@ commando::commando()
     commando_tiles_b(commando_tiles_b_blob),
     commando_sid(commando_sid_blob),
     commando_sound(commando_sound_blob) {
-  // this order only: block A sprites0 + tiles_a + cmaps + tune RAM,
-  // B sprites2 + tiles_b
+  // not every order fits: block A sprites0 + sprites1 + chars + cmaps + SID
+  // file + tune RAM, B tiles_b + sprites2
   sprite_banks[0] = commando_sprites0.data();
-  tiles_a = commando_tiles_a.data();
-  sprite_banks[2] = commando_sprites2.data();
-  tiles_b = commando_tiles_b.data();
+  sprite_banks[1] = commando_sprites1.data();
+  chars = commando_chars.data();
   cmap_tiles = commando_cmap_tiles.data();
   cmap_sprites = commando_cmap_sprites.data();
   cmap_chars = commando_cmap_chars.data();
-  sprite_banks[1] = commando_sprites1.data();
+  tiles_b = commando_tiles_b.data();
+  sprite_banks[2] = commando_sprites2.data();
+  tiles_a = commando_tiles_a.data();
   rom = commando_rom.data();
-  chars = commando_chars.data();
   sound_rom = commando_sound.data();
 
   // skip fully transparent chars (most of the text layer) per tile

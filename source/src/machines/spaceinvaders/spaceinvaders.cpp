@@ -5,7 +5,7 @@ spaceinvaders::spaceinvaders()
   : spaceinvaders_rom(spaceinvaders_rom_blob),
     si_sample_shot(si_sample_shot_blob),
     si_sample_invhit(si_sample_invhit_blob),
-    sound(si_sample_shot.data(), si_sample_shot.size(), si_sample_invhit.data(), si_sample_invhit.size()) { }
+    sound(si_sample_shot.data(), si_sample_shot_samples, si_sample_invhit.data(), si_sample_invhit_samples) { }
 
 void spaceinvaders::reset() {
   machineBase::reset();
