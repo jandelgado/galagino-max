@@ -30,12 +30,11 @@ public:
 private:
   // Max logos on screen: 3 full + 1 partial while scrolling.
   static const unsigned char LOGO_CACHE_SIZE = 4;
-  static const unsigned int LOGO_PIXELS = 224 * 96;
 
-  void menu_logo(short row, const unsigned short *img, char active);
+  void menu_logo(short row, const uint8_t *slot, char active);
   unsigned short convert_RGB565_to_greyscale(unsigned short in);
   void refreshLogoCache();
-  const unsigned short *logoBuffer(const Logo &logo);
+  const uint8_t *logoBuffer(const Logo &logo);
   void enterMenu();
   void select();
   int scrollTarget(int8_t sel);
@@ -51,11 +50,12 @@ private:
   uint32_t attract_start;   // menu attract: start menu_sel when idle
   int scroll_offset = 0;
 
-  // Decoded logos, allocated from Arena while the menu exists.
+  // Decoded logos (palette + 4 bit pixels, see Logo), allocated from Arena
+  // while the menu exists.
   // slot_logo[i] owns logo_pool[i]. Decoding every frame is too slow, so a
   // logo decodes once and stays until scrolled off.
   unsigned char logo_pool_count = 0;
-  unsigned short *logo_pool[LOGO_CACHE_SIZE] = { };
+  uint8_t *logo_pool[LOGO_CACHE_SIZE] = { };
   const Logo *slot_logo[LOGO_CACHE_SIZE] = { };
 
 #ifdef MENU_CYLINDER
