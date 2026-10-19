@@ -183,5 +183,8 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | H.E.R.O. (H.E.R.O..zip)       | ![H.E.R.O. marquee](/logos/hero.png) | ![H.E.R.O. screenshot](/images/hero.png) | Atari 2600 native remake: game logic rewritten in C++, levels and graphics from the Activision cartridge ROM (romszip/H.E.R.O..zip or H.E.R.O.-pal.bin). No 6502/TIA emulation. UP=fly, DOWN=dynamite, FIRE=laser |
 | Ghosts'n Goblins (gng.zip)    | ![Ghosts'n Goblins marquee](/logos/gng.png) | ![Ghosts'n Goblins screenshot](/images/gng.png) | FIRE=lance, START=jump. C64 SID music: romszip/Ghosts_n_Goblins.sid (HVSC) |
 | Time Pilot '84 (tp84.zip)     | ![Time Pilot '84 marquee](/logos/tp84.png) | ![Time Pilot '84 screenshot](/images/tp84.png) | FIRE=fire, START=missile |
+| Defender (defender.zip)       | ![Defender marquee](/logos/defender.png) | ![Defender screenshot](/images/defender.png) | Up/down=altitude, left/right=thrust (reverses first), FIRE=fire, START=smart bomb, START+left/right=hyperspace. 292 columns merged into 239 |
+| Robotron: 2084 (robotron.zip) | ![Robotron: 2084 marquee](/logos/robotron.png) | ![Robotron: 2084 screenshot](/images/robotron.png) | Twin sticks on one stick: FIRE aims where the stick points and locks the aim while held. Controller X/B/A/Y fire up/right/down/left |
+| Joust (joust.zip)             | ![Joust marquee](/logos/joust.png) | ![Joust screenshot](/images/joust.png) | 1 player. Left/right=run, FIRE=flap |
 
 ### ...

@@ -6,6 +6,7 @@
 #endif
 
 #include "ima_adpcm.h"
+#include "dc_block.h"
 using ima_adpcm::ima_adpcm_decode;
 
 void Audio::init() {
@@ -393,6 +394,8 @@ void Audio::transmit() {
       bzone_render_buffer();
     else if(machineType == MCH_BERZERK)
       berzerk_render_buffer();
+    else if(machineType == MCH_DEFENDER || machineType == MCH_ROBOTRON || machineType == MCH_JOUST)
+      dac_render_buffer();
   } while(bytesOut);
 }
 
@@ -628,6 +631,16 @@ void Audio::berzerk_render_buffer(void) {
   currentMachine->renderSpeech(samples, 64);
   for (int i = 0; i < 64; i++) {
     const int32_t v = samples[i] >> MIX_SHIFT;
+    valueToBuffer(i, v > SAMPLE_MAX ? SAMPLE_MAX : (v < -SAMPLE_MAX ? -SAMPLE_MAX : v));
+  }
+}
+
+// Williams sound board: 6808 DAC samples produced on the emulation core
+void Audio::dac_render_buffer(void) {
+  static const int32_t SAMPLE_MAX = 511;  // valueToBuffer() wraps beyond
+  static DcBlock dc;
+  for (int i = 0; i < 64; i++) {
+    const int32_t v = dc.filter(currentMachine->renderDrumSample());
     valueToBuffer(i, v > SAMPLE_MAX ? SAMPLE_MAX : (v < -SAMPLE_MAX ? -SAMPLE_MAX : v));
   }
 }

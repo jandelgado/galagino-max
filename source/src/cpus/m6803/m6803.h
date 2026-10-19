@@ -55,6 +55,10 @@ typedef struct m6803_state_S {
     uint8_t  tcsr_read;      /* TCSR was read (for OCF clear sequence) */
 
     int      cycles;
+
+    /* 1 = plain 6800/6808 (Williams sound board): no internal I/O,
+       RAM or timer, 6800 cycle counts via m6800_step() */
+    uint8_t  mode6800;
 } m6803_state;
 
 /* Function pointer callbacks for external memory access */
@@ -79,6 +83,10 @@ void m6803_reset(m6803_state *s);
 
 /* Execute one instruction, returns cycles consumed */
 int m6803_step(m6803_state *s);
+
+/* 6800/6808 mode: reset and step with 6800 cycle counts */
+void m6800_reset(m6803_state *s);
+int m6800_step(m6803_state *s);
 
 /* Signal IRQ */
 void m6803_irq(m6803_state *s);
