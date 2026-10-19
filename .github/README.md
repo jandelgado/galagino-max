@@ -202,5 +202,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Heavy Metal (hvymetal.zip)    | ![Heavy Metal marquee](/logos/hvymetal.png) | ![Heavy Metal screenshot](/images/hvymetal.png) | Sega System 1. FIRE=button 1, START=button 2 |
 | Super Xevious (sxevious.zip)  | ![Super Xevious marquee](/logos/sxevious.png) | ![Super Xevious screenshot](/images/sxevious.png) | Needs xevious.zip |
 | Mikie (mikie.zip)             | ![Mikie marquee](/logos/mikie.png) | ![Mikie screenshot](/images/mikie.png) | FIRE=button 1, START=button 2 |
+| Vulgus (vulgus.zip)           | ![Vulgus marquee](/logos/vulgus.png) | ![Vulgus screenshot](/images/vulgus.png) | FIRE=shot, START=bomb |
 
 ### ...
