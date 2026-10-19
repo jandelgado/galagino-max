@@ -16,6 +16,11 @@
 #define MASTER_ATTRACT_GAME_TIMEOUT  60000 * 5  // restart after 5 minutes
 #endif
 
+// ASSETS_REMOTE: menu attract starts only downloaded games, 0 = downloads too
+#ifndef NO_DOWNLOADS_IN_ATTRACT
+#define NO_DOWNLOADS_IN_ATTRACT 1
+#endif
+
 #define MASTER_ATTRACT_MENU_SHOW_COUNTDOWN      // undefine to hide the countdown bar in the menu
 #ifndef MASTER_ATTRACT_MENU_COUNTDOWN_BAR_COLOR565
 #define MASTER_ATTRACT_MENU_COUNTDOWN_BAR_COLOR565 0x1234  // byte-swapped RGB565 0x3412, #318294 teal blue

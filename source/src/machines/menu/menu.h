@@ -38,6 +38,7 @@ private:
   void enterMenu();
   void select();
   int scrollTarget(int8_t sel);
+  void scroll();
 #ifdef MENU_CYLINDER
   void render_row_cylinder(short row);
 #endif
@@ -70,12 +71,14 @@ private:
 #endif
 
 #ifdef ASSETS_REMOTE
-  // remote games not cached yet: NET marker, menu attract skips them
+  // remote games not cached yet: NET marker, menu attract may skip them
   uint32_t net_only[4] = { };  // bit per machine, int8_t count <= 127
   bool netOnly(int idx) const { return net_only[idx >> 5] & (1u << (idx & 31)); }
   void netStrip(short logo_y, int idx);
   void netLine(unsigned short *line, int logo_line);
+#if NO_DOWNLOADS_IN_ATTRACT
   int8_t nextAvailable(int8_t sel);
+#endif
 #endif
 };
 
