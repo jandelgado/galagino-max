@@ -18,6 +18,9 @@
 #if defined(HAVE_ROMS) && __has_include("../../src/machines/imsorry/imsorry_main_rom.h")
 #define ENABLE_IMSORRY
 #endif
+#if defined(HAVE_ROMS) && __has_include("../../src/machines/wboy/wboy_main_rom.h")
+#define ENABLE_WBOY
+#endif
 
 #ifdef HAVE_ROMS
 #include "../../src/machines/system1/system1_collision.cpp"  // before Z80.h: its `word` macro
@@ -33,6 +36,9 @@
 #ifdef ENABLE_IMSORRY
 #include "../../src/machines/imsorry/imsorry.cpp"
 #endif
+#ifdef ENABLE_WBOY
+#include "../../src/machines/wboy/wboy.cpp"
+#endif
 #undef private
 #undef protected
 
@@ -46,6 +52,9 @@ struct MameFrame {
 
 #include "mame_flicky.h"
 #include "mame_pitfall2.h"
+#ifdef ENABLE_WBOY
+#include "mame_wboy.h"
+#endif
 #ifdef ENABLE_IMSORRY
 #include "mame_imsorry.h"
 #endif
@@ -236,6 +245,18 @@ static void test_imsorry_frames(void) {
 }
 #endif
 
+#ifdef ENABLE_WBOY
+// content x 16..239 (MAME): fixed window 8 shows all of it
+static void test_wboy_frames(void) {
+  boot<wboy>();
+  for (const MameFrame &f : MAME_WBOY) {
+    load(f);
+    TEST_ASSERT_EQUAL(8, machine->winX);
+    TEST_ASSERT_EQUAL_MESSAGE(0, compare(f, 8), "wboy lines differ from MAME");
+  }
+}
+#endif
+
 static void test_flicky_audio(void) { TEST_ASSERT_GREATER_THAN(0, audioPeak<flicky>()); }
 static void test_pitfall2_audio(void) { TEST_ASSERT_GREATER_THAN(0, audioPeak<pitfall2>()); }
 #endif
@@ -251,6 +272,9 @@ int main(int, char **) {
 #ifdef ENABLE_IMSORRY
   RUN_TEST(test_imsorry_frames);
 #endif
+#endif
+#ifdef ENABLE_WBOY
+  RUN_TEST(test_wboy_frames);
 #endif
   return UNITY_END();
 }

@@ -3,7 +3,8 @@
     defined(ENABLE_RAFLESIA) || defined(ENABLE_SWAT) || defined(ENABLE_FLICKY) || \
     defined(ENABLE_PITFALL2) || \
     defined(ENABLE_MRVIKING) || \
-    defined(ENABLE_IMSORRY)
+    defined(ENABLE_IMSORRY) || \
+    defined(ENABLE_WBOY)
 
 #include "system1.h"
 #include "system1_palette.h"

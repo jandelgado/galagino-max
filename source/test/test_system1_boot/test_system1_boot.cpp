@@ -14,6 +14,9 @@
 #if __has_include("../../src/machines/imsorry/imsorry_main_rom.h")
 #define ENABLE_IMSORRY
 #endif
+#if __has_include("../../src/machines/wboy/wboy_main_rom.h")
+#define ENABLE_WBOY
+#endif
 
 #include "../../src/machines/system1/system1_collision.cpp"  // before Z80.h: its `word` macro
 #include "../../src/emulation/lzma/LzmaDec.c"
@@ -26,6 +29,9 @@
 #include "../../src/machines/mrviking/mrviking.cpp"
 #ifdef ENABLE_IMSORRY
 #include "../../src/machines/imsorry/imsorry.cpp"
+#endif
+#ifdef ENABLE_WBOY
+#include "../../src/machines/wboy/wboy.cpp"
 #endif
 #undef private
 #undef protected
@@ -111,6 +117,9 @@ static void test_mrviking_boots(void) { check<mrviking>(); }
 #ifdef ENABLE_IMSORRY
 static void test_imsorry_boots(void) { check<imsorry>(); }
 #endif
+#ifdef ENABLE_WBOY
+static void test_wboy_boots(void) { check<wboy>(); }
+#endif
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -122,6 +131,9 @@ int main(int, char **) {
 #endif
 #ifdef ENABLE_IMSORRY
   RUN_TEST(test_imsorry_boots);
+#endif
+#ifdef ENABLE_WBOY
+  RUN_TEST(test_wboy_boots);
 #endif
   return UNITY_END();
 }
