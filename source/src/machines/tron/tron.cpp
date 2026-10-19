@@ -7,15 +7,17 @@
 // and sound CPU are interleaved in 240 slices per field.
 // ============================================================================
 #include "../../catalog.h"
-#ifdef GAME_TRON
+#if defined(GAME_TRON) || defined(GAME_SHOLLOW)
 
 #include "tron.h"
 #include "../../emulation/input.h"
+#ifdef GAME_TRON
 #include "tron_rom.h"
 #include "tron_snd_rom.h"
 #include "tron_tilemap.h"
 #include "tron_spritemap.h"
 #include "tron_ssio_prom.h"
+#endif
 
 static const uint16_t ROM_END = 0xc000;
 static const uint16_t SOUND_ROM_SIZE = 0x3000;  // SSIO ROM, 3 x 4 KB
@@ -51,9 +53,19 @@ static const uint8_t LED_FLASH_FRAMES = 4;
 static const int PANEL_TOP = 16;  // first panel row of native X 0
 static const int SPRITE_CODES = 64, SPRITE_VARIANTS = 4;
 
+#ifdef GAME_TRON
 tron::tron()
-  : tron_rom(tron_rom_blob), tron_snd_rom(tron_snd_rom_blob), tron_tilemap(tron_tilemap_blob),
-    tron_spritemap(tron_spritemap_blob) {
+  : tron(tron_rom_blob, tron_snd_rom_blob, tron_tilemap_blob, tron_spritemap_blob,
+         tron_ssio_duty_gain) { }
+#endif
+
+tron::tron(const FlashAsset<unsigned char, COMPRESSED> &mainBlob,
+           const FlashAsset<unsigned char, COMPRESSED> &soundBlob,
+           const FlashAsset<uint32_t[8], COMPRESSED> &tileBlob,
+           const FlashAsset<uint32_t[16][2], COMPRESSED> &spriteBlob,
+           const uint8_t *ssioGain)
+  : tron_rom(mainBlob), tron_snd_rom(soundBlob), tron_tilemap(tileBlob), tron_spritemap(spriteBlob),
+    ssio_gain(ssioGain) {
   main_rom = tron_rom.data();
   sound_rom = tron_snd_rom.data();
   tiles = tron_tilemap.data();
@@ -77,7 +89,7 @@ void tron::reset() {
   memset(memory + TRON_MEM_NVRAM, 0xff, NVRAM_MASK + 1);  // NVRAM_DEFAULT_ALL_1
   memset(palette9, 0, sizeof(palette9));
   ctc.reset();
-  ssio.attach(sound_rom, SOUND_ROM_SIZE, memory + TRON_MEM_SSIO, tron_ssio_duty_gain);
+  ssio.attach(sound_rom, SOUND_ROM_SIZE, memory + TRON_MEM_SSIO, ssio_gain);
   ssio.reset();
   odd_field = false;
   main_debt = 0;
@@ -135,6 +147,10 @@ void IRAM_ATTR tron::wrZ80(unsigned short Addr, unsigned char Value) {
   if ((off & PALETTE_AREA) == PALETTE_AREA) {
     palette9[(off >> 1) & (COLORS - 1)] = Value | ((off & 1) << 8);
   }
+}
+
+void tron::update_controls() {
+  aim.update(input->buttons_get(), memory[TRON_MEM_NVRAM + RAM_AIM_ANGLE]);
 }
 
 // SSIO input ports 0-4 (mirror 0x18)
@@ -243,7 +259,7 @@ void tron::run_frame(void) {
   if (led_flash) {
     led_flash--;
   }
-  aim.update(input->buttons_get(), memory[TRON_MEM_NVRAM + RAM_AIM_ANGLE]);
+  update_controls();
 
   Z80 &z = cpu[0];
   for (int slice = 0; slice < SLICES; slice++) {

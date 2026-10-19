@@ -28,6 +28,19 @@ static_assert(TRON_MEM_END <= RAMSIZE, "tron RAM does not fit");
 
 class tron : public machineBase {
 protected:
+  // a game on the same board (shollow) passes its own ROMs
+  tron(const FlashAsset<unsigned char, COMPRESSED> &mainBlob,
+       const FlashAsset<unsigned char, COMPRESSED> &soundBlob,
+       const FlashAsset<uint32_t[8], COMPRESSED> &tileBlob,
+       const FlashAsset<uint32_t[16][2], COMPRESSED> &spriteBlob,
+       const uint8_t *ssioGain);
+
+  // SSIO input ports 0-4 and per-frame control state (tron: aim dial)
+  virtual uint8_t read_input(uint8_t n);
+  virtual void update_controls();
+
+  uint8_t led_flash = 0;  // frames left, set by a new sound command
+
   Asset<unsigned char, COMPRESSED> tron_rom;
   Asset<unsigned char, COMPRESSED> tron_snd_rom;
   Asset<uint32_t[8], COMPRESSED> tron_tilemap;
@@ -76,7 +89,6 @@ private:
   VideoState video;  // render copy, video core only
 
   void publish_video();
-  uint8_t read_input(uint8_t n);
   void render_tiles(int tx);
   void render_sprites(int tx);
 
@@ -86,7 +98,6 @@ private:
   uint16_t palette9[COLORS] = {};  // 9 bit xRBG from video RAM writes
   bool odd_field = false;
   uint8_t last_command = 0;
-  uint8_t led_flash = 0;  // frames left, set by a new sound command
   int main_debt = 0;
 
   // strip buffers, video core only
@@ -98,6 +109,7 @@ private:
   // Cached: hot path reads these per access.
   const unsigned char *main_rom = nullptr;
   const unsigned char *sound_rom = nullptr;
+  const uint8_t *ssio_gain = nullptr;
   const uint32_t (*tiles)[8] = nullptr;
   const uint32_t (*sprite_gfx)[16][2] = nullptr;
 };
