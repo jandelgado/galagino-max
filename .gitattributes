@@ -1,0 +1,2 @@
+# MAME traces replayed by the marble host tests; collapsed in GitHub diffs
+source/test/test_marble_*/*_trace.h linguist-generated=true
