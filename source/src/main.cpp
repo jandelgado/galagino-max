@@ -23,7 +23,7 @@
 #include "machines/menu/menu.h"
 #include "emulation/emulation.h"
 #include "emulation/hud.h"
-#include "emulation/selftest.h"
+#include "machines/selftest/selftest.h"
 #ifdef LED_PIN
   #include "emulation/led.h"
 #endif
@@ -37,6 +37,14 @@ Menu *menu;
 
 // switchTo() argument for the menu
 static const int8_t SHOW_MENU = -1;
+
+#ifdef BOOT_SELFTEST
+// switchTo() argument for the boot self-test
+static const int8_t SHOW_SELFTEST = -2;
+
+// non-null while the boot self-test is the running machine
+SelfTest *selftest;
+#endif
 
 // last started game, the menu strip starts there. Boot: second logo, centred
 static int8_t lastIndex = 1;
@@ -215,46 +223,10 @@ void setup() {
 #endif
 
   video.begin();
-#ifdef BOOT_SELFTEST
-  selftest_begin(&input, machinesCount);
-#endif
   printf("setup() Heap: Free=%d MaxAlloc=%d MinFree=%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
 }
 
-#ifdef BOOT_SELFTEST
-// one self-test screen, paced to 60 Hz. no machine runs yet
-static void selftestFrame(void) {
-  const uint32_t t0 = millis();
-  const uint32_t frame_ms = 16;
-
-  video.setViewport(SELFTEST_WIDTH);
-  for (uint8_t row = 0; row < 36; row++) {
-    memset(frame_buffer, 0, SELFTEST_WIDTH * 8 * sizeof(uint16_t));
-    selftest_render_row(frame_buffer, row);
-    video.write(frame_buffer, SELFTEST_WIDTH * 8);
-  }
-
-  const uint32_t dt = millis() - t0;
-  vTaskDelay(dt < frame_ms ? frame_ms - dt : 1);
-}
-#endif
-
 void loop(void) {
-#ifdef BOOT_SELFTEST
-  // menu and machine start wait for the self-test
-  static bool selftest_running = true;
-  if (selftest_running) {
-    selftest_running = selftest_tick();
-#ifdef LED_PIN
-    led.fill(selftest_led_color());
-#endif
-    if (selftest_running) {
-      selftestFrame();
-      return;
-    }
-  }
-#endif
-
   // run video in main task. This will send signals to the emulation task in the background to synchronize video
   updateAudioVideo();
 
@@ -270,7 +242,7 @@ static const uint32_t FRAME_US = 16667;
 // further behind the frame deadline than this: restart pacing
 static const int32_t MAX_LATE_US = 50000;
 
-// Replace the running machine (game or menu). The old one is deleted
+// Replace the running machine (game, menu or self-test). The old one is deleted
 // first: the menu ctor resets Arena, which must not hold live assets.
 static void switchTo(int8_t index) {
   if (currentMachine) {
@@ -281,10 +253,19 @@ static void switchTo(int8_t index) {
   }
 
   menu = nullptr;
+#ifdef BOOT_SELFTEST
+  selftest = nullptr;
+#endif
   if (index == SHOW_MENU) {
     menu = new Menu(machines, machinesCount, lastIndex, menuPreselect);
     currentMachine = menu;
   }
+#ifdef BOOT_SELFTEST
+  else if (index == SHOW_SELFTEST) {
+    selftest = new SelfTest(&input, machinesCount);
+    currentMachine = selftest;
+  }
+#endif
   else {
     lastIndex = index;
     menuPreselect = index;
@@ -358,14 +339,22 @@ void updateAudioVideo(void) {
   static uint32_t last_yield_ms = 0;
   uint32_t t0 = micros();
 
-  // First frame, not setup(): the machine's task would starve its
-  // watchdog while BOOT_SELFTEST runs.
+  const int8_t first = machinesCount == 1 ? 0 : SHOW_MENU;
   if (heapProbeStep()) {
     // probe build: the probe picks the machine
   }
   else if (!currentMachine) {
-    switchTo(machinesCount == 1 ? 0 : SHOW_MENU);
+#ifdef BOOT_SELFTEST
+    switchTo(SHOW_SELFTEST);
+#else
+    switchTo(first);
+#endif
   }
+#ifdef BOOT_SELFTEST
+  else if (selftest && selftest->done()) {
+    switchTo(first);
+  }
+#endif
   else if (doReset || attractGameTimeout()) {
     doReset = false;
     switchTo(SHOW_MENU);

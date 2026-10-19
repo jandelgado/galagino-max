@@ -354,7 +354,7 @@ void Audio::transmit() {
     // render the next audio chunk if data has actually been sent
     if (machineType == MCH_COMMANDO || machineType == MCH_CBDASH || machineType == MCH_GNG)
       sid_ay_render_buffer();
-    else if (machineType == MCH_BUBLBOBL || machineType == MCH_MARBLE)
+    else if (machineType == MCH_BUBLBOBL || machineType == MCH_MARBLE || machineType == MCH_SELFTEST)
       sid_render_buffer();
     else if (AY > 0)
       ay_render_buffer();
