@@ -158,9 +158,45 @@ void test_mix_fits_range(void) {
 }
 #endif
 
+// Speech path: a 6808 loop toggles CB2 (CVSD clock) in manual mode with
+// CA2 (data) held low: a run of 0 bits ramps the CVSD output up, so the
+// ring average must rise above the idle DAC level (0).
+// ROM at 0xff00:
+//   ff00 LDAA #$34; STAA $0401   CRA: manual CA2 low, OR select
+//   ff05 LDAA #$3c; STAA $0403   CRB: manual CB2 high
+//   ff0a LDAA #$34; STAA $0403   CRB: manual CB2 low
+//   ff0f BRA ff05
+void test_speech_cvsd_from_pia(void) {
+  static uint8_t rom[256];
+  const uint8_t code[] = { 0x86, 0x34, 0xb7, 0x04, 0x01, 0x86, 0x3c, 0xb7, 0x04, 0x03,
+                           0x86, 0x34, 0xb7, 0x04, 0x03, 0x20, 0xf4 };
+  memcpy(rom, code, sizeof(code));
+  rom[0xfe] = 0xff;
+  rom[0xff] = 0x00;
+  WilliamsSound snd;
+  snd.attach(rom, 0xff00, ram, true);
+  snd.reset();
+  snd.run(FRAME_CYCLES);
+  int maxv = 0;
+  for (int v = snd.sample(); v != WilliamsSound::EMPTY; v = snd.sample()) {
+    maxv = v > maxv ? v : maxv;
+  }
+  TEST_ASSERT_TRUE(maxv > 64);
+
+  // without speech the same program is silent (DAC untouched)
+  WilliamsSound quiet;
+  quiet.attach(rom, 0xff00, ram);
+  quiet.reset();
+  quiet.run(FRAME_CYCLES);
+  for (int v = quiet.sample(); v != WilliamsSound::EMPTY; v = quiet.sample()) {
+    TEST_ASSERT_EQUAL_INT(0, v);
+  }
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_command_during_masked_irq);
+  RUN_TEST(test_speech_cvsd_from_pia);
   RUN_TEST(test_output_averages_dac);
 #ifdef HAVE_ROM
   RUN_TEST(test_silent_without_command);

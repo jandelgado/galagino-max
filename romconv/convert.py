@@ -93,6 +93,7 @@ GAMES = [
     "defender",
     "robotron",
     "joust",
+    "sinistar",
     "1943",
     "gorf",
     "solomon",

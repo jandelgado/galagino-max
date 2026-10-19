@@ -75,6 +75,13 @@ void test_double_flip_returns_to_first_buffer(void) {
   TEST_ASSERT_EQUAL(f0, s.front());
 }
 
+// ROT270, 2 native columns cropped per end: panel row 0 = native x 289,
+// row 287 = native x 2; panel column c = scanout row c
+void test_upright_mapping(void) {
+  TEST_ASSERT_EQUAL_UINT16(289, uprightX(0));
+  TEST_ASSERT_EQUAL_UINT16(2, uprightX(287));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_layouts_fit_240);
@@ -82,5 +89,6 @@ int main(int, char **) {
   RUN_TEST(test_pixel_nibbles);
   RUN_TEST(test_capture_copies_visible_lines_to_back);
   RUN_TEST(test_double_flip_returns_to_first_buffer);
+  RUN_TEST(test_upright_mapping);
   return UNITY_END();
 }

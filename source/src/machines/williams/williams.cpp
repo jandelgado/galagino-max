@@ -9,6 +9,9 @@ williams::williams(WilliamsBoard &b, const ColumnLayout &l)
   columns.build(l);
 }
 
+williams::williams(WilliamsBoard &b)
+  : board(b), williams_rgb(williams_rgb_blob), rgb(williams_rgb.data()), upright(true) {}
+
 void williams::reset() {
   machineBase::reset();  // clears memory[] (CMOS, sound RAM live there)
   board.bindMemory(memory + CMOS_OFS, memory + SOUND_RAM_OFS);
@@ -42,6 +45,10 @@ void williams::prepare_frame() {
 }
 
 void IRAM_ATTR williams::render_row(short row) {
+  if (upright) {
+    renderUpright(row);
+    return;
+  }
   const Scanout &s = board.scanout();
   for (int dy = 0; dy < 8; dy++) {
     uint16_t *dst = frame_buffer + dy * ColumnMap::OUT_MAX;
@@ -61,6 +68,19 @@ void IRAM_ATTR williams::render_row(short row) {
         p = williamsPixel(line, x + 1);
       }
       dst[i] = pen[p];
+    }
+  }
+}
+
+// panel column c = scanout row c, pens per row band
+void IRAM_ATTR williams::renderUpright(short row) {
+  const uint8_t *frame = board.scanout().frame(shown);
+  for (int dy = 0; dy < 8; dy++) {
+    uint16_t *dst = frame_buffer + dy * ColumnMap::OUT_MAX;
+    const uint16_t x = uprightX(row * 8 + dy);
+    const uint8_t *src = frame;
+    for (int c = 0; c < Scanout::ROWS; c++, src += Scanout::COLS) {
+      dst[c] = pens[(c + Scanout::FIRST_LINE) / Scanout::BAND_LINES][williamsPixel(src, x)];
     }
   }
 }

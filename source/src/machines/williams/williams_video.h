@@ -55,6 +55,11 @@ private:
   uint8_t n = 0, leftPad = 0;
 };
 
+// ROT270 upright (Sinistar): panel row r shows native column 289 - r
+// (292 columns, 2 cropped per end), panel column c shows scanout row c
+static const int UPRIGHT_CROP = 2, NATIVE_COLUMNS = 292;
+static inline uint16_t uprightX(int row) { return NATIVE_COLUMNS - 1 - UPRIGHT_CROP - row; }
+
 // pixel x of a scanout row (146 bytes, 2 px each, even x = high nibble)
 static inline uint8_t williamsPixel(const uint8_t *row, uint16_t x) {
   const uint8_t b = row[x >> 1];
