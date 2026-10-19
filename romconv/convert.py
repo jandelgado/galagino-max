@@ -116,6 +116,7 @@ GAMES = [
     "tron",
     "dotron",
     "shollow",
+    "motos",
     "elevator",
     "mhavoc",
 ]

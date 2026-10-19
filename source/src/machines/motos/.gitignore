@@ -1,0 +1,6 @@
+motos_cmap.h
+motos_rom_main.h
+motos_rom_sub.h
+motos_spritemap.h
+motos_tilemap.h
+motos_wavetable.h
