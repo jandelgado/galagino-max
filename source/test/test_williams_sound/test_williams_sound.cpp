@@ -72,6 +72,153 @@ void test_output_averages_dac(void) {
   TEST_ASSERT_TRUE(n > 300);
 }
 
+// GWAVE delay loop (LDAA dir; DECA; BNE *-1; LDAA 0,X) runs as a whole,
+// not opcode by opcode. ROM at 0xff00, PIA port A = DAC:
+//   ff00 LDAA #$FF; STAA $0400; LDAA #$04; STAA $0401   DDRA out, CRA: ORA
+//   ff0a LDAA #200; STAA $10; LDX #$ff30
+//   ff11 LDAA $10; DECA; BNE ff13; LDAA 0,X; STAA $0400  wave byte to DAC
+//   ff1b INX; CPX #$ff32; BNE ff11; LDX #$ff30; BRA ff11
+//   ff30 00 ff                                            wave table
+static const uint16_t GWAVE_DELAY_PC = 0xff13;
+static uint16_t countAddr = 0;
+static uint32_t delayFetches = 0;
+static m6803_read_fn_t soundRead = nullptr;
+static uint8_t countingRead(uint16_t addr) {
+  if (addr == countAddr) {
+    delayFetches++;
+  }
+  return soundRead(addr);
+}
+
+// reads of addr during run(cycles)
+static uint32_t fetchesAt(WilliamsSound &snd, uint16_t addr, uint32_t cycles) {
+  countAddr = addr;
+  delayFetches = 0;
+  soundRead = m6803_ext_read_fn;
+  m6803_ext_read_fn = countingRead;
+  snd.run(cycles);
+  m6803_ext_read_fn = soundRead;
+  return delayFetches;
+}
+
+static void gwaveRom(uint8_t *rom) {
+  const uint8_t code[] = { 0x86, 0xff, 0xb7, 0x04, 0x00, 0x86, 0x04, 0xb7, 0x04, 0x01,
+                           0x86, 0xc8, 0x97, 0x10, 0xce, 0xff, 0x30,
+                           0x96, 0x10, 0x4a, 0x26, 0xfd, 0xa6, 0x00, 0xb7, 0x04, 0x00,
+                           0x08, 0x8c, 0xff, 0x32, 0x26, 0xf0, 0xce, 0xff, 0x30, 0x20, 0xeb };
+  memcpy(rom, code, sizeof(code));
+  rom[0x30] = 0x00;
+  rom[0x31] = 0xff;
+  rom[0xfe] = 0xff;  // reset vector 0xff00
+  rom[0xff] = 0x00;
+}
+
+void test_gwave_delay_skipped(void) {
+  static uint8_t rom[256];
+  gwaveRom(rom);
+  WilliamsSound snd;
+  snd.attach(rom, 0xff00, ram);
+  snd.reset();
+  // stepped: 48520; skipped: only the pass cut by each 1024 cycle chunk
+  TEST_ASSERT_LESS_THAN_UINT32(500, fetchesAt(snd, GWAVE_DELAY_PC, FRAME_CYCLES * 10));
+}
+
+// Idle loops spin until an IRQ, which only arrives between run() calls:
+// whole passes run at once. ROM at 0xff00:
+//   ff00 LDAA #$07; STAA $0403   CRB: rising CB1 raises IRQ
+//   ff05 CLI
+//   ff06 TST $0010; BEQ ff06     wait for the IRQ handler's flag
+//   ff0b INC $0011; CLR $0010; BRA ff06
+//   ff20 LDAA $0402; INC $0010; RTI   IRQ: ack, set the flag
+// Sinistar idles in this loop, Robotron/Joust in BRA * / BEQ *.
+static void pollRom(uint8_t *rom) {
+  const uint8_t code[] = { 0x86, 0x07, 0xb7, 0x04, 0x03, 0x0e, 0x7d, 0x00, 0x10, 0x27, 0xfb,
+                           0x7c, 0x00, 0x11, 0x7f, 0x00, 0x10, 0x20, 0xf3 };
+  const uint8_t handler[] = { 0xb6, 0x04, 0x02, 0x7c, 0x00, 0x10, 0x3b };
+  memset(rom, 0, 256);
+  memcpy(rom, code, sizeof(code));
+  memcpy(rom + 0x20, handler, sizeof(handler));
+  rom[0xf8] = 0xff;  // IRQ vector 0xff20
+  rom[0xf9] = 0x20;
+  rom[0xfe] = 0xff;  // reset vector 0xff00
+  rom[0xff] = 0x00;
+}
+
+void test_idle_poll_skipped(void) {
+  static uint8_t rom[256];
+  pollRom(rom);
+  memset(ram, 0, sizeof(ram));
+  WilliamsSound snd;
+  snd.attach(rom, 0xff00, ram);
+  snd.reset();
+  snd.command(0xff);
+  // stepped: 29782 (TST 6 + BEQ 4 cycles per pass)
+  TEST_ASSERT_LESS_THAN_UINT32(1000, fetchesAt(snd, 0xff06, FRAME_CYCLES * 10));
+  TEST_ASSERT_EQUAL(0, ram[0x11]);
+  snd.command(0x01);  // IRQ: the loop must still see the flag
+  snd.run(FRAME_CYCLES);
+  TEST_ASSERT_EQUAL(1, ram[0x11]);
+}
+
+// ROM at 0xff00: CLI; BRA *
+void test_idle_branch_skipped(void) {
+  static uint8_t rom[256];
+  memset(rom, 0, sizeof(rom));
+  rom[0x00] = 0x0e;
+  rom[0x01] = 0x20;
+  rom[0x02] = 0xfe;
+  rom[0xfe] = 0xff;
+  WilliamsSound snd;
+  snd.attach(rom, 0xff00, ram);
+  snd.reset();
+  // stepped: 74454; skipped: ~2 passes per 1024 cycle chunk
+  TEST_ASSERT_LESS_THAN_UINT32(1000, fetchesAt(snd, 0xff01, FRAME_CYCLES * 10));
+}
+
+// A loop that writes memory is not idle. ROM at 0xff00: INC $0010; BRA ff00
+void test_loop_with_write_stepped(void) {
+  static uint8_t rom[256];
+  memset(rom, 0, sizeof(rom));
+  const uint8_t code[] = { 0x7c, 0x00, 0x10, 0x20, 0xfb };
+  memcpy(rom, code, sizeof(code));
+  rom[0xfe] = 0xff;
+  memset(ram, 0, sizeof(ram));
+  WilliamsSound snd;
+  snd.attach(rom, 0xff00, ram);
+  snd.reset();
+  snd.run(FRAME_CYCLES);
+  TEST_ASSERT_EQUAL(210, ram[0x10]);  // stepped: 1489 passes of 10 cycles
+}
+
+// Skipping keeps the output bit exact and the timing: 200 passes x 6
+// cycles + 19 cycles per wave byte = 1219 cycles at 894886 Hz, square wave
+// of 2438 cycles (367 Hz).
+// Each half wave is ~32.7 output samples at 24 kHz, all 0x00 or 0xff.
+void test_gwave_delay_timing(void) {
+  static uint8_t rom[256];
+  gwaveRom(rom);
+  WilliamsSound snd;
+  snd.attach(rom, 0xff00, ram);
+  snd.reset();
+  int high = 0, edges = 0, n = 0, last = 0;
+  uint32_t h = 2166136261u;
+  for (int f = 0; f < 10; f++) {
+    snd.run(FRAME_CYCLES);
+    for (int v = snd.sample(); v != WilliamsSound::EMPTY; v = snd.sample(), n++) {
+      h = (h ^ (uint16_t)v) * 16777619u;
+      if (n >= 100) {  // past start-up
+        high += v > 0;
+        edges += (v > 0) != (last > 0);
+      }
+      last = v;
+    }
+  }
+  TEST_ASSERT_TRUE(n > 3000);
+  TEST_ASSERT_INT_WITHIN(n / 50, (n - 100) / 2, high);
+  TEST_ASSERT_INT_WITHIN(3, (n - 100) * 2 / 65, edges);
+  TEST_ASSERT_EQUAL_HEX32(0x8136ec24, h);  // stepped opcode by opcode
+}
+
 #ifdef HAVE_ROM
 static WilliamsSound &boot(WilliamsSound &snd) {
   static bool once = false;
@@ -194,16 +341,43 @@ void test_speech_cvsd_from_pia(void) {
   }
 }
 
+#ifdef HAVE_ROM
+// every command's output equals the one recorded before the GWAVE skip
+void test_defender_output_hash(void) {
+  uint32_t h = 2166136261u;
+  for (int cmd = 0; cmd < 0x40; cmd++) {
+    WilliamsSound snd;
+    boot(snd);
+    snd.command(0xff);
+    snd.run(FRAME_CYCLES * 10);
+    for (int f = 0; f < 30; f++) {
+      snd.command(f == 0 ? cmd : 0xff);
+      snd.run(FRAME_CYCLES);
+      for (int v = snd.sample(); v != WilliamsSound::EMPTY; v = snd.sample()) {
+        h = (h ^ (uint16_t)v) * 16777619u;
+      }
+    }
+  }
+  TEST_ASSERT_EQUAL_HEX32(0x5c72b9f5, h);  // stepped opcode by opcode
+}
+#endif
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_command_during_masked_irq);
   RUN_TEST(test_speech_cvsd_from_pia);
   RUN_TEST(test_output_averages_dac);
+  RUN_TEST(test_gwave_delay_skipped);
+  RUN_TEST(test_gwave_delay_timing);
+  RUN_TEST(test_idle_poll_skipped);
+  RUN_TEST(test_idle_branch_skipped);
+  RUN_TEST(test_loop_with_write_stepped);
 #ifdef HAVE_ROM
   RUN_TEST(test_silent_without_command);
   RUN_TEST(test_command_makes_sound);
   RUN_TEST(test_ring_produces_400_samples_per_frame);
   RUN_TEST(test_mix_fits_range);
+  RUN_TEST(test_defender_output_hash);
 #endif
   return UNITY_END();
 }
