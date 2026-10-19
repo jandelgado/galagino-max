@@ -7,9 +7,20 @@
 #include "elevator_gfx_rom.h"
 #include "elevator_draw_order.h"
 
-// main 4 MHz : sound 3 MHz, interleaved 4 : 3 instructions (as 1942)
-static constexpr uint16_t SLICES = 4 * INST_PER_FRAME / 3;
-static constexpr uint8_t MAIN_STEPS = 4, SOUND_STEPS = 3;
+// Z80 opcode cycle table (static in Tables.h). The host test includes
+// Z80.c, and with it Tables.h, into the same translation unit.
+#ifndef ELEVATOR_Z80_TABLES_INCLUDED
+#include "../../cpus/z80/Tables.h"
+#endif
+
+// main 4 MHz, sound 3 MHz on cycle budgets, interleaved in slices of
+// 40 / 30 cycles: instruction counts would detune DAC sample playback
+static constexpr uint16_t SLICES = 1666;
+static constexpr int32_t FRAME_CYCLES[2] = {4000000 / 60, 3000000 / 60};
+static constexpr int32_t IRQ_ACK_CYCLES = 13;   // IM 1
+static constexpr int32_t NMI_ACK_CYCLES = 11;
+static constexpr int32_t MIN_STEP_CYCLES = 4;
+static constexpr uint8_t OP_EI = 0xfb;
 // sound IRQ 12 MHz / (2*4*16*16*10*16) = 36.62 Hz: every 1.638 frames
 static constexpr uint16_t SOUND_IRQ_SLICES = SLICES * 60 * 10000 / 366211;
 
@@ -96,6 +107,7 @@ void elevator::reset() {
   latch_full = sema2 = nmi_line = nmi_pending = false;
   main_irq = sound_irq = false;
   sound_irq_slices = 0;
+  cycles_run[MAIN_CPU] = cycles_run[SOUND_CPU] = 0;
   dac_acc = 0;
   dac_sample = dac_last = 0;
   dac_rd = dac_wr;
@@ -395,8 +407,8 @@ void elevator::updateNmi(void) {
 // Idle loops (ROM disassembly), left only through an interrupt handler
 // that changes the polled flag: stepping them is wasted host time
 // (profile: main 78 %, sound 93 % of all instructions). Skipped while the
-// flag is unchanged and no interrupt is pending; instruction counts drive
-// all timing here, so nothing needs charging.
+// flag is unchanged and no interrupt is pending: the CPU idles out the
+// slice, as the loop would.
 // main, bank 0: 73f2 ld a,($80ab) / or a / jr nz,$73f2 (vblank IRQ clears)
 static constexpr uint16_t MAIN_IDLE_PC = 0x73f2;
 static constexpr uint16_t MAIN_IDLE_FLAG = 0x00ab;   // $80ab
@@ -417,33 +429,53 @@ bool elevator::isIdle(uint8_t c) {
          !(memory[SND_RAM_OFS + SOUND_IDLE_FLAG] & 1);
 }
 
-// one instruction, pending interrupts first (HOLD_LINE: kept until taken)
-void elevator::stepCpu(uint8_t c) {
-  if (isIdle(c)) {
-    return;
-  }
+// one instruction, pending interrupts first (HOLD_LINE: kept until
+// taken); returns its cycles. StepZ80 only counts prefixed opcodes, so
+// the main opcode's cycles are charged here (mcrStepZ80 pattern).
+int elevator::stepCpu(uint8_t c) {
   current_cpu = c;
   Z80 &z = cpu[c];
+  int32_t ack = 0;
   if (c == SOUND_CPU && nmi_pending) {
     nmi_pending = false;
     IntZ80(&z, INT_NMI);
+    ack += NMI_ACK_CYCLES;
   }
   bool &irq = c == MAIN_CPU ? main_irq : sound_irq;
   if (irq && (z.IFF & IFF_1)) {
     irq = false;
     IntZ80(&z, INT_RST38);
+    ack += IRQ_ACK_CYCLES;
   }
+
+  // ICount starts at -cycles: block opcodes (LDIR) do one pass per step
+  const uint8_t op = opZ80(z.PC.W);
+  z.ICount = -Cycles[op];
   StepZ80(&z);
+  if (op == OP_EI) {
+    z.ICount = -Cycles[op];   // EI parks ICount for RunZ80
+  }
+
+  const int32_t used = -z.ICount;   // HALT zeroes ICount
+  return ack + (used > MIN_STEP_CYCLES ? used : MIN_STEP_CYCLES);
+}
+
+// run CPU c up to cycle target of this frame, idle loops end the slice
+void elevator::runCpu(uint8_t c, int32_t target) {
+  while (cycles_run[c] < target) {
+    if (isIdle(c)) {
+      cycles_run[c] = target;
+      return;
+    }
+    cycles_run[c] += stepCpu(c);
+  }
 }
 
 void elevator::run_frame(void) {
   for (uint16_t s = 0; s < SLICES; s++) {
-    for (uint8_t i = 0; i < MAIN_STEPS; i++) {
-      stepCpu(MAIN_CPU);
-    }
-    for (uint8_t i = 0; i < SOUND_STEPS; i++) {
-      stepCpu(SOUND_CPU);
-    }
+    runCpu(MAIN_CPU, FRAME_CYCLES[MAIN_CPU] * (s + 1) / SLICES);
+    runCpu(SOUND_CPU, FRAME_CYCLES[SOUND_CPU] * (s + 1) / SLICES);
+
     dac_acc += SAMPLES_PER_FRAME;
     if (dac_acc >= SLICES) {
       dac_acc -= SLICES;
@@ -454,6 +486,8 @@ void elevator::run_frame(void) {
       sound_irq = true;
     }
   }
+  cycles_run[MAIN_CPU] -= FRAME_CYCLES[MAIN_CPU];
+  cycles_run[SOUND_CPU] -= FRAME_CYCLES[SOUND_CPU];
   publishVideo();
   main_irq = true;
 }

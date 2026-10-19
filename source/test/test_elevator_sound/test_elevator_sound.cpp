@@ -9,6 +9,7 @@
 #if __has_include("../../src/machines/elevator/elevator_main_rom.h")
 #define HAVE_ROM 1
 #define ENABLE_ELEVATOR
+#define ELEVATOR_Z80_TABLES_INCLUDED
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
 #include "../../src/cpus/z80/Z80.c"

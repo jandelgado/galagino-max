@@ -86,8 +86,9 @@ private:
   uint8_t in0(void);
   uint8_t in2(void);
   void updateNmi(void);
-  void stepCpu(uint8_t c);
+  int stepCpu(uint8_t c);
   bool isIdle(uint8_t c);
+  void runCpu(uint8_t c, int32_t target);
 
   // render inputs as of the vblank IRQ (seqlock.h); tile RAM with them,
   // else freshly written rows show at the scroll edge. Character RAM stays
@@ -135,6 +136,7 @@ private:
   bool main_irq = false;
   bool sound_irq = false;
   uint16_t sound_irq_slices = 0;
+  int32_t cycles_run[2] = {};   // per CPU, this frame, may run ahead into the next
   uint8_t ay_addr[4] = {};  // register select per chip, regs in soundregs[16 * chip]
 
   // MAME mix: AY#0 0.15, AY#1 0.5, AY#2 0.5, AY#3 1.0 (AY#0 rounded up)
