@@ -207,5 +207,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Gardia (gardia.zip)           | ![Gardia marquee](/logos/gardia.png) | ![Gardia screenshot](/images/gardia.png) | Sega System 1. FIRE=button 1, START=button 2 |
 | Pleiads (pleiads.zip)         | ![Pleiads marquee](/logos/pleiads.png) | ![Pleiads screenshot](/images/pleiads.png) | FIRE=fire |
 | Arkanoid (arkanoid.zip)       | ![Arkanoid marquee](/logos/arkanoid.png) | ![Arkanoid screenshot](/images/arkanoid.png) | Game Corporation bootleg set arkangc (no MCU). Left/right=paddle, FIRE=launch/laser |
+| Sinistar (sinistar.zip)       | ![Sinistar marquee](/logos/sinistar.png) | ![Sinistar screenshot](/images/sinistar.png) | Rev 3 upright. 49-way stick from the 8-way stick. FIRE=fire, START=sinibomb (EXTRA without COIN pin) |
 
 ### ...
