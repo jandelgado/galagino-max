@@ -345,6 +345,9 @@
 #ifdef ENABLE_SXEVIOUS
   #include "machines/sxevious/sxevious.h"
 #endif
+#ifdef ENABLE_MIKIE
+  #include "machines/mikie/mikie.h"
+#endif
 #ifdef ENABLE_1943
   #include "machines/1943/1943.h"
 #endif
@@ -953,6 +956,13 @@ constexpr machineInfo machines[] = {
     sxevious::menuLeds,
 #endif
     MCH_SXEVIOUS },
+#endif
+#ifdef ENABLE_MIKIE
+  { createMachine<mikie>, mikie::logo,
+#ifdef LED_PIN
+    mikie::menuLeds,
+#endif
+    MCH_MIKIE },
 #endif
 #ifdef ENABLE_1943
   { createMachine<_1943>, _1943::logo,

@@ -201,5 +201,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | 4-D Warriors (4dwarrio.zip)   | ![4-D Warriors marquee](/logos/fourdwarrio.png) | ![4-D Warriors screenshot](/images/fourdwarrio.png) | Sega System 1. FIRE=button 1, START=button 2 |
 | Heavy Metal (hvymetal.zip)    | ![Heavy Metal marquee](/logos/hvymetal.png) | ![Heavy Metal screenshot](/images/hvymetal.png) | Sega System 1. FIRE=button 1, START=button 2 |
 | Super Xevious (sxevious.zip)  | ![Super Xevious marquee](/logos/sxevious.png) | ![Super Xevious screenshot](/images/sxevious.png) | Needs xevious.zip |
+| Mikie (mikie.zip)             | ![Mikie marquee](/logos/mikie.png) | ![Mikie screenshot](/images/mikie.png) | FIRE=button 1, START=button 2 |
 
 ### ...
