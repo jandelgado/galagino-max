@@ -17,10 +17,11 @@
 // The 06xx pulses the chip select once per clock period, so bytes reach
 // the MCU at the 06xx rate, not the burst rate of the emulated frame.
 //
-// The 54xx ROM ships in galaga.zip (machines/galaga/namco54_rom.h).
+// rom: the 1 KB 54xx program (ships in galaga.zip, see
+// machines/namco54/namco54_program.h).
 class Namco54 : public Mb88 {
 public:
-  Namco54();
+  explicit Namco54(const uint8_t *rom);
 
   // emulation core. ctrl: 06xx control register, bits 7-5 = clock divide
   void write(uint8_t data, uint8_t ctrl);

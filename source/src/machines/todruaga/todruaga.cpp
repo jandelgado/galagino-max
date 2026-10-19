@@ -146,7 +146,7 @@ void IRAM_ATTR todruaga::m6809_write(m6809_state *s, uint16_t addr, uint8_t val)
 
   if ((addr & 0xFC00) == 0x4000) {
     uint16_t o = addr & 0x03FF;
-    if (o < 0x40) soundregs[o] = val;     // registri WSG (letti da audio.cpp)
+    if (o < 0x40) soundregs[o] = val;     // registri WSG (letti da renderAudio)
     else          memory[TODRUAGA_SHARED_OFF + o] = val;
     return;
   }

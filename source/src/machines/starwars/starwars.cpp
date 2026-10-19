@@ -436,7 +436,7 @@ void starwars::sound_write(uint16_t a, uint8_t v) {
     return;
   }
 
-  // POKEY n registers at soundregs[n * Pokey::REG_COUNT], see audio.cpp
+  // POKEY n registers at soundregs[n * Pokey::REG_COUNT], see renderAudio()
   uint8_t *regs = soundregs + ((a >> 3) & 3) * Pokey::REG_COUNT;
   const uint8_t reg = (a & 7) | ((a & 0x20) >> 2);
   if (reg <= POKEY_AUDCTL) {
@@ -620,3 +620,14 @@ void starwars::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+// four POKEYs at half level plus the TMS5220 at 2.5 times a POKEY
+// (MAME 0.50 vs 0.20)
+void starwars::renderAudio(int16_t *out, int n) {
+  int16_t voice[AUDIO_CHUNK];
+  Pokey::renderBank(pokey, soundregs, out, n);
+  renderSpeech(voice, n);
+  for (int i = 0; i < n; i++) {
+    out[i] = audioClamp((out[i] >> POKEY_SHIFT) + (voice[i] >> SPEECH_SHIFT), AUDIO_MAX);
+  }
+}

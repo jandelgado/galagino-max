@@ -27,7 +27,6 @@ void tp84::reset() {
   main_irq_enable = sub_irq_mask = 0;
   palette_bank = scroll_x = scroll_y = 0;
   soundlatch = snd_irq_pend = 0;
-  memset(sn_last_reg, 0, sizeof(sn_last_reg));
   snd_cycles = 0;
   main_polls = sub_polls = snd_polls = 0;
   cmap_bank = -1;
@@ -159,42 +158,11 @@ void tp84::wrZ80(unsigned short Addr, unsigned char Value) {
   snd_polls = 0;
   if ((Addr & 0xE000) == 0x4000) { memory[TP84_SND_RAM + (Addr & 0x3FF)] = Value; return; }
   switch (Addr) {
-    case 0xC001: sn_write(0, Value); return;
-    case 0xC003: sn_write(1, Value); return;
-    case 0xC004: sn_write(2, Value); return;
+    case 0xC001: sn[0].write(Value); return;
+    case 0xC003: sn[1].write(Value); return;
+    case 0xC004: sn[2].write(Value); return;
   }
   // 0xA000-0xA1FF RC filters, 0xC000 nop
-}
-
-// SN76489 byte stream -> sn_period/sn_volume. Raw periods; the 1.79 MHz
-// clock is handled by sn_inc in audio.cpp.
-void tp84::sn_write(int chip, uint8_t data) {
-  if (data & 0x80) {                 // latch: register + low 4 bits
-    const int reg = (data >> 5) & 0x03;
-    const int type = (data >> 4) & 0x01;   // 0 = frequency, 1 = volume
-    sn_last_reg[chip] = (reg * 2) + type;
-
-    if (type == 0) {
-      if (reg == 3)
-        sn_period[chip][3] = data & 0x07;
-      else
-        sn_period[chip][reg] = (sn_period[chip][reg] & 0x3F0) | (data & 0x0F);
-    } else {
-      const uint8_t vol = data & 0x0F;
-      sn_volume[chip][reg] = vol;
-      if (vol < sn_min_volume[chip][reg]) sn_min_volume[chip][reg] = vol;
-      if (vol < 15) sn_hold[chip][reg] = 6;
-    }
-  } else {                           // data: high 6 bits of the frequency
-    const int reg = sn_last_reg[chip] / 2;
-    const int type = sn_last_reg[chip] % 2;
-    if (type == 0) {
-      if (reg == 3)
-        sn_period[chip][3] = data & 0x07;
-      else
-        sn_period[chip][reg] = (sn_period[chip][reg] & 0x00F) | ((data & 0x3F) << 4);
-    }
-  }
 }
 
 // ---- Frame ----

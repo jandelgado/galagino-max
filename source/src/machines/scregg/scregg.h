@@ -5,6 +5,7 @@
 #include "scregg_dipswitches.h"
 #include "../../cpus/m6502/m6502.h"
 #include "../machineBase.h"
+#include "../../emulation/ay8910.h"
 
 class scregg : public machineBase {
 protected:
@@ -16,6 +17,7 @@ public:
   scregg();
 
   signed char machineType() override { return MCH_SCREGG; }
+  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   void start() override;
   void reset() override;
   void run_frame() override;
@@ -59,6 +61,11 @@ private:
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
+
+private:
+  static const uint8_t AY_INC = 8;
+  static const uint8_t AY_GAIN = 7;
+  Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
 };
 
 #endif

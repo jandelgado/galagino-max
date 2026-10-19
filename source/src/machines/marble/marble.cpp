@@ -225,7 +225,7 @@ void marble::run_frame(void) {
 }
 
 // audio core: song requests start a C64 song (0: silence), effect requests run the stub
-void marble::renderSid(int16_t *out, int n) {
+void marble::renderAudio(int16_t *out, int n) {
   const uint16_t music = sound.music, effect = sound.effect;
   if (tune_ok && music != music_seen) {
     music_seen = music;

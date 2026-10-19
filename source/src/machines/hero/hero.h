@@ -2,6 +2,7 @@
 #define HERO_H
 
 #include "../machineBase.h"
+#include "../../emulation/pokey.h"
 
 #ifdef ENABLE_HERO
 
@@ -19,6 +20,10 @@ class hero : public machineBase
 {
 public:
   signed char machineType() override { return MCH_HERO; }
+  void renderAudio(int16_t *out, int n) override {
+    Pokey::renderBank(pokey, soundregs, out, n);
+    audioClampAll(out, n, AUDIO_MAX);
+  }
   const int renderWidth()  override { return hero_video::OUT_W; }
   const int renderBuffer() override { return hero_video::OUT_W * 2 * 8; }
 
@@ -42,6 +47,9 @@ private:
 
   hero_game::Game game;
   uint32_t prev_keys = 0;
+
+private:
+  Pokey pokey[1] = {Pokey(Pokey::CLOCKS_1789KHZ)};
 };
 
 #endif // ENABLE_HERO

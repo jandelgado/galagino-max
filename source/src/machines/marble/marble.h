@@ -32,7 +32,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  void renderSid(int16_t *out, int n) override;
+  void renderAudio(int16_t *out, int n) override;
   static const Logo &logo(void) { return marble_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

@@ -5,6 +5,7 @@
 #include "spaceinvaders_dipswitches.h"
 #include "spaceinvaders_samples.h"
 #include "../machineBase.h"
+#include "spaceinvaders_sound.h"
 
 // Space Invaders (Midway, 1978)
 // CPU: Intel 8080 @ 2MHz (runs on Z80 emulator - 8080 is a subset of Z80)
@@ -50,10 +51,12 @@ public:
     // read by Audio::spaceinvaders_render_buffer()
     Asset<unsigned char, PLAIN> si_sample_shot;
     Asset<unsigned char, PLAIN> si_sample_invhit;
+    SpaceInvadersSound sound;  // after the sample assets it points into
 
     spaceinvaders();
 
     signed char machineType() override { return MCH_SPACEINVADERS; }
+    void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
     void start(void) override;
     unsigned char rdZ80(unsigned short Addr) override;
     void wrZ80(unsigned short Addr, unsigned char Value) override;

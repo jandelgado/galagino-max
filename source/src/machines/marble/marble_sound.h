@@ -10,7 +10,7 @@
 //
 //   logic, any module     send(m, cmd)  queue for this frame (file static, one machine)
 //   marble::run_frame end step(s)       commands -> s.music / s.effect requests
-//   marble::renderSid     s.music       SidPlayer::start(song)        (audio core)
+//   marble::renderAudio   s.music       SidPlayer::start(song)        (audio core)
 //                         s.effect      SidPlayer::jsr(stub, effect)
 namespace marble_sound {
 

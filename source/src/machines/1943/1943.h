@@ -3,6 +3,7 @@
 
 #include "1943_logo.h"
 #include "../machineBase.h"
+#include "../../emulation/ym2203.h"
 #include "../../emulation/seqlock.h"
 #include "../../emulation/ym2203fm.h"
 
@@ -35,6 +36,7 @@ protected:
 public:
   _1943();
   signed char machineType() override { return MCH_1943; }
+  void renderAudio(int16_t *out, int n) override;
   void reset() override;
   unsigned char opZ80(unsigned short Addr) override;
   unsigned char rdZ80(unsigned short Addr) override;
@@ -42,7 +44,7 @@ public:
   void run_frame() override;
   void prepare_frame() override;
   void render_row(short row) override;
-  void renderFm(int16_t *out, int n) override;
+  void renderFm(int16_t *out, int n);
   static const Logo &logo() { return _1943_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
@@ -94,7 +96,6 @@ private:
 
   // sound CPU (cpu[1])
   bool sound_reset = false;
-  uint8_t ym_addr[2] = {};
   Ym2203Fm fm[2];
 
   // sprite RAM bytes 0-3, scroll and enables as of the vblank IRQ (see
@@ -125,6 +126,12 @@ private:
   void blitBg1Line(uint16_t *dst, int vx, uint32_t *mask);
   void blitSprites(short row);
   void blitChar(short row, int col);
+
+private:
+  static const uint8_t AY_INC = 4;
+  static const uint8_t AY_GAIN = 5;
+  // after fm[2], which it points into
+  Ym2203 ym[2] = {Ym2203(AY_INC, AY_GAIN, &fm[0]), Ym2203(AY_INC, AY_GAIN, &fm[1])};
 };
 
 #endif

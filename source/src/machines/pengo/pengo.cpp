@@ -298,8 +298,8 @@ void pengo::blit_sprite(short current_strip_row, unsigned char s) {
   }
 }
 
-const signed char * pengo::waveRom(unsigned char value) {
-  return pengo_wavetable[value]; 
+const NamcoWave *pengo::waveTable() {
+  return pengo_wavetable;
 }
 
 const Logo &pengo::logo(void) {

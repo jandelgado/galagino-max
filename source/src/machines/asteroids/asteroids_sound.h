@@ -2,7 +2,7 @@
 #define ASTEROIDS_SOUND_H
 
 #include <stdint.h>
-#include "discrete.h"
+#include "../../emulation/discrete.h"
 
 // Asteroids sound registers in machineBase::soundregs, written by the
 // machine, read by the discrete sound renderer.
@@ -28,6 +28,7 @@ enum : uint8_t {
 // renderers. Voice levels follow MAME's relative gain table.
 class AsteroidsSound {
 public:
+  AsteroidsSound() { reset(); }
   void reset();
   void render(const uint8_t *regs, int16_t *out, int n);
 

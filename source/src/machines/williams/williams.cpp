@@ -73,12 +73,19 @@ void williams::clearPads(uint16_t *line) {
 }
 
 // audio core: hold the last value when the ring runs dry
-int williams::renderDrumSample() {
+int williams::dacSample() {
   const int v = board.sound().sample();
   if (v != WilliamsSound::EMPTY) {
     lastSample = v;
   }
   return lastSample * DAC_VOLUME;
+}
+
+// Williams sound board: 6808 DAC samples produced on the emulation core
+void williams::renderAudio(int16_t *out, int n) {
+  for (int i = 0; i < n; i++) {
+    out[i] = audioClamp(dc.filter(dacSample()), AUDIO_MAX);
+  }
 }
 
 unsigned char IRAM_ATTR williams::m6809_read(m6809_state *, uint16_t addr) {

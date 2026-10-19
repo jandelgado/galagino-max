@@ -198,7 +198,7 @@ void zaxxon::wrZ80(unsigned short Addr, unsigned char Value) {
   // device sits at e03c-e03f, mirrored across bit 0x1f00 -- 0xe03c|0x1f00
   // == 0xff3c, so this range is the SAME PPI, not a different one. Latch
   // the raw port byte in soundregs[0..2] (port A loops are level-decoded
-  // by Audio::zaxxon_render_buffer()) and count one-shot falling edges
+  // by ZaxxonSound::render()) and count one-shot falling edges
   // here, see ZAXXON_TRIG_BASE.
   if ((Addr & 0xfffc) == 0xff3c) {
     const uint8_t port = Addr & 3;

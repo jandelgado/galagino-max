@@ -2,6 +2,7 @@
 #define MPATROL_H
 
 #include "../machineBase.h"
+#include "../../emulation/ay8910.h"
 
 #ifdef ENABLE_MPATROL
 
@@ -36,6 +37,7 @@ public:
   mpatrol();
 
   signed char machineType() override { return MCH_MPATROL; }
+  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   // Native ROT0 240x252, shown 1:1 on the portrait panel.
   const int renderWidth()  override { return mpatrol_video::OUT_WIDTH; }
   const int renderBuffer() override { return mpatrol_video::OUT_WIDTH * 2 * 8; }
@@ -101,6 +103,11 @@ private:
   const unsigned short (*tiles)[8] = nullptr;
   const uint32_t (*sprites)[16] = nullptr;
   const unsigned char (*bgs)[4096] = nullptr;
+
+private:
+  static const uint8_t AY_INC = 5;
+  static const uint8_t AY_GAIN = 5;
+  Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
 };
 
 #endif // ENABLE_MPATROL

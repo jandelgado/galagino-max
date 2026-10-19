@@ -9,7 +9,8 @@ vanguard::vanguard()
   : vanguard_gfx(vanguard_gfx_blob),
     vanguard_rom(vanguard_rom_blob),
     vanguard_samples(vanguard_samples_blob),
-    vanguard_sound_rom(vanguard_sound_rom_blob) { memset(&m_cpu, 0, sizeof(m_cpu)); }
+    vanguard_sound_rom(vanguard_sound_rom_blob),
+    sound(*this, Snk6502Sound::VANGUARD) { memset(&m_cpu, 0, sizeof(m_cpu)); }
 
 static_assert(VANGUARD_SAMPLE_COUNT == 18, "Unexpected Vanguard sample count");
 
@@ -28,20 +29,20 @@ static void set_cols(uint16_t *cols, uint16_t offset, uint8_t value) {
   }
 }
 
-unsigned char vanguard::vanguardSoundRom(unsigned short addr) {
+uint8_t vanguard::soundRom(uint16_t addr) {
   return vanguard_sound_rom[addr & 0x0fff];
 }
 
-const signed char *vanguard::vanguardSample(unsigned char index) {
+const signed char *vanguard::sample(uint8_t index) {
   return index < VANGUARD_SAMPLE_COUNT ?
     reinterpret_cast<const signed char *>(vanguard_samples.data() + vanguard_sample_offsets[index]) : nullptr;
 }
 
-unsigned long vanguard::vanguardSampleLength(unsigned char index) {
+uint32_t vanguard::sampleLength(uint8_t index) {
   return index < VANGUARD_SAMPLE_COUNT ? vanguard_sample_lengths[index] : 0;
 }
 
-unsigned char vanguard::vanguardSampleDivider(unsigned char index) {
+uint8_t vanguard::sampleDivider(uint8_t index) {
   return index < VANGUARD_SAMPLE_COUNT ? vanguard_sample_dividers[index] : 1;
 }
 

@@ -2,6 +2,8 @@
 #define GYRUSS_H
 
 #include "../machineBase.h"
+#include "../../emulation/ay8910.h"
+#include "../../emulation/dc_block.h"
 #include "../../emulation/seqlock.h"
 #include "gyruss_palette.h"
 #include "gyruss_dipswitches.h"
@@ -63,6 +65,16 @@ public:
     void reset() override;
 
     signed char machineType() override { return MCH_GYRUSS; }
+    // 5 AY + i8039 drum DAC from the ring run_frame fills (on/off and
+    // volume: GYRUSS_ENABLE_DRUMS, GYRUSS_DRUMS_VOLUME), DC tracked out
+    // (~40 Hz high-pass against the 8039 idle offset). Never step the 8039
+    // here: doing it on the loop task froze gyruss on HW (2026-07-11).
+    void renderAudio(int16_t *out, int n) override {
+      Ay8910::renderBank(ay, soundregs, out, n);
+      for (int i = 0; i < n; i++) {
+        out[i] += drums.filter(drumSample());
+      }
+    }
     signed char useVideoHalfRate() override { return 1; }
     signed char videoFlipY() override { return 0; }
     signed char videoFlipX() override { return 1; }
@@ -82,7 +94,7 @@ public:
     // (porta 0x18) e pulsa l'IRQ (porta 0x14); l'8039 legge il comando dal
     // BUS/MOVX e riproduce il campione scrivendo P1 -> i8039_dac (DAC).
     // Vedi MAME konami/gyruss.cpp. Steppato per-campione nel render audio
-    // (audio.cpp, MCH_GYRUSS), NON in run_audio_batch (crackle da raffiche).
+    // (renderAudio), NON in run_audio_batch (crackle da raffiche).
     void wrI8048_port(struct i8048_state_S *state, unsigned char port, unsigned char pos) override;
     unsigned char rdI8048_port(struct i8048_state_S *state, unsigned char port) override;
     unsigned char rdI8048_xdm(struct i8048_state_S *state, unsigned char addr) override;
@@ -99,8 +111,8 @@ public:
     // stub 2026-07-11). Consuma solo il ring riempito da run_frame sul core
     // di emulazione (produce_drum_samples, stile transfer buffer dkong);
     // a ring vuoto ripete l'ultimo campione. Ritorna il campione gia'
-    // scalato per GYRUSS_DRUMS_VOLUME (audio.cpp non scala piu').
-    int renderDrumSample() override {
+    // scalato per GYRUSS_DRUMS_VOLUME.
+    int drumSample() {
 #if GYRUSS_ENABLE_DRUMS
         if (drum_rd != drum_wr) {
             drum_last = drum_ring[drum_rd];
@@ -154,7 +166,7 @@ private:
     volatile unsigned char i8039_irq_pending;   // IRQ 8039 latchato dallo Z80 (porta 0x14)
 
     // Ring SPSC campioni drums: produttore run_frame (core emulazione, 24
-    // step 8039 per slot), consumatore renderDrumSample (loopTask). Indici
+    // step 8039 per slot), consumatore drumSample (loopTask). Indici
     // gia' mascherati, un solo scrittore ciascuno -> nessun lock necessario.
     void produce_drum_samples();
     unsigned char drum_ring[GYR_DRUM_RING];
@@ -190,6 +202,12 @@ private:
     unsigned char multiplex[SPRITE_BYTES];  // first set, emulation core only
     Seqlock<VideoState> vblank;
     VideoState video = {};
+
+private:
+  static const uint8_t AY_INC = 9;
+  static const uint8_t AY_GAIN = 3;
+  Ay8910 ay[5] = {Ay8910(AY_INC, AY_GAIN, Ay8910::NO_PERIOD0_ENV), Ay8910(AY_INC, AY_GAIN, Ay8910::NO_PERIOD0_ENV), Ay8910(AY_INC, AY_GAIN, Ay8910::NO_PERIOD0_ENV), Ay8910(AY_INC, AY_GAIN, Ay8910::NO_PERIOD0_ENV), Ay8910(AY_INC, AY_GAIN, Ay8910::NO_PERIOD0_ENV)};
+  DcTrack drums;
 };
 
 #endif

@@ -7,6 +7,7 @@
 #include "atetris_video.h"
 #include "../../cpus/m6502/m6502.h"
 #include "../machineBase.h"
+#include "../../emulation/pokey.h"
 #include "../../emulation/seqlock.h"
 
 // Atari Tetris, MAME atetris (set 1), atari/atetris.cpp. One M6502 at
@@ -25,6 +26,10 @@ protected:
 public:
   atetris();
   signed char machineType() override { return MCH_ATETRIS; }
+  void renderAudio(int16_t *out, int n) override {
+    Pokey::renderBank(pokey, soundregs, out, n);
+    audioClampAll(out, n, AUDIO_MAX);
+  }
   void reset() override;
   void run_frame() override;
   void prepare_frame() override;
@@ -91,6 +96,9 @@ private:
   const atetris_video::Span *spans = scale_spans;
   int span_cols = atetris_video::VIS_COLS; // tile columns with any kept pixel
   uint16_t pal[256];
+
+private:
+  Pokey pokey[2] = {Pokey(Pokey::CLOCKS_1789KHZ), Pokey(Pokey::CLOCKS_1789KHZ)};
 };
 
 #endif

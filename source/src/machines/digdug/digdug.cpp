@@ -420,10 +420,6 @@ void digdug::render_row(short row) {
   }
 }
 
-const signed char * digdug::waveRom(unsigned char value) {
-  return digdug_wavetable[value]; 
-}
-
 const Logo &digdug::logo(void) {
   return digdug_logo;
 }

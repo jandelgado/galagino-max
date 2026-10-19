@@ -14,6 +14,8 @@
 #include "galaga_starseed.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../namco54/namco54_program.h"
+#include "../../emulation/namco_wsg.h"
 #include "../../emulation/namco54.h"
 
 class galaga : public machineBase
@@ -44,14 +46,13 @@ public:
   void prepare_frame(void) override;
   void render_row(short row) override;
 
-  const signed char *waveRom(unsigned char value) override;
+  void renderAudio(int16_t *out, int n) override;
   static const Logo &logo(void);
-  bool hasNamcoAudio() override { return true; }
 
   // explosions: emulated 54xx, read by the audio core.
   // All other sounds are generated on the fly via the
   // original wave tables
-  Namco54 n54;
+  Namco54 n54{namco54Program()};
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;
@@ -79,6 +80,9 @@ private:
   int coincredMode = 0;   
   unsigned char starcontrol = 0;
   char sub_cpu_reset = 1;
+
+private:
+  NamcoWsg wsg;
 };
 
 #endif

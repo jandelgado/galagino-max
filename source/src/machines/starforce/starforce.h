@@ -3,6 +3,7 @@
 
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/sn76489.h"
 #include "../../emulation/seqlock.h"
 
 // Offsets
@@ -24,6 +25,7 @@ public:
 	starforce();
 
 	signed char machineType() override { return MCH_STARFORCE; }
+	void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
 	signed char useVideoHalfRate() override { return 1; }
 
 	unsigned char opZ80(unsigned short Addr) override; 
@@ -65,8 +67,6 @@ private:
 	unsigned short calculate_color_starforce(unsigned char raw_palette_byte);
 	void blit_background_line(short start_screen_row, int layer_num);
 	unsigned char bg_color_group(unsigned char tile_code, int layer_num);
-	void SN76489_Write_3chip(int chip, unsigned char data);
-	int sn_last_register[3];
 
 	// Latch per la comunicazione tra CPU principale e CPU audio
 	unsigned char sound_latch = 0;
@@ -112,6 +112,9 @@ private:
 	};
 	Seqlock<VideoState> vblank;
 	VideoState video = {};
+
+protected:
+  Sn76489 sn[3] = {Sn76489(Sn76489::INC_4MHZ), Sn76489(Sn76489::INC_4MHZ), Sn76489(Sn76489::INC_4MHZ)};
 };
 
 #endif

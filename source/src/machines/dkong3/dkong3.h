@@ -62,6 +62,7 @@ public:
 
     void reset() override;
     void start() override;
+    void renderAudio(int16_t *out, int n) override;
 
     signed char machineType() override { return MCH_DKONG3; }
     unsigned char rdZ80(unsigned short Addr) override;
@@ -73,7 +74,7 @@ public:
     void render_row(short row) override;
     static const Logo &logo(void);
 
-    // Public: accessed by audio.cpp
+    // APU sample ring: run_frame() writes, renderAudio() reads
     static const int DK3_SAMPLES = 1024;
     uint16_t dk3_rptr = 0;
     uint16_t dk3_wptr = 0;

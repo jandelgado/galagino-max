@@ -15,6 +15,8 @@
 #include "xevious_dipswitches.h"
 #include "xevious_logo.h"
 #include "../machineBase.h"
+#include "../namco54/namco54_program.h"
+#include "../../emulation/namco_wsg.h"
 #include "../../emulation/namco54.h"
 #include "../../emulation/seqlock.h"
 
@@ -92,12 +94,11 @@ public:
   void prepare_frame(void) override;
   void render_row(short row) override;
 
-  const signed char *waveRom(unsigned char value) override;
+  void renderAudio(int16_t *out, int n) override;
   static const Logo &logo(void);
-  bool hasNamcoAudio() override { return true; }
 
   // explosions: emulated 54xx, read by the audio core
-  Namco54 n54;
+  Namco54 n54{namco54Program()};
 
 protected:
   void blit_tile(short row, char col) override { }   // non usato: vedi blit_tilemap_row
@@ -182,6 +183,9 @@ private:
   };
   Seqlock<VideoState> vblank;
   VideoState video = {};
+
+private:
+  NamcoWsg wsg;
 };
 
 #endif

@@ -2,6 +2,7 @@
 #define SYSTEM1_H
 
 #include "../machineBase.h"
+#include "../../emulation/sn76489.h"
 #include "../../emulation/seqlock.h"
 #include "system1_video.h"
 #include "system1_collision.h"
@@ -38,6 +39,7 @@ public:
   void outZ80(unsigned short Port, unsigned char Value) override;
 
   void run_frame(void) override;
+  void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   void prepare_frame(void) override;
   void render_row(short row) override;
 
@@ -107,8 +109,6 @@ private:
   uint8_t soundRead(uint16_t addr);
   void soundWrite(uint16_t addr, uint8_t value);
   void irqLines();
-  void snWrite(int chip, uint8_t data);
-  void snNoise(int chip);
   uint8_t readP1();
   uint8_t readSystem();
   void startVblank();
@@ -130,8 +130,6 @@ private:
   Ppi8255 ppi;
   bool mainIrq;              // HOLD_LINE: pending until the CPU enables interrupts
   bool soundIrq;
-  uint8_t snLatch[2];        // last latched register per chip
-  uint8_t snNoiseReg[2];
   uint16_t palette[PALETTE_USED];
   uint16_t mixSel[system1_video::MIX_PRIORITIES];  // lookup PROM per tile priority pair
   bool clearShowsBg;
@@ -142,6 +140,9 @@ private:
   ActiveSprite active[system1_video::SPRITES];
   int activeCount = 0;
   uint32_t sprTiles[STRIP_LINES];  // per strip line: tile rows with sprite pens
+
+protected:
+  Sn76489 sn[2] = {Sn76489(Sn76489::INC_2MHZ), Sn76489(Sn76489::INC_4MHZ)};
 };
 
 #endif

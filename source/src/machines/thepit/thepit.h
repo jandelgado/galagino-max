@@ -5,6 +5,7 @@
 #include "thepit_video.h"
 
 #include "../machineBase.h"
+#include "../../emulation/ay8910.h"
 #include "../../emulation/seqlock.h"
 
 // ============================================================
@@ -42,6 +43,7 @@ public:
   thepit();
 
   signed char machineType() override { return MCH_THEPIT; }
+  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   void reset() override;
   void start() override;
 
@@ -171,6 +173,11 @@ private:
   uint8_t draw_tiles(short row, Span *prio);
   void fill_span(const Span &span);
   uint8_t draw_sprites(short row, int from, int to);
+
+private:
+  static const uint8_t AY_INC = 8;
+  static const uint8_t AY_GAIN = 11;
+  Ay8910 ay[1] = {Ay8910(AY_INC, AY_GAIN)};
 };
 
 #endif

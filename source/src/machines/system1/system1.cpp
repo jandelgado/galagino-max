@@ -53,13 +53,6 @@ constexpr unsigned int START_KEY = BUTTON_START;
 constexpr unsigned int START_KEY = BUTTON_EXTRA;
 #endif
 
-// SN76489
-constexpr uint8_t SN_LATCH = 0x80;
-constexpr int SN_NOISE = 3;
-constexpr int SN_TONE2 = 2;
-constexpr int SN_NOISE_BASE = 4;             // N/512 in renderer noise units
-constexpr int SN_FOLLOW_TONE2 = 3;
-
 } // namespace
 
 system1::system1(const Roms &r, const Config &c)
@@ -89,8 +82,6 @@ void system1::reset() {
   mainIrq = false;
   soundIrq = false;
 
-  snLatch[0] = snLatch[1] = 0;
-  snNoiseReg[0] = snNoiseReg[1] = 0;
   memset(palette, 0, sizeof(palette));
   collision.reset();
   activeCount = 0;
@@ -176,9 +167,9 @@ void system1::soundWrite(uint16_t a, uint8_t v) {
   if (a < SOUND_RAM_END) {
     memory[SOUND_RAM + (a & SOUND_RAM_MASK)] = v;
   } else if (a >= SN1_BASE && a < SN2_BASE) {
-    snWrite(0, v);
+    sn[0].write(v);
   } else if (a < SOUND_LATCH_BASE) {
-    snWrite(1, v);
+    sn[1].write(v);
   }
 }
 
@@ -251,46 +242,6 @@ uint8_t system1::readSystem() {
     v &= ~IN_START1;
   }
   return v;
-}
-
-// Renderer units (audio.cpp sn76489_render_buffer): tone toggles every
-// period units, noise shifts every period << 3 units, 1 unit = 16 clocks.
-void system1::snWrite(int chip, uint8_t d) {
-  if (d & SN_LATCH) {
-    snLatch[chip] = (d >> 4) & 0x07;  // channel * 2 + volume flag
-  }
-  const int ch = snLatch[chip] >> 1;
-  const bool volume = snLatch[chip] & 1;
-
-  if (volume) {
-    sn_volume[chip][ch] = d & 0x0f;
-    return;
-  }
-
-  if (ch == SN_NOISE) {
-    snNoiseReg[chip] = d & 0x07;
-    snNoise(chip);
-    return;
-  }
-
-  int &period = sn_period[chip][ch];
-  if (d & SN_LATCH) {
-    period = (period & 0x3f0) | (d & 0x0f);
-  } else {
-    period = (period & 0x00f) | ((d & 0x3f) << 4);
-  }
-
-  if (ch == SN_TONE2) {
-    snNoise(chip);
-  }
-}
-
-// noise rate N/512, N/1024, N/2048 or tone 2 output (shifts every 2 tone
-// periods, MAME sn76496); white/periodic not modeled
-void system1::snNoise(int chip) {
-  const int rate = snNoiseReg[chip] & 0x03;
-  const int p = rate == SN_FOLLOW_TONE2 ? (sn_period[chip][SN_TONE2] >> 2) : (SN_NOISE_BASE << rate);
-  sn_period[chip][SN_NOISE] = p > 0 ? p : 1;
 }
 
 void system1::run_frame(void) {

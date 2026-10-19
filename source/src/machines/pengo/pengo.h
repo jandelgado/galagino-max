@@ -31,7 +31,7 @@ public:
 	void run_frame(void) override;
 	void prepare_frame(void) override;
 	void render_row(short row) override;
-	const signed char *waveRom(unsigned char value) override;
+	const NamcoWave *waveTable() override;
 	static const Logo &logo(void);	
 
 private:

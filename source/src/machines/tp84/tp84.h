@@ -2,6 +2,7 @@
 #define TP84_H
 
 #include "../machineBase.h"
+#include "../../emulation/sn76489.h"
 #include "../../cpus/m6809/m6809.h"
 #include "../../emulation/seqlock.h"
 #include "tp84_hw.h"
@@ -51,6 +52,7 @@ protected:
 public:
   tp84();
   signed char machineType() override { return MCH_TP84; }
+  void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   void reset() override;
   void start() override;
 
@@ -81,7 +83,6 @@ private:
   };
 
   uint8_t main_read_io(uint16_t addr);
-  void sn_write(int chip, uint8_t data);
   void publish_video();
   void build_cmaps(uint8_t bank);
   void blit_sprite(short row, const tp84_hw::Sprite &s);
@@ -95,7 +96,6 @@ private:
   uint8_t main_irq_enable = 0, sub_irq_mask = 0;  // not irq_enable: machineBase member
   uint8_t palette_bank = 0, scroll_x = 0, scroll_y = 0;
   uint8_t soundlatch = 0, snd_irq_pend = 0;
-  uint8_t sn_last_reg[3] = {0, 0, 0};
   uint16_t snd_cycles = 0;        // Z80 cycle counter mod 16384 for the 0x8000 timer
   uint8_t main_polls = 0, sub_polls = 0, snd_polls = 0;  // polls since the CPU's last write
   volatile uint8_t led_flash = 0; // set by the emulation core
@@ -110,6 +110,9 @@ private:
   uint16_t cmap_sprites[16][16];  // current bank, sprite colors
   uint16_t sprite_opaque[16];     // bit p set = pen p opaque
   int16_t cmap_bank = -1;         // bank cmap_* were built for
+
+protected:
+  Sn76489 sn[3] = {Sn76489(Sn76489::INC_2MHZ, Sn76489::HOLD_SHORT_NOTES), Sn76489(Sn76489::INC_2MHZ, Sn76489::HOLD_SHORT_NOTES), Sn76489(Sn76489::INC_2MHZ, Sn76489::HOLD_SHORT_NOTES)};
 };
 
 #endif

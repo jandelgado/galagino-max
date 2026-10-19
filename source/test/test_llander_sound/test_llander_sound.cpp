@@ -2,7 +2,7 @@
 #include <unity.h>
 
 #include "../../src/emulation/discrete.cpp"
-#include "../../src/emulation/llander_sound.cpp"
+#include "../../src/machines/llander/llander_sound.cpp"
 
 static LlanderSound snd;
 static int16_t out[480];

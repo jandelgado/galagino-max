@@ -5,6 +5,7 @@
 #include "../../cpus/m6809/m6809.h"
 #include "williams_board.h"
 #include "williams_video.h"
+#include "../../emulation/dc_block.h"
 
 static_assert(BOARD_KEY_LEFT == BUTTON_LEFT && BOARD_KEY_RIGHT == BUTTON_RIGHT &&
               BOARD_KEY_UP == BUTTON_UP && BOARD_KEY_DOWN == BUTTON_DOWN &&
@@ -25,7 +26,7 @@ public:
   void render_row(short row) override;
   const int renderWidth() override { return ColumnMap::OUT_MAX; }
   const int renderBuffer() override { return ColumnMap::OUT_MAX * 2 * 8; }
-  int renderDrumSample() override;
+  void renderAudio(int16_t *out, int n) override;
 
   unsigned char m6809_read(m6809_state *s, uint16_t addr) override;
   void m6809_write(m6809_state *s, uint16_t addr, uint8_t val) override;
@@ -52,6 +53,9 @@ private:
   uint8_t shown = 0;
   uint16_t pens[Scanout::BANDS][PENS];
   int lastSample = 0;
+  DcBlock dc;
+
+  int dacSample();
 };
 
 #endif

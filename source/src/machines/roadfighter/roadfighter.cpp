@@ -61,7 +61,6 @@ void roadfighter::reset() {
   memset(snd_ram, 0, sizeof(snd_ram));
   sound_latch = 0;
   sn_latch = 0;
-  sn_latch_reg = 0;
   snd_icnt = 0;
   dac_sample = 0;
   irq_mask = 0;
@@ -207,35 +206,11 @@ void roadfighter::wrZ80(unsigned short Addr, unsigned char Value) {
   if ((Addr & 0xF000) == 0x4000) { snd_ram[Addr & 0x0FFF] = Value; return; }
   if (Addr == 0xE000) { dac_sample = (int)Value - 128; return; }  // DAC (mix in FASE 4)
   if (Addr == 0xE001) { sn_latch = Value; return; }               // SN76489 data latch
-  if (Addr == 0xE002) { sn76489_write(sn_latch); return; }        // SN76489 strobe
+  if (Addr == 0xE002) { sn[0].write(sn_latch); return; }         // SN76489 strobe
 }
 
 unsigned char roadfighter::inZ80(unsigned short Port) { return 0xFF; }
 void roadfighter::outZ80(unsigned short Port, unsigned char Value) { }
-
-// SN76489 byte-stream -> framework sn_*[0] (mix vero in audio.cpp, FASE 4)
-void roadfighter::sn76489_write(unsigned char data) {
-  if (data & 0x80) {
-    sn_latch_reg = (data >> 4) & 0x07;
-    unsigned char val4 = data & 0x0F;
-    int ch = sn_latch_reg >> 1;
-    if (sn_latch_reg & 1) {
-      sn_volume[0][ch] = val4; sn_min_volume[0][ch] = val4;
-      if (val4 < 15) sn_hold[0][ch] = 6;
-    } else {
-      sn_period[0][ch] = (sn_period[0][ch] & 0x3F0) | val4;
-    }
-  } else {
-    int ch = sn_latch_reg >> 1;
-    if (sn_latch_reg & 1) {
-      unsigned char val4 = data & 0x0F;
-      sn_volume[0][ch] = val4; sn_min_volume[0][ch] = val4;
-      if (val4 < 15) sn_hold[0][ch] = 6;
-    } else {
-      sn_period[0][ch] = (sn_period[0][ch] & 0x00F) | ((data & 0x3F) << 4);
-    }
-  }
-}
 
 // ============================================================
 // Frame: M6809 @1.536MHz -> 25600 cicli/frame, Z80 audio interleaved.

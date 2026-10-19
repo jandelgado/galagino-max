@@ -18,6 +18,7 @@
 // ============================================================================
 
 #include "../machineBase.h"
+#include "../../emulation/namco_wsg.h"
 #include "../namcoio.h"
 #include "../../cpus/m6809/m6809.h"
 #include "todruaga_rom_main.h"
@@ -68,9 +69,10 @@ public:
     void render_row(short row) override;
 
     // audio WSG 15XX 8 voci (Audio::namco_15xx_render_buffer legge soundregs)
-    bool hasNamco15xxAudio() override { return true; }
-    bool namcoSoundEnabled() override { return wsg_enable != 0; }
-    const signed char *waveRom(unsigned char value) override { return todruaga_wavetable[value & 7]; }
+    void renderAudio(int16_t *out, int n) override {
+      wsg.render(soundregs, todruaga_wavetable, wsg_enable != 0, out, n);
+      audioShiftRight(out, n, 1);
+    }
 
     static const Logo &logo(void) { return todruaga_logo; }
 
@@ -113,6 +115,9 @@ private:
     unsigned char sub_reset, io_reset;
 
     unsigned char scroll;          // 0x3800-0x3FFF: m_scroll = offset >> 3
+
+private:
+  Namco15xx wsg;
 };
 
 #endif

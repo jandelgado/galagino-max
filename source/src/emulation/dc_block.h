@@ -18,4 +18,18 @@ private:
   int32_t level = 0;
 };
 
+// Integer DC tracker without fraction bits: level += (s - level) >> 7.
+// Rounds toward -inf and settles up to 127 below a constant input; kept
+// for the gyruss and circusc drum DACs as tuned on hardware.
+class DcTrack {
+public:
+  int32_t filter(int32_t s) {
+    level += (s - level) >> 7;
+    return s - level;
+  }
+
+private:
+  int32_t level = 0;
+};
+
 #endif

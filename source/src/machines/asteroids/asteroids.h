@@ -4,6 +4,7 @@
 #include "asteroids_logo.h"
 #include "asteroids_dipswitches.h"
 #include "../dvgMachine.h"
+#include "asteroids_sound.h"
 
 // Atari Asteroids, MAME asteroid (rev 4), atari/asteroid.cpp.
 // One M6502 at 12.096 MHz / 8, DVG vector display 1024x768, discrete sound,
@@ -25,6 +26,7 @@ protected:
 public:
   asteroids();
   signed char machineType() override { return MCH_ASTEROIDS; }
+  void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
   void reset() override;
   static const Logo &logo() { return asteroids_logo; }
 #ifdef LED_PIN
@@ -43,6 +45,9 @@ private:
   const unsigned char *rom = nullptr, *vrom = nullptr;
   bool ramsel = false;   // outlatch bit 2: swap player RAM pages 2 and 3
   uint8_t lamps = 0;     // outlatch bits 0-1: START lamps, active high here
+
+private:
+  AsteroidsSound sound;
 };
 
 #endif

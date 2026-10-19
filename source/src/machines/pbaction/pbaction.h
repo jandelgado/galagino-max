@@ -5,6 +5,7 @@
 #include "pbaction_logo.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/ay8910.h"
 
 // ---------------------------------------------------------------------------
 // Pinball Action (Tehkan, 1985) - MAME `pbaction` set 1.
@@ -58,6 +59,7 @@ public:
   void reset() override;
   void start(void) override;
   signed char machineType() override { return MCH_PBACTION; }
+  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   signed char useVideoHalfRate() override { return 1; }
 
   unsigned char rdZ80(unsigned short Addr) override;
@@ -110,6 +112,11 @@ private:
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_main_ptr = nullptr;
   const unsigned char *rom_audio_ptr = nullptr;
+
+private:
+  static const uint8_t AY_INC = 8;
+  static const uint8_t AY_GAIN = 4;
+  Ay8910 ay[3] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
 };
 
 #endif

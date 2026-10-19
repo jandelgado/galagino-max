@@ -6,6 +6,7 @@
 
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "bagman_sound.h"
 
 class bagman : public machineBase
 {
@@ -18,6 +19,7 @@ public:
   bagman();
 
   signed char machineType() override { return MCH_BAGMAN; }
+  void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
   void start(void) override;
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
@@ -46,6 +48,9 @@ private:
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
+
+private:
+  BagmanSound sound;
 };
 
 #endif

@@ -123,7 +123,8 @@ void gng::reset() {
   memset(sprite_buffer, 0, sizeof(sprite_buffer));
   sound_latch = 0;
   sound_reset = true;
-  memset(ym_addr, 0, sizeof(ym_addr));
+  ym[0].reset();
+  ym[1].reset();
   music_song = 0;
   music_request = 0;
 
@@ -218,7 +219,8 @@ void gng::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
     const bool reset = !(val & 1);
     if (reset && !sound_reset) {
       ResetZ80(&cpu[0]);
-      memset(soundregs, 0, sizeof(soundregs)); // YM2203 reset
+      ym[0].reset(); // YM2203 reset pins
+      ym[1].reset();
     }
     sound_reset = reset;
     return;
@@ -273,7 +275,7 @@ unsigned char gng::rdZ80(unsigned short Addr) {
 
 // $E000/$E001 YM2203 #1, $E002/$E003 #2: even = register select, odd =
 // data. Only the SSG registers 0-15 are kept (AY layout, 16 per chip).
-// The game sets the SSG prescaler to 1/2 (750 kHz AY clock, audio.cpp).
+// The game sets the SSG prescaler to 1/2 (750 kHz AY clock, AY_INC).
 void gng::wrZ80(unsigned short Addr, unsigned char Value) {
   if (Addr >= 0xc000 && Addr < 0xc800) {
     memory[SOUND_RAM + Addr - 0xc000] = Value;
@@ -282,9 +284,9 @@ void gng::wrZ80(unsigned short Addr, unsigned char Value) {
   if (Addr >= 0xe000 && Addr <= 0xe003) {
     const uint8_t chip = (Addr >> 1) & 1;
     if (!(Addr & 1)) {
-      ym_addr[chip] = Value;
-    } else if (ym_addr[chip] < 16) {
-      soundregs[16 * chip + ym_addr[chip]] = Value;
+      ym[chip].writeAddress(Value);
+    } else {
+      ym[chip].writeData(Value);
     }
   }
 }
@@ -570,3 +572,12 @@ void gng::gameLeds(CRGB *leds) {
   menuLeds(leds);
 }
 #endif
+
+// C64 SID music plus the AY sound effects, clipped
+void gng::renderAudio(int16_t *out, int n) {
+  int16_t ssg[AUDIO_CHUNK];
+  renderSid(out, n);
+  Ym2203::renderSsgBank(ym, ssg, n);
+  audioAdd(out, ssg, n);
+  audioClampAll(out, n, AUDIO_MAX);
+}

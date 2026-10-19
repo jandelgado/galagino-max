@@ -3,6 +3,7 @@
 
 #include "gng_logo.h"
 #include "../machineBase.h"
+#include "../../emulation/ym2203.h"
 #include "../../emulation/seqlock.h"
 #include "../../emulation/sidplayer.h"
 
@@ -34,6 +35,7 @@ protected:
 public:
   gng();
   signed char machineType() override { return MCH_GNG; }
+  void renderAudio(int16_t *out, int n) override;
   const int renderWidth() override { return WIDTH; }
   const int renderBuffer() override { return WIDTH * 2 * 8; }
   void reset() override;
@@ -46,7 +48,7 @@ public:
   void run_frame() override;
   void prepare_frame() override;
   void render_row(short row) override;
-  void renderSid(int16_t *out, int n) override;
+  void renderSid(int16_t *out, int n);
   static const Logo &logo() { return gng_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
@@ -101,7 +103,6 @@ private:
   // sound CPU (cpu[0])
   uint8_t sound_latch = 0;    // $3A00
   bool sound_reset = true;    // $3D01 low
-  uint8_t ym_addr[2] = {};    // selected register per YM2203
 
   // music: written by the emulation core, read by renderSid() (audio core)
   // high byte: sequence, low byte: C64 song, 0 = stopped
@@ -147,6 +148,11 @@ private:
   void runSound();
   void blit_bg_line(uint8_t line, int y);
   void blit_front(short row);
+
+private:
+  static const uint8_t AY_INC = 4;
+  static const uint8_t AY_GAIN = 5;
+  Ym2203 ym[2] = {Ym2203(AY_INC, AY_GAIN), Ym2203(AY_INC, AY_GAIN)};
 };
 
 #endif

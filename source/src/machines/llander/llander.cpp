@@ -2,7 +2,7 @@
 #include "llander_rom.h"
 #include "llander_vrom.h"
 #include "llander_layout.h"
-#include "../../emulation/llander_sound.h"
+#include "llander_sound.h"
 
 // memory map (MAME llander_map), 15 bit address bus; VRAM 0x4000-0x47ff
 // in dvgMachine

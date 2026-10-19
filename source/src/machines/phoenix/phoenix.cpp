@@ -4,7 +4,7 @@
 // Phoenix (Amstar/Centuri 1980, set "phoenix" base MAME).
 // CPU Z80 + 2-layer tilemap (FG+BG con scroll BG) + palette PROM 256 colori.
 // NESSUN IRQ vblank: il game polla bit 7 di 0x7800 (DSW0) per sincronizzazione.
-// Audio TMS3617 custom approssimato in Audio::phoenix_render_buffer() (emulation/audio.cpp).
+// Audio TMS3617 custom approssimato in PhoenixSound (phoenix_sound.cpp).
 //
 // Monitor VERTICALE (ROT90). Arcade landscape MAME 256x208 (32 col x 26 row);
 // reso qui in portrait 208x256 dentro il framebuffer galagino 224x288, con la

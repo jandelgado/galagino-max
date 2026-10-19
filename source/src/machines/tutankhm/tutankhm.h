@@ -2,6 +2,7 @@
 #define TUTANKHM_H
 
 #include "../machineBase.h"
+#include "../../emulation/ay8910.h"
 #include "../../emulation/seqlock.h"
 #include "tutankhm_dipswitches.h"
 #include "tutankhm_logo.h"
@@ -35,6 +36,7 @@ public:
     void reset() override;
 
     signed char machineType() override { return MCH_TUTANKHM; }
+    void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
 
     unsigned char rdZ80(unsigned short Addr) override;
     void wrZ80(unsigned short Addr, unsigned char Value) override;
@@ -97,6 +99,11 @@ private:
     };
     Seqlock<VideoState> vblank;
     VideoState video = {};
+
+private:
+  static const uint8_t AY_INC = 7;
+  static const uint8_t AY_GAIN = 7;
+  Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
 };
 
 #endif

@@ -2,7 +2,7 @@
 #define LLANDER_SOUND_H
 
 #include <stdint.h>
-#include "discrete.h"
+#include "../../emulation/discrete.h"
 
 // Lunar Lander sound registers in machineBase::soundregs
 enum : uint8_t {
@@ -24,6 +24,7 @@ enum : uint8_t {
 // table; the beeps get their own level, see TONE_LEVEL.
 class LlanderSound {
 public:
+  LlanderSound() { reset(); }
   void reset();
   void render(const uint8_t *regs, int16_t *out, int n);
 

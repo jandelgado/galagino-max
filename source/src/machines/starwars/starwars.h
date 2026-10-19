@@ -2,6 +2,7 @@
 #define STARWARS_H
 
 #include "../machineBase.h"
+#include "../../emulation/pokey.h"
 #include "../../cpus/m6809/m6809.h"
 #include "../../emulation/avg.h"
 #include "../../emulation/seqlock.h"
@@ -25,7 +26,7 @@
 //     avg::decode(), map_lines()         lines, raster.begin()
 //     publishes go_list -------------> render_row() x 36
 //   sound CPU writes POKEY regs
-//     -> soundregs (audio.cpp)
+//     -> soundregs -> renderAudio() (audio core)
 //   sound CPU drives the TMS5220
 //     via RIOT -> speech ---------> renderSpeech() (audio core)
 //
@@ -45,12 +46,13 @@ protected:
 public:
   starwars();
   signed char machineType() override { return MCH_STARWARS; }
+  void renderAudio(int16_t *out, int n) override;
   void start() override;
   void reset() override;
   void run_frame() override;
   void prepare_frame() override;
   void render_row(short row) override;
-  void renderSpeech(int16_t *out, int n) override;
+  void renderSpeech(int16_t *out, int n);
   const int renderWidth() override { return 240; }
   const int renderBuffer() override { return 240 * 2 * 8; }
   static const Logo &logo() { return starwars_logo; }
@@ -129,6 +131,12 @@ private:
   uint16_t *line_next = nullptr, *line_active = nullptr, *strip_head = nullptr;
   vec2d::StripRasterizer raster;
   uint16_t palette[128]; // avg::SW_COLOR_SHIFT color index -> RGB565, byte swapped
+
+private:
+  static const int POKEY_SHIFT = 1;
+  static const int SPEECH_SHIFT = 6;  // int16 -> +-512, a POKEY here is +-240
+  Pokey pokey[4] = {Pokey(Pokey::CLOCKS_1512KHZ), Pokey(Pokey::CLOCKS_1512KHZ),
+                    Pokey(Pokey::CLOCKS_1512KHZ), Pokey(Pokey::CLOCKS_1512KHZ)};
 };
 
 #endif

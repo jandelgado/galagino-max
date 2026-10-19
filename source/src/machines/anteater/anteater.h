@@ -21,6 +21,7 @@ public:
   void start(void) override;
 
   signed char machineType() override { return MCH_ANTEATER; }
+  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(anteater_ay, soundregs, out, n); }
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
   void outZ80(unsigned short Port, unsigned char Value) override;
@@ -54,6 +55,11 @@ private:
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_cpu1_ptr = nullptr;
   const unsigned char *rom_cpu2_ptr = nullptr;
+
+private:
+  static const uint8_t AY_INC = 9;
+  static const uint8_t AY_GAIN = 5;
+  Ay8910 anteater_ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
 };
 
 #endif

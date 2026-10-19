@@ -1,7 +1,7 @@
 #include "asteroids.h"
 #include "asteroids_rom.h"
 #include "asteroids_vrom.h"
-#include "../../emulation/asteroids_sound.h"
+#include "asteroids_sound.h"
 
 // memory map (MAME asteroid_map), 15 bit address bus; VRAM 0x4000-0x47ff
 // in dvgMachine

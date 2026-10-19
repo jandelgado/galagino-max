@@ -5,6 +5,7 @@
 #include "mooncresta_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../galaxian/galaxian_sound.h"
 
 // ============================================================
 // Moon Cresta (Nichibutsu 1980) memory map:
@@ -74,6 +75,7 @@ public:
   mooncresta();
 
   signed char machineType() override { return MCH_MOONCRESTA; }
+  void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
   void start() override;
   unsigned char opZ80(unsigned short Addr) override;
   unsigned char rdZ80(unsigned short Addr) override;
@@ -119,5 +121,8 @@ private:
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
+
+private:
+  GalaxianSound sound;
 };
 #endif

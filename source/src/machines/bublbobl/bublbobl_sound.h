@@ -8,7 +8,7 @@
 // Effect triggers (emulation core -> audio core) and a 2 channel
 // IMA-ADPCM effect mixer, host tested.
 //
-//   emulation core            audio core (renderSid)
+//   emulation core            audio core (renderAudio)
 //   sound latch write  --->   FxRing  --->  FxMixer.start()
 //                    push()          pop()  next() per 24 kHz sample
 namespace bublbobl_sound {

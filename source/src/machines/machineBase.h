@@ -8,6 +8,7 @@
 #include "../emulation/input.h"
 #include "../emulation/asset.h"
 #include "../emulation/logo.h"
+#include "../emulation/audio_mix.h"
 
 #ifdef LED_PIN
 #include <FastLED.h>
@@ -166,15 +167,6 @@ public:
       memset(memory, 0, RAMSIZE);
       memset(soundregs, 0, sizeof(soundregs)); 
 
-      for (int chip = 0; chip < 3; chip++) {
-        for (int c = 0; c < 4; c++) {
-          sn_period[chip][c] = 0;
-          sn_raw_period[chip][c] = 0;
-          sn_volume[chip][c] = 15; // Mute
-          sn_hold[chip][c] = 0;
-          sn_min_volume[chip][c] = 15;
-        }
-      }
       current_cpu = 0;
       game_started = 0;
     }
@@ -213,40 +205,11 @@ public:
     virtual void prepare_frame(void) { };
     virtual void render_row(short row) { };
     
-    virtual const signed char *waveRom(unsigned char value) { return 0; }
-    virtual unsigned char vanguardSoundRom(unsigned short addr) { return 0xff; }
-    virtual bool vanguardMusic0Muted() { return true; }
-    virtual void vanguardMusic0Ended() { }
-    virtual bool vanguardMusic1Muted() { return true; }
-    virtual bool vanguardMusic2Muted() { return true; }
-    virtual const signed char *vanguardSample(unsigned char index) { return 0; }
-    virtual unsigned long vanguardSampleLength(unsigned char index) { return 0; }
-    virtual unsigned char vanguardSampleDivider(unsigned char index) { return 1; }
-    virtual bool hasNamcoAudio() { return false; }
-
-    // WSG 15XX 8 voices (Mappy): register layout different from 3 voice WSG
-    // pacman/galaga. namcoSoundEnabled = mainlatch Q3 (0 = mute).
-    virtual bool hasNamco15xxAudio() { return false; }
-    virtual bool namcoSoundEnabled() { return true; }
-
-    // Sample-MCU drums (Gyruss i8039): called once per 24kHz output sample by
-    // the audio renderer; steps the MCU and returns the centered DAC value
-    // (-128..127), 0 = silence. Virtual so audio.cpp does not need to include
-    // the machine header (machines.h/gyruss.h can only live in main.cpp).
-    // also used by CircusCharlie
-    virtual int renderDrumSample() { return 0; }
-
-    // C64 SID music (commando, bublbobl, cbdash): n samples, +-480, rendered on
-    // the audio core. Virtual so audio.cpp does not need the machine header.
-    virtual void renderSid(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
-
-    // Speech chip output (Star Wars TMS5220): n samples at 24 kHz, full
-    // int16 range, on the audio core. Virtual for the same reason.
-    virtual void renderSpeech(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
-
-    // YM2203 FM part (1943): n samples, +-512, rendered on the audio core and
-    // mixed under the AY renderer's SSG output. Virtual for the same reason.
-    virtual void renderFm(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
+    // Sound output: n (== AUDIO_CHUNK) samples at 24 kHz, +-AUDIO_MAX, see
+    // audio_mix.h. Called by Audio::transmit() on the video core; reads the
+    // registers the emulation core writes, without a lock. The machine owns
+    // its chips and mixes them here. Default: silence (menu).
+    virtual void renderAudio(int16_t *out, int n) { memset(out, 0, n * sizeof(*out)); }
 
 #ifdef LED_PIN
     // Static: menu preview runs before any machine instance exists.
@@ -260,17 +223,7 @@ public:
 #endif
     char game_started;	
     unsigned char soundregs[80];
-    
-    //Mr.Do!
-    int sn_period[3][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};    // 4 canali per chip (3 tono + 1 rumore)
-    int sn_volume[3][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
 
-    //Ladybug
-    int sn_min_volume[3][4]; // latched min volume per audio render cycle
-    int sn_hold[3][4];       // hold counter: keep sound active for N render cycles
-
-    // Circus Charlie
-    int sn_raw_period[3][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
 
 protected:
     virtual void blit_tile(short row, char col) { }

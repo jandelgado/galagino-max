@@ -23,6 +23,7 @@
 // ============================================================================
 
 #include "../machineBase.h"
+#include "../../emulation/namco_wsg.h"
 #include "../../emulation/ima_adpcm.h"
 #include "../../cpus/m6809/m6809.h"
 #include "../tileaddr.h"
@@ -75,10 +76,15 @@ public:
     void prepare_frame(void) override;
     void render_row(short row) override;
 
-    // audio WSG 15XX 8 voci (Audio::namco_15xx_render_buffer legge soundregs)
-    bool hasNamco15xxAudio() override { return true; }
-    bool namcoSoundEnabled() override { return wsg_enable != 0; }
-    const signed char *waveRom(unsigned char value) override { return gaplus_wavetable[value & 7]; }
+    // 15xx WSG plus the bang sample, added before the halving
+    void renderAudio(int16_t *out, int n) override {
+      wsg.render(soundregs, gaplus_wavetable, wsg_enable != 0, out, n);
+      for (int i = 0; i < n; i++) {
+        out[i] += snd_bang.next() * BANG_GAIN;
+      }
+      audioShiftRight(out, n, 1);
+    }
+    static const int BANG_GAIN = 3;
 
     static const Logo &logo(void) { return gaplus_logo; }
 
@@ -154,6 +160,9 @@ private:
     unsigned char star_set[GAPLUS_NUM_STARS];
     int starfield_framecount;
     void starfield_advance(void);
+
+private:
+  Namco15xx wsg;
 };
 
 #endif

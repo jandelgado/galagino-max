@@ -129,10 +129,9 @@ void ladybug::wrZ80(unsigned short Addr, unsigned char Value) {
   }
 
   // SN76489 sound chips at 0xB000 and 0xB001
-  // Write directly to sn_period/sn_volume (Mr. Do! pattern)
   if ((Addr & 0xF000) == 0xB000) {
     int chip = Addr & 1;  // 0xB000 = chip 0, 0xB001 = chip 1
-    SN76489_Write_2chip(chip, Value);
+    sn[chip].write(Value);
     return;
   }
 
@@ -154,48 +153,6 @@ void ladybug::wrZ80(unsigned short Addr, unsigned char Value) {
   if (Addr >= 0xD800 && Addr <= 0xDFFF) {
     memory[Addr - 0xD800 + MEM_EXTRA_OFF] = Value;
     return;
-  }
-}
-
-// ============================================================================
-// SN76489 dual-chip write (Mr. Do! pattern)
-// Writes directly to sn_period[chip][ch] and sn_volume[chip][ch]
-// which are read by audio.cpp::sn76489_render_buffer() for synthesis.
-// ============================================================================
-void ladybug::SN76489_Write_2chip(int chip, unsigned char data) {
-  if (data & 0x80) {               // Latch command
-    int reg = (data >> 5) & 0x03;  // Channel 0-3
-    int type = (data >> 4) & 0x01; // 0=Frequency, 1=Volume
-    sn_last_register[chip] = (reg * 2) + type;
-
-    if (reg < 4) {
-      if (type == 0) { // Frequency (4 lower bits)
-        sn_period[chip][reg] = (sn_period[chip][reg] & 0x3F0) | (data & 0x0F);
-      }
-      else { // Volume
-        unsigned char vol = data & 0x0F;
-        sn_volume[chip][reg] = vol;
-        if (vol < sn_min_volume[chip][reg])
-          sn_min_volume[chip][reg] = vol;
-        // Brief sounds: hold active volume for several render cycles
-        if (vol < 15)
-          // sn_hold[chip][reg] = 12;  // ~32ms at 24kHz/64 samples per buffer
-          sn_hold[chip][reg] = 6;  // ~16ms at 24kHz/64 samples per buffer
-      }
-    }
-  }
-  else { // Data write
-    int reg = sn_last_register[chip] / 2;
-    int type = sn_last_register[chip] % 2;
-
-    if (reg < 4 && type == 0) { // If latch was for frequency
-      if (reg == 3) {   // Noise channel
-        sn_period[chip][3] = data & 0x07; // 3 bits for noise control
-      }
-      else { // Tone channels
-        sn_period[chip][reg] = (sn_period[chip][reg] & 0x00F) | ((data & 0x3F) << 4);
-      }
-    }
   }
 }
 

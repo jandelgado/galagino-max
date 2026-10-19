@@ -5,6 +5,7 @@
 
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/ay8910.h"
 #include "../../emulation/seqlock.h"
 
 // ============================================================
@@ -55,6 +56,7 @@ public:
   scramble();
 
   signed char machineType() override { return MCH_SCRAMBLE; }
+  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   void start() override;
 
   unsigned char opZ80(unsigned short Addr) override;
@@ -192,5 +194,10 @@ private:
   static constexpr int AY1_OFFSET = 0x00;
   static constexpr int AY2_OFFSET = 0x10;
 
+
+private:
+  static const uint8_t AY_INC = 8;
+  static const uint8_t AY_GAIN = 7;
+  Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
 };
 #endif

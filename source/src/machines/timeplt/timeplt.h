@@ -5,6 +5,7 @@
 #include "timeplt_dipswitches.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/ay8910.h"
 #include "../../emulation/seqlock.h"
 
 // Time Pilot (Konami 1982) memory map:
@@ -51,6 +52,7 @@ public:
   timeplt();
 
   signed char machineType() override { return MCH_TIMEPLT; }
+  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   void start(void) override;
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
@@ -113,6 +115,11 @@ private:
   SpriteSet multiplex = {};  // top-half set, emulation core only
   Seqlock<VideoState> vblank;
   VideoState video = {};
+
+private:
+  static const uint8_t AY_INC = 9;
+  static const uint8_t AY_GAIN = 5;
+  Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
 };
 
 #endif

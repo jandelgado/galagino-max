@@ -414,7 +414,7 @@ void SelfTest::render_row(short row) {
   }
 }
 
-void SelfTest::renderSid(int16_t *out, int n) {
+void SelfTest::renderAudio(int16_t *out, int n) {
   sid.render(out, n);
 }
 

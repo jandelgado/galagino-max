@@ -1,7 +1,4 @@
-#if defined(ENABLE_GALAGA) || defined(ENABLE_XEVIOUS)
-
 #include "namco54.h"
-#include "../machines/galaga/namco54_rom.h"
 #include <math.h>
 
 // MB8844 clock: MASTER_CLOCK / 6 / 2 = 1.536 MHz, one machine cycle per
@@ -24,7 +21,7 @@ static const float MIX_GAIN = 40800.0f;
 // ~384, like the former sample (x3 on the 8-bit scale), WSG headroom.
 static const float OUT_SCALE = 1.0f / 72.0f;
 
-Namco54::Namco54() : Mb88(namco54_rom_data) {
+Namco54::Namco54(const uint8_t *rom) : Mb88(rom) {
   float g = 0;
   for (int bit = 0; bit < 4; bit++) {
     g += 1.0f / LADDER[bit];
@@ -170,5 +167,3 @@ float Namco54::mix(float c1, float c2, float c3) {
   hp += (v - hp) * hp_k;
   return (v - hp) * MIX_GAIN;
 }
-
-#endif

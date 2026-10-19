@@ -142,13 +142,13 @@ void mrdo::wrZ80(unsigned short Addr, unsigned char Value) {
   // ...
   if (Addr == 0x9801) {
     // audio_trigger_chip0 = Value; // Non più necessario
-    SN76489_Write_2chip(0, Value); // Chiama direttamente la funzione di scrittura
+    sn[0].write(Value);
     return;
   }
 
   if (Addr == 0x9802) {
     // audio_trigger_chip1 = Value; // Non più necessario
-    SN76489_Write_2chip(1, Value); // Chiama direttamente la funzione di scrittura
+    sn[1].write(Value);
     return;
   }
   // ...
@@ -167,36 +167,6 @@ void mrdo::wrZ80(unsigned short Addr, unsigned char Value) {
 unsigned char mrdo::protection_r() {
   unsigned short hl = cpu[0].HL.W;
   return (hl < 0x8000) ? mrdo_rom1[hl] : 0xFF;
-}
-
-void mrdo::SN76489_Write_2chip(int chip, unsigned char data) {
-  if (data & 0x80) {               // Latch
-    int reg = (data >> 5) & 0x03;  // Canale 0-3
-    int type = (data >> 4) & 0x01; // 0=Freq, 1=Volume
-    sn_last_register[chip] = (reg * 2) + type;
-
-    if (reg < 4) {
-      if (type == 0) { // Freq (4 bit bassi)
-        sn_period[chip][reg] = (sn_period[chip][reg] & 0x3F0) | (data & 0x0F);
-      }
-      else { // Volume
-        sn_volume[chip][reg] = data & 0x0F;
-      }
-    }
-  }
-  else { // Dati
-    int reg = sn_last_register[chip] / 2;
-    int type = sn_last_register[chip] % 2;
-
-    if (reg < 4 && type == 0) { // Se il latch era per una Frequenza
-      if (reg == 3) {   // Canale di rumore
-        sn_period[chip][3] = data & 0x07; // 3 bit per il controllo del rumore
-      }
-      else { // Canali di tono
-        sn_period[chip][reg] = (sn_period[chip][reg] & 0x00F) | ((data & 0x3F) << 4);
-      }
-    }
-  }
 }
 
 void mrdo::run_frame(void) {
