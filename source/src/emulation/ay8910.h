@@ -21,6 +21,9 @@ public:
 
   void render(const uint8_t *regs, int16_t *out, int n);
 
+  // scale voice ch by g / 16 (16 = 1.0), e.g. MCR SSIO duty-cycle volume
+  void setChannelGain(int ch, uint8_t g) { chanGain[ch] = gain * g / 16; }
+
   // sum of N chips, chip c's registers at regs[c * REG_COUNT]
   template <int N>
   static void renderBank(Ay8910 (&chips)[N], const uint8_t *regs, int16_t *out, int n) {
@@ -41,6 +44,7 @@ private:
   uint8_t inc;
   uint8_t gain;
   uint8_t flags;
+  int16_t chanGain[3];  // per-voice output per volume step
   int volume[TONES] = {0, 0, 0};
   int enable[TONES] = {0, 0, 0};  // bit 0 tone, bit 1 noise
   bool envelope[TONES] = {false, false, false};

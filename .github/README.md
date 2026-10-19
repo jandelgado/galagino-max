@@ -210,5 +210,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Sinistar (sinistar.zip)       | ![Sinistar marquee](/logos/sinistar.png) | ![Sinistar screenshot](/images/sinistar.png) | Rev 3 upright. 49-way stick from the 8-way stick. FIRE=fire, START=sinibomb (EXTRA without COIN pin) |
 | Yie Ar Kung-Fu (yiear.zip)    | ![Yie Ar Kung-Fu marquee](/logos/yiear.png) | ![Yie Ar Kung-Fu screenshot](/images/yiear.png) | VLM5030 speech. FIRE=punch, START=kick |
 | Track & Field (trackfld.zip)  | ![Track & Field marquee](/logos/trackfld.png) | ![Track & Field screenshot](/images/trackfld.png) | VLM5030 speech. Left/right=run, FIRE=jump |
+| Tron (tron.zip)               | ![Tron marquee](/logos/tron.png) | ![Tron screenshot](/images/tron.png) | The aim dial turns toward the stick direction. FIRE=fire |
 
 ### ...
