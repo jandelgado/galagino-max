@@ -20,6 +20,7 @@ static constexpr uint16_t MAIN_ROM_END = 0x8000;
 static constexpr uint16_t GFX_ROM_SIZE = 0x8000;
 static constexpr uint16_t SOUND_ROM_END = 0x2000;
 static constexpr uint8_t BANK_SEL = 0x80;
+static constexpr uint8_t MODE_SPR_PAGE = 0x04;   // d600: sprite RAM d180 page
 
 static constexpr uint8_t AY_PORT_A = 14, AY_PORT_B = 15;
 static constexpr uint8_t AY_SOUND_STATUS = 2;   // port A -> main CPU IN4 b4-7
@@ -334,12 +335,44 @@ void elevator::run_frame(void) {
       sound_irq = true;
     }
   }
+  publishVideo();
   main_irq = true;
+}
+
+void elevator::publishVideo(void) {
+  vblank.publish([this](VideoState &v) {
+    memcpy(v.tilemap, &memory[TILEMAP_OFS], sizeof(v.tilemap));
+    memcpy(v.colscroll, &memory[COLSCROLL_OFS], sizeof(v.colscroll));
+    memcpy(v.spr, &memory[SPR_OFS + ((video_mode & MODE_SPR_PAGE) ? SPR_SIZE : 0)], sizeof(v.spr));
+    memcpy(v.pal, &memory[PAL_OFS], sizeof(v.pal));
+    memcpy(v.scroll, scroll, sizeof(v.scroll));
+    memcpy(v.colorbank, colorbank, sizeof(v.colorbank));
+    v.mode = video_mode;
+    v.prio = priority;
+  });
 }
 
 // ---- Video ----
 
+// 3 bit gun from inverted RAM bits, MAME compute_resistor_weights()
+// for 1k / 470 / 270 ohm
+static const uint8_t GUN_LEVEL[8] = {0, 37, 79, 117, 138, 176, 218, 255};
+
+// palette RAM pair: lo b0 = red bit 2, hi b7-6 red bits 1-0, b5-3 green,
+// b2-0 blue (bit 2 first); RGB565 byte-swapped for SPI
+uint16_t elevator::pen(uint8_t lo, uint8_t hi) {
+  const uint8_t r = GUN_LEVEL[((~hi >> 6) & 1) | ((~hi >> 6) & 2) | ((~lo << 2) & 4)];
+  const uint8_t g = GUN_LEVEL[(~hi >> 3) & 7];
+  const uint8_t b = GUN_LEVEL[~hi & 7];
+  const uint16_t v = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+  return (uint16_t)((v << 8) | (v >> 8));
+}
+
 void elevator::prepare_frame(void) {
+  vblank.read(video);
+  for (uint8_t i = 0; i < PENS; i++) {
+    palette[i] = pen(video.pal[2 * i], video.pal[2 * i + 1]);
+  }
 }
 
 void IRAM_ATTR elevator::render_row(short row) {

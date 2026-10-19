@@ -52,6 +52,8 @@ public:
   static const Logo &logo(void) { return elevator_logo; }
 
 private:
+  static uint16_t pen(uint8_t lo, uint8_t hi);
+
   static constexpr uint8_t MAIN_CPU = 0;
   static constexpr uint8_t SOUND_CPU = 1;
 
@@ -67,6 +69,12 @@ private:
   static_assert(RAM_END <= RAMSIZE, "elevator RAM exceeds memory[]");
 
   static constexpr uint16_t CHARRAM_SIZE = 0x3000; // 9000-bfff
+  static constexpr uint16_t TILEMAP_SIZE = 0x400;   // 32 x 32
+  static constexpr uint16_t TILEMAP_OFS = VRAM_OFS + 0x400;
+  static constexpr uint8_t LAYERS = 3;
+  static constexpr uint8_t COLSCROLL_SIZE = 32 * LAYERS;
+  static constexpr uint8_t SPR_SIZE = 0x80;          // one of two pages, 32 x 4
+  static constexpr uint8_t PENS = 64;
 
   unsigned char rdMain(unsigned short Addr);
   void wrMain(unsigned short Addr, unsigned char Value);
@@ -78,6 +86,25 @@ private:
   uint8_t in2(void);
   void updateNmi(void);
   void stepCpu(uint8_t c);
+
+  // render inputs as of the vblank IRQ (seqlock.h); tile RAM with them,
+  // else freshly written rows show at the scroll edge. Character RAM stays
+  // live: the game rewrites it only between scenes.
+  struct VideoState {
+    uint8_t tilemap[LAYERS][TILEMAP_SIZE];
+    uint8_t colscroll[COLSCROLL_SIZE];
+    uint8_t spr[SPR_SIZE];
+    uint8_t pal[PAL_SIZE];
+    uint8_t scroll[6];
+    uint8_t colorbank[2];
+    uint8_t mode;
+    uint8_t prio;
+  };
+  Seqlock<VideoState> vblank;
+  VideoState video = {};
+  uint16_t palette[PENS];
+
+  void publishVideo(void);
 
   const uint8_t *main_rom = nullptr;
   const uint8_t *sound_rom = nullptr;
