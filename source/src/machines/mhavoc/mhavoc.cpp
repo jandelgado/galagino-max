@@ -496,11 +496,22 @@ uint16_t mhavoc::map_lines(uint16_t count) {
 }
 
 #ifdef LED_PIN
+// logo colors: yellow outline, orange, red inner line
+static const CRGB MHAVOC_LED_YELLOW(0xffca00), MHAVOC_LED_ORANGE(0xff7b00), MHAVOC_LED_RED(0xff0000);
+static const uint8_t LED_MIDDLE = NUM_LEDS / 2;
+
 void mhavoc::menuLeds(CRGB *leds) {
-  fill_solid(leds, NUM_LEDS, CRGB::Yellow);
+  static const CRGB menu_leds[NUM_LEDS] = {
+      MHAVOC_LED_RED, MHAVOC_LED_ORANGE, MHAVOC_LED_YELLOW, MHAVOC_LED_YELLOW,
+      MHAVOC_LED_YELLOW, MHAVOC_LED_ORANGE, MHAVOC_LED_RED};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 
+// the roller light (out0 bit 0) lights the middle LED white
 void mhavoc::gameLeds(CRGB *leds) {
   menuLeds(leds);
+  if (out0_value & OUT0_ROLLER_LIGHT) {
+    leds[LED_MIDDLE] = CRGB::White;
+  }
 }
 #endif
