@@ -174,6 +174,23 @@ static void test_boot_sound(void) {
   TEST_ASSERT_LESS_OR_EQUAL_UINT32(AUDIO_MAX, peak);
 }
 
+// holding the stick turns the roller about as fast as MAME's key delta
+// (40 counts per frame): over 600 counts in half a second
+static void test_roller_speed(void) {
+  boot();
+  keys = BUTTON_RIGHT;
+  const uint16_t from = machine->roller.pos;
+  for (int f = 0; f < 30; f++) {
+    machine->control_input();
+  }
+  keys = 0;
+  machine->control_input();
+  const uint16_t counts = uint16_t(from - machine->roller.pos) / 4; // right counts down (PORT_REVERSE in read)
+  const uint16_t up = uint16_t(machine->roller.pos - from) / 4;
+  printf("roller: %u counts in 30 frames\n", counts < up ? counts : up);
+  TEST_ASSERT_GREATER_OR_EQUAL_UINT16(600, counts < up ? counts : up);
+}
+
 // idle loops are skipped, not stepped: a few fetches per frame (gamma
 // re-enters its loop after each of its ~10 interrupts per frame, alpha
 // steps the pass cut by each slice end) instead
@@ -200,6 +217,7 @@ int main(int, char **) {
   RUN_TEST(test_boot_sound);
   RUN_TEST(test_boots_to_attract);
   RUN_TEST(test_idle_loops_skipped);
+  RUN_TEST(test_roller_speed);
 #endif
   return UNITY_END();
 }

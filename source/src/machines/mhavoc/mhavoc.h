@@ -103,7 +103,9 @@ private:
   Pokey pokey[POKEYS] = {Pokey(Pokey::CLOCKS_1250KHZ), Pokey(Pokey::CLOCKS_1250KHZ),
                          Pokey(Pokey::CLOCKS_1250KHZ), Pokey(Pokey::CLOCKS_1250KHZ)};
 
-  static const uint8_t SPIN_MIN = 2, SPIN_MAX = 24, SPIN_ACCEL = 1;
+  // quarter counts per frame: 4 counts at first, MAME's key delta (40) after
+  // 18 frames
+  static const uint8_t SPIN_MIN = 16, SPIN_MAX = 160, SPIN_ACCEL = 8;
   Spinner roller{SPIN_MIN, SPIN_MAX, SPIN_ACCEL};
   unsigned int keys = 0;        // buttons of this frame
   uint8_t start_timer = 0;      // frames since START, 0: idle
