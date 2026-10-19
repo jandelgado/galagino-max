@@ -105,6 +105,10 @@ private:
   uint16_t palette[PENS];
 
   void publishVideo(void);
+  void prepareSprites(void);
+  void drawLayer(uint8_t w, uint8_t y0);
+  void drawSprites(uint8_t y0);
+  void drawSpriteLine(const sprite_S &s, uint8_t y, uint16_t *dst);
 
   const uint8_t *main_rom = nullptr;
   const uint8_t *sound_rom = nullptr;

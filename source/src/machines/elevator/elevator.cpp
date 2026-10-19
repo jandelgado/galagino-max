@@ -20,7 +20,24 @@ static constexpr uint16_t MAIN_ROM_END = 0x8000;
 static constexpr uint16_t GFX_ROM_SIZE = 0x8000;
 static constexpr uint16_t SOUND_ROM_END = 0x2000;
 static constexpr uint8_t BANK_SEL = 0x80;
-static constexpr uint8_t MODE_SPR_PAGE = 0x04;   // d600: sprite RAM d180 page
+// d600 video mode
+static constexpr uint8_t MODE_SPR_PAGE = 0x04;   // sprite RAM d180 page
+static constexpr uint8_t MODE_LAYER1 = 0x10;     // 0x20, 0x40: tilemaps 2, 3
+static constexpr uint8_t MODE_SPRITES = 0x80;
+
+// video geometry (MAME taitosj_v.cpp)
+static constexpr uint8_t FIRST_ROW = 4, LAST_ROW = 32;  // panel strips of lines 16..239
+static constexpr uint8_t VIS_TOP = 16;
+static constexpr uint8_t CROP = 8;                      // native x 8..247 -> 240 columns
+static constexpr uint16_t CHAR_BANK = 0x1800;           // gfx bank 1 in character RAM
+static constexpr uint16_t PLANE = 0x800;                // bit planes, first byte = LSB
+static constexpr uint8_t SPRITES = 32;
+static constexpr uint8_t NO_SPRITE_FIRST = 0x10, NO_SPRITE_LAST = 0x17;
+static constexpr uint8_t SPRITE_Y_BASE = 240;           // sy = 240 - RAM, off when >= 240
+static constexpr uint8_t SPRITE_X_MIN = 3, SPRITE_X_MAX = 254;
+
+// bit k of a plane byte -> bit 4k: 8 pixels of a character row as pens
+static uint32_t spread[256];
 
 static constexpr uint8_t AY_PORT_A = 14, AY_PORT_B = 15;
 static constexpr uint8_t AY_SOUND_STATUS = 2;   // port A -> main CPU IN4 b4-7
@@ -52,6 +69,14 @@ elevator::elevator()
   sound_rom = elevator_sound_rom.data();
   gfx_rom = elevator_gfx_rom.data();
   draw_order = elevator_draw_order.data();
+
+  for (int b = 0; b < 256; b++) {
+    uint32_t v = 0;
+    for (int k = 0; k < 8; k++) {
+      v |= (uint32_t)((b >> k) & 1) << (4 * k);
+    }
+    spread[b] = v;
+  }
 }
 
 void elevator::reset() {
@@ -373,9 +398,143 @@ void elevator::prepare_frame(void) {
   for (uint8_t i = 0; i < PENS; i++) {
     palette[i] = pen(video.pal[2 * i], video.pal[2 * i + 1]);
   }
+  prepareSprites();
 }
 
+// visible native sprites (0x10-0x17 do not exist) in MAME draw order:
+// 0x1e first (bottom) .. 0x00, 0x1f last (top)
+void elevator::prepareSprites(void) {
+  active_sprites = 0;
+  if (!(video.mode & MODE_SPRITES)) {
+    return;
+  }
+
+  for (int8_t n = SPRITES - 1; n >= 0; n--) {
+    const uint8_t which = (n - 1) & (SPRITES - 1);
+    if (which >= NO_SPRITE_FIRST && which <= NO_SPRITE_LAST) {
+      continue;
+    }
+
+    const uint8_t *s = &video.spr[4 * which];
+    const uint8_t sy = SPRITE_Y_BASE - s[1];
+    if (sy >= SPRITE_Y_BASE) {
+      continue;
+    }
+
+    sprite_S &d = sprite[active_sprites++];
+    d.x = (uint8_t)(s[0] - 1);
+    d.y = sy;
+    d.code = s[3] & 0x3f;
+    d.flags = (s[3] & 0x40) ? 1 : 0;   // character RAM bank
+    d.color = 2 * ((video.colorbank[1] >> 4) & 3) + ((s[2] >> 2) & 1);
+    d.flip_x = s[2] & 1;
+    d.flip_y = (s[2] >> 1) & 1;
+  }
+}
+
+static inline uint32_t charRow(const uint8_t *c) {
+  return spread[c[0]] | (spread[c[PLANE]] << 1) | (spread[c[2 * PLANE]] << 2);
+}
+
+// tilemap w on native lines y0..y0+7: source column c lands at native x
+// 8c + scrollx, its lines move by colscroll[c] + scrolly (MAME copy_layer)
+void IRAM_ATTR elevator::drawLayer(uint8_t w, uint8_t y0) {
+  static const int8_t FUDGE1[LAYERS] = {3, 1, -1};
+  static const int8_t FUDGE2[LAYERS] = {8, 10, 12};
+
+  const uint8_t sx = video.scroll[2 * w];
+  const uint8_t sy = video.scroll[2 * w + 1];
+  const int scrollx = -(sx & 0xf8) + ((sx + FUDGE1[w]) & 7) + FUDGE2[w];
+  const uint8_t cb = w == 2 ? video.colorbank[1] : video.colorbank[0] >> (4 * w);
+  const uint8_t *chars = charram + ((cb & 0x08) ? CHAR_BANK : 0);
+  const uint16_t *pal = &palette[8 * (cb & 7)];
+  const uint8_t *map = video.tilemap[w];
+
+  for (uint8_t c = 0; c < 32; c++) {
+    const uint8_t x0 = (8 * c + scrollx) & 0xff;
+    const int px0 = x0 - CROP;
+    const uint8_t dy = video.colscroll[32 * w + c] + sy;
+
+    for (uint8_t l = 0; l < 8; l++) {
+      const uint8_t srcy = y0 + l + dy;
+      const uint8_t code = map[(srcy >> 3) * 32 + c];
+      const uint32_t row = charRow(chars + 8 * code + (srcy & 7));
+      if (!row) {
+        continue;
+      }
+
+      uint16_t *dst = frame_buffer + l * WIDTH;
+      for (uint8_t k = 0; k < 8; k++) {
+        const uint8_t p = (row >> (4 * k)) & 7;
+        const int px = (px0 + k) & 0xff;   // native x wraps at 256
+        if (p && px < WIDTH) {
+          dst[px] = pal[p];
+        }
+      }
+    }
+  }
+}
+
+// one line of a 16x16 sprite, characters 4 code + 0..3 (TL TR BL BR),
+// drawn at x and x - 256, clipped to native x 3..254
+void IRAM_ATTR elevator::drawSpriteLine(const sprite_S &s, uint8_t y, uint16_t *dst) {
+  const uint8_t r = s.flip_y ? 15 - (y - s.y) : y - s.y;
+  const uint8_t *chars = charram + (s.flags ? CHAR_BANK : 0) + 8 * (4 * s.code + 2 * (r >> 3)) + (r & 7);
+  const uint32_t half[2] = {charRow(chars), charRow(chars + 8)};
+  if (!(half[0] | half[1])) {
+    return;
+  }
+
+  const uint16_t *pal = &palette[8 * s.color];
+  for (uint8_t xx = 0; xx < 16; xx++) {
+    const uint8_t sxx = s.flip_x ? 15 - xx : xx;
+    const uint8_t p = (half[sxx >> 3] >> (4 * (sxx & 7))) & 7;
+    if (!p) {
+      continue;
+    }
+    const int nx = (s.x + xx) & 0xff;
+    if (nx < SPRITE_X_MIN || nx > SPRITE_X_MAX || nx < CROP || nx >= CROP + WIDTH) {
+      continue;
+    }
+    dst[nx - CROP] = pal[p];
+  }
+}
+
+void IRAM_ATTR elevator::drawSprites(uint8_t y0) {
+  for (int i = 0; i < active_sprites; i++) {
+    const sprite_S &s = sprite[i];
+    for (uint8_t l = 0; l < 8; l++) {
+      const uint8_t y = y0 + l;
+      if ((uint8_t)(y - s.y) < 16) {
+        drawSpriteLine(s, y, frame_buffer + l * WIDTH);
+      }
+    }
+  }
+}
+
+// strips 4..31 = native lines 16..239, back to front per the priority PROM
 void IRAM_ATTR elevator::render_row(short row) {
+  if (row < FIRST_ROW || row >= LAST_ROW) {
+    return;
+  }
+
+  const uint8_t y0 = VIS_TOP + 8 * (row - FIRST_ROW);
+  const uint16_t bg = palette[8 * (video.colorbank[1] & 7)];
+  for (int i = 0; i < 8 * WIDTH; i++) {
+    frame_buffer[i] = bg;
+  }
+
+  const uint8_t *order = draw_order + 4 * (video.prio & 0x1f);
+  for (uint8_t i = 0; i < 4; i++) {
+    const uint8_t plane = order[i];
+    if (plane == 0) {
+      drawSprites(y0);
+      continue;
+    }
+    if (video.mode & (MODE_LAYER1 << (plane - 1))) {
+      drawLayer(plane - 1, y0);
+    }
+  }
 }
 
 #ifdef LED_PIN
