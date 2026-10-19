@@ -1119,7 +1119,7 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, size4b
             fatal(f"marble: race {n} bases/index do not match its {terrains[n].maxd} diagonals")
         raw = struct.pack(f"<{len(bases)}H", *bases) + index
         unpacked = max(unpacked, len(raw))
-        emit_compressed(f, f"marble_terrain_{n}", "unsigned char", "", len(raw), list(raw))
+        emit_compressed(f, f"marble_terrain_{n}", "unsigned char", "", len(raw), list(raw), plan=False)
         size["terrain index + bases"] = (size.get("terrain index + bases", 0)
                                          + len(lzma_compress(raw)))
         key = tuple(codes)
@@ -1172,7 +1172,7 @@ def emit_physics(f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, size4b
     joined = b"".join(data for _, data in blocks)
     if len(joined) > 0xffff:
         fatal("marble: prog blocks too long for 16 bit offsets")
-    emit_compressed(f, "marble_prog", "unsigned char", "", len(joined), list(joined))
+    emit_compressed(f, "marble_prog", "unsigned char", "", len(joined), list(joined), plan=False)
     print(f"static const MarbleProgBlock marble_prog_blocks[{len(blocks)}] = {{", file=f)
     off = 0
     for a, data in blocks:
@@ -1408,7 +1408,7 @@ def emit_sprites(f, rom, size4, size4b1, size4b2):
         pool, at = frame_table(sp, ndeath)
         tables.append(at)
         emit_compressed(f, f"marble_spr{k}_tiles", "unsigned char", "[32]", len(sp.tile_codes),
-                        list(tiles))
+                        list(tiles), plan=False)
         packed = len(lzma_compress(tiles))
         names = "/".join(md.NAMES[r] for r in range(md.LEVELS) if race_set[r] == k)
         print(f"sprite set {k} ({names}): {len(sp.hdrs)} frame headers + "
@@ -1576,7 +1576,7 @@ def emit_sound(f, size):
     print(f"static const uint16_t MARBLE_SID_RAM = 0x{ram:04x};", file=f)
     print(f"static const uint8_t MARBLE_SID_SONGS = {struct.unpack('>H', sid[0x0e:0x10])[0]};", file=f)
     print(f"static const uint16_t MARBLE_SID_SIZE = {len(sid)};", file=f)
-    emit_compressed(f, "marble_sid", "unsigned char", "", len(sid), list(sid))
+    emit_compressed(f, "marble_sid", "unsigned char", "", len(sid), list(sid), plan=False)
     size["sound commands"] = 256
     size["sid"] = len(lzma_compress(sid))
     prev = os.path.join(os.environ.get("TMPDIR", "/tmp"), "marble_sid")
@@ -1718,7 +1718,7 @@ def emit_death(f, rom, size4b, size4b2, size4b3, size4b4, size4b5, size4b6):
         print(line, file=f)
     pool, at = frame_table(ds, 0)
     emit_compressed(f, "marble_death_tiles", "unsigned char", "[32]", len(ds.tile_codes),
-                    list(tiles))
+                    list(tiles), plan=False)
     print(f"static const uint16_t MARBLE_DEATH_TILES = {len(ds.tile_codes)};", file=f)
     enemy = {h for a in mo.SLINKY_LISTS + mo.ACID_LISTS + mo.BIRD_LISTS + mo.MINI_LISTS
              + mo.PISTON_LISTS for h in mo.anim_list(a)}
@@ -1835,9 +1835,9 @@ def main():
         print("  " + ", ".join(f"{{ {r}, {len(t)} }}" for r, t, _, _ in levels + [title])
               + "\n};", file=f)
         for n, (rows, tiles, mapw, _) in enumerate(levels + [title]):
-            emit_compressed(f, f"marble_l{n}_map", "unsigned short", "", len(mapw), mapw)
+            emit_compressed(f, f"marble_l{n}_map", "unsigned short", "", len(mapw), mapw, plan=False)
             emit_compressed(f, f"marble_l{n}_tiles", "unsigned char", "[64]", len(tiles),
-                            [p for t in tiles for p in t])
+                            [p for t in tiles for p in t], plan=False)
         print("static const FlashAsset<unsigned short, COMPRESSED> marble_maps[7] = { "
               + ", ".join(f"marble_l{n}_map_blob" for n in range(md.LEVELS + 1)) + " };", file=f)
         print("static const FlashAsset<unsigned char[64], COMPRESSED> marble_tiles[7] = { "

@@ -2,6 +2,7 @@
 #define SWAT_H
 
 #include "../system1/system1.h"
+#include "swat_arena_plan.h"
 #include "swat_dipswitches.h"
 
 // SWAT (Coreland / Sega 1984), 315-5048 encrypted main CPU

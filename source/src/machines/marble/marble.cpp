@@ -12,6 +12,15 @@
 #include "marble_physics.h"
 #include "marble_rng.h"
 #include "marble_rom.h"
+
+static_assert(marble::ARENA_EXTRA[0] == marble_level::MAX_ROWS * marble_level::COLS * 2 &&
+              marble::ARENA_EXTRA[1] == marble_level::MAX_TILES * 64 &&
+              marble::ARENA_EXTRA[2] == marble_level::SPRITE_TILES * 32 &&
+              marble::ARENA_EXTRA[3] == marble_prog_blob.count &&
+              marble::ARENA_EXTRA[4] == MARBLE_TERRAIN_MAX && marble::ARENA_EXTRA[5] == MARBLE_SID_SIZE &&
+              marble::ARENA_EXTRA[6] == MARBLE_SID_RAM, "update marble::ARENA_EXTRA");
+static_assert(arenaExtrasKey(marble::ARENA_EXTRA, sizeof(marble::ARENA_EXTRA) / sizeof(uint32_t), false) ==
+              marble_arena_extras_key, "ARENA_EXTRA changed: rerun romconv");
 #include "../../emulation/asset.h"
 
 using namespace marble_video;
@@ -51,7 +60,7 @@ static void stick(uint32_t keys, int8_t &c6, int8_t &c7) {
   c6 = (int8_t)b;
 }
 
-// Arena is first fit: the level buffers first, block A must keep map + tiles together. The
+// Arena: the level buffers first, in ARENA_EXTRA order (marble.h). The
 // ROM here, not in start(): reset() runs first and already builds a Mem.
 marble::marble() {
   store.init();
@@ -76,7 +85,7 @@ void marble::reset() {
 void marble::start() {
   marble_hiscore::defaults(table);  // once
 
-  // after the level buffers: Arena is first fit, block A must keep map + tiles together
+  // after the level buffers, in ARENA_EXTRA order (marble.h)
   if (!tune_loaded) {
     tune_loaded = true;
     uint8_t *file = Arena::alloc<uint8_t>(MARBLE_SID_SIZE);  // tune.payload points into it

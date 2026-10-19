@@ -10,6 +10,9 @@
 #include <cstdint>
 #include "arena.h"
 #include "lzma/LzmaDec.h"
+#ifdef ASSETS_REMOTE
+#include "../net/bundle.h"
+#endif
 
 enum AssetMode { PLAIN, COMPRESSED };
 
@@ -25,17 +28,23 @@ template<typename T, AssetMode mode> class Asset;
 // from it, so the unpack cache lives and dies with the machine instance.
 template<typename T, AssetMode mode> struct FlashAsset;
 
+// data == nullptr: remote asset (ASSETS_REMOTE), resolved by id in the
+// mounted bundle. Built-in blobs leave id 0.
 template<typename T>
 struct FlashAsset<T, PLAIN> {
     const T *data;
     uint32_t count;
+    uint32_t id;
 };
 
+// block: where unpack() puts it (omitted: ARENA_ANY, first fit). Shares
+// count's word: ~400 blobs in flash.
 template<typename T>
 struct FlashAsset<T, COMPRESSED> {
     const uint8_t *packed;
     uint32_t packedLen;
-    uint32_t count;
+    uint32_t count : 30;
+    ArenaBlock block : 2;
 };
 
 template<typename T>
@@ -44,8 +53,15 @@ public:
     // Points into flash, no copy.
     constexpr Asset(const T *flashData, unsigned int count)
       : data_(flashData), count_(count) { }
+#ifdef ASSETS_REMOTE
+    // once per machine, never in data(): no per-frame cost
+    constexpr Asset(const FlashAsset<T, PLAIN> &blob)
+      : data_(blob.data ? blob.data : (const T *)Bundle::find(blob.id, blob.count * sizeof(T))),
+        count_(blob.count) { }
+#else
     constexpr Asset(const FlashAsset<T, PLAIN> &blob)
       : data_(blob.data), count_(blob.count) { }
+#endif
 
     Asset(const Asset &) = delete;
     Asset &operator=(const Asset &) = delete;
@@ -65,10 +81,11 @@ template<typename T>
 class Asset<T, COMPRESSED> {
 public:
     // Unpacked on first access and cached.
-    constexpr Asset(const uint8_t *packed, uint32_t packedLen, uint32_t count)
-      : packed(packed), packedLen(packedLen), count(count), current(nullptr) { }
+    constexpr Asset(const uint8_t *packed, uint32_t packedLen, uint32_t count,
+                    ArenaBlock block = ARENA_ANY)
+      : packed(packed), packedLen(packedLen), count(count), block(block), current(nullptr) { }
     constexpr Asset(const FlashAsset<T, COMPRESSED> &blob)
-      : Asset(blob.packed, blob.packedLen, blob.count) { }
+      : Asset(blob.packed, blob.packedLen, blob.count, blob.block) { }
 
     // No release(): the cache dies with its machine, Arena::reset() frees
     // the memory. Menu logos (logo.h) use decodeInto().
@@ -119,7 +136,7 @@ private:
 #ifdef ARDUINO
       uint32_t t0 = millis();
 #endif
-      T *buf = (T *)Arena::alloc(count * sizeof(T), alignof(T));
+      T *buf = (T *)Arena::alloc(count * sizeof(T), alignof(T), block);
       // read now: the other core may allocate during decodeInto()
       uint32_t usedAfterThisAlloc = Arena::bytesUsed();
 
@@ -144,6 +161,7 @@ private:
     const uint8_t *packed;
     uint32_t packedLen;
     uint32_t count;
+    ArenaBlock block;
     mutable const T *current;
 };
 

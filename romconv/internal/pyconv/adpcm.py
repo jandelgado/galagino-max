@@ -41,12 +41,13 @@ def emit_adpcm(f, name, pcm, compress=False):
     ima_encode format, played by ima_adpcm::Voice. PLAIN: the blob count is
     the decoded sample count, not the encoded byte count. COMPRESSED (saves
     ~20%, costs Arena): the blob count is the encoded byte count, the
-    sample count goes to <name>_samples. Returns the encoded byte count."""
+    sample count goes to <name>_samples. Returns the encoded byte count.
+    Never planned (ROMCONV_PLAN): the PLAIN count is not a byte count."""
     from asset_emit import emit_compressed, emit_plain, _hex_block
     encoded = ima_encode(np.asarray(pcm, dtype=np.int8))
     if compress:
-        emit_compressed(f, name, "unsigned char", "", len(encoded), list(encoded))
+        emit_compressed(f, name, "unsigned char", "", len(encoded), list(encoded), plan=False)
         print(f"static constexpr uint32_t {name}_samples = {len(pcm)};", file=f)
     else:
-        emit_plain(f, name, "unsigned char", "", len(pcm), "  " + _hex_block(encoded))
+        emit_plain(f, name, "unsigned char", "", len(pcm), "  " + _hex_block(encoded), plan=False)
     return len(encoded)

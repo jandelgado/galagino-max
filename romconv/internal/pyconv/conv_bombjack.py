@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
+import os
 from functools import partial
 from convutil import run, info
+
+os.environ["ROMCONV_PLAN"] = "bombjack"
 
 run_in_workdir = partial(run, cwd="internal/bombjack")
 
@@ -20,4 +23,5 @@ run_in_workdir("bgmaps_conv.py")
 info("Bombjack Sprites")
 run_in_workdir("sprites_conv.py")
 
+run("internal/pyconv/arena_plan.py", "bombjack")
 info("--- Success ---")

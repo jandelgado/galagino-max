@@ -1,3 +1,4 @@
+#include "../blob_data.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -115,10 +116,10 @@ static void runAttract(const char *game, int step = ATTRACT_STEP) {
 
 static RobotronBoard *bootRobotron() {
   arena();
-  static Asset<unsigned char, COMPRESSED> m(robotron_rom_main_blob);
-  static Asset<unsigned char, COMPRESSED> s(robotron_rom_sound_blob);
+  static const uint8_t *m = blobData(robotron_rom_main_blob);
+  static const uint8_t *s = blobData(robotron_rom_sound_blob);
   delete board;
-  RobotronBoard *r = new RobotronBoard(ram, scanA, scanB, m.data(), s.data());
+  RobotronBoard *r = new RobotronBoard(ram, scanA, scanB, m, s);
   board = r;
   r->bindMemory(cmos, soundRam);
   r->reset();
@@ -134,10 +135,10 @@ void test_robotron_boot_reaches_attract(void) {
 #ifdef HAVE_JOUST
 static JoustBoard *bootJoust() {
   arena();
-  static Asset<unsigned char, COMPRESSED> m(joust_rom_main_blob);
-  static Asset<unsigned char, COMPRESSED> s(joust_rom_sound_blob);
+  static const uint8_t *m = blobData(joust_rom_main_blob);
+  static const uint8_t *s = blobData(joust_rom_sound_blob);
   delete board;
-  JoustBoard *j = new JoustBoard(ram, scanA, scanB, m.data(), s.data());
+  JoustBoard *j = new JoustBoard(ram, scanA, scanB, m, s);
   board = j;
   j->bindMemory(cmos, soundRam);
   j->reset();
@@ -168,10 +169,10 @@ static const int SINISTAR_ATTRACT_STEP = 250;
 
 static SinistarBoard *bootSinistar(unsigned int actionKey = BOARD_KEY_EXTRA) {
   arena();
-  static Asset<unsigned char, COMPRESSED> m(sinistar_rom_main_blob);
-  static Asset<unsigned char, PLAIN> s(sinistar_rom_sound_blob);
+  static const uint8_t *m = blobData(sinistar_rom_main_blob);
+  static const uint8_t *s = blobData(sinistar_rom_sound_blob);
   delete board;
-  SinistarBoard *b = new SinistarBoard(ram, scanA, scanB, m.data(), s.data(), actionKey);
+  SinistarBoard *b = new SinistarBoard(ram, scanA, scanB, m, s, actionKey);
   board = b;
   b->bindMemory(cmos, soundRam);
   b->bindSram(sram);
@@ -257,11 +258,11 @@ static int speechDelta(const uint8_t *rom, uint8_t cmd) {
 // renderer's range after williams.cpp's DAC_VOLUME 2 and the DC block, with
 // speech peaks near full scale
 void test_sinistar_mix_fits_range(void) {
-  static Asset<unsigned char, PLAIN> s(sinistar_rom_sound_blob);
+  static const uint8_t *s = blobData(sinistar_rom_sound_blob);
   static const int DAC_VOLUME = 2, MIX_MAX = 511;  // williams.h, audio_mix.h
   int peak = 0;
   for (int cmd = 0; cmd < 32; cmd++) {
-    const int n = runSound(s.data(), (uint8_t)cmd, true, speechRun[0]);
+    const int n = runSound(s, (uint8_t)cmd, true, speechRun[0]);
     DcBlock dc;
     for (int i = 0; i < n; i++) {
       const int out = dc.filter(speechRun[0][i] * DAC_VOLUME);
@@ -321,10 +322,10 @@ void test_sinistar_start1_mid_game_ignored(void) {
 }
 
 void test_sinistar_speech_commands(void) {
-  static Asset<unsigned char, PLAIN> s(sinistar_rom_sound_blob);
+  static const uint8_t *s = blobData(sinistar_rom_sound_blob);
   int speaking = 0, loudest = 0;
   for (int cmd = 0; cmd < 64; cmd++) {
-    const int d = speechDelta(s.data(), (uint8_t)cmd);
+    const int d = speechDelta(s, (uint8_t)cmd);
     if (d > 16) {
       speaking++;
     }

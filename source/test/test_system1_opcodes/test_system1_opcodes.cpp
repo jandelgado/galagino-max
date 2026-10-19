@@ -48,6 +48,11 @@ static unsigned short frame_buffer[240 * 8];
 static sprite_S sprite_buf[128];
 static unsigned char memory[RAMSIZE];
 
+// romconv Arena plan per machine (<game>_arena_plan.h), reserved like switchTo()
+template <class M> const ArenaPlan *planOf();
+template <> const ArenaPlan *planOf<flicky>() { return &flicky_arena_plan; }
+template <> const ArenaPlan *planOf<swat>() { return &swat_arena_plan; }
+
 template <class M> static void boot() {
   static bool arena = false;
   delete machine;
@@ -56,7 +61,7 @@ template <class M> static void boot() {
     Arena::init();
     arena = true;
   }
-  Arena::reset();
+  Arena::reserve(planOf<M>());
   machine = new M();
   machine->init(&input, frame_buffer, sprite_buf, memory);
   machine->reset();

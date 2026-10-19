@@ -77,9 +77,10 @@ static WilliamsSound &boot(WilliamsSound &snd) {
   static bool once = false;
   if (!once) {
     Arena::init();
+    Arena::reserve(&defender_arena_plan);
     once = true;
   }
-  static Asset<unsigned char, COMPRESSED> rom(defender_rom_sound_blob);
+  static defender_rom_sound_asset rom(defender_rom_sound_blob);
   snd.attach(rom.data(), 0xf800, ram);
   snd.reset();
   return snd;

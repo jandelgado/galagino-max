@@ -34,7 +34,6 @@ NO_MUSIC = 0x00
 STOP_MUSIC = 0xff
 NO_EFFECT = 0xff
 
-ARENA_CAPACITY = 182000
 SID_RAM = 0x10000 - 0xEA40  # bublbobl.h TUNE_RAM_SIZE
 
 GFX_LO = [("a78-09.12", "2297af6c53d5807bf90a8e081075b8c72a994fc5"),
@@ -225,10 +224,14 @@ def write_samples(f, pcm8):
         f.write(f"// cmd {cmd:02x} {name}: {len(pcm8[cmd]) / FX_RATE:.2f} s, {FX_RATE} Hz IMA-ADPCM: 2-byte LE\n")
         f.write("// predictor, then one nibble per sample\n")
         if name in PACKED_EFFECTS:
-            emit_compressed(f, f"bublbobl_fx_{name}", "unsigned char", "", len(enc), list(enc))
+            emit_compressed(f, f"bublbobl_fx_{name}", "unsigned char", "", len(enc), list(enc),
+                            plan=False)  # BublboblFxBlob holds typed pointers
         else:
-            emit_plain(f, f"bublbobl_fx_{name}", "unsigned char", "", len(enc), body(list(enc), "0x%02X"))
+            emit_plain(f, f"bublbobl_fx_{name}", "unsigned char", "", len(enc), body(list(enc), "0x%02X"),
+                       plan=False)
     f.write(f"#define BUBLBOBL_EFFECT_COUNT {len(EFFECTS)}\n")
+    # bublbobl.cpp checks ARENA_EXTRA holds one decode buffer per packed effect
+    f.write(f"#define BUBLBOBL_PACKED_EFFECT_COUNT {sum(n in PACKED_EFFECTS for n in EFFECTS.values())}\n")
     f.write("// effect index -> ADPCM stream in flash (plain) or packed for the Arena\n")
     f.write("struct BublboblFxBlob {\n")
     f.write("  const FlashAsset<unsigned char, PLAIN> *plain;       // nullptr: packed\n")
@@ -273,8 +276,6 @@ def main():
     write("bublbobl_prom.h", lambda f: emit_plain(
         f, "bublbobl_prom", "unsigned char", "", len(types), body(types, "0x%02X")))
 
-    # unpack order (bublbobl.cpp ctor), first fit into 2 x 91000:
-    # bank -> A, main -> B, sub -> B, sid_ram -> A
     sid = sid_file()
     # PLAIN: SidPlayer copies the payload into its Arena RAM window
     write("bublbobl_sid.h", lambda f: emit_plain(
@@ -286,15 +287,7 @@ def main():
     write("bublbobl_samples.h", lambda f: encoded.append(write_samples(f, pcm8)))
     print(f"  flash effects {len(EFFECTS)}: {encoded[0]} bytes, sid {len(sid)}")
 
-    arena = {"bank_rom": len(banks), "main_rom": len(main), "sub_rom": len(sub),
-             "tile_map": len(remap) * 2, "sid_ram": SID_RAM}
-    total = sum(arena.values())
-    for name, size in arena.items():
-        print(f"  arena {name:9s} {size:6d}")
-    print(f"  arena total     {total:6d} of {ARENA_CAPACITY}")
     print(f"  flash tiles {len(unique)} x 32 = {len(unique) * 32}")
-    if total >= ARENA_CAPACITY:
-        fatal("bublbobl assets exceed Arena::CAPACITY")
 
 
 if __name__ == "__main__":

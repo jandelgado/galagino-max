@@ -1,6 +1,7 @@
 #ifndef SCREGG_H
 #define SCREGG_H
 
+#include "scregg_arena_plan.h"
 #include "scregg_logo.h"
 #include "scregg_dipswitches.h"
 #include "../../cpus/m6502/m6502.h"
@@ -10,9 +11,9 @@
 class scregg : public machineBase {
 protected:
   // ROM assets, unpacked into the Arena on first data()
-  Asset<unsigned char[8][8], COMPRESSED> scregg_chartiles;
-  Asset<unsigned char, COMPRESSED> scregg_rom;
-  Asset<unsigned char[16][16], COMPRESSED> scregg_spritetiles;
+  scregg_chartiles_asset scregg_chartiles;
+  scregg_rom_asset scregg_rom;
+  scregg_spritetiles_asset scregg_spritetiles;
 public:
   scregg();
 

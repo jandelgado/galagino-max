@@ -27,15 +27,25 @@ void fail(const char *what, uint32_t addr) {
   abort();
 }
 
+// marble_tables in flash (PLAIN) or unpacked into its planned Arena block,
+// as romconv's Arena plan picks per layout
+static const uint8_t *loadTables(const FlashAsset<unsigned char, PLAIN> &b) {
+  return b.data;
+}
+
+static const uint8_t *loadTables(const FlashAsset<unsigned char, COMPRESSED> &b) {
+  const Asset<unsigned char, COMPRESSED> t(b);
+  uint8_t *tables = Arena::alloc(t.size(), alignof(uint16_t), b.block);
+  t.decodeInto(tables);
+  return tables;
+}
+
 void loadRom() {
   const Asset<unsigned char, COMPRESSED> p(marble_prog_blob);
   prog = Arena::alloc<uint8_t>(p.size());
   p.decodeInto(prog);
 
-  const Asset<unsigned char, COMPRESSED> t(marble_tables_blob);
-  uint8_t *tables = Arena::alloc(t.size(), alignof(uint16_t));
-  t.decodeInto(tables);
-  marble_tables = tables;
+  marble_tables = loadTables(marble_tables_blob);
 
   terrainBuf = Arena::alloc(MARBLE_TERRAIN_MAX, alignof(uint16_t));
   loadedRace = NO_RACE;

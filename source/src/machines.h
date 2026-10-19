@@ -380,6 +380,9 @@
 #endif
 #ifdef ENABLE_1943
   #include "machines/1943/1943.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/1943/1943_bundle.h"
+  #endif
 #endif
 #ifdef ENABLE_CBDASH
   #include "machines/cbdash/cbdash.h"
@@ -439,7 +442,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     _1942::menuLeds,
 #endif
-    MCH_1942 },
+    MCH_1942, &_1942_arena_plan },
 #endif
 #ifdef ENABLE_LIZWIZ
   { createMachine<lizwiz>, lizwiz::logo,
@@ -488,7 +491,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     bombjack::menuLeds,
 #endif
-    MCH_BOMBJACK },
+    MCH_BOMBJACK, &bombjack_arena_plan },
 #endif
 #ifdef ENABLE_MRDO
   { createMachine<mrdo>, mrdo::logo,
@@ -572,14 +575,14 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     starforce::menuLeds,
 #endif
-    MCH_STARFORCE },
+    MCH_STARFORCE, &starforce_arena_plan },
 #endif
 #ifdef ENABLE_BALUBA
   { createMachine<baluba>, baluba::logo,
 #ifdef LED_PIN
     baluba::menuLeds,
 #endif
-    MCH_BALUBA },
+    MCH_BALUBA, &baluba_arena_plan },
 #endif
 #ifdef ENABLE_MOONCRESTA
   { createMachine<mooncresta>, mooncresta::logo,
@@ -642,7 +645,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     machineBase::defaultMenuLeds,
 #endif
-    MCH_BNJ },
+    MCH_BNJ, &bnj_arena_plan },
 #endif
 #ifdef ENABLE_MAPPY
   { createMachine<mappy>, mappy::logo,
@@ -747,7 +750,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     machineBase::defaultMenuLeds,
 #endif
-    MCH_SCREGG },
+    MCH_SCREGG, &scregg_arena_plan },
 #endif
 #ifdef ENABLE_VANGUARD
   { createMachine<vanguard>, vanguard::logo,
@@ -761,7 +764,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     zaxxon::menuLeds,
 #endif
-    MCH_ZAXXON },
+    MCH_ZAXXON, &zaxxon_arena_plan },
 #endif
 #ifdef ENABLE_CENTIPEDE
   { createMachine<centipede>, centipede::logo,
@@ -803,7 +806,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     bublbobl::menuLeds,
 #endif
-    MCH_BUBLBOBL },
+    MCH_BUBLBOBL, &bublbobl_arena_plan },
 #endif
 #ifdef ENABLE_ATETRIS
   { createMachine<atetris>, atetris::logo,
@@ -901,84 +904,84 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     starjack::menuLeds,
 #endif
-    MCH_STARJACK },
+    MCH_STARJACK, &starjack_arena_plan },
 #endif
 #ifdef ENABLE_REGULUS
   { createMachine<regulus>, regulus::logo,
 #ifdef LED_PIN
     regulus::menuLeds,
 #endif
-    MCH_REGULUS },
+    MCH_REGULUS, &regulus_arena_plan },
 #endif
 #ifdef ENABLE_UPNDOWN
   { createMachine<upndown>, upndown::logo,
 #ifdef LED_PIN
     upndown::menuLeds,
 #endif
-    MCH_UPNDOWN },
+    MCH_UPNDOWN, &upndown_arena_plan },
 #endif
 #ifdef ENABLE_RAFLESIA
   { createMachine<raflesia>, raflesia::logo,
 #ifdef LED_PIN
     raflesia::menuLeds,
 #endif
-    MCH_RAFLESIA },
+    MCH_RAFLESIA, &raflesia_arena_plan },
 #endif
 #ifdef ENABLE_SWAT
   { createMachine<swat>, swat::logo,
 #ifdef LED_PIN
     swat::menuLeds,
 #endif
-    MCH_SWAT },
+    MCH_SWAT, &swat_arena_plan },
 #endif
 #ifdef ENABLE_FLICKY
   { createMachine<flicky>, flicky::logo,
 #ifdef LED_PIN
     flicky::menuLeds,
 #endif
-    MCH_FLICKY },
+    MCH_FLICKY, &flicky_arena_plan },
 #endif
 #ifdef ENABLE_PITFALL2
   { createMachine<pitfall2>, pitfall2::logo,
 #ifdef LED_PIN
     pitfall2::menuLeds,
 #endif
-    MCH_PITFALL2 },
+    MCH_PITFALL2, &pitfall2_arena_plan },
 #endif
 #ifdef ENABLE_MRVIKING
   { createMachine<mrviking>, mrviking::logo,
 #ifdef LED_PIN
     mrviking::menuLeds,
 #endif
-    MCH_MRVIKING },
+    MCH_MRVIKING, &mrviking_arena_plan },
 #endif
 #ifdef ENABLE_IMSORRY
   { createMachine<imsorry>, imsorry::logo,
 #ifdef LED_PIN
     imsorry::menuLeds,
 #endif
-    MCH_IMSORRY },
+    MCH_IMSORRY, &imsorry_arena_plan },
 #endif
 #ifdef ENABLE_WBOY
   { createMachine<wboy>, wboy::logo,
 #ifdef LED_PIN
     wboy::menuLeds,
 #endif
-    MCH_WBOY },
+    MCH_WBOY, &wboy_arena_plan },
 #endif
 #ifdef ENABLE_FOURDWARRIO
   { createMachine<fourdwarrio>, fourdwarrio::logo,
 #ifdef LED_PIN
     fourdwarrio::menuLeds,
 #endif
-    MCH_FOURDWARRIO },
+    MCH_FOURDWARRIO, &fourdwarrio_arena_plan },
 #endif
 #ifdef ENABLE_HVYMETAL
   { createMachine<hvymetal>, hvymetal::logo,
 #ifdef LED_PIN
     hvymetal::menuLeds,
 #endif
-    MCH_HVYMETAL },
+    MCH_HVYMETAL, &hvymetal_arena_plan },
 #endif
 #ifdef ENABLE_SXEVIOUS
   { createMachine<sxevious>, sxevious::logo,
@@ -999,7 +1002,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     gardia::menuLeds,
 #endif
-    MCH_GARDIA },
+    MCH_GARDIA, &gardia_arena_plan },
 #endif
 #ifdef ENABLE_CAVENGER
   { createMachine<cavenger>, cavenger::logo,
@@ -1034,7 +1037,11 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     _1943::menuLeds,
 #endif
-    MCH_1943 },
+    MCH_1943,
+#ifdef ASSETS_REMOTE
+    nullptr, &_1943_bundle,
+#endif
+  },
 #endif
 #ifdef ENABLE_CBDASH
   { createMachine<cbdash>, cbdash::logo,
@@ -1069,21 +1076,21 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     marble::menuLeds,
 #endif
-    MCH_MARBLE },
+    MCH_MARBLE, &marble_arena_plan },
 #endif
 #ifdef ENABLE_COMMANDO
   { createMachine<commando>, commando::logo,
 #ifdef LED_PIN
     commando::menuLeds,
 #endif
-    MCH_COMMANDO },
+    MCH_COMMANDO, &commando_arena_plan },
 #endif
 #ifdef ENABLE_GNG
   { createMachine<gng>, gng::logo,
 #ifdef LED_PIN
     gng::menuLeds,
 #endif
-    MCH_GNG },
+    MCH_GNG, &gng_arena_plan },
 #endif
 #ifdef ENABLE_TP84
   { createMachine<tp84>, tp84::logo,
@@ -1097,28 +1104,28 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     defender::menuLeds,
 #endif
-    MCH_DEFENDER },
+    MCH_DEFENDER, &defender_arena_plan },
 #endif
 #ifdef ENABLE_ROBOTRON
   { createMachine<robotron>, robotron::logo,
 #ifdef LED_PIN
     robotron::menuLeds,
 #endif
-    MCH_ROBOTRON },
+    MCH_ROBOTRON, &robotron_arena_plan },
 #endif
 #ifdef ENABLE_JOUST
   { createMachine<joust>, joust::logo,
 #ifdef LED_PIN
     joust::menuLeds,
 #endif
-    MCH_JOUST },
+    MCH_JOUST, &joust_arena_plan },
 #endif
 #ifdef ENABLE_SINISTAR
   { createMachine<sinistar>, sinistar::logo,
 #ifdef LED_PIN
     sinistar::menuLeds,
 #endif
-    MCH_SINISTAR },
+    MCH_SINISTAR, &sinistar_arena_plan },
 #endif
 #ifdef ENABLE_YIEAR
   { createMachine<yiear>, yiear::logo,

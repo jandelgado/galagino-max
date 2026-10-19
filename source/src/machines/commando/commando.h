@@ -1,6 +1,7 @@
 #ifndef COMMANDO_H
 #define COMMANDO_H
 
+#include "commando_arena_plan.h"
 #include "commando_logo.h"
 #include "commando_music.h"
 #include "../machineBase.h"
@@ -23,18 +24,18 @@ protected:
   // ROM assets: Arena residents unpacked eagerly in the ctor (not every
   // order fits Arena's two blocks). The ROMs and bg tiles part a stay in
   // flash: the other assets save more flash per Arena byte.
-  Asset<unsigned char, PLAIN> commando_rom;
-  Asset<uint32_t[32], COMPRESSED> commando_sprites0;
-  Asset<uint32_t[32], COMPRESSED> commando_sprites1;
-  Asset<uint32_t[32], COMPRESSED> commando_sprites2;
-  Asset<unsigned short[8], COMPRESSED> commando_chars;
-  Asset<unsigned short[8], COMPRESSED> commando_cmap_tiles;
-  Asset<unsigned short[16], COMPRESSED> commando_cmap_sprites;
-  Asset<unsigned short[4], COMPRESSED> commando_cmap_chars;
-  Asset<uint32_t[32], PLAIN> commando_tiles_a;       // tiles 0..TILES_A-1, flash
-  Asset<uint32_t[32], COMPRESSED> commando_tiles_b;  // the rest, block B
-  Asset<unsigned char, COMPRESSED> commando_sid;
-  Asset<unsigned char, PLAIN> commando_sound;
+  commando_rom_asset commando_rom;
+  commando_sprites0_asset commando_sprites0;
+  commando_sprites1_asset commando_sprites1;
+  commando_sprites2_asset commando_sprites2;
+  commando_chars_asset commando_chars;
+  commando_cmap_tiles_asset commando_cmap_tiles;
+  commando_cmap_sprites_asset commando_cmap_sprites;
+  commando_cmap_chars_asset commando_cmap_chars;
+  commando_tiles_a_asset commando_tiles_a;  // tiles 0..TILES_A-1
+  commando_tiles_b_asset commando_tiles_b;  // the rest
+  commando_sid_asset commando_sid;
+  commando_sound_asset commando_sound;
 
 public:
   commando();
@@ -74,6 +75,12 @@ private:
   static const uint16_t SPRITE_BYTES = 96 * 4;
   static const uint16_t BG_BYTES = 0x800; // code + attr
   static const uint16_t TUNE_RAM_SIZE = 0x1000; // $5000-$5FFF, see test_sidplayer
+  // Arena::alloc besides planned assets, read by romconv (arena_plan.py):
+  // SID tune RAM (ctor)
+  static constexpr uint32_t ARENA_EXTRA[] = { 4096 };
+  static_assert(ARENA_EXTRA[0] == TUNE_RAM_SIZE, "update ARENA_EXTRA");
+  static_assert(arenaExtrasKey(ARENA_EXTRA, sizeof(ARENA_EXTRA) / sizeof(uint32_t), false) ==
+                commando_arena_extras_key, "ARENA_EXTRA changed: rerun romconv");
 
   static const int WIDTH = 224;
   static const short FIRST_ROW = 2; // panel rows 2..33 show the game

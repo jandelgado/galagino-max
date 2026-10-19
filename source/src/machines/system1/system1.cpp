@@ -70,8 +70,7 @@ system1::system1(const Roms &r, const Config &c)
     : tile_rom(r.tiles), tile_map(r.tileMap), main_rom(r.main_cpu), sprite_rom(r.sprites),
       sound_rom(r.sound_cpu), lookup_prom(r.lookup), opcode_rom(r.opcodes), bank_rom(r.banks),
       config(c) {
-  // unpack order is the Arena bin packing (Arena::alloc first fit, A then
-  // B); romconv's UNPACK_ORDER checks the same order fits for every set
+  // eager: blocks come from romconv (<game>_arena_plan.h), any order fits
   spriteRom = sprite_rom.data();
   tiles.gfx = tile_rom.data();
   mainRom = main_rom.data();

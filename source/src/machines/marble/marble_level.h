@@ -39,8 +39,7 @@ static const uint8_t NO_PATCH = 0xff;
 uint8_t patchIndex(uint32_t record);
 
 // Arena buffers for the largest level, allocated once; load() unpacks into them
-// (108 KB: map 10440 B and tiles 57344 B in one Arena block, sprite tiles 39904 B in the
-// other).
+// (108 KB: map 10440 B, tiles 57344 B, sprite tiles 39904 B; marble::ARENA_EXTRA).
 class Store {
 public:
   void init();  // idempotent: start() runs twice

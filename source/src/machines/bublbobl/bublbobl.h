@@ -1,6 +1,7 @@
 #ifndef BUBLBOBL_H
 #define BUBLBOBL_H
 
+#include "bublbobl_arena_plan.h"
 #include "bublbobl_dipswitches.h"
 #include "bublbobl_video.h"
 #include "../machineBase.h"
@@ -31,13 +32,13 @@ class bublbobl : public machineBase
 {
   // ROM assets; COMPRESSED ones unpacked eagerly in the ctor, largest
   // first, to fit Arena's two blocks
-  Asset<unsigned char, COMPRESSED> bublbobl_bank_rom;
-  Asset<unsigned char, COMPRESSED> bublbobl_main_rom;
-  Asset<unsigned char, COMPRESSED> bublbobl_sub_rom;
-  Asset<uint32_t[8], PLAIN> bublbobl_tiles;
-  Asset<unsigned short, COMPRESSED> bublbobl_tile_map;
-  Asset<unsigned char, PLAIN> bublbobl_prom;
-  Asset<unsigned char, PLAIN> bublbobl_sid;
+  bublbobl_bank_rom_asset bublbobl_bank_rom;
+  bublbobl_main_rom_asset bublbobl_main_rom;
+  bublbobl_sub_rom_asset bublbobl_sub_rom;
+  bublbobl_tiles_asset bublbobl_tiles;
+  bublbobl_tile_map_asset bublbobl_tile_map;
+  bublbobl_prom_asset bublbobl_prom;
+  bublbobl_sid_asset bublbobl_sid;
 
 public:
   bublbobl();
@@ -62,6 +63,10 @@ public:
 #endif
 
   static constexpr uint16_t TUNE_RAM_SIZE = 0x10000 - 0xEA40;
+  // Arena::alloc besides planned assets, read by romconv (arena_plan.py):
+  // ctor: SID tune RAM, fx_samples (upper bound: 64-bit host), the packed
+  // effects fx0b, fx1e, fx25, coin. Checked in bublbobl.cpp.
+  static constexpr uint32_t ARENA_EXTRA[] = { 5568, 176, 12807, 8232, 9499, 6797 };
 
 private:
   static constexpr uint8_t MAIN_CPU = 0;

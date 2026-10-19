@@ -2,6 +2,7 @@
 #define GARDIA_H
 
 #include "../system1/system1.h"
+#include "gardia_arena_plan.h"
 #include "gardia_dipswitches.h"
 
 // Gardia (Coreland / Sega 1986), 317-0006 encrypted main CPU, banked main ROM

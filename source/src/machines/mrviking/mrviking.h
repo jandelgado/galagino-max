@@ -2,6 +2,7 @@
 #define MRVIKING_H
 
 #include "../system1/system1.h"
+#include "mrviking_arena_plan.h"
 #include "mrviking_dipswitches.h"
 
 // Mister Viking (Sega 1984), 315-5041 encrypted main CPU

@@ -277,6 +277,12 @@ struct machineInfo {
   void (*menuLeds)(CRGB *leds);
 #endif
   signed char type;
+  // reserved Arena bytes per block (romconv plan), nullptr: none
+  const ArenaPlan *arena;
+#ifdef ASSETS_REMOTE
+  // remote PLAIN assets, nullptr: built in
+  const BundleRef *bundle;
+#endif
 };
 
 #endif

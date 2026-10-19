@@ -5,6 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pyconv"))
 from gfxutil import load_file, mame_decode, rgb888_to_rgb565_le
+from arena_layout import LOCAL
 from asset_emit import emit_compressed
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -30,7 +31,7 @@ TILE_CLUT = ("577h11.6f", "77cff7c9c8433f999a87776021935864cf9dccb4")
 SPR_CLUT = ("577h10.5f", "406b8dfe54e6176082005cc5545e79c098672547")
 
 ARENA_CAPACITY = 182000
-ARENA_BLOCK = 91000
+ARENA_BLOCK = LOCAL[0]
 
 
 def load(entry):

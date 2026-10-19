@@ -2,6 +2,7 @@
 #define IMSORRY_H
 
 #include "../system1/system1.h"
+#include "imsorry_arena_plan.h"
 #include "imsorry_dipswitches.h"
 
 // I'm Sorry (Coreland / Sega 1985), 315-5110 encrypted main CPU

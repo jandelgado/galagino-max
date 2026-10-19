@@ -12,6 +12,7 @@ import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join("..", "pyconv"))
 from gfxutil import load_file, mame_decode, rot_galagino, rgb888_to_rgb565_le
+from arena_layout import LOCAL
 from asset_emit import emit_compressed
 
 ROM_SET = os.path.normpath(os.path.join("..", "..", "..", "romszip", "arkanoid.zip"))
@@ -86,4 +87,4 @@ total = sum(sizes.values())
 print(f"unique tiles {len(unique)} of {TILE_COUNT}")
 print(f"Arena total {total} B (budget 182000)")
 assert total < 182000
-assert sizes["tiles"] + sizes["tile_map"] < 91000   # one Arena block
+assert sizes["tiles"] + sizes["tile_map"] < LOCAL[0]   # one Arena block

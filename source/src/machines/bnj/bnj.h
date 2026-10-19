@@ -1,6 +1,7 @@
 #ifndef BNJ_H
 #define BNJ_H
 
+#include "bnj_arena_plan.h"
 #include "bnj_logo.h"
 #include "bnj_dipswitches.h"
 #include "../../cpus/m6502/m6502.h"
@@ -57,11 +58,11 @@ class bnj : public burgertime
 {
 protected:
   // ROM assets, unpacked into the Arena on first data()
-  Asset<unsigned char[16][16], COMPRESSED> bnj_bgtiles;
-  Asset<unsigned char[8][8], COMPRESSED> bnj_chartiles;
-  Asset<unsigned char, COMPRESSED> bnj_rom_audio;
-  Asset<unsigned char, COMPRESSED> bnj_rom_main;
-  Asset<unsigned char[16][16], COMPRESSED> bnj_spritetiles;
+  bnj_bgtiles_asset bnj_bgtiles;
+  bnj_chartiles_asset bnj_chartiles;
+  bnj_rom_audio_asset bnj_rom_audio;
+  bnj_rom_main_asset bnj_rom_main;
+  bnj_spritetiles_asset bnj_spritetiles;
 public:
   bnj();
 

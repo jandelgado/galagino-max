@@ -69,7 +69,12 @@ typedef struct m6809_state_S {
 void m6809_reset(m6809_state *s);
 
 /* Execute count instructions, returns the cycles they consumed */
+// M6809_NO_IRAM: WiFi builds need the IRAM
+#ifdef M6809_NO_IRAM
+int m6809_step(m6809_state *s, char count);
+#else
 IRAM_ATTR int m6809_step(m6809_state *s, char count);
+#endif
 
 /* Signal an IRQ (active while pending flag set) */
 void m6809_irq(m6809_state *s);

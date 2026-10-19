@@ -158,19 +158,10 @@ def convert_sprites():
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    arena = {
-        "sound": convert_cpu(),
-        "tiles": convert_tiles(),
-        "sprites": convert_sprites(),
-        "tune_ram": 0x1540,  # gng.h TUNE_RAM_SIZE, SID $3800-$4D3F
-    }
-    total = sum(arena.values())
-    for name, size in arena.items():
-        print(f"  arena {name:9s} {size:6d}")
+    convert_cpu()
+    convert_tiles()
+    convert_sprites()
     convert_chars()
-    print(f"  arena total     {total:6d} of 201500")
-    if total >= 201500:
-        fatal("Ghosts'n Goblins assets exceed Arena::CAPACITY")
 
 
 if __name__ == "__main__":

@@ -112,6 +112,15 @@ static uint32_t crc32(const uint8_t *p, size_t n) {
   return ~c;
 }
 
+// romconv Arena plan per machine (<game>_arena_plan.h), reserved like switchTo()
+template <class M> const ArenaPlan *planOf();
+template <> const ArenaPlan *planOf<flicky>() { return &flicky_arena_plan; }
+template <> const ArenaPlan *planOf<fourdwarrio>() { return &fourdwarrio_arena_plan; }
+template <> const ArenaPlan *planOf<hvymetal>() { return &hvymetal_arena_plan; }
+template <> const ArenaPlan *planOf<imsorry>() { return &imsorry_arena_plan; }
+template <> const ArenaPlan *planOf<pitfall2>() { return &pitfall2_arena_plan; }
+template <> const ArenaPlan *planOf<wboy>() { return &wboy_arena_plan; }
+
 // Arena ready before the ctor: it unpacks the ROMs. One Arena per process,
 // emptied for the next machine as main's switchTo() does.
 template <class M> static void boot() {
@@ -122,7 +131,7 @@ template <class M> static void boot() {
     Arena::init();
     arena = true;
   }
-  Arena::reset();
+  Arena::reserve(planOf<M>());
   machine = new M();
   machine->init(&input, frame_buffer, sprite_buf, memory);
   machine->reset();

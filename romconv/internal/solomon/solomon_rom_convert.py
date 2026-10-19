@@ -5,6 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pyconv"))
 from gfxutil import load_file, mame_decode
+from arena_layout import LOCAL
 from asset_emit import emit_compressed, emit_plain
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -27,8 +28,7 @@ SPRITES = [("2.5lm", "8e7a78186473a6b5c42577ac9e4591ee2d1151f2"),
            ("4.7lm", "e29ffb9fcff50ce982d5e502e10a8e29a4c47390"),
            ("5.8lm", "1c7a01dab056ec7d787a6f55772b9fa6fe67305a")]
 
-ARENA_BLOCK_A = 91000
-ARENA_BLOCK_B = 110500
+ARENA_BLOCK_A, ARENA_BLOCK_B = LOCAL
 HALF = 0x4000
 HIGH_ROM = 0x1000  # 8.3jk bytes mapped at f000
 

@@ -12,7 +12,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..", "..", "..")
 MACHINES = os.path.join(ROOT, "source", "src", "machines")
 
-ARENA_BLOCKS = (91000, 110500)  # source/src/emulation/arena.h BLOCK_A_SIZE, BLOCK_B_SIZE
 MIX_NO_COLLIDE = 0x04
 
 # MAME ROM_START per game, regions in load order
@@ -558,6 +557,8 @@ def plain_body(dims, values):
                       for i in range(0, len(values), n))
 
 
+# planned (ROMCONV_PLAN, conv_<game>.py): "plain" is only the tie-break hint
+# of romconv arena_plan.py, which picks mode and block per layout
 def emit(game, asset, ctype, dims, count, values, plain=False):
     path = os.path.join(MACHINES, game, f"{game}_{asset}.h")
     with open(path, "w", newline="\n") as f:
@@ -567,9 +568,6 @@ def emit(game, asset, ctype, dims, count, values, plain=False):
             emit_compressed(f, f"{game}_{asset}", ctype, dims, count, values)
 
 
-# system1::system1() unpacks in this order; Arena::alloc is first fit, block A then B
-UNPACK_ORDER = ["sprites", "tiles", "main_rom", "sound_rom", "lookup_prom", "tile_map", "opcodes",
-                "banks"]
 BANK_BASE = 0x8000  # "banked": main ROM image past 0x8000 is 16 KB banks at 8000-bfff
 
 
@@ -605,20 +603,6 @@ def convert(game):
     return assets
 
 
-# simulates the ctor's unpack: (block A, block B) bytes used. PLAIN assets
-# stay in flash.
-def arena_blocks(assets, plain=()):
-    size = {a[0]: a[5] for a in assets if a[0] not in plain}
-    blocks = [0, 0]
-    for name in UNPACK_ORDER:
-        if name not in size:
-            continue
-        i = 0 if blocks[0] + size[name] <= ARENA_BLOCKS[0] else 1
-        blocks[i] += size[name]
-        assert blocks[i] <= ARENA_BLOCKS[i], f"{name} ({size[name]} B) fits no Arena block"
-    return blocks
-
-
 def main(game):
     spec = GAMES[game]
     plain = spec.get("plain", ())
@@ -629,9 +613,6 @@ def main(game):
     if "color" in spec:
         zip_path = os.path.join(ROOT, "romszip", spec.get("zip", f"{game}.zip"))
         write_game_palette(game, prom_palette565(load(zip_path, spec["color"])))
-
-    a, b = arena_blocks(assets, plain)
-    print(f"{game}: Arena {a + b} / {sum(ARENA_BLOCKS)} (blocks {a}, {b})")
 
 
 if __name__ == "__main__":

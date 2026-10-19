@@ -2,6 +2,7 @@
 #define REGULUS_H
 
 #include "../system1/system1.h"
+#include "regulus_arena_plan.h"
 #include "regulus_dipswitches.h"
 
 // Regulus (Sega 1983), unencrypted set regulusu

@@ -24,6 +24,9 @@
 #include "emulation/emulation.h"
 #include "emulation/hud.h"
 #include "machines/selftest/selftest.h"
+#ifdef ASSETS_REMOTE
+  #include "net/loader.h"
+#endif
 #ifdef LED_PIN
   #include "emulation/led.h"
 #endif
@@ -250,6 +253,8 @@ static void switchTo(int8_t index) {
     video.flipReset(currentMachine->videoFlipY(), currentMachine->videoFlipX());
     audio.stop();
     delete currentMachine;
+    // a failed game load re-enters switchTo() for the menu
+    currentMachine = nullptr;
   }
 
   menu = nullptr;
@@ -269,6 +274,13 @@ static void switchTo(int8_t index) {
   else {
     lastIndex = index;
     menuPreselect = index;
+#ifdef ASSETS_REMOTE
+    if (!Loader::prepare(machines[index].bundle)) {
+      switchTo(SHOW_MENU);
+      return;
+    }
+#endif
+    Arena::reserve(machines[index].arena);
     currentMachine = machines[index].create();
 #ifdef MASTER_ATTRACT_GAME_TIMEOUT
     attractGameStart = machinesCount > 1 ? millis() : 0;
@@ -286,9 +298,28 @@ static void switchTo(int8_t index) {
 // and heap use, to size the Arena. True if it switched machines.
 static bool heapProbeStep() {
 #ifdef HEAP_PROBE
-  static const uint32_t PROBE_GAME_MS = 5000;
-  static int8_t probeIndex = -1;
+#ifndef HEAP_PROBE_GAME_MS
+#define HEAP_PROBE_GAME_MS 5000
+#endif
+  static const uint32_t PROBE_GAME_MS = HEAP_PROBE_GAME_MS;
+  // survive the abort and reboot of an Arena overflow: the sweep goes on
+  // with the next game
+  static const uint32_t PROBE_MAGIC = 0x50524f42;
+  RTC_NOINIT_ATTR static uint32_t probeMagic;
+  RTC_NOINIT_ATTR static int8_t probeIndex;
   static uint32_t probeStart = 0;
+
+  if (!currentMachine) {
+    // index checked: RTC memory survives flashing a firmware with fewer games
+    if (probeMagic == PROBE_MAGIC && esp_reset_reason() == ESP_RST_PANIC &&
+        probeIndex >= 0 && probeIndex < machinesCount) {
+      printf("PROBE game=%d type=%d FAIL\n", probeIndex, machines[probeIndex].type);
+    }
+    else {
+      probeIndex = -1;
+    }
+    probeMagic = PROBE_MAGIC;
+  }
 
   if (currentMachine && millis() - probeStart <= PROBE_GAME_MS) {
     return false;
@@ -301,13 +332,14 @@ static bool heapProbeStep() {
            heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
            heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
   }
+  // a panic while leaving the game still counts for it
+  switchTo(SHOW_MENU);  // menu dtor resets the Arena
   probeIndex++;
   if (probeIndex == machinesCount) {
     heapProbeDump("end");
+    probeMagic = 0;
     probeIndex = 0;
   }
-
-  switchTo(SHOW_MENU);  // menu dtor resets the Arena
   switchTo(probeIndex);
   probeStart = millis();
   return true;

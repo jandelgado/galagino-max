@@ -2,6 +2,7 @@
 #define UPNDOWN_H
 
 #include "../system1/system1.h"
+#include "upndown_arena_plan.h"
 #include "upndown_dipswitches.h"
 
 // Up'n Down (Sega 1983), unencrypted set upndownu

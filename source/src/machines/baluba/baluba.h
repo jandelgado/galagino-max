@@ -2,6 +2,7 @@
 #define BALUBA_H
 
 #include "../starforce/starforce.h"
+#include "baluba_arena_plan.h"
 
 // Baluba-louk no Densetsu: Star Force board, own ROMs and DIP switches
 class baluba : public starforce

@@ -3,6 +3,8 @@
 
 #include "../tileaddr.h"
 #include "../machineBase.h"
+#include "../../emulation/any_asset.h"
+#include "starforce_arena_plan.h"
 #include "../../emulation/sn76489.h"
 #include "../../emulation/seqlock.h"
 
@@ -47,13 +49,13 @@ public:
 protected:
 	// ROM assets of one game on this board (starforce, baluba)
 	struct Roms {
-		const FlashAsset<unsigned char, COMPRESSED> &main_cpu;
-		const FlashAsset<unsigned char, COMPRESSED> &sub_cpu;
-		const FlashAsset<uint32_t[8], COMPRESSED> &fg;
-		const FlashAsset<uint32_t[16][2], COMPRESSED> &bg1;
-		const FlashAsset<uint32_t[16][2], COMPRESSED> &bg2;
-		const FlashAsset<uint32_t[16][2], PLAIN> &bg3;
-		const FlashAsset<uint32_t[16][2], COMPRESSED> &sprites_16x16;
+		AssetRef<unsigned char> main_cpu;
+		AssetRef<unsigned char> sub_cpu;
+		AssetRef<uint32_t[8]> fg;
+		AssetRef<uint32_t[16][2]> bg1;
+		AssetRef<uint32_t[16][2]> bg2;
+		AssetRef<uint32_t[16][2]> bg3;
+		AssetRef<uint32_t[16][2]> sprites_16x16;
 	};
 	explicit starforce(const Roms &roms);
 
@@ -79,14 +81,14 @@ private:
 	unsigned char coinBackup = 0;
 	unsigned char coinFrameCounter = 0;
 
-	// ROM assets, unpacked into the Arena on first data()
-	Asset<unsigned char, COMPRESSED> main_cpu_rom;
-	Asset<unsigned char, COMPRESSED> sub_cpu_rom;
-	Asset<uint32_t[8], COMPRESSED> fg_tiles;
-	Asset<uint32_t[16][2], COMPRESSED> bg1_tiles;
-	Asset<uint32_t[16][2], COMPRESSED> bg2_tiles;
-	Asset<uint32_t[16][2], PLAIN> bg3_tiles;  // smallest bg layer: flash
-	Asset<uint32_t[16][2], COMPRESSED> sprites_16x16;  // 32x32 sprites are 4 of these
+	// ROM assets, mode and Arena block per game from romconv (<game>_arena_plan.h)
+	AnyAsset<unsigned char> main_cpu_rom;
+	AnyAsset<unsigned char> sub_cpu_rom;
+	AnyAsset<uint32_t[8]> fg_tiles;
+	AnyAsset<uint32_t[16][2]> bg1_tiles;
+	AnyAsset<uint32_t[16][2]> bg2_tiles;
+	AnyAsset<uint32_t[16][2]> bg3_tiles;
+	AnyAsset<uint32_t[16][2]> sprites_16x16;  // 32x32 sprites are 4 of these
 
 	// Cached: hot path reads these per access; data() checks the cache on every call.
 	const unsigned char *rom_main_ptr;

@@ -46,3 +46,30 @@ Game names match the `internal/pyconv/conv_<name>.py` scripts.
 `convert.py`/`.sh`/`.bat` are the only scripts meant to be run
 directly. Everything else (`internal/`) is implementation detail:
 per-game converters, shared helpers, and unpacked ROM working data.
+
+## Asset split per Arena layout
+
+Machines unpack COMPRESSED assets into the Arena, two RAM blocks whose
+sizes depend on the build (`source/src/emulation/arena_layout.h`: block A
+is smaller in `ASSETS_REMOTE` builds, which link WiFi). For games that do
+not fit both layouts with one hand-written split, romconv computes the
+split per layout:
+
+- `conv_<game>.py` sets `ROMCONV_PLAN=<game>`. Every asset the converters
+  emit then carries both forms (flash array and LZMA blob) behind
+  `#if <name>_PLAIN`, plus a `// arena-asset` marker.
+- `internal/pyconv/arena_plan.py <game>` runs last. It reads the markers,
+  the block sizes and the machine header's `ARENA_EXTRA` (other
+  `Arena::alloc` calls, in run-time order), `ARENA_EXTRA_ANY_ORDER`,
+  `ARENA_RAM` and `ARENA_FLASH` (pins), all plain literals. It writes
+  `<game>_arena_plan.h`: per layout the mode and Arena block of each asset,
+  the `<name>_asset` type the machine declares its members with, and the
+  bytes `Arena::reserve()` keeps for the planned assets.
+- The converter's own choice (`emit_plain` vs `emit_compressed`) is kept
+  whenever it fits; otherwise the split with the fewest PLAIN bytes wins.
+- Changing `arena_layout.h`, or a machine's `ARENA_EXTRA` /
+  `ARENA_EXTRA_ANY_ORDER` (the machine asserts `<game>_arena_extras_key`),
+  makes the build fail until the game is converted again.
+- `emit_*(..., plan=False)` keeps an asset out of the plan (e.g. ADPCM
+  samples, whose count is not a byte count, or assets outside the game's
+  directory).
