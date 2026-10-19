@@ -112,8 +112,10 @@ static bool irq_due(const m6502_t &cpu) {
 // AVG word 0 of the beam refresh GO: JSRL 0x1fc4
 static const uint8_t REFRESH_LO = 0xe2, REFRESH_HI = 0xaf;
 
-// START: coin, then FIRE once the game shows PRESS START
-static const uint8_t COIN_FRAMES = 6, FIRE_FROM = 40, FIRE_TO = 46;
+// START presses FIRE (the game has no start button). Without a COIN pin
+// input.cpp sends a virtual COIN ~36 frames before START; the game credits
+// a coin 30-40 frames after the pulse, so FIRE waits.
+static const uint8_t FIRE_FROM = 40, FIRE_TO = 46;
 
 mhavoc::mhavoc()
   : dvgMachine(alpha_read, alpha_write),
@@ -271,7 +273,7 @@ uint8_t *mhavoc::alpha_ram(uint16_t a) {
 
 uint8_t mhavoc::in0() const {
   uint8_t coin = COIN_IDLE;
-  if ((keys & BUTTON_COIN) || (start_timer && start_timer <= COIN_FRAMES)) {
+  if (keys & BUTTON_COIN) {
     coin &= ~COIN_LEFT;
   }
   const uint8_t high = player_1 ? MHAVOC_SERVICE : coin;

@@ -17,8 +17,8 @@
 // mhavoc_layout.h. Player 1 only.
 //
 // Controls: stick left/right turns the roller (emulation/spinner.h), FIRE
-// (or A) jumps / fires, DOWN (or B) shield, START = coin, then FIRE to
-// start.
+// (or A) jumps / fires, DOWN (or B) shield, START presses FIRE to start
+// (the cabinet has no start buttons).
 class mhavoc : public dvgMachine {
 protected:
   // ROM assets, unpacked into the Arena on first data()

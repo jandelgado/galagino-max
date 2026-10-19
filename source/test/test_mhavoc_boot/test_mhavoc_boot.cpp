@@ -174,6 +174,40 @@ static void test_boot_sound(void) {
   TEST_ASSERT_LESS_OR_EQUAL_UINT32(AUDIO_MAX, peak);
 }
 
+static void hold(unsigned int k, uint32_t frames) {
+  keys = k;
+  runTo(frame + frames);
+  keys = 0;
+}
+
+// alpha zero page: credits
+static const uint16_t CREDITS = 0x00ac;
+
+// COIN gives one credit; START (sent by input.cpp ~36 frames after its
+// virtual coin) only presses FIRE, which starts the game and spends it.
+// Then a minute of scripted play: lists stay below MAX_LINES, no blank
+// frames.
+static void test_coin_start_and_play(void) {
+  boot();
+  runTo(ATTRACT_FRAMES + 600);
+  hold(BUTTON_COIN, 6);
+  runTo(frame + 60); // the game credits a coin 30-40 frames after the pulse
+  TEST_ASSERT_EQUAL_UINT8(1, memory[CREDITS]);
+  hold(BUTTON_START, 6);
+  runTo(frame + 120);
+  TEST_ASSERT_EQUAL_UINT8(0, memory[CREDITS]);
+
+  maxLines = 0;
+  blankFrames = 0;
+  for (int i = 0; i < 60; i++) {
+    hold(BUTTON_FIRE | (i & 4 ? BUTTON_LEFT : BUTTON_RIGHT), 10);
+    hold((i & 1) ? BUTTON_DOWN : 0, 50);
+  }
+  printf("play: max lines %u, blank frames %u, credits %u\n", maxLines, blankFrames, memory[CREDITS]);
+  TEST_ASSERT_LESS_THAN_UINT16(dvgMachine::MAX_LINES, maxLines);
+  TEST_ASSERT_EQUAL_UINT32(0, blankFrames);
+}
+
 // holding the stick turns the roller about as fast as MAME's key delta
 // (40 counts per frame): over 600 counts in half a second
 static void test_roller_speed(void) {
@@ -217,6 +251,7 @@ int main(int, char **) {
   RUN_TEST(test_boot_sound);
   RUN_TEST(test_boots_to_attract);
   RUN_TEST(test_idle_loops_skipped);
+  RUN_TEST(test_coin_start_and_play);
   RUN_TEST(test_roller_speed);
 #endif
   return UNITY_END();
