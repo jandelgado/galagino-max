@@ -604,11 +604,24 @@ void IRAM_ATTR elevator::render_row(short row) {
 }
 
 #ifdef LED_PIN
+// from logos/elevator.png: red "ACTION", green "ELEVATOR", yellow outline
+static const CRGB ELEVATOR_LED_A = CRGB(0xff0000);
+static const CRGB ELEVATOR_LED_B = CRGB(0x00ff00);
+static const CRGB ELEVATOR_LED_C = CRGB(0xffff00);
+
 void elevator::menuLeds(CRGB *leds) {
-  defaultMenuLeds(leds);
+  static const CRGB menu_leds[NUM_LEDS] = {
+      ELEVATOR_LED_B, ELEVATOR_LED_A, ELEVATOR_LED_C, ELEVATOR_LED_C,
+      ELEVATOR_LED_C, ELEVATOR_LED_A, ELEVATOR_LED_B};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 
+// FIRE (gun shot) flashes yellow, else the menu colors
 void elevator::gameLeds(CRGB *leds) {
+  if (input->buttons_get() & BUTTON_FIRE) {
+    fill_solid(leds, NUM_LEDS, ELEVATOR_LED_C);
+    return;
+  }
   menuLeds(leds);
 }
 #endif
