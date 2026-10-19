@@ -101,6 +101,10 @@ public:
   Namco54 n54{namco54Program()};
 
 protected:
+  // subclass sets (sxevious): own main and sub CPU ROMs, DSW B
+  xevious(const FlashAsset<unsigned char, COMPRESSED> &cpu1,
+          const FlashAsset<unsigned char, COMPRESSED> &cpu2, uint8_t dswb);
+
   void blit_tile(short row, char col) override { }   // non usato: vedi blit_tilemap_row
   void blit_sprite(short row, unsigned char s) override;
   void blit_tilemap_row(short row, bool bg);
@@ -125,6 +129,8 @@ private:
   unsigned char xevious_bb_r(unsigned char offset);
   void xevious_bs_w(unsigned char offset, unsigned char value);
   unsigned char xevious_bs[2] = { 0, 0 };
+
+  const uint8_t dswB;
 
   // registri scroll/flip (0xd000-0xd07f), 9 bit ciascuno
   unsigned short bg_scrollx = 0, bg_scrolly = 0;

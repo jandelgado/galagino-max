@@ -342,6 +342,9 @@
 #ifdef ENABLE_HVYMETAL
   #include "machines/hvymetal/hvymetal.h"
 #endif
+#ifdef ENABLE_SXEVIOUS
+  #include "machines/sxevious/sxevious.h"
+#endif
 #ifdef ENABLE_1943
   #include "machines/1943/1943.h"
 #endif
@@ -943,6 +946,13 @@ constexpr machineInfo machines[] = {
     hvymetal::menuLeds,
 #endif
     MCH_HVYMETAL },
+#endif
+#ifdef ENABLE_SXEVIOUS
+  { createMachine<sxevious>, sxevious::logo,
+#ifdef LED_PIN
+    sxevious::menuLeds,
+#endif
+    MCH_SXEVIOUS },
 #endif
 #ifdef ENABLE_1943
   { createMachine<_1943>, _1943::logo,
