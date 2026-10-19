@@ -330,6 +330,9 @@
 #ifdef ENABLE_MRVIKING
   #include "machines/mrviking/mrviking.h"
 #endif
+#ifdef ENABLE_IMSORRY
+  #include "machines/imsorry/imsorry.h"
+#endif
 #ifdef ENABLE_1943
   #include "machines/1943/1943.h"
 #endif
@@ -903,6 +906,13 @@ constexpr machineInfo machines[] = {
     mrviking::menuLeds,
 #endif
     MCH_MRVIKING },
+#endif
+#ifdef ENABLE_IMSORRY
+  { createMachine<imsorry>, imsorry::logo,
+#ifdef LED_PIN
+    imsorry::menuLeds,
+#endif
+    MCH_IMSORRY },
 #endif
 #ifdef ENABLE_1943
   { createMachine<_1943>, _1943::logo,

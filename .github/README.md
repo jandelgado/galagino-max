@@ -196,5 +196,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Flicky (flicky.zip)           | ![Flicky marquee](/logos/flicky.png) | ![Flicky screenshot](/images/flicky.png) | Sega System 1, unencrypted set flickys2. FIRE=jump |
 | Pitfall II (pitfall2u.zip)    | ![Pitfall II marquee](/logos/pitfall2.png) | ![Pitfall II screenshot](/images/pitfall2.png) | Sega System 1, unencrypted US set, needs parent pitfall2.zip. The view follows the player. FIRE=jump |
 | Mister Viking (mrviking.zip)  | ![Mister Viking marquee](/logos/mrviking.png) | ![Mister Viking screenshot](/images/mrviking.png) | Sega System 1. FIRE=throw knife, START=weapon |
+| I'm Sorry (imsorry.zip)       | ![I'm Sorry marquee](/logos/imsorry.png) | ![I'm Sorry screenshot](/images/imsorry.png) | Sega System 1. FIRE=button 1, START=button 2 |
 
 ### ...
