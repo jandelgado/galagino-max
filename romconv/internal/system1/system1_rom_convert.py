@@ -148,6 +148,115 @@ GAMES = {
                     ("epr-6455.05", "21743f78735fc9105fbbfac420bdaa2965b4b56f")],
         "lookup": [("pr-5317.76", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
     },
+    # mrviking: 315-5041, sys1ppis (240 px visarea)
+    "mrviking": {
+        "crypt": "315-5041",
+        "main": [("epr-5873.129", "70e185d03e782be908e6b5c6342cf6a7ebae618c"),
+                 ("epr-5874.130", "c2200e0c2f322a08af10e9c2e9191d1c595801a4"),
+                 ("epr-5875.131", "11568db9fbca44013eeb0035c0a0a67d6dd18d00"),
+                 ("epr-5876.132", "7b1aa19a16fb44f6c69cf053e2e10e5179416796"),
+                 ("epr-5755.133", "9648f1ae3033c30ed8ab8d9c87b111756dab7b5e"),
+                 ("epr-5756.134", "a0904d19d06fb5ef5eb6da0dc4efe556bc29b33e")],
+        "sound": [("epr-5763.3", "8393dfb57d9af22b3280ecaef736b6f9d856dbee")],
+        "tiles": [("epr-5762.82", "4687ecc4061719fca5f85b2b290ebb7ced15ee5b"),
+                  ("epr-5761.65", "a7a992f52406413e931945be60b35175f8aea6c2"),
+                  ("epr-5760.81", "d1848fc4f3d66603d0e8217373a37148aa2eeef5"),
+                  ("epr-5759.64", "6fff6086a96be6aa28bec05d1c94c257bb29ef1e"),
+                  ("epr-5758.80", "d38ca7c6f36db6e35a3ce87bacdd70f293f23104"),
+                  ("epr-5757.63", "c54a1fa02e312676658d7c5392a5a841bdb15d44")],
+        "sprites": [("epr-5749.86", "3f626f3e5e2db486ccf727e9869ab488643b4a8c"),
+                    ("epr-5750.93", "f246afee7e73bc30054b0e5dcb83fa0edd2d2164")],
+        "lookup": [("pr-5317.106", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
+    },
+    # imsorry: 315-5110, sys1pio, ROT0
+    "imsorry": {
+        "crypt": "315-5110",
+        "rot0": True,
+        "main": [("epr-6676.116", "b9bcc76bbdfa597d252e7db60fa0f7529e884cce"),
+                 ("epr-6677.109", "ad9c722fde08f48d8bc835b244450b01a3d747c2"),
+                 ("epr-6678.96", "3395fb769c79f048d099e2898bb7a15611b006c0")],
+        "sound": [("epr-6656.120", "a0267d6533af6ff5bf76b9858f2913821a915baf")],
+        "tiles": [("epr-6684.62", "abcabdecee0ce52000dab831ae1e50fe12c97066"),
+                  ("epr-6683.61", "99c0d141eb5519c31b194693a1fe9be882cb03fd"),
+                  ("epr-6682.64", "6aed392a5dd639c54bf54acd3651a77274c0a277"),
+                  ("epr-6681.63", "57999a73511b2b3f52d7d6a32addc0641255d7b1"),
+                  ("epr-6680.66", "fa2c7df33c685e48020ccabcfba5830e7609e392"),
+                  ("epr-6674.65", "e35f6fae7feb9a353321d8239ac8990bc773e60b")],
+        "sprites": [("epr-6645.117", "5a105cc3112f2533e7c5982233405d365402fba2"),
+                    ("epr-6646.04", "eef7dcde632787283c4cb522380b138060018204")],
+        "lookup": [("pr-5317.76", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
+    },
+    # wboy2u: unencrypted, sys1ppi, ROT0. Main ROMs spread over the clone
+    # subdirs of wboy.zip (wboy2u, wbdeluxe, wboy2 share files)
+    "wboy": {
+        "mame_set": "wboy2u",
+        "rot0": True,
+        "main": [("wboy2u/ic129_02.bin", "e57b7b6818f12fdd5f1600ed54c0b8a7f538aa71"),
+                 ("wbdeluxe/ic130_03.bin", "c58c220aa0d0e194581646e6db2491075fdc37b9"),
+                 ("wboy2u/ic131_04.bin", "073f8f70685913736eb04be8215a47b5253cb531"),
+                 ("wbdeluxe/ic132_05.bin", "c2e1f67b756f558d6904fe82d6f5483cda5f9045"),
+                 ("wboy2/epr-7591.133", "da47e0150b724a00878ef5f953fa6ac80bb27d8d"),
+                 ("wboy2/epr-7592.134", "a4e8d6a8278ac2227bde8c24d45aa7ab2a273579")],
+        "sound": [("wbdeluxe/epr7498a.3", "d2d5cd154ce6a5a3c6a099b4ab2ea7cc045ab0a1")],
+        "tiles": [("epr-7497.62", "11799e9ef7e6942b304f132b404bff3ed44d524b"),
+                  ("epr-7496.61", "21826aebf5835b9f3d9c467c8647809c1bc0d01f"),
+                  ("epr-7495.64", "8c21d7f0768e8dda2b7185f3c510cae4229a4a2e"),
+                  ("epr-7494.63", "a88b80a7b94ab1401bbf28d7707fdf28a5505127"),
+                  ("epr-7493.66", "7a5098624769a31e7512f56831e818bce6a18871"),
+                  ("epr-7492.65", "f91e5868a455dff2bce3c2891a7cfd648957cd73")],
+        "sprites": [("epr-7485.117", "e4e11c0e9bd0dc121c25349493f2b13d2ff8c807"),
+                    ("epr-7487.04", "d70440a8703ccface3212cd9544c950b36263e8c"),
+                    ("epr-7486.110", "9a76a50204c618347d3e8eee6cda841becd906eb"),
+                    ("epr-7488.05", "c2f1376144a49d20cb35384648e06d06978474c1")],
+        "lookup": [("pr-5317.76", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
+    },
+    # 4dwarrio: 315-5162 (segacrp2), sys1pio, ROT0. Key is a C identifier
+    # (asset names), the MAME set and zip are 4dwarrio
+    "fourdwarrio": {
+        "mame_set": "4dwarrio",
+        "zip": "4dwarrio.zip",
+        "crypt": "315-5162",
+        "rot0": True,
+        "main": [("4d.116", "724bb2f77a2b82fae85e535ae4a37820cfb323d0"),
+                 ("4d.109", "bc368abeb6c0a7172e03bd7a1754cf4a6ecbb4f8"),
+                 ("4d.96", "520ecbafd1c7271dad24410a68067dfd801fa6d6")],
+        "sound": [("4d.120", "b7a21f95b63234f2496d5ea6e7dc8050ca1b39fc")],
+        "tiles": [("4d.62", "fdc288769495f4b0ca8c7594c9ab7dc0f29e57a4"),
+                  ("4d.61", "55f92309223c41871175b1f54418c8b08339deb0"),
+                  ("4d.64", "07076ef66e29c730050e38aecabdfbfced9f9bc4"),
+                  ("4d.63", "c09c1df4f04608381d665a83776005607ad97ad4"),
+                  ("4d.66", "ea1c18d07957301f2006350b02fe40d13dbe2aa5"),
+                  ("4d.65", "ba2581a52eb54e2d9f1e1bf30050280df3f5df1b")],
+        "sprites": [("4d.117", "2574d5c3b01c89d8a041c82af976147d3b87b36b"),
+                    ("4d.04", "4851754cb56784ac248f699f0781646455dd556b"),
+                    ("4d.110", "a26dbd470744c38a26a016e5d4792ac2f2b9bc4b"),
+                    ("4d.05", "f49dbc4b381e7096d5ffe3c16660dd63121dabf7")],
+        "lookup": [("pr5317.76", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
+    },
+    # hvymetal: 315-5135, sys1pio, ROT0. Main: 32K fixed + 4 banks of 16K
+    # (MAME region 0x10000), palette from 3 color PROMs (R, G, B)
+    "hvymetal": {
+        "crypt": "315-5135",
+        "rot0": True,
+        "main": [("epr-6790a.1", "63dde673bd875dd23d445b152decb1d70c3750a4"),
+                 ("epr-6789a.2", "07ef58ee2a5212e1e2800efc2bd48d2b2a9ed10d"),
+                 ("epr-6788a.3", "3236313d5d826873d58af5ad80652c8d0ae0cc31")],
+        "sound": [("epr-6787.120", "2b16c2702d3230891b700714a66ece95f1a74b44")],
+        "tiles": [("epr-6795.62", "9aabfad143748e2ec1b41fde72a1d533bac3f9d8"),
+                  ("epr-6796.61", "cfa5370aa430947637bfe57a5a1f802f273b43f7"),
+                  ("epr-6793.64", "9bb9fff24fe057fa17057ba9263d412905a0c036"),
+                  ("epr-6794.63", "90a0cc81d917122c726238585eb802763d34884e"),
+                  ("epr-6791.66", "d9bac10aa7ac591a20bfed4e391ec1669eadc32d"),
+                  ("epr-6792.65", "1e61c6e14c3c736e74e6c2ff5cde71d1d20b99a4")],
+        "sprites": [("epr-6778.117", "90879d4d1bef38714a39ca71c101bd103d250284"),
+                    ("epr-6777.110", "34c12b7de22169d369ff5b8a8d86da62404267f8"),
+                    ("epr-6780.4", "aa1ce0b1666e17db196bd1e079691fbe433a9226"),
+                    ("epr-6779.5", "7e742c09e832d01f74fe4025d194cbc8d2f24b70")],
+        "color": [("pr7036.3", "0a2ac871383b115c16491b9ba5973f0d363eac49"),
+                  ("pr7035.2", "14c3a585c083dc387532d64bfd63e34f5220e6de"),
+                  ("pr7034.1", "56cba261819fd5f2beab56ffd80bb3fd328efe3e")],
+        "lookup": [("pr5317p.4", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
+    },
 }
 
 # MAME segacrpt_device.cpp sega_315_5048_device::decrypt(): per row
@@ -171,6 +280,78 @@ CRYPT = {
         (0xa0, 0xa8, 0x80, 0x88), (0xa0, 0x80, 0x20, 0x00),
         (0x28, 0x20, 0xa8, 0xa0), (0xa0, 0xa8, 0x80, 0x88),
     ],
+    "315-5041": [
+        (0x28, 0xa8, 0x08, 0x88), (0x88, 0x80, 0x08, 0x00),
+        (0x88, 0x08, 0x80, 0x00), (0x88, 0x80, 0x08, 0x00),
+        (0x28, 0x08, 0xa8, 0x88), (0x28, 0xa8, 0x08, 0x88),
+        (0x88, 0x08, 0x80, 0x00), (0x88, 0x08, 0x80, 0x00),
+        (0x28, 0x08, 0xa8, 0x88), (0x88, 0x80, 0x08, 0x00),
+        (0x88, 0x80, 0x08, 0x00), (0x28, 0xa8, 0x08, 0x88),
+        (0xa0, 0x80, 0xa8, 0x88), (0x28, 0x08, 0xa8, 0x88),
+        (0xa0, 0x80, 0xa8, 0x88), (0xa0, 0x80, 0xa8, 0x88),
+        (0x88, 0x80, 0x08, 0x00), (0x88, 0x80, 0x08, 0x00),
+        (0x88, 0x08, 0x80, 0x00), (0x88, 0x80, 0x08, 0x00),
+        (0xa0, 0x80, 0x20, 0x00), (0x28, 0x08, 0xa8, 0x88),
+        (0xa0, 0x80, 0x20, 0x00), (0x88, 0x08, 0x80, 0x00),
+        (0x28, 0x08, 0xa8, 0x88), (0xa0, 0x80, 0x20, 0x00),
+        (0xa0, 0x80, 0x20, 0x00), (0xa0, 0x80, 0x20, 0x00),
+        (0xa0, 0x80, 0xa8, 0x88), (0x28, 0x08, 0xa8, 0x88),
+        (0xa0, 0x80, 0x20, 0x00), (0xa0, 0x80, 0xa8, 0x88),
+    ],
+    "315-5110": [
+        (0x88, 0x08, 0x80, 0x00), (0x00, 0x20, 0x80, 0xa0),
+        (0x00, 0x20, 0x80, 0xa0), (0x88, 0x08, 0x80, 0x00),
+        (0x88, 0x08, 0xa8, 0x28), (0x00, 0x20, 0x80, 0xa0),
+        (0x00, 0x20, 0x80, 0xa0), (0x88, 0x08, 0xa8, 0x28),
+        (0x00, 0x20, 0x80, 0xa0), (0x08, 0x00, 0x88, 0x80),
+        (0x00, 0x20, 0x80, 0xa0), (0x20, 0x28, 0xa0, 0xa8),
+        (0x20, 0x28, 0xa0, 0xa8), (0x00, 0x20, 0x80, 0xa0),
+        (0x20, 0x28, 0xa0, 0xa8), (0x88, 0x08, 0xa8, 0x28),
+        (0x88, 0x08, 0x80, 0x00), (0x08, 0x00, 0x88, 0x80),
+        (0x08, 0x00, 0x88, 0x80), (0x88, 0x08, 0x80, 0x00),
+        (0x08, 0x28, 0x00, 0x20), (0x08, 0x28, 0x00, 0x20),
+        (0x88, 0x08, 0x80, 0x00), (0x08, 0x28, 0x00, 0x20),
+        (0x08, 0x28, 0x00, 0x20), (0x08, 0x00, 0x88, 0x80),
+        (0x08, 0x28, 0x00, 0x20), (0x20, 0x28, 0xa0, 0xa8),
+        (0x20, 0x28, 0xa0, 0xa8), (0x08, 0x28, 0x00, 0x20),
+        (0x20, 0x28, 0xa0, 0xa8), (0x08, 0x28, 0x00, 0x20),
+    ],
+    "315-5135": [
+        (0x88, 0xa8, 0x80, 0xa0), (0xa0, 0x80, 0xa8, 0x88),
+        (0x88, 0xa8, 0x80, 0xa0), (0x88, 0x80, 0x08, 0x00),
+        (0xa0, 0x80, 0xa8, 0x88), (0x88, 0xa8, 0x80, 0xa0),
+        (0x88, 0xa8, 0x80, 0xa0), (0x88, 0x80, 0x08, 0x00),
+        (0xa0, 0x80, 0xa8, 0x88), (0x88, 0x80, 0x08, 0x00),
+        (0x88, 0x80, 0x08, 0x00), (0x88, 0x80, 0x08, 0x00),
+        (0xa0, 0x80, 0xa8, 0x88), (0x88, 0x80, 0x08, 0x00),
+        (0x88, 0x80, 0x08, 0x00), (0x28, 0x08, 0xa8, 0x88),
+        (0xa0, 0x20, 0xa8, 0x28), (0x88, 0xa8, 0x80, 0xa0),
+        (0xa0, 0x20, 0xa8, 0x28), (0x88, 0xa8, 0x80, 0xa0),
+        (0xa0, 0x20, 0xa8, 0x28), (0x88, 0xa8, 0x80, 0xa0),
+        (0x88, 0xa8, 0x80, 0xa0), (0x28, 0x08, 0xa8, 0x88),
+        (0x28, 0xa8, 0x08, 0x88), (0xa0, 0x20, 0xa8, 0x28),
+        (0xa0, 0x20, 0xa8, 0x28), (0x28, 0xa8, 0x08, 0x88),
+        (0x28, 0xa8, 0x08, 0x88), (0xa0, 0x20, 0xa8, 0x28),
+        (0x28, 0x08, 0xa8, 0x88), (0x28, 0xa8, 0x08, 0x88),
+    ],
+}
+
+# MAME segacrp2_device.cpp decode(): per row (address bits 14, 12, 9, 6, 3, 0)
+# an opcode and a data entry, each a bit swap of bits 6/4/2/0 plus an XOR
+SWAPS2 = [
+    (6, 4, 2, 0), (4, 6, 2, 0), (2, 4, 6, 0), (0, 4, 2, 6), (6, 2, 4, 0), (6, 0, 2, 4),
+    (6, 4, 0, 2), (2, 6, 4, 0), (4, 2, 6, 0), (4, 6, 0, 2), (6, 0, 4, 2), (0, 6, 4, 2),
+    (4, 0, 6, 2), (0, 4, 6, 2), (6, 2, 0, 4), (2, 6, 0, 4), (0, 6, 2, 4), (2, 0, 6, 4),
+    (0, 2, 6, 4), (4, 2, 0, 6), (2, 4, 0, 6), (4, 0, 2, 6), (2, 0, 4, 6), (0, 2, 4, 6),
+]
+# (xor_table[128], swap_table[128]); 315-5162 repeats a 16 entry XOR cycle and
+# steps the swap index once per 16 entries, starting one entry early
+CRYPT2 = {
+    "315-5162": (
+        [0x40, 0x10, 0x50, 0x04, 0x44, 0x14, 0x54, 0x01,
+         0x41, 0x11, 0x51, 0x05, 0x45, 0x15, 0x55, 0x00] * 8,
+        [4 + (i + 1) // 16 for i in range(128)],
+    ),
 }
 CRYPT_SIZE = 0x8000
 CRYPT_BITS = 0xa8  # bits 3, 5, 7 are swapped/inverted, the rest pass through
@@ -206,6 +387,38 @@ def sega_decrypt(rom, table):
         ops[a] = keep | (table[2 * row][col] ^ xor)
         data[a] = keep | (table[2 * row + 1][col] ^ xor)
     return bytes(data), bytes(ops)
+
+
+def swap2(src, t):
+    out = src & 0xaa
+    for dst, s in zip((6, 4, 2, 0), t):
+        out |= bit(src, s) << dst
+    return out
+
+
+# MAME segacrp2 decode(): data image of the whole ROM, opcode image of 0000-7fff
+def sega_decrypt2(rom, tables):
+    xor, swap = tables
+    data = bytearray(rom)
+    ops = bytearray(CRYPT_SIZE)
+    for a in range(CRYPT_SIZE):
+        src = rom[a]
+        row = (bit(a, 14) << 5 | bit(a, 12) << 4 | bit(a, 9) << 3 |
+               bit(a, 6) << 2 | bit(a, 3) << 1 | bit(a, 0))
+        ops[a] = swap2(src, SWAPS2[swap[2 * row]]) ^ xor[2 * row]
+        data[a] = swap2(src, SWAPS2[swap[2 * row + 1]]) ^ xor[2 * row + 1]
+    return bytes(data), bytes(ops)
+
+
+# (data image, opcode image or None) per the game's "crypt" key
+def decrypt_main(spec, rom):
+    name = spec.get("crypt")
+    if name in CRYPT:
+        return sega_decrypt(rom, CRYPT[name])
+    if name in CRYPT2:
+        return sega_decrypt2(rom, CRYPT2[name])
+    assert name is None, f"unknown crypt {name}"
+    return rom, None
 
 
 # charlayout: 3 planes RGN_FRAC(n,3), plane 0 = MSB, byte bit 7 = left pixel.
@@ -270,13 +483,15 @@ def emit(game, asset, ctype, dims, count, values):
         emit_compressed(f, f"{game}_{asset}", ctype, dims, count, values)
 
 
-def main(game):
+# system1::system1() unpacks in this order; Arena::alloc is first fit, block A then B
+UNPACK_ORDER = ["sprites", "tiles", "main_rom", "sound_rom", "lookup_prom", "tile_map", "opcodes"]
+
+
+# assets of one game: (name, C type, dims, count, values, bytes)
+def convert(game):
     spec = GAMES[game]
     zip_path = os.path.join(ROOT, "romszip", spec.get("zip", f"{game}.zip"))
-    main_rom = load(zip_path, spec["main"])
-    opcodes = None
-    if "crypt" in spec:
-        main_rom, opcodes = sega_decrypt(main_rom, CRYPT[spec["crypt"]])
+    main_rom, opcodes = decrypt_main(spec, load(zip_path, spec["main"]))
     sound = load(zip_path, spec["sound"])
     tiles, tile_count = decode_tiles(load(zip_path, spec["tiles"]), spec.get("rot0", False))
     tiles, unique_count, tile_map = dedupe_tiles(tiles)
@@ -286,26 +501,40 @@ def main(game):
     # the mixer only collides under opaque sprite pixels (collision engine relies on it)
     assert all(lookup[i] & MIX_NO_COLLIDE for i in range(1, 128, 2))
 
-    emit(game, "main_rom", "unsigned char", "", len(main_rom), main_rom)
-    emit(game, "sound_rom", "unsigned char", "", len(sound), sound)
-    emit(game, "tiles", "uint32_t", "[8]", unique_count, tiles)
-    emit(game, "tile_map", "unsigned short", "", tile_count, tile_map)
-    emit(game, "sprites", "unsigned char", "", len(sprites), sprites)
-    emit(game, "lookup_prom", "unsigned char", "", len(lookup), lookup)
+    assets = [
+        ("main_rom", "unsigned char", "", len(main_rom), main_rom, len(main_rom)),
+        ("sound_rom", "unsigned char", "", len(sound), sound, len(sound)),
+        ("tiles", "uint32_t", "[8]", unique_count, tiles, len(tiles) * 4),
+        ("tile_map", "unsigned short", "", tile_count, tile_map, len(tile_map) * 2),
+        ("sprites", "unsigned char", "", len(sprites), sprites, len(sprites)),
+        ("lookup_prom", "unsigned char", "", len(lookup), lookup, len(lookup)),
+    ]
     if opcodes:
-        emit(game, "opcodes", "unsigned char", "", len(opcodes), opcodes)
+        assets.append(("opcodes", "unsigned char", "", len(opcodes), opcodes, len(opcodes)))
+    return assets
+
+
+# simulates the ctor's unpack: (block A, block B) bytes used
+def arena_blocks(assets):
+    size = {a[0]: a[5] for a in assets}
+    blocks = [0, 0]
+    for name in UNPACK_ORDER:
+        if name not in size:
+            continue
+        i = 0 if blocks[0] + size[name] <= ARENA_BLOCKS[0] else 1
+        blocks[i] += size[name]
+        assert blocks[i] <= ARENA_BLOCKS[i], f"{name} ({size[name]} B) fits no Arena block"
+    return blocks
+
+
+def main(game):
+    assets = convert(game)
+    for name, ctype, dims, count, values, _ in assets:
+        emit(game, name, ctype, dims, count, values)
     write_palette()
 
-    sizes = [len(tiles) * 4, len(tile_map) * 2, len(main_rom), len(sprites), len(sound), len(lookup)]
-    if opcodes:
-        sizes.append(len(opcodes))
-    sizes.sort(reverse=True)
-    blocks = [0, 0]
-    for s in sizes:
-        i = 0 if blocks[0] + s <= ARENA_BLOCKS[0] else 1
-        blocks[i] += s
-        assert blocks[i] <= ARENA_BLOCKS[i], f"{game}: asset {s} does not fit an Arena block"
-    print(f"{game}: Arena {sum(sizes)} / {sum(ARENA_BLOCKS)} (blocks {blocks[0]}, {blocks[1]})")
+    a, b = arena_blocks(assets)
+    print(f"{game}: Arena {a + b} / {sum(ARENA_BLOCKS)} (blocks {a}, {b})")
 
 
 if __name__ == "__main__":

@@ -327,6 +327,9 @@
 #ifdef ENABLE_PITFALL2
   #include "machines/pitfall2/pitfall2.h"
 #endif
+#ifdef ENABLE_MRVIKING
+  #include "machines/mrviking/mrviking.h"
+#endif
 #ifdef ENABLE_1943
   #include "machines/1943/1943.h"
 #endif
@@ -893,6 +896,13 @@ constexpr machineInfo machines[] = {
     pitfall2::menuLeds,
 #endif
     MCH_PITFALL2 },
+#endif
+#ifdef ENABLE_MRVIKING
+  { createMachine<mrviking>, mrviking::logo,
+#ifdef LED_PIN
+    mrviking::menuLeds,
+#endif
+    MCH_MRVIKING },
 #endif
 #ifdef ENABLE_1943
   { createMachine<_1943>, _1943::logo,
