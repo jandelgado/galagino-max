@@ -270,6 +270,12 @@
     #include "machines/mhavoc/mhavoc_bundle.h"
   #endif
 #endif
+#ifdef GAME_MOTOS
+  #include "machines/motos/motos.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/motos/motos_bundle.h"
+  #endif
+#endif
 #ifdef GAME_SHOLLOW
   #include "machines/shollow/shollow.h"
   #ifdef ASSETS_REMOTE
@@ -1502,6 +1508,13 @@ constexpr machineInfo machines[] = {
     mhavoc::menuLeds,
 #endif
     MCH_MHAVOC, nullptr BUNDLE_REF(mhavoc_bundle_ref) },
+#endif
+#ifdef GAME_MOTOS
+  { createMachine<motos>, motos::logo,
+#ifdef LED_PIN
+    motos::menuLeds,
+#endif
+    MCH_MOTOS, nullptr BUNDLE_REF(motos_bundle_ref) },
 #endif
 #ifdef GAME_SHOLLOW
   { createMachine<shollow>, shollow::logo,

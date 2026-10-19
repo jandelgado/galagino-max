@@ -28,15 +28,21 @@ constexpr unsigned char SPRITE_COLOR_MASK = 0x0F;   // 16 groups (todruaga 64)
 } // namespace
 
 digdug2::digdug2()
-  : digdug2_colormap_sprites(digdug2_colormap_sprites_blob),
-    digdug2_rom_main(digdug2_rom_main_blob),
-    digdug2_rom_sub(digdug2_rom_sub_blob),
-    digdug2_sprites(digdug2_sprites_blob),
-    digdug2_tilemap(digdug2_tilemap_blob),
+  : digdug2(Board{digdug2_colormap_sprites_blob, digdug2_rom_main_blob, digdug2_rom_sub_blob,
+                  digdug2_sprites_blob, digdug2_tilemap_blob, digdug2_colormap_tiles,
+                  digdug2_colormap_tiles_prio, digdug2_wavetable, IO_58XX}) { }
+
+digdug2::digdug2(const Board &b)
+  : digdug2_colormap_sprites(b.colormapSprites),
+    digdug2_rom_main(b.romMain),
+    digdug2_rom_sub(b.romSub),
+    digdug2_sprites(b.sprites),
+    digdug2_tilemap(b.tilemap),
     rom_main(digdug2_rom_main.data()), rom_sub(digdug2_rom_sub.data()),
-    tiles(digdug2_tilemap.data()), cmap_tiles(digdug2_colormap_tiles),
-    cmap_prio(digdug2_colormap_tiles_prio),
-    cmap_sprites(digdug2_colormap_sprites.data()) { }
+    tiles(digdug2_tilemap.data()), cmap_tiles(b.cmapTiles),
+    cmap_prio(b.cmapPrio),
+    cmap_sprites(digdug2_colormap_sprites.data()),
+    wavetable(b.wavetable), chip0(b.chip0) { }
 
 // ============================================================================
 // Reset
@@ -248,7 +254,11 @@ void digdug2::run_frame(void) {
   }
 
   if (!io_reset) {
-    io[0].run58([this](uint8_t p) { return io_in(0, p); }, [](uint8_t) {});
+    if (chip0 == IO_56XX) {
+      io[0].run56([this](uint8_t p) { return io_in(0, p); }, [](uint8_t) {});
+    } else {
+      io[0].run58([this](uint8_t p) { return io_in(0, p); }, [](uint8_t) {});
+    }
     io[1].run56([this](uint8_t p) { return io_in(1, p); },
                 [this](uint8_t v) { dipmux_sel = v; });
   }

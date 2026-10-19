@@ -40,6 +40,27 @@
 class digdug2 : public machineBase
 {
 protected:
+  // Namco custom I/O chip 0 (coins, stick, buttons): 58XX on Dig Dug II,
+  // 56XX on Motos (MAME mappy.cpp digdug2() / motos())
+  enum IoChip : uint8_t { IO_58XX, IO_56XX };
+
+  // ROMs and tables of a game on this board (motos)
+  struct Board {
+    const FlashAsset<unsigned short[16], COMPRESSED> &colormapSprites;
+    const FlashAsset<unsigned char, COMPRESSED> &romMain;
+    const FlashAsset<unsigned char, COMPRESSED> &romSub;
+    const FlashAsset<uint32_t[32], COMPRESSED> &sprites;
+    const FlashAsset<unsigned short[8], COMPRESSED> &tilemap;
+    const unsigned short (*cmapTiles)[4];
+    const unsigned short (*cmapPrio)[4];
+    const signed char (*wavetable)[32];
+    IoChip chip0;
+  };
+  explicit digdug2(const Board &b);
+
+  // set by io_in() when BUTTON2 is pressed, read by gameLeds()
+  unsigned char drill_active = 0;
+
   // ROM assets, unpacked into the Arena on first data()
   Asset<unsigned short[16], COMPRESSED> digdug2_colormap_sprites;
   Asset<unsigned char, COMPRESSED> digdug2_rom_main;
@@ -63,7 +84,7 @@ public:
     void render_row(short row) override;
 
     void renderAudio(int16_t *out, int n) override {
-      wsg.render(soundregs, digdug2_wavetable, wsg_enable != 0, out, n);
+      wsg.render(soundregs, wavetable, wsg_enable != 0, out, n);
       audioShiftRight(out, n, 1);
     }
 
@@ -97,6 +118,8 @@ private:
     const unsigned short (*cmap_tiles)[4];
     const unsigned short (*cmap_prio)[4];
     const unsigned short (*cmap_sprites)[16];    // 16 groups x 16
+    const signed char (*wavetable)[32];
+    const IoChip chip0;
 
     NamcoIO io[2];
     unsigned char dipmux_sel;      // LS157: 0 = DSW2 low nibble, 1 = high
@@ -122,8 +145,6 @@ private:
     Seqlock<VideoState> vblank;
     VideoState video = {};
 
-    // set by io_in() when the drill is pressed, read by gameLeds()
-    unsigned char drill_active = 0;
 
     Namco15xx wsg;
 };
