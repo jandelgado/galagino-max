@@ -191,5 +191,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Black Widow (bwidow.zip)      | ![Black Widow marquee](/logos/bwidow.png) | ![Black Widow screenshot](/images/bwidow.png) | Twin sticks on one stick: FIRE aims where the stick points and locks the aim while held. Controller X/B/A/Y fire up/right/down/left |
 | 1943 (1943.zip)               | ![1943 marquee](/logos/1943.png) | ![1943 screenshot](/images/1943.png) | Bootleg set 1943b (no MCU) from the merged 1943.zip. FIRE=fire, START=special attack |
 | Dig Dug II (digdug2.zip)      | ![Dig Dug II marquee](/logos/digdug2.png) | ![Dig Dug II screenshot](/images/digdug2.png) | FIRE=pump, START=jackhammer |
+| Gorf (gorf.zip)               | ![Gorf marquee](/logos/gorf.png) | ![Gorf screenshot](/images/gorf.png) | Votrax SC-01 speech, needs votrsc01.zip. 320 rows merged into 288. FIRE=fire |
 
 ### ...
