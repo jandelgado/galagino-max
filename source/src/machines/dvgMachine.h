@@ -63,6 +63,11 @@ protected:
   static uint8_t dsw_read(uint8_t dsw, uint16_t a);
   uint32_t cpu_cycles() const { return cycles; } // CPU clock since reset
 
+  // main CPU and its clock since reset; a subclass with its own
+  // run_frame() (Major Havoc: two CPUs) steps them itself
+  m6502_t m_cpu;
+  uint32_t cycles = 0;
+
   dvg::Memory dvg_mem = {}; // ROM window and glyphs, set by the subclass ctor
   vec2d::Line *work = nullptr; // emulation core decode buffer, Arena
   uint16_t palette[16]; // intensity -> RGB565, byte swapped
@@ -72,9 +77,7 @@ private:
   static const uint32_t CYCLES_PER_INT = 6144;    // 3 kHz / 12 = 246 Hz
   static const uint8_t STRIPS = 36;
 
-  m6502_t m_cpu;
   const Interrupt interrupt;
-  uint32_t cycles = 0;   // CPU clock since reset
   uint32_t next_int = 0; // cycles value of the next interrupt
 
   // mapped line, half a vec2d::Line
