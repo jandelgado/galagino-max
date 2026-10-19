@@ -294,6 +294,9 @@
 #ifdef ENABLE_GORF
   #include "machines/gorf/gorf.h"
 #endif
+#ifdef ENABLE_SOLOMON
+  #include "machines/solomon/solomon.h"
+#endif
 #ifdef ENABLE_STARWARS
   #include "machines/starwars/starwars.h"
 #endif
@@ -807,6 +810,13 @@ constexpr machineInfo machines[] = {
     gorf::menuLeds,
 #endif
     MCH_GORF },
+#endif
+#ifdef ENABLE_SOLOMON
+  { createMachine<solomon>, solomon::logo,
+#ifdef LED_PIN
+    solomon::menuLeds,
+#endif
+    MCH_SOLOMON },
 #endif
 #ifdef ENABLE_STARWARS
   { createMachine<starwars>, starwars::logo,

@@ -192,5 +192,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | 1943 (1943.zip)               | ![1943 marquee](/logos/1943.png) | ![1943 screenshot](/images/1943.png) | Bootleg set 1943b (no MCU) from the merged 1943.zip. FIRE=fire, START=special attack |
 | Dig Dug II (digdug2.zip)      | ![Dig Dug II marquee](/logos/digdug2.png) | ![Dig Dug II screenshot](/images/digdug2.png) | FIRE=pump, START=jackhammer |
 | Gorf (gorf.zip)               | ![Gorf marquee](/logos/gorf.png) | ![Gorf screenshot](/images/gorf.png) | Votrax SC-01 speech, needs votrsc01.zip. 320 rows merged into 288. FIRE=fire |
+| Solomon's Key (solomon.zip)   | ![Solomon's Key marquee](/logos/solomon.png) | ![Solomon's Key screenshot](/images/solomon.png) | FIRE=magic, START=fireball. 8 px cropped per side; build flag SOLOMON_SCALE drops every 16th column, SOLOMON_SCROLL moves the view with the player |
 
 ### ...
