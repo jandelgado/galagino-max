@@ -130,6 +130,7 @@ enum {
   MCH_SWAT,
   MCH_1943,
   MCH_DIGDUG2,
+  MCH_GORF,
   MCH_SELFTEST
 };
 
