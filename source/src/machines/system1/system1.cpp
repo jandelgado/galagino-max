@@ -6,7 +6,8 @@
     defined(ENABLE_IMSORRY) || \
     defined(ENABLE_WBOY) || \
     defined(ENABLE_FOURDWARRIO) || \
-    defined(ENABLE_HVYMETAL)
+    defined(ENABLE_HVYMETAL) || \
+    defined(ENABLE_GARDIA)
 
 #include "system1.h"
 #include "system1_palette.h"

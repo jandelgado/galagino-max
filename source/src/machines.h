@@ -345,6 +345,9 @@
 #ifdef ENABLE_SXEVIOUS
   #include "machines/sxevious/sxevious.h"
 #endif
+#ifdef ENABLE_GARDIA
+  #include "machines/gardia/gardia.h"
+#endif
 #ifdef ENABLE_CAVENGER
   #include "machines/cavenger/cavenger.h"
 #endif
@@ -962,6 +965,13 @@ constexpr machineInfo machines[] = {
     sxevious::menuLeds,
 #endif
     MCH_SXEVIOUS },
+#endif
+#ifdef ENABLE_GARDIA
+  { createMachine<gardia>, gardia::logo,
+#ifdef LED_PIN
+    gardia::menuLeds,
+#endif
+    MCH_GARDIA },
 #endif
 #ifdef ENABLE_CAVENGER
   { createMachine<cavenger>, cavenger::logo,
