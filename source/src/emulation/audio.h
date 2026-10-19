@@ -77,6 +77,7 @@ private:
   void zaxxon_render_buffer(void);
   void pokey_render_buffer(void);
   void bzone_render_buffer(void);
+  void berzerk_render_buffer(void);
   void asteroids_render_buffer(void);
   void llander_render_buffer(void);
   void sid_ay_render_buffer(void);

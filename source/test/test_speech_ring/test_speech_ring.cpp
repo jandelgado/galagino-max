@@ -101,6 +101,31 @@ static void test_underrun_rebuffers(void) {
   TEST_ASSERT_EQUAL_INT16(50, out[0]);
 }
 
+// Berzerk: ~402 samples per 16.7 ms frame at 24 kHz, 2 frames back to back at half rate
+static void test_large_ring_absorbs_double_burst(void) {
+  static SpeechRingT<2048, 1024> big;
+  big.reset(24000, 24000);
+  int16_t out[64];
+  for (int i = 0; i < 1024; i++) {
+    big.push(1000);
+  }
+  for (int frame = 0; frame < 200; frame++) {
+    if (frame % 2 == 0) {
+      for (int i = 0; i < 804; i++) {
+        big.push(1000);
+      }
+    }
+    // 6.25 x 64 = 400 samples per frame consumed, 402 produced
+    const int calls = frame % 4 == 3 ? 7 : 6;
+    for (int k = 0; k < calls; k++) {
+      big.render(out, 64);
+      if (frame >= 2) {
+        TEST_ASSERT_EQUAL_INT16(1000, out[63]); // past the start ramp
+      }
+    }
+  }
+}
+
 int main(int argc, char **argv) {
   UNITY_BEGIN();
   RUN_TEST(test_prebuffer);
@@ -110,5 +135,6 @@ int main(int argc, char **argv) {
   RUN_TEST(test_tracks_slow_producer);
   RUN_TEST(test_overflow_drops);
   RUN_TEST(test_underrun_rebuffers);
+  RUN_TEST(test_large_ring_absorbs_double_burst);
   return UNITY_END();
 }

@@ -263,6 +263,9 @@
 #ifdef ENABLE_SPACDUEL
   #include "machines/spacduel/spacduel.h"
 #endif
+#ifdef ENABLE_BERZERK
+  #include "machines/berzerk/berzerk.h"
+#endif
 #ifdef ENABLE_STARWARS
   #include "machines/starwars/starwars.h"
 #endif
@@ -727,6 +730,13 @@ machineInfo machines[] = {
     spacduel::menuLeds,
 #endif
     MCH_SPACDUEL },
+#endif
+#ifdef ENABLE_BERZERK
+  { []() -> machineBase* { return new berzerk(); }, berzerk::logo,
+#ifdef LED_PIN
+    berzerk::menuLeds,
+#endif
+    MCH_BERZERK },
 #endif
 #ifdef ENABLE_STARWARS
   { []() -> machineBase* { return new starwars(); }, starwars::logo,

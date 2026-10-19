@@ -15,11 +15,14 @@
 // Emulation runs at the 16 ms video pace, not exactly the source rate, so
 // a fixed step would overflow or underrun mid-phrase. The step follows
 // the smoothed fill level around TARGET instead. Single producer, single
-// consumer; one slot stays empty.
-class SpeechRing {
+// consumer; one slot stays empty. TARGET: fill kept (starwars: 384, about
+// 46 ms at 8400 Hz). Berzerk pushes ~400 samples per frame at 24 kHz and
+// needs a bigger ring.
+template <uint16_t SIZE_, uint16_t TARGET_> class SpeechRingT {
 public:
-  static const uint16_t SIZE = 1024;
-  static const uint16_t TARGET = 384; // fill kept, about 46 ms at 8400 Hz
+  static const uint16_t SIZE = SIZE_;
+  static const uint16_t TARGET = TARGET_;
+  static_assert((SIZE & (SIZE - 1)) == 0, "SIZE must be a power of two");
 
   // both cores stopped
   void reset(uint32_t in_hz, uint32_t out_hz) {
@@ -111,5 +114,7 @@ private:
   int32_t avg_q4 = TARGET << 4;
   bool primed = false;
 };
+
+using SpeechRing = SpeechRingT<1024, 384>;
 
 #endif
