@@ -1,0 +1,8 @@
+choplift_main_rom.h
+choplift_sound_rom.h
+choplift_tiles.h
+choplift_sprites.h
+choplift_lookup_prom.h
+choplift_tile_map.h
+choplift_banks.h
+choplift_palette.h
