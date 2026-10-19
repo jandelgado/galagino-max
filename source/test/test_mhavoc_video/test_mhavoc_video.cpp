@@ -4,9 +4,10 @@
 #include <unity.h>
 
 // Renders MAME mhavoc VRAM + color RAM dumps through the machine (decode,
-// map, strip raster) and compares the lit pixels with the MAME snapshot of
-// the same frame, reduced to a panel mask (make_fixture.py). Vector
-// endpoints round differently, so pixels match within 2 rows/columns.
+// map without text enlargement, strip raster) and compares the lit pixels
+// with the MAME snapshot of the same frame, reduced to a panel mask
+// (make_fixture.py). Vector endpoints round differently, so pixels match
+// within 2 rows/columns.
 // MHAVOC_DUMP_DIR=<dir> writes frame_<n>.ppm (ours) and mask_<n>.ppm.
 #if __has_include("../../src/machines/mhavoc/mhavoc_rom.h")
 #define HAVE_ROM 1
@@ -44,6 +45,16 @@ static unsigned short frame_buffer[W * 8];
 static sprite_S sprites[128];
 static unsigned char memory[RAMSIZE];
 static uint16_t image[H][W];
+// MAME's geometry: the machine without its text enlargement
+struct mhavoc_mame : mhavoc {
+  uint16_t map_lines(uint16_t count) override {
+    for (uint16_t i = 0; i < count; i++) {
+      work[i].color &= ~avg::GLYPH;
+    }
+    return bwidow_layout::map(mhavoc_layout::SCREEN, work, count, 0);
+  }
+};
+
 static mhavoc *machine;
 
 static void boot(void) {
@@ -51,7 +62,7 @@ static void boot(void) {
     return;
   }
   Arena::init();
-  machine = new mhavoc();
+  machine = new mhavoc_mame();
   machine->init(&input, frame_buffer, sprites, memory);
   machine->reset();
   machine->start();

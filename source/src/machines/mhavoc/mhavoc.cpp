@@ -484,7 +484,8 @@ void mhavoc::gamma_write(m6502_t *cpu, uint16_t a, uint8_t v) {
 
 avg::Memory mhavoc::avg_memory() const {
   return avg::Memory{memory + VRAM_OFS, MH_VRAM_SIZE, vrom, MH_VRAM_SIZE, 0x1000,
-                     0, 0, avg::MHAVOC, memory + COLOR_OFS, avgrom};
+                     mhavoc_layout::GLYPH_LO, mhavoc_layout::GLYPH_HI, avg::MHAVOC,
+                     memory + COLOR_OFS, avgrom};
 }
 
 uint16_t mhavoc::decode_frame(const uint8_t *) {
@@ -493,7 +494,9 @@ uint16_t mhavoc::decode_frame(const uint8_t *) {
   return count;
 }
 
+// small text grows: unreadable on 240 columns at the monitor's size
 uint16_t mhavoc::map_lines(uint16_t count) {
+  mhavoc_layout::enlarge_text(work, count);
   return bwidow_layout::map(mhavoc_layout::SCREEN, work, count, 0);
 }
 
