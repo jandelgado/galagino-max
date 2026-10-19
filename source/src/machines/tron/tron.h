@@ -4,14 +4,14 @@
 #include "../machineBase.h"
 #include "../../emulation/seqlock.h"
 #include "../../emulation/z80ctc.h"
-#include "tron_ssio.h"
+#include "../mcr/mcr_ssio.h"
 #include "tron_aim.h"
 #include "tron_dipswitches.h"
 #include "tron_logo.h"
 
 // Tron (Bally Midway 1982), MAME midway/mcr.cpp: MCR 90010 CPU board (Z80
 // at 2.496 MHz, IM 2 interrupts from a Z80 CTC), 91399 video gen, Super
-// Sound I/O board (tron_ssio.h).
+// Sound I/O board (mcr/mcr_ssio.h).
 //
 // The screen is 512x480 ROT90, but tiles are 8x8 doubled by the hardware,
 // so galagino shows it at half resolution: native half-res (X 0-255,
@@ -23,7 +23,7 @@
 #define TRON_MEM_SPRITES 0x0800  // e000-e1ff, mirror 0x1600
 #define TRON_MEM_VIDEO   0x0a00  // e800-efff, mirror 0x1000
 #define TRON_MEM_SSIO    0x1200  // SSIO 8000-83ff
-#define TRON_MEM_END     (TRON_MEM_SSIO + TronSsio::RAM_SIZE)
+#define TRON_MEM_END     (TRON_MEM_SSIO + McrSsio::RAM_SIZE)
 static_assert(TRON_MEM_END <= RAMSIZE, "tron RAM does not fit");
 
 class tron : public machineBase {
@@ -81,7 +81,7 @@ private:
   void render_sprites(int tx);
 
   Z80Ctc ctc;
-  TronSsio ssio;
+  McrSsio ssio;
   TronAim aim;
   uint16_t palette9[COLORS] = {};  // 9 bit xRBG from video RAM writes
   bool odd_field = false;

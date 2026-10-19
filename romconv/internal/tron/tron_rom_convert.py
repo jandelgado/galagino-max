@@ -11,7 +11,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pyconv"))
-from gfxutil import load_file, mame_decode
+from gfxutil import load_file
+from mcr_hw import decode_tiles_raw, decode_sprites_raw, duty_gain
 from asset_emit import emit_compressed
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -58,10 +59,6 @@ def load_all(entries):
     return b"".join(load(ZIP, e) for e in entries)
 
 
-def step(start, inc, n):
-    return [start + i * inc for i in range(n)]
-
-
 def pack_row(pens):
     # first pixel in the top nibble
     v = 0
@@ -77,11 +74,8 @@ def rotate(tile):
 
 
 def decode_tiles(rom):
-    # mcr_bg_layout: 8x8, planes {half+0, half+1, 0, 1}, 16 bytes per tile
-    half = len(rom) * 4
-    count = half // 128
-    tiles = mame_decode(rom, 8, 8, [half, half + 1, 0, 1], step(0, 2, 8), step(0, 16, 8), 128, count)
-    return count, [pack_row(row) for t in tiles for row in rotate(t)]
+    tiles = decode_tiles_raw(rom)
+    return len(tiles), [pack_row(row) for t in tiles for row in rotate(t)]
 
 
 def downsample(sprite, px, py):
@@ -92,17 +86,11 @@ def downsample(sprite, px, py):
 
 
 def decode_sprites(rom):
-    # mcr_sprite_layout: 32x32, planes STEP4(0,1), columns spread over the 4 ROM quarters.
     # Panel pixels sample even native x, odd native y. Native flips swap the
     # sampled source parity, so 4 variants: index (py << 1 | px) * count + code,
     # px = hflip, py = !vflip.
-    q = len(rom) * 2  # RGN_FRAC(1,4) in bits
-    count = q // 1024
-    xoffs = []
-    for byte in (0, 8, 16, 24):
-        for quarter in range(4):
-            xoffs += [quarter * q + byte, quarter * q + byte + 4]
-    sprites = mame_decode(rom, 32, 32, step(0, 1, 4), xoffs, step(0, 32, 32), 1024, count)
+    sprites = decode_sprites_raw(rom)
+    count = len(sprites)
     flat = []
     for py in range(2):
         for px in range(2):
@@ -110,24 +98,6 @@ def decode_sprites(rom):
                 for row in rotate(downsample(s, px, py)):
                     flat += [pack_row(row[:8]), pack_row(row[8:])]
     return count * 4, flat
-
-
-def duty_gain(prom):
-    # MAME midway_ssio_device::compute_ay8910_modulation, volume in percent,
-    # here as gain / 16 per duty nibble
-    lookup = [0] * 16
-    for volval in range(16):
-        remaining = volval
-        cur, prev = 0, 1
-        clock = 0
-        while clock < 160 and remaining:
-            cur = prom[clock // 8] & (0x80 >> (clock % 8))
-            if cur == 0 and prev != 0:
-                remaining -= 1
-            prev = cur
-            clock += 1
-        lookup[15 - volval] = clock * 100 // 160
-    return [round(16 * v / 100) for v in lookup]
 
 
 def header(path, comment):

@@ -1,23 +1,25 @@
-#ifndef TRON_SSIO_H
-#define TRON_SSIO_H
+#ifndef MCR_SSIO_H
+#define MCR_SSIO_H
 
 #include <stdint.h>
 #include "../../cpus/z80/Z80.h"
 #include "../../emulation/ay8910.h"
 
-// Midway MCR Super Sound I/O board (MAME midway.cpp): Z80 at 2 MHz, four
-// command latches from the main CPU, a status byte back, two AY-8910.
+// Midway MCR Super Sound I/O board (MAME midway.cpp), shared by tron and
+// dotron: Z80 at 2 MHz, four command latches from the main CPU, a status
+// byte back, two AY-8910.
 // Each AY voice is gated by a duty cycle (AY port writes) that MAME treats
 // as volume; AY1 port B bit 7 mutes everything.
 //
 //   main CPU  --OUT 1c-1f-->  latch[4]  --rd 9000-->  sound Z80
 //             <--IN 07-----   status    <--wr c000--
-class TronSsio {
+class McrSsio {
 public:
   static const int RAM_SIZE = 1024;
 
-  // rom: 12 KB at 0x0000, ram: RAM_SIZE bytes, dutyGain: duty nibble -> gain/16
-  void attach(const uint8_t *rom, uint8_t *ram, const uint8_t *dutyGain);
+  // rom: romSize bytes at 0x0000 (tron 12 KB, dotron 16 KB), ram: RAM_SIZE
+  // bytes, dutyGain: duty nibble -> gain/16
+  void attach(const uint8_t *rom, uint16_t romSize, uint8_t *ram, const uint8_t *dutyGain);
   void reset();
 
   void latch(uint8_t n, uint8_t v) { latches[n & 3] = v; }
@@ -31,15 +33,19 @@ public:
   void wr(uint16_t a, uint8_t v);
 
 private:
-  static const int ROM_SIZE = 0x3000;
   static const int CYCLES_PER_COUNT = 40;  // 2 MHz / 50 kHz 14024 clock
+  static const uint16_t NO_IDLE_LOOP = 0xffff;
 
+  void findIdleLoop();
   void tickCounter(int cycles);
   void applyVolumes();
 
   const uint8_t *rom = nullptr;
+  uint16_t romSize = 0;
   uint8_t *ram = nullptr;
   const uint8_t *dutyGain = nullptr;
+  uint16_t idlePc = NO_IDLE_LOOP;  // program wait loop, see findIdleLoop()
+  uint16_t idleFlag = 0;           // RAM offset it polls
   uint8_t latches[4] = {0, 0, 0, 0};
   uint8_t statusByte = 0;
   uint8_t ayAddr[2] = {0, 0};
@@ -59,6 +65,6 @@ private:
 
 // execute one Z80 instruction, return its cycles. StepZ80 only charges
 // prefixed opcodes, so the main opcode's cycles come from Tables.h here.
-int tronStepZ80(Z80 &z);
+int mcrStepZ80(Z80 &z);
 
 #endif

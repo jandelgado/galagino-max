@@ -14,9 +14,9 @@
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
 #include "../../src/cpus/z80/Z80.c"
-#define TRON_Z80_TABLES_INCLUDED
+#define MCR_Z80_TABLES_INCLUDED
 #include "../../src/emulation/ay8910.cpp"
-#include "../../src/machines/tron/tron_ssio.cpp"
+#include "../../src/machines/mcr/mcr_ssio.cpp"
 #define private public
 #define protected public
 #include "../../src/machines/tron/tron.cpp"

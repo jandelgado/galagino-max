@@ -17,6 +17,7 @@
 #include "tron_ssio_prom.h"
 
 static const uint16_t ROM_END = 0xc000;
+static const uint16_t SOUND_ROM_SIZE = 0x3000;  // SSIO ROM, 3 x 4 KB
 static const uint16_t NVRAM_END = 0xe000;
 static const uint16_t NVRAM_MASK = 0x07ff;
 static const uint16_t SPRITE_MASK = 0x01ff;
@@ -75,7 +76,7 @@ void tron::reset() {
   memset(memory + TRON_MEM_NVRAM, 0xff, NVRAM_MASK + 1);  // NVRAM_DEFAULT_ALL_1
   memset(palette9, 0, sizeof(palette9));
   ctc.reset();
-  ssio.attach(sound_rom, memory + TRON_MEM_SSIO, tron_ssio_duty_gain);
+  ssio.attach(sound_rom, SOUND_ROM_SIZE, memory + TRON_MEM_SSIO, tron_ssio_duty_gain);
   ssio.reset();
   odd_field = false;
   main_debt = 0;
@@ -252,7 +253,7 @@ void tron::run_frame(void) {
         IntZ80(&z, ctc.ack());
         game_started = 1;
       }
-      const int used = tronStepZ80(z);
+      const int used = mcrStepZ80(z);
       main_debt -= used;
       ctc.tick(used);
       if (ctc.zc(0)) {

@@ -150,6 +150,7 @@ enum {
   MCH_YIEAR,
   MCH_TRACKFLD,
   MCH_TRON,
+  MCH_DOTRON,
   MCH_SELFTEST
 };
 
