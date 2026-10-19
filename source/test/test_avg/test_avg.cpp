@@ -249,6 +249,78 @@ static void test_color_no_clip(void) {
   TEST_ASSERT_EQUAL(col_line(7, 10), out[0].color);
 }
 
+// Major Havoc: STAT bits 9-8 page AVG 0x2000-0x3fff, bit 10 flips X,
+// bit 11 sparkles; color index into a 32 entry color RAM (Tempest encoding)
+static uint8_t banked[0x8000];
+static uint8_t mh_colorram[32];
+static avg::Memory mhavoc_mem() {
+  return avg::Memory{ram, sizeof(ram), nullptr, 0x1000, 0, 0, 0, avg::MHAVOC, mh_colorram, banked};
+}
+static uint16_t mh_stat(int index, int intensity, int flags = 0) {
+  return 0x6000 | flags | (intensity << 4) | index;
+}
+static void put_banked(uint32_t byte, uint16_t w) {
+  banked[byte] = w & 0xff;
+  banked[byte + 1] = w >> 8;
+}
+static void mhavoc_setup(void) {
+  memset(banked, 0, sizeof(banked));
+  memset(mh_colorram, 0, sizeof(mh_colorram));
+}
+
+static void test_mhavoc_page_select(void) {
+  mhavoc_setup();
+  // page 0: vertical, page 2: horizontal vector, both at AVG 0x2000
+  put_banked(0x0000, 30 & 0x1fff); put_banked(0x0002, 7 << 13); put_banked(0x0004, RTSL);
+  put_banked(0x4000, 0); put_banked(0x4002, (7 << 13) | 30); put_banked(0x4004, RTSL);
+  at(0); put(CNTR); put(scal(0, 0)); put(mh_stat(0, 12, 0x200)); put(0xa000 | 0x1000); put(HALT);
+  TEST_ASSERT_EQUAL(1, avg::decode(mhavoc_mem(), st, out, 64));
+  assert_line(out[0], 290, 200, 319, 200, tp_line(0, 7));
+}
+
+static void test_mhavoc_xflip(void) {
+  mhavoc_setup();
+  at(0); put(CNTR); put(scal(0, 0)); put(mh_stat(0, 12, 0x400)); vctr(100, 50, 7); put(HALT);
+  TEST_ASSERT_EQUAL(1, avg::decode(mhavoc_mem(), st, out, 64));
+  // X DAC xor 0x1ff: -dx - 1 instead of dx (+99 unflipped)
+  TEST_ASSERT_INT_WITHIN(1, 190, out[0].x1);
+  TEST_ASSERT_EQUAL(150, out[0].y1);
+}
+
+// SCAL bit 11: the next instruction latches the beam Y as the window top
+static void test_mhavoc_ymin_clip(void) {
+  mhavoc_setup();
+  at(0); put(CNTR); put(scal(0, 0)); put(mh_stat(0, 12));
+  vctr(0, 20, 0); put(0x7800); vctr(0, -40, 0); vctr(0, 80, 7); put(HALT);
+  TEST_ASSERT_EQUAL(1, avg::decode(mhavoc_mem(), st, out, 64));
+  TEST_ASSERT_INT_WITHIN(1, 219, out[0].y0);
+  TEST_ASSERT_INT_WITHIN(1, 181, out[0].y1);
+}
+
+static void test_mhavoc_color(void) {
+  mhavoc_setup();
+  mh_colorram[3] = 0x5;
+  mh_colorram[4] = 0xf; // black
+  at(0); put(CNTR); put(scal(0, 0)); put(mh_stat(3, 12)); vctr(100, 50, 1);
+  put(mh_stat(4, 12)); vctr(10, 0, 7); put(HALT);
+  TEST_ASSERT_EQUAL(1, avg::decode(mhavoc_mem(), st, out, 64));
+  assert_line(out[0], 290, 200, 389, 150, tp_line(5, 6));
+}
+
+// sparkle: LFSR seed bitswap(STAT bits 0-3) | 3 random bits (first: 0),
+// color RAM[15 + bitswap(lfsr bits 0, 2, 4, 6)] at the line start
+static void test_mhavoc_sparkle(void) {
+  mhavoc_setup();
+  for (int i = 15; i < 31; i++) {
+    mh_colorram[i] = 0x7;
+  }
+  mh_colorram[23] = 0x3;
+  at(0); put(CNTR); put(scal(0, 0)); put(mh_stat(0x8, 12, 0x800)); vctr(100, 0, 7); put(HALT);
+  TEST_ASSERT_EQUAL(1, avg::decode(mhavoc_mem(), st, out, 64));
+  TEST_ASSERT_EQUAL(tp_line(3, 7), out[0].color);
+  TEST_ASSERT_EQUAL(389, out[0].x1);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_vctr_stat);
@@ -269,5 +341,10 @@ int main(int, char **) {
   RUN_TEST(test_color_stat);
   RUN_TEST(test_color_black);
   RUN_TEST(test_color_no_clip);
+  RUN_TEST(test_mhavoc_page_select);
+  RUN_TEST(test_mhavoc_xflip);
+  RUN_TEST(test_mhavoc_ymin_clip);
+  RUN_TEST(test_mhavoc_color);
+  RUN_TEST(test_mhavoc_sparkle);
   return UNITY_END();
 }

@@ -1,12 +1,13 @@
 #ifndef AVG_H
 #define AVG_H
 
-// Atari AVG (analog vector generator), Battle Zone, Star Wars, Tempest and
-// color (Space Duel) variants, decoded at instruction level after MAME
-// devices/video/avgdvg.cpp (avg_device, avg_bzone_device,
-// avg_starwars_device, avg_tempest_device). The state PROM fixes which handlers run per opcode;
-// decode() runs that sequence directly. Like dvg, the display list
-// becomes a list of lines instead of steering a beam.
+// Atari AVG (analog vector generator), Battle Zone, Star Wars, Tempest,
+// color (Space Duel) and Major Havoc variants, decoded at instruction level
+// after MAME devices/video/avgdvg.cpp (avg_device, avg_bzone_device,
+// avg_starwars_device, avg_tempest_device, avg_mhavoc_device). The state
+// PROM fixes which handlers run per opcode; decode() runs that sequence
+// directly. Like dvg, the display list becomes a list of lines instead of
+// steering a beam.
 
 #include <stdint.h>
 #include "vector2d.h"
@@ -24,7 +25,10 @@ static const uint16_t MAX_STEPS = 8192;
 // window, never halts: the list loops back to address 0.
 // Color (MAME avg_device: Space Duel, Black Widow, Gravitar): little endian,
 // STAT sets intensity and 3 bit RGB color, no clip window.
-enum Variant : uint8_t { BZONE, STARWARS, TEMPEST, COLOR };
+// Major Havoc: little endian, STAT sets intensity, a color RAM index (colors
+// as Tempest), the page of the banked ROM, X flip and sparkle; SCAL bit 11
+// clips everything above the beam.
+enum Variant : uint8_t { BZONE, STARWARS, TEMPEST, COLOR, MHAVOC };
 
 struct Memory {
   const uint8_t *ram; // AVG bytes [0, ram_bytes), CPU 0x2000 up
@@ -33,14 +37,15 @@ struct Memory {
   uint16_t rom_base, rom_bytes;
   uint16_t glyph_lo, glyph_hi; // JSRL targets in [lo, hi) are text glyphs; lo == hi: none
   Variant variant;
-  const uint8_t *colorram; // Tempest: 16 entries, read at decode time
+  const uint8_t *colorram; // Tempest: 16 entries, Major Havoc: 32, read at decode time
+  const uint8_t *banked;   // Major Havoc: 4 pages of 8 KiB at AVG 0x2000-0x3fff
 };
 
 static const uint8_t GLYPH = 0x80; // Line::color flag
 // Star Wars and color Line::color: RGB bits 6-4 (R = 6), level 3-0 (Star
 // Wars 1..14, color 1..15)
 static const uint8_t SW_COLOR_SHIFT = 4;
-// Tempest Line::color: color RAM value bits 6-3, level 2-0 (1..7)
+// Tempest and Major Havoc Line::color: color RAM value bits 6-3, level 2-0 (1..7)
 static const uint8_t TP_COLOR_SHIFT = 3, TP_LEVEL_MASK = 7;
 
 // Registers that survive from one GO to the next (MAME keeps them in the
@@ -52,6 +57,11 @@ struct State {
   int32_t clipx_min, clipy_min, clipx_max, clipy_max;
   uint8_t scale, bin_scale, intensity, color;
   bool hst, lst; // clip switches, true = no clip corner pending
+  // Major Havoc STAT: banked ROM page, X flip, sparkle with its LFSR, and the
+  // counter standing in for the random bits of the LFSR seed
+  uint8_t page;
+  bool xflip, sparkle;
+  uint8_t lfsr, seed;
   // AVG clocks (12.096 MHz, CPU clock * 8) the last decode() took to draw,
   // see DRAW_CLOCKS_PER_STEP
   uint32_t draw_clocks;

@@ -25,12 +25,18 @@ void State::reset(int32_t xc, int32_t yc) {
   hst = lst = true;
 }
 
-static AVG_INLINE uint8_t fetch(const Memory &m, uint16_t a) {
+static const uint16_t BANK_BASE = 0x2000, BANK_MASK = 0x1fff; // Major Havoc
+static const uint8_t BANK_SHIFT = 13;
+
+static AVG_INLINE uint8_t fetch(const Memory &m, const State &s, uint16_t a) {
   if (a < m.ram_bytes) {
     return m.ram[a];
   }
   if ((uint16_t)(a - m.rom_base) < m.rom_bytes) {
     return m.rom[a - m.rom_base];
+  }
+  if (m.banked && a >= BANK_BASE) {
+    return m.banked[(s.page << BANK_SHIFT) | (a & BANK_MASK)];
   }
   return 0; // unmapped
 }
@@ -63,6 +69,24 @@ static AVG_INLINE bool inside(const vec2d::Line &l, const vec2d::Rect &r) {
          l.y0 >= r.y0 && l.y0 <= r.y1 && l.y1 >= r.y0 && l.y1 <= r.y1;
 }
 
+// MAME bitswap<4>(v, b3, b2, b1, b0)
+static AVG_INLINE uint8_t bitswap4(uint8_t v, uint8_t b3, uint8_t b2, uint8_t b1, uint8_t b0) {
+  return (((v >> b3) & 1) << 3) | (((v >> b2) & 1) << 2) | (((v >> b1) & 1) << 1) | ((v >> b0) & 1);
+}
+
+// MAME mhavoc_strobe3: the sparkle LFSR steps once per point (8 cycles);
+// stepped at most once around its 7 bit cycle
+static void sparkle_steps(State &s, uint32_t cycles) {
+  static const uint8_t MAX_STEPS = 127, FULL = 0x7f;
+  uint32_t n = cycles / 8;
+  for (n = n < MAX_STEPS ? n : MAX_STEPS; n; n--) {
+    s.lfsr = (((s.lfsr >> 6) ^ (s.lfsr >> 5) ^ 1) & 1) | (s.lfsr << 1);
+    if ((s.lfsr & FULL) == FULL) {
+      s.lfsr = 0;
+    }
+  }
+}
+
 // Line::color of a vector with VCTR/SVEC intensity field z
 static AVG_INLINE uint8_t line_color(const Memory &m, const State &s, uint8_t z) {
   if (m.variant == STARWARS) {
@@ -76,13 +100,16 @@ static AVG_INLINE uint8_t line_color(const Memory &m, const State &s, uint8_t z)
     // MAME avg_strobe3: color111(STAT color), black lines skipped
     return level && s.color ? (s.color << SW_COLOR_SHIFT) | level : 0;
   }
-  if (m.variant != TEMPEST) {
+  if (m.variant != TEMPEST && m.variant != MHAVOC) {
     return level;
   }
 
-  // MAME tempest_strobe3: color RAM bits are inverted, 0xf is black
-  static const uint8_t BLACK = 0xf;
-  const uint8_t value = m.colorram[s.color] & 0xf;
+  // MAME tempest_strobe3: color RAM bits are inverted, 0xf is black.
+  // Major Havoc sparkle (mhavoc_strobe3) takes a color per point from color
+  // RAM 15..30; one color per line here, the first point's.
+  static const uint8_t BLACK = 0xf, SPARKLE_COLORS = 0xf;
+  const uint8_t index = s.sparkle ? SPARKLE_COLORS + bitswap4(s.lfsr, 0, 2, 4, 6) : s.color;
+  const uint8_t value = m.colorram[index] & 0xf;
   if (!level || value == BLACK) {
     return 0;
   }
@@ -92,6 +119,21 @@ static AVG_INLINE uint8_t line_color(const Memory &m, const State &s, uint8_t z)
 
 // MAME avg_strobe2 STAT (color), bzone_strobe2, starwars_strobe2 and tempest_strobe2 variants
 static void stat(const Memory &m, State &s, uint16_t dvy) {
+  if (m.variant == MHAVOC) {
+    // MAME mhavoc_strobe2; the sparkle seed's bits 6-4 come from the alpha
+    // CPU address bus in hardware, random in MAME
+    static const uint16_t SPARKLE = 0x800, XFLIP = 0x400;
+    s.color = dvy & 0xf;
+    s.intensity = (dvy >> 4) & 0xf;
+    s.page = (dvy >> 8) & 3;
+    s.sparkle = dvy & SPARKLE;
+    if (s.sparkle) {
+      s.lfsr = bitswap4(dvy, 0, 1, 2, 3) | ((s.seed++ & 7) << 4);
+    }
+    s.xflip = dvy & XFLIP;
+    return;
+  }
+
   if (m.variant == TEMPEST) {
     // MAME tempest_strobe2: bit 11 selects color RAM index or intensity
     if (dvy & 0x800) {
@@ -120,9 +162,11 @@ static void stat(const Memory &m, State &s, uint16_t dvy) {
 }
 
 // MAME avg_strobe3 deflection: int32 product, wrapping like MAME's int
-// arithmetic (unsigned multiply, defined in C++)
-static AVG_INLINE int32_t deflect(uint16_t dv, uint32_t cycles, uint8_t scale) {
-  const int32_t dac = (int32_t)(((dv >> 3) ^ 0x200) & 0x3ff) - 0x200;
+// arithmetic (unsigned multiply, defined in C++). Major Havoc flips X by
+// xoring the DAC input with 0x1ff instead of 0x200.
+static const uint16_t DAC_XOR = 0x200, DAC_XOR_FLIP = 0x1ff;
+static AVG_INLINE int32_t deflect(uint16_t dv, uint32_t cycles, uint8_t scale, uint16_t dac_xor = DAC_XOR) {
+  const int32_t dac = (int32_t)(((dv >> 3) ^ dac_xor) & 0x3ff) - 0x200;
   return (int32_t)((uint32_t)dac * cycles * (uint32_t)(scale ^ 0xff)) >> 4;
 }
 
@@ -140,17 +184,22 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
 
   for (uint16_t step = 0; step < MAX_STEPS && n < max; step++) {
     s.draw_clocks += DRAW_CLOCKS_PER_STEP;
-    // h1: high byte of word 0; Battle Zone clip latch on the way
-    const uint8_t hi = fetch(mem, pc + hi_ofs);
-    if (!s.hst) {
-      s.clipx_max = s.xpos;
-      s.clipy_min = s.ypos;
-    }
-    if (!s.lst) {
-      s.clipx_min = s.xpos;
-      s.clipy_max = s.ypos;
-    }
-    if (!s.hst || !s.lst) {
+    // h1: high byte of word 0; Battle Zone and Major Havoc clip latch on the way
+    const uint8_t hi = fetch(mem, s, pc + hi_ofs);
+    if (mem.variant == MHAVOC) {
+      // MAME mhavoc_latch1: only the window top
+      if (!s.lst) {
+        window.y0 = s.ypos >> 16;
+      }
+    } else if (!s.hst || !s.lst) {
+      if (!s.hst) {
+        s.clipx_max = s.xpos;
+        s.clipy_min = s.ypos;
+      }
+      if (!s.lst) {
+        s.clipx_min = s.xpos;
+        s.clipy_max = s.ypos;
+      }
       const int16_t x0 = s.clipx_min >> 16, x1 = s.clipx_max >> 16;
       const int16_t y0 = s.clipy_min >> 16, y1 = s.clipy_max >> 16;
       window.x0 = x0 < x1 ? x0 : x1;
@@ -168,15 +217,15 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
     uint8_t int_latch = 0;
 
     if (op == OP_SVEC) {
-      const uint8_t lo = fetch(mem, pc + lo_ofs); // h3 on the low byte
+      const uint8_t lo = fetch(mem, s, pc + lo_ofs); // h3 on the low byte
       int_latch = lo >> 4;
       dvx = ((int_latch & 1) << 12) | ((lo & 0xf) << 8);
       pc += 2;
     } else {
-      dvy |= fetch(mem, pc + lo_ofs); // h0
+      dvy |= fetch(mem, s, pc + lo_ofs); // h0
       pc += 2;
       if (op == OP_VCTR) {
-        const uint8_t hi1 = fetch(mem, pc + hi_ofs), lo1 = fetch(mem, pc + lo_ofs); // h3, h2
+        const uint8_t hi1 = fetch(mem, s, pc + hi_ofs), lo1 = fetch(mem, s, pc + lo_ofs); // h3, h2
         int_latch = hi1 >> 4;
         dvx = ((int_latch & 1) << 12) | ((hi1 & 0xf) << 8) | lo1;
         pc += 2;
@@ -203,9 +252,12 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
         const uint32_t cycles = normalize(dvx, dvy, s.bin_scale, op1);
         s.draw_clocks += cycles;
         const int32_t x0 = s.xpos, y0 = s.ypos;
-        s.xpos += deflect(dvx, cycles, s.scale);
+        s.xpos += deflect(dvx, cycles, s.scale, s.xflip ? DAC_XOR_FLIP : DAC_XOR);
         s.ypos -= deflect(dvy, cycles, s.scale);
         const uint8_t intensity = line_color(mem, s, int_latch);
+        if (s.sparkle) {
+          sparkle_steps(s, cycles);
+        }
         if (intensity) {
           vec2d::Line l = {};
           l.x0 = x0 >> 16;
@@ -232,6 +284,9 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
         } else {
           s.scale = dvy & 0xff;
           s.bin_scale = (dvy >> 8) & 7;
+          if (mem.variant == MHAVOC && (dvy & 0x800)) {
+            s.lst = false; // mhavoc_strobe2: clip at the next latch1
+          }
         }
         break;
       case OP_CNTR:
