@@ -4,7 +4,7 @@ import re
 from catalog import GAMES, CATALOG, EXCLUDED, BASES, bundle_dirs, catalog_h
 
 # 1. catalog: every machine game except the broken ones
-assert len(GAMES) == 108, len(GAMES)
+assert len(GAMES) == 109, len(GAMES)
 assert "motorace" in GAMES and "motorace" not in CATALOG
 assert CATALOG == GAMES - EXCLUDED and "1943" in CATALOG and "gng" in CATALOG
 assert all(b in GAMES for bases in BASES.values() for b in bases)
