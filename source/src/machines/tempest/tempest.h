@@ -6,7 +6,7 @@
 #include "tempest_logo.h"
 #include "tempest_dipswitches.h"
 #include "tempest_layout.h"
-#include "tempest_spinner.h"
+#include "../../emulation/spinner.h"
 #include "../../emulation/avg.h"
 #include "../../emulation/er2055.h"
 #include "../../emulation/mathbox.h"
@@ -20,7 +20,7 @@
 // rewrites the sublists. So the list is decoded once per emulated frame,
 // at the end of run_frame(), not at GO.
 //
-// Controls: stick left/right turns the spinner (tempest_spinner.h), FIRE
+// Controls: stick left/right turns the spinner (emulation/spinner.h), FIRE
 // fires, up/down superzaps, START = coin + start.
 class tempest : public dvgMachine {
 protected:
@@ -66,7 +66,10 @@ private:
   const unsigned char *rom = nullptr, *vrom = nullptr;
   Mathbox mathbox;
   Er2055 earom;
-  Spinner spinner;
+  // 72 counts per knob turn; at most 7 counts per frame (signed 4 bit
+  // difference): 0.5 .. 6 counts per frame, in quarter counts
+  static const uint8_t SPIN_MIN = 2, SPIN_MAX = 24, SPIN_ACCEL = 1;
+  Spinner spinner{SPIN_MIN, SPIN_MAX, SPIN_ACCEL};
   avg::State avg_state; // emulation core only (decode_frame)
   bool avg_running = false; // GO seen since the last AVG reset
   uint8_t flip = 0;         // tempest_layout::FLIP_X | FLIP_Y

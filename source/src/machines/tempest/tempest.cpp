@@ -75,7 +75,7 @@ void tempest::reset() {
   dvgMachine::reset();
   mathbox.reset();
   earom.reset();
-  spinner = Spinner();
+  spinner = Spinner(SPIN_MIN, SPIN_MAX, SPIN_ACCEL);
   avg_state.reset(XCENTER, YCENTER);
   avg_running = false;
   flip = 0;
