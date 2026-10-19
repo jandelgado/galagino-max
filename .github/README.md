@@ -193,5 +193,12 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Dig Dug II (digdug2.zip)      | ![Dig Dug II marquee](/logos/digdug2.png) | ![Dig Dug II screenshot](/images/digdug2.png) | FIRE=pump, START=jackhammer |
 | Gorf (gorf.zip)               | ![Gorf marquee](/logos/gorf.png) | ![Gorf screenshot](/images/gorf.png) | Votrax SC-01 speech, needs votrsc01.zip. 320 rows merged into 288. FIRE=fire |
 | Solomon's Key (solomon.zip)   | ![Solomon's Key marquee](/logos/solomon.png) | ![Solomon's Key screenshot](/images/solomon.png) | FIRE=magic, START=fireball. 8 px cropped per side; build flag SOLOMON_SCALE drops every 16th column, SOLOMON_SCROLL moves the view with the player |
+| Flicky (flicky.zip)           | ![Flicky marquee](/logos/flicky.png) | ![Flicky screenshot](/images/flicky.png) | Sega System 1, unencrypted set flickys2. FIRE=jump |
+| Pitfall II (pitfall2u.zip)    | ![Pitfall II marquee](/logos/pitfall2.png) | ![Pitfall II screenshot](/images/pitfall2.png) | Sega System 1, unencrypted US set, needs parent pitfall2.zip. The view follows the player. FIRE=jump |
+| Mister Viking (mrviking.zip)  | ![Mister Viking marquee](/logos/mrviking.png) | ![Mister Viking screenshot](/images/mrviking.png) | Sega System 1. FIRE=throw knife, START=weapon |
+| I'm Sorry (imsorry.zip)       | ![I'm Sorry marquee](/logos/imsorry.png) | ![I'm Sorry screenshot](/images/imsorry.png) | Sega System 1. FIRE=button 1, START=button 2 |
+| Wonder Boy (wboy.zip)         | ![Wonder Boy marquee](/logos/wboy.png) | ![Wonder Boy screenshot](/images/wboy.png) | Sega System 1, unencrypted set wboy2u. FIRE=jump, START=attack |
+| 4-D Warriors (4dwarrio.zip)   | ![4-D Warriors marquee](/logos/fourdwarrio.png) | ![4-D Warriors screenshot](/images/fourdwarrio.png) | Sega System 1. FIRE=button 1, START=button 2 |
+| Heavy Metal (hvymetal.zip)    | ![Heavy Metal marquee](/logos/hvymetal.png) | ![Heavy Metal screenshot](/images/hvymetal.png) | Sega System 1. FIRE=button 1, START=button 2 |
 
 ### ...
