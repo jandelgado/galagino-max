@@ -345,6 +345,9 @@
 #ifdef ENABLE_SXEVIOUS
   #include "machines/sxevious/sxevious.h"
 #endif
+#ifdef ENABLE_VULGUS
+  #include "machines/vulgus/vulgus.h"
+#endif
 #ifdef ENABLE_MIKIE
   #include "machines/mikie/mikie.h"
 #endif
@@ -956,6 +959,13 @@ constexpr machineInfo machines[] = {
     sxevious::menuLeds,
 #endif
     MCH_SXEVIOUS },
+#endif
+#ifdef ENABLE_VULGUS
+  { createMachine<vulgus>, vulgus::logo,
+#ifdef LED_PIN
+    vulgus::menuLeds,
+#endif
+    MCH_VULGUS },
 #endif
 #ifdef ENABLE_MIKIE
   { createMachine<mikie>, mikie::logo,
