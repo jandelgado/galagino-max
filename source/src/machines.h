@@ -312,6 +312,9 @@
 #ifdef ENABLE_SWAT
   #include "machines/swat/swat.h"
 #endif
+#ifdef ENABLE_1943
+  #include "machines/1943/1943.h"
+#endif
 #ifdef ENABLE_CBDASH
   #include "machines/cbdash/cbdash.h"
 #endif
@@ -840,6 +843,13 @@ constexpr machineInfo machines[] = {
     swat::menuLeds,
 #endif
     MCH_SWAT },
+#endif
+#ifdef ENABLE_1943
+  { createMachine<_1943>, _1943::logo,
+#ifdef LED_PIN
+    _1943::menuLeds,
+#endif
+    MCH_1943 },
 #endif
 #ifdef ENABLE_CBDASH
   { createMachine<cbdash>, cbdash::logo,
