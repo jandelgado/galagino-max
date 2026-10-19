@@ -42,6 +42,21 @@ bublbobl::bublbobl() :
   if (!tune_ok) {
     printf("bublbobl: Bubble_Bobble.sid is not a supported PSID\n");
   }
+
+  // packed effects to the rest of block B now: the audio core plays them
+  fx_samples = Arena::alloc<bublbobl_sound::FxSample>(BUBLBOBL_EFFECT_COUNT);
+  for (uint8_t e = 0; e < BUBLBOBL_EFFECT_COUNT; e++) {
+    const BublboblFxBlob &b = bublbobl_fx_blobs[e];
+    fx_samples[e].len = b.samples;
+    if (b.plain) {
+      fx_samples[e].data = b.plain->data;
+      continue;
+    }
+
+    uint8_t *data = Arena::alloc<uint8_t>(b.packed->count);
+    Asset<unsigned char, COMPRESSED>(*b.packed).decodeInto(data);
+    fx_samples[e].data = data;
+  }
 }
 
 const Logo &bublbobl::logo(void) {
@@ -493,8 +508,7 @@ void bublbobl::renderSid(int16_t *out, int n) {
 
   uint8_t e;
   while (fx_ring.pop(e)) {
-    const FlashAsset<unsigned char, PLAIN> &b = *bublbobl_fx_blobs[e];
-    fx.start({ b.data, b.count }, e);
+    fx.start(fx_samples[e], e);
   }
 
   if (sid_on) {

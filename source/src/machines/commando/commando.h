@@ -20,16 +20,18 @@
 class commando : public machineBase {
 protected:
   // ROM assets: Arena residents unpacked eagerly in the ctor (largest
-  // first, to fit Arena's two blocks), tiles stay in flash
-  Asset<unsigned char, COMPRESSED> commando_rom;
+  // first, to fit Arena's two blocks). The bg tiles compress best, so they
+  // take the Arena; the ROMs, chars and sprite bank 1 stay in flash.
+  Asset<unsigned char, PLAIN> commando_rom;
   Asset<uint32_t[32], COMPRESSED> commando_sprites0;
-  Asset<uint32_t[32], COMPRESSED> commando_sprites1;
+  Asset<uint32_t[32], PLAIN> commando_sprites1;
   Asset<uint32_t[32], COMPRESSED> commando_sprites2;
-  Asset<unsigned short[8], COMPRESSED> commando_chars;
+  Asset<unsigned short[8], PLAIN> commando_chars;
   Asset<unsigned short[8], COMPRESSED> commando_cmap_tiles;
   Asset<unsigned short[16], COMPRESSED> commando_cmap_sprites;
   Asset<unsigned short[4], COMPRESSED> commando_cmap_chars;
-  Asset<uint32_t[32], PLAIN> commando_tiles;
+  Asset<uint32_t[32], COMPRESSED> commando_tiles_a;  // tiles 0..TILES_A-1, block A
+  Asset<uint32_t[32], COMPRESSED> commando_tiles_b;  // the rest, block B
   Asset<unsigned char, PLAIN> commando_sid;
   Asset<unsigned char, PLAIN> commando_sound;
 
@@ -79,7 +81,10 @@ private:
   const unsigned char *rom = nullptr;
   const unsigned char *sound_rom = nullptr;
   const uint32_t (*sprite_banks[3])[32] = {};
-  const uint32_t (*tiles)[32] = nullptr;
+  // bg tiles split in two: one asset cannot span both Arena blocks
+  static const uint16_t TILES_A = 418;  // romconv conv_commando.py TILES_A
+  const uint32_t (*tiles_a)[32] = nullptr;
+  const uint32_t (*tiles_b)[32] = nullptr;
   const unsigned short (*chars)[8] = nullptr;
   const unsigned short (*cmap_tiles)[8] = nullptr;
   const unsigned short (*cmap_sprites)[16] = nullptr;

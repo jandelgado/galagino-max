@@ -56,7 +56,7 @@ protected:
   Asset<unsigned char, COMPRESSED> gaplus_rom_main;
   Asset<unsigned char, COMPRESSED> gaplus_rom_sub;
   Asset<unsigned char, COMPRESSED> gaplus_rom_sub2;
-  Asset<unsigned char, PLAIN> gaplus_sample_bang;
+  Asset<unsigned char, COMPRESSED> gaplus_sample_bang;
   Asset<uint32_t[32], COMPRESSED> gaplus_sprites;
   Asset<unsigned short[8], COMPRESSED> gaplus_tilemap;
 public:

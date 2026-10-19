@@ -18,6 +18,7 @@ protected:
   Asset<unsigned char, COMPRESSED> dkong_rom_cpu2;
   Asset<uint32_t[16], COMPRESSED> dkong_sprites;
   Asset<unsigned short[8], COMPRESSED> dkong_tilemap;
+  Asset<unsigned char, COMPRESSED> dkong_samples[6];  // walk0-2, jump, stomp, fall
 public:
 	dkong();
 

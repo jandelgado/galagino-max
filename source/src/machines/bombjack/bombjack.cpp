@@ -19,6 +19,7 @@ bombjack::bombjack()
 	rom_cpu1_ptr = bombjack_rom_cpu1.data();
 	bombjack_sprites_32x32.data();
 	bombjack_sprites_16x16.data();
+	bombjack_bg_tiles.data();
 	bombjack_fg_tiles.data();
 	rom_cpu2_ptr = bombjack_rom_cpu2.data();
 	bg_maps_ptr = bombjack_bg_maps.data();

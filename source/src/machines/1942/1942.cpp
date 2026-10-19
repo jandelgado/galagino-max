@@ -17,6 +17,7 @@ _1942::_1942()
   _1942_tilemap.data();
   _1942_rom_cpu1_b0.data();
   _1942_rom_cpu2.data();
+  _1942_rom_cpu1_b2.data();
   _1942_charmap.data();
   _1942_colormap_tiles.data();
 }

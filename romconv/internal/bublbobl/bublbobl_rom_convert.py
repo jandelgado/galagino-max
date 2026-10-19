@@ -211,18 +211,35 @@ def write_sound(f):
     f.write(f"static const uint8_t bublbobl_effect[256] = {{\n{body(effect, '0x%02X')}\n}};\n")
 
 
+# Effects unpacked to the Arena (block B after the ROMs and tune RAM, ~2 KB
+# spare); the rest stay PLAIN. Picked by flash saved per Arena byte.
+PACKED_EFFECTS = {"fx0b", "fx25", "fx1e", "coin"}
+
+
 def write_samples(f, pcm8):
     total = 0
     for cmd in sorted(EFFECTS):
+        name = EFFECTS[cmd]
         enc = ima_encode(pcm8[cmd])
         total += len(enc)
-        f.write(f"// cmd {cmd:02x} {EFFECTS[cmd]}: {len(pcm8[cmd]) / FX_RATE:.2f} s, {FX_RATE} Hz IMA-ADPCM: 2-byte LE\n")
-        f.write("// predictor, then one nibble per sample (count = decoded samples)\n")
-        emit_plain(f, f"bublbobl_fx_{EFFECTS[cmd]}", "unsigned char", "", len(pcm8[cmd]), body(list(enc), "0x%02X"))
+        f.write(f"// cmd {cmd:02x} {name}: {len(pcm8[cmd]) / FX_RATE:.2f} s, {FX_RATE} Hz IMA-ADPCM: 2-byte LE\n")
+        f.write("// predictor, then one nibble per sample\n")
+        if name in PACKED_EFFECTS:
+            emit_compressed(f, f"bublbobl_fx_{name}", "unsigned char", "", len(enc), list(enc))
+        else:
+            emit_plain(f, f"bublbobl_fx_{name}", "unsigned char", "", len(enc), body(list(enc), "0x%02X"))
     f.write(f"#define BUBLBOBL_EFFECT_COUNT {len(EFFECTS)}\n")
-    f.write("static const FlashAsset<unsigned char, PLAIN> *const bublbobl_fx_blobs[] = {\n")
+    f.write("// effect index -> ADPCM stream in flash (plain) or packed for the Arena\n")
+    f.write("struct BublboblFxBlob {\n")
+    f.write("  const FlashAsset<unsigned char, PLAIN> *plain;       // nullptr: packed\n")
+    f.write("  const FlashAsset<unsigned char, COMPRESSED> *packed; // nullptr: plain\n")
+    f.write("  uint32_t samples;                                    // decoded samples\n")
+    f.write("};\n")
+    f.write("static const BublboblFxBlob bublbobl_fx_blobs[] = {\n")
     for cmd in sorted(EFFECTS):
-        f.write(f"  &bublbobl_fx_{EFFECTS[cmd]}_blob,\n")
+        blob = f"&bublbobl_fx_{EFFECTS[cmd]}_blob"
+        plain, packed = ("nullptr", blob) if EFFECTS[cmd] in PACKED_EFFECTS else (blob, "nullptr")
+        f.write(f"  {{ {plain}, {packed}, {len(pcm8[cmd])} }},\n")
     f.write("};\n")
     return total
 

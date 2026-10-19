@@ -6,12 +6,12 @@ info("1942 Unpack roms")
 run("internal/unpack.py", "1942.zip")
 
 info("1942 CPU code")
-# rom_cpu1, b1, b2 stay PLAIN (flash): the Arena holds the tilemap instead,
+# rom_cpu1, b1 stay PLAIN (flash): the Arena holds the tilemap instead,
 # which compresses 3x better (1942.cpp)
 run("internal/romconv.py", "_1942_rom_cpu1", "./roms/srb-03.m3", "./roms/srb-04.m4", "../source/src/machines/1942/1942_rom1.h")
 run("internal/romconv.py", "-c", "_1942_rom_cpu1_b0", "./roms/srb-05.m5", "../source/src/machines/1942/1942_rom1_b0.h")
 run("internal/romconv.py", "_1942_rom_cpu1_b1", "./roms/srb-06.m6", "../source/src/machines/1942/1942_rom1_b1.h")
-run("internal/romconv.py", "_1942_rom_cpu1_b2", "./roms/srb-07.m7", "../source/src/machines/1942/1942_rom1_b2.h")
+run("internal/romconv.py", "-c", "_1942_rom_cpu1_b2", "./roms/srb-07.m7", "../source/src/machines/1942/1942_rom1_b2.h")
 run("internal/romconv.py", "-c", "_1942_rom_cpu2", "./roms/sr-01.c11", "../source/src/machines/1942/1942_rom2.h")
 
 info("1942 Tiles")

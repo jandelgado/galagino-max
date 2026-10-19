@@ -215,6 +215,7 @@ private:
   uint8_t reset_seen = 0;                  // audio core
   bublbobl_sound::FxRing fx_ring;
   bublbobl_sound::FxMixer fx;
+  bublbobl_sound::FxSample *fx_samples;    // per effect, in the Arena
 };
 
 #endif

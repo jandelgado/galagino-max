@@ -3,7 +3,7 @@ import sys
 import os
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
-from asset_emit import emit_compressed
+from asset_emit import emit_plain
 
 # --- Configurazione per Bomb Jack (Audio CPU) ---
 # Nomi dei file ROM richiesti dal driver MAME (bombjack.cpp)
@@ -27,7 +27,10 @@ def create_output_file(rom_data, outfile, id_name):
     with open(outfile, "w") as of:
         of.write(f"// File generato automaticamente per {id_name}\n")
         of.write(f"// Contiene la ROM della CPU Audio di Bomb Jack\n")
-        emit_compressed(of, id_name, "unsigned char", "", len(rom_data), list(rom_data))
+        # Arena budget: PLAIN, a ROM compresses worst (~30%); bg tiles get the space
+        body = ",\n".join("  " + ",".join("0x%02X" % v for v in rom_data[i:i + 16])
+                           for i in range(0, len(rom_data), 16))
+        emit_plain(of, id_name, "unsigned char", "", len(rom_data), body)
     print("Completato.")
 
 def convert_bombjack_audio_rom():

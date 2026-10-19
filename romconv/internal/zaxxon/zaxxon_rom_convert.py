@@ -226,8 +226,10 @@ def write_char_tiles(tiles):
         print("// Zaxxon foreground char set (gfx_tx). 256 tile 8x8 2bpp", file=f)
         print("// (pixel values 0-3). Color group comes from the prom_fgsel", file=f)
         print("// lookup table (zaxxon_fgcolor_codes), not from tile data.", file=f)
-        flat = [v for t in tiles for y in range(8) for v in t[y]]
-        emit_compressed(f, "zaxxon_chartiles", "unsigned char", "[8][8]", len(tiles), flat)
+        print("// PLAIN/flash-resident: see ARENA BUDGET note in zaxxon_rom_main.h.", file=f)
+        body = ",\n".join("{" + ",".join("{" + ",".join(str(v) for v in t[y]) + "}" for y in range(8)) + "}"
+                           for t in tiles)
+        emit_plain(f, "zaxxon_chartiles", "unsigned char", "[8][8]", len(tiles), body)
 
 def write_bg_tiles(tiles):
     with open(os.path.join(OUT_DIR, "zaxxon_bgtiles.h"), "w") as f:
@@ -257,11 +259,8 @@ def write_tilemap(tile_code, tile_color):
         print("// tilemap (16384 cells, row-major, TILEMAP_SCAN_ROWS order).", file=f)
         print("// tile_code indexes zaxxon_bgtiles (0-1023); tile_color is", file=f)
         print("// the 4-bit bg color group (0-15).", file=f)
-        print("// tile_code is PLAIN/flash-resident (32768 bytes do not fit the", file=f)
-        print("// Arena next to both 65536-byte tile sets), tile_color is", file=f)
-        print("// COMPRESSED. See ARENA BUDGET note in zaxxon_rom_main.h.", file=f)
-        code_body = _plain_hex_block(tile_code, per_line=16)
-        emit_plain(f, "zaxxon_tilemap_code", "unsigned short", "", len(tile_code), code_body)
+        print("// Both COMPRESSED. See ARENA BUDGET note in zaxxon_rom_main.h.", file=f)
+        emit_compressed(f, "zaxxon_tilemap_code", "unsigned short", "", len(tile_code), list(tile_code))
         emit_compressed(f, "zaxxon_tilemap_color", "unsigned char", "", len(tile_color), list(tile_color))
 
 # ---- Palette PROM (mro16/u76, 256 colors) -> RGB565 byte-swapped ----
@@ -329,19 +328,18 @@ def convert_zaxxon(romset, files):
             "\n"
             "ARENA BUDGET (see arena.h): every COMPRESSED asset this machine\n"
             "uses stays resident for the machine's whole lifetime, so they all\n"
-            "have to bin-pack into Arena's two 91000-byte blocks at once.\n"
-            "This ROM is PLAIN (flash): it compresses worst (20480 -> ~14000),\n"
-            "so the Arena holds zaxxon_tilemap_color (16384 -> ~280) instead.\n"
-            "zaxxon_tilemap_code (32768) stays PLAIN: it does not fit next to\n"
-            "both 65536-byte tile sets.\n"
+            "have to bin-pack into Arena's two blocks (91000, 110500) at once.\n"
+            "This ROM and zaxxon_chartiles are PLAIN (flash): they gain least\n"
+            "from compression (20480 -> ~14000, 16384 -> ~1250), so the Arena\n"
+            "holds zaxxon_tilemap_code (32768 -> ~3500) instead.\n"
             "\n"
             "zaxxon::zaxxon() unpacks every COMPRESSED asset eagerly, largest\n"
             "first: Arena fills block A before B, so access order is\n"
             "placement order:\n"
             "  zaxxon_bgtiles        (65536) -> A (A: 65536)\n"
             "  zaxxon_spritetiles    (65536) -> B (B: 65536)\n"
-            "  zaxxon_chartiles      (16384) -> A (A: 81920)\n"
-            "  zaxxon_tilemap_color  (16384) -> B (B: 81920)\n"
+            "  zaxxon_tilemap_code   (32768) -> B (B: 98304)\n"
+            "  zaxxon_tilemap_color  (16384) -> A (A: 81920)\n"
             "  zaxxon_palette          (512) -> A (A: 82432)\n"
             "  zaxxon_fgcolor_codes    (256) -> A (A: 82688)")
 

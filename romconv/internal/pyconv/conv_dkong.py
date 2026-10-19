@@ -18,8 +18,8 @@ run("internal/spriteconv.py", "-c", "dkong_sprites", "dkong", "./roms/l_4m_b.bin
 info("Dkong Colormaps")
 run("internal/cmapconv.py", "-c", "dkong_colormap", "./roms/c-2k.bpr", "./roms/c-2j.bpr", "0", "./roms/v-5e.bpr", "../source/src/machines/dkong/dkong_cmap.h")
 
-info("Dkong Samples")
+info("Dkong Samples (Arena has room: compressed)")
 for name in ("walk0", "walk1", "walk2", "jump", "stomp", "fall"):
-    run("internal/sampleconv.py", f"dkong_sample_{name}", f"../samples/dkong_{name}.s8", f"../source/src/machines/dkong/dkong_sample_{name}.h")
+    run("internal/sampleconv.py", "-c", f"dkong_sample_{name}", f"../samples/dkong_{name}.s8", f"../source/src/machines/dkong/dkong_sample_{name}.h")
 
 info("--- Success ---")

@@ -286,9 +286,9 @@ def write_sample_bang():
     with open(os.path.join(OUT_DIR, "gaplus_sample_bang.h"), "w") as f:
         print(f"// Explosion samples for \"bang\" (samples/gaplus_bang.wav),", file=f)
         print(f"// resampled @24000 Hz signed 8bit, stored as 4-bit IMA-ADPCM", file=f)
-        print(f"// (ima_adpcm::Voice). PLAIN: ADPCM barely compresses.", file=f)
+        print(f"// (ima_adpcm::Voice). COMPRESSED: the Arena has room.", file=f)
         print(f"// {len(samples8)} samples ({len(samples8)/target_fr:.3f}s a 24000 Hz)", file=f)
-        emit_adpcm(f, "gaplus_sample_bang", samples8)
+        emit_adpcm(f, "gaplus_sample_bang", samples8, compress=True)
     print(f"gaplus_sample_bang.h: {len(samples8)} samples @24kHz ({len(samples8)/target_fr:.3f}s)")
 
 # ------------------------------------------------------------

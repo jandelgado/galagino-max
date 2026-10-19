@@ -36,12 +36,17 @@ def ima_encode(pcm: np.ndarray) -> bytes:
     if pending is not None: output.append(pending)
     return bytes(output)
 
-def emit_adpcm(f, name, pcm):
-    """Write signed 8-bit pcm as a PLAIN FlashAsset<unsigned char> in the
-    ima_encode format, played by ima_adpcm::Voice. The blob count is the
-    decoded sample count, not the encoded byte count. Returns the encoded
-    byte count."""
-    from asset_emit import emit_plain, _hex_block
+def emit_adpcm(f, name, pcm, compress=False):
+    """Write signed 8-bit pcm as a FlashAsset<unsigned char> in the
+    ima_encode format, played by ima_adpcm::Voice. PLAIN: the blob count is
+    the decoded sample count, not the encoded byte count. COMPRESSED (saves
+    ~20%, costs Arena): the blob count is the encoded byte count, the
+    sample count goes to <name>_samples. Returns the encoded byte count."""
+    from asset_emit import emit_compressed, emit_plain, _hex_block
     encoded = ima_encode(np.asarray(pcm, dtype=np.int8))
-    emit_plain(f, name, "unsigned char", "", len(pcm), "  " + _hex_block(encoded))
+    if compress:
+        emit_compressed(f, name, "unsigned char", "", len(encoded), list(encoded))
+        print(f"static constexpr uint32_t {name}_samples = {len(pcm)};", file=f)
+    else:
+        emit_plain(f, name, "unsigned char", "", len(pcm), "  " + _hex_block(encoded))
     return len(encoded)

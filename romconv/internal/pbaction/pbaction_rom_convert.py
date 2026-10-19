@@ -256,12 +256,18 @@ def build_sprites32() -> list[list[list[int]]]:
 BANNER = "// Generated from the MAME pbaction - Pinball Action (set 1) ROM set. Do not edit.\n"
 
 
-def write_bytes_header(path: Path, guard: str, sym: str, data: bytes, note: str) -> None:
+def write_bytes_header(path: Path, guard: str, sym: str, data: bytes, note: str,
+                       compress: bool = True) -> None:
     with open(path, "w") as f:
         f.write(f"#ifndef {guard}\n#define {guard}\n\n")
         f.write(BANNER)
         f.write(f"// {note}\n\n")
-        emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
+        if compress:
+            emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
+        else:
+            body = ",\n".join("  " + ",".join("0x%02X" % b for b in data[i:i + 16])
+                               for i in range(0, len(data), 16))
+            emit_plain(f, sym, "unsigned char", "", len(data), body)
         f.write("\n#endif\n")
     print(f"  wrote {path} {len(data):#8x} bytes")
 
@@ -373,7 +379,9 @@ def main() -> None:
     write_bytes_header(os.path.join(OUT_DIR, "pbaction_main_rom.h"), "PBACTION_MAIN_ROM_H",
                        "pbaction_main_rom", build_main_rom(),
                        "Z80 main CPU space: b-p7 @0x0000, b-n7 @0x4000, b-l7 @0x8000; "
-                       "0xa000+ is RAM/video/I/O (filled 0xFF).")
+                       "0xa000+ is RAM/video/I/O (filled 0xFF). "
+                       "Arena budget: PLAIN, compresses worst (~50%); bg tiles get the space.",
+                       compress=False)
     write_bytes_header(os.path.join(OUT_DIR, "pbaction_audio_rom.h"), "PBACTION_AUDIO_ROM_H",
                        "pbaction_audio_rom", build_audio_rom(),
                        "Z80 audio CPU ROM a-e3.bin (0x0000-0x1fff).")
@@ -390,9 +398,8 @@ def main() -> None:
     write_packed_header(os.path.join(OUT_DIR, "pbaction_bg_tiles.h"), "PBACTION_BG_TILES_H",
                         "pbaction_bg_tiles", bg, 8,
                         "Background chars (a-j5/j6/j7/j8), charlayout2, 4bpp (pen 0-15). "
-                        "gfx[1]: color = attr&0x07, opaque, palette base 128. "
-                        "RAM budget exception: stays PLAIN/flash-resident (64KB).",
-                        compress=False)
+                        "gfx[1]: color = attr&0x07, opaque, palette base 128.",
+                        compress=True)
     write_packed_header(os.path.join(OUT_DIR, "pbaction_sprites16.h"), "PBACTION_SPRITES16_H",
                         "pbaction_sprites16", s16, 16,
                         "Normal sprites (b-c7/d7/f7), spritelayout1, 3bpp (pen 0-7). "

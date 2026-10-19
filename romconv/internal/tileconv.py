@@ -120,7 +120,7 @@ def parse_chr_1942(data):
         char.append(row)
     return char
             
-def parse_charmap(id, inname, outname, compress=False):
+def parse_charmap(id, inname, outname, compress=False, plain=False):
     # The character map rom contains the same set of 128 characters
     # two times. The second set is upside down for cocktail mode. We
     # ignore that.
@@ -158,7 +158,10 @@ def parse_charmap(id, inname, outname, compress=False):
     # write as c source
     f = open(outname, "w")
 
-    if is_1942:
+    if is_1942 and plain:
+        body = ",\n".join(" { " + ",".join(hex(v) for v in dump_chr_values(c)) + " }" for c in chars)
+        emit_plain(f, id, "unsigned short", "[8]", len(chars), body)
+    elif is_1942:
         flat = [v for c in chars for v in dump_chr_values(c)]
         emit_compressed(f, id, "unsigned short", "[8]", len(chars), flat)
     elif compress:
@@ -191,7 +194,7 @@ def parse_tile_1942(b0,b1,b2):
     # show_chr_3bpp(tile)
     return tile
     
-def parse_tilemap_1942(id, files, outname, compress=False):
+def parse_tilemap_1942(id, files, outname, compress=False, split=0):
     # in 1942 the tiles use 3 bit color indices with one bit in a serperate file each
     data = [ [],[],[] ]
     for fidx in range(len(files)):
@@ -217,7 +220,13 @@ def parse_tilemap_1942(id, files, outname, compress=False):
 
     # Unflipped tiles only: 1942.cpp flips at blit time, 1/4 the size.
     tiles_str = [dump_tile_1942(t) for t in tiles]
-    if compress:
+    if split:
+        # two assets <id>_a (tiles 0..split-1), <id>_b (the rest): each fits
+        # one Arena block
+        for part, chunk in (("a", tiles_str[:split]), ("b", tiles_str[split:])):
+            flat = [int(v, 16) for t in chunk for v in t.split(",")]
+            emit_compressed(f, f"{id}_{part}", "uint32_t", "[32]", len(chunk), flat)
+    elif compress:
         flat = [int(v, 16) for t in tiles_str for v in t.split(",")]
         emit_compressed(f, id, "uint32_t", "[32]", len(tiles), flat)
     else:
@@ -388,17 +397,26 @@ def parse_charmap_bagman(id, innames, outname, compress=False):
 
     f.close()
 
+# -c: compress, -p: 1942 format chars PLAIN, -s N: 1942 tiles as two
+# compressed assets split at tile N
 args = sys.argv[1:]
 compress = False
-if args and args[0] == "-c":
-    compress = True
-    args.pop(0)
+plain = False
+split = 0
+while args and args[0] in ("-c", "-p", "-s"):
+    flag = args.pop(0)
+    if flag == "-c":
+        compress = True
+    elif flag == "-p":
+        plain = True
+    else:
+        split = int(args.pop(0))
 
 if len(args) == 8:
     # 6 files are 1942 tiles which have a very different format
-    parse_tilemap_1942(args[0], (args[1:3], args[3:5], args[5:7]), args[7], compress)
+    parse_tilemap_1942(args[0], (args[1:3], args[3:5], args[5:7]), args[7], compress, split)
 elif len(args) == 3:
-    parse_charmap(args[0], args[1], args[2], compress)
+    parse_charmap(args[0], args[1], args[2], compress, plain)
 elif len(args) == 4:
     parse_charmap_frogger(args[0], args[1:3], args[3], compress)
 elif len(args) == 5:

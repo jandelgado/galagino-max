@@ -6,14 +6,16 @@ capcom/gng.cpp (charlayout, tilelayout, spritelayout). Formats match
 commando: chars unsigned short[8] (pixel x at bits 2x), tiles and sprites
 uint32_t[32] (row y = words 2y, 2y+1, pixel x in nibble x).
 
-  gng_rom      CPU $4000-$FFFF (mm_c_04 + mm_c_03), PLAIN: compresses
-               worst, so it leaves the Arena to bank + sound ROM
-  gng_bank     banked $4000-$5FFF pages 0-3 (mm_c_05), Arena
+  gng_rom      CPU $4000-$FFFF (mm_c_04 + mm_c_03), PLAIN
+  gng_bank     banked $4000-$5FFF pages 0-3 (mm_c_05), PLAIN
   gng_sound    sound Z80 ROM up to SOUND_SIZE, Arena
-  gng_chars    1024 fg chars, Arena
-  gng_tiles    unique bg tiles, PLAIN (128 KB raw, read per visible tile)
+  gng_chars    1024 fg chars, PLAIN
+  gng_tiles    unique bg tiles, Arena (100 KB, compresses 2.5x)
   gng_tile_map bg tile code -> gng_tiles index, Arena
-  gng_spritesN sprite codes 256 N .. 256 N + 255, Arena (codes 768+ blank)
+  gng_spritesN sprite codes 256 N .. 256 N + 255, Arena (codes 768+ blank);
+               bank 2 PLAIN
+PLAIN assets compress worst (ROMs ~50%) or are the cheapest to leave out:
+the Arena then holds the bg tiles, which save most.
 """
 import os
 import sys
@@ -50,6 +52,7 @@ SHA1 = {
 
 SOUND_SIZE = 0x5700  # gg2.bin is 0xff from $56C9 on
 SPRITE_BANKS = 3     # codes 768-1023 come from the erased (0xff) region
+ARENA_SPRITE_BANKS = (0, 1)  # bank 2 PLAIN, see above
 
 
 def rom(name):
@@ -88,14 +91,14 @@ def convert_cpu():
     fixed = rom("mm_c_04") + rom("mm_c_03")
     write("gng_rom.h", lambda f: emit_plain(f, "gng_rom", "unsigned char", "", len(fixed), byte_body(fixed)))
     bank = rom("mm_c_05")
-    write("gng_bank.h", lambda f: emit_compressed(f, "gng_bank", "unsigned char", "", len(bank), bank))
+    write("gng_bank.h", lambda f: emit_plain(f, "gng_bank", "unsigned char", "", len(bank), byte_body(bank)))
 
     sound = rom("gg2.bin")
     if any(b != 0xff for b in sound[SOUND_SIZE:]):
         fatal("gg2.bin: data above SOUND_SIZE")
     sound = sound[:SOUND_SIZE]
     write("gng_sound.h", lambda f: emit_compressed(f, "gng_sound", "unsigned char", "", len(sound), sound))
-    return len(fixed)
+    return len(sound)
 
 
 def convert_chars():
@@ -103,8 +106,8 @@ def convert_chars():
     chars = mame_decode(data, 8, 8, [4, 0], [0, 1, 2, 3, 8, 9, 10, 11],
                         [16 * y for y in range(8)], 128, 1024)
     flat = [v for c in chars for v in pack_2bpp(c)]
-    write("gng_chars.h", lambda f: emit_compressed(f, "gng_chars", "unsigned short", "[8]", len(chars), flat))
-    return 16 * len(chars)
+    rows = [flat[i:i + 8] for i in range(0, len(flat), 8)]
+    write("gng_chars.h", lambda f: emit_plain(f, "gng_chars", "unsigned short", "[8]", len(chars), hex_rows(rows)))
 
 
 def convert_tiles():
@@ -123,12 +126,12 @@ def convert_tiles():
         tile_map.append(index[words])
 
     def emit(f):
-        emit_plain(f, "gng_tiles", "uint32_t", "[32]", len(unique), hex_rows(unique))
+        emit_compressed(f, "gng_tiles", "uint32_t", "[32]", len(unique), [v for t in unique for v in t])
         emit_compressed(f, "gng_tile_map", "unsigned short", "", len(tile_map), tile_map)
 
     write("gng_tiles.h", emit)
-    print(f"  bg tiles: {len(unique)} unique of {len(tiles)}, flash {128 * len(unique)}")
-    return 2 * len(tile_map)
+    print(f"  bg tiles: {len(unique)} unique of {len(tiles)}, {128 * len(unique)} bytes")
+    return 128 * len(unique) + 2 * len(tile_map)
 
 
 def convert_sprites():
@@ -143,26 +146,30 @@ def convert_sprites():
     def emit(f):
         for b in range(SPRITE_BANKS):
             flat = [v for s in sprites[256 * b:256 * (b + 1)] for v in pack_4bpp(s)]
-            emit_compressed(f, f"gng_sprites{b}", "uint32_t", "[32]", 256, flat)
+            if b in ARENA_SPRITE_BANKS:
+                emit_compressed(f, f"gng_sprites{b}", "uint32_t", "[32]", 256, flat)
+            else:
+                rows = [flat[i:i + 32] for i in range(0, len(flat), 32)]
+                emit_plain(f, f"gng_sprites{b}", "uint32_t", "[32]", 256, hex_rows(rows))
 
     write("gng_sprites.h", emit)
-    return 128 * len(sprites)
+    return 128 * 256 * len(ARENA_SPRITE_BANKS)
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
     arena = {
-        "rom": convert_cpu(),
-        "chars": convert_chars(),
-        "tile_map": convert_tiles(),
+        "sound": convert_cpu(),
+        "tiles": convert_tiles(),
         "sprites": convert_sprites(),
         "tune_ram": 0x1540,  # gng.h TUNE_RAM_SIZE, SID $3800-$4D3F
     }
     total = sum(arena.values())
     for name, size in arena.items():
         print(f"  arena {name:9s} {size:6d}")
-    print(f"  arena total     {total:6d} of 182000")
-    if total >= 182000:
+    convert_chars()
+    print(f"  arena total     {total:6d} of 201500")
+    if total >= 201500:
         fatal("Ghosts'n Goblins assets exceed Arena::CAPACITY")
 
 

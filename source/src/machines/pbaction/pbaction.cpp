@@ -12,8 +12,8 @@ pbaction::pbaction()
     pbaction_fg_tiles(pbaction_fg_tiles_blob),
     pbaction_main_rom(pbaction_main_rom_blob),
     pbaction_sprites16(pbaction_sprites16_blob) {
+	pbaction_bg_tiles.data();
 	pbaction_fg_tiles.data();
-	pbaction_main_rom.data();
 	pbaction_sprites16.data();
 	pbaction_audio_rom.data();
 }

@@ -45,12 +45,12 @@ public:
 protected:
 	// ROM assets of one game on this board (starforce, baluba)
 	struct Roms {
-		const FlashAsset<unsigned char, PLAIN> &main_cpu;
+		const FlashAsset<unsigned char, COMPRESSED> &main_cpu;
 		const FlashAsset<unsigned char, COMPRESSED> &sub_cpu;
 		const FlashAsset<uint32_t[8], COMPRESSED> &fg;
 		const FlashAsset<uint32_t[16][2], COMPRESSED> &bg1;
 		const FlashAsset<uint32_t[16][2], COMPRESSED> &bg2;
-		const FlashAsset<uint32_t[16][2], COMPRESSED> &bg3;
+		const FlashAsset<uint32_t[16][2], PLAIN> &bg3;
 		const FlashAsset<uint32_t[16][2], COMPRESSED> &sprites_16x16;
 	};
 	explicit starforce(const Roms &roms);
@@ -80,12 +80,12 @@ private:
 	unsigned char coinFrameCounter = 0;
 
 	// ROM assets, unpacked into the Arena on first data()
-	Asset<unsigned char, PLAIN> main_cpu_rom;  // compresses worst: flash
+	Asset<unsigned char, COMPRESSED> main_cpu_rom;
 	Asset<unsigned char, COMPRESSED> sub_cpu_rom;
 	Asset<uint32_t[8], COMPRESSED> fg_tiles;
 	Asset<uint32_t[16][2], COMPRESSED> bg1_tiles;
 	Asset<uint32_t[16][2], COMPRESSED> bg2_tiles;
-	Asset<uint32_t[16][2], COMPRESSED> bg3_tiles;
+	Asset<uint32_t[16][2], PLAIN> bg3_tiles;  // smallest bg layer: flash
 	Asset<uint32_t[16][2], COMPRESSED> sprites_16x16;  // 32x32 sprites are 4 of these
 
 	// Cached: hot path reads these per access; data() checks the cache on every call.

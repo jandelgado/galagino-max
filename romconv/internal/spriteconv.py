@@ -158,7 +158,7 @@ def dump_c_source_4bpp(sprites, f):
         sprites_str.append("  { " + dump_sprite_4bpp(s) + " }")
     print(",\n".join(sprites_str), file=f)
 
-def parse_spritemap(id, fmt, infiles, outfile, compress=False):
+def parse_spritemap(id, fmt, infiles, outfile, compress=False, plain=False):
     sprites = []
 
     if fmt == "frogger":
@@ -299,8 +299,12 @@ def parse_spritemap(id, fmt, infiles, outfile, compress=False):
     f=open(outfile, "w")
 
     if fmt == "1942":
-        flat = [v for s in sprites for v in dump_sprite_4bpp_values(s)]
-        emit_compressed(f, id, "uint32_t", "[32]", len(sprites), flat)
+        rows = [dump_sprite_4bpp_values(s) for s in sprites]
+        if plain:
+            body = ",\n".join("  { " + ",".join(hex(v) for v in r) + " }" for r in rows)
+            emit_plain(f, id, "uint32_t", "[32]", len(sprites), body)
+        else:
+            emit_compressed(f, id, "uint32_t", "[32]", len(sprites), [v for r in rows for v in r])
     else:
         # 2bpp, one uint32_t per row. Stored unflipped: the blitters flip
         # at draw time (source/src/emulation/spriteflip.h).
@@ -312,8 +316,13 @@ def parse_spritemap(id, fmt, infiles, outfile, compress=False):
                               for s in sprites)
             emit_plain(f, id, "uint32_t", "[16]", len(sprites), body)
 
+# -c: compress, -p: 1942 format PLAIN (compressed by default)
 args = sys.argv[1:]
 compress = False
+plain = False
+if args and args[0] == "-p":
+    plain = True
+    args.pop(0)
 if args and args[0] == "-c":
     compress = True
     args.pop(0)
@@ -322,5 +331,5 @@ if len(args) < 4:
     print("Invalid arguments")
     exit(-1)
 
-parse_spritemap(args[0], args[1], args[2:-1], args[-1], compress)
+parse_spritemap(args[0], args[1], args[2:-1], args[-1], compress, plain)
 
