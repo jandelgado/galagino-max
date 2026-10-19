@@ -5,9 +5,13 @@
 
 // System 2 board options of the System 1 engine (MAME sega/system1.cpp sys2):
 // bank0c main ROM banking, inverted mute bit on PPI port C. Fake PLAIN ROMs
-// need no romconv headers.
+// need no romconv headers; Choplifter boots from its real ROMs if
+// ./convert.sh choplift ran, else its tests are skipped.
 // Arduino.h / FastLED.h / esp_attr.h here are host stubs.
 #define ENABLE_STARJACK  // system1.cpp guard; needs romconv system1_palette.h
+#if __has_include("../../src/machines/choplift/choplift_main_rom.h")
+#define ENABLE_CHOPLIFT
+#endif
 #include "../../src/machines/system1/system1_collision.cpp"  // before Z80.h: its `word` macro
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
@@ -16,6 +20,9 @@
 #define private public
 #define protected public
 #include "../../src/machines/system1/system1.cpp"
+#ifdef ENABLE_CHOPLIFT
+#include "../../src/machines/choplift/choplift.cpp"
+#endif
 #undef private
 #undef protected
 
@@ -73,6 +80,7 @@ static unsigned char memory[RAMSIZE];
 
 static constexpr uint16_t PPI_B_DATA = 0x15;  // video mode, bank bits
 static constexpr uint16_t PPI_C_DATA = 0x16;  // sound control
+static constexpr uint16_t PORT_P1 = 0x00;  // PORT_SYSTEM: system1.cpp
 
 static void boot(system1::Board board, system1::Bank bank) {
   delete machine;
@@ -150,11 +158,81 @@ static void test_sys1_ppi_never_muted(void) {
   TEST_ASSERT_GREATER_THAN(0, audioPeak());
 }
 
+#ifdef ENABLE_CHOPLIFT
+static void bootChoplift() {
+  delete machine;
+  machine = nullptr;
+  Arena::reserve(&choplift_arena_plan);
+  machine = new choplift();
+  machine->init(&input, frame_buffer, sprite_buf, memory);
+  machine->reset();
+  machine->start();
+  machine->start();
+}
+
+// real ROMs: banked code at 8000-bfff, PPI sound latch, inverted mute
+// (the game writes port C 0x01 for sound on). Its RAM / VRAM test runs
+// from bank 3 until frame ~4150 here (MAME ~2700: the engine steps
+// instructions, not cycles), as Heavy Metal. Coin + start every 10 s as
+// test_system1_boot.
+static void test_choplift_boots(void) {
+  bootChoplift();
+  int peak = 0;
+  for (int frame = 0; frame < 4800; frame++) {
+    keys = frame % 600 >= 300 && frame % 600 < 310 ? BUTTON_COIN : 0;
+    keys |= frame % 600 >= 400 && frame % 600 < 410 ? BUTTON_START : 0;
+    machine->run_frame();
+    for (int c = 0; c < 6; c++) {
+      const int p = audioPeak();
+      peak = p > peak ? p : peak;
+    }
+  }
+  keys = 0;
+
+  int page0 = 0;
+  for (int i = 0; i < system1_video::PAGE_BYTES; i++) {
+    page0 += memory[system1::VIDEO_RAM + i] != 0;
+  }
+  TEST_ASSERT_TRUE(machine->game_started);
+  TEST_ASSERT_GREATER_THAN(0, page0);
+  TEST_ASSERT_GREATER_THAN(0, peak);
+}
+
+// MAME choplift: BUTTON1 (shoot) on P1 bit 2, BUTTON2 (turn) on bit 1;
+// START (and galagino B) turns, START also starts from the SYSTEM port
+static void test_choplift_inputs(void) {
+  bootChoplift();
+  keys = BUTTON_FIRE;
+  TEST_ASSERT_EQUAL_HEX8(0xfb, machine->inZ80(PORT_P1));
+  keys = START_KEY;
+  TEST_ASSERT_EQUAL_HEX8(0xfd, machine->inZ80(PORT_P1));
+  keys = BUTTON_B;
+  TEST_ASSERT_EQUAL_HEX8(0xfd, machine->inZ80(PORT_P1));
+  keys = BUTTON_START;
+  TEST_ASSERT_EQUAL_HEX8(0xef, machine->inZ80(PORT_SYSTEM));
+  keys = 0;
+}
+
+// MAME choplift swaps the DIP banks: port 0x0c ("SWA") holds the game
+// options, ports 0x0d / 0x10 ("SWB") the coinage
+static void test_choplift_dips(void) {
+  bootChoplift();
+  TEST_ASSERT_EQUAL_HEX8(0xdc, machine->inZ80(0x0c));
+  TEST_ASSERT_EQUAL_HEX8(0xff, machine->inZ80(0x0d));
+  TEST_ASSERT_EQUAL_HEX8(0xff, machine->inZ80(0x10));
+}
+#endif
+
 int main(int, char **) {
   Arena::init();
   UNITY_BEGIN();
   RUN_TEST(test_bank0c_select);
   RUN_TEST(test_sys2_mute_inverted);
   RUN_TEST(test_sys1_ppi_never_muted);
+#ifdef ENABLE_CHOPLIFT
+  RUN_TEST(test_choplift_boots);
+  RUN_TEST(test_choplift_inputs);
+  RUN_TEST(test_choplift_dips);
+#endif
   return UNITY_END();
 }
