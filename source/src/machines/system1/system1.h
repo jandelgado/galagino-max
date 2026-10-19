@@ -123,12 +123,12 @@ private:
   static constexpr int SOUND_IRQ_FIRST = 32;       // lines 32, 96, 160, 224
   static constexpr int SOUND_IRQ_PERIOD = 64;
 
+  // bg_page: the window page that is not fg (System 1 page 0, System 2
+  // page 1, all Choplifter bg pages); the fg page is read live
   struct VideoState {
     uint8_t sprite_ram[system1_video::SPRITES * system1_video::SPRITE_BYTES];
     uint8_t bg_page[system1_video::PAGE_BYTES];
-    uint8_t scroll_x_lo;
-    uint8_t scroll_x_hi;
-    uint8_t scroll_y;
+    system1_video::Layers layers;
     uint8_t mode;
   };
 
@@ -150,6 +150,7 @@ private:
   uint8_t ackSoundLatch();
   uint8_t videoMode() const;
   bool muted() const;
+  system1_video::VideoBoard videoBoard() const;
   void selectBank();
   void startVblank();
   void drawSprites(int strip);

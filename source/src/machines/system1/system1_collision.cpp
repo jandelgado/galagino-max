@@ -52,8 +52,9 @@ void collidingBg(uint16_t pairs, uint8_t *bgFor) {
 }
 
 // One tile layer on one line: the tile is looked up once per 8 pixels.
+// pages: left and right page of the line, x 0..511 (fg: x < 256).
 struct LayerRow {
-  const uint8_t *page;
+  const uint8_t *const *pages;
   const TileSet &tiles;
   int row;    // tile row offset in page
   uint8_t y;
@@ -61,14 +62,14 @@ struct LayerRow {
   const uint32_t *gfx = nullptr;
   uint8_t color = 0;
 
-  LayerRow(const uint8_t *p, const TileSet &t, uint8_t y)
-      : page(p), tiles(t), row((y >> 3) * PAGE_COLS), y(y) {}
+  LayerRow(const uint8_t *const *p, const TileSet &t, uint16_t y)
+      : pages(p), tiles(t), row(((y % PAGE_SIZE) >> 3) * PAGE_COLS), y(y) {}
 
   // tile under pixel x, returns its mixer priority
-  inline __attribute__((always_inline)) uint8_t tile(uint8_t x) {
+  inline __attribute__((always_inline)) uint8_t tile(uint16_t x) {
     if ((x >> 3) != col) {
       col = x >> 3;
-      const Tile t = tileAt(page, row + col);
+      const Tile t = tileAt(pages[x / PAGE_SIZE], row + (col & (PAGE_COLS - 1)));
       gfx = tiles[t.code];
       color = t.color;
     }
@@ -76,10 +77,25 @@ struct LayerRow {
   }
 
   // pixel x of the tile selected by tile(x)
-  inline __attribute__((always_inline)) uint8_t pixel(uint8_t x) const {
+  inline __attribute__((always_inline)) uint8_t pixel(uint16_t x) const {
     return tiles.pixel(gfx, x, y);
   }
 };
+
+// pris[p][row] = rowPriorities of bg page p; pages repeat on System 1
+void bgPriorities(const uint8_t *const *pages, uint8_t pris[BG_PAGES][PAGE_ROWS]) {
+  for (int p = 0; p < BG_PAGES; p++) {
+    int same = 0;
+    while (pages[same] != pages[p]) {
+      same++;
+    }
+    if (same < p) {
+      memcpy(pris[p], pris[same], PAGE_ROWS);
+      continue;
+    }
+    rowPriorities(pages[p], pris[p]);
+  }
+}
 
 } // namespace
 
@@ -98,25 +114,35 @@ void Collision::scan(const Frame &f) {
   }
 
   Sprite list[SPRITES];
-  const int count = decodeSprites(f.spriteRam, f.spriteBanks, list);
-  const int scroll = bgScroll(f.vram[SCROLL_X_LO], f.vram[SCROLL_X_HI]);
-  const uint8_t yscroll = f.vram[SCROLL_Y];
+  const int count = decodeSprites(f.spriteRam, f.spriteBanks, list, spriteXOffset(f.board));
+  Layers layers;
+  readLayers(f.vram, f.board, layers);
   const uint16_t pairs = collidingPairs(f.prom);
+
+  const uint8_t *fg = f.vram + fgPageOf(f.board) * PAGE_BYTES;
+  const uint8_t *bgPages[BG_PAGES];
+  for (int p = 0; p < BG_PAGES; p++) {
+    bgPages[p] = f.vram + layers.bgPage[p] * PAGE_BYTES;
+  }
 
   // lines whose fg and bg tile rows hold no colliding priority pair skip
   // the mixer (SWAT: every line)
-  uint8_t fgPris[PAGE_ROWS], bgPris[PAGE_ROWS], bgFor[MIX_PRIORITIES];
-  rowPriorities(f.vram + PAGE_BYTES, fgPris);
-  rowPriorities(f.vram, bgPris);
+  uint8_t fgPris[PAGE_ROWS], bgPris[BG_PAGES][PAGE_ROWS], bgFor[MIX_PRIORITIES];
+  rowPriorities(fg, fgPris);
+  bgPriorities(bgPages, bgPris);
   collidingBg(pairs, bgFor);
 
   for (int y = 0; y < VIS_LINES; y++) {
     drawLine(f, list, count, y);
-    if (bgFor[fgPris[y >> 3]] & bgPris[bgY(y, yscroll) >> 3]) {
-      mixLine(f, y, scroll, yscroll, pairs);
-    } else {
+
+    const uint16_t by = bgMapY(y, layers.scrollY);
+    const int pageRow = (by / PAGE_SIZE) * 2;
+    const int row = (by % PAGE_SIZE) >> 3;
+    if (!(bgFor[fgPris[y >> 3]] & (bgPris[pageRow][row] | bgPris[pageRow + 1][row]))) {
       memset(occupied, 0, sizeof(occupied));
+      continue;
     }
+    mixLine(f, y, &bgPages[pageRow], by, layers.rowScroll[(y >> 3) & (SCROLL_ROWS - 1)], pairs);
   }
 }
 
@@ -180,10 +206,15 @@ __attribute__((flatten)) void Collision::drawLine(const Frame &f, const Sprite *
 }
 
 // Mixer PROM under each opaque sprite pixel; empties the line buffer behind it.
-__attribute__((flatten)) void Collision::mixLine(const Frame &f, int y, int scroll, uint8_t yscroll,
-                                                 uint16_t pairs) {
-  LayerRow fg(f.vram + PAGE_BYTES, f.tiles, y);
-  LayerRow bg(f.vram, f.tiles, bgY(y, yscroll));
+// bgPages: left and right page of the bg line by, with its row's scroll.
+__attribute__((flatten)) void Collision::mixLine(const Frame &f, int y,
+                                                 const uint8_t *const *bgPages, uint16_t by,
+                                                 int scroll, uint16_t pairs) {
+  // fg page twice: LayerRow's left and right page
+  const uint8_t *fgPage = f.vram + fgPageOf(f.board) * PAGE_BYTES;
+  const uint8_t *fgPages[2] = {fgPage, fgPage};
+  LayerRow fg(fgPages, f.tiles, y);
+  LayerRow bg(bgPages, f.tiles, by);
 
   for (int w = 0; w < LINE_WORDS; w++) {
     uint32_t bits = occupied[w];
@@ -194,7 +225,7 @@ __attribute__((flatten)) void Collision::mixLine(const Frame &f, int y, int scro
       bits &= bits - 1;
 
       const uint8_t fx = (uint8_t)(x / 2);
-      const uint8_t bx = bgCol(x, scroll);
+      const uint16_t bx = bgMapX(x, scroll);
       if (!((pairs >> (fg.tile(fx) | (bg.tile(bx) << 2))) & 1)) {
         continue;
       }

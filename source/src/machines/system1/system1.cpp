@@ -286,6 +286,10 @@ bool system1::muted() const {
   return config.board == BOARD_SYS2 && !(ppi.portC() & SOUND_MUTE);
 }
 
+system1_video::VideoBoard system1::videoBoard() const {
+  return config.board == BOARD_SYS2 ? VIDEO_SYSTEM2 : VIDEO_SYSTEM1;
+}
+
 // the chips keep running while muted, only their output is silenced
 void system1::renderAudio(int16_t *out, int n) {
   Sn76489::renderBank(sn, out, n);
@@ -364,17 +368,17 @@ void system1::run_frame(void) {
 // Collision of the frame just shown, latch the video state, main IRQ.
 void system1::startVblank() {
   const uint8_t *vram = &memory[VIDEO_RAM];
+  const VideoBoard board = videoBoard();
 
   const Collision::Frame f = {&memory[SPRITE_RAM], spriteRom, spriteBanks, vram,
-                              tiles, prom, videoMode(), config.vis};
+                              tiles, prom, videoMode(), config.vis, board};
   collision.scan(f);
 
-  vblank.publish([this, vram](VideoState &v) {
+  const uint8_t *bg = vram + (fgPageOf(board) ^ WINDOW_PAGE_MASK) * PAGE_BYTES;
+  vblank.publish([this, vram, bg, board](VideoState &v) {
     memcpy(v.sprite_ram, &memory[SPRITE_RAM], sizeof(v.sprite_ram));
-    memcpy(v.bg_page, vram, sizeof(v.bg_page));
-    v.scroll_x_lo = vram[SCROLL_X_LO];
-    v.scroll_x_hi = vram[SCROLL_X_HI];
-    v.scroll_y = vram[SCROLL_Y];
+    memcpy(v.bg_page, bg, sizeof(v.bg_page));
+    readLayers(vram, board, v.layers);
     v.mode = videoMode();
   });
 
@@ -405,7 +409,7 @@ void system1::prepare_frame(void) {
   }
 
   Sprite list[SPRITES];
-  const int count = decodeSprites(video.sprite_ram, spriteBanks, list);
+  const int count = decodeSprites(video.sprite_ram, spriteBanks, list, spriteXOffset(videoBoard()));
   for (int n = 0; n < count; n++) {
     const Sprite &s = list[n];
     if (s.bottom <= 0 || s.top >= VIS_LINES) {
@@ -481,15 +485,21 @@ void system1::renderRot0(int strip) {
   }
 }
 
+// fg page read live; bg pages showing the other page read the latched copy
 system1_video::LineSrc system1::lineSrc() const {
-  const LineSrc f = {&memory[VIDEO_RAM + PAGE_BYTES],  // fixed layer, read live
-                     video.bg_page,
-                     tiles,
-                     palette,
-                     mixSel,
-                     clearShowsBg,
-                     bgScroll(video.scroll_x_lo, video.scroll_x_hi),
-                     video.scroll_y};
+  const uint8_t fg = fgPageOf(videoBoard());
+  LineSrc f = {&memory[VIDEO_RAM + fg * PAGE_BYTES],
+               {},
+               tiles,
+               palette,
+               mixSel,
+               clearShowsBg,
+               video.layers.rowScroll,
+               video.layers.scrollY};
+  for (int p = 0; p < BG_PAGES; p++) {
+    const uint8_t page = video.layers.bgPage[p];
+    f.bgPages[p] = page == fg ? &memory[VIDEO_RAM + page * PAGE_BYTES] : video.bg_page;
+  }
   return f;
 }
 

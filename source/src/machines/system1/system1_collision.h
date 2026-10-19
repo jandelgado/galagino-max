@@ -20,6 +20,7 @@ public:
     const uint8_t *prom;
     uint8_t videoMode;
     system1_video::Visarea vis;
+    system1_video::VideoBoard board;  // omitted: VIDEO_SYSTEM1
   };
 
   void reset();
@@ -41,7 +42,8 @@ private:
   static constexpr int LINE_WORDS = LINE_UNITS / 32;
 
   void drawLine(const Frame &f, const system1_video::Sprite *list, int count, int y);
-  void mixLine(const Frame &f, int y, int scroll, uint8_t yscroll, uint16_t pairs);
+  void mixLine(const Frame &f, int y, const uint8_t *const *bgPages, uint16_t by, int scroll,
+               uint16_t pairs);
 
   uint8_t mix[MIX_MASK + 1];
   uint8_t spr[SPR_MASK + 1];

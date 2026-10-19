@@ -136,13 +136,19 @@ static uint32_t rnd(void) {
   return s >> 8;
 }
 
+static void fill(int16_t *rows, int scroll) {
+  for (int r = 0; r < SCROLL_ROWS; r++) {
+    rows[r] = scroll;
+  }
+}
+
 // MAME video_update_common for one output line: per pixel fg, bg and
 // sprite pens through the lookup PROM
 static void referenceLine(const LineSrc &f, const uint8_t *prom, int x, uint16_t *out) {
   for (int y = 0; y < VIS_LINES; y++) {
     uint8_t fgColor, bgColor;
     const uint8_t fp = tilePixel(f.fgPage, f.tiles, x, y, fgColor);
-    const uint8_t bp = tilePixel(f.bgPage, f.tiles, bgCol(2 * x, f.scroll),
+    const uint8_t bp = tilePixel(f.bgPages[0], f.tiles, bgCol(2 * x, f.rowScroll[0]),
                                  bgY(y, f.scrollY), bgColor);
     const uint16_t spr = out[y];
     const uint8_t source = prom[mixIndex(spr != 0, fp, fgColor, bp, bgColor)] & MIX_SOURCE;
@@ -187,8 +193,11 @@ static void test_render_line(void) {
     const bool clearShowsBg = buildMixSel(prom, sel);
     TEST_ASSERT_TRUE(clearShowsBg || !(round & 1));
 
-    const LineSrc f = {fgPage, bgPage, {tiles, MAP, 63}, pal, sel, clearShowsBg,
-                       (int)(rnd() % 1024) - 512, (uint8_t)rnd()};
+    // System 1: one bg page, one scroll for all rows
+    int16_t rows[SCROLL_ROWS];
+    fill(rows, (int)(rnd() % 1024) - 512);
+    const LineSrc f = {fgPage, {bgPage, bgPage, bgPage, bgPage}, {tiles, MAP, 63}, pal, sel,
+                       clearShowsBg, rows, (uint8_t)rnd()};
     const int x = rnd() % 256;
     const uint32_t sprTiles = rnd() & rnd() & rnd();
 
@@ -212,7 +221,7 @@ static void referenceRow(const LineSrc &f, const uint8_t *prom, int y, int x0, i
     const int x = x0 + i;
     uint8_t fgColor, bgColor;
     const uint8_t fp = tilePixel(f.fgPage, f.tiles, fgX0 + i, y, fgColor);
-    const uint8_t bp = tilePixel(f.bgPage, f.tiles, bgCol(2 * x, f.scroll),
+    const uint8_t bp = tilePixel(f.bgPages[0], f.tiles, bgCol(2 * x, f.rowScroll[0]),
                                  bgY(y, f.scrollY), bgColor);
     const uint16_t spr = out[i];
     const uint8_t source = prom[mixIndex(spr != 0, fp, fgColor, bp, bgColor)] & MIX_SOURCE;
@@ -254,8 +263,10 @@ static void test_render_row(void) {
       pal[i] = rnd();
     }
     const bool clearShowsBg = buildMixSel(prom, sel);
-    const LineSrc f = {fgPage, bgPage, {tiles, MAP, 63, TILES_BY_ROW}, pal, sel, clearShowsBg,
-                       (int)(rnd() % 1024) - 512, (uint8_t)rnd()};
+    int16_t rows[SCROLL_ROWS];
+    fill(rows, (int)(rnd() % 1024) - 512);
+    const LineSrc f = {fgPage, {bgPage, bgPage, bgPage, bgPage}, {tiles, MAP, 63, TILES_BY_ROW},
+                       pal, sel, clearShowsBg, rows, (uint8_t)rnd()};
     const int y = rnd() % VIS_LINES;
     const bool full = round % 4 == 0;  // HUD rows render all 256 columns
     const int x0 = full ? 0 : rnd() % 17;
