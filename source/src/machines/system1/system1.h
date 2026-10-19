@@ -1,6 +1,7 @@
 #ifndef SYSTEM1_H
 #define SYSTEM1_H
 
+#include <cstddef>
 #include "../machineBase.h"
 #include "../../emulation/sn76489.h"
 #include "../../emulation/seqlock.h"
@@ -21,15 +22,46 @@
 //
 // A game subclass supplies ROMs and DIP switches.
 class system1 : public machineBase {
+protected:
+  // One ROM asset as romconv emitted it: an LZMA blob (unpacked into the
+  // Arena) or a PLAIN flash array (too big for the Arena). Converts from
+  // either blob, so a game's Roms initializer lists blobs as they come.
+  template <typename T> struct RomRef {
+    const FlashAsset<T, COMPRESSED> *packed;
+    const FlashAsset<T, PLAIN> *plain;
+    RomRef(const FlashAsset<T, COMPRESSED> &b) : packed(&b), plain(nullptr) {}
+    RomRef(const FlashAsset<T, PLAIN> &b) : packed(nullptr), plain(&b) {}
+    RomRef(std::nullptr_t = nullptr) : packed(nullptr), plain(nullptr) {}
+  };
+
 private:
+  template <typename T> class RomAsset {
+  public:
+    explicit RomAsset(const RomRef<T> &r)
+        : packed(r.packed ? r.packed->packed : nullptr, r.packed ? r.packed->packedLen : 0,
+                 r.packed ? r.packed->count : 0),
+          plain(r.plain ? r.plain->data : nullptr),
+          count(r.packed ? r.packed->count : (r.plain ? r.plain->count : 0)) {}
+
+    // nullptr for an omitted asset
+    const T *data() const { return plain ? plain : (count ? packed.data() : nullptr); }
+    uint32_t size() const { return count; }
+
+  private:
+    Asset<T, COMPRESSED> packed;
+    const T *plain;
+    uint32_t count;
+  };
+
   // ROM assets, unpacked into the Arena by the ctor (declared first: init order)
-  Asset<uint32_t[8], COMPRESSED> tile_rom;
-  Asset<unsigned short, COMPRESSED> tile_map;
-  Asset<unsigned char, COMPRESSED> main_rom;
-  Asset<unsigned char, COMPRESSED> sprite_rom;
-  Asset<unsigned char, COMPRESSED> sound_rom;
-  Asset<unsigned char, COMPRESSED> lookup_prom;
-  Asset<unsigned char, COMPRESSED> opcode_rom;
+  RomAsset<uint32_t[8]> tile_rom;
+  RomAsset<unsigned short> tile_map;
+  RomAsset<unsigned char> main_rom;
+  RomAsset<unsigned char> sprite_rom;
+  RomAsset<unsigned char> sound_rom;
+  RomAsset<unsigned char> lookup_prom;
+  RomAsset<unsigned char> opcode_rom;
+  RomAsset<unsigned char> bank_rom;
 
 public:
   void reset() override;
@@ -49,16 +81,19 @@ public:
   const int renderBuffer() override { return renderWidth() * 2 * STRIP_LINES; }
 
 protected:
+  // Omitted trailing fields in an initializer: absent
   struct Roms {
-    const FlashAsset<unsigned char, COMPRESSED> &main_cpu;
-    const FlashAsset<unsigned char, COMPRESSED> &sound_cpu;
-    const FlashAsset<uint32_t[8], COMPRESSED> &tiles;
-    const FlashAsset<unsigned short, COMPRESSED> &tileMap;
-    const FlashAsset<unsigned char, COMPRESSED> &sprites;
-    const FlashAsset<unsigned char, COMPRESSED> &lookup;
+    RomRef<unsigned char> main_cpu;
+    RomRef<unsigned char> sound_cpu;
+    RomRef<uint32_t[8]> tiles;
+    RomRef<unsigned short> tileMap;
+    RomRef<unsigned char> sprites;
+    RomRef<unsigned char> lookup;
     // encrypted main CPU: opcode image of 0000-7fff, romconv decrypts
-    // main_cpu as data. Omitted in an initializer: nullptr, unencrypted
-    const FlashAsset<unsigned char, COMPRESSED> *opcodes;
+    // main_cpu as data
+    RomRef<unsigned char> opcodes;
+    RomRef<unsigned char> banks;  // 16 KB banks at 8000-bfff (Config::bank)
+    const uint16_t *palette;      // palette RAM byte -> RGB565, else system1_palette
   };
   // sound latch / video mode chip: 8255 PPI (sys1ppi) or Z80 PIO (sys1pio)
   enum Board : uint8_t { BOARD_PPI, BOARD_PIO };
@@ -67,12 +102,17 @@ protected:
   // line, a 240 px window into the 256 px line (landscape games, upright)
   enum Orientation : uint8_t { ROT270, ROT0 };
 
+  // main ROM banking at 8000-bfff: none, or MAME bank44 (Heavy Metal):
+  // bank = video mode bit 6, bit 2
+  enum Bank : uint8_t { BANK_NONE, BANK_44 };
+
   struct Config {
     system1_video::Visarea vis;
     bool startButton2;  // START presses BUTTON2 (Regulus: bomb)
     Board board;        // omitted in an initializer: BOARD_PPI
     Orientation orientation;  // omitted: ROT270
     system1_video::Window window;  // ROT0 only
+    Bank bank;          // omitted: BANK_NONE
   };
   system1(const Roms &roms, const Config &config);
 
@@ -132,6 +172,7 @@ private:
   bool takeSoundNmi();
   uint8_t ackSoundLatch();
   uint8_t videoMode() const;
+  void selectBank();
   void startVblank();
   void drawSprites(int strip);
   void mixStrip(int strip);
@@ -145,6 +186,9 @@ private:
   const uint8_t *soundRom;
   const uint8_t *prom;
   const uint8_t *opcodes;  // nullptr: M1 fetches read mainRom
+  const uint8_t *banks;    // nullptr: no banked ROM
+  const uint8_t *bank;     // current bank at 8000-bfff
+  const uint16_t *paletteLut;
   uint16_t mainRomSize;
   uint16_t soundRomSize;
   uint8_t spriteBanks;

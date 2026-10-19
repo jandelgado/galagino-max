@@ -12,7 +12,7 @@ def main(games):
     failed = 0
     for game in games:
         try:
-            a, b = conv.arena_blocks(conv.convert(game))
+            a, b = conv.arena_blocks(conv.convert(game), conv.GAMES[game].get("plain", ()))
             print(f"{game}: ok (blocks {a}, {b})")
         except AssertionError as e:
             print(f"{game}: FAIL {e}")

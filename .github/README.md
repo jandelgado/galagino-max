@@ -198,5 +198,6 @@ BOOT_SELFTEST` to `build_flags` in `platformio.ini`.
 | Mister Viking (mrviking.zip)  | ![Mister Viking marquee](/logos/mrviking.png) | ![Mister Viking screenshot](/images/mrviking.png) | Sega System 1. FIRE=throw knife, START=weapon |
 | I'm Sorry (imsorry.zip)       | ![I'm Sorry marquee](/logos/imsorry.png) | ![I'm Sorry screenshot](/images/imsorry.png) | Sega System 1. FIRE=button 1, START=button 2 |
 | Wonder Boy (wboy.zip)         | ![Wonder Boy marquee](/logos/wboy.png) | ![Wonder Boy screenshot](/images/wboy.png) | Sega System 1, unencrypted set wboy2u. FIRE=jump, START=attack |
+| 4-D Warriors (4dwarrio.zip)   | ![4-D Warriors marquee](/logos/fourdwarrio.png) | ![4-D Warriors screenshot](/images/fourdwarrio.png) | Sega System 1. FIRE=button 1, START=button 2 |
 
 ### ...
