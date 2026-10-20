@@ -176,11 +176,38 @@ unsigned char GAME_IRAM mappy::m6809_read_opcode(m6809_state *s, uint16_t addr) 
 // Frame loop: interleave fine main/sub (MAME usa 100 slice/frame) + vblank
 // ============================================================================
 
+// wait loops "LDA flag / BEQ loop" (MAME dasm), most of both CPUs' slices:
+//   main a021 LDA $1382 / BEQ $a021
+//   sub  e052 LDA $010a / BEQ $e052   (shared RAM, written by the main CPU)
+static const uint16_t MAIN_IDLE_PC = 0xA021, MAIN_IDLE_FLAG = 0x1382;
+static const uint16_t SUB_IDLE_PC = 0xE052, SUB_IDLE_FLAG = 0x010A;
+static const uint8_t LDA_EXT_LEN = 3;
+
+// true while the next pass of the wait loop at `loop` loops again: PC on
+// the LDA, or on the BEQ with Z set (A loaded 0), and the flag still 0
+bool mappy::poll_idle(m6809_state &cpu, uint16_t loop, uint8_t lda_len, uint16_t flag) {
+  const bool on_beq = cpu.PC == loop + lda_len && (cpu.CC & M6809_CC_Z);
+  if (cpu.PC != loop && !on_beq) {
+    return false;
+  }
+  return !m6809_read(&cpu, flag);
+}
+
 void mappy::run_frame(void) {
   for (int i = 0; i < MAPPY_SLICES; i++) {
-    m6809_step(&main_cpu, 4);
-    if (!sub_reset)
+    // per slice: the other CPU can set the flag mid-frame
+    const bool main_idle = poll_idle(main_cpu, MAIN_IDLE_PC, LDA_EXT_LEN, MAIN_IDLE_FLAG);
+    const bool sub_idle = sub_reset || poll_idle(sub_cpu, SUB_IDLE_PC, LDA_EXT_LEN, SUB_IDLE_FLAG);
+    if (main_idle && sub_idle) {
+      break;
+    }
+
+    if (!main_idle) {
+      m6809_step(&main_cpu, 4);
+    }
+    if (!sub_idle) {
       m6809_step(&sub_cpu, 4);
+    }
   }
 
   // vblank: CPU IRQ enabled by mainlatch, and the 58XX executes
