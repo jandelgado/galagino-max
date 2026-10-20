@@ -116,7 +116,7 @@ void Collision::scan(const Frame &f) {
   Sprite list[SPRITES];
   const int count = decodeSprites(f.spriteRam, f.spriteBanks, list, spriteXOffset(f.board));
   Layers layers;
-  readLayers(f.vram, f.board, layers);
+  readLayers(f.vram, f.board, f.vramPages ? f.vramPages - 1 : WINDOW_PAGE_MASK, layers);
   const uint16_t pairs = collidingPairs(f.prom);
 
   const uint8_t *fg = f.vram + fgPageOf(f.board) * PAGE_BYTES;

@@ -34,6 +34,8 @@ static uint8_t spriteRom[0x8000];
 static uint8_t lookupProm[256];
 static uint8_t bankRom[4 * 0x4000];
 static uint16_t fakePalette[256];
+static uint8_t opcodeRom[0x8000];
+static uint8_t bankOpcodeRom[4 * 0x4000];
 
 static constexpr FlashAsset<unsigned char, PLAIN> F_MAIN = {mainRom, sizeof(mainRom)};
 static constexpr FlashAsset<unsigned char, PLAIN> F_SOUND = {soundRom, sizeof(soundRom)};
@@ -42,6 +44,9 @@ static constexpr FlashAsset<unsigned short, PLAIN> F_TILE_MAP = {tileMap, 1};
 static constexpr FlashAsset<unsigned char, PLAIN> F_SPRITES = {spriteRom, sizeof(spriteRom)};
 static constexpr FlashAsset<unsigned char, PLAIN> F_LOOKUP = {lookupProm, sizeof(lookupProm)};
 static constexpr FlashAsset<unsigned char, PLAIN> F_BANKS = {bankRom, sizeof(bankRom)};
+static constexpr FlashAsset<unsigned char, PLAIN> F_OPCODES = {opcodeRom, sizeof(opcodeRom)};
+static constexpr FlashAsset<unsigned char, PLAIN> F_BANK_OPCODES = {bankOpcodeRom,
+                                                                     sizeof(bankOpcodeRom)};
 
 class fake : public system1 {
 public:
@@ -52,6 +57,13 @@ public:
   signed char machineType() override { return MCH_MENU; }
 
 protected:
+  fake(Board board, Vram vram)
+      : system1(Roms{F_MAIN, F_SOUND, F_TILES, F_TILE_MAP, F_SPRITES, F_LOOKUP, F_OPCODES, F_BANKS,
+                     fakePalette, F_BANK_OPCODES},
+                Config{system1_video::VISAREA_FULL, true, board, ROT90, {}, BANK_0C,
+                       BUTTONS_GENERIC, vram}) {}
+  friend void bootPaged();
+
   uint8_t dswA() override { return 0xff; }
   uint8_t dswB() override { return 0xff; }
 };
@@ -90,6 +102,15 @@ static void boot(system1::Board board, system1::Bank bank) {
   machine->current_cpu = system1::MAIN_CPU;
 }
 
+// tokisens board: MC-8123 opcodes for all banks, 8 VRAM pages
+void bootPaged() {
+  delete machine;
+  machine = new fake(system1::BOARD_SYS2_FIXED, system1::VRAM_PAGED);
+  machine->init(&input, frame_buffer, sprite_buf, memory);
+  machine->reset();
+  machine->current_cpu = system1::MAIN_CPU;
+}
+
 // peak |sample| of one audio chunk
 static int audioPeak() {
   int16_t out[AUDIO_CHUNK];
@@ -116,6 +137,10 @@ void setUp(void) {
     fakePalette[i] = (uint16_t)(0x1000 + i);
   }
   memset(mainRom, 0x5a, sizeof(mainRom));
+  memset(opcodeRom, 0xa5, sizeof(opcodeRom));
+  for (uint32_t i = 0; i < sizeof(bankOpcodeRom); i++) {
+    bankOpcodeRom[i] = (uint8_t)(0xc0 + i / 0x4000);  // byte = 0xc0 + bank number
+  }
   keys = 0;
 }
 void tearDown(void) {}
@@ -156,6 +181,83 @@ static void test_sys1_ppi_never_muted(void) {
   TEST_ASSERT_GREATER_THAN(0, audioPeak());
   machine->outZ80(PPI_C_DATA, 0x01);
   TEST_ASSERT_GREATER_THAN(0, audioPeak());
+}
+
+// MAME banked_decrypted_opcodes_map: bank1d follows the data bank (bank0c)
+static void test_bank_opcodes_follow_bank(void) {
+  bootPaged();
+  TEST_ASSERT_EQUAL_UINT8(0xa5, machine->opZ80(0x0000));
+  TEST_ASSERT_EQUAL_UINT8(0x5a, machine->rdZ80(0x0000));
+  for (int e = 0; e < 4; e++) {
+    machine->outZ80(PPI_B_DATA, e << 2);
+    TEST_ASSERT_EQUAL_UINT8(0xc0 + e, machine->opZ80(0x8000));
+    TEST_ASSERT_EQUAL_UINT8(0xc0 + e, machine->opPrefixZ80(0xbfff));
+    TEST_ASSERT_EQUAL_UINT8(0xb0 + e, machine->rdZ80(0x8000));
+  }
+}
+
+// MAME videoram_r/w: e000-efff = pages 2n, 2n+1, n = (port C >> 1) % 4
+static void test_paged_vram_window(void) {
+  bootPaged();
+  for (int n = 0; n < 4; n++) {
+    machine->outZ80(PPI_C_DATA, 0x01 | (n << 1));
+    machine->wrZ80(0xe000, 0x10 + n);
+    machine->wrZ80(0xe800, 0x20 + n);
+  }
+  for (int n = 0; n < 4; n++) {
+    TEST_ASSERT_EQUAL_UINT8(0x10 + n, machine->vramPages[(2 * n) * system1_video::PAGE_BYTES]);
+    TEST_ASSERT_EQUAL_UINT8(0x20 + n, machine->vramPages[(2 * n + 1) * system1_video::PAGE_BYTES]);
+    machine->outZ80(PPI_C_DATA, 0x01 | (n << 1));
+    TEST_ASSERT_EQUAL_UINT8(0x10 + n, machine->rdZ80(0xe000));
+  }
+}
+
+// MAME screen_update_system2: bg pages videoram[0x740 + 2p] & 7, one x
+// scroll from 0x7c0 for all rows, y scroll 0x7ba; registers live in page 0
+static void test_paged_layers(void) {
+  bootPaged();
+  machine->outZ80(PPI_C_DATA, 0x01);
+  const uint8_t sel[4] = {0x0d, 0x03, 0x14, 0x05};
+  for (int p = 0; p < 4; p++) {
+    machine->wrZ80(0xe740 + 2 * p, sel[p]);
+  }
+  machine->wrZ80(0xe7c0, 0x34);
+  machine->wrZ80(0xe7c1, 0x01);
+  machine->wrZ80(0xe7c2, 0x99);  // row 1 register: ignored without row scroll
+  machine->wrZ80(0xe7ba, 0x42);
+  machine->outZ80(PPI_C_DATA, 0x03);
+  machine->wrZ80(0xe740, 0x07);  // page 2: not the register page
+
+  machine->startVblank();
+  machine->prepare_frame();
+  const uint8_t want[4] = {5, 3, 4, 5};
+  for (int p = 0; p < 4; p++) {
+    TEST_ASSERT_EQUAL_UINT8(want[p], machine->video.layers.bgPage[p]);
+  }
+  for (int r = 0; r < system1_video::SCROLL_ROWS; r++) {
+    TEST_ASSERT_EQUAL_INT16(0x134 - 512 + 10, machine->video.layers.rowScroll[r]);
+  }
+  TEST_ASSERT_EQUAL_UINT8(0x42, machine->video.layers.scrollY);
+}
+
+// bg pages render from the copy latched at vblank, not live VRAM
+static void test_paged_bg_snapshot(void) {
+  bootPaged();
+  machine->outZ80(PPI_C_DATA, 0x01);
+  for (int p = 0; p < 4; p++) {
+    machine->wrZ80(0xe740 + 2 * p, 3);
+  }
+  machine->outZ80(PPI_C_DATA, 0x03);
+  machine->wrZ80(0xe800, 0x11);  // page 3, first byte
+
+  machine->startVblank();
+  machine->prepare_frame();
+  machine->wrZ80(0xe800, 0x22);
+  const system1_video::LineSrc f = machine->lineSrc();
+  for (int p = 0; p < 4; p++) {
+    TEST_ASSERT_EQUAL_UINT8(0x11, f.bgPages[p][0]);
+  }
+  TEST_ASSERT_EQUAL_PTR(machine->vramPages, f.fgPage);
 }
 
 #ifdef ENABLE_CHOPLIFT
@@ -229,6 +331,10 @@ int main(int, char **) {
   RUN_TEST(test_bank0c_select);
   RUN_TEST(test_sys2_mute_inverted);
   RUN_TEST(test_sys1_ppi_never_muted);
+  RUN_TEST(test_bank_opcodes_follow_bank);
+  RUN_TEST(test_paged_vram_window);
+  RUN_TEST(test_paged_layers);
+  RUN_TEST(test_paged_bg_snapshot);
 #ifdef ENABLE_CHOPLIFT
   RUN_TEST(test_choplift_boots);
   RUN_TEST(test_choplift_inputs);

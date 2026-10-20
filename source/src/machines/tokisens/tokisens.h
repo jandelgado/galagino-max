@@ -18,8 +18,12 @@ public:
   void gameLeds(CRGB *leds) override;
 #endif
 
-  // 8 VRAM pages of 2 KB, banked into e000-efff (system1 VRAM_8_PAGES)
-  static constexpr uint32_t ARENA_EXTRA[] = { 16384 };
+  // system1 VRAM_PAGED: 8 VRAM pages, published and render bg page copies
+  static constexpr uint32_t ARENA_EXTRA[] = { 16384, 8192, 8192 };
+  static_assert(ARENA_EXTRA[0] == PAGED_VRAM_BYTES && ARENA_EXTRA[1] == PAGED_SNAP_BYTES &&
+                    ARENA_EXTRA[2] == PAGED_SNAP_BYTES, "update ARENA_EXTRA");
+  static_assert(arenaExtrasKey(ARENA_EXTRA, sizeof(ARENA_EXTRA) / sizeof(uint32_t), false) ==
+                    tokisens_arena_extras_key, "ARENA_EXTRA changed: rerun romconv");
 
 protected:
   uint8_t dswA() override { return TOKISENS_OPTIONS; }

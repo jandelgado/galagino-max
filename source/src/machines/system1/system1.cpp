@@ -9,7 +9,8 @@
     defined(GAME_FOURDWARRIO) || \
     defined(GAME_HVYMETAL) || \
     defined(GAME_GARDIA) || \
-    defined(GAME_CHOPLIFT)
+    defined(GAME_CHOPLIFT) || \
+    defined(GAME_TOKISENS)
 
 #include "system1.h"
 #include "system1_palette.h"
@@ -25,6 +26,7 @@ constexpr uint16_t BANK_BASE = 0x8000;       // 8000-bfff: banked ROM (Config::b
 constexpr uint32_t BANK_SIZE = 0x4000;
 constexpr uint16_t RAM_BASE = 0xc000;        // c000-efff: work, sprite, palette, video RAM
 constexpr uint16_t PALETTE_BASE = 0xd800;
+constexpr uint16_t VRAM_BASE = 0xe000;       // e000-efff: 2 VRAM pages (window)
 constexpr uint16_t COLLISION_BASE = 0xf000;
 constexpr uint16_t MIX_RESET_BASE = 0xf400;
 constexpr uint16_t SPR_COLLISION_BASE = 0xf800;
@@ -52,6 +54,8 @@ constexpr uint8_t PORT_END = 0x1c;
 // System 2, bit 7 sound NMI. Choplifter only writes 0x00 / 0x01 (MAME
 // probe): the VRAM bank stays 0, e000-efff is always pages 0 and 1.
 constexpr uint8_t SOUND_MUTE = 0x01;
+constexpr uint8_t VRAM_BANK_SHIFT = 1;
+constexpr uint8_t VRAM_BANK_MASK = 0x03;  // MAME (bank >> 1) % (8 pages / 2)
 
 // inputs, active low
 constexpr uint8_t IN_BUTTON2 = 0x02;
@@ -76,7 +80,7 @@ constexpr unsigned int START_KEY = BUTTON_EXTRA;
 system1::system1(const Roms &r, const Config &c)
     : tile_rom(r.tiles), tile_map(r.tileMap), main_rom(r.main_cpu), sprite_rom(r.sprites),
       sound_rom(r.sound_cpu), lookup_prom(r.lookup), opcode_rom(r.opcodes), bank_rom(r.banks),
-      config(c) {
+      bank_opcode_rom(r.bankOpcodes), config(c) {
   // eager: blocks come from romconv (<game>_arena_plan.h), any order fits
   spriteRom = sprite_rom.data();
   tiles.gfx = tile_rom.data();
@@ -87,6 +91,18 @@ system1::system1(const Roms &r, const Config &c)
   opcodes = opcode_rom.data();
   banks = config.bank == BANK_NONE ? nullptr : bank_rom.data();
   bank = nullptr;
+  bankOps = config.bank == BANK_NONE ? nullptr : bank_opcode_rom.data();
+  bankOpcode = nullptr;
+
+  // ARENA_EXTRA of the game, first fit below the reservation
+  vramPages = nullptr;
+  snapPublished = nullptr;
+  snapRender = nullptr;
+  if (config.vram == VRAM_PAGED) {
+    vramPages = Arena::alloc(PAGED_VRAM_BYTES);
+    snapPublished = Arena::alloc(PAGED_SNAP_BYTES);
+    snapRender = Arena::alloc(PAGED_SNAP_BYTES);
+  }
   paletteLut = r.palette ? r.palette : system1_palette;
   tiles.mask = tile_map.size() - 1;  // romconv asserts a power of two
   tiles.layout = config.orientation == ROT0 ? TILES_BY_ROW : TILES_BY_COLUMN;
@@ -113,6 +129,10 @@ void system1::reset() {
   selectBank();
 
   memset(palette, 0, sizeof(palette));
+  if (vramPages) {
+    memset(vramPages, 0, PAGED_VRAM_BYTES);
+    memset(snapPublished, 0, PAGED_SNAP_BYTES);
+  }
   collision.reset();
   activeCount = 0;
   winX = windowTarget(config.window, NO_PLAYER);
@@ -123,6 +143,9 @@ unsigned char system1::opZ80(unsigned short Addr) {
   if (current_cpu == MAIN_CPU) {
     if (opcodes && Addr < OPCODES_END) {
       return opcodes[Addr];
+    }
+    if (bankOpcode && Addr >= BANK_BASE && Addr < ROM_END) {
+      return bankOpcode[Addr - BANK_BASE];
     }
     return Addr < mainRomSize ? mainRom[Addr] : mainRead(Addr);
   }
@@ -148,6 +171,9 @@ uint8_t system1::mainRead(uint16_t a) {
     }
     return bank && a >= BANK_BASE ? bank[a - BANK_BASE] : 0xff;
   }
+  if (vramPages && a >= VRAM_BASE && a < COLLISION_BASE) {
+    return vramWindow()[a - VRAM_BASE];
+  }
   if (a < COLLISION_BASE) {
     return memory[a - RAM_BASE];
   }
@@ -162,6 +188,11 @@ uint8_t system1::mainRead(uint16_t a) {
 
 void system1::mainWrite(uint16_t a, uint8_t v) {
   if (a < ROM_END) {
+    return;
+  }
+
+  if (vramPages && a >= VRAM_BASE && a < COLLISION_BASE) {
+    vramWindow()[a - VRAM_BASE] = v;
     return;
   }
 
@@ -264,7 +295,24 @@ void system1::selectBank() {
   const uint8_t m = videoMode();
   const uint32_t entry = config.bank == BANK_0C ? (m & 0x0c) >> 2
                                                 : ((m & 0x40) >> 5) | ((m & 0x04) >> 2);
-  bank = banks + (entry % (bank_rom.size() / BANK_SIZE)) * BANK_SIZE;
+  const uint32_t offset = (entry % (bank_rom.size() / BANK_SIZE)) * BANK_SIZE;
+  bank = banks + offset;
+  bankOpcode = bankOps ? bankOps + offset : nullptr;
+}
+
+// VRAM_PAGED: page pair at e000-efff, MAME videoram_r/w
+uint8_t *system1::vramWindow() {
+  const uint8_t pair = (ppi.portC() >> VRAM_BANK_SHIFT) & VRAM_BANK_MASK;
+  return vramPages + 2 * pair * PAGE_BYTES;
+}
+
+// page 0 of the VRAM the video reads: all 8 pages, or the window's 2
+const uint8_t *system1::vramBase() const {
+  return vramPages ? vramPages : &memory[VIDEO_RAM];
+}
+
+uint8_t system1::pageMask() const {
+  return vramPages ? SYS2_PAGES - 1 : WINDOW_PAGE_MASK;
 }
 
 // sound latch and video mode live on the PPI or the PIO, by board
@@ -283,11 +331,15 @@ uint8_t system1::videoMode() const {
 // System 2 mutes while port C bit 0 is low (MAME m_mute_xor = 1). System 1
 // boards ignore the bit (MAME mutes on high), as galagino always did.
 bool system1::muted() const {
-  return config.board == BOARD_SYS2 && !(ppi.portC() & SOUND_MUTE);
+  const bool sys2 = config.board == BOARD_SYS2 || config.board == BOARD_SYS2_FIXED;
+  return sys2 && !(ppi.portC() & SOUND_MUTE);
 }
 
 system1_video::VideoBoard system1::videoBoard() const {
-  return config.board == BOARD_SYS2 ? VIDEO_SYSTEM2 : VIDEO_SYSTEM1;
+  if (config.board == BOARD_SYS2) {
+    return VIDEO_SYSTEM2;
+  }
+  return config.board == BOARD_SYS2_FIXED ? VIDEO_SYSTEM2_FIXED : VIDEO_SYSTEM1;
 }
 
 // the chips keep running while muted, only their output is silenced
@@ -366,20 +418,29 @@ void system1::run_frame(void) {
 }
 
 // Collision of the frame just shown, latch the video state, main IRQ.
+// VRAM_PAGED latches the 4 selected bg pages, else the window's bg page.
 void system1::startVblank() {
-  const uint8_t *vram = &memory[VIDEO_RAM];
+  const uint8_t *vram = vramBase();
   const VideoBoard board = videoBoard();
+  const uint8_t mask = pageMask();
 
   const Collision::Frame f = {&memory[SPRITE_RAM], spriteRom, spriteBanks, vram,
-                              tiles, prom, videoMode(), config.vis, board};
+                              tiles, prom, videoMode(), config.vis, board,
+                              (uint8_t)(vramPages ? SYS2_PAGES : 0)};
   collision.scan(f);
 
   const uint8_t *bg = vram + (fgPageOf(board) ^ WINDOW_PAGE_MASK) * PAGE_BYTES;
-  vblank.publish([this, vram, bg, board](VideoState &v) {
+  vblank.publish([this, vram, bg, board, mask](VideoState &v) {
     memcpy(v.sprite_ram, &memory[SPRITE_RAM], sizeof(v.sprite_ram));
-    memcpy(v.bg_page, bg, sizeof(v.bg_page));
-    readLayers(vram, board, v.layers);
+    readLayers(vram, board, mask, v.layers);
     v.mode = videoMode();
+    if (!vramPages) {
+      memcpy(v.bg_page, bg, sizeof(v.bg_page));
+      return;
+    }
+    for (int p = 0; p < BG_PAGES; p++) {
+      memcpy(snapPublished + p * PAGE_BYTES, vram + v.layers.bgPage[p] * PAGE_BYTES, PAGE_BYTES);
+    }
   });
 
   mainIrq = true;
@@ -402,7 +463,15 @@ void system1::irqLines() {
 
 // Visible sprites with their widest row, so strips can skip them cheaply.
 void system1::prepare_frame(void) {
-  vblank.read(video);
+  if (vramPages) {
+    // the bg page copies are part of the published state: same retry loop
+    vblank.visit([this](const VideoState &v) {
+      video = v;
+      memcpy(snapRender, snapPublished, PAGED_SNAP_BYTES);
+    });
+  } else {
+    vblank.read(video);
+  }
   activeCount = 0;
   if (video.mode & VIDEO_BLANK) {
     return;
@@ -485,10 +554,10 @@ void system1::renderRot0(int strip) {
   }
 }
 
-// fg page read live; bg pages showing the other page read the latched copy
+// fg page read live; bg pages showing another page read the latched copy
 system1_video::LineSrc system1::lineSrc() const {
   const uint8_t fg = fgPageOf(videoBoard());
-  LineSrc f = {&memory[VIDEO_RAM + fg * PAGE_BYTES],
+  LineSrc f = {vramBase() + fg * PAGE_BYTES,
                {},
                tiles,
                palette,
@@ -498,6 +567,10 @@ system1_video::LineSrc system1::lineSrc() const {
                video.layers.scrollY};
   for (int p = 0; p < BG_PAGES; p++) {
     const uint8_t page = video.layers.bgPage[p];
+    if (vramPages) {
+      f.bgPages[p] = snapRender + p * PAGE_BYTES;
+      continue;
+    }
     f.bgPages[p] = page == fg ? &memory[VIDEO_RAM + page * PAGE_BYTES] : video.bg_page;
   }
   return f;

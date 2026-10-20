@@ -21,6 +21,7 @@ public:
     uint8_t videoMode;
     system1_video::Visarea vis;
     system1_video::VideoBoard board;  // omitted: VIDEO_SYSTEM1
+    uint8_t vramPages;  // pages at vram, omitted (0): the CPU window, pages 0-1
   };
 
   void reset();
