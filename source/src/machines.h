@@ -282,6 +282,12 @@
     #include "machines/tokisens/tokisens_bundle.h"
   #endif
 #endif
+#ifdef GAME_TAPPER
+  #include "machines/tapper/tapper.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/tapper/tapper_bundle.h"
+  #endif
+#endif
 #ifdef GAME_MEGAZONE
   #include "machines/megazone/megazone.h"
   #ifdef ASSETS_REMOTE
@@ -1546,6 +1552,13 @@ constexpr machineInfo machines[] = {
     tokisens::menuLeds,
 #endif
     MCH_TOKISENS, &tokisens_arena_plan BUNDLE_REF(tokisens_bundle_ref) },
+#endif
+#ifdef GAME_TAPPER
+  { createMachine<tapper>, tapper::logo,
+#ifdef LED_PIN
+    tapper::menuLeds,
+#endif
+    MCH_TAPPER, nullptr BUNDLE_REF(tapper_bundle_ref) },
 #endif
 #ifdef GAME_MEGAZONE
   { createMachine<megazone>, megazone::logo,
