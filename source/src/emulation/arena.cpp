@@ -57,16 +57,16 @@ void Arena::reset() {
 }
 
 void Arena::reserve(const ArenaPlan *plan) {
-  CriticalSection guard;
-  scratchPtr = nullptr;
-  usedA = 0;
-  usedB = 0;
   const uint32_t a = plan ? plan->a : 0;
   const uint32_t b = plan ? plan->b : 0;
   if (a > BLOCK_A_SIZE || b > BLOCK_B_SIZE) {
     printf("fatal: arena reserve %u + %u exceeds blocks\n", (unsigned)a, (unsigned)b);
     abort();
   }
+  CriticalSection guard;
+  scratchPtr = nullptr;
+  usedA = 0;
+  usedB = 0;
   limitA = plannedA = BLOCK_A_SIZE - a;
   limitB = plannedB = BLOCK_B_SIZE - b;
 }
@@ -86,28 +86,34 @@ static uint8_t *bump(uint8_t *block, uint32_t &used, uint32_t end, uint32_t byte
   return block + start;
 }
 
+// printf takes a newlib lock: fatal messages print outside the critical section
 uint8_t *Arena::alloc(uint32_t bytes, uint32_t align, ArenaBlock block) {
-  CriticalSection guard;
-
-  if (block != ARENA_ANY) {
-    uint8_t *p = block == ARENA_A ? bump(blockA, plannedA, BLOCK_A_SIZE, bytes, align)
-                                  : bump(blockB, plannedB, BLOCK_B_SIZE, bytes, align);
-    if (!p) {
-      printf("fatal: arena: block %c reservation exceeded, wanted=%u\n",
-             block == ARENA_A ? 'A' : 'B', (unsigned)bytes);
-      abort();
+  uint8_t *p;
+  {
+    CriticalSection guard;
+    if (block == ARENA_A) {
+      p = bump(blockA, plannedA, BLOCK_A_SIZE, bytes, align);
     }
-    return p;
-  }
-
-  uint8_t *p = bump(blockA, usedA, limitA, bytes, align);
-  if (!p) {
-    p = bump(blockB, usedB, limitB, bytes, align);
+    else if (block == ARENA_B) {
+      p = bump(blockB, plannedB, BLOCK_B_SIZE, bytes, align);
+    }
+    else {
+      p = bump(blockA, usedA, limitA, bytes, align);
+      if (!p) {
+        p = bump(blockB, usedB, limitB, bytes, align);
+      }
+    }
   }
   if (p) {
     return p;
   }
-  printf("fatal: arena out of memory, wanted=%d, left=%d\n", bytes, bytesUsed());
+  if (block != ARENA_ANY) {
+    printf("fatal: arena: block %c reservation exceeded, wanted=%u\n",
+           block == ARENA_A ? 'A' : 'B', (unsigned)bytes);
+  }
+  else {
+    printf("fatal: arena out of memory, wanted=%u, used=%u\n", (unsigned)bytes, (unsigned)bytesUsed());
+  }
   abort();
   return nullptr;
 }
