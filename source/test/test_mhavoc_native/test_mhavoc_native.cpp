@@ -60,12 +60,13 @@ static void boot() {
   machine->start();
 }
 
-// random registers and zero page, the VRAM pointer at $01 inside VRAM,
-// a return address on the stack
+// random registers, zero page and object tables (0800-09ff), the VRAM
+// pointer at $01 inside VRAM, a return address on the stack
 static void randomize(uint16_t entry) {
   m6502_t &c = machine->m_cpu;
   for (int i = 0; i < 0x200; i++) {
     memory[i] = rnd();
+    memory[mhavoc::RAM_HIGH_OFS + i] = rnd();
   }
   for (int i = 0; i < 0x1000; i++) {
     memory[dvgMachine::VRAM_OFS + i] = rnd();
@@ -82,11 +83,13 @@ static void randomize(uint16_t entry) {
   c.pc = entry;
 }
 
-static void check(uint16_t entry, int trials) {
+// x_end: object routines run natively only for X below it
+static void check(uint16_t entry, int trials, uint16_t x_end = 0x100) {
   boot();
   m6502_t &c = machine->m_cpu;
   for (int t = 0; t < trials; t++) {
     randomize(entry);
+    c.x %= x_end;
     const uint16_t ret = 0x8000 + ((rnd() << 8 | rnd()) & 0x7fff);
     memory[0x100 | uint8_t(c.sp + 1)] = (ret - 1) & 0xff;
     memory[0x100 | uint8_t(c.sp + 2)] = (ret - 1) >> 8;
@@ -132,6 +135,12 @@ static void test_vector(void) {
 static void test_vram_advance(void) { check(0x9965, 5000); }
 static void test_shift_right(void) { check(0xc6ec, 5000); }
 static void test_multiply(void) { check(0x949f, 20000); }
+static void test_scale(void) {
+  check(0xb434, 20000, OBJECT_X_END);
+  check(0xb448, 20000);
+}
+static void test_bounds(void) { check(0xb628, 20000, OBJECT_X_END); }
+static void test_draw_object(void) { check(0xb655, 20000, OBJECT_X_END); }
 
 // not run natively with an IRQ due or D set
 static void test_irq_or_decimal_steps(void) {
@@ -145,6 +154,9 @@ static void test_irq_or_decimal_steps(void) {
   c.p |= M6502_FD;
   TEST_ASSERT_EQUAL_UINT32(0, machine->native_alpha());
   randomize(0x9961);
+  TEST_ASSERT_EQUAL_UINT32(0, machine->native_alpha());
+  randomize(0xb655);
+  c.x = OBJECT_X_END;
   TEST_ASSERT_EQUAL_UINT32(0, machine->native_alpha());
 }
 
@@ -176,6 +188,9 @@ int main(int, char **) {
   RUN_TEST(test_vector);
   RUN_TEST(test_shift_right);
   RUN_TEST(test_multiply);
+  RUN_TEST(test_scale);
+  RUN_TEST(test_bounds);
+  RUN_TEST(test_draw_object);
   RUN_TEST(test_irq_or_decimal_steps);
   RUN_TEST(test_trap_pages);
 #endif

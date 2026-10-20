@@ -203,8 +203,8 @@ bool mhavoc::gamma_idle() const {
          ram[GAMMA_CMD_HEAD] == ram[GAMMA_CMD_TAIL];
 }
 
-// Hot alpha leaf routines run natively, ~30% of alpha instructions in
-// gameplay (rev 3 ROM, MAME dasm):
+// Hot alpha routines run natively, about half of the alpha instructions
+// in enemy waves (rev 3 ROM, MAME dasm). Leaves:
 //   9959: lda #$40 / ldx #$80, then 995d
 //   9970: ldy #0 / ora #$70 / tax / tya / jmp 995d
 //   995d: ldy #0 / sta ($01),y / iny / txa / sta ($01),y, then 9965
@@ -217,18 +217,32 @@ bool mhavoc::gamma_idle() const {
 //   c6ec: cmp #$80 / ror a / ror $11 / dey / bpl c6ec / rts
 //     (arithmetic shift right of A:$11, Y + 1 times)
 //   949f: signed 8x8 multiply of A by $11 via the table at 95bc
+//   9056: negates $12:$11
+// Object routines, X = object, tables at 0902-0966:
+//   b434: Y = $0966 - ($0952,x & 3), then b44e; b448: Y = $0966, then
+//     b44e: A:$11 >> Y + 1 (c6ec) into Y:$11, negated (9056) when C was
+//     set on entry; a zero $11 becomes 1
+//   b628: drops the object ($0952,x = 0, $08a5 - 1) when out of range
+//   b655: draws the object: an AVG vector from its position and the
+//     scroll at 0900, then four AVG words
 // Same registers, flags, memory and cycles as the interpreter. A routine
 // runs as one step: the slice may overrun by its length, so a tick and
 // its IRQ can land up to that many cycles later. Returns the cycles taken,
 // 0 when PC is not at one of the routines.
 static const uint16_t MUL_TABLE = 0x95bc;
+static const uint8_t OBJECT_X_END = 0xae; // 0952,x stays in 0800-09ff
 
 uint32_t mhavoc::native_alpha() {
   m6502_t &c = m_cpu;
   const uint16_t pc = c.pc;
   switch (pc) {
     case 0x9959: case 0x995d: case 0x9965: case 0x9970: case 0x9979: case 0x997b: case 0x997d:
-    case 0x9998: case 0xc6ec: case 0x949f:
+    case 0x9998: case 0xc6ec: case 0x949f: case 0xb448:
+      break;
+    case 0xb434: case 0xb628: case 0xb655:
+      if (c.x >= OBJECT_X_END) {
+        return 0;
+      }
       break;
     default:
       return 0;
@@ -237,6 +251,8 @@ uint32_t mhavoc::native_alpha() {
     return 0;
   }
   uint8_t *zp = memory; // alpha 0x0000-0x01ff
+  uint8_t *objects = memory + RAM_HIGH_OFS; // alpha 0x0800-0x09ff
+  const uint16_t OBJECTS = RAM_HIGH;
   const uint8_t NZ = M6502_FN | M6502_FZ, NZC = NZ | M6502_FC, NZCV = NZC | M6502_FV;
   auto nz = [](uint8_t v) -> uint8_t { return (v & M6502_FN) | (v ? 0 : M6502_FZ); };
   // binary adc, D is clear: carry and overflow flags of a + v + carry
@@ -247,6 +263,112 @@ uint32_t mhavoc::native_alpha() {
     return r;
   };
   uint32_t n = 6; // rts
+
+  auto php = [&]() {
+    zp[0x100 | c.sp--] = c.p | M6502_FB | M6502_FU;
+    n += 3;
+  };
+  auto plp = [&]() {
+    c.p = (zp[0x100 | ++c.sp] | M6502_FU) & ~M6502_FB;
+    n += 4;
+  };
+  // jsr at `at` into a native routine and its rts: the return address
+  // stays on the stack below SP
+  auto call = [&](uint16_t at) {
+    const uint16_t ret = at + 2;
+    zp[0x100 | c.sp] = ret >> 8;
+    zp[0x100 | uint8_t(c.sp - 1)] = ret;
+    n += 6 + 6;
+  };
+  auto advance = [&]() { // 9965
+    uint8_t f;
+    const uint8_t r = adc(c.y, zp[1], 1, f);
+    zp[1] = r;
+    c.a = r;
+    c.p = (c.p & ~NZCV) | f | nz(r);
+    n += 2 + 2 + 3 + 3;
+    if (f & M6502_FC) {
+      zp[2]++;
+      c.p = (c.p & ~NZ) | nz(zp[2]);
+      n += 2 + 5;
+    } else {
+      n += 3;
+    }
+  };
+  auto vram_word = [&]() { // 995d
+    const uint16_t ptr = zp[1] | (zp[2] << 8);
+    alpha_write(&c, ptr, c.a);
+    alpha_write(&c, ptr + 1, c.x);
+    c.y = 1;
+    n += 2 + 6 + 2 + 2 + 6;
+    advance();
+  };
+  auto vector = [&]() { // 9998
+    const uint16_t ptr = zp[1] | (zp[2] << 8);
+    alpha_write(&c, ptr, zp[0x29]);
+    alpha_write(&c, ptr + 1, zp[0x2a] & 0x1f);
+    alpha_write(&c, ptr + 2, zp[0x27]);
+    alpha_write(&c, ptr + 3, ((zp[0x28] ^ zp[0]) & 0x1f) ^ zp[0]);
+    c.x = 0x27;
+    c.y = 3;
+    n += 63;
+    advance();
+  };
+  auto shift_right = [&]() { // c6ec
+    uint8_t a = c.a, m = zp[0x11], y = c.y, carry;
+    for (;;) {
+      carry = a >> 7; // cmp #$80
+      const uint8_t na = (a >> 1) | (carry << 7); // ror a
+      carry = a & 1;
+      a = na;
+      const uint8_t nm = (m >> 1) | (carry << 7); // ror $11
+      carry = m & 1;
+      m = nm;
+      y--;
+      if (y & 0x80) {
+        n += 2 + 2 + 5 + 2 + 2;
+        break;
+      }
+      n += 2 + 2 + 5 + 2 + 3;
+    }
+    c.a = a;
+    c.y = y;
+    zp[0x11] = m;
+    c.p = (c.p & ~NZC) | nz(y) | carry;
+  };
+  auto negate = [&]() { // 9056
+    uint8_t f;
+    zp[0x11] = adc(0, zp[0x11] ^ 0xff, 1, f);
+    c.a = zp[0x12] = adc(0, zp[0x12] ^ 0xff, f & M6502_FC, f);
+    c.p = (c.p & ~NZCV) | f | nz(c.a);
+    n += 2 + 2 + 3 + 3 + 2 + 3 + 3;
+  };
+  auto scale = [&]() { // b44e, after php
+    call(0xb44e);
+    shift_right();
+    zp[0x12] = c.a;
+    c.y = c.a;
+    n += 3 + 2 + 3; // sta $12 / tay / lda $11
+    if (zp[0x11]) {
+      n += 3;
+    } else {
+      zp[0x11] = 1;
+      n += 2 + 2 + 3;
+    }
+    c.a = zp[0x11];
+    plp();
+    if (!(c.p & M6502_FC)) {
+      n += 3;
+      return;
+    }
+    call(0xb45f);
+    negate();
+    c.y = c.a;
+    c.a = zp[0x11];
+    c.p = (c.p & ~NZ) | nz(c.a);
+    n += 2 + 2 + 3;
+  };
+
   switch (pc) {
     case 0x9979:
       c.y = 0;
@@ -270,76 +392,29 @@ uint32_t mhavoc::native_alpha() {
       widen(c.x, zp[0x29], zp[0x2a]);
     }
       // fall through
-    case 0x9998: {
-      const uint16_t ptr = zp[1] | (zp[2] << 8);
-      alpha_write(&c, ptr, zp[0x29]);
-      alpha_write(&c, ptr + 1, zp[0x2a] & 0x1f);
-      alpha_write(&c, ptr + 2, zp[0x27]);
-      alpha_write(&c, ptr + 3, ((zp[0x28] ^ zp[0]) & 0x1f) ^ zp[0]);
-      c.x = 0x27;
-      c.y = 3;
-      n += 63;
-      goto advance;
-    }
+    case 0x9998:
+      vector();
+      break;
     case 0x9970:
       c.x = c.a | 0x70;
       c.a = 0;
       n += 2 + 2 + 2 + 2 + 3;
-      goto vram_word;
+      vram_word();
+      break;
     case 0x9959:
       c.a = 0x40;
       c.x = 0x80;
       n += 2 + 2;
       // fall through
     case 0x995d:
-    vram_word: {
-      const uint16_t ptr = zp[1] | (zp[2] << 8);
-      alpha_write(&c, ptr, c.a);
-      alpha_write(&c, ptr + 1, c.x);
-      c.y = 1;
-      n += 2 + 6 + 2 + 2 + 6;
-    }
-      // fall through
+      vram_word();
+      break;
     case 0x9965:
-    advance: {
-      uint8_t f;
-      const uint8_t r = adc(c.y, zp[1], 1, f);
-      zp[1] = r;
-      c.a = r;
-      c.p = (c.p & ~NZCV) | f | nz(r);
-      n += 2 + 2 + 3 + 3;
-      if (f & M6502_FC) {
-        zp[2]++;
-        c.p = (c.p & ~NZ) | nz(zp[2]);
-        n += 2 + 5;
-      } else {
-        n += 3;
-      }
+      advance();
       break;
-    }
-    case 0xc6ec: {
-      uint8_t a = c.a, m = zp[0x11], y = c.y, carry;
-      for (;;) {
-        carry = a >> 7; // cmp #$80
-        const uint8_t na = (a >> 1) | (carry << 7); // ror a
-        carry = a & 1;
-        a = na;
-        const uint8_t nm = (m >> 1) | (carry << 7); // ror $11
-        carry = m & 1;
-        m = nm;
-        y--;
-        if (y & 0x80) {
-          n += 2 + 2 + 5 + 2 + 2;
-          break;
-        }
-        n += 2 + 2 + 5 + 2 + 3;
-      }
-      c.a = a;
-      c.y = y;
-      zp[0x11] = m;
-      c.p = (c.p & ~NZC) | nz(y) | carry;
+    case 0xc6ec:
+      shift_right();
       break;
-    }
     case 0x949f: {
       const uint8_t *table = rom + (MUL_TABLE - ROM);
       const uint8_t a0 = c.a, m = zp[0x11];
@@ -371,6 +446,116 @@ uint32_t mhavoc::native_alpha() {
       c.y = y;
       break;
     }
+    case 0xb434: {
+      // sty $11 / php / pha / lda $0952,x / and #3 / eor #$ff / sec /
+      // adc $0966 / tay / pla / jmp b44e
+      zp[0x11] = c.y;
+      php();
+      zp[0x100 | c.sp] = c.a;
+      uint8_t f;
+      c.y = adc((objects[0x0952 - OBJECTS + c.x] & 3) ^ 0xff, objects[0x0966 - OBJECTS], 1, f);
+      n += 3 + 3 + 4 + 2 + 2 + 2 + 4 + 2 + 4 + 3;
+      scale();
+      break;
+    }
+    case 0xb448:
+      // sty $11 / ldy $0966 / php
+      zp[0x11] = c.y;
+      c.y = objects[0x0966 - OBJECTS];
+      c.p = (c.p & ~NZ) | nz(c.y);
+      n += 3 + 4;
+      php();
+      scale();
+      break;
+    case 0xb628: {
+      // php / bit $0967 / bmi / plp; with bit 7 of $0967 in range while
+      // $0916,x | $093e,x is not zero
+      const uint8_t a = c.a;
+      php();
+      n += 4 + 2 + (objects[0x0967 - OBJECTS] & 0x80 ? 1 : 0);
+      plp();
+      bool drop;
+      if (objects[0x0967 - OBJECTS] & 0x80) {
+        c.a = objects[0x0916 - OBJECTS + c.x] | objects[0x093e - OBJECTS + c.x];
+        c.p = (c.p & ~NZ) | nz(c.a);
+        drop = !c.a;
+        n += 4 + 4 + (drop ? 3 : 2);
+      } else {
+        // A negative: in range from $fa (bcc / jmp), else below 6 (bcs)
+        const uint8_t limit = c.p & M6502_FN ? 0xfa : 0x06;
+        c.p = (c.p & ~NZC) | nz(a - limit) | (a >= limit ? M6502_FC : 0);
+        if (limit == 0xfa) {
+          drop = a < limit;
+          n += 2 + 2 + (drop ? 3 : 2 + 3);
+        } else {
+          drop = a >= limit;
+          n += 3 + 2 + (drop ? 3 : 2);
+        }
+        if (!drop) {
+          c.a = 1;
+          c.p &= ~NZ;
+          n += 2;
+        }
+      }
+      if (drop) {
+        objects[0x08a5 - OBJECTS]--;
+        objects[0x0952 - OBJECTS + c.x] = 0;
+        c.a = 0;
+        c.p = (c.p & ~NZ) | M6502_FZ;
+        n += 6 + 2 + 5;
+      }
+      break;
+    }
+    case 0xb655: {
+      // lda $0902,x / sta $27 / lda $0916,x / sta $28 / lda $092a,x / clc /
+      // adc $0900 / sta $29 / lda $093e,x / pha / adc $0901 / sta $2a
+      const uint8_t x = c.x;
+      zp[0x27] = objects[0x0902 - OBJECTS + x];
+      zp[0x28] = objects[0x0916 - OBJECTS + x];
+      uint8_t f;
+      zp[0x29] = adc(objects[0x092a - OBJECTS + x], objects[0x0900 - OBJECTS], 0, f);
+      const uint8_t dy = objects[0x093e - OBJECTS + x];
+      zp[0x100 | c.sp--] = dy;
+      zp[0x2a] = adc(dy, objects[0x0901 - OBJECTS], f & M6502_FC, f);
+      n += 4 + 3 + 4 + 3 + 4 + 2 + 4 + 3 + 4 + 3 + 4 + 3;
+      call(0xb671); // 9959
+      c.a = 0x40;
+      c.x = 0x80;
+      n += 2 + 2;
+      vram_word();
+      call(0xb678); // lda #$58 / ldx #$73 / jsr 995d
+      c.a = 0x58;
+      c.x = 0x73;
+      n += 2 + 2;
+      vram_word();
+      call(0xb67f); // lda #0 / sta $00 / jsr 9998
+      zp[0] = 0;
+      n += 2 + 3;
+      vector();
+      // pla / bpl + / eor #$ff / + asl a x4 / adc #$47 / ldx #$6a / jsr 995d
+      uint8_t a = zp[0x100 | ++c.sp];
+      n += 4 + (a & 0x80 ? 2 + 2 : 3);
+      if (a & 0x80) {
+        a ^= 0xff;
+      }
+      const uint8_t carry = (a >> 4) & 1; // last asl
+      c.a = adc(uint8_t(a << 4), 0x47, carry, f);
+      c.x = 0x6a;
+      n += 2 + 2 + 2 + 2 + 2 + 2;
+      call(0xb68f);
+      vram_word();
+      call(0xb696); // lda #0 / ldx #$72 / jsr 995d
+      c.a = 0x00;
+      c.x = 0x72;
+      n += 2 + 2;
+      vram_word();
+      // lda #$69 / ldx #$b0 / jmp 995d
+      c.a = 0x69;
+      c.x = 0xb0;
+      n += 2 + 2 + 3;
+      vram_word();
+      break;
+    }
   }
   // rts
   const uint8_t lo = memory[0x100 | uint8_t(c.sp + 1)];
@@ -388,7 +573,7 @@ static constexpr uint32_t page_bit(uint8_t page, uint8_t w) {
 }
 static constexpr uint32_t trap_pages(uint8_t w) {
   return page_bit(0x82, w) | page_bit(0x91, w) | page_bit(0x94, w) | page_bit(0x99, w) |
-         page_bit(0xc6, w);
+         page_bit(0xb4, w) | page_bit(0xb6, w) | page_bit(0xc6, w);
 }
 static DRAM_ATTR const uint32_t TRAP_PAGES[8] = {trap_pages(0), trap_pages(1), trap_pages(2),
                                                  trap_pages(3), trap_pages(4), trap_pages(5),
