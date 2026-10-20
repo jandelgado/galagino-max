@@ -276,6 +276,12 @@
     #include "machines/choplift/choplift_bundle.h"
   #endif
 #endif
+#ifdef GAME_MARIO
+  #include "machines/mario/mario.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/mario/mario_bundle.h"
+  #endif
+#endif
 #ifdef GAME_TOKISENS
   #include "machines/tokisens/tokisens.h"
   #ifdef ASSETS_REMOTE
@@ -1559,6 +1565,13 @@ constexpr machineInfo machines[] = {
     tapper::menuLeds,
 #endif
     MCH_TAPPER, &tapper_arena_plan BUNDLE_REF(tapper_bundle_ref) },
+#endif
+#ifdef GAME_MARIO
+  { createMachine<mario>, mario::logo,
+#ifdef LED_PIN
+    mario::menuLeds,
+#endif
+    MCH_MARIO, nullptr BUNDLE_REF(mario_bundle_ref) },
 #endif
 #ifdef GAME_MEGAZONE
   { createMachine<megazone>, megazone::logo,
