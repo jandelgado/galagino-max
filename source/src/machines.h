@@ -1558,7 +1558,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     tapper::menuLeds,
 #endif
-    MCH_TAPPER, nullptr BUNDLE_REF(tapper_bundle_ref) },
+    MCH_TAPPER, &tapper_arena_plan BUNDLE_REF(tapper_bundle_ref) },
 #endif
 #ifdef GAME_MEGAZONE
   { createMachine<megazone>, megazone::logo,

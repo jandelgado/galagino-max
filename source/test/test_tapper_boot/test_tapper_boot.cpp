@@ -94,6 +94,7 @@ static void boot(void) {
   }
   booted = true;
   Arena::init();
+  Arena::reserve(&tapper_arena_plan);  // like switchTo()
   machine = new tapper();
   machine->init(&input, frame_buffer, sprites, memory);
   machine->reset();

@@ -7,6 +7,7 @@
 #include "../mcr/mcr_ssio.h"
 #include "tapper_dipswitches.h"
 #include "tapper_logo.h"
+#include "tapper_arena_plan.h"
 
 // Tapper (Bally Midway 1983, Budweiser 1/12/84), MAME midway/mcr.cpp:
 // MCR 91490 CPU board (Z80 at 5 MHz, IM 2 interrupts from a Z80 CTC),
@@ -28,10 +29,10 @@ static_assert(TAPPER_MEM_END <= RAMSIZE, "tapper RAM does not fit");
 
 class tapper : public machineBase {
 protected:
-  Asset<unsigned char, COMPRESSED> tapper_rom;
-  Asset<unsigned char, COMPRESSED> tapper_snd_rom;
-  Asset<uint32_t[8], COMPRESSED> tapper_tilemap;
-  Asset<uint32_t[16][2], COMPRESSED> tapper_spritemap;
+  tapper_rom_asset tapper_rom;
+  tapper_snd_rom_asset tapper_snd_rom;
+  tapper_tilemap_asset tapper_tilemap;
+  tapper_spritemap_asset tapper_spritemap;
 
 public:
   tapper();
