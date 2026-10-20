@@ -11,6 +11,7 @@ namespace system1_video {
 
 constexpr int VIS_LINES = 224;
 constexpr int ROW_OF_X0 = 271;   // ROT270: half-res x 0 -> galagino row 271
+constexpr int ROT90_ROW_OF_X0 = 16;  // ROT90: half-res x 0 -> galagino row 16
 constexpr int ROT0_WIDTH = 240;     // ROT0: panel columns, a window into 256
 constexpr int ROT0_FIRST_ROW = 32;  // ROT0: line 0 -> galagino row 32, centered in 288
 constexpr int SPRITES = 32;
@@ -217,11 +218,13 @@ struct Run {
   uint16_t sel;
 };
 
-// bg tile under line pixel y: palette, priority and word aligned to y
-inline __attribute__((always_inline)) const uint16_t *bgTile(const LineSrc &f, uint8_t bx,
-                                                              uint8_t by, uint32_t &bw,
+// bg tile under line pixel y at (bx, by) of the 512 x 512 bg map:
+// palette, priority and word aligned to y
+inline __attribute__((always_inline)) const uint16_t *bgTile(const LineSrc &f, uint16_t bx,
+                                                              uint16_t by, uint32_t &bw,
                                                               int &pri) {
-  const Tile t = tileAt(f.bgPages[0], (by >> 3) * PAGE_COLS + (bx >> 3));
+  const uint8_t *page = f.bgPages[(by / PAGE_SIZE) * 2 + bx / PAGE_SIZE];
+  const Tile t = tileAt(page, ((by % PAGE_SIZE) >> 3) * PAGE_COLS + ((bx % PAGE_SIZE) >> 3));
   bw = f.tiles[t.code][bx & 7] << (3 * (by & 7));
   pri = t.color >> 6;
   return &f.pal[BG_PENS | tilePen(t.color, 0)];
@@ -251,10 +254,11 @@ __attribute__((noinline)) inline void mixRun(uint16_t *out, const uint16_t *pens
 // out through the lookup PROM (MAME video_update_common). sprTiles bit ty
 // marks fg tile rows ty that may hold sprite pens, all others are 0. Pass 1
 // paints bg, pass 2 mixes only the fg tiles with fg or sprite pixels, few in
-// practice. ROT270 games are all System 1: one bg page, one scroll.
+// practice. Column games have one x scroll; the bg map is System 1's page 0
+// four times or System 2's 4 selected pages (tokisens).
 inline void renderLine(const LineSrc &f, int x, uint32_t sprTiles, uint16_t *out) {
   static const uint16_t NO_PENS[TILE_SIZE] = {};
-  const uint8_t bx = bgCol(2 * x, f.rowScroll[0]);
+  const uint16_t bx = bgMapX(2 * x, f.rowScroll[0]);
 
   // pass 1 overwrites the sprite pens: keep the tiles holding them
   uint16_t pens[VIS_LINES];
@@ -264,7 +268,7 @@ inline void renderLine(const LineSrc &f, int x, uint32_t sprTiles, uint16_t *out
     memcpy(&pens[lo], &out[lo], (hi - lo) * sizeof(uint16_t));
   }
 
-  uint8_t by = f.scrollY;
+  uint16_t by = bgMapY(0, f.scrollY);
   for (int y = 0; y < VIS_LINES;) {
     uint32_t bw;
     int pri;
@@ -275,7 +279,7 @@ inline void renderLine(const LineSrc &f, int x, uint32_t sprTiles, uint16_t *out
       out[y + i] = bgPal[(bw >> 21) & 7];
     }
     y += n;
-    by += n;
+    by = (by + n) & BG_MAP_MASK;
   }
 
   for (int ty = 0; ty < VIS_LINES / TILE_SIZE; ty++) {
@@ -293,7 +297,7 @@ inline void renderLine(const LineSrc &f, int x, uint32_t sprTiles, uint16_t *out
     const int fgPri = t.color >> 6;
     const uint16_t *tilePens = sprite ? &pens[y] : NO_PENS;
     for (int i = 0; i < TILE_SIZE;) {
-      const uint8_t by = f.scrollY + y + i;
+      const uint16_t by = bgMapY(y + i, f.scrollY);
       int bgPri;
       r.bgPal = bgTile(f, bx, by, r.bw, bgPri);
       r.sel = f.mixSel[fgPri | (bgPri << 2)];

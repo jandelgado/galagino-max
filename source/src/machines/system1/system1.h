@@ -174,6 +174,8 @@ private:
   void mixStrip(int strip);
   void renderRot0(int strip);
   int playerX() const;
+  int rowOf(int x) const;
+  int xOf(int row) const;
   system1_video::LineSrc lineSrc() const;
 
   system1_video::TileSet tiles;

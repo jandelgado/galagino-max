@@ -300,6 +300,46 @@ static void test_rowscroll_per_8_lines(void) {
   TEST_ASSERT_EQUAL_HEX16(bgPen(256), row4[256 - 38]);  // right page from x 218
 }
 
+// column renderer (renderLine, tokisens): 4 distinct pages, y scroll 0x80
+// moves lines 128.. into the lower page pair, x scroll 200 the line into
+// the right pages. Tile color = 8 * page + tile row, pen 1 + line % 7.
+static void test_column_bg_page_quadrants(void) {
+  static uint8_t fgPage[PAGE_BYTES], bg[BG_PAGES][PAGE_BYTES], prom[256];
+  memset(fgPage, 0, sizeof(fgPage));
+  for (int p = 0; p < BG_PAGES; p++) {
+    for (int row = 0; row < PAGE_COLS; row++) {
+      for (int col = 0; col < PAGE_COLS; col++) {
+        putTile(bg[p], col, row, 8 * p + (row & 7));
+      }
+    }
+  }
+  memset(prom, 2, sizeof(prom));  // bg everywhere
+  uint16_t sel[MIX_PRIORITIES];
+  const bool clearShowsBg = buildMixSel(prom, sel);
+  const uint8_t YSCROLL = 0x80;
+
+  const int16_t scrolls[2] = {0, -400};  // bg x = x, x + 200
+  for (int s = 0; s < 2; s++) {
+    int16_t rows[SCROLL_ROWS];
+    for (int r = 0; r < SCROLL_ROWS; r++) {
+      rows[r] = scrolls[s];
+    }
+    const LineSrc f = {fgPage, {bg[0], bg[1], bg[2], bg[3]}, {twoTiles, MAP, 1, TILES_BY_COLUMN},
+                       identityPal, sel, clearShowsBg, rows, YSCROLL};
+    const int x = 100;
+    uint16_t out[VIS_LINES] = {};
+    renderLine(f, x, 0, out);
+
+    const int bx = (2 * x - scrolls[s]) / 2;
+    for (int y = 0; y < VIS_LINES; y++) {
+      const int by = y + YSCROLL;
+      const int page = (by >> 8) * 2 + (bx >> 8);
+      const int color = 8 * page + ((by & 0xff) >> 3 & 7);
+      TEST_ASSERT_EQUAL_HEX16(BG_PENS | tilePen(color, 1 + (by & 7) % PENS), out[y]);
+    }
+  }
+}
+
 // random 2x2 pages, row scrolls (odd, negative), y scroll, PROM and
 // sprite pens against the per pixel reference
 static void test_bg_pages_random(void) {
@@ -415,6 +455,7 @@ static void test_collision_uses_selected_page(void) {
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_rowscroll_per_8_lines);
+  RUN_TEST(test_column_bg_page_quadrants);
   RUN_TEST(test_bg_pages_random);
   RUN_TEST(test_collision_uses_selected_page);
 #ifdef ENABLE_CHOPLIFT

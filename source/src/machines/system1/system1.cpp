@@ -14,6 +14,7 @@
 
 #include "system1.h"
 #include "system1_palette.h"
+#include <algorithm>
 
 using namespace system1_video;
 
@@ -111,8 +112,10 @@ system1::system1(const Roms &r, const Config &c)
   mainRomSize = main_rom.size();
   soundRomSize = sound_rom.size();
   spriteBanks = sprite_rom.size() / SPRITE_BANK;
-  firstStrip = rowOfX(config.vis.x1) / STRIP_LINES;
-  lastStrip = rowOfX(config.vis.x0) / STRIP_LINES;
+  const int rowA = rowOf(config.vis.x0);
+  const int rowB = rowOf(config.vis.x1);
+  firstStrip = (rowA < rowB ? rowA : rowB) / STRIP_LINES;
+  lastStrip = (rowA < rowB ? rowB : rowA) / STRIP_LINES;
   if (config.orientation == ROT0) {
     firstStrip = ROT0_FIRST_ROW / STRIP_LINES;
     lastStrip = (ROT0_FIRST_ROW + VIS_LINES) / STRIP_LINES - 1;
@@ -576,11 +579,23 @@ system1_video::LineSrc system1::lineSrc() const {
   return f;
 }
 
+// Column games: panel row of native half-res x and back. ROT270 counts
+// rows down from x 0, ROT90 up.
+int system1::rowOf(int x) const {
+  return config.orientation == ROT90 ? x + ROT90_ROW_OF_X0 : rowOfX(x);
+}
+
+int system1::xOf(int row) const {
+  return config.orientation == ROT90 ? row - ROT90_ROW_OF_X0 : xOfRow(row);
+}
+
 // Sprite pens (sprite * 16 + nibble, never 0) into frame_buffer, later wins.
 __attribute__((flatten)) void system1::drawSprites(int strip) {
   const int firstRow = strip * STRIP_LINES;
-  const int xHi = xOfRow(firstRow);
-  const int xLo = xOfRow(firstRow + STRIP_LINES - 1);
+  const int xA = xOf(firstRow);
+  const int xB = xOf(firstRow + STRIP_LINES - 1);
+  const int xHi = xA > xB ? xA : xB;
+  const int xLo = xA > xB ? xB : xA;
   memset(sprTiles, 0, sizeof(sprTiles));
 
   for (int a = 0; a < activeCount; a++) {
@@ -600,7 +615,7 @@ __attribute__((flatten)) void system1::drawSprites(int strip) {
     // tile rows this sprite may touch: mixStrip skips sprite checks elsewhere
     const uint32_t rows = (2u << ((y1 - 1) / TILE_SIZE)) - (1u << (y0 / TILE_SIZE));
     for (int l = 0; l < STRIP_LINES; l++) {
-      const int x = xHi - l;
+      const int x = xOf(firstRow + l);
       if (x >= as.x0 && x < as.x0 + as.width) {
         sprTiles[l] |= rows;
       }
@@ -612,18 +627,23 @@ __attribute__((flatten)) void system1::drawSprites(int strip) {
         if (c == 0 || x < xLo || x > xHi) {
           return;
         }
-        frame_buffer[(rowOfX(x) - firstRow) * VIS_LINES + y] = penBase | c;
+        frame_buffer[(rowOf(x) - firstRow) * VIS_LINES + y] = penBase | c;
       });
     }
   }
 }
 
-// fg + bg tiles and the sprite pens mixed line by line (renderLine)
+// fg + bg tiles and the sprite pens mixed line by line (renderLine), in
+// native line order; ROT90 then mirrors each row: column = 223 - y
 void system1::mixStrip(int strip) {
   const LineSrc f = lineSrc();
 
   for (int l = 0; l < STRIP_LINES; l++) {
-    renderLine(f, xOfRow(strip * STRIP_LINES + l), sprTiles[l], &frame_buffer[l * VIS_LINES]);
+    uint16_t *row = &frame_buffer[l * VIS_LINES];
+    renderLine(f, xOf(strip * STRIP_LINES + l), sprTiles[l], row);
+    if (config.orientation == ROT90) {
+      std::reverse(row, row + VIS_LINES);
+    }
   }
 }
 
