@@ -147,6 +147,37 @@ void mikie::wrZ80(unsigned short Addr, unsigned char Value) {
 // One frame = 256 lines from vblank (line 240): main 6809 ~100 cycles per
 // line, Z80 20 instructions. The vblank IRQ (MAME ASSERT_LINE) stays
 // pending until the game clears Q7.
+// Main CPU idle loop (MAME dasm):
+//   61bc LDX <$14 / LDD ,X / ASLA / BCC $61a6 / BSR $61c7 / BRA $61bc
+//   61c7 TST <$20 / BEQ $61fb;  61fb RTS
+// waits for the task queue slot [<$14] to lose bit 7 while <$20 is 0. Only
+// the vblank IRQ handler changes them, and the IRQ is raised once, before
+// the lines: while PC is on the LDX and both still hold, the rest of the
+// line is spinning, charged in whole passes.
+static const uint16_t IDLE_PC = 0x61BC, IDLE_END = 0x61CB;  // LDX .. after BEQ
+static const uint16_t IDLE_RTS = 0x61FB;
+static const uint8_t IDLE_PTR_DP = 0x14, IDLE_BUSY_DP = 0x20;
+static const uint8_t IDLE_SLOT_EMPTY = 0x80;
+static const int IDLE_PASS_INSTR = 9;
+static const int IDLE_PASS_CYCLES = 39;   // one pass in the core's cycles
+
+bool mikie::in_idle_loop() const {
+  return (main_cpu.PC > IDLE_PC && main_cpu.PC < IDLE_END) || main_cpu.PC == IDLE_RTS;
+}
+
+bool mikie::main_idle() {
+  if (main_cpu.PC != IDLE_PC) {
+    return false;
+  }
+  const uint16_t dp = main_cpu.DP << 8;
+  if (m6809_read(&main_cpu, dp | IDLE_BUSY_DP)) {
+    return false;
+  }
+  const uint16_t ptr = dp | IDLE_PTR_DP;
+  const uint16_t slot = (m6809_read(&main_cpu, ptr) << 8) | m6809_read(&main_cpu, ptr + 1);
+  return m6809_read(&main_cpu, slot) & IDLE_SLOT_EMPTY;
+}
+
 void mikie::run_frame(void) {
   if (irq_mask) { m6809_irq(&main_cpu); }
 
@@ -154,7 +185,12 @@ void mikie::run_frame(void) {
   for (int n = 0; n < MIKIE_LINES; n++) {
     main_debt += MIKIE_CYCLES_LINE;
     while (main_debt > 0) {
-      const int c = m6809_step(&main_cpu, 4);
+      if (main_idle()) {
+        main_debt -= (main_debt + IDLE_PASS_CYCLES - 1) / IDLE_PASS_CYCLES * IDLE_PASS_CYCLES;
+        break;
+      }
+      // single steps inside the loop: a 4 step can't drift onto its LDX
+      const int c = m6809_step(&main_cpu, in_idle_loop() ? 1 : 4);
       main_debt -= (c > 0) ? c : 1;
     }
 

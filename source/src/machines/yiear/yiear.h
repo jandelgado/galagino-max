@@ -69,6 +69,8 @@ private:
 
   void control_w(uint8_t v);
   void publish_video();
+  bool main_idle();
+  bool in_idle_loop() const;
   void vlm_catch_up();
   uint8_t read_io(uint16_t addr);
   void render_line(unsigned short *dst, int line);
