@@ -1,0 +1,10 @@
+tokisens_main_rom.h
+tokisens_sound_rom.h
+tokisens_tiles.h
+tokisens_sprites.h
+tokisens_lookup_prom.h
+tokisens_tile_map.h
+tokisens_banks.h
+tokisens_palette.h
+tokisens_opcodes.h
+tokisens_bank_opcodes.h

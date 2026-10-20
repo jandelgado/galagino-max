@@ -320,9 +320,24 @@ GAMES = {
         "crypt": "mc8123",
         "key": [("317-0040.key", "4fcf457279dac317ccf700591cfaa9a4cff81b4a")],
         "banked": True,
+        # sprites (128K), tiles (4096 x 32 B), the 64K banks and both opcode
+        # images (32K + 64K) stay PLAIN, as in choplift
+        "plain": ["sprites", "banks", "tiles", "opcodes", "bank_opcodes"],
         "main": [("epr-10961.ic90", "65c3730d2255be5e09fda2f8eae1c7f3d245ce9b"),
                  ("epr-10962.ic91", "591b1bd4ab694f45d472bb50483dadb980cd2f86"),
                  ("epr-10963.ic92", "870dbd3558a4c3a47f36d3d3c0c71c647baacf10")],
+        "sound": [("epr-10967.ic126", "b5a3d36afbb3d6e2e2e2c121609a30dc080ccf13")],
+        "tiles": [("epr-10964.ic4", "da6e6244b14c9ad51cee012bf46d591928d13050"),
+                  ("epr-10965.ic5", "b66c2a786a3401021a05740f36103cf8e6129a85"),
+                  ("epr-10966.ic6", "2dc6c4295d0e6f18efd26f8e15e0f31cf0a6820e")],
+        "sprites": [("epr-10958.ic87", "f48aa1b38077d801521afe6cd43f1463a22b9431"),
+                    ("epr-10957.ic86", "9fd6ba8a68b4cb98183e8ac8643656c251f1c72d"),
+                    ("epr-10960.ic89", "2b2dc144807d1d048ffe81bfd33a77ccf618dd3e"),
+                    ("epr-10959.ic88", "12db2a69286f22cd8243be6faa9a075fafec1dfd")],
+        "color": [("pr10956.ic20", "4a38239d89f70291df71976b18be49fb24f071ca"),
+                  ("pr10955.ic14", "ef782fb7012c359ed7ca8f4ab42734c4994e473a"),
+                  ("pr10954.ic8", "8a03cc98c33e4defe880d10a02a5d0108fa0c9da")],
+        "lookup": [("pr-5317.ic28", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
     },
 }
 
@@ -616,8 +631,12 @@ def convert(game):
     zip_path = os.path.join(ROOT, "romszip", spec.get("zip", f"{game}.zip"))
     main_rom, opcodes = decrypt_main(spec, load(zip_path, spec["main"]), zip_path)
     banks = None
+    bank_opcodes = None
     if spec.get("banked"):
         main_rom, banks = main_rom[:BANK_BASE], main_rom[BANK_BASE:]
+    # MC-8123 decrypts the banks too: their opcodes follow the data bank
+    if banks and opcodes and len(opcodes) > BANK_BASE:
+        opcodes, bank_opcodes = opcodes[:BANK_BASE], opcodes[BANK_BASE:]
     sound = load(zip_path, spec["sound"])
     tiles, tile_count = decode_tiles(load(zip_path, spec["tiles"]), spec.get("rot0", False))
     tiles, unique_count, tile_map = dedupe_tiles(tiles)
@@ -639,6 +658,9 @@ def convert(game):
         assets.append(("opcodes", "unsigned char", "", len(opcodes), opcodes, len(opcodes)))
     if banks:
         assets.append(("banks", "unsigned char", "", len(banks), banks, len(banks)))
+    if bank_opcodes:
+        assets.append(("bank_opcodes", "unsigned char", "", len(bank_opcodes), bank_opcodes,
+                       len(bank_opcodes)))
     return assets
 
 
