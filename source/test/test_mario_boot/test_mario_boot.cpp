@@ -124,6 +124,15 @@ static void test_reset_clears_cycle_budget(void) {
   TEST_ASSERT_EQUAL_INT(0, machine->cpu[0].ICount);
 }
 
+// MAME mario_sh3_w: the death line follows data != 0, not bit 0
+static void test_death_irq_any_nonzero(void) {
+  boot();
+  machine->wrZ80(0x7f00, 0x02);
+  TEST_ASSERT_EQUAL_INT(0, machine->snd.notINT);
+  machine->wrZ80(0x7f00, 0x00);
+  TEST_ASSERT_EQUAL_INT(1, machine->snd.notINT);
+}
+
 static void test_coin_start_walk(void) {
   boot();
   audio_min = audio_max = 0;
@@ -151,6 +160,7 @@ int main(int, char **) {
   RUN_TEST(test_coin_start_walk);
   RUN_TEST(test_idle_loop_skipped);
   RUN_TEST(test_reset_clears_cycle_budget);
+  RUN_TEST(test_death_irq_any_nonzero);
 #endif
   return UNITY_END();
 }

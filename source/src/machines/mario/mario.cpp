@@ -160,7 +160,7 @@ void mario::writeSound(uint8_t bit, uint8_t value) {
   const uint8_t on = value & 1;
   switch (bit) {
     case SOUND_IRQ:
-      snd.notINT = !on;
+      snd.notINT = !value;  // any nonzero value, MAME mario_sh3_w
       break;
     case SOUND_T0:
       snd.T0 = on;
