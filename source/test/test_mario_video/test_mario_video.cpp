@@ -14,6 +14,7 @@
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
 #include "../../src/cpus/z80/Z80.c"
+#include "../../src/cpus/i8048/i8048.c"
 #define MARIO_Z80_TABLES_INCLUDED
 #define private public
 #include "../../src/machines/mario/mario.cpp"
@@ -66,6 +67,11 @@ void PatchZ80(Z80 *) {}
 word LoopZ80(Z80 *) { return INT_NONE; }
 }
 void Reset6502(M6502 *) {}
+void i8048_port_write(i8048_state_S *, unsigned char, unsigned char) {}
+unsigned char i8048_port_read(i8048_state_S *, unsigned char) { return 0; }
+unsigned char i8048_rom_read(i8048_state_S *, unsigned short) { return 0; }
+unsigned char i8048_xdm_read(i8048_state_S *, unsigned char) { return 0; }
+void i8048_xdm_write(i8048_state_S *, unsigned char, unsigned char) {}
 
 // zlib crc32, as the fixture generator
 static uint32_t crc32(const uint8_t *p, size_t n) {

@@ -3,8 +3,13 @@
 #include "mario_tiles.h"
 #include "mario_sprites.h"
 #include "mario_palette.h"
+#include "mario_rom_sound.h"
+#include "mario_sample_walk0.h"
+#include "mario_sample_walk1.h"
+#include "mario_sample_skid.h"
 #include "mario_logo.h"
 #include "../../emulation/spriteflip.h"
+#include "../../emulation/audio_mix.h"
 
 // Z80 opcode cycle table (static in Tables.h). A host test including
 // Z80.c already has it in the same translation unit.
@@ -16,11 +21,19 @@ mario::mario()
   : mario_rom_main(mario_rom_main_blob),
     mario_tiles(mario_tiles_blob),
     mario_sprites(mario_sprites_blob),
-    mario_palette(mario_palette_blob) {
+    mario_palette(mario_palette_blob),
+    mario_rom_sound(mario_rom_sound_blob),
+    mario_samples{ {mario_sample_walk0_blob}, {mario_sample_walk1_blob}, {mario_sample_skid_blob} } {
   rom = mario_rom_main.data();
   tiles = mario_tiles.data();
   sprite_gfx = mario_sprites.data();
   palette = mario_palette.data();
+  sound_rom = mario_rom_sound.data();
+
+  // triggered by the emulated CPU: unpack now, not mid-frame
+  for (const auto &sample : mario_samples) {
+    sample.data();
+  }
 }
 
 const Logo &mario::logo(void) {
@@ -33,6 +46,17 @@ void mario::reset() {
   scroll = 0;
   tune = 0;
   pan = 0;
+
+  // MAME sound_reset: latches cleared, P1 0, P2 high impedance
+  i8048_reset(&snd);
+  snd.T0 = 0;
+  snd.T1 = 0;
+  p1 = 0;
+  p2 = 0xff;
+  dac = 0;
+  skid = 0;
+  sound_due = 0;
+  sound_frac = 0;
 }
 
 unsigned char mario::opZ80(unsigned short Addr) {
@@ -100,6 +124,16 @@ void mario::wrZ80(unsigned short Addr, unsigned char Value) {
     memory[Addr - RAM_BASE] = Value;
     return;
   }
+  if (Addr == WALK_MARIO_ADDR || Addr == WALK_LUIGI_ADDR) {
+    if (Value == WALK_START) {
+      playSample(Addr == WALK_MARIO_ADDR ? 0 : 1);
+    }
+    return;
+  }
+  if ((Addr & ~7) == SOUND_ADDR) {
+    writeSound(Addr & 7, Value);
+    return;
+  }
   if (Addr == SCROLL_ADDR) {
     scroll = Value;
     return;
@@ -110,6 +144,98 @@ void mario::wrZ80(unsigned short Addr, unsigned char Value) {
   }
   if ((Addr & ~7) == LATCH_ADDR) {
     writeLatch(Addr & 7, Value);
+  }
+}
+
+void mario::playSample(uint8_t i) {
+  static const uint32_t counts[] = {
+    mario_sample_walk0_samples, mario_sample_walk1_samples, mario_sample_skid_samples
+  };
+  voices[i].start(mario_samples[i].data(), counts[i]);
+}
+
+// 7f00-7f07: sound board inputs (MAME mario_sh3_w)
+void mario::writeSound(uint8_t bit, uint8_t value) {
+  const uint8_t on = value & 1;
+  switch (bit) {
+    case SOUND_IRQ:
+      snd.notINT = !on;
+      break;
+    case SOUND_T0:
+      snd.T0 = on;
+      break;
+    case SOUND_T1:
+      snd.T1 = on;
+      break;
+    case SOUND_SKID:
+      if (on && !skid) {
+        playSample(2);
+      }
+      skid = on;
+      break;
+    default: {
+      const uint8_t mask = 1 << (bit - SOUND_P1_BIT0);
+      p1 = on ? (p1 | mask) : (p1 & ~mask);
+      break;
+    }
+  }
+}
+
+void mario::wrI8048_port(struct i8048_state_S *state, unsigned char port, unsigned char pos) {
+  if (port == 1) {
+    p1 = pos;
+  } else if (port == 2) {
+    p2 = pos;
+  }
+}
+
+unsigned char mario::rdI8048_port(struct i8048_state_S *state, unsigned char port) {
+  if (port == 1) {
+    return p1;
+  }
+  if (port == 2) {
+    return p2 & ~P2_GROUNDED;
+  }
+  return 0;
+}
+
+unsigned char mario::rdI8048_xdm(struct i8048_state_S *state, unsigned char addr) {
+  if (p2 & P2_TUNE) {
+    return tune;
+  }
+  return sound_rom[((p2 & 7) << 8) | addr];
+}
+
+void mario::wrI8048_xdm(struct i8048_state_S *state, unsigned char addr, unsigned char data) {
+  dac = data;
+}
+
+// 000-7ff: ROM, or with P2 bit 5 set MAME's bootstrap stub over the
+// unused internal ROM (SEL MB1, JMP 000 -> 800); 800-fff: ROM
+unsigned char mario::rdI8048_rom(struct i8048_state_S *state, unsigned short addr) {
+  static const uint8_t STUB[] = { 0xf5, 0x04, 0x00 };
+  addr &= 0xfff;
+  if (addr < SOUND_BANK && (p2 & P2_INTERNAL)) {
+    return addr < sizeof(STUB) ? STUB[addr] : 0x00;
+  }
+  return sound_rom[addr];
+}
+
+// 8035 until each of `samples` DAC samples is due, pushing them
+void mario::runSound(uint16_t samples) {
+  for (uint16_t n = 0; n < samples; n++) {
+    sound_frac += SOUND_CYCLES_SAMPLE_Q16;
+    sound_due += sound_frac >> 16;
+    sound_frac &= 0xffff;
+    while ((int32_t)(snd.cycles - sound_due) < 0) {
+      i8048_step(&snd);
+    }
+
+    const uint16_t next = (dac_wr + 1) & (DAC_RING - 1);
+    if (next != dac_rd) {
+      dac_ring[dac_wr] = dac;
+      dac_wr = next;
+    }
   }
 }
 
@@ -128,6 +254,7 @@ void mario::run_frame(void) {
   current_cpu = 0;
   for (uint8_t i = 0; i < SLICES; i++) {
     runZ80(Z80_CYCLES_FRAME / SLICES);
+    runSound(SAMPLES_FRAME / SLICES);
   }
 
   vblank.publish([this](VideoState &v) {
@@ -268,6 +395,28 @@ void mario::render_row(short row) {
     for (uint16_t c = 0; c < mario_video::OUT_WIDTH; c++) {
       out[c] = palette[pens[l][nativeX(c, pan)]];
     }
+  }
+}
+
+// DAC ring (AC coupled like the board's output stage) plus the walk and
+// skid voices, louder than the DAC as on the board (MAME netlist mix)
+void mario::renderAudio(int16_t *out, int n) {
+  for (int i = 0; i < n; i++) {
+    if (dac_rd != dac_wr) {
+      dac_last = dac_ring[dac_rd];
+      dac_rd = (dac_rd + 1) & (DAC_RING - 1);
+    }
+
+    // one pole DC blocker, pole 255/256
+    const int32_t in = (dac_last - 128) << 8;
+    dc_out = in - dc_in + dc_out - (dc_out >> 8);
+    dc_in = in;
+
+    int32_t v = (dc_out >> 8) * 3 / 2;
+    for (auto &voice : voices) {
+      v += voice.next() * 4;
+    }
+    out[i] = audioClamp(v, AUDIO_MAX);
   }
 }
 
