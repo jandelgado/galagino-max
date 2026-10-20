@@ -111,7 +111,7 @@ void megazone::start() {
 // ---- Main KONAMI-1 ----
 
 // KONAMI-1: opcodes XORed by address bits 1 and 3 (circusc, rocnrope)
-unsigned char IRAM_ATTR megazone::m6809_read_opcode(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM megazone::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   if (addr >= MAIN_ROM_BASE) {
     const uint8_t mask = ((addr & 0x02) ? 0x80 : 0x20) | ((addr & 0x08) ? 0x08 : 0x02);
     return main_rom[addr - MAIN_ROM_BASE] ^ mask;
@@ -119,7 +119,7 @@ unsigned char IRAM_ATTR megazone::m6809_read_opcode(m6809_state *s, uint16_t add
   return m6809_read(s, addr);
 }
 
-unsigned char IRAM_ATTR megazone::m6809_read(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM megazone::m6809_read(m6809_state *s, uint16_t addr) {
   if (addr >= MAIN_ROM_BASE) {
     return main_rom[addr - MAIN_ROM_BASE];
   }
@@ -129,7 +129,7 @@ unsigned char IRAM_ATTR megazone::m6809_read(m6809_state *s, uint16_t addr) {
   return 0;   // write-only registers, debug ROM socket 4000-5fff
 }
 
-void IRAM_ATTR megazone::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
+void GAME_IRAM megazone::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if (addr >= 0x2000 && addr < 0x4000) {
     memory[addr - 0x2000] = val;
     return;
@@ -362,7 +362,7 @@ void megazone::prepare_frame(void) {
 // one native column X (= panel line) of a tilemap with stride tiles per
 // row: tile column tx, pixel column nx in the tile, native Y shifted by sy
 // (scroll), 8 rows per tile
-void IRAM_ATTR megazone::drawTileColumn(const uint8_t *vram, const uint8_t *cram, uint8_t stride,
+void GAME_IRAM megazone::drawTileColumn(const uint8_t *vram, const uint8_t *cram, uint8_t stride,
                                         uint8_t tx, uint8_t nx, uint8_t sy, uint16_t *dst) {
   int y = VIS_TOP;
   while (y < VIS_END) {
@@ -387,7 +387,7 @@ void IRAM_ATTR megazone::drawTileColumn(const uint8_t *vram, const uint8_t *cram
 }
 
 // strip row = native X 8*row..8*row+7, one panel line each
-void IRAM_ATTR megazone::render_row(short row) {
+void GAME_IRAM megazone::render_row(short row) {
   if (row < 0 || row >= NATIVE_W / 8 || !game_started) {
     return;
   }
@@ -411,7 +411,7 @@ void IRAM_ATTR megazone::render_row(short row) {
 
 // MAME draw_sprites: native box [sx, sx+16) x [sy, sy+16), no wrap, pens
 // with lookup color 0 transparent
-void IRAM_ATTR megazone::drawSprite(short row, const uint8_t *s) {
+void GAME_IRAM megazone::drawSprite(short row, const uint8_t *s) {
   const int sx = s[3] + 32;
   const int sy = 255 - ((s[1] + 16) & 0xff);
   const int x_lo = 8 * row, x_hi = x_lo + 7;

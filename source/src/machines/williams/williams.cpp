@@ -44,7 +44,7 @@ void williams::prepare_frame() {
   }
 }
 
-void IRAM_ATTR williams::render_row(short row) {
+void GAME_IRAM williams::render_row(short row) {
   if (upright) {
     renderUpright(row);
     return;
@@ -73,7 +73,7 @@ void IRAM_ATTR williams::render_row(short row) {
 }
 
 // panel column c = scanout row c, pens per row band
-void IRAM_ATTR williams::renderUpright(short row) {
+void GAME_IRAM williams::renderUpright(short row) {
   const uint8_t *frame = board.scanout().frame(shown);
   for (int dy = 0; dy < 8; dy++) {
     uint16_t *dst = frame_buffer + dy * ColumnMap::OUT_MAX;
@@ -108,14 +108,14 @@ void williams::renderAudio(int16_t *out, int n) {
   }
 }
 
-unsigned char IRAM_ATTR williams::m6809_read(m6809_state *, uint16_t addr) {
+unsigned char GAME_IRAM williams::m6809_read(m6809_state *, uint16_t addr) {
   return board.read(addr);
 }
 
-unsigned char IRAM_ATTR williams::m6809_read_opcode(m6809_state *, uint16_t addr) {
+unsigned char GAME_IRAM williams::m6809_read_opcode(m6809_state *, uint16_t addr) {
   return board.read(addr);
 }
 
-void IRAM_ATTR williams::m6809_write(m6809_state *, uint16_t addr, uint8_t val) {
+void GAME_IRAM williams::m6809_write(m6809_state *, uint16_t addr, uint8_t val) {
   board.write(addr, val);
 }

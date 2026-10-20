@@ -92,7 +92,7 @@ void trackfld::reset() {
 // ── main 6809 ──
 
 // KONAMI-1: opcode XOR by address bits 1 and 3, ROM fetches only
-unsigned char IRAM_ATTR trackfld::m6809_read_opcode(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM trackfld::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   if (addr >= ROM_BASE) {
     const uint8_t mask = ((addr & 0x02) ? 0x80 : 0x20) | ((addr & 0x08) ? 0x08 : 0x02);
     return main_rom[addr - ROM_BASE] ^ mask;
@@ -100,7 +100,7 @@ unsigned char IRAM_ATTR trackfld::m6809_read_opcode(m6809_state *s, uint16_t add
   return m6809_read(s, addr);
 }
 
-unsigned char IRAM_ATTR trackfld::m6809_read(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM trackfld::m6809_read(m6809_state *s, uint16_t addr) {
   if (addr >= ROM_BASE) {
     return main_rom[addr - ROM_BASE];
   }
@@ -143,7 +143,7 @@ uint8_t trackfld::read_io(uint16_t addr) {
   }
 }
 
-void IRAM_ATTR trackfld::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
+void GAME_IRAM trackfld::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if (addr >= 0x3000 && addr < 0x4000) {
     memory[TF_MEM_VRAM + (addr - 0x3000)] = val;
     return;

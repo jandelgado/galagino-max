@@ -127,7 +127,7 @@ void digdug2::mainlatch_w(uint16_t addr) {
 // M6809 bus, dispatched by CPU state pointer (main vs sub)
 // ============================================================================
 
-unsigned char IRAM_ATTR digdug2::m6809_read(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM digdug2::m6809_read(m6809_state *s, uint16_t addr) {
   if (s == &sub_cpu) {
     // sub: 0x0000-0x03FF shared RAM (0x00-0x3F = WSG registers)
     if (addr < 0x0400) {
@@ -159,7 +159,7 @@ unsigned char IRAM_ATTR digdug2::m6809_read(m6809_state *s, uint16_t addr) {
   return 0xFF;
 }
 
-void IRAM_ATTR digdug2::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
+void GAME_IRAM digdug2::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if (s == &sub_cpu) {
     if (addr < 0x0400) {
       if (addr < 0x40) {
@@ -212,7 +212,7 @@ void IRAM_ATTR digdug2::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) 
   // 0x8000 = watchdog: unused by digdug2 (MAME nops it)
 }
 
-unsigned char IRAM_ATTR digdug2::m6809_read_opcode(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM digdug2::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   if (s == &sub_cpu) {
     if (addr >= 0xE000) {
       return rom_sub[addr - 0xE000];

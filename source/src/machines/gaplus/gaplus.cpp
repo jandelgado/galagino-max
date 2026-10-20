@@ -100,7 +100,7 @@ unsigned char gaplus::customio3_r(unsigned char offset) {
 // LS259 dati come mappy/circusc): vedi project_gaplus.md per i range esatti.
 // ============================================================================
 
-unsigned char IRAM_ATTR gaplus::m6809_read(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM gaplus::m6809_read(m6809_state *s, uint16_t addr) {
   if (s == &sub_cpu) {
     if (addr < 0x2000) return memory[addr];        // videoram+spriteram condivisa
     if (addr >= 0xA000) return rom_sub[addr - 0xA000];
@@ -132,7 +132,7 @@ unsigned char IRAM_ATTR gaplus::m6809_read(m6809_state *s, uint16_t addr) {
   return 0xFF;
 }
 
-void IRAM_ATTR gaplus::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
+void GAME_IRAM gaplus::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if (s == &sub_cpu) {
     if (addr < 0x2000) { memory[addr] = val; return; }
     if ((addr & 0xF000) == 0x6000) {                // irq_2_ctrl_w: bit0 indirizzo
@@ -213,7 +213,7 @@ void IRAM_ATTR gaplus::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   // addr >= 0xA000 (fuori dai range sopra): ROM, ignorato
 }
 
-unsigned char IRAM_ATTR gaplus::m6809_read_opcode(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM gaplus::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   if (s == &sub_cpu) {
     if (addr >= 0xA000) return rom_sub[addr - 0xA000];
   } else if (s == &sub2_cpu) {

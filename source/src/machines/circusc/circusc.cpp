@@ -49,7 +49,7 @@ void circusc::start() {
 // rocnrope: mask = (a&0x02 ? 0x80:0x20) | (a&0x08 ? 0x08:0x02), solo
 // per fetch dalla ROM >= 0x6000).
 // ============================================================
-unsigned char IRAM_ATTR circusc::m6809_read_opcode(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM circusc::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   if (addr >= 0x6000) {
     uint8_t xormask = ((addr & 0x02) ? 0x80 : 0x20) | ((addr & 0x08) ? 0x08 : 0x02);
     return main_rom_ptr[addr - 0x6000] ^ xormask;
@@ -57,7 +57,7 @@ unsigned char IRAM_ATTR circusc::m6809_read_opcode(m6809_state *s, uint16_t addr
   return m6809_read(s, addr);
 }
 
-unsigned char IRAM_ATTR circusc::m6809_read(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM circusc::m6809_read(m6809_state *s, uint16_t addr) {
   if (addr >= 0x6000)
     return main_rom_ptr[addr - 0x6000];
 
@@ -95,7 +95,7 @@ unsigned char IRAM_ATTR circusc::m6809_read(m6809_state *s, uint16_t addr) {
   return 0xFF;
 }
 
-void IRAM_ATTR circusc::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
+void GAME_IRAM circusc::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if ((addr & 0xE000) == 0x2000) {        // RAM 0x2000-0x3FFF
     memory[addr - 0x2000] = val;
     return;

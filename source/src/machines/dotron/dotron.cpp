@@ -106,14 +106,14 @@ void dotron::reset() {
 
 // ── main Z80 ──
 
-unsigned char IRAM_ATTR dotron::opZ80(unsigned short Addr) {
+unsigned char GAME_IRAM dotron::opZ80(unsigned short Addr) {
   if (current_cpu == 0 && Addr < ROM_END) {
     return main_rom[Addr];
   }
   return rdZ80(Addr);
 }
 
-unsigned char IRAM_ATTR dotron::rdZ80(unsigned short Addr) {
+unsigned char GAME_IRAM dotron::rdZ80(unsigned short Addr) {
   if (current_cpu == 1) {
     return ssio.rd(Addr);
   }
@@ -132,7 +132,7 @@ unsigned char IRAM_ATTR dotron::rdZ80(unsigned short Addr) {
   return 0xff;  // ec00-efff unmapped, palette write only
 }
 
-void IRAM_ATTR dotron::wrZ80(unsigned short Addr, unsigned char Value) {
+void GAME_IRAM dotron::wrZ80(unsigned short Addr, unsigned char Value) {
   if (current_cpu == 1) {
     ssio.wr(Addr, Value);
     return;

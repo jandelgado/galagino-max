@@ -47,11 +47,11 @@ void mikie::start() {
 
 // ---- Main 6809 ----
 
-unsigned char IRAM_ATTR mikie::m6809_read_opcode(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM mikie::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   return m6809_read(s, addr);
 }
 
-unsigned char IRAM_ATTR mikie::m6809_read(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM mikie::m6809_read(m6809_state *s, uint16_t addr) {
   if (addr >= MAIN_ROM_BASE) {
     return main_rom[addr - MAIN_ROM_BASE];
   }
@@ -112,7 +112,7 @@ void mikie::write_latch(uint8_t bit, uint8_t val) {
   }
 }
 
-void IRAM_ATTR mikie::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
+void GAME_IRAM mikie::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if (addr < 0x0100) { memory[MIKIE_ZP + addr] = val; return; }
   if (addr >= 0x2800 && addr < 0x3800) { memory[MIKIE_RAM + (addr - 0x2800)] = val; return; }
   if (addr >= 0x3800 && addr < 0x4000) { memory[MIKIE_CRAM + (addr - 0x3800)] = val; return; }
@@ -201,7 +201,7 @@ void mikie::prepare_frame(void) {
 
 // Strip row 2..33 = display lines 8*(row-2)..+7 = native X 255-line, all
 // inside one tile column. Column c = native Y c + 16.
-void IRAM_ATTR mikie::render_row(short row) {
+void GAME_IRAM mikie::render_row(short row) {
   if (row < 2 || row >= 34 || !game_started) { return; }   // frame_buffer arrives cleared
 
   const uint8_t tx = (255 - 8 * (row - 2)) >> 3;
@@ -233,7 +233,7 @@ void IRAM_ATTR mikie::render_row(short row) {
 
 // MAME draw_sprites: native box X [sx, sx+16), Y [sy, sy+16), pen 0
 // transparent, no wrap. Tiles flagged front hide the sprite.
-void IRAM_ATTR mikie::blit_sprite(short row, const uint8_t *s, uint32_t front) {
+void GAME_IRAM mikie::blit_sprite(short row, const uint8_t *s, uint32_t front) {
   const int x = s[3], y = 244 - (int)s[1];
   const int x_hi = 255 - 8 * (row - 2), x_lo = x_hi - 7;      // native X of this strip
   const int xa = x > x_lo ? x : x_lo;

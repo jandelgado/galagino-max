@@ -100,14 +100,14 @@ void tron::reset() {
 
 // ── main Z80 ──
 
-unsigned char IRAM_ATTR tron::opZ80(unsigned short Addr) {
+unsigned char GAME_IRAM tron::opZ80(unsigned short Addr) {
   if (current_cpu == 0 && Addr < ROM_END) {
     return main_rom[Addr];
   }
   return rdZ80(Addr);
 }
 
-unsigned char IRAM_ATTR tron::rdZ80(unsigned short Addr) {
+unsigned char GAME_IRAM tron::rdZ80(unsigned short Addr) {
   if (current_cpu == 1) {
     return ssio.rd(Addr);
   }
@@ -123,7 +123,7 @@ unsigned char IRAM_ATTR tron::rdZ80(unsigned short Addr) {
   return memory[TRON_MEM_SPRITES + (Addr & SPRITE_MASK)];
 }
 
-void IRAM_ATTR tron::wrZ80(unsigned short Addr, unsigned char Value) {
+void GAME_IRAM tron::wrZ80(unsigned short Addr, unsigned char Value) {
   if (current_cpu == 1) {
     ssio.wr(Addr, Value);
     return;

@@ -81,11 +81,11 @@ void yiear::reset() {
 
 // ── 6809 ──
 
-unsigned char IRAM_ATTR yiear::m6809_read_opcode(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM yiear::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   return m6809_read(s, addr);
 }
 
-unsigned char IRAM_ATTR yiear::m6809_read(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM yiear::m6809_read(m6809_state *s, uint16_t addr) {
   if (addr >= ROM_BASE) {
     return rom_ptr[addr - ROM_BASE];
   }
@@ -129,7 +129,7 @@ uint8_t yiear::read_io(uint16_t addr) {
   }
 }
 
-void IRAM_ATTR yiear::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
+void GAME_IRAM yiear::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if (addr >= RAM_BASE && addr < RAM_BASE + YIEAR_MEM_END) {
     memory[addr - RAM_BASE] = val;
     return;

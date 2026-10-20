@@ -90,7 +90,7 @@ void todruaga::mainlatch_w(uint16_t addr) {
 // Bus M6809 — dispatch per puntatore di stato (main vs sub)
 // ============================================================================
 
-unsigned char IRAM_ATTR todruaga::m6809_read(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM todruaga::m6809_read(m6809_state *s, uint16_t addr) {
   if (s == &sub_cpu) {
     // sub: 0x0000-0x03FF RAM condivisa (0x00-0x3F = registri WSG)
     if (addr < 0x0400)
@@ -118,7 +118,7 @@ unsigned char IRAM_ATTR todruaga::m6809_read(m6809_state *s, uint16_t addr) {
   return 0xFF;
 }
 
-void IRAM_ATTR todruaga::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
+void GAME_IRAM todruaga::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if (s == &sub_cpu) {
     if (addr < 0x0400) {
       if (addr < 0x40) soundregs[addr] = val;
@@ -164,7 +164,7 @@ void IRAM_ATTR todruaga::m6809_write(m6809_state *s, uint16_t addr, uint8_t val)
   // 0x8000 = watchdog: ignorato
 }
 
-unsigned char IRAM_ATTR todruaga::m6809_read_opcode(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM todruaga::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   // nessuna cifratura: fetch diretto dalla ROM per il caso comune
   if (s == &sub_cpu) {
     if (addr >= 0xE000)

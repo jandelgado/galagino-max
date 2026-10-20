@@ -446,11 +446,11 @@ void starwars::sound_write(uint16_t a, uint8_t v) {
   }
 }
 
-unsigned char IRAM_ATTR starwars::m6809_read(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM starwars::m6809_read(m6809_state *s, uint16_t addr) {
   return s == &main_cpu ? main_read(addr) : sound_read(addr);
 }
 
-void IRAM_ATTR starwars::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
+void GAME_IRAM starwars::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if (s == &main_cpu) {
     main_write(addr, val);
   } else {
@@ -458,7 +458,7 @@ void IRAM_ATTR starwars::m6809_write(m6809_state *s, uint16_t addr, uint8_t val)
   }
 }
 
-unsigned char IRAM_ATTR starwars::m6809_read_opcode(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM starwars::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   return m6809_read(s, addr);
 }
 

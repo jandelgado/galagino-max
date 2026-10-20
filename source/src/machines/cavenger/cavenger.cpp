@@ -128,7 +128,7 @@ void cavenger::prepare_frame(void) {
 
 // One panel line of the bg at native Y y: 32x32 chars, per tile row
 // scroll from bg RAM (MAME ladybug_video_device::draw), pen 0 = color 0.
-void IRAM_ATTR cavenger::bg_line(uint16_t *dst, int y) {
+void GAME_IRAM cavenger::bg_line(uint16_t *dst, int y) {
   const int ty = y >> 3, iy = y & 7;
   const uint8_t scroll = video.bg[((ty & 3) << 5) | (ty >> 2)];
   int tm_x = (VIS_LEFT + scroll) & 255;
@@ -147,7 +147,7 @@ void IRAM_ATTR cavenger::bg_line(uint16_t *dst, int y) {
 }
 
 // Strip row 6..29 = native Y 32 + 8 * (row - 6) .. +7.
-void IRAM_ATTR cavenger::render_row(short row) {
+void GAME_IRAM cavenger::render_row(short row) {
   if (row < FIRST_ROW || row >= LAST_ROW) { return; }
 
   const int y0 = VIS_TOP + 8 * (row - FIRST_ROW);
@@ -166,7 +166,7 @@ void IRAM_ATTR cavenger::render_row(short row) {
 }
 
 // Big sprites 16x16 at (x, y - 8), small 8x8 at (x, y); pen 0 transparent.
-void IRAM_ATTR cavenger::blit_sprite(short row, const uint8_t *s, int block) {
+void GAME_IRAM cavenger::blit_sprite(short row, const uint8_t *s, int block) {
   const bool big = s[0] & SPR_BIG, flip_x = s[0] & SPR_FLIPX, flip_y = s[0] & SPR_FLIPY;
   const int size = big ? 16 : 8;
   const int x = s[3];

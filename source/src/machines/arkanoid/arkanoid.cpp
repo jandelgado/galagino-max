@@ -125,7 +125,7 @@ void arkanoid::prepare_frame(void) {
 }
 
 // Strip row 2..33 = native X 8 * (row - 2) .. +7 (one native tile column).
-void IRAM_ATTR arkanoid::render_row(short row) {
+void GAME_IRAM arkanoid::render_row(short row) {
   if (row < FIRST_ROW || row >= LAST_ROW) { return; }
 
   const int tx = row - FIRST_ROW;
@@ -148,7 +148,7 @@ void IRAM_ATTR arkanoid::render_row(short row) {
 
 // 8 wide (native X) x 16 tall: char 2 * code at native Y sy - 8, char
 // 2 * code + 1 at sy. Pen 0 transparent, clipped to the visible area.
-void IRAM_ATTR arkanoid::blit_sprite(short row, const uint8_t *s) {
+void GAME_IRAM arkanoid::blit_sprite(short row, const uint8_t *s) {
   const int x0 = 8 * (row - FIRST_ROW);
   const int sx = s[0];
   const int ra = sx > x0 ? sx : x0;

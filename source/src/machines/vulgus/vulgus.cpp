@@ -181,7 +181,7 @@ void vulgus::prepare_frame(void) {
 }
 
 // One panel line of the bg (512x512, scan cols, 16x16) at native X x.
-void IRAM_ATTR vulgus::bg_line(uint16_t *dst, int x) {
+void GAME_IRAM vulgus::bg_line(uint16_t *dst, int x) {
   const int tm_x = (x + video.scroll_x) & 511;
   const int col = tm_x >> 4, ix = tm_x & 15;
   int tm_y = (VIS_TOP + video.scroll_y) & 511;
@@ -203,7 +203,7 @@ void IRAM_ATTR vulgus::bg_line(uint16_t *dst, int x) {
 }
 
 // One panel line of the fg chars (32x32, scan rows, 8x8) at native X x.
-void IRAM_ATTR vulgus::fg_line(uint16_t *dst, int x) {
+void GAME_IRAM vulgus::fg_line(uint16_t *dst, int x) {
   const int tx = x >> 3, nx = x & 7;
   for (int ty = VIS_TOP / 8; ty < VIS_END / 8; ty++) {
     const uint16_t idx = ty * 32 + tx;
@@ -221,7 +221,7 @@ void IRAM_ATTR vulgus::fg_line(uint16_t *dst, int x) {
 }
 
 // Strip row 2..33 = display lines 8*(row-2)..+7 = native X 255 - line.
-void IRAM_ATTR vulgus::render_row(short row) {
+void GAME_IRAM vulgus::render_row(short row) {
   if (row < 2 || row >= 34 || !game_started) { return; }
 
   const int x_hi = 255 - 8 * (row - 2);
@@ -240,7 +240,7 @@ void IRAM_ATTR vulgus::render_row(short row) {
 }
 
 // Native box X [sx, sx+16), Y [sy, sy+16), pen 15 transparent, no wrap.
-void IRAM_ATTR vulgus::blit_sprite(short row, int code, uint8_t color, int sx, int sy) {
+void GAME_IRAM vulgus::blit_sprite(short row, int code, uint8_t color, int sx, int sy) {
   const int x_hi = 255 - 8 * (row - 2), x_lo = x_hi - 7;
   const int xa = sx > x_lo ? sx : x_lo;
   const int xb = (sx + 15) < x_hi ? (sx + 15) : x_hi;
