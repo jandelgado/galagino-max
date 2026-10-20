@@ -1,6 +1,8 @@
 #ifndef _I8048_H_
 #define _I8048_H_
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,6 +44,7 @@ struct i8048_state_S {
   boolean timerRunning; // Whether counter is bound to clock (STRT T)
   long cyclesUntilCount; // prescaler: Number of cycles until we need to increment the count (if counter is bound to clock)
   boolean inInterrupt; // True if handling an interrupt. Reset by RETR
+  uint32_t cycles; // machine cycles executed, wraps (DAC timing)
 
   unsigned char ram[128];
 

@@ -165,6 +165,7 @@ unsigned char i8048_xdm_read(i8048_state_S *state, unsigned char addr) {
 }
 
 void i8048_xdm_write(i8048_state_S *state, unsigned char addr, unsigned char data) {
+  currentMachine->wrI8048_xdm(state, addr, data);
 }
 
 unsigned char m6809_read(m6809_state *s, uint16_t addr) {
