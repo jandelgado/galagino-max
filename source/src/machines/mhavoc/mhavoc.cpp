@@ -203,9 +203,192 @@ bool mhavoc::gamma_idle() const {
          ram[GAMMA_CMD_HEAD] == ram[GAMMA_CMD_TAIL];
 }
 
-// alpha idle loops (see ALPHA_WAIT_PC); returns true when the rest of the
-// slice is idle
+// Hot alpha leaf routines run natively, ~30% of alpha instructions in
+// gameplay (rev 3 ROM, MAME dasm):
+//   9959: lda #$40 / ldx #$80, then 995d
+//   9970: ldy #0 / ora #$70 / tax / tya / jmp 995d
+//   995d: ldy #0 / sta ($01),y / iny / txa / sta ($01),y, then 9965
+//     (writes an AVG word)
+//   9979: ldy #0, then 997b: sty $00, then 997d: A, X to 16 bit
+//     $27/$28, $29/$2a (times 4, sign extended), then 9998: writes the
+//     AVG vector $29, $2a & 1f, $27, $28 & 1f | $00 & e0, then 9965
+//   9965: tya / sec / adc $01 / sta $01 / bcc + / inc $02 / rts
+//     (advances the VRAM pointer by Y + 1)
+//   c6ec: cmp #$80 / ror a / ror $11 / dey / bpl c6ec / rts
+//     (arithmetic shift right of A:$11, Y + 1 times)
+//   949f: signed 8x8 multiply of A by $11 via the table at 95bc
+// Same registers, flags, memory and cycles as the interpreter. A routine
+// runs as one step: the slice may overrun by its length, so a tick and
+// its IRQ can land up to that many cycles later. Returns the cycles taken,
+// 0 when PC is not at one of the routines.
+static const uint16_t MUL_TABLE = 0x95bc;
+
+uint32_t mhavoc::native_alpha() {
+  m6502_t &c = m_cpu;
+  const uint16_t pc = c.pc;
+  switch (pc) {
+    case 0x9959: case 0x995d: case 0x9965: case 0x9970: case 0x9979: case 0x997b: case 0x997d:
+    case 0x9998: case 0xc6ec: case 0x949f:
+      break;
+    default:
+      return 0;
+  }
+  if (irq_due(c) || (c.p & M6502_FD)) {
+    return 0;
+  }
+  uint8_t *zp = memory; // alpha 0x0000-0x01ff
+  const uint8_t NZ = M6502_FN | M6502_FZ, NZC = NZ | M6502_FC, NZCV = NZC | M6502_FV;
+  auto nz = [](uint8_t v) -> uint8_t { return (v & M6502_FN) | (v ? 0 : M6502_FZ); };
+  // binary adc, D is clear: carry and overflow flags of a + v + carry
+  auto adc = [](uint8_t a, uint8_t v, uint8_t carry, uint8_t &flags) -> uint8_t {
+    const uint16_t t = a + v + carry;
+    const uint8_t r = t;
+    flags = (t > 0xff ? M6502_FC : 0) | ((~(a ^ v) & (a ^ r) & 0x80) ? M6502_FV : 0);
+    return r;
+  };
+  uint32_t n = 6; // rts
+  switch (pc) {
+    case 0x9979:
+      c.y = 0;
+      n += 2;
+      // fall through
+    case 0x997b:
+      zp[0] = c.y;
+      n += 3;
+      // fall through
+    case 0x997d: {
+      // ldy #0 / asl a / bcc + / dey / sty $28 / asl a / rol $28 / sta $27,
+      // then the same with X into $29/$2a
+      auto widen = [&n](uint8_t v, uint8_t &lo, uint8_t &hi) {
+        const uint8_t sign = v & 0x80 ? 0xff : 0x00;
+        n += 2 + 2 + (sign ? 2 + 2 : 3) + 3 + 2 + 5 + 3;
+        hi = uint8_t(sign << 1) | ((v >> 6) & 1);
+        lo = v << 2;
+      };
+      widen(c.a, zp[0x27], zp[0x28]);
+      n += 2; // txa
+      widen(c.x, zp[0x29], zp[0x2a]);
+    }
+      // fall through
+    case 0x9998: {
+      const uint16_t ptr = zp[1] | (zp[2] << 8);
+      alpha_write(&c, ptr, zp[0x29]);
+      alpha_write(&c, ptr + 1, zp[0x2a] & 0x1f);
+      alpha_write(&c, ptr + 2, zp[0x27]);
+      alpha_write(&c, ptr + 3, ((zp[0x28] ^ zp[0]) & 0x1f) ^ zp[0]);
+      c.x = 0x27;
+      c.y = 3;
+      n += 63;
+      goto advance;
+    }
+    case 0x9970:
+      c.x = c.a | 0x70;
+      c.a = 0;
+      n += 2 + 2 + 2 + 2 + 3;
+      goto vram_word;
+    case 0x9959:
+      c.a = 0x40;
+      c.x = 0x80;
+      n += 2 + 2;
+      // fall through
+    case 0x995d:
+    vram_word: {
+      const uint16_t ptr = zp[1] | (zp[2] << 8);
+      alpha_write(&c, ptr, c.a);
+      alpha_write(&c, ptr + 1, c.x);
+      c.y = 1;
+      n += 2 + 6 + 2 + 2 + 6;
+    }
+      // fall through
+    case 0x9965:
+    advance: {
+      uint8_t f;
+      const uint8_t r = adc(c.y, zp[1], 1, f);
+      zp[1] = r;
+      c.a = r;
+      c.p = (c.p & ~NZCV) | f | nz(r);
+      n += 2 + 2 + 3 + 3;
+      if (f & M6502_FC) {
+        zp[2]++;
+        c.p = (c.p & ~NZ) | nz(zp[2]);
+        n += 2 + 5;
+      } else {
+        n += 3;
+      }
+      break;
+    }
+    case 0xc6ec: {
+      uint8_t a = c.a, m = zp[0x11], y = c.y, carry;
+      for (;;) {
+        carry = a >> 7; // cmp #$80
+        const uint8_t na = (a >> 1) | (carry << 7); // ror a
+        carry = a & 1;
+        a = na;
+        const uint8_t nm = (m >> 1) | (carry << 7); // ror $11
+        carry = m & 1;
+        m = nm;
+        y--;
+        if (y & 0x80) {
+          n += 2 + 2 + 5 + 2 + 2;
+          break;
+        }
+        n += 2 + 2 + 5 + 2 + 3;
+      }
+      c.a = a;
+      c.y = y;
+      zp[0x11] = m;
+      c.p = (c.p & ~NZC) | nz(y) | carry;
+      break;
+    }
+    case 0x949f: {
+      const uint8_t *table = rom + (MUL_TABLE - ROM);
+      const uint8_t a0 = c.a, m = zp[0x11];
+      const uint8_t p = (c.p & ~NZ) | nz(a0); // tax
+      memory[0x100 | c.sp] = p | M6502_FB | M6502_FU; // php
+      const uint8_t x1 = (a0 >> 4) | (m & 0xf0);
+      const uint8_t x2 = uint8_t(a0 << 4) | (m & 0x0f);
+      const uint8_t y = (a0 & 0x0f) | (m & 0xf0);
+      const uint8_t x3 = (a0 & 0xf0) | (m & 0x0f);
+      // lda $95bc,x / adc $95bc,y cross a page from index 0x44
+      n += 138 + (x1 >= 0x44) + (x2 >= 0x44) + (x3 >= 0x44) + (y >= 0x44);
+      zp[0x14] = table[x1];
+      uint8_t f;
+      const uint8_t x = adc(table[x3], table[y], 0, f);
+      zp[0x17] = uint8_t((f & M6502_FC) << 7 | x >> 1) >> 3; // ror a / lsr x3
+      zp[0x13] = adc(uint8_t(x << 4), table[x2], 0, f);
+      uint8_t a = adc(zp[0x14], zp[0x17], f & M6502_FC, f);
+      c.p = (p | M6502_FU) & ~M6502_FB; // plp
+      if (c.p & M6502_FN) {
+        a = adc(a, m ^ 0xff, 1, f); // sec / sbc $11
+        c.p = (c.p & ~NZCV) | f | nz(a);
+        n += 2 + 2 + 3 + 3;
+      } else {
+        n += 3 + 3;
+      }
+      zp[0x14] = a;
+      c.a = a;
+      c.x = x;
+      c.y = y;
+      break;
+    }
+  }
+  // rts
+  const uint8_t lo = memory[0x100 | uint8_t(c.sp + 1)];
+  const uint8_t hi = memory[0x100 | uint8_t(c.sp + 2)];
+  c.sp += 2;
+  c.pc = (lo | (hi << 8)) + 1;
+  return n;
+}
+
+// native routines (see native_alpha) and alpha idle loops (see
+// ALPHA_WAIT_PC); returns true when the slice is done
 bool mhavoc::skip_alpha(uint32_t slice_end) {
+  while (const uint32_t n = native_alpha()) {
+    cycles += n;
+    if ((int32_t)(cycles - slice_end) >= 0) {
+      return true;
+    }
+  }
   if (m_cpu.pc == ALPHA_WAIT_PC) {
     if (!irq_due(m_cpu) && !memory[RAM_HIGH_OFS + ALPHA_WAIT_FLAG - RAM_HIGH]) {
       cycles = slice_end;
