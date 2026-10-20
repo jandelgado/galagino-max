@@ -10,6 +10,7 @@ class hvymetal : public system1 {
 public:
   hvymetal();
 
+  void reset() override;
   signed char machineType() override { return MCH_HVYMETAL; }
   static const Logo &logo(void);
 

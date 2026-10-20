@@ -10,6 +10,7 @@ class choplift : public system1 {
 public:
   choplift();
 
+  void reset() override;
   signed char machineType() override { return MCH_CHOPLIFT; }
   static const Logo &logo(void);
 

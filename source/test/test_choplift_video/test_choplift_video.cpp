@@ -158,6 +158,44 @@ static void test_render_matches_mame(void) {
   }
   TEST_ASSERT_EQUAL_MESSAGE(0, bad, "choplift lines differ from MAME");
 }
+
+// Power-on RAM test (MAME: first input read at frame 2711, here 4149)
+// runs only without the warm start signature "OK" at effe
+static void test_boot_skips_ram_test(void) {
+  bootChoplift();
+  for (int frame = 0; frame < 10; frame++) {
+    machine->run_frame();
+  }
+  TEST_ASSERT_TRUE(machine->game_started);
+}
+
+// frames until the first input read, then VRAM hash 600 frames later
+static uint32_t attractHash(int &startFrame) {
+  startFrame = 0;
+  while (!machine->game_started && startFrame < 6000) {
+    machine->run_frame();
+    startFrame++;
+  }
+  for (int frame = 0; frame < 600; frame++) {
+    machine->run_frame();
+  }
+  return crc32(&memory[system1::VIDEO_RAM], 0x1000);
+}
+
+// skipping the RAM test changes nothing: same attract screen as a cold boot
+static void test_warm_start_matches_cold_boot(void) {
+  int coldStart, warmStart;
+  bootChoplift();
+  memory[WARM_START] = 0;  // cold
+  memory[WARM_START + 1] = 0;
+  const uint32_t cold = attractHash(coldStart);
+  bootChoplift();
+  const uint32_t warm = attractHash(warmStart);
+
+  TEST_ASSERT_GREATER_THAN(1000, coldStart);
+  TEST_ASSERT_LESS_THAN(10, warmStart);
+  TEST_ASSERT_EQUAL_HEX32(cold, warm);
+}
 #endif
 
 static uint32_t rnd(void) {
@@ -382,6 +420,8 @@ int main(int, char **) {
 #ifdef ENABLE_CHOPLIFT
   Arena::init();
   RUN_TEST(test_render_matches_mame);
+  RUN_TEST(test_boot_skips_ram_test);
+  RUN_TEST(test_warm_start_matches_cold_boot);
 #endif
   return UNITY_END();
 }

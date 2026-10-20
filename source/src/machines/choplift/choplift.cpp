@@ -25,6 +25,18 @@ choplift::choplift() : system1(Roms{
     choplift_banks_blob, choplift_palette,
 }, Config{system1_video::VISAREA_FULL, true, BOARD_SYS2, ROT0, CHOPLIFT_WINDOW, BANK_0C}) { }
 
+// Power-on (0000 -> 9400): without "OK" at effe the game clears RAM,
+// runs a RAM and ROM test (45 s on the real board), stores "OK" and
+// restarts, now jumping to the game at 8000. Seed the signature: same
+// attract as a cold boot, without the wait.
+static const uint16_t WARM_START = 0xeffe - 0xc000;  // memory[] starts at c000
+
+void choplift::reset() {
+  system1::reset();
+  memory[WARM_START] = 'O';
+  memory[WARM_START + 1] = 'K';
+}
+
 const Logo &choplift::logo(void) {
   return choplift_logo;
 }
