@@ -14,8 +14,10 @@
 #include "../../src/cpus/i8048/i8048.c"
 #define MARIO_Z80_TABLES_INCLUDED
 #define private public
+#define protected public
 #include "../../src/machines/mario/mario.cpp"
 #undef private
+#undef protected
 #endif
 
 void setUp(void) {}
@@ -27,7 +29,11 @@ unsigned int Input::buttons_get(void) { return keys; }
 static mario *machine;
 
 extern "C" {
-unsigned char OpZ80_INL(unsigned short a) { return machine->opZ80(a); }
+static uint32_t idle_fetches;
+unsigned char OpZ80_INL(unsigned short a) {
+  idle_fetches += a == mario::IDLE_PC;
+  return machine->opZ80(a);
+}
 unsigned char OpPrefixZ80_INL(unsigned short a) { return machine->opPrefixZ80(a); }
 unsigned char RdZ80(unsigned short a) { return machine->rdZ80(a); }
 void WrZ80(unsigned short a, unsigned char v) { machine->wrZ80(a, v); }
@@ -94,6 +100,28 @@ static void test_boots_into_attract(void) {
   // the board runs flipped (monitor mounted upside down)
   TEST_ASSERT_TRUE(machine->video.latch & (1 << mario::LATCH_FLIP));
   TEST_ASSERT_TRUE(machine->video.latch & (1 << mario::LATCH_NMI));
+  // 8035 left the bootstrap stub: fetches go straight to the ROM
+  TEST_ASSERT_EQUAL_PTR(machine->sound_rom, machine->snd.rom_direct);
+}
+
+// main loop polls the NMI's frame flag: skipped, not stepped
+static void test_idle_loop_skipped(void) {
+  boot();
+  idle_fetches = 0;
+  run(60, 0);
+  char msg[40];
+  snprintf(msg, sizeof(msg), "idle fetches %u", idle_fetches);
+  TEST_MESSAGE(msg);
+  TEST_ASSERT_TRUE(idle_fetches < 60 * 4);
+}
+
+// ResetZ80 loads ICount from IPeriod, never set here: garbage on the
+// device made the first frame run for billions of cycles
+static void test_reset_clears_cycle_budget(void) {
+  boot();
+  machine->cpu[0].IPeriod = 1000000000;
+  machine->reset();
+  TEST_ASSERT_EQUAL_INT(0, machine->cpu[0].ICount);
 }
 
 static void test_coin_start_walk(void) {
@@ -121,6 +149,8 @@ int main(int, char **) {
 #ifdef HAVE_ROM
   RUN_TEST(test_boots_into_attract);
   RUN_TEST(test_coin_start_walk);
+  RUN_TEST(test_idle_loop_skipped);
+  RUN_TEST(test_reset_clears_cycle_budget);
 #endif
   return UNITY_END();
 }

@@ -9,3 +9,7 @@ struct CRGB {
   CRGB() : r(0), g(0), b(0) {}
   CRGB(uint32_t c) : r(c >> 16), g(c >> 8), b(c) {}
 };
+
+inline void fill_solid(CRGB *leds, int n, const CRGB &c) {
+  for (int i = 0; i < n; i++) leds[i] = c;
+}

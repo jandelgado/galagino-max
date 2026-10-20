@@ -42,6 +42,7 @@ const Logo &mario::logo(void) {
 
 void mario::reset() {
   machineBase::reset();
+  cpu[0].ICount = 0;  // ResetZ80 loads the unset IPeriod
   latch = 0;
   scroll = 0;
   tune = 0;
@@ -186,6 +187,10 @@ void mario::wrI8048_port(struct i8048_state_S *state, unsigned char port, unsign
     p1 = pos;
   } else if (port == 2) {
     p2 = pos;
+    // ROM in the whole 000-fff: fetch it directly, without the virtual
+    // rdI8048_rom() per opcode byte (the 8035 never idles)
+    snd.rom_direct = (p2 & P2_INTERNAL) ? nullptr : sound_rom;
+    snd.rom_mask = 0xfff;
   }
 }
 
@@ -245,6 +250,13 @@ void mario::runZ80(int32_t cycles) {
   Z80 &z = cpu[0];
   z.ICount += cycles;
   while (z.ICount > 0) {
+    // waiting for the NMI's frame flag: nothing happens until vblank,
+    // and no Z80 side timer needs the cycles
+    if (z.PC.W == IDLE_PC && !memory[IDLE_FLAG]) {
+      z.ICount = 0;
+      return;
+    }
+
     z.ICount -= Cycles[opZ80(z.PC.W)];
     StepZ80(&z);
   }
@@ -421,11 +433,22 @@ void mario::renderAudio(int16_t *out, int n) {
 }
 
 #ifdef LED_PIN
+// logo colors: red title, green and blue frame
+static const CRGB MARIO_LED_RED(0xe8070a), MARIO_LED_GREEN(0x0b930c), MARIO_LED_BLUE(0x0728df);
+
 void mario::menuLeds(CRGB *leds) {
-  defaultMenuLeds(leds);
+  static const CRGB menu_leds[NUM_LEDS] = {
+      MARIO_LED_BLUE, MARIO_LED_GREEN, MARIO_LED_RED, MARIO_LED_RED,
+      MARIO_LED_RED, MARIO_LED_GREEN, MARIO_LED_BLUE};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 
+// POW hit bumps the screen (scroll y off its rest value): all LEDs red
 void mario::gameLeds(CRGB *leds) {
-  defaultMenuLeds(leds);
+  if (video.scroll != SCROLL_REST) {
+    fill_solid(leds, NUM_LEDS, MARIO_LED_RED);
+    return;
+  }
+  menuLeds(leds);
 }
 #endif

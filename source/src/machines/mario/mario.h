@@ -93,6 +93,7 @@ private:
   static constexpr uint16_t LATCH_ADDR = 0x7e80;  // 8 bits, data bit 0
   static constexpr uint16_t SOUND_ADDR = 0x7f00;  // 8 bits, data bit 0
   static constexpr uint16_t DSW_ADDR = 0x7f80;
+  static constexpr uint8_t SCROLL_REST = 0xef;  // 7d00 when no POW bump
   static constexpr uint16_t WALK_MARIO_ADDR = 0x7c00;  // write: SOUND0
   static constexpr uint16_t WALK_LUIGI_ADDR = 0x7c80;  // write: SOUND1
 
@@ -103,6 +104,10 @@ private:
   static constexpr uint16_t SPRITE_BYTES = 0x180; // DMA length
   static constexpr uint16_t TILE_BYTES = 0x400;
   static constexpr uint16_t PLAYER1_X = 0x0107;   // 0x6107, Mario's sprite x
+  // main loop waits for the NMI to set the frame flag (ROM 01cb):
+  //   01cb LD A,(6010) / AND A / JR NZ,018f / JR 01cb
+  static constexpr uint16_t IDLE_PC = 0x01cb;
+  static constexpr uint16_t IDLE_FLAG = 0x0010;   // 0x6010
   static_assert(RAM_END - RAM_BASE <= RAMSIZE, "RAM does not fit memory[]");
 
   // LS259 latch bits (7e80 + n)
