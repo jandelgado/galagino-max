@@ -220,6 +220,32 @@ static void test_input_ports(void) {
   keys = 0;
 }
 
+// Both CPUs spend most of a frame in loops that wait for their ISR (attract:
+// main 82 %, sound 56 % of all instructions). run_frame() skips them.
+static void test_idle_loops_skipped(void) {
+  static const uint8_t MAIN_LOOP[] = {0x3a, 0x6c, 0xe1, 0xfe, 0x01, 0x38, 0xf9};
+  static const uint8_t SOUND_LOOP[] = {0x21, 0x40, 0x80, 0x3a, 0x41, 0x80, 0xbe, 0x38, 0xfa};
+  static const uint16_t MAIN_LOOP_PC = 0x60e8, SOUND_LOOP_PC = 0x0272;
+  static const uint32_t FRAMES = 60;
+  boot();
+  for (uint16_t i = 0; i < sizeof(MAIN_LOOP); i++) {
+    TEST_ASSERT_EQUAL_HEX8(MAIN_LOOP[i], machine->rdZ80(MAIN_LOOP_PC + i));
+  }
+  for (uint16_t i = 0; i < sizeof(SOUND_LOOP); i++) {
+    TEST_ASSERT_EQUAL_HEX8(SOUND_LOOP[i], machine->sound_rom[SOUND_LOOP_PC - 3 + i]);
+  }
+
+  watchPc[0] = MAIN_LOOP_PC;
+  watchPc[1] = SOUND_LOOP_PC;
+  watchFetches[0] = watchFetches[1] = 0;
+  runTo(frame + FRAMES);
+  watchPc[0] = watchPc[1] = 0xffff;
+  printf("idle loop fetches: main %u, sound %u\n", watchFetches[0], watchFetches[1]);
+  // a few per frame: the pass that leaves the loop
+  TEST_ASSERT_LESS_OR_EQUAL(FRAMES * 4, watchFetches[0]);
+  TEST_ASSERT_LESS_OR_EQUAL(FRAMES * 8, watchFetches[1]);
+}
+
 // coin + start reach the game: bartender and customers on screen
 static void test_coin_start_reaches_game(void) {
   boot();
@@ -282,6 +308,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_title_frame);
   RUN_TEST(test_attract_runs);
   RUN_TEST(test_input_ports);
+  RUN_TEST(test_idle_loops_skipped);
   RUN_TEST(test_coin_start_reaches_game);
 #ifdef LED_PIN
   RUN_TEST(test_leds_flash_on_sound_command);

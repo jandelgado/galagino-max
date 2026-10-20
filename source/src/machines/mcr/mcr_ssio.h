@@ -5,8 +5,8 @@
 #include "../../cpus/z80/Z80.h"
 #include "../../emulation/ay8910.h"
 
-// Midway MCR Super Sound I/O board (MAME midway.cpp), shared by tron and
-// dotron: Z80 at 2 MHz, four command latches from the main CPU, a status
+// Midway MCR Super Sound I/O board (MAME midway.cpp), shared by tron,
+// dotron and tapper: Z80 at 2 MHz, four command latches from the main CPU, a status
 // byte back, two AY-8910.
 // Each AY voice is gated by a duty cycle (AY port writes) that MAME treats
 // as volume; AY1 port B bit 7 mutes everything.
@@ -35,8 +35,11 @@ public:
 private:
   static const int CYCLES_PER_COUNT = 40;  // 2 MHz / 50 kHz 14024 clock
   static const uint16_t NO_IDLE_LOOP = 0xffff;
+  static const uint16_t NO_IDLE_REF = 0xffff;
 
   void findIdleLoop();
+  bool findIdleCmpLoop();
+  bool idle(const Z80 &cpu) const;
   void tickCounter(int cycles);
   void applyVolumes();
 
@@ -46,6 +49,8 @@ private:
   const uint8_t *dutyGain = nullptr;
   uint16_t idlePc = NO_IDLE_LOOP;  // program wait loop, see findIdleLoop()
   uint16_t idleFlag = 0;           // RAM offset it polls
+  uint16_t idleRef = NO_IDLE_REF;  // RAM offset the flag must reach, if any
+  int idlePassCycles = 0;
   uint8_t latches[4] = {0, 0, 0, 0};
   uint8_t statusByte = 0;
   uint8_t ayAddr[2] = {0, 0};
