@@ -380,9 +380,31 @@ uint32_t mhavoc::native_alpha() {
   return n;
 }
 
+// Alpha pages holding a native routine or an idle loop: skip_alpha checks
+// the PC against them only there, one table lookup per instruction
+// elsewhere
+static constexpr uint32_t page_bit(uint8_t page, uint8_t w) {
+  return page >> 5 == w ? 1u << (page & 31) : 0;
+}
+static constexpr uint32_t trap_pages(uint8_t w) {
+  return page_bit(0x82, w) | page_bit(0x91, w) | page_bit(0x94, w) | page_bit(0x99, w) |
+         page_bit(0xc6, w);
+}
+static DRAM_ATTR const uint32_t TRAP_PAGES[8] = {trap_pages(0), trap_pages(1), trap_pages(2),
+                                                 trap_pages(3), trap_pages(4), trap_pages(5),
+                                                 trap_pages(6), trap_pages(7)};
+
+static bool trap_page(uint16_t pc) {
+  const uint8_t page = pc >> 8;
+  return TRAP_PAGES[page >> 5] & (1u << (page & 31));
+}
+
 // native routines (see native_alpha) and alpha idle loops (see
 // ALPHA_WAIT_PC); returns true when the slice is done
 bool mhavoc::skip_alpha(uint32_t slice_end) {
+  if (!trap_page(m_cpu.pc)) {
+    return false;
+  }
   while (const uint32_t n = native_alpha()) {
     cycles += n;
     if ((int32_t)(cycles - slice_end) >= 0) {
@@ -495,6 +517,9 @@ uint8_t mhavoc::alpha_read(m6502_t *cpu, uint16_t a) {
   if (a >= ROM) {
     return m->rom[a - ROM];
   }
+  if (a < RAM_END) {
+    return *m->alpha_ram(a);
+  }
   if (a >= MH_VRAM) {
     if (a < MH_VRAM + MH_VRAM_SIZE) {
       return m->memory[VRAM_OFS + a - MH_VRAM];
@@ -503,9 +528,6 @@ uint8_t mhavoc::alpha_read(m6502_t *cpu, uint16_t a) {
   }
   if (a >= PAGED_ROM) {
     return m->rom[0x8000 + m->rom_page * 0x2000 + (a - PAGED_ROM)];
-  }
-  if (a < RAM_END) {
-    return *m->alpha_ram(a);
   }
   if (a >= BETA) {
     return m->memory[BETA_OFS + a - BETA];

@@ -147,6 +147,25 @@ static void test_irq_or_decimal_steps(void) {
   randomize(0x9961);
   TEST_ASSERT_EQUAL_UINT32(0, machine->native_alpha());
 }
+
+// skip_alpha only looks for native routines and idle loops on trap pages
+static void test_trap_pages(void) {
+  boot();
+  m6502_t &c = machine->m_cpu;
+  for (uint32_t pc = 0; pc < 0x10000; pc++) {
+    c.pc = pc;
+    c.p = M6502_FU;
+    c.x = 0;
+    c.irq = c.nmi = 0;
+    if (machine->native_alpha()) {
+      TEST_ASSERT_TRUE_MESSAGE(trap_page(pc), "native routine off the trap pages");
+    }
+  }
+  TEST_ASSERT_TRUE(trap_page(ALPHA_WAIT_PC));
+  TEST_ASSERT_TRUE(trap_page(ALPHA_DELAY_PC));
+  TEST_ASSERT_TRUE(trap_page(ALPHA_REPLY_PC));
+  TEST_ASSERT_FALSE(trap_page(0x8000));
+}
 #endif
 
 int main(int, char **) {
@@ -158,6 +177,7 @@ int main(int, char **) {
   RUN_TEST(test_shift_right);
   RUN_TEST(test_multiply);
   RUN_TEST(test_irq_or_decimal_steps);
+  RUN_TEST(test_trap_pages);
 #endif
   return UNITY_END();
 }
