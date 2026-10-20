@@ -1,0 +1,7 @@
+mario_rom_main.h
+mario_rom_sound.h
+mario_tiles.h
+mario_sprites.h
+mario_palette.h
+mario_sample_*.h
+mario_bundle.h

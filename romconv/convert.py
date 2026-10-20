@@ -37,6 +37,7 @@ GAMES = [
     "llander",
     "m6502",
     "mappy",
+    "mario",
     "mooncresta",
     "motorace",
     "mrdo",
