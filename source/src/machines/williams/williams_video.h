@@ -99,6 +99,14 @@ public:
                const uint8_t *palette16) {
     const uint8_t back = frontIndex ^ 1;
     memcpy(pal[back][line / BAND_LINES], palette16, PENS);
+    const uint8_t *band = vram + firstCol * VRAM_STRIDE + line;
+    const int top = line - FIRST_LINE;
+    if (count == BAND_LINES && top >= 0 && top + BAND_LINES <= ROWS &&
+        !((uintptr_t)band & (BAND_LINES - 1))) {
+      captureBand(band, buf[back] + top * COLS);
+      return;
+    }
+
     for (int l = line; l < line + count; l++) {
       const int row = l - FIRST_LINE;
       if (row < 0 || row >= ROWS) {
@@ -124,6 +132,19 @@ public:
 private:
   static const int PENS = 16;
   static const int VRAM_STRIDE = 256;  // byte (x / 2) * 256 + y
+
+  // A band's 4 lines of one VRAM column are adjacent: one word load per
+  // column instead of 4 byte loads 256 apart. Lowest byte = first line.
+  static void captureBand(const uint8_t *src, uint8_t *dst) {
+    for (int c = 0; c < COLS; c++, src += VRAM_STRIDE) {
+      uint32_t w;
+      memcpy(&w, __builtin_assume_aligned(src, 4), sizeof(w));
+      dst[c] = (uint8_t)w;
+      dst[c + COLS] = (uint8_t)(w >> 8);
+      dst[c + 2 * COLS] = (uint8_t)(w >> 16);
+      dst[c + 3 * COLS] = (uint8_t)(w >> 24);
+    }
+  }
 
   uint8_t *buf[2] = { nullptr, nullptr };
   uint8_t pal[2][BANDS][PENS];

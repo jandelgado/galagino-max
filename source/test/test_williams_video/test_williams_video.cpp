@@ -66,6 +66,33 @@ void test_capture_copies_visible_lines_to_back(void) {
   TEST_ASSERT_EQUAL_HEX8(0x00, s.frame(shown)[0]);  // front untouched while capturing
 }
 
+// every visible byte lands at its row and column, also from an unaligned VRAM
+static void captureAll(const uint8_t *v) {
+  Scanout s;
+  s.attach(bufA, bufB);
+  s.clear();
+  const uint8_t pal[16] = { 0 };
+  for (int line = 0; line < Scanout::LINES; line += Scanout::BAND_LINES) {
+    s.capture(v, 3, line, Scanout::BAND_LINES, pal);
+  }
+  s.flip();
+  const uint8_t *f = s.frame(s.front());
+  for (int row = 0; row < Scanout::ROWS; row++) {
+    for (int c = 0; c < Scanout::COLS; c++) {
+      TEST_ASSERT_EQUAL_HEX8(v[(3 + c) * 256 + row + Scanout::FIRST_LINE],
+                             f[row * Scanout::COLS + c]);
+    }
+  }
+}
+
+void test_capture_maps_every_byte(void) {
+  for (uint32_t i = 0; i < sizeof(vram); i++) {
+    vram[i] = (uint8_t)(i * 2654435761u >> 24);
+  }
+  captureAll(vram);
+  captureAll(vram + 1);
+}
+
 void test_double_flip_returns_to_first_buffer(void) {
   Scanout s;
   s.attach(bufA, bufB);
@@ -88,6 +115,7 @@ int main(int, char **) {
   RUN_TEST(test_defender_drops_3_and_8_of_11);
   RUN_TEST(test_pixel_nibbles);
   RUN_TEST(test_capture_copies_visible_lines_to_back);
+  RUN_TEST(test_capture_maps_every_byte);
   RUN_TEST(test_double_flip_returns_to_first_buffer);
   RUN_TEST(test_upright_mapping);
   return UNITY_END();
