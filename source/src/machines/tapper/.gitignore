@@ -1,0 +1,5 @@
+tapper_rom.h
+tapper_snd_rom.h
+tapper_tilemap.h
+tapper_spritemap.h
+tapper_ssio_prom.h
