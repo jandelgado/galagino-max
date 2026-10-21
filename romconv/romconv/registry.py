@@ -6,6 +6,7 @@ from romconv.cpu import m6502, z80
 from romconv.games import (anteater, bagman, crush, digdug, dkong, eyes, frogger, galaga, galaxian, game_1942,
                            lizwiz, mrtnt, pacman, theglob, vanvan)
 from romconv.games.namco import digdug2, gaplus, mappy, phozon, todruaga, xevious
+from romconv.games.system1 import jobs as system1
 from romconv.gfx import logo
 from romconv.hw import namco54
 from romconv.misc import pokey_poly, unpack_fixture
@@ -39,6 +40,7 @@ ALL: tuple[Job, ...] = (
     phozon.JOB,
     *digdug2.JOBS,
     *xevious.JOBS,
+    *system1.JOBS,
     catalog.JOB,
     bundles.JOB,
 )
