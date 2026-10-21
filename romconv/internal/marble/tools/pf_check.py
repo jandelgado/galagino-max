@@ -9,10 +9,8 @@ import struct
 import sys
 from collections import defaultdict
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-import marble_data as md
-
-rom = md.load()
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from devrom import ROM as rom, md
 seq = open(sys.argv[1], "rb").read()
 dec = {n: md.decode_level(rom, n) for n in range(md.LEVELS)}
 key = lambda row: tuple(w & ~0x3000 for w in row)

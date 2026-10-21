@@ -17,259 +17,23 @@ import os
 import struct
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-import marble_data as md
+from devrom import ROM, SIM_ROM, md  # noqa: F401
+from romconv.games.marble.sim import marble_hud as _model  # noqa: F401
+from romconv.games.marble.sim.marble_hud import *  # noqa: F401,F403
 
-ALPHA_ZIP = os.path.join(md.HERE, "..", "..", "..", "romszip", "atarisy1.zip")
-FONT_ROM, FONT_SHA1 = "136032.104.f5", "72ba464da01bd6d3a91b8d9997d5ac14b6f47aad"
 
-ROWS, COLS = 32, 64            # alpha RAM
-VIEW_ROWS, VIEW_COLS = 36, 30  # remake grid (240 x 288)
-OPAQUE = 0x2000
+# The model takes the decoded ROM set explicitly; the tools use the one loaded by devrom.
+def font(): return _model.font(ROM)
+def layout_states(r=None): return _model.layout_states(r or ROM)
+
+
+
 
 P = 0x400018                   # player 1
 GS, RACE = 0x400390, 0x400394
 TIMER, TENTHS, TICKS, ANIM1, ANIM2, SCORE, DEATHS, SKIP = 0x6a, 0x6c, 0x6e, 0x70, 0x71, 0xbc, 0xd2, 0xd8
 RACE_ON, GAME_OVER, RACE_END, TIME_OUT, GAME_START, FINAL = 0, 2, 3, 4, 5, 6
 RACE_TIME = (60, 60, 35, 30, 20, 20)
-
-# ROM strings (NUL terminated, ' ' = code 0)
-S_YOU, S_THE, S_BONUS_FIN, S_SEC, S_DIED, S_TOTAL = 0x230a0, 0x230b4, 0x230c8, 0x230e8, 0x230f8, 0x23114
-S_BLANK26, S_TIME_TO, S_EXTRA, S_RACES, S_WRONG, S_BLANK31 = 0x2317c, 0x23198, 0x231ec, 0x23224, 0x232ec, 0x2330c
-S_NAMES = (0x2332c, 0x23336, 0x23340, 0x2334e, 0x23356, 0x2335c)
-S_BONUS_FOR, S_TIME_LEFT, S_OUT, S_OVER = 0x233ae, 0x233c0, 0x2370a, 0x2371c
-RACE_STRIDE = 0x1c
-
-PULSE = 0x20b34                # 16 words, the same at 0x20b74 (timer flash)
-BONUS_PAL = {0: 0, 4: 0, 8: 0, 12: 0, 9: 0xafff, 13: 0xafff, 29: 0}  # 0x118d2
-
-# big font (2 rows of tiles; digits 0x100 + 4d: TL TR / BL BR, comma one column)
-BLANK, COMMA_LO, COLON = 0x13c, 0x16e, 0x16d
-BIG = {   # captured from MAME (alpha RAM, final screen)
-    "CONGRATULATIONS!": (
-        (0x100, 0x12f, 0x100, 0x101, 0x148, 0x149, 0x100, 0x12f, 0x12c, 0x121, 0x128, 0x129, 0x152,
-         0x153, 0x131, 0x154, 0x131, 0x142, 0x128, 0x129, 0x152, 0x153, 0x139, 0x13a, 0x100, 0x101,
-         0x148, 0x149, 0x14e, 0x14f, 0x16f),
-        (0x102, 0x130, 0x102, 0x103, 0x14a, 0x14b, 0x102, 0x136, 0x12d, 0x141, 0x12a, 0x12b, 0x106,
-         0x107, 0x155, 0x156, 0x132, 0x143, 0x12a, 0x12b, 0x106, 0x107, 0x106, 0x13b, 0x102, 0x103,
-         0x14a, 0x14b, 0x150, 0x151, 0x170)),
-    "FINAL": (
-        (0x12c, 0x133, 0x139, 0x13a, 0x148, 0x149, 0x128, 0x129, 0x131, 0x142),
-        (0x12d, 0x135, 0x106, 0x13b, 0x14a, 0x14b, 0x12a, 0x12b, 0x132, 0x143)),
-    "SCORE:": (
-        (0x14e, 0x14f, 0x100, 0x12f, 0x100, 0x101, 0x12c, 0x121, 0x12c, 0x133, 0x16d),
-        (0x150, 0x151, 0x102, 0x130, 0x102, 0x103, 0x12d, 0x141, 0x12d, 0x134, 0x16d)),
-}
-
-# screen bits
-PAL, TOP, INTRO, SILLY, BONUS, BONUS_PALETTE, OUT, FIN = (1 << k for k in range(8))
-TITLE = 1 << 9
-DEMO = 1 << 10   # attract demo race: coin box, banner (Hud.banner)
-NO_BANNER = 0xff
-
-
-def font():
-    """512 glyphs, 8 rows of 8 pens 0-3 (anlayout: planes at bits 0 and 4, x bits 0-3, 8-11)."""
-    d = bytes(md.load_file(ALPHA_ZIP, [FONT_ROM], FONT_SHA1))
-    xs = (0, 1, 2, 3, 8, 9, 10, 11)
-    bit = lambda g, n: (d[g * 16 + (n >> 3)] >> (7 - (n & 7))) & 1
-    return [[[bit(g, y * 16 + x) << 1 | bit(g, y * 16 + 4 + x) for x in xs] for y in range(8)]
-            for g in range(512)]
-
-
-def rom_str(r, addr):
-    s = bytearray()
-    while md._rom(r, addr + len(s), 1)[0]:
-        s.append(md._rom(r, addr + len(s), 1)[0])
-    return s.decode()
-
-
-def word(code, colour, opaque):
-    return code | colour << 10 | (OPAQUE if opaque else 0)
-
-
-def text(s, colour, opaque):
-    return [word(0 if ch == " " else ord(ch), colour, opaque) for ch in s]
-
-
-def commas(v):
-    return "{:,}".format(v)
-
-
-def big_digits(s, colour, opaque=False):
-    """Big number string (digits, commas, spaces) -> two rows of words."""
-    top, bot = [], []
-    for ch in s:
-        if ch == ",":
-            top.append(BLANK); bot.append(COMMA_LO)
-        elif ch == " ":                  # digit wide
-            top += [BLANK, BLANK]; bot += [BLANK, BLANK]
-        else:
-            t = 0x100 + 4 * int(ch)
-            top += [t, t + 1]; bot += [t + 2, t + 3]
-    return [word(c, colour, opaque) for c in top], [word(c, colour, opaque) for c in bot]
-
-
-class Hud:
-    """Compact HUD state (marble_video::Hud in the remake)."""
-    def __init__(self, **kw):
-        self.screen, self.score, self.seconds, self.value = 0, 0, 0, 0
-        self.race, self.add, self.deaths = 0, 0, 0
-        self.pal3 = self.pal11 = 0xff   # pulse table index, 0xff = ROM colour
-        self.table, self.stage = (), 0     # title: [(initials, score)], frames since start
-        self.banner = NO_BANNER            # demo: banner number (0x242aa), NO_BANNER none
-        self.__dict__.update(kw)
-
-    def key(self):
-        return tuple(sorted(self.__dict__.items()))
-
-
-def items(h, r):
-    """Alpha items of state h: (dx, dy, row, col, words) in arcade coordinates; dx/dy move them
-    into the remake's 30 x 36 view (banners: arcade screen 3 rows lower, centred)."""
-    s = h.screen
-    out = []
-    put = lambda dx, dy, row, col, ws: out.append((dx, dy, row, col, ws))
-    if s & TOP:  # first: the bonus line covers a timer border cell, as in the arcade
-        border = word(0x5f, 7, False)
-        put(-3, 0, 0, 3, [border] * 5)
-        put(-3, 0, 1, 3, text("SCORE", 0, True))
-        put(-3, 0, 2, 3, text(commas(h.score), 0, True))
-        top, bot = big_digits("%02d" % max(0, min(h.seconds, 99)), 2, True)
-        put(-6, 0, 0, 19, [border] * 4 + [word(0xff, 7, False)])
-        put(-6, 0, 1, 19, top + [word(0xdf, 7, False)])
-        put(-6, 0, 2, 19, bot + [word(0xdf, 7, False)])
-        put(-6, 0, 3, 19, [word(0x5e, 7, False)] * 4 + [word(0x1b, 7, False)])
-    if s & INTRO:
-        name = rom_str(r, S_NAMES[h.race])
-        line = rom_str(r, S_RACES + RACE_STRIDE * h.race)
-        cs = text(line, 4, True)
-        at = line.index(name)
-        cs[at:at + len(name)] = text(name, 5, True)
-        put(-6, 3, 8, 8, text(rom_str(r, S_BLANK26), 4, True))
-        put(-6, 3, 9, 8, text(rom_str(r, S_TIME_TO if h.race < 2 else S_EXTRA), 4, True))
-        put(-6, 3, 10, 8, cs)
-        put(-6, 3, 11, 8, text(rom_str(r, S_BLANK26), 4, True))
-        top, bot = big_digits("%2d" % h.add, 5, True)
-        put(-6, 3, 9, 29, top)
-        put(-6, 3, 10, 29, bot)
-        if s & SILLY:
-            for row, a in ((14, S_BLANK31), (15, S_WRONG), (16, S_BLANK31)):
-                put(-6, 3, row, 6, text(rom_str(r, a), 5, True))
-    if s & BONUS:
-        put(-3, 0, 3, 3, text(rom_str(r, S_BONUS_FOR), 0, True))
-        line = rom_str(r, S_TIME_LEFT)
-        v = commas(h.value)
-        put(-3, 0, 4, 3, text(line[:len(line) - len(v)] + v, 0, True))
-    if s & OUT:
-        blank = " " * 16
-        for row, t in ((24, blank), (25, rom_str(r, S_OUT)), (26, blank), (27, rom_str(r, S_OVER)),
-                       (28, blank)):
-            put(-6, 3, row, 13, text(t, 0, True))
-    if s & FIN:
-        sec = min(h.seconds, 99)
-        cong = BIG["CONGRATULATIONS!"]
-        put(-6, 3, 2, 6, [word(c, 4, False) for c in cong[0]])
-        put(-6, 3, 3, 6, [word(c, 4, False) for c in cong[1]])
-        put(-6, 3, 7, 12, text(rom_str(r, S_YOU), 5, False))
-        put(-6, 3, 8, 12, text(rom_str(r, S_THE), 5, False))
-        fin = rom_str(r, S_BONUS_FIN)
-        label = fin.rstrip("0123456789,")
-        put(-7, 3, 13, 9, text(label.rstrip(), 5, False))
-        put(-9, 3, 13, 9 + len(label), text(fin[len(label):], 5, False))
-        put(-7, 3, 15, 10, text("%2d" % sec, 4, False))
-        put(-7, 3, 15, 13, text(rom_str(r, S_SEC), 5, False))
-        put(-9, 3, 15, 33, text("%6s" % commas(sec * 1000), 5, False))
-        died = rom_str(r, S_DIED)
-        put(-7, 3, 17, 7, text(died[:-1].rstrip(), 5, False))
-        put(-7, 3, 17, 12, text("%2d" % min(h.deaths, 99), 4, False))
-        put(-9, 3, 17, 32, text(died[-1:], 5, False))
-        put(-9, 3, 17, 33, text("%6s" % commas(min(h.deaths, 20) * 1000), 5, False))
-        put(-7, 3, 19, 23, text(rom_str(r, S_TOTAL), 5, False))
-        put(-9, 3, 19, 32, text("%7s" % commas(h.value), 5, False))
-        f = BIG["FINAL"]
-        put(-4, 3, 22, 4, [word(c, 4, False) for c in f[0]])
-        put(-4, 3, 23, 4, [word(c, 4, False) for c in f[1]])
-        sc = BIG["SCORE:"]
-        put(-10, 3, 24, 12, [word(c, 4, False) for c in sc[0]])
-        put(-10, 3, 25, 12, [word(c, 4, False) for c in sc[1]])
-        top, bot = big_digits(commas(h.score), 4)
-        put(-10, 3, 24, 40 - len(top), top)
-        put(-10, 3, 25, 40 - len(bot), bot)
-    if s & TITLE:
-        out += title_items(h.table, r, min(h.stage, TITLE_STAGES - 1))
-    if s & DEMO:
-        out += demo_items(h.banner, r)
-    return out
-
-
-RADIX = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:;<"  # initials (radix 40 word)
-
-# --- title (Phase 6a, MARBLE.md "Attract"): arcade rows/cols/colours from MAME ----------
-S_TROUBLE, S_COIN, S_CREDITS, S_COPYRIGHT = 0x235a8, 0x22f6c, 0x22ff8, 0x22f04
-
-
-def table_line(rank, initials, score):
-    """16 cells from arcade column 13: rank right aligned in 3, initials, score in 9."""
-    return "%3s %s%9s" % ("#%d" % rank, initials, "{:,}".format(score))
-
-
-TITLE_STAGES = 3  # the title draws over 3 frames: table, copyright, coin line
-
-
-def title_items(table, r, stage=TITLE_STAGES - 1):
-    """(dx, dy, row, col, words) of the title, colour 5 / 4, transparent; stage = frames
-    since the title started (0: header and table, 1: + copyright, 2: + coin line)."""
-    out = []
-    put = lambda dx, dy, row, col, ws: out.append((dx, dy, row, col, ws))
-    put(-6, 3, 9, 15, text(rom_str(r, S_TROUBLE), 5, False))
-    for k, (ini, sc) in enumerate(table):
-        put(-6, 3, 11 + k, 13, text(table_line(k + 1, ini, sc), 4, False))
-    if stage >= 1:
-        put(-6, 3, 29, 12, text(rom_str(r, S_COPYRIGHT), 4, False))
-    if stage >= 2:
-        put(-2, 3, 28, 3, text(rom_str(r, S_COIN), 5, False))
-        put(-7, 3, 28, 24, text(rom_str(r, S_CREDITS) + "0" + " " * 4, 5, False))
-    return out
-
-
-# --- attract demo (Phase 6b, MARBLE.md "Demo race"): coin box fitted to MAME, banners ----
-BANNERS = 0x242aa   # long per banner: string chain (col, row, string, marker 2 = next, next)
-BANNER_W = 13       # every banner line
-
-
-def chain(r, a):
-    """Alpha string chain -> [(row, col, text)] (render-string-chain, rotation 0)."""
-    out = []
-    while True:
-        col, row = md._rom(r, a, 2)
-        out.append((row, col, rom_str(r, md.u32(r, a + 2))))
-        if md._rom(r, a + 6, 1)[0] <= 1:
-            return out
-        a = md.u32(r, a + 8)
-
-
-def banner_dx(col):
-    """Banner move into the view: 6 columns left as the other banners, kept inside."""
-    return max(0, min(col - 6, VIEW_COLS - BANNER_W)) - col
-
-
-def demo_items(banner, r):
-    """(dx, dy, row, col, words) of the demo: coin box (rows 27-29, colour 6 lines, colour 5
-    and 4 opaque texts; the 36 arcade columns cut to 30), the banner (colour 5 opaque)."""
-    out = []
-    put = lambda dx, dy, row, col, ws: out.append((dx, dy, row, col, ws))
-    line = word(0x5f, 6, False)
-    put(-3, 3, 27, 3, [line] * 15)
-    put(-5, 3, 27, 24, [line] * 15)
-    put(-3, 3, 28, 3, text(rom_str(r, S_COIN), 5, True))
-    put(-3, 3, 28, 18, [line] * 6)
-    put(-5, 3, 28, 24, text(rom_str(r, S_CREDITS) + "0" + " " * 4, 5, True))
-    put(-6, 3, 29, 12, text(rom_str(r, S_COPYRIGHT), 4, True))
-    if banner != NO_BANNER:
-        for row, col, t in chain(r, md.u32(r, BANNERS + 4 * banner)):
-            put(banner_dx(col), 3, row, col, text(t, 5, True))
-    return out
 
 
 def alpha(h, r):
@@ -279,112 +43,8 @@ def alpha(h, r):
         for k, w in enumerate(ws):
             cells[row, col + k] = w
     return cells
-
-
-def view(h, r):
-    """Remake grid: VIEW_ROWS x VIEW_COLS words, items moved by (dx, dy), clipped."""
-    g = [[0] * VIEW_COLS for _ in range(VIEW_ROWS)]
-    for dx, dy, row, col, ws in items(h, r):
-        for k, w in enumerate(ws):
-            y, x = row + dy, col + k + dx
-            if 0 <= y < VIEW_ROWS and 0 <= x < VIEW_COLS:
-                g[y][x] = w
-    return g
-
-
-def palette(h, r):
-    """32 alpha palette words (IRGB) of state h."""
-    if not h.screen & PAL:
-        return [0] * 32
-    pal = [md.u16(r, md.PAL_ALPHA + 2 * i) for i in range(32)]
-    if h.screen & BONUS_PALETTE:
-        for i, v in BONUS_PAL.items():
-            pal[i] = v
-    if h.pal3 != 0xff:
-        pal[3] = md.u16(r, PULSE + 2 * h.pal3)
-    if h.pal11 != 0xff:
-        pal[11] = md.u16(r, PULSE + 2 * h.pal11)
-    return pal
-
-
-STRINGS = {   # remake string name -> ROM address
-    "you": S_YOU, "the": S_THE, "bonus_fin": S_BONUS_FIN, "sec": S_SEC, "died": S_DIED,
-    "total": S_TOTAL, "blank26": S_BLANK26, "time_to": S_TIME_TO, "extra": S_EXTRA,
-    "wrong": S_WRONG, "blank31": S_BLANK31, "bonus_for": S_BONUS_FOR, "time_left": S_TIME_LEFT,
-    "out": S_OUT, "over": S_OVER, "trouble": S_TROUBLE, "coin": S_COIN,
-    "credits": S_CREDITS, "copyright": S_COPYRIGHT,
-}
-BORDER_CODES = (0x5f, 0x5e, 0xdf, 0xff, 0x1b)
-CODES = 0x180                  # marble_hud_glyph entries (codes 0-0x17f)
-NO_GLYPH = 0xff                # blank: code 0, empty glyphs
-
-
-def glyph_codes(r):
-    """Every alpha code a HUD item can show, ascending."""
-    strs = [rom_str(r, a) for a in STRINGS.values()]
-    strs += [rom_str(r, S_RACES + RACE_STRIDE * k) for k in range(len(S_NAMES))]
-    strs += [t for b in range(7) for _, _, t in chain(r, md.u32(r, BANNERS + 4 * b))]
-    codes = {ord(ch) for t in strs + ["0123456789,-SCORE#", RADIX[1:27]] for ch in t if ch != " "}
-    codes |= set(BORDER_CODES)
-    codes |= {0x100 + k for k in range(40)} | {BLANK, COMMA_LO, COLON}
-    codes |= {c for top, bot in BIG.values() for c in top + bot}
-    return sorted(codes)
-
-
-def glyph_rows(glyph):
-    """8 rows, 2 bpp, left pixel in bits 15-14 (marble_hud_glyphs)."""
-    return [sum(p << (14 - 2 * x) for x, p in enumerate(line)) for line in glyph]
-
-
-# remake layout cases (host test fixture): screen, score, value, seconds, race, add, deaths,
-# pal3, pal11 (marble_video::Hud field order)
-LAYOUT_CASES = (
-    (PAL | TOP, 1020, 0, 50, 0, 0, 0, 0xff, 0xff),
-    (PAL | TOP, 9999999, 0, 5, 0, 0, 0, 0xff, 0xff),       # 7 digit score, leading zero
-    (PAL | TOP, 0, 0, 150, 0, 0, 0, 0xff, 3),               # clamp 99, timer flash
-    (PAL | TOP, 0, 0, -1, 0, 0, 0, 0xff, 0xff),             # clamp 0
-    (PAL | TOP | INTRO, 0, 0, 0, 0, 60, 0, 0xff, 0xff),
-    (PAL | TOP | INTRO, 0, 0, 55, 1, 5, 0, 0xff, 0xff),    # one digit: leading space
-    (PAL | TOP | INTRO, 6020, 0, 84, 3, 30, 0, 0xff, 0xff),   # EXTRA TIME FOR
-    (PAL | TOP | INTRO | SILLY, 6020, 0, 78, 4, 20, 0, 0xff, 0xff),
-    (PAL | TOP | BONUS | BONUS_PALETTE, 1020, 5000, 50, 1, 0, 0, 7, 0xff),
-    (PAL | TOP | OUT, 140, 0, 0, 0, 0, 0, 0xff, 0xff),
-    (PAL | FIN, 46920, 88750, 69, 6, 0, 0, 0xff, 0xff),
-    (PAL | FIN, 9999999, 0, 150, 6, 0, 25, 0xff, 0xff),    # clamps: 99 s, 20 deaths
-    (0, 1020, 0, 50, 0, 0, 0, 0xff, 0xff),                  # palette off: nothing shown
-    (PAL | TITLE, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0, 0),      # title first frame: table only
-    (PAL | TITLE, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 1, 0),      # + copyright
-    (PAL | TITLE, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 2, 0),
-    (PAL | TITLE, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 9, 1),      # 7 digit score, blank initials
-    (PAL | TOP | DEMO, 1330, 0, 45, 0, 0, 0, 0xff, 0xff, 0, 0, NO_BANNER),  # coin box
-    (PAL | TOP | DEMO, 0, 0, 60, 0, 0, 0, 0xff, 0xff, 0, 0, 0),   # banner clipped right
-    (PAL | TOP | DEMO, 80, 0, 58, 0, 0, 0, 0xff, 0xff, 0, 0, 1),  # clipped left
-    (PAL | TOP | DEMO, 300, 0, 46, 0, 0, 0, 0xff, 0xff, 0, 0, 3),  # 5 lines
-    (PAL | TOP | DEMO, 300, 0, 46, 1, 0, 0, 0xff, 0xff, 0, 0, 6),
-)
-LAYOUT_FIELDS = ("screen", "score", "value", "seconds", "race", "add", "deaths", "pal3", "pal11",
-                 "stage", "tcase", "banner")
-LAYOUT_DEFAULTS = (0, 0, NO_BANNER)  # stage, tcase, banner
 # title table of a layout case: 0 ROM defaults, 1 defaults with entry 1 = (blanks, 9,999,999)
 TABLE_CASES = 2
-BIG_ENTRY = ("   ", 9999999)
-
-
-def layout_table(r, tcase):
-    import marble_attract
-    t = marble_attract.defaults(r)
-    return [BIG_ENTRY] + t[1:] if tcase else t
-
-
-def layout_states(r=None):
-    out = []
-    for c in LAYOUT_CASES:
-        c = tuple(c) + LAYOUT_DEFAULTS[len(c) - len(LAYOUT_FIELDS) + len(LAYOUT_DEFAULTS):]
-        h = Hud(**dict(zip(LAYOUT_FIELDS, c)))
-        if h.screen & TITLE:
-            h.table = layout_table(r or md.load(), h.tcase)
-        out.append(h)
-    return out
 
 
 # --- MAME traces ------------------------------------------------------------------------
@@ -523,7 +183,7 @@ def mame_cells(w):
 
 
 def check(dirs):
-    r = md.load()
+    r = ROM
     glyphs = font()
     bad = 0
     for d in dirs:

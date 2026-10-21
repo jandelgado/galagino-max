@@ -51,7 +51,6 @@ GAMES = [
     "cbdash",
     "gberet",
     "hero",
-    "marble",
     "1943",
     "gorf",
     "solomon",

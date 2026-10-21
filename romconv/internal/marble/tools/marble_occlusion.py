@@ -26,9 +26,9 @@ import os
 import struct
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PIL import Image
-import marble_data as md
+from devrom import ROM, md
 import marble_sim as ms
 
 W, H = 336, 240
@@ -150,7 +150,7 @@ def main(argv):
     shots, snapdir, race, outdir = argv[1], argv[2], int(argv[4]), argv[5]
     ticks = ms.load_trace(argv[3])
     os.makedirs(outdir, exist_ok=True)
-    rom = md.load()
+    rom = ROM
     recs = ms.load_trace(shots)
     pick = [int(a) for a in argv[6:]] or range(len(recs))
     ok = True

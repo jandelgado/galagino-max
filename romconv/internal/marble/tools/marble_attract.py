@@ -17,11 +17,16 @@ import struct
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from devrom import ROM, SIM_ROM, md  # noqa: F401
+from romconv.games.marble.sim import marble_attract as _model  # noqa: F401
+from romconv.games.marble.sim.marble_attract import *  # noqa: F401,F403
 import marble_hud as mh
 import marble_sim as ms
 from marble_sim import s16
 
-md = mh.md
+
+
 
 # --- sequencer (frame counts from MAME traces, +-0) ------------------------------------
 ATTRACT = 1
@@ -38,8 +43,6 @@ FINAL_COUNT, FINAL_MODE = 28, 0xff  # 8 colours, palette fill 0x26cfa first
 
 # --- particles (0x400a9c, stride 0xa: x, y (1/16 px), vx, vy, mode word) ----------------
 PARTS, STRIDE, COUNT = 0x400a9c, 10, 0x4003e2
-FILL_TABLE = 0x20bb4   # 8 x 2 variants x 3 words, MO palette sets 0-7 pens 3-5
-FILL_FIXED = (0xafff, 0xcfc0)  # pens 1-2
 
 
 class Ram:
@@ -59,17 +62,6 @@ class Ram:
 def fill_26cfa(m):
     """Palette fill: rng(2) per MO colour set 0-7 picks a variant; returns the 8 variants."""
     return [ms.rng_13a98(m, 2) for _ in range(8)]
-
-
-def fill_palette(r, variants):
-    """MO palette words 0x100 + set * 16 + pen (pens 1-5) of the fill."""
-    pal = {}
-    for k, v in enumerate(variants):
-        a = FILL_TABLE + k * 12 + (6 if v else 0)
-        words = FILL_FIXED + tuple(md.u16(r, a + 2 * i) for i in range(3))
-        for i, w in enumerate(words):
-            pal[0x100 + k * 16 + 1 + i] = w
-    return pal
 
 
 def init_18cd2(m, count, mode):
@@ -116,20 +108,7 @@ def mos(m):
         out += [((y << 5) & 0x3fe0 | 1, mode | 1, ((x - 8) << 5) & 0x3fe0),
                 ((y << 5) & 0x3fe0 | 1, mode | 3, (x << 5) & 0x3fe0)]
     return out
-
-
-# --- high score table --------------------------------------------------------------------
-DEFAULTS = 0x1eea0           # 10 x 8 B: long score (low 24 bits), 3 ASCII initials, 0
 TABLE = 0x401e74 + 0x1e      # RAM: 10 x 5 B: 24 bit score, radix 40 initials word
-
-
-def defaults(r):
-    """[(initials, score)] in table order."""
-    out = []
-    for k in range(10):
-        a = DEFAULTS + 8 * k
-        out.append((bytes(md._rom(r, a + 4, 3)).decode("ascii"), md.u32(r, a) & 0xffffff))
-    return out
 
 
 def ram_table(m):
@@ -144,35 +123,6 @@ def ram_table(m):
 
 # --- logo: playfield words (captured, MAME attract shots), ROM tiles ---------------------
 LOGO_ROW, LOGO_COL = 2, 11   # playfield RAM row / column of the top left word
-LOGO = (
-    [0xf84] + [0xf85] * 18 + [0xf86],
-    list(range(0xf87, 0xf9b)),
-    [0xf87] + list(range(0xf9b, 0xfad)) + [0xf9a],
-    [0xf87, 0] + list(range(0xfad, 0xfbd)) + [0, 0xf9a],
-    [0xf87] + list(range(0xfbd, 0xfce)) + [0, 0xf9a],
-    [0xfce] + [0xfcf] * 18 + [0xfd0],
-)
-LOGO_PAL = 0x20aca           # 13 words over playfield set 0 (palette set 0) at LOGO_PENS
-LOGO_PENS = (2, 4, 6, 8, 10, 12, 14, 18, 20, 22, 24, 26, 28)
-
-
-def logo_palette(r):
-    """32 playfield set 0 words of the title: palette set 0 with the overlay."""
-    raw = {}
-    for k in range(0xC3):
-        raw[(md.u32(r, md.PAL_TARGETS + 4 * k) - 0xB00000) // 2] = md.u16(r, md.PAL_SETS + 2 * k)
-    pal = [raw[md.PF_PALETTE + i] for i in range(32)]
-    for k, pen in enumerate(LOGO_PENS):
-        pal[pen] = md.u16(r, LOGO_PAL + 2 * k)
-    return pal
-
-
-def title_mo_palette(r):
-    """MO palette words 0x100-0x17f of the title: palette set 0 (ROM)."""
-    raw = {}
-    for k in range(0xC3):
-        raw[(md.u32(r, md.PAL_TARGETS + 4 * k) - 0xB00000) // 2] = md.u16(r, md.PAL_SETS + 2 * k)
-    return {i: raw[i] for i in range(0x100, 0x180) if i in raw}
 
 
 # --- checks ------------------------------------------------------------------------------
@@ -292,7 +242,7 @@ def mame_cells(al):
 
 
 def check(dirs):
-    r = md.load()
+    r = ROM
     bad = 0
     for d in dirs:
         fs, runs, errs = check_trace(d, r)
@@ -304,7 +254,7 @@ def check(dirs):
 
 def check_logo(d):
     """Logo words in the playfield RAM of every title shot equal LOGO."""
-    r = md.load()
+    r = ROM
     R = 8 + 0x2000 + 0x3000
     b = open(os.path.join(d, "shots.bin"), "rb").read()
     n = bad = 0
@@ -336,7 +286,7 @@ def write_fixture(out, dirs):
     """Host test fixture: per particle run the RNG word before the init, count, mode, and
     the slot CRC of every frame (crc32 of the slot words, big endian)."""
     import zlib
-    r = md.load()
+    r = ROM
     runs_out = []
     for d in dirs:
         fs = mh.frames(d)

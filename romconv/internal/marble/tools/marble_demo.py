@@ -140,7 +140,7 @@ def check_hud(fs, d, r0, glyphs):
 
 def check_trace(path):
     fs = mh.frames(path)
-    r0 = mh.md.load()
+    r0 = mh.ROM
     glyphs = mh.font()
     ok = True
     for d in demos(fs):

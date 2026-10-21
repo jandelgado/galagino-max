@@ -1,35 +1,33 @@
-#!/usr/bin/env python3
 """Marble Madness (MAME `marble`, set 1) ROM decode, shared by the converter and tools.
 
 Facts and addresses: MARBLE.md. Cross-checked against Marble Love
 (github.com/magno73/marble-love, MIT) where noted there.
 """
-import os
 import struct
-import sys
+from collections.abc import Callable
+from types import MappingProxyType
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pyconv"))
-from gfxutil import load_file
-
-HERE = os.path.dirname(os.path.abspath(__file__))
-ZIP = os.path.join(HERE, "..", "..", "..", "romszip", "marble.zip")
+_MARBLE_ZIP = "marble.zip"
+_ALPHA_ZIP = "atarisy1.zip"
+_ALPHA_ROM = "136032.104.f5"
+_ALPHA_SHA1 = "72ba464da01bd6d3a91b8d9997d5ac14b6f47aad"
 
 LEVELS = 6
 COLS = 36  # playfield width in tiles, 288 px
-SCREEN_ROWS = 30  # 240 px visible below the camera
-NAMES = ["practice", "beginner", "intermediate", "aerial", "silly", "ultimate"]
-BANK = [1, 2, 2, 3, 3, 0]  # slapstic bank holding each level's bitstream
+_SCREEN_ROWS = 30  # 240 px visible below the camera
+NAMES = ("practice", "beginner", "intermediate", "aerial", "silly", "ultimate")
+BANK = (1, 2, 2, 3, 3, 0)  # slapstic bank holding each level's bitstream
 
-LEVEL_TABLE = 0x2BE00   # 6 x long: level descriptor
-ROW_STREAM = 0x800E4    # bitstream base, + signed row offset
-ATTR_RUNS = 0x2BE18     # attribute runs, + per-row index byte
-CODE_TABLE = 0x2499A    # 32 words, 9 bit codes
-RUN_TABLE = 0x249DA     # 8 words, run codes 1-4
+_LEVEL_TABLE = 0x2BE00   # 6 x long: level descriptor
+_ROW_STREAM = 0x800E4    # bitstream base, + signed row offset
+_ATTR_RUNS = 0x2BE18     # attribute runs, + per-row index byte
+_CODE_TABLE = 0x2499A    # 32 words, 9 bit codes
+_RUN_TABLE = 0x249DA     # 8 words, run codes 1-4
 PAL_SETS = 0x1FC10      # 6 x 195 words
 PAL_TARGETS = 0x20534   # 195 x long: palette RAM address per word
 PAL_ALPHA = 0x1FBD0     # 32 words, alpha palette
 
-SHA1 = {
+_SHA1 = MappingProxyType({
     "136033.623": "a24d2fd587dffcc8536ef28fcbcf5c964a6b67a9",
     "136033.624": "978b1565da746f7389eaf7646604990fb28d47ed",
     "136033.625": "a444b72ff4cdecee3b9dd7e636d658c31ecc186c",
@@ -57,15 +55,11 @@ SHA1 = {
     "136033.153": "33c7a38c66fb4d67a6ee88ef2da2bba091439e0c",
     "136033.118": "e4fb8dfa80ed78847c697f9de2bd8540b0c04889",
     "136033.119": "041f24cc03c9043c31c3294c9565dfda9bdada74",
-}
+})
 
 
 class Rom:
     pass
-
-
-def _f(name):
-    return bytes(load_file(ZIP, [name], SHA1[name]))
 
 
 def _interleave(even, odd):
@@ -76,7 +70,12 @@ def _inv(b):
     return bytes(x ^ 0xFF for x in b)
 
 
-def load():
+def load(read: Callable[[str, str, str], bytes]) -> Rom:
+    """The decoded ROM set. read(name, sha1, zip) returns the bytes of a zip member (checked
+    against sha1)."""
+    def _f(name):
+        return bytes(read(name, _SHA1[name], _MARBLE_ZIP))
+
     r = Rom()
     r.prog = {
         0x10000: _interleave(_f("136033.623"), _f("136033.624")),
@@ -92,10 +91,11 @@ def load():
     r.mo_planes = [_inv(_f("136033." + n)) for n in ("149", "151", "153")]
     r.prom1 = _f("136033.118")
     r.prom2 = _f("136033.119")
+    r.alpha = bytes(read(_ALPHA_ROM, _ALPHA_SHA1, _ALPHA_ZIP))
     return r
 
 
-def _rom(r, addr, n):
+def prog_bytes(r, addr, n):
     for base, d in r.prog.items():
         if base <= addr < base + len(d):
             return d[addr - base:addr - base + n]
@@ -103,11 +103,11 @@ def _rom(r, addr, n):
 
 
 def u16(r, addr):
-    return struct.unpack(">H", _rom(r, addr, 2))[0]
+    return struct.unpack(">H", prog_bytes(r, addr, 2))[0]
 
 
 def u32(r, addr):
-    return struct.unpack(">I", _rom(r, addr, 4))[0]
+    return struct.unpack(">I", prog_bytes(r, addr, 4))[0]
 
 
 def _slap8(r, bank, addr):
@@ -135,8 +135,7 @@ def pf_tile(r, code):
     return bytes(px)
 
 
-MO_BANK = 2           # graphics bank of the motion objects
-MO_FIRST_TILE = 2048  # first tile of bank 2 in ROM (149/151/153 load at plane offset 0x4000)
+_MO_FIRST_TILE = 2048  # first tile of bank 2 in ROM (149/151/153 load at plane offset 0x4000)
 
 
 def mo_lookup(r, code):
@@ -155,7 +154,7 @@ def mo_tile(r, tile):
     px = bytearray(64)
     for p, plane in enumerate(r.mo_planes):
         for row in range(8):
-            v = plane[(tile - MO_FIRST_TILE) * 8 + row]
+            v = plane[(tile - _MO_FIRST_TILE) * 8 + row]
             for c in range(8):
                 if v & (0x80 >> c):
                     px[row * 8 + c] |= 1 << p
@@ -172,15 +171,15 @@ def pf_lookup(r, word):
 
 def _decode_row(r, bank, src, attr):
     """68010 0x1a668: 36 playfield words from a bitstream (slapstic) and attribute runs (ROM)."""
-    t9 = [u16(r, CODE_TABLE + 2 * i) for i in range(32)]
-    trun = [u16(r, RUN_TABLE + 2 * i) for i in range(8)]
+    t9 = [u16(r, _CODE_TABLE + 2 * i) for i in range(32)]
+    trun = [u16(r, _RUN_TABLE + 2 * i) for i in range(8)]
     out = []
     st = {"cnt": 0, "hi": 0, "attr": attr}
 
     def next_attr():
         if st["cnt"] == 0:
-            st["cnt"] = _rom(r, st["attr"], 1)[0]
-            st["hi"] = _rom(r, st["attr"] + 1, 1)[0] << 8
+            st["cnt"] = prog_bytes(r, st["attr"], 1)[0]
+            st["hi"] = prog_bytes(r, st["attr"] + 1, 1)[0] << 8
             st["attr"] += 2
         st["cnt"] = (st["cnt"] - 1) & 0xFF
         return st["hi"]
@@ -230,17 +229,17 @@ def decode_level(r, n):
     Same per-row inputs as level init 0x16f6c and scroll redraw 0x13ee6: tile offset
     word and attribute byte, both indexed by row (verified against MAME, tools/pf_check.py).
     """
-    d = u32(r, LEVEL_TABLE + 4 * n)
+    d = u32(r, _LEVEL_TABLE + 4 * n)
     bank = BANK[n]
     offsets = u32(r, d + 0x04)
     attr_index = u32(r, d + 0x2A)
-    rows = (u16(r, d + 0x12) >> 3) + SCREEN_ROWS  # camera range + one screen
+    rows = (u16(r, d + 0x12) >> 3) + _SCREEN_ROWS  # camera range + one screen
     m = []
     for row in range(rows):
         off = _slap16(r, bank, offsets + 2 * row)
         off -= 0x10000 if off & 0x8000 else 0
-        attr = _slap8(r, bank, attr_index + row) + ATTR_RUNS
-        m.append(_decode_row(r, bank, ROW_STREAM + off, attr))
+        attr = _slap8(r, bank, attr_index + row) + _ATTR_RUNS
+        m.append(_decode_row(r, bank, _ROW_STREAM + off, attr))
     return m
 
 

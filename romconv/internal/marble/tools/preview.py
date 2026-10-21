@@ -6,9 +6,9 @@ usage (romconv/): uv run python internal/marble/tools/preview.py OUTDIR [LEVEL[:
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PIL import Image, ImageDraw
-import marble_data as md
+from devrom import ROM, md
 
 W, H, PAN = 240, 288, 48
 
@@ -44,7 +44,7 @@ def frames(full, y, name):
 def main():
     outdir = sys.argv[1]
     os.makedirs(outdir, exist_ok=True)
-    rom = md.load()
+    rom = ROM
     full = {n: render(rom, n) for n in range(md.LEVELS)}
     for n, img in full.items():
         img.save(os.path.join(outdir, f"level{n}_{md.NAMES[n]}.png"))

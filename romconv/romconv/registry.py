@@ -4,8 +4,8 @@ from romconv.core.errors import ConversionError
 from romconv.core.job import Job
 from romconv.cpu import m6502, z80
 from romconv.games import (anteater, bagman, bombjack, commando, crush, digdug, dkong, dkong3, dkongjr, eyes,
-                           frogger, galaga, galaxian, game_1942, gng, invaders, lizwiz, mcr, mrdo, mrtnt, pacman,
-                           pengo, starforce, theglob, vanvan, williams)
+                           frogger, galaga, galaxian, game_1942, gng, invaders, lizwiz, marble, mcr, mrdo, mrtnt,
+                           pacman, pengo, starforce, theglob, vanvan, williams)
 from romconv.games.namco import digdug2, gaplus, mappy, phozon, todruaga, xevious
 from romconv.games.system1 import jobs as system1
 from romconv.gfx import logo
@@ -43,6 +43,7 @@ ALL: tuple[Job, ...] = (
     mrdo.JOB,
     pengo.JOB,
     *starforce.JOBS,
+    marble.JOB,
     *galaxian.JOBS,
     mappy.JOB,
     gaplus.JOB,
