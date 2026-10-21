@@ -4,9 +4,10 @@ from romconv.games.system1.sets import SETS
 
 
 def test_every_game_depends_on_the_palette_owner():
-    games = [j for j in jobs.JOBS if j is not jobs.PALETTE_JOB]
+    games = [j for j in jobs.JOBS if j.name != "system1_palette"]
+    palette = next(j for j in jobs.JOBS if j.name == "system1_palette")
     assert len(games) == 15 and all(j.plan and j.deps == ("system1_palette",) for j in games)
-    assert jobs.PALETTE_JOB.machine == "system1" and not jobs.PALETTE_JOB.plan
+    assert palette.machine == "system1" and not palette.plan
 
 
 def test_pitfall2_reads_both_zips():

@@ -120,6 +120,21 @@ ALL: tuple[Job, ...] = (
 )
 
 
+def validate(jobs: Sequence[Job]) -> None:
+    """Names unique, phases >= 1, deps registered."""
+    seen: set[str] = set()
+    for job in jobs:
+        if job.name in seen:
+            raise ConversionError(f"duplicate job name {job.name!r}")
+        seen.add(job.name)
+        if job.phase < 1:
+            raise ConversionError(f"job {job.name}: phase must be >= 1, got {job.phase}")
+    for job in jobs:
+        missing = sorted(set(job.deps) - seen)
+        if missing:
+            raise ConversionError(f"job {job.name}: unknown deps {', '.join(missing)}")
+
+
 def by_name(name: str, jobs: Sequence[Job] | None = None) -> Job:
     jobs = ALL if jobs is None else jobs
     for job in jobs:
@@ -132,6 +147,7 @@ def resolve(names: Sequence[str], jobs: Sequence[Job] | None = None) -> list[Job
     """Jobs to run, in registry order: all if names is empty, else the named
     ones plus their deps (transitively) plus every phase 2 and `always` job."""
     jobs = ALL if jobs is None else jobs
+    validate(jobs)
     if not names:
         return list(jobs)
     todo = [j.name for j in jobs if j.phase == 2 or j.always] + list(names)

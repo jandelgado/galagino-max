@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from types import ModuleType
+from typing import TextIO
 
 from romconv import registry as _default_registry
 from romconv.core import paths as _paths
@@ -19,7 +20,7 @@ _DEFAULT_REGISTRY = "romconv.registry"
 
 
 @dataclass
-class JobResult:
+class _JobResult:
     name: str
     ok: bool
     log: str
@@ -38,7 +39,7 @@ def _job_logger(name: str) -> tuple[logging.Logger, io.StringIO]:
 
 
 def _run_job(name: str, requested: tuple[str, ...], paths: Paths,
-             registry_name: str = _DEFAULT_REGISTRY) -> JobResult:
+             registry_name: str = _DEFAULT_REGISTRY) -> _JobResult:
     """Worker entry: run one job by name, never raises."""
     start = time.perf_counter()
     log, buffer = _job_logger(name)
@@ -60,17 +61,17 @@ def _run_job(name: str, requested: tuple[str, ...], paths: Paths,
     except Exception as e:
         log.error(traceback.format_exc().rstrip())
         error = f"{type(e).__name__}: {e}"
-    return JobResult(name, error is None, buffer.getvalue(), time.perf_counter() - start, error, dirs)
+    return _JobResult(name, error is None, buffer.getvalue(), time.perf_counter() - start, error, dirs)
 
 
-def _report(result: JobResult) -> None:
+def _report(result: _JobResult, out: TextIO) -> None:
     if result.log:
-        print(result.log.rstrip("\n"), file=sys.stdout)
+        print(result.log.rstrip("\n"), file=out)
     status = "ok" if result.ok else f"FAILED: {result.error}"
-    print(f"-- {result.name}: {status} ({result.seconds:.1f}s)", file=sys.stdout, flush=True)
+    print(f"-- {result.name}: {status} ({result.seconds:.1f}s)", file=out, flush=True)
 
 
-def _collect(results: list[JobResult], owners: dict[str, str]) -> None:
+def _collect(results: list[_JobResult], owners: dict[str, str]) -> None:
     for r in results:
         for d in r.dirs:
             if d in owners and owners[d] != r.name:
@@ -79,12 +80,12 @@ def _collect(results: list[JobResult], owners: dict[str, str]) -> None:
 
 
 def _run_phase1(names: list[str], requested: tuple[str, ...], jobs: int, paths: Paths,
-                registry_name: str, mp_context) -> list[JobResult]:
+                registry_name: str, mp_context, out: TextIO) -> list[_JobResult]:
     results = []
     if jobs <= 1:
         for name in names:
             result = _run_job(name, requested, paths, registry_name)
-            _report(result)
+            _report(result, out)
             results.append(result)
         return results
     with ProcessPoolExecutor(max_workers=jobs, mp_context=mp_context) as pool:
@@ -93,21 +94,22 @@ def _run_phase1(names: list[str], requested: tuple[str, ...], jobs: int, paths: 
             try:
                 result = future.result()
             except Exception as e:  # worker died or result not picklable
-                result = JobResult(futures[future], False, "", 0.0, f"{type(e).__name__}: {e}")
-            _report(result)
+                result = _JobResult(futures[future], False, "", 0.0, f"{type(e).__name__}: {e}")
+            _report(result, out)
             results.append(result)
     return results
 
 
 def run(names: Sequence[str], jobs: int, paths: Paths | None = None, registry: ModuleType | None = None,
-        mp_context=None, requested: Sequence[str] | None = None) -> int:
+        mp_context=None, requested: Sequence[str] | None = None, out: TextIO | None = None) -> int:
     """Run the named jobs (all if empty); 0 if every job succeeded, else 1.
 
     registry: module with ALL (default romconv.registry). Phase 2 jobs run
     in-process after all phase 1 jobs succeeded. requested: what the user
     asked for, as seen by Context.requested; default the names, or every job
-    of the registry for a full run."""
+    of the registry for a full run. out: where job logs and the summary go (stdout)."""
     paths = paths or _paths.default()
+    out = out if out is not None else sys.stdout
     registry_name = registry.__name__ if registry is not None else _DEFAULT_REGISTRY
     all_jobs = importlib.import_module(registry_name).ALL
     selected = _default_registry.resolve(names, all_jobs)
@@ -115,22 +117,22 @@ def run(names: Sequence[str], jobs: int, paths: Paths | None = None, registry: M
         requested = names or [j.name for j in all_jobs]
     requested = tuple(requested)
     owners: dict[str, str] = {}
-    failed: list[JobResult] = []
+    failed: list[_JobResult] = []
 
     phase1 = [j.name for j in selected if j.phase == 1]
-    results = _run_phase1(phase1, requested, jobs, paths, registry_name, mp_context)
+    results = _run_phase1(phase1, requested, jobs, paths, registry_name, mp_context, out)
     _collect(results, owners)
     failed += [r for r in results if not r.ok]
 
     if not failed:
         for job in sorted((j for j in selected if j.phase > 1), key=lambda j: j.phase):
             result = _run_job(job.name, requested, paths, registry_name)
-            _report(result)
+            _report(result, out)
             _collect([result], owners)
             if not result.ok:
                 failed.append(result)
                 break
 
     for r in failed:
-        print(f"FAILED {r.name}: {r.error}", file=sys.stdout)
+        print(f"FAILED {r.name}: {r.error}", file=out)
     return 1 if failed else 0

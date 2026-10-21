@@ -14,7 +14,7 @@ _PACMAN_FAMILY = MappingProxyType({
 })
 
 
-def dump_sprite_4bpp_values(data: Sequence[Sequence[int]]) -> list[int]:
+def _dump_sprite_4bpp_values(data: Sequence[Sequence[int]]) -> list[int]:
     vals = []
     for y in range(16):
         val = 0
@@ -27,7 +27,7 @@ def dump_sprite_4bpp_values(data: Sequence[Sequence[int]]) -> list[int]:
 
 def sprite_row_values(s: Sequence[Sequence[int]]) -> list[int]:
     # 2bpp sprites pack as uint32_t[16], one long per row (differs from
-    # 1942's 4bpp dump_sprite_4bpp_values).
+    # 1942's 4bpp _dump_sprite_4bpp_values).
     vals = []
     for y in range(16):
         val = 0
@@ -90,7 +90,7 @@ def _parse_sprite_1942(data_low: Sequence[int], data_high: Sequence[int]) -> lis
     return sprite
 
 
-def parse_sprite(data: Sequence[int], pacman_fmt: bool, decode: bool) -> list[list[int]]:
+def _parse_sprite(data: Sequence[int], pacman_fmt: bool, decode: bool) -> list[list[int]]:
     # the pacman sprite format differs from the galaga
     # one. The top 4 pixels are in fact the bottom four
     # ones for pacman
@@ -140,7 +140,7 @@ def spritemap(ctx: Context, symbol: str, fmt: str, roms: Sequence[str], header: 
                 raise ConversionError(f"{name}: spritemap ROM is not 4096 bytes")
             # read and parse all 64 sprites
             for s in range(64):
-                sprites.append(parse_sprite(data[64 * s:64 * (s + 1)], pacman_fmt, decode))
+                sprites.append(_parse_sprite(data[64 * s:64 * (s + 1)], pacman_fmt, decode))
 
     elif fmt == "1942":
         half = len(roms) // 2
@@ -169,7 +169,7 @@ def spritemap(ctx: Context, symbol: str, fmt: str, roms: Sequence[str], header: 
 
     with ctx.header(header) as f:
         if fmt == "1942":
-            rows = [dump_sprite_4bpp_values(s) for s in sprites]
+            rows = [_dump_sprite_4bpp_values(s) for s in sprites]
             if plain:
                 body = ",\n".join("  { " + ",".join(hex(v) for v in r) + " }" for r in rows)
                 emit_plain(f, symbol, "uint32_t", "[32]", len(sprites), body)

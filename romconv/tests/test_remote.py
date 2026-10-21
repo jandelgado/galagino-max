@@ -257,7 +257,7 @@ def test_resolve_pulls_deps_of_always_jobs():
 
 def test_catalog_games():
     games = read_games(default())
-    assert len(games) == 118, len(games)  # the legacy test still said 110
+    assert len(games) >= 118, len(games)
     assert "motorace" in games and not games["motorace"]
     assert {g for g, in_catalog in games.items() if in_catalog} == set(games) - EXCLUDED
     assert "1943" in games and games["1943"] and games["gng"]

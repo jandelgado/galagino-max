@@ -5,7 +5,7 @@ from types import MappingProxyType
 from romconv.core.context import Context
 
 # (name, sha1) in the game's zip, or (zip, name, sha1) in another zip of romszip/
-RomRef = tuple[str, ...]
+_RomRef = tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -15,13 +15,13 @@ class SetSpec:
     prefers as PLAIN, color: PROMs of games without the fixed palette, mame_set: MAME set name
     (dev checks), zip: zip name if not <game>.zip."""
 
-    main: tuple[RomRef, ...]
-    sound: tuple[RomRef, ...]
-    tiles: tuple[RomRef, ...]
-    sprites: tuple[RomRef, ...]
-    lookup: tuple[RomRef, ...]
-    color: tuple[RomRef, ...] = ()
-    key: tuple[RomRef, ...] = ()
+    main: tuple[_RomRef, ...]
+    sound: tuple[_RomRef, ...]
+    tiles: tuple[_RomRef, ...]
+    sprites: tuple[_RomRef, ...]
+    lookup: tuple[_RomRef, ...]
+    color: tuple[_RomRef, ...] = ()
+    key: tuple[_RomRef, ...] = ()
     crypt: str | None = None
     rot0: bool = False
     banked: bool = False
@@ -30,7 +30,7 @@ class SetSpec:
     zip: str | None = None
 
 
-def load_roms(ctx: Context, refs: tuple[RomRef, ...], zip: str) -> bytes:
+def load_roms(ctx: Context, refs: tuple[_RomRef, ...], zip: str) -> bytes:
     """The files concatenated; zip is the game's zip for two-part refs."""
     out = b""
     for ref in refs:

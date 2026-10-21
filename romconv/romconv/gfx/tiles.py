@@ -50,7 +50,7 @@ def parse_chr_2(data0: Sequence[int], data1: Sequence[int]) -> list[list[int]]:
     return char
 
 
-def parse_chr(data: Sequence[int]) -> list[list[int]]:
+def _parse_chr(data: Sequence[int]) -> list[list[int]]:
     char = []
     for y in range(8):
         row = []
@@ -118,7 +118,7 @@ def charmap(ctx: Context, symbol: str, rom: str, header: str, *, compress: bool 
         if symbol in _DECODED:
             data = decode_data(data)
         for i in range(256):
-            chars.append(parse_chr(data[16 * i:16 * (i + 1)]))
+            chars.append(_parse_chr(data[16 * i:16 * (i + 1)]))
     else:
         # digdug format
         for i in range(128):

@@ -28,16 +28,8 @@ def rot_galagino(tile: Sequence[Sequence[int]]) -> list[list[int]]:
     return [[tile[n - 1 - x][y] for x in range(n)] for y in range(n)]
 
 
-def hex8(v: int) -> str:
-    return "0x{:02x}".format(v & 0xFF)
-
-
 def hex16(v: int) -> str:
     return "0x{:04x}".format(v & 0xFFFF)
-
-
-def hex32(v: int) -> str:
-    return "0x{:08x}".format(v & 0xFFFFFFFF)
 
 
 def step(start: int, inc: int, n: int) -> list[int]:

@@ -3,11 +3,6 @@ from romconv.core.paths import default
 from romconv.remote.catalog import BASES, bundle_dirs, job_name
 
 
-def test_job_names_unique():
-    names = [j.name for j in registry.ALL]
-    assert len(names) == len(set(names))
-
-
 def test_deps_name_registered_jobs():
     names = {j.name for j in registry.ALL}
     for job in registry.ALL:

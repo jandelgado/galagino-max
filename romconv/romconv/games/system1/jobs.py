@@ -165,6 +165,6 @@ def _job(game: str) -> Job:
 
 
 # the palette RAM table is the same for every game: one owner job
-PALETTE_JOB = Job(name=_PALETTE_JOB, convert=_convert_palette, machine="system1")
+_PALETTE = Job(name=_PALETTE_JOB, convert=_convert_palette, machine="system1")
 
-JOBS = (PALETTE_JOB, *(_job(game) for game in SETS))
+JOBS = (_PALETTE, *(_job(game) for game in SETS))

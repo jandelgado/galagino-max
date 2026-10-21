@@ -1,3 +1,4 @@
+import io
 import multiprocessing
 import os
 
@@ -34,6 +35,13 @@ def test_failure_in_process(paths, capsys):
     assert (paths.machines / "fake" / "ok_a.h").exists()
     assert not (paths.machines / "fake" / "boom.h").exists()
     assert "log of boom" in capsys.readouterr().out
+
+
+def test_output_goes_to_the_given_stream(paths, capsys):
+    out = io.StringIO()
+    assert runner.run(["boom", "ok_a"], 1, paths, fake_jobs, out=out) == 1
+    assert "log of boom" in out.getvalue() and "FAILED boom: exploded" in out.getvalue()
+    assert capsys.readouterr().out == ""
 
 
 def test_j1_runs_in_process(paths):

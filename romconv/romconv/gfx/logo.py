@@ -15,7 +15,7 @@ from romconv.emit.text import c_symbol
 from romconv.gfx.color import rgb565_swapped_scaled, swap_bytes
 
 WIDTH, HEIGHT = 224, 96
-COLORS = 16
+_COLORS = 16
 
 # kmeans refines the MAXCOVERAGE palette: best quality and size of the PIL
 # quantizers on the current logos. No dither, it costs compression.
@@ -32,16 +32,16 @@ def _to_rgb888(rgbs: int) -> tuple[int, int, int]:
     return ((r * 255 + 30) // 31, (g * 255 + 62) // 63, (b * 255 + 30) // 31)
 
 
-def quantize(img: Image.Image) -> tuple[list[int], list[int]]:
-    """Return (palette, indices) with palette as COLORS RGB565 values."""
+def _quantize(img: Image.Image) -> tuple[list[int], list[int]]:
+    """Return (palette, indices) with palette as _COLORS RGB565 values."""
     # quantize the colors the display shows, so <= 16 RGB565 colors stay exact
     shown = Image.new("RGB", img.size)
     shown.putdata([_to_rgb888(rgb565_swapped_scaled(*p)) for p in img.get_flattened_data()])
 
-    q = shown.quantize(colors=COLORS, method=Image.Quantize.MAXCOVERAGE,
+    q = shown.quantize(colors=_COLORS, method=Image.Quantize.MAXCOVERAGE,
                        kmeans=_KMEANS_ITERATIONS, dither=Image.Dither.NONE)
-    rgb = q.getpalette()[:3 * COLORS]
-    rgb += [0] * (3 * COLORS - len(rgb))
+    rgb = q.getpalette()[:3 * _COLORS]
+    rgb += [0] * (3 * _COLORS - len(rgb))
     palette = [rgb565_swapped_scaled(*rgb[i:i + 3]) for i in range(0, len(rgb), 3)]
     return palette, list(q.get_flattened_data())
 
@@ -53,8 +53,8 @@ def logo(ctx: Context, png: Path, machine: str) -> None:
         raise ConversionError("%s: logo size mismatch (expected %dx%d, got %dx%d)"
                               % (png.name, WIDTH, HEIGHT, *img.size))
 
-    palette, indices = quantize(img)
-    raw = struct.pack(f"<{COLORS}H", *palette)
+    palette, indices = _quantize(img)
+    raw = struct.pack(f"<{_COLORS}H", *palette)
     raw += bytes((indices[i] << 4) | indices[i + 1] for i in range(0, len(indices), 2))
 
     c_name = c_symbol(machine + "_logo")
