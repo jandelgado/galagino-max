@@ -246,5 +246,6 @@ evicted first. Menu entries not cached yet show a NET marker.
 | Motos (motos.zip)             | ![Motos marquee](/logos/motos.png) | ![Motos screenshot](/images/motos.png) | Dig Dug II board. FIRE=power, START=jump (controller B=jump) |
 | Jungle Hunt (junglek.zip)     | ![Jungle Hunt marquee](/logos/jungleh.png) | ![Jungle Hunt screenshot](/images/jungleh.png) | Set jungleh (US) from junglek.zip, Taito SJ board without MCU. FIRE=jump/stab |
 | Mega Zone (megazone.zip)      | ![Mega Zone marquee](/logos/megazone.png) | ![Mega Zone screenshot](/images/megazone.png) | FIRE=fire |
+| Choplifter (choplift.zip)     | ![Choplifter marquee](/logos/choplift.png) | ![Choplifter screenshot](/images/choplift.png) | Set chopliftu (unprotected), Sega System 2. FIRE=shoot, START=turn (controller B=turn) |
 
 ### ...

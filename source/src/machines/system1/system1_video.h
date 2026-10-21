@@ -37,6 +37,26 @@ constexpr uint16_t BG_PENS = 0x400;
 constexpr int TILE_SIZE = 8;
 constexpr int MIX_PRIORITIES = 16;        // fg x bg tile priority (color bits 6-7)
 
+// bg map 512 x 512: pages [0 1; 2 3], x scroll per 8 lines
+constexpr int BG_PAGES = 4;
+constexpr int SCROLL_ROWS = 32;
+constexpr int BG_MAP_MASK = 0x1ff;
+constexpr int PAGE_SIZE = 256;            // pixels per page side
+constexpr uint8_t SYS1_FG_PAGE = 1;       // System 1: bg is page 0
+constexpr uint8_t SYS2_FG_PAGE = 0;
+
+// System 2 registers in page 0 (MAME screen_update_system2_rowscroll)
+constexpr uint16_t SYS2_PAGE_SELECT = 0x740;  // 4 selects, every other byte
+constexpr uint16_t SYS2_SCROLL_Y = 0x7ba;
+constexpr uint16_t SYS2_ROW_SCROLL = 0x7c0;   // per row: 9 bit, little endian
+constexpr int SYS2_ROW_SCROLL_MASK = 0x1ff;
+constexpr int SYS2_ROW_SCROLL_BIAS = 10 - 512;
+constexpr int SYS2_SPRITE_X_OFFSET = 14;      // 512 units, not flipped
+
+// The CPU window e000-efff holds pages 0 and 1. MAME selects 8 pages, but
+// Choplifter never banks VRAM and selects page 1 only (MAME probe).
+constexpr uint8_t WINDOW_PAGE_MASK = 1;
+
 // visible half-res x range, 512 units 2 * x0 .. 2 * x1 + 1
 struct Visarea {
   int16_t x0;
@@ -55,6 +75,47 @@ inline int bgScroll(uint8_t lo, uint8_t hi) {
 // all four bg pages are page 0, so the 512 wide map repeats every 256
 inline uint8_t bgCol(int x512, int scroll) { return (uint8_t)((x512 - scroll) / 2); }
 inline uint8_t bgY(int y, uint8_t yscroll) { return (uint8_t)(y + yscroll); }
+
+// position in the 512 x 512 bg map (MAME video_update_common)
+inline uint16_t bgMapX(int x512, int scroll) { return ((x512 - scroll) / 2) & BG_MAP_MASK; }
+inline uint16_t bgMapY(int y, uint8_t yscroll) { return (y + yscroll) & BG_MAP_MASK; }
+
+// System 1 board or System 2 (sys2row: own bg pages, row scroll)
+enum VideoBoard : uint8_t { VIDEO_SYSTEM1, VIDEO_SYSTEM2 };
+
+inline uint8_t fgPageOf(VideoBoard b) { return b == VIDEO_SYSTEM2 ? SYS2_FG_PAGE : SYS1_FG_PAGE; }
+
+inline int spriteXOffset(VideoBoard b) { return b == VIDEO_SYSTEM2 ? SYS2_SPRITE_X_OFFSET : 0; }
+
+// Tile layer registers of one frame, pages as window page numbers. System 1
+// (MAME screen_update_system1): bg page 0 everywhere, one x scroll.
+struct Layers {
+  uint8_t bgPage[BG_PAGES];
+  uint8_t scrollY;
+  int16_t rowScroll[SCROLL_ROWS];  // 512 units
+};
+
+inline void readLayers(const uint8_t *vram, VideoBoard b, Layers &l) {
+  if (b == VIDEO_SYSTEM1) {
+    // 16 bit as MAME's (s16) cast of the biased scroll
+    const int16_t scroll = (int16_t)bgScroll(vram[SCROLL_X_LO], vram[SCROLL_X_HI]);
+    memset(l.bgPage, 0, sizeof(l.bgPage));
+    l.scrollY = vram[SCROLL_Y];
+    for (int r = 0; r < SCROLL_ROWS; r++) {
+      l.rowScroll[r] = scroll;
+    }
+    return;
+  }
+
+  for (int p = 0; p < BG_PAGES; p++) {
+    l.bgPage[p] = vram[SYS2_PAGE_SELECT + 2 * p] & WINDOW_PAGE_MASK;
+  }
+  l.scrollY = vram[SYS2_SCROLL_Y];
+  for (int r = 0; r < SCROLL_ROWS; r++) {
+    const uint8_t *reg = &vram[SYS2_ROW_SCROLL + 2 * r];
+    l.rowScroll[r] = ((reg[0] | (reg[1] << 8)) & SYS2_ROW_SCROLL_MASK) + SYS2_ROW_SCROLL_BIAS;
+  }
+}
 
 struct Tile {
   uint16_t code;
@@ -130,15 +191,15 @@ inline bool buildMixSel(const uint8_t *prom, uint16_t *sel) {
   return clearShowsBg;
 }
 
-// Per frame inputs of renderLine
+// Per frame inputs of renderLine / renderRow
 struct LineSrc {
   const uint8_t *fgPage;
-  const uint8_t *bgPage;
+  const uint8_t *bgPages[BG_PAGES];  // System 1: all the same page
   TileSet tiles;
   const uint16_t *pal;
-  const uint16_t *mixSel;  // buildMixSel
-  bool clearShowsBg;       // buildMixSel
-  int scroll;              // bgScroll
+  const uint16_t *mixSel;     // buildMixSel
+  bool clearShowsBg;          // buildMixSel
+  const int16_t *rowScroll;   // Layers::rowScroll
   uint8_t scrollY;
 };
 
@@ -155,7 +216,7 @@ struct Run {
 inline __attribute__((always_inline)) const uint16_t *bgTile(const LineSrc &f, uint8_t bx,
                                                               uint8_t by, uint32_t &bw,
                                                               int &pri) {
-  const Tile t = tileAt(f.bgPage, (by >> 3) * PAGE_COLS + (bx >> 3));
+  const Tile t = tileAt(f.bgPages[0], (by >> 3) * PAGE_COLS + (bx >> 3));
   bw = f.tiles[t.code][bx & 7] << (3 * (by & 7));
   pri = t.color >> 6;
   return &f.pal[BG_PENS | tilePen(t.color, 0)];
@@ -185,10 +246,10 @@ __attribute__((noinline)) inline void mixRun(uint16_t *out, const uint16_t *pens
 // out through the lookup PROM (MAME video_update_common). sprTiles bit ty
 // marks fg tile rows ty that may hold sprite pens, all others are 0. Pass 1
 // paints bg, pass 2 mixes only the fg tiles with fg or sprite pixels, few in
-// practice.
+// practice. ROT270 games are all System 1: one bg page, one scroll.
 inline void renderLine(const LineSrc &f, int x, uint32_t sprTiles, uint16_t *out) {
   static const uint16_t NO_PENS[TILE_SIZE] = {};
-  const uint8_t bx = bgCol(2 * x, f.scroll);
+  const uint8_t bx = bgCol(2 * x, f.rowScroll[0]);
 
   // pass 1 overwrites the sprite pens: keep the tiles holding them
   uint16_t pens[VIS_LINES];
@@ -246,18 +307,21 @@ inline void renderLine(const LineSrc &f, int x, uint32_t sprTiles, uint16_t *out
 // stored TILES_BY_ROW. Sprite pens are already in out; sprCols bit tx marks
 // native tile columns tx (sprite space) that may hold them. One pass over
 // runs with a fixed fg and bg tile: runs without fg or sprite pixels copy
-// bg, the others go through mixRun (renderLine's pass 2).
+// bg, the others go through mixRun (renderLine's pass 2). The bg line
+// crosses the left and right page of its page row and has its row's scroll.
 inline void renderRow(const LineSrc &f, int y, int x0, int fgX0, int n, uint32_t sprCols,
                       uint16_t *out) {
   static const uint16_t NO_PENS[TILE_SIZE] = {};
   constexpr uint32_t ROW_BITS = 0xffffff;  // 8 pixels x 3 bits
-  const uint8_t by = bgY(y, f.scrollY);
+  const int scroll = f.rowScroll[(y >> 3) & (SCROLL_ROWS - 1)];
+  const uint16_t by = bgMapY(y, f.scrollY);
+  const uint8_t *const *bgPages = &f.bgPages[(by / PAGE_SIZE) * 2];
   const int fgRow = (y >> 3) * PAGE_COLS;
-  const int bgRow = (by >> 3) * PAGE_COLS;
+  const int bgRow = ((by % PAGE_SIZE) >> 3) * PAGE_COLS;
 
-  // bgCol truncates toward 0: with an odd scroll bg column 0 shows twice,
+  // bgMapX truncates toward 0: with an odd scroll bg column 0 shows twice,
   // the second time at i = dup, where the column count restarts
-  const int dup = (f.scroll & 1) ? (f.scroll + 1) / 2 - x0 : -1;
+  const int dup = (scroll & 1) ? (scroll + 1) / 2 - x0 : -1;
 
   int fgCol = -1;
   int bgTileCol = -1;
@@ -267,7 +331,7 @@ inline void renderRow(const LineSrc &f, int y, int x0, int fgX0, int n, uint32_t
   int bgPri = 0;
   Run r;
   for (int i = 0; i < n;) {
-    const uint8_t bx = bgCol(2 * (x0 + i), f.scroll);
+    const uint16_t bx = bgMapX(2 * (x0 + i), scroll);
     const int fx = fgX0 + i;
     int len = TILE_SIZE - (bx & 7);
     len = TILE_SIZE - (fx & 7) < len ? TILE_SIZE - (fx & 7) : len;
@@ -284,7 +348,7 @@ inline void renderRow(const LineSrc &f, int y, int x0, int fgX0, int n, uint32_t
     }
     if ((bx >> 3) != bgTileCol) {
       bgTileCol = bx >> 3;
-      const Tile t = tileAt(f.bgPage, bgRow + bgTileCol);
+      const Tile t = tileAt(bgPages[bx / PAGE_SIZE], bgRow + (bgTileCol & (PAGE_COLS - 1)));
       bgWord = f.tiles[t.code][by & 7];
       r.bgPal = &f.pal[BG_PENS | tilePen(t.color, 0)];
       bgPri = t.color >> 6;
@@ -318,8 +382,9 @@ struct Sprite {
   uint8_t bank;
 };
 
-// Sprites 0..n-1; entry[0] == 0xff hides it and all later ones.
-inline int decodeSprites(const uint8_t *ram, uint8_t banks, Sprite *out) {
+// Sprites 0..n-1; entry[0] == 0xff hides it and all later ones. xOffset:
+// spriteXOffset, omitted: System 1.
+inline int decodeSprites(const uint8_t *ram, uint8_t banks, Sprite *out, int xOffset = 0) {
   for (int n = 0; n < SPRITES; n++) {
     const uint8_t *e = ram + n * SPRITE_BYTES;
     if (e[0] == SPRITE_LIST_END) {
@@ -329,7 +394,7 @@ inline int decodeSprites(const uint8_t *ram, uint8_t banks, Sprite *out) {
     Sprite &s = out[n];
     s.top = e[0] + 1;
     s.bottom = e[1] + 1;
-    s.x = (e[2] | (e[3] << 8)) & 0x1ff;
+    s.x = ((e[2] | (e[3] << 8)) & 0x1ff) + xOffset;
     s.stride = e[4] | (e[5] << 8);
     s.addr = e[6] | (e[7] << 8);
     s.bank = (((e[3] & 0x80) >> 7) | ((e[3] & 0x40) >> 5) | ((e[3] & 0x20) >> 3)) % banks;

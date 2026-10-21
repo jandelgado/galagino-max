@@ -288,6 +288,31 @@ GAMES = {
                   ("pr-7343.1", "ac37458d1feb6566b09a795b20c21953d4ab109d")],
         "lookup": [("pr5317.4", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
     },
+    # choplift (chopliftu): System 2, unencrypted, ROT0. Main: 32K fixed +
+    # 4 banks of 16K (bank0c: entry = (mode & 0x0c) >> 2). Files live in
+    # subdir chopliftu/ of choplift.zip, palette from 3 color PROMs
+    "choplift": {
+        "rot0": True,
+        "banked": True,
+        # sprites (128K), tiles (4096 x 32 B, read per pixel row) and the
+        # 64K banked ROM stay PLAIN
+        "plain": ["sprites", "banks", "tiles"],
+        "main": [("chopliftu/epr-7152.ic90", "307be38dd73ed37b275c1b464d266a752cb06132"),
+                 ("chopliftu/epr-7153.ic91", "0f4c6db9558272f5ceb347e742b284474f18b707"),
+                 ("chopliftu/epr-7154.ic92", "ad8ccf15fe7f1d6716f78490892da0167d79f678")],
+        "sound": [("epr-7130.ic126", "ef579818a45b8ebb276d5832092b26e232d5a737")],
+        "tiles": [("epr-7127.ic4", "b975e13bdc44105e7a15c2694e3ec53b60e23e5e"),
+                  ("epr-7128.ic5", "16087671ec7de25f749b5fd66409d48ef7b35820"),
+                  ("epr-7129.ic6", "c66f21b98cb8fc61a9318041ac1812c13099d974")],
+        "sprites": [("epr-7121.ic87", "2b06da1beabbea82d502fbe12f6ec3ef26056edd"),
+                    ("epr-7120.ic86", "3fb5c00224920c3f62fb86e82caf0fee2293e1e2"),
+                    ("epr-7123.ic89", "5f2465505f001dc052e9de4cf66bc1d53fc8c7da"),
+                    ("epr-7122.ic88", "6ab156cad7556808496070f8b02a708ce405c492")],
+        "color": [("pr7119.ic20", "36c1debb4b3f2f190a25b18d533319d7380416de"),
+                  ("pr7118.ic14", "9ebf4bd2c30ddd9648bc4b41c7739cfdf80100da"),
+                  ("pr7117.ic8", "cee28d891e6ce732c43a61acb5beeafd2200cf37")],
+        "lookup": [("pr5317.ic28", "c7986aa9127ef5b50b845434cb4e81dff9861cd2")],
+    },
 }
 
 # MAME segacrpt_device.cpp sega_315_5048_device::decrypt(): per row

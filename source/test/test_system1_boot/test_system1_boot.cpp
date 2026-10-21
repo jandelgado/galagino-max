@@ -143,8 +143,6 @@ template <class M> static BootResult run(int frames) {
   return r;
 }
 
-// frames: Heavy Metal runs its IC test (RAM fill, ~4400 frames here, MAME
-// ~2700: the engine steps instructions, not cycles) before it polls inputs
 template <class M> static void check(int frames = 1200) {
   const BootResult r = run<M>(frames);
   TEST_ASSERT_TRUE(r.started);
@@ -173,7 +171,44 @@ static void test_wboy_boots(void) { check<wboy>(); }
 static void test_fourdwarrio_boots(void) { check<fourdwarrio>(); }
 #endif
 #ifdef ENABLE_HVYMETAL
-static void test_hvymetal_boots(void) { check<hvymetal>(4800); }
+static void test_hvymetal_boots(void) { check<hvymetal>(); }
+
+// frames until the first input read
+static int framesToStart() {
+  int frames = 0;
+  while (!machine->game_started && frames < 6000) {
+    machine->run_frame();
+    frames++;
+  }
+  return frames;
+}
+
+// RAM test and ROM checksum (MAME: first input read at frame 2840, here
+// 4354) run on every power-on: reset skips them
+static void test_hvymetal_skips_ram_test(void) {
+  boot<hvymetal>();
+  TEST_ASSERT_LESS_THAN(10, framesToStart());
+}
+
+// main CPU RAM 1200 frames into attract: same as after the test (the
+// sound CPU idles from power-on, its counters depend on the boot length)
+static void test_hvymetal_skip_matches_cold_boot(void) {
+  static uint8_t cold[system1::SOUND_RAM];
+  boot<hvymetal>();
+  machine->system1::reset();
+  TEST_ASSERT_GREATER_THAN(1000, framesToStart());
+  for (int frame = 0; frame < 1200; frame++) {
+    machine->run_frame();
+  }
+  memcpy(cold, memory, sizeof(cold));
+
+  boot<hvymetal>();
+  framesToStart();
+  for (int frame = 0; frame < 1200; frame++) {
+    machine->run_frame();
+  }
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(cold, memory, sizeof(cold));
+}
 #endif
 #ifdef ENABLE_GARDIA
 // 317-0006 decryption, bank44 banks in the Arena
@@ -214,6 +249,8 @@ int main(int, char **) {
 #endif
 #ifdef ENABLE_HVYMETAL
   RUN_TEST(test_hvymetal_boots);
+  RUN_TEST(test_hvymetal_skips_ram_test);
+  RUN_TEST(test_hvymetal_skip_matches_cold_boot);
 #endif
 #ifdef ENABLE_GARDIA
   RUN_TEST(test_gardia_boots);

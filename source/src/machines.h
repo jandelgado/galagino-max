@@ -270,6 +270,12 @@
     #include "machines/mhavoc/mhavoc_bundle.h"
   #endif
 #endif
+#ifdef GAME_CHOPLIFT
+  #include "machines/choplift/choplift.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/choplift/choplift_bundle.h"
+  #endif
+#endif
 #ifdef GAME_MEGAZONE
   #include "machines/megazone/megazone.h"
   #ifdef ASSETS_REMOTE
@@ -1520,6 +1526,13 @@ constexpr machineInfo machines[] = {
     mhavoc::menuLeds,
 #endif
     MCH_MHAVOC, nullptr BUNDLE_REF(mhavoc_bundle_ref) },
+#endif
+#ifdef GAME_CHOPLIFT
+  { createMachine<choplift>, choplift::logo,
+#ifdef LED_PIN
+    choplift::menuLeds,
+#endif
+    MCH_CHOPLIFT, &choplift_arena_plan BUNDLE_REF(choplift_bundle_ref) },
 #endif
 #ifdef GAME_MEGAZONE
   { createMachine<megazone>, megazone::logo,

@@ -8,7 +8,8 @@
     defined(GAME_WBOY) || \
     defined(GAME_FOURDWARRIO) || \
     defined(GAME_HVYMETAL) || \
-    defined(GAME_GARDIA)
+    defined(GAME_GARDIA) || \
+    defined(GAME_CHOPLIFT)
 
 #include "system1.h"
 #include "system1_palette.h"
@@ -46,6 +47,11 @@ constexpr uint8_t PORT_DSWB = 0x10;
 constexpr uint8_t PORT_PPI = 0x14;          // 14-17, sys1ppi
 constexpr uint8_t PORT_PIO = 0x18;          // 18-1b, sys1pio
 constexpr uint8_t PORT_END = 0x1c;
+
+// PPI port C (MAME sound_control_w): bit 0 mute, bits 1-2 VRAM bank on
+// System 2, bit 7 sound NMI. Choplifter only writes 0x00 / 0x01 (MAME
+// probe): the VRAM bank stays 0, e000-efff is always pages 0 and 1.
+constexpr uint8_t SOUND_MUTE = 0x01;
 
 // inputs, active low
 constexpr uint8_t IN_BUTTON2 = 0x02;
@@ -249,13 +255,15 @@ void system1::outZ80(unsigned short Port, unsigned char Value) {
   selectBank();
 }
 
-// MAME bank44_custom_w: video mode bits 6 and 2 pick one of 4 banks
+// MAME bank44_custom_w: video mode bits 6 and 2 pick one of 4 banks,
+// bank0c_custom_w: bits 3 and 2
 void system1::selectBank() {
   if (!banks) {
     return;
   }
   const uint8_t m = videoMode();
-  const uint32_t entry = ((m & 0x40) >> 5) | ((m & 0x04) >> 2);
+  const uint32_t entry = config.bank == BANK_0C ? (m & 0x0c) >> 2
+                                                : ((m & 0x40) >> 5) | ((m & 0x04) >> 2);
   bank = banks + (entry % (bank_rom.size() / BANK_SIZE)) * BANK_SIZE;
 }
 
@@ -270,6 +278,24 @@ uint8_t system1::ackSoundLatch() {
 
 uint8_t system1::videoMode() const {
   return config.board == BOARD_PIO ? pio.portB() : ppi.portB();
+}
+
+// System 2 mutes while port C bit 0 is low (MAME m_mute_xor = 1). System 1
+// boards ignore the bit (MAME mutes on high), as galagino always did.
+bool system1::muted() const {
+  return config.board == BOARD_SYS2 && !(ppi.portC() & SOUND_MUTE);
+}
+
+system1_video::VideoBoard system1::videoBoard() const {
+  return config.board == BOARD_SYS2 ? VIDEO_SYSTEM2 : VIDEO_SYSTEM1;
+}
+
+// the chips keep running while muted, only their output is silenced
+void system1::renderAudio(int16_t *out, int n) {
+  Sn76489::renderBank(sn, out, n);
+  if (muted()) {
+    memset(out, 0, n * sizeof(int16_t));
+  }
 }
 
 // FIRE drives BUTTON1; galagino controller B, or START in two weapon games
@@ -342,17 +368,17 @@ void system1::run_frame(void) {
 // Collision of the frame just shown, latch the video state, main IRQ.
 void system1::startVblank() {
   const uint8_t *vram = &memory[VIDEO_RAM];
+  const VideoBoard board = videoBoard();
 
   const Collision::Frame f = {&memory[SPRITE_RAM], spriteRom, spriteBanks, vram,
-                              tiles, prom, videoMode(), config.vis};
+                              tiles, prom, videoMode(), config.vis, board};
   collision.scan(f);
 
-  vblank.publish([this, vram](VideoState &v) {
+  const uint8_t *bg = vram + (fgPageOf(board) ^ WINDOW_PAGE_MASK) * PAGE_BYTES;
+  vblank.publish([this, vram, bg, board](VideoState &v) {
     memcpy(v.sprite_ram, &memory[SPRITE_RAM], sizeof(v.sprite_ram));
-    memcpy(v.bg_page, vram, sizeof(v.bg_page));
-    v.scroll_x_lo = vram[SCROLL_X_LO];
-    v.scroll_x_hi = vram[SCROLL_X_HI];
-    v.scroll_y = vram[SCROLL_Y];
+    memcpy(v.bg_page, bg, sizeof(v.bg_page));
+    readLayers(vram, board, v.layers);
     v.mode = videoMode();
   });
 
@@ -383,7 +409,7 @@ void system1::prepare_frame(void) {
   }
 
   Sprite list[SPRITES];
-  const int count = decodeSprites(video.sprite_ram, spriteBanks, list);
+  const int count = decodeSprites(video.sprite_ram, spriteBanks, list, spriteXOffset(videoBoard()));
   for (int n = 0; n < count; n++) {
     const Sprite &s = list[n];
     if (s.bottom <= 0 || s.top >= VIS_LINES) {
@@ -459,15 +485,21 @@ void system1::renderRot0(int strip) {
   }
 }
 
+// fg page read live; bg pages showing the other page read the latched copy
 system1_video::LineSrc system1::lineSrc() const {
-  const LineSrc f = {&memory[VIDEO_RAM + PAGE_BYTES],  // fixed layer, read live
-                     video.bg_page,
-                     tiles,
-                     palette,
-                     mixSel,
-                     clearShowsBg,
-                     bgScroll(video.scroll_x_lo, video.scroll_x_hi),
-                     video.scroll_y};
+  const uint8_t fg = fgPageOf(videoBoard());
+  LineSrc f = {&memory[VIDEO_RAM + fg * PAGE_BYTES],
+               {},
+               tiles,
+               palette,
+               mixSel,
+               clearShowsBg,
+               video.layers.rowScroll,
+               video.layers.scrollY};
+  for (int p = 0; p < BG_PAGES; p++) {
+    const uint8_t page = video.layers.bgPage[p];
+    f.bgPages[p] = page == fg ? &memory[VIDEO_RAM + page * PAGE_BYTES] : video.bg_page;
+  }
   return f;
 }
 

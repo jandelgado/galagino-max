@@ -45,7 +45,7 @@ public:
   void outZ80(unsigned short Port, unsigned char Value) override;
 
   void run_frame(void) override;
-  void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
+  void renderAudio(int16_t *out, int n) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
   const int renderWidth() override;
@@ -66,16 +66,17 @@ protected:
     AssetRef<unsigned char> banks;  // 16 KB banks at 8000-bfff (Config::bank)
     const uint16_t *palette;      // palette RAM byte -> RGB565, else system1_palette
   };
-  // sound latch / video mode chip: 8255 PPI (sys1ppi) or Z80 PIO (sys1pio)
-  enum Board : uint8_t { BOARD_PPI, BOARD_PIO };
+  // sound latch / video mode chip: 8255 PPI (sys1ppi) or Z80 PIO (sys1pio).
+  // System 2 (sys2) is a PPI board with the mute bit inverted.
+  enum Board : uint8_t { BOARD_PPI, BOARD_PIO, BOARD_SYS2 };
 
   // ROT270: panel row = native x (column games). ROT0: panel row = native
   // line, a 240 px window into the 256 px line (landscape games, upright)
   enum Orientation : uint8_t { ROT270, ROT0 };
 
-  // main ROM banking at 8000-bfff: none, or MAME bank44 (Heavy Metal):
-  // bank = video mode bit 6, bit 2
-  enum Bank : uint8_t { BANK_NONE, BANK_44 };
+  // main ROM banking at 8000-bfff: none, MAME bank44 (Heavy Metal):
+  // bank = video mode bit 6, bit 2, or bank0c (Choplifter): bits 3, 2
+  enum Bank : uint8_t { BANK_NONE, BANK_44, BANK_0C };
 
   // P1 button bits: generic = FIRE on bit 2, START/B on bit 1; swapped for
   // sets whose MAME BUTTON1 sits on bit 1 (Heavy Metal)
@@ -122,12 +123,12 @@ private:
   static constexpr int SOUND_IRQ_FIRST = 32;       // lines 32, 96, 160, 224
   static constexpr int SOUND_IRQ_PERIOD = 64;
 
+  // bg_page: the window page that is not fg (System 1 page 0, System 2
+  // page 1, all Choplifter bg pages); the fg page is read live
   struct VideoState {
     uint8_t sprite_ram[system1_video::SPRITES * system1_video::SPRITE_BYTES];
     uint8_t bg_page[system1_video::PAGE_BYTES];
-    uint8_t scroll_x_lo;
-    uint8_t scroll_x_hi;
-    uint8_t scroll_y;
+    system1_video::Layers layers;
     uint8_t mode;
   };
 
@@ -148,6 +149,8 @@ private:
   bool takeSoundNmi();
   uint8_t ackSoundLatch();
   uint8_t videoMode() const;
+  bool muted() const;
+  system1_video::VideoBoard videoBoard() const;
   void selectBank();
   void startVblank();
   void drawSprites(int strip);
