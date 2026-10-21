@@ -1,3 +1,5 @@
+from functools import partial
+
 import pytest
 
 from romconv.core.context import Context
@@ -7,8 +9,10 @@ from romconv.games import marble
 from romconv.games.marble import convert as marble_convert
 from romconv.games.marble import data as md
 from romconv.games.marble import sid as msid
+from romconv.games.marble.sim import marble_mo as mo
 from romconv.games.marble.sim import marble_sim as ms
 from romconv.registry import by_name, resolve
+from tests import marble_runs as mr
 
 
 def test_job_shape():
@@ -87,3 +91,34 @@ def test_repeatable_in_process(tmp_path, log):
 
     assert runs[0] == runs[1]
     assert len(runs[0][0]) > 600_000 and all(runs[0])
+
+
+@pytest.mark.slow
+def test_prog_tables_cover_every_read(log):
+    """Every program ROM byte the model reads (all fixture replays, race starts and sweeps) is in
+    the tables the converter emits; every slapstic read is in the race's terrain records."""
+    real = default()
+    for name in ("marble.zip", "atarisy1.zip"):
+        if not (real.romszip / name).is_file():
+            pytest.skip(f"romszip/{name} missing")
+    for directory, name in marble_convert.TRACE_INPUTS:
+        if not (real.test / directory / name).is_file():
+            pytest.skip(f"{directory}/{name} missing")
+
+    ctx = Context(marble.JOB, real, ("marble",), log)
+    rom = md.load(lambda name, sha1, zip: ctx.rom(name, sha1, zip=zip))
+    run = marble_convert.Run(ctx, rom, ms.make_rom(rom))
+    run.sprites = [mo.Sprites(run.sim, n) for n in range(md.LEVELS)]
+    run.death = mo.DeathSprites(run.sim)
+    terrains = [ms.Terrain(run.sim, n) for n in range(md.LEVELS)]
+    full = run.sim.with_edges(partial(marble_convert.edge_lookup, marble_convert.edge_tables(run)))
+    reads, slap = set(), {}
+    rec = partial(mr.RecMem, rom=full.with_prog(mr.RecProg(run.sim.prog, reads)), slap=slap)
+    mr.sim_runs(run, rec, terrains, full)
+
+    outside = sorted(reads - set().union(*marble_convert.prog_tables(run, terrains)))
+    assert not outside, "reads outside the tables: " + " ".join(f"{a:05x}" for a in outside[:32])
+    for t in terrains:
+        _, _, records, recs, _ = marble_convert.terrain_race(t)
+        assert all(recs <= a < recs + len(records) for a in slap.get(t.race, ())), \
+            f"race {t.race} reads slapstic data outside its terrain records"

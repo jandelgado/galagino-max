@@ -50,24 +50,24 @@ _SOUND_BUDGET = 10240
 
 # Host test inputs and outputs: (directory, file) under source/test/. The traces are MAME
 # captures that stay tracked (dev/marble/make_fixture.py writes them); the fixtures are written here.
-_TRACE_FIXTURE = ("test_marble_physics", "marble_trace.h")
-_OBJ_FIXTURE = ("test_marble_objects", "marble_objects_trace.h")
+TRACE_FIXTURE = ("test_marble_physics", "marble_trace.h")
+OBJ_FIXTURE = ("test_marble_objects", "marble_objects_trace.h")
 SPRITE_FIXTURE = ("test_marble_sprites", "marble_sprites_trace.h")
-_STEELIE_FIXTURE = ("test_marble_steelies", "marble_steelies_trace.h")
-_ACID_FIXTURE = ("test_marble_acid", "marble_acid_trace.h")
-_BIRD_FIXTURE = ("test_marble_birds", "marble_birds_trace.h")
-_TUBE_FIXTURE = ("test_marble_deaths", "marble_tubes_trace.h")
-_AERIAL_FIXTURE = ("test_marble_aerial", "marble_aerial_trace.h")
-_MINI_FIXTURE = ("test_marble_minis", "marble_minis_trace.h")
-_PISTON_FIXTURE = ("test_marble_pistons", "marble_pistons_trace.h")
-_SLINKY_FIXTURE = ("test_marble_slinkies", "marble_slinkies_trace.h")
-_DEATH_FIXTURE = ("test_marble_deaths", "marble_deaths_trace.h")
+STEELIE_FIXTURE = ("test_marble_steelies", "marble_steelies_trace.h")
+ACID_FIXTURE = ("test_marble_acid", "marble_acid_trace.h")
+BIRD_FIXTURE = ("test_marble_birds", "marble_birds_trace.h")
+TUBE_FIXTURE = ("test_marble_deaths", "marble_tubes_trace.h")
+AERIAL_FIXTURE = ("test_marble_aerial", "marble_aerial_trace.h")
+MINI_FIXTURE = ("test_marble_minis", "marble_minis_trace.h")
+PISTON_FIXTURE = ("test_marble_pistons", "marble_pistons_trace.h")
+SLINKY_FIXTURE = ("test_marble_slinkies", "marble_slinkies_trace.h")
+DEATH_FIXTURE = ("test_marble_deaths", "marble_deaths_trace.h")
 _SOUND_FIXTURE = ("test_marble_sound", "marble_sound_fixture.h")
 _LEVEL_FIXTURE = ("test_marble_level", "marble_fixture.h")
 _HUD_FIXTURE = ("test_marble_hud", "marble_hud_fixture.h")
 _ATTRACT_FIXTURE = ("test_marble_attract", "marble_attract_fixture.h")
-TRACE_INPUTS = (_TRACE_FIXTURE, _OBJ_FIXTURE, SPRITE_FIXTURE, _STEELIE_FIXTURE, _ACID_FIXTURE, _BIRD_FIXTURE,
-                _TUBE_FIXTURE, _AERIAL_FIXTURE, _MINI_FIXTURE, _PISTON_FIXTURE, _SLINKY_FIXTURE, _DEATH_FIXTURE)
+TRACE_INPUTS = (TRACE_FIXTURE, OBJ_FIXTURE, SPRITE_FIXTURE, STEELIE_FIXTURE, ACID_FIXTURE, BIRD_FIXTURE,
+                TUBE_FIXTURE, AERIAL_FIXTURE, MINI_FIXTURE, PISTON_FIXTURE, SLINKY_FIXTURE, DEATH_FIXTURE)
 OUTPUT_FIXTURES = (_SOUND_FIXTURE, _LEVEL_FIXTURE, _HUD_FIXTURE, _ATTRACT_FIXTURE)
 
 
@@ -221,7 +221,7 @@ _DESC_BYTES = 0x2e  # descriptor fields +0x00..+0x2d
 _MO_CODES = range(0x01, 0x2e)  # particle half 0x01-0x02, marble body 0x03-0x06, 0x07, dots 0x0d-0x2d
 
 
-def _terrain_race(rom_terrain):
+def terrain_race(rom_terrain):
     """Terrain of one race as emitted: index bytes, codes, records bytes, bases."""
     t = rom_terrain
     if t.maxd & 1:
@@ -259,165 +259,6 @@ def _check_dynamic(t, used, nrecords):
             raise ConversionError(f"marble: race {t.race} dynamic code {c:04x} -> record {v:04x} beyond records")
 
 
-class _RecProg(bytearray):
-    """Program ROM that records the byte addresses read (indexing and slices) into reads."""
-    def __init__(self, data, reads):
-        super().__init__(data)
-        self.reads = reads
-
-    def __getitem__(self, k):
-        if isinstance(k, slice):
-            self.reads.update(range(*k.indices(len(self))))
-        else:
-            self.reads.add(k)
-        return bytearray.__getitem__(self, k)
-
-
-class _BlockProg(bytearray):
-    """Program ROM that serves only the emitted blocks: a read outside fails."""
-    def __init__(self, blocks):
-        super().__init__(0x30000)
-        self.cov = bytearray(0x30000)
-        for addr, data in blocks:
-            self[addr:addr + len(data)] = data
-            self.cov[addr:addr + len(data)] = b"\x01" * len(data)
-
-    def __getitem__(self, k):
-        if isinstance(k, slice):
-            span = range(*k.indices(len(self)))
-            if any(not self.cov[a] for a in span):
-                raise ConversionError(f"marble: ROM read {span.start:06x}+{len(span)} outside the emitted blocks")
-        elif not self.cov[k]:
-            raise ConversionError(f"marble: ROM read {k:06x} outside the emitted blocks")
-        return bytearray.__getitem__(self, k)
-
-
-class _RecMem(ms.Mem):
-    """Mem that records the slapstic window addresses the physics reads into slap (race -> set)."""
-    def __init__(self, terrain, ram, rom=None, slap=None):
-        super().__init__(terrain, ram, rom)
-        self.slap = slap
-
-    def rb(self, a):
-        a &= 0xFFFFFF
-        if 0x80000 <= a < 0x88000:
-            self.slap.setdefault(self.t.race, set()).add(a)
-        return super().rb(a)
-
-
-class _BlockMem(ms.Mem):
-    """Mem that serves slapstic data only from the emitted terrain records (race -> (base,
-    data)); program ROM comes from the BlockProg of its rom."""
-    def __init__(self, terrain, ram, rom=None, records=None):
-        super().__init__(terrain, ram, rom)
-        self.records = records
-
-    def rb(self, a):
-        a &= 0xFFFFFF
-        if 0x80000 <= a < 0x88000:
-            base, data = self.records[self.t.race]
-            if not base <= a < base + len(data):
-                raise ConversionError(f"marble: ROM read {a:06x} outside the emitted blocks")
-            return data[a - base]
-        return super().rb(a)
-
-
-def _physics_runs(run, mem, terrains, objects=False):
-    """Race starts of all races and every Phase 2 fixture tick, on Mem class mem (with
-    objects: slots, projection and masks on). Returns positions."""
-    out = []
-    for n in range(md.LEVELS):
-        m = mem(terrains[n], bytes(0x2000))
-        m.objects = m.sprites = objects
-        ms.start_259b4(m, n)
-        ms.snapshot_start(m)
-        out.append(tuple(m.sl(ms.P + o) for o in (0xC, 0x10, 0x14)))
-    for seg in ms.load_fixture(run.trace(_TRACE_FIXTURE, "write")):
-        m = ms.fixture_mem(seg, terrains[seg["race"]], mem)
-        m.objects = m.sprites = objects
-        if ms.replay_fixture(seg, m) is not None:
-            raise ConversionError("marble: fixture replay differs, run marble_sim.py fixture")
-        out.append(tuple(m.sl(ms.P + o) for o in (0xC, 0x10, 0x14)))
-    return out
-
-
-_OBJ_IDLE_TICKS = 200   # past the practice gate wait (150 ticks) and its first frames
-
-
-def _object_runs(run, mem, terrains):
-    """Phase 3: level init (objects_init) of all races plus idle ticks on a cleared RAM, and
-    every object fixture segment, objects and sprites on. Returns RAM crc32 per run."""
-    out = []
-    for n in range(md.LEVELS):
-        m = mem(terrains[n], bytes(0x2000))
-        m.objects = m.sprites = True
-        ms.start_259b4(m, n)
-        ms.snapshot_start(m)
-        ms.objects_init(m, n)
-        for _ in range(_OBJ_IDLE_TICKS): ms.tick(m, 0, 0)
-        out.append(zlib.crc32(bytes(m.ram)))
-    for seg in ms.load_objfixture(run.trace(_OBJ_FIXTURE, "owrite")):
-        m = ms.fixture_mem(seg, terrains[seg["race"]], mem)
-        if ms.replay_objfixture(seg, m) is not None:
-            raise ConversionError("marble: object fixture replay differs, run marble_sim.py objfixture")
-        out.append(zlib.crc32(bytes(m.ram)))
-    return out
-
-
-def _sprite_runs(run, mem, terrains):
-    """Phase 4a: every sprite fixture segment (objects, draw list, sort, publish) on Mem class
-    mem. Returns crc32 of the published lists per segment."""
-    out = []
-    for seg in mo.load_spritefixture(run.trace(SPRITE_FIXTURE, "swrite")):
-        m = ms.fixture_mem(seg, terrains[seg["race"]], mem)
-        bad, got = mo.replay_spritefixture(seg, m, run.sprites[seg["race"]])
-        if bad is not None:
-            raise ConversionError("marble: sprite fixture replay differs, run marble_mo.py spritefixture")
-        out.append(zlib.crc32(repr(got).encode()))
-    # race start and a camera sweep over the whole race with the draw list: every frame header
-    # the sort reads, and the object counts the host test expects
-    for n in range(md.LEVELS):
-        m = mem(terrains[n], bytes(0x2000))
-        m.objects = m.sprites = True
-        m.drawlist = mo.DrawList()
-        ms.start_race(m, n)
-        ms.snapshot_start(m)
-        run.sweep_max[n], got = mo.race_sweep(m, n, run.sprites[n])
-        out.append(zlib.crc32(repr(got).encode()))
-    return out
-
-
-def _death_headers(run, m):
-    """Frame headers the remake draws for the player (as ms.death_state, read from ms.PROG):
-    rl(rl(+0x5a)) in states 1/2/5/9, the overlay rl(rl(+0x62)) when +0x67, else 0. Fails on a
-    header outside the death set."""
-    drawn = m.rb(ms.P + 0x1c)
-    hdr = m.rl(m.rl(ms.P + 0x5a)) if drawn and m.rb(ms.P + 0x1a) in (1, 2, 5, 9) else 0
-    shard = m.rl(m.rl(ms.P + 0x62)) if drawn and m.rb(ms.P + 0x67) else 0
-    for h in (hdr, shard):
-        if h and h not in run.death.ids:
-            raise ConversionError(f"marble: player frame {h:05x} not in the death set")
-    return hdr, shard
-
-
-def _death_runs(run, mem, terrains, full):
-    """Phase 4b-0: every death fixture segment (main tick with deaths, objects, sprites) on Mem
-    class mem. The check values read the program ROM full (the player MO model reads frame
-    bytes the remake replaces by the death set). Returns crc32 of the work RAM per segment."""
-    out = []
-    for seg in ms.load_dfixture(run.trace(_DEATH_FIXTURE, "dwrite")):
-        m = ms.fixture_mem(seg, terrains[seg["race"]], mem)
-        m.deaths = m.objects = m.sprites = True
-        for c6, c7, cam, frames, want in seg["ticks"]:
-            ms.main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
-            hdrs = _death_headers(run, m)
-            got = ms.death_state(m.view(full))
-            if got != want or hdrs != got[8:10]:
-                raise ConversionError("marble: death fixture replay differs, run marble_sim.py dfixture")
-        out.append(zlib.crc32(bytes(m.ram)))
-    return out
-
-
 # Phase 4b-0 tables the death code indexes (address, bytes): the fixture reads only parts
 _DEATH_TABLES = (
     (ms.SINE, 2 * 0x66),        # sine_pair 0..0x64, sine_lerp i + 1 <= 0x65 (d6 <= 0x1922)
@@ -431,41 +272,6 @@ _DEATH_TABLES = (
     (ms.SCORES, 2 * 17),        # score_285b0 points: goal (race * 2 + 3), time bonus (0x10)
     (ms.SCORE_TEXTS, 4 * 17),   # score_285b0 score texts
 )
-
-
-def _steelie_runs(run, mem, terrains, full):
-    """Phase 4b-1: every steelie fixture segment and the steelie race sweep of every race
-    (main tick with deaths, objects, sprites, draw list, steelies) on Mem class mem. Check
-    values read the program ROM full (the MO model reads frame bytes the remake replaces by
-    the sprite sets); every steelie frame drawn must be in its race set (0x21f36) or the
-    death set (shatter). Returns crc32 of the work RAM per run."""
-
-    def check(m, race):
-        got = me.tick_state(m.view(full))
-        for s in got[1:3]:
-            hdr, shard = s[9], s[10]
-            if hdr == mo.STEELIE_FRAME and hdr not in run.sprites[race].ids:
-                raise ConversionError(f"marble: race {race} steelie frame not in its sprite set")
-            if hdr not in (0, mo.STEELIE_FRAME) and hdr not in run.death.ids or \
-                    shard and shard not in run.death.ids:
-                raise ConversionError(f"marble: steelie frame {hdr:05x}/{shard:05x} not in the death set")
-        return got
-
-    out = []
-    for seg in me.load_sfixture(run.trace(_STEELIE_FIXTURE, "stwrite")):
-        m = me.setup(ms.fixture_mem(seg, terrains[seg["race"]], mem))
-        for c6, c7, cam, frames, want in seg["ticks"]:
-            ms.main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
-            mo.boxes_and_sort(m)
-            if check(m, seg["race"]) != want:
-                raise ConversionError("marble: steelie fixture replay differs, run marble_enemy.py sfixture")
-        out.append(zlib.crc32(bytes(m.ram)))
-    for n in range(md.LEVELS):
-        m = me.setup(mem(terrains[n], bytes(0x2000)))
-        me.sweep(m, n)
-        check(m, n)
-        out.append(zlib.crc32(bytes(m.ram)))
-    return out
 
 
 def _steelie_bytes(run):
@@ -489,184 +295,6 @@ def _steelie_bytes(run):
     return out
 
 
-def _slinky_runs(run, mem, terrains, full):
-    """Phase 4b-2: every slinky fixture segment and the slinky race sweep of every race (main
-    tick with deaths, objects, sprites, draw list, steelies, slinkies) on Mem class mem. Every
-    slinky frame drawn must be in the death set. Returns crc32 of the work RAM per run."""
-
-    def check(m, race):
-        got = sl.tick_state(m.view(full))
-        for s_ in got[3:7]:
-            if s_[11] and s_[11] not in run.death.ids:
-                raise ConversionError(f"marble: slinky frame {s_[11]:05x} not in the death set")
-        return got
-
-    out = []
-    for seg in sl.load_slfixture(run.trace(_SLINKY_FIXTURE, "slwrite")):
-        m = sl.setup(ms.fixture_mem(seg, terrains[seg["race"]], mem))
-        for c6, c7, cam, frames, want in seg["ticks"]:
-            ms.main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
-            mo.boxes_and_sort(m)
-            if check(m, seg["race"]) != want:
-                raise ConversionError("marble: slinky fixture replay differs, run marble_slinky.py slfixture")
-        out.append(zlib.crc32(bytes(m.ram)))
-    for n in range(md.LEVELS):
-        m = sl.setup(mem(terrains[n], bytes(0x2000)))
-        sl.sweep(m, n)
-        check(m, n)
-        out.append(zlib.crc32(bytes(m.ram)))
-    return out
-
-
-def _acid_runs(run, mem, terrains, full):
-    """Phase 4b-3: every acid fixture segment and the acid race sweep of every race (main tick
-    with all modelled enemies) on Mem class mem. Every acid frame drawn must be in the death
-    set. Returns crc32 of the work RAM per run."""
-
-    def check(m):
-        got = ac.tick_state(m.view(full))
-        for a_ in got[1:8]:
-            if a_[9] and a_[9] not in run.death.ids:
-                raise ConversionError(f"marble: acid frame {a_[9]:05x} not in the death set")
-        return got
-
-    out = []
-    for seg in ac.load_acfixture(run.trace(_ACID_FIXTURE, "acwrite")):
-        m = me.setup(ms.fixture_mem(seg, terrains[seg["race"]], mem))
-        for c6, c7, cam, frames, want in seg["ticks"]:
-            ms.main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
-            mo.boxes_and_sort(m)
-            if check(m) != want:
-                raise ConversionError("marble: acid fixture replay differs, run marble_acid.py acfixture")
-        out.append(zlib.crc32(bytes(m.ram)))
-    for n in range(md.LEVELS):
-        m = me.setup(mem(terrains[n], bytes(0x2000)))
-        ac.sweep(m, n)
-        check(m)
-        out.append(zlib.crc32(bytes(m.ram)))
-    return out
-
-
-def _bird_runs(run, mem, terrains, full):
-    """Phase 4b-4a: every bird fixture segment and the bird race sweep of every race (main tick
-    with all modelled enemies) on Mem class mem. Every bird frame drawn must be in the death
-    set. Returns crc32 of the work RAM per run."""
-
-    def check(m):
-        got = bd.tick_state(m.view(full))
-        for b in got[1:11]:
-            if b[10] and b[10] not in run.death.ids:
-                raise ConversionError(f"marble: bird frame {b[10]:05x} not in the death set")
-        return got
-
-    out = []
-    for seg in bd.load_bdfixture(run.trace(_BIRD_FIXTURE, "bdwrite")):
-        m = me.setup(ms.fixture_mem(seg, terrains[seg["race"]], mem))
-        for c6, c7, cam, frames, want in seg["ticks"]:
-            ms.main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
-            mo.boxes_and_sort(m)
-            if check(m) != want:
-                raise ConversionError("marble: bird fixture replay differs, run marble_bird.py bdfixture")
-        out.append(zlib.crc32(bytes(m.ram)))
-    for n in range(md.LEVELS):
-        m = me.setup(mem(terrains[n], bytes(0x2000)))
-        bd.sweep(m, n)
-        check(m)
-        out.append(zlib.crc32(bytes(m.ram)))
-    return out
-
-
-def _tube_runs(run, mem, terrains, full):
-    """Tubes: every tube fixture segment (main tick with all enemies, the RNG word an input); the
-    check values read the program ROM full, as death_runs. Returns crc32 of the work RAM per
-    segment."""
-    out = []
-    for seg in ms.load_dfixture(run.trace(_TUBE_FIXTURE, "twrite"), True):
-        m = me.setup(ms.fixture_mem(seg, terrains[seg["race"]], mem))
-        for c6, c7, cam, frames, rng, want in seg["ticks"]:
-            m.ww(0x4003a6, rng)
-            ms.main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
-            got = ms.death_state(m.view(full))
-            if got != want:
-                raise ConversionError("marble: tube fixture replay differs, run marble_sim.py tfixture")
-        out.append(zlib.crc32(bytes(m.ram)))
-    return out
-
-
-def _aerial_runs(run, mem, terrains, full):
-    """Aerial objects: every aerial fixture segment (main tick with all enemies); the check
-    values read the program ROM full, as death_runs. Returns crc32 of the work RAM per
-    segment."""
-    out = []
-    for seg in ms.load_dfixture(run.trace(_AERIAL_FIXTURE, "awrite"), False, "marble_aerials_segments"):
-        m = me.setup(ms.fixture_mem(seg, terrains[seg["race"]], mem))
-        for c6, c7, cam, frames, want in seg["ticks"]:
-            ms.main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
-            got = ms.death_state(m.view(full))
-            if got != want:
-                raise ConversionError("marble: aerial fixture replay differs, run marble_sim.py afixture")
-        out.append(zlib.crc32(bytes(m.ram)))
-    return out
-
-
-def _mini_runs(run, mem, terrains, full):
-    """Phase 4b-4b: every mini fixture segment and the mini race sweep of every race (main tick
-    with all modelled enemies) on Mem class mem. Every mini frame drawn must be in the death
-    set. Returns crc32 of the work RAM per run."""
-
-    def check(m):
-        got = mn.tick_state(m.view(full))
-        for o in got[1:10]:
-            if o[14] and o[14] not in run.death.ids:
-                raise ConversionError(f"marble: mini frame {o[14]:05x} not in the death set")
-        return got
-
-    out = []
-    for seg in mn.load_mnfixture(run.trace(_MINI_FIXTURE, "mnwrite")):
-        m = me.setup(ms.fixture_mem(seg, terrains[seg["race"]], mem))
-        for c6, c7, cam, frames, want in seg["ticks"]:
-            ms.main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
-            mo.boxes_and_sort(m)
-            if check(m) != want:
-                raise ConversionError("marble: mini fixture replay differs, run marble_mini.py mnfixture")
-        out.append(zlib.crc32(bytes(m.ram)))
-    for n in range(md.LEVELS):
-        m = me.setup(mem(terrains[n], bytes(0x2000)))
-        mn.sweep(m, n)
-        check(m)
-        out.append(zlib.crc32(bytes(m.ram)))
-    return out
-
-
-def _piston_runs(run, mem, terrains, full):
-    """Phase 4b-5: every piston fixture segment and the piston race sweep of every race (main
-    tick with all modelled enemies) on Mem class mem. Every piston frame drawn must be in the
-    death set. Returns crc32 of the work RAM per run."""
-
-    def check(m):
-        got = pp.fixture_state(pp.tick_state(m.view(full)))
-        for o in got[3:39]:
-            if o[7] and o[7] not in run.death.ids:
-                raise ConversionError(f"marble: piston frame {o[7]:05x} not in the death set")
-        return got
-
-    out = []
-    for seg in pp.load_psfixture(run.trace(_PISTON_FIXTURE, "pswrite")):
-        m = me.setup(ms.fixture_mem(seg, terrains[seg["race"]], mem))
-        for c6, c7, cam, frames, want in seg["ticks"]:
-            ms.main_tick(m, c6 & 0xff, c7 & 0xff, cam & 0xffffffff, frames & 0xffffffff)
-            mo.boxes_and_sort(m)
-            if check(m) != want:
-                raise ConversionError("marble: piston fixture replay differs, run marble_piston.py psfixture")
-        out.append(zlib.crc32(bytes(m.ram)))
-    for n in range(md.LEVELS):
-        m = me.setup(mem(terrains[n], bytes(0x2000)))
-        pp.sweep(m, n)
-        check(m)
-        out.append(zlib.crc32(bytes(m.ram)))
-    return out
-
-
 def _piston_bytes(run):
     """Phase 4b-5 tables (whole): first and reload timers, the 4 variant pointers of both
     kinds and their 12 word tables, cells, tops, the animation list (0xffffffff end)."""
@@ -684,15 +312,45 @@ def _piston_bytes(run):
     return out
 
 
+def _frame_bytes(sim, lists, first, end):
+    """Header bytes first..end - 1 of every frame of the animation lists."""
+    out = set()
+    for a in lists:
+        for h in mo.anim_list(sim, a):
+            out |= set(range(h + first, h + end))
+    return out
+
+
+_SHAPES = 7           # 0x1cd00 shape pointers at ms.SHAPES
+_SHAPE_ENTRY = 16     # plane entry: normal (3 words), box (6 bytes), centre (3 bytes)
+_SHAPE_LAST = 0x800   # normal x above: last entry of the shape
+
+
+def _shape_bytes(run):
+    """Tube wall shapes 0x1cd00 (whole): the shape pointers and the plane entries of every
+    shape up to its last (normal x > 0x800)."""
+    sim = run.sim
+    out = set(range(ms.SHAPES, ms.SHAPES + 4 * _SHAPES))
+    for k in range(_SHAPES):
+        e = sim.l(ms.SHAPES + 4 * k)
+        while True:
+            out |= set(range(e, e + _SHAPE_ENTRY))
+            if ms.s16(sim.w(e)) > _SHAPE_LAST:
+                break
+            e += _SHAPE_ENTRY
+    return out
+
+
 def _mini_bytes(run):
     """Phase 4b-4b tables (whole): the mini pointer table, the step tables 0x244b6/0x244d6,
-    the cell bitmap 0x24496, the animation lists (0xffffffff end)."""
+    the cell bitmap 0x24496, the animation lists (0xffffffff end) and the draw list box
+    bytes +4..+7 of their frames (0x1b12a types 7-9)."""
     sim = run.sim
     out = set(range(0x1f096, 0x1f096 + 36)) | set(range(mn.GRID, mn.GRID + 32))
     out |= set(range(mn.DX, mn.DX + 32)) | set(range(mn.DY, mn.DY + 32))
     for a in mo.MINI_LISTS:
         out |= set(range(a, a + 4 * len(mo.anim_list(sim, a)) + 4))
-    return out
+    return out | _frame_bytes(sim, mo.MINI_LISTS, 4, 8)
 
 
 def _bird_bytes(run):
@@ -702,20 +360,19 @@ def _bird_bytes(run):
     out = set(range(0x1f0ba, 0x1f0ba + 40)) | set(range(bd.POINTS, bd.POINTS + 10))
     for a in mo.BIRD_LISTS:
         out |= set(range(a, a + 4 * len(mo.anim_list(sim, a)) + 4))
-    # silly race tubes: 0x1cd00 shape 5 (pipe exits 0x23/0x24), pointer and plane entries
-    shape = sim.l(ms.SHAPES + 4 * 5)
-    out |= set(range(ms.SHAPES + 4 * 5, ms.SHAPES + 4 * 6)) | set(range(shape, shape + 3 * 16))
     return out
 
 
 def _acid_bytes(run):
     """Phase 4b-3 tables (whole): spawn table pointers and entries per race (0xff end), the
     random path lists, every path up to its 0xff end, the acid pointer table, the animation
-    lists (0xffffffff end)."""
+    lists (0xffffffff end) and the box bytes +4..+7 of their frames (0x1b12a type 0xe, the
+    contact box 0x175c8)."""
     sim = run.sim
     out = set(range(ac.SPAWN_TABLE, ac.SPAWN_TABLE + 4 * md.LEVELS))
     out |= set(range(0x1f07a, 0x1f07a + 28))
     out |= set(range(ac.SINGLE[0], ac.GROUP[1] + 24))
+    out |= _frame_bytes(sim, mo.ACID_LISTS, 4, 8)
     for a in mo.ACID_LISTS:
         out |= set(range(a, a + 4 * len(mo.anim_list(sim, a)) + 4))
     paths = [sim.l(t) for t in range(ac.SINGLE[0], ac.GROUP[1] + 24, 4)]
@@ -737,10 +394,12 @@ def _acid_bytes(run):
 def _slinky_bytes(run):
     """Phase 4b-2 tables (whole): spawn table pointers and entries per race (0xff end), every
     entry's waypoint list up to its 0xff end, the slinky pointer table, the animation lists
-    (0xffffffff end), the lunge height table."""
+    (0xffffffff end) and the header bytes +0..+7 of their frames (occlusion 0x264aa, the
+    boxes of 0x1b12a type 4 and the contact 0x14e92), the lunge height table."""
     sim = run.sim
     out = set(range(sl.SPAWN_TABLE, sl.SPAWN_TABLE + 4 * md.LEVELS))
     out |= set(range(0x1f006, 0x1f006 + 16)) | set(range(sl.REAR, sl.REAR + 0x20))
+    out |= _frame_bytes(sim, mo.SLINKY_LISTS, 0, 8)
     for a in mo.SLINKY_LISTS:
         out |= set(range(a, a + 4 * len(mo.anim_list(sim, a)) + 4))
     for race in range(md.LEVELS):
@@ -829,7 +488,7 @@ def _phase3_bytes(run):
     return out
 
 
-def _edge_tables(run):
+def edge_tables(run):
     """Terrain edge diagonals of 0x264aa. Per race and descriptor table (4 for the ultimate
     race, one per scroll frame) and column 0-35: the ascending diagonals < maxd with a bit in
     the edge bitmap at descriptor +0x2e. Returns [(race, [36 lists])] per table, checks that
@@ -851,7 +510,7 @@ def _edge_tables(run):
     return out
 
 
-def _edge_lookup(tables, race, ult, c, d):
+def edge_lookup(tables, race, ult, c, d):
     """First edge diagonal >= d of column c (-1: none), as the remake reads the lists."""
     base = sum(1 for r, _ in tables if r < race)
     for e in tables[base + ult // 0x90][1][c]:
@@ -871,124 +530,45 @@ def _edge_check(run, tables):
                 for d in range(maxd + 1):
                     want = next((e for e in range(d, maxd)
                                  if sim.prog[bm + (e >> 3)] >> (e & 7) & 1), -1)
-                    if _edge_lookup(tables, race, 0x90 * k, c, d) != want:
+                    if edge_lookup(tables, race, 0x90 * k, c, d) != want:
                         raise ConversionError(f"marble: edge list differs from bitmap: race {race} "
                               f"table {k} column {c} d {d}")
 
 
-def _prog_blocks(run, terrains, edges):
-    """Program ROM ranges the sim reads. Returns (blocks, phase 2 blocks, reference runs,
-    phase 3 blocks, phase 4a blocks): phase 2 = physics reads plus the Phase 2 tables, phase 3
-    = phase 2 plus everything the object and occlusion runs read plus the Phase 3 tables, 4a =
-    phase 3 plus the sprite runs and the Phase 4a tables, all = 4a plus the death runs and the
-    Phase 4b-0 tables, steelies = all plus the steelie runs and the Phase 4b-1 tables,
-    slinkies = steelies plus the slinky runs and the Phase 4b-2 tables, acid = slinkies plus
-    the acid runs and the Phase 4b-3 tables, birds = acid plus the bird and tube runs and the
-    Phase 4b-4a tables, minis = birds plus the mini runs and the Phase 4b-4b tables, all =
-    minis plus the piston and aerial object runs and the Phase 4b-5 tables. The last item is
-    the slapstic window addresses the physics read (race -> set). edges: edge_tables()."""
-    covered = _table_bytes(run, [t.desc for t in terrains])
-    phase3 = _phase3_bytes(run)
-    sprite_tab = _sprite_bytes(run)
-    death_tab = _death_bytes(run)
-    steelie_tab = _steelie_bytes(run)
-    slinky_tab = _slinky_bytes(run)
-    acid_tab = _acid_bytes(run)
-    bird_tab = _bird_bytes(run)
-    mini_tab = _mini_bytes(run)
-    piston_tab = _piston_bytes(run)
-    plain = run.sim.prog
-    full = run.sim.with_edges(partial(_edge_lookup, edges))
-    reads, slap = set(), {}
-    rec = partial(_RecMem, rom=full.with_prog(_RecProg(plain, reads)), slap=slap)
-    ref2 = _physics_runs(run, rec, terrains)
-    want = set(reads)
-    ref3 = _physics_runs(run, rec, terrains, True) + _object_runs(run, rec, terrains)
-    want3 = set(reads)
-    ref4 = _sprite_runs(run, rec, terrains)
-    want4 = set(reads)
-    ref5 = _death_runs(run, rec, terrains, full)
-    want5 = set(reads)
-    ref6 = _steelie_runs(run, rec, terrains, full)
-    want6 = set(reads)
-    ref7 = _slinky_runs(run, rec, terrains, full)
-    want7 = set(reads)
-    ref8 = _acid_runs(run, rec, terrains, full)
-    want8 = set(reads)
-    ref9 = _bird_runs(run, rec, terrains, full) + _tube_runs(run, rec, terrains, full)
-    want9 = set(reads)
-    ref10 = _mini_runs(run, rec, terrains, full)
-    want10 = set(reads)
-    ref11 = _piston_runs(run, rec, terrains, full) + _aerial_runs(run, rec, terrains, full)
-    want11 = set(reads)
-    outside = sorted(want - covered)
-    if outside:
-        raise ConversionError("marble: physics reads ROM outside the known tables: "
-              + ", ".join(f"{a:06x}" for a in outside[:16]))
-    p2 = [(a, bytes(plain[a:e])) for a, e in _merge(want | covered)]
-    blocks3 = [(a, bytes(plain[a:e])) for a, e in _merge(want3 | covered | phase3)]
-    blocks4 = [(a, bytes(plain[a:e])) for a, e in _merge(want4 | covered | phase3 | sprite_tab)]
-    blocks4b = [(a, bytes(plain[a:e]))
-                for a, e in _merge(want5 | covered | phase3 | sprite_tab | death_tab)]
-    blocks4b1 = [(a, bytes(plain[a:e])) for a, e in
-                 _merge(want6 | covered | phase3 | sprite_tab | death_tab | steelie_tab)]
-    blocks4b2 = [(a, bytes(plain[a:e])) for a, e in
-                 _merge(want7 | covered | phase3 | sprite_tab | death_tab | steelie_tab | slinky_tab)]
-    blocks4b3 = [(a, bytes(plain[a:e])) for a, e in
-                 _merge(want8 | covered | phase3 | sprite_tab | death_tab | steelie_tab
-                       | slinky_tab | acid_tab)]
-    blocks4b4 = [(a, bytes(plain[a:e])) for a, e in
-                 _merge(want9 | covered | phase3 | sprite_tab | death_tab | steelie_tab
-                       | slinky_tab | acid_tab | bird_tab)]
-    blocks4b5 = [(a, bytes(plain[a:e])) for a, e in
-                 _merge(want10 | covered | phase3 | sprite_tab | death_tab | steelie_tab
-                       | slinky_tab | acid_tab | bird_tab | mini_tab)]
-    allb = [(a, bytes(plain[a:e])) for a, e in
-            _merge(want11 | covered | phase3 | sprite_tab | death_tab | steelie_tab | slinky_tab
-                  | acid_tab | bird_tab | mini_tab | piston_tab)]
-    dyn_only = want3 - covered - phase3
-    if dyn_only:
-        run.ctx.log.info(f"phase 3 runs read {len(dyn_only)} B outside the tables: "
-              + ", ".join(f"{a:05x}+{e - a}" for a, e in _merge(dyn_only, 0)))
-    sprite_only = want4 - want3 - covered - phase3 - sprite_tab
-    if sprite_only:
-        run.ctx.log.info(f"phase 4a runs read {len(sprite_only)} B outside the tables: "
-              + ", ".join(f"{a:05x}+{e - a}" for a, e in _merge(sprite_only, 0)))
-    death_only = want5 - want4 - covered - phase3 - sprite_tab - death_tab
-    if death_only:
-        run.ctx.log.info(f"phase 4b-0 runs read {len(death_only)} B outside the tables: "
-              + ", ".join(f"{a:05x}+{e - a}" for a, e in _merge(death_only, 0)))
-    steelie_only = want6 - want5 - covered - phase3 - sprite_tab - death_tab - steelie_tab
-    if steelie_only:
-        run.ctx.log.info(f"phase 4b-1 runs read {len(steelie_only)} B outside the tables: "
-              + ", ".join(f"{a:05x}+{e - a}" for a, e in _merge(steelie_only, 0)))
-    slinky_only = want7 - want6 - covered - phase3 - sprite_tab - death_tab - steelie_tab \
-        - slinky_tab
-    if slinky_only:
-        run.ctx.log.info(f"phase 4b-2 runs read {len(slinky_only)} B outside the tables: "
-              + ", ".join(f"{a:05x}+{e - a}" for a, e in _merge(slinky_only, 0)))
-    acid_only = want8 - want7 - covered - phase3 - sprite_tab - death_tab - steelie_tab \
-        - slinky_tab - acid_tab
-    if acid_only:
-        run.ctx.log.info(f"phase 4b-3 runs read {len(acid_only)} B outside the tables: "
-              + ", ".join(f"{a:05x}+{e - a}" for a, e in _merge(acid_only, 0)))
-    bird_only = want9 - want8 - covered - phase3 - sprite_tab - death_tab - steelie_tab \
-        - slinky_tab - acid_tab - bird_tab
-    if bird_only:
-        run.ctx.log.info(f"phase 4b-4a runs read {len(bird_only)} B outside the tables: "
-              + ", ".join(f"{a:05x}+{e - a}" for a, e in _merge(bird_only, 0)))
-    mini_only = want10 - want9 - covered - phase3 - sprite_tab - death_tab - steelie_tab \
-        - slinky_tab - acid_tab - bird_tab - mini_tab
-    if mini_only:
-        run.ctx.log.info(f"phase 4b-4b runs read {len(mini_only)} B outside the tables: "
-              + ", ".join(f"{a:05x}+{e - a}" for a, e in _merge(mini_only, 0)))
-    piston_only = want11 - want10 - covered - phase3 - sprite_tab - death_tab - steelie_tab \
-        - slinky_tab - acid_tab - bird_tab - mini_tab - piston_tab
-    if piston_only:
-        run.ctx.log.info(f"phase 4b-5 runs read {len(piston_only)} B outside the tables: "
-              + ", ".join(f"{a:05x}+{e - a}" for a, e in _merge(piston_only, 0)))
-    return (allb, p2, ref2 + ref3 + ref4 + ref5 + ref6 + ref7 + ref8 + ref9 + ref10 + ref11,
-            blocks3, blocks4, blocks4b, blocks4b1, blocks4b2, blocks4b3, blocks4b4, blocks4b5, slap)
+def prog_tables(run, terrains):
+    """Program ROM bytes the remake reads, one set per phase: 2 physics, 3 objects and
+    occlusion, 4a sprites, 4b-0 deaths, 4b-1 steelies, 4b-2 slinkies, 4b-3 acid, 4b-4a birds,
+    tubes and shapes, 4b-4b minis, 4b-5 pistons. Whole tables, walked to their terminators;
+    tests/test_games_marble.py replays every MAME fixture and race sweep on the model and
+    fails on a read outside them."""
+    return (_table_bytes(run, [t.desc for t in terrains]), _phase3_bytes(run), _sprite_bytes(run),
+            _death_bytes(run), _steelie_bytes(run), _slinky_bytes(run), _acid_bytes(run),
+            _bird_bytes(run) | _shape_bytes(run), _mini_bytes(run), _piston_bytes(run))
+
+
+def _prog_blocks(plain, tables):
+    """[(address, bytes)] per phase, cumulative: the blocks of the last phase are emitted."""
+    out, cum = [], set()
+    for t in tables:
+        cum |= t
+        out.append([(a, bytes(plain[a:e])) for a, e in _merge(cum)])
+    return out
+
+
+def race_sweeps(run, mem, terrains):
+    """Race start and a camera sweep over the whole race with the draw list on Mem class mem:
+    every frame header the sort reads, and the object counts the host test expects
+    (run.sweep_max). Returns crc32 of the published lists per race."""
+    out = []
+    for n in range(md.LEVELS):
+        m = mem(terrains[n], bytes(0x2000))
+        m.objects = m.sprites = True
+        m.drawlist = mo.DrawList()
+        ms.start_race(m, n)
+        ms.snapshot_start(m)
+        run.sweep_max[n], got = mo.race_sweep(m, n, run.sprites[n])
+        out.append(zlib.crc32(repr(got).encode()))
+    return out
 
 
 def _mo_sprites(rom):
@@ -1048,8 +628,8 @@ def _emit_physics(run, f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, 
     to size4b6."""
     size = {}
     terrains = [ms.Terrain(run.sim, n) for n in range(md.LEVELS)]
-    races = [_terrain_race(t) for t in terrains]
-    edges = _edge_tables(run)
+    races = [terrain_race(t) for t in terrains]
+    edges = edge_tables(run)
     _edge_check(run, edges)
     print("\n// ---- Phase 2: marble physics (MARBLE.md \"Remake data\")", file=f)
     print("// Terrain per race: 10 bit vertex index (54 bytes per diagonal pair, fields MSB first,",
@@ -1125,24 +705,9 @@ def _emit_physics(run, f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, 
     print("};", file=f)
     size["terrain info"] = 6 * 32  # 32 bit pointers, padded
 
-    records = {n: (r[3], r[2]) for n, r in enumerate(races)}
-    blocks, blocks2, ref, blocks3, blocks4, blocks4b, blocks4b1, blocks4b2, blocks4b3, \
-        blocks4b4, blocks4b5, slap = _prog_blocks(run, terrains, edges)
-    for n in range(md.LEVELS):
-        recs, data = records[n]
-        if any(not recs <= a < recs + len(data) for a in slap.get(n, ())):
-            raise ConversionError(f"marble: race {n} reads slapstic data outside its terrain records")
-    full = run.sim.with_edges(partial(_edge_lookup, edges))
-    block = partial(_BlockMem, rom=full.with_prog(_BlockProg(blocks)), records=records)
-    got = (_physics_runs(run, block, terrains) + _physics_runs(run, block, terrains, True)
-           + _object_runs(run, block, terrains) + _sprite_runs(run, block, terrains)
-           + _death_runs(run, block, terrains, full) + _steelie_runs(run, block, terrains, full)
-           + _slinky_runs(run, block, terrains, full) + _acid_runs(run, block, terrains, full)
-           + _bird_runs(run, block, terrains, full) + _tube_runs(run, block, terrains, full)
-           + _mini_runs(run, block, terrains, full) + _piston_runs(run, block, terrains, full)
-           + _aerial_runs(run, block, terrains, full))
-    if got != ref:
-        raise ConversionError("marble: simulation on the emitted blocks differs from the full ROM")
+    phases = _prog_blocks(run.sim.prog, prog_tables(run, terrains))
+    blocks = phases[-1]
+    race_sweeps(run, ms.Mem, terrains)
     print("// Program ROM bytes the physics, level objects and occlusion read (68010 address,",
           file=f)
     print("// sorted). Records and terrain come from marble_terrain; any other ROM address is a",
@@ -1160,16 +725,11 @@ def _emit_physics(run, f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, 
         off += len(data)
     print(f"}};\nstatic const uint8_t MARBLE_PROG_BLOCKS = {len(blocks)};", file=f)
     flash = lambda bl: len(lzma_compress(b"".join(d for _, d in bl))) + 8 * len(bl)
-    size["prog blocks"] = flash(blocks2)
-    size3["prog blocks"] = flash(blocks3) - flash(blocks2)
-    size4["prog blocks"] = flash(blocks4) - flash(blocks3)
-    size4b["prog blocks"] = flash(blocks4b) - flash(blocks4)
-    size4b1["prog blocks"] = flash(blocks4b1) - flash(blocks4b)
-    size4b2["prog blocks"] = flash(blocks4b2) - flash(blocks4b1)
-    size4b3["prog blocks"] = flash(blocks4b3) - flash(blocks4b2)
-    size4b4["prog blocks"] = flash(blocks4b4) - flash(blocks4b3)
-    size4b5["prog blocks"] = flash(blocks4b5) - flash(blocks4b4)
-    size4b6["prog blocks"] = flash(blocks) - flash(blocks4b5)
+    prev = 0
+    for s, bl in zip((size, size3, size4, size4b, size4b1, size4b2, size4b3, size4b4, size4b5,
+                      size4b6), phases):
+        s["prog blocks"] = flash(bl) - prev
+        prev = flash(bl)
 
     tiles, pal = _mo_sprites(rom)
     first = [0xFF] * _MO_CODES.stop

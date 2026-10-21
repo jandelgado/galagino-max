@@ -803,16 +803,17 @@ Program ROM, `marble_prog_blocks[MARBLE_PROG_BLOCKS]` (`MarbleProgBlock {addr, l
 block bytes at `off` in `marble_prog`, all blocks joined in one LZMA blob that
 `marble_physics::loadRom()` unpacks to the Arena once per machine; flash 7.8 KB instead of
 20.3 KB),
-sorted): every byte below 0x30000 that `marble_sim.py` reads in `tick()` and `start_259b4`
-(recorded over all fixture ticks and the start of all 6 races) plus the whole tables:
-0x24b3a vertex steps, 0x1ed62 drop, 0x23d40 edge push, 0x2398c teeter, 0x1eef8 friction,
-0x1eb16 zone line pointers + lists 0x239b8-0x23c03, 0x1eb2e/0x1eb34 goal velocity,
-0x1ef1a checkpoint pointers + lists 0x1f1d8-0x1fbcf (respawn), 0x1f1ca camera, 0x2be00
-and the 6 descriptors (0x2e bytes), 0x1d370 intermediate dynamic codes, first dynamic code
-frames 0x1699c, 0x1b908, 0x24e4e. The converter
-fails when the sim reads ROM outside these, and replays starts and fixture on the emitted
-blocks only. Slapstic reads (0x80000+) are terrain records, served by `records`. A port's
-ROM accessor should fail on an address outside the blocks.
+sorted): whole tables, walked to their terminators (`convert.prog_tables()`, one set per
+phase; this phase: 0x24b3a vertex steps, 0x1ed62 drop, 0x23d40 edge push, 0x2398c teeter,
+0x1eef8 friction, 0x1eb16 zone line pointers + lists 0x239b8-0x23c03, 0x1eb2e/0x1eb34 goal
+velocity, 0x1ef1a checkpoint pointers + lists 0x1f1d8-0x1fbcf (respawn), 0x1f1ca camera,
+0x2be00 and the 6 descriptors (0x2e bytes), 0x1d370 intermediate dynamic codes, first
+dynamic code frames 0x1699c, 0x1b908, 0x24e4e). No byte comes from a recorded run: the
+pytest `test_prog_tables_cover_every_read` (`romconv/tests/marble_runs.py`, marker `slow`,
+~35 s) replays every MAME fixture, race start and race sweep of every phase on the model with
+a recording ROM and fails on a read outside the tables, or a slapstic read (0x80000+)
+outside the race's terrain records (served by `records`). A port's ROM accessor should fail
+on an address outside the blocks.
 
 Race start (`start_259b4`, validated for all 6 races: `marble_sim.py start TRACE RACE`
 equals the run from the first race snapshot): cell from descriptor `+0x14 + 2 * player`,
@@ -875,11 +876,9 @@ Same converter run; flash 16222 B (was 22777 B before the edge lists; budget 25 
 4144 B, program ROM blocks 8014 B (added to the Phase 2 blocks, which stay 4237 B), practice gate
 patches 912 B, mask tiles 3152 B. The converter prints these and the saving, fails above 25 KB.
 
-Program ROM blocks (`marble_prog_blocks`, now 35 blocks): collection runs the model with
-`objects` and `sprites` on over the race starts, `objects_init` + 200 idle ticks of every race
-(practice gate included), the Phase 2 fixture and the object fixture, and records every ROM
-byte read (ms.PROG is replaced by a recording `bytearray`, so direct table reads count too).
-Added as whole tables, so a port never meets a gap:
+Program ROM blocks (`marble_prog_blocks`, now 35 blocks), whole tables (the pytest above
+replays `objects_init` + 200 idle ticks of every race, practice gate included, the Phase 2
+fixture and the object fixture on a recording ROM), so a port never meets a gap:
 
 - object slots (`objects_data.object_bytes`): spawn list 0x1dec0[race] (6 byte entries + 0xff),
   random group table 0x1ded8 (64 B), every script byte the byte code walk reaches, animation
