@@ -1,9 +1,10 @@
 import re
 import struct
 from collections.abc import Sequence
+from types import MappingProxyType
 
-WIDTH = {"unsigned char": 1, "signed char": 1, "unsigned short": 2, "uint32_t": 4}
-_PACK = {"unsigned char": "B", "signed char": "B", "unsigned short": "<H", "uint32_t": "<L"}
+WIDTH = MappingProxyType({"unsigned char": 1, "signed char": 1, "unsigned short": 2, "uint32_t": 4})
+_PACK = MappingProxyType({"unsigned char": "B", "signed char": "B", "unsigned short": "<H", "uint32_t": "<L"})
 
 
 def hex_block(data: bytes, per_line: int = 16) -> str:

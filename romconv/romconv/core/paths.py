@@ -13,8 +13,12 @@ class Paths:
         return self.repo / "romszip"
 
     @property
+    def src(self) -> Path:
+        return self.repo / "source" / "src"
+
+    @property
     def machines(self) -> Path:
-        return self.repo / "source" / "src" / "machines"
+        return self.src / "machines"
 
     @property
     def server(self) -> Path:

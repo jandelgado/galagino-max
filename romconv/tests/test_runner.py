@@ -5,7 +5,7 @@ import pytest
 
 from romconv.core import runner
 from romconv.core.errors import ConversionError
-from tests import fake_jobs
+from tests import fake_full, fake_jobs
 
 
 def _read(paths, name):
@@ -65,3 +65,12 @@ def test_manifest_dir_collision(paths):
 def test_manifest_persisted(paths):
     assert runner.run(["asset_a"], 1, paths, fake_jobs) == 0
     assert (paths.assets / "shared" / "asset_a.json").exists()
+
+
+def test_requested_defaults_to_names_or_all_jobs(paths):
+    assert runner.run(["ok_a"], 1, paths, fake_jobs) == 0
+    assert _read(paths, "seen.h").strip() == "ok_a"
+    assert runner.run([], 1, paths, fake_full) == 0
+    assert _read(paths, "seen.h").strip() == "ok_a,ok_b,slow,seen"
+    assert runner.run(["ok_a"], 1, paths, fake_jobs, requested=("x", "y")) == 0
+    assert _read(paths, "seen.h").strip() == "x,y"

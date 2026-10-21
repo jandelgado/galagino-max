@@ -15,15 +15,15 @@ import hashlib
 import struct
 from pathlib import Path
 
-MAGIC = 0x42474C47  # "GLGB"
-VERSION = 2
-HEADER = struct.Struct("<LHH")
-ENTRY = struct.Struct("<5L")
-FLAG_RAW = 0     # stored bytes are the raw asset bytes
+_MAGIC = 0x42474C47  # "GLGB"
+_VERSION = 2
+_HEADER = struct.Struct("<LHH")
+_ENTRY = struct.Struct("<5L")
+_FLAG_RAW = 0     # stored bytes are the raw asset bytes
 FLAG_PACKED = 1  # props byte + LZMA1 stream, unpacked into Arena on use
 FLAG_LZMA = 2    # wire only: decoded into a RAW entry by the loader
-ALIGN = 4        # uint32_t assets are read in place
-MAX_ENTRIES = 64
+_ALIGN = 4        # uint32_t assets are read in place
+_MAX_ENTRIES = 64
 TAG_BYTES = 4096        # cache tag sector before each entry
 CACHE_BYTES = 0x100000  # assets partition (source/partitions-assets.csv)
 
@@ -43,12 +43,12 @@ def bundle_hash(data: bytes) -> bytes:
 
 def _layout(items):
     """Header + table + 4-byte aligned data; items: (id, data, raw len, flags)."""
-    table = bytearray(HEADER.pack(MAGIC, VERSION, len(items)))
+    table = bytearray(_HEADER.pack(_MAGIC, _VERSION, len(items)))
     data = bytearray()
-    start = HEADER.size + ENTRY.size * len(items)
+    start = _HEADER.size + _ENTRY.size * len(items)
     for aid, stored, raw_len, flags in items:
-        data += b"\0" * (-(start + len(data)) % ALIGN)
-        table += ENTRY.pack(aid, start + len(data), len(stored), raw_len, flags)
+        data += b"\0" * (-(start + len(data)) % _ALIGN)
+        table += _ENTRY.pack(aid, start + len(data), len(stored), raw_len, flags)
         data += stored
     return bytes(table + data)
 
@@ -66,8 +66,8 @@ class BundleWriter:
         # duplicate name or FNV collision: the device would resolve the wrong asset
         if any(aid == a[0] for a in self.assets):
             raise ValueError(f"asset id 0x{aid:08X} of {name} already in bundle")
-        if len(self.assets) == MAX_ENTRIES:
-            raise ValueError(f"{name}: more than {MAX_ENTRIES} assets in one bundle")
+        if len(self.assets) == _MAX_ENTRIES:
+            raise ValueError(f"{name}: more than {_MAX_ENTRIES} assets in one bundle")
         self.assets.append((aid, bytes(raw), bytes(packed), mode))
 
     def build(self):
@@ -77,7 +77,7 @@ class BundleWriter:
 
     def entry(self):
         """Cache entry the device writes for build()."""
-        out = _layout([(aid, raw, len(raw), FLAG_RAW) if mode == "PLAIN"
+        out = _layout([(aid, raw, len(raw), _FLAG_RAW) if mode == "PLAIN"
                        else (aid, packed, len(raw), FLAG_PACKED)
                        for aid, raw, packed, mode in self.assets])
         if len(out) + TAG_BYTES > CACHE_BYTES:

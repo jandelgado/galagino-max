@@ -39,6 +39,10 @@ def _phase2(ctx):
     _write(ctx, " ".join(seen))
 
 
+def _seen(ctx):
+    _write(ctx, ",".join(ctx.requested))
+
+
 def _asset(ctx):
     ctx.manifest.add(Asset(dir="shared", name=ctx.job.name, ctype="unsigned char", inner="",
                            count=1, mode="PLAIN", raw=b"\x00", packed=b"P", lz64=b"Q", hint=None))
@@ -53,7 +57,8 @@ OK = (_job("ok_a", _ok), _job("ok_b", _ok), _job("slow", _slow))
 BOOM = _job("boom", _boom)
 PID = _job("pid", _pid)
 PHASE2 = _job("late", _phase2, phase=2)
+SEEN = _job("seen", _seen, phase=2)
 ASSET_A = _job("asset_a", _asset)
 ASSET_B = _job("asset_b", _asset)
 
-ALL = (*OK, BOOM, PID, PHASE2, ASSET_A, ASSET_B)
+ALL = (*OK, BOOM, PID, PHASE2, SEEN, ASSET_A, ASSET_B)

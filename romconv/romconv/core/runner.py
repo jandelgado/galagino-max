@@ -100,15 +100,20 @@ def _run_phase1(names: list[str], requested: tuple[str, ...], jobs: int, paths: 
 
 
 def run(names: Sequence[str], jobs: int, paths: Paths | None = None, registry: ModuleType | None = None,
-        mp_context=None) -> int:
+        mp_context=None, requested: Sequence[str] | None = None) -> int:
     """Run the named jobs (all if empty); 0 if every job succeeded, else 1.
 
     registry: module with ALL (default romconv.registry). Phase 2 jobs run
-    in-process after all phase 1 jobs succeeded."""
+    in-process after all phase 1 jobs succeeded. requested: what the user
+    asked for, as seen by Context.requested; default the names, or every job
+    of the registry for a full run."""
     paths = paths or _paths.default()
     registry_name = registry.__name__ if registry is not None else _DEFAULT_REGISTRY
-    selected = _default_registry.resolve(names, importlib.import_module(registry_name).ALL)
-    requested = tuple(names)
+    all_jobs = importlib.import_module(registry_name).ALL
+    selected = _default_registry.resolve(names, all_jobs)
+    if requested is None:
+        requested = names or [j.name for j in all_jobs]
+    requested = tuple(requested)
     owners: dict[str, str] = {}
     failed: list[JobResult] = []
 

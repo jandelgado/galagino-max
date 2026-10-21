@@ -2,8 +2,9 @@ from collections.abc import Sequence
 
 from romconv.core.errors import ConversionError
 from romconv.core.job import Job
+from romconv.remote import bundles, catalog
 
-ALL: tuple[Job, ...] = ()
+ALL: tuple[Job, ...] = (catalog.JOB, bundles.JOB)
 
 
 def by_name(name: str, jobs: Sequence[Job] | None = None) -> Job:
