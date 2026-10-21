@@ -264,6 +264,12 @@
     #include "machines/elevator/elevator_bundle.h"
   #endif
 #endif
+#ifdef GAME_MHAVOC
+  #include "machines/mhavoc/mhavoc.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/mhavoc/mhavoc_bundle.h"
+  #endif
+#endif
 
 #ifdef GAME_MOONCRESTA
   #include "machines/mooncresta/mooncresta.h"
@@ -1483,6 +1489,13 @@ constexpr machineInfo machines[] = {
     elevator::menuLeds,
 #endif
     MCH_ELEVATOR, nullptr BUNDLE_REF(elevator_bundle_ref) },
+#endif
+#ifdef GAME_MHAVOC
+  { createMachine<mhavoc>, mhavoc::logo,
+#ifdef LED_PIN
+    mhavoc::menuLeds,
+#endif
+    MCH_MHAVOC, nullptr BUNDLE_REF(mhavoc_bundle_ref) },
 #endif
 };
 

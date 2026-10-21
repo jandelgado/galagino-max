@@ -241,5 +241,6 @@ evicted first. Menu entries not cached yet show a NET marker.
 | Tron (tron.zip)               | ![Tron marquee](/logos/tron.png) | ![Tron screenshot](/images/tron.png) | The aim dial turns toward the stick direction. FIRE=fire |
 | Discs of Tron (dotron.zip)    | ![Discs of Tron marquee](/logos/dotron.png) | ![Discs of Tron screenshot](/images/dotron.png) | Auto-aim at the opponent. FIRE=throw |
 | Elevator Action (elevator.zip) | ![Elevator Action marquee](/logos/elevator.png) | ![Elevator Action screenshot](/images/elevator.png) | Bootleg set elevatorb (no MCU). FIRE=shoot, UP+FIRE=jump (controller B=jump) |
+| Major Havoc (mhavoc.zip)      | ![Major Havoc marquee](/logos/mhavoc.png) | ![Major Havoc screenshot](/images/mhavoc.png) | Rev 3. Left/right=roller, FIRE=fire/jump, DOWN=shield (controller A=fire, B=shield). No start button: START presses FIRE. Small text enlarged |
 
 ### ...

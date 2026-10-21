@@ -551,6 +551,7 @@ const char *mchName(signed char machineType) {
     case MCH_TRON:          return "Tron";
     case MCH_DOTRON:        return "Discs of Tron";
     case MCH_ELEVATOR:      return "Elevator Action";
+    case MCH_MHAVOC:        return "Major Havoc";
     case MCH_SELFTEST:      return "Self Test";
     case MCH_CIRCUSC:       return "Circus Charlie";
     case MCH_ROCNROPE:      return "Roc'n Rope";
