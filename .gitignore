@@ -16,3 +16,6 @@ romconv/build/
 
 # romconv bundles.py: BundleRef per game (hash of the converted ROMs)
 source/src/machines/*/*_bundle.h
+
+# romconv debug output (view_tiles_graphic.py)
+romconv/internal/dkongjr/dkongjr_tileset.png
