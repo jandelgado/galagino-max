@@ -57,3 +57,12 @@ def prom_rgb_332(v: int) -> tuple[int, int, int]:
     g = 0x21 * ((v >> 3) & 1) + 0x47 * ((v >> 4) & 1) + 0x97 * ((v >> 5) & 1)
     b = 0x47 * ((v >> 6) & 1) + 0x97 * ((v >> 7) & 1)
     return r, g, b
+
+
+def prom_rgb_332_resnet(v: int) -> tuple[int, int, int]:
+    """0..255 r, g, b of one color PROM byte like prom_rgb_332, with MAME's computed resistor weights
+    (1k/470/220 ohm: 33, 71, 151; 470/220 ohm: 81, 174; Pooyan, Zaxxon)."""
+    r = 33 * (v & 1) + 71 * ((v >> 1) & 1) + 151 * ((v >> 2) & 1)
+    g = 33 * ((v >> 3) & 1) + 71 * ((v >> 4) & 1) + 151 * ((v >> 5) & 1)
+    b = 81 * ((v >> 6) & 1) + 174 * ((v >> 7) & 1)
+    return min(r, 255), min(g, 255), min(b, 255)
