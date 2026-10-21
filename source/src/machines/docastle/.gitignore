@@ -1,0 +1,5 @@
+docastle_main_rom.h
+docastle_slave_rom.h
+docastle_tiles.h
+docastle_sprites.h
+docastle_palette.h
