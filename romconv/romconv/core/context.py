@@ -47,14 +47,18 @@ class Context:
                      zip: str | None = None) -> bytearray | None:
         names = [names] if isinstance(names, str) else list(names)
         zips = [zip] if zip is not None else list(self.job.zips)
+        mismatches = []
         for name in names:
             for z in zips:
                 data = self._read_member(z, name)
                 if data is None:
                     continue
                 if sha1 is not None and hashlib.sha1(data).hexdigest() != sha1.lower():
-                    raise ConversionError(f"{z}: {name}: SHA-1 mismatch (expected {sha1})")
+                    mismatches.append(f"{z}: {name}: SHA-1 mismatch (expected {sha1})")
+                    continue
                 return bytearray(data)
+        if mismatches:
+            raise ConversionError("; ".join(mismatches))
         return None
 
     def _read_member(self, zip: str, name: str) -> bytes | None:

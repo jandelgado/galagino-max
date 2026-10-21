@@ -26,4 +26,4 @@ def _convert(ctx: Context) -> None:
     apply_patch(Path(__file__).parent / "patches" / "z80.patch", dest)
 
 
-JOB = Job(name="z80", convert=_convert, zips=(_ZIP,))
+JOB = Job(name="z80", convert=_convert, zips=(_ZIP,), always=True)

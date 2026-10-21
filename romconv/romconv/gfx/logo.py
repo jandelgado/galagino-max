@@ -71,4 +71,4 @@ def _convert(ctx: Context) -> None:
             logo(ctx, png, machine)
 
 
-LOGOS_JOB = Job(name="logos", convert=_convert)
+LOGOS_JOB = Job(name="logos", convert=_convert, always=True)

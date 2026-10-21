@@ -90,7 +90,7 @@ class Run:
 
     def test_path(self, spec):
         """Path of a host test file (directory, name) under source/test."""
-        return self.ctx.paths.repo / "source" / "test" / spec[0] / spec[1]
+        return self.ctx.paths.test / spec[0] / spec[1]
 
     @contextmanager
     def fixture(self, spec):
@@ -1910,4 +1910,4 @@ def convert(ctx):
         run.ctx.log.info(f"level {n} {md.NAMES[n]}: {rows} rows, {len(tiles)} tiles")
     for path, text in run.outputs.items():
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, newline="\n")
+        path.write_text(text, encoding="utf-8", newline="\n")

@@ -618,7 +618,7 @@ def load_spritefixture(path):
     [{"race", "frame", "ram": [(addr, bytes)], "ticks": [(c6, c7, camera, n, marble_at,
     variant, first)], "objs": [(frame, set, x, y)]}]."""
     import re
-    text = open(path).read()
+    text = open(path, encoding="utf-8").read()
     num = lambda s: [int(v, 0) for v in re.findall(r"-?0x[0-9a-fA-F]+|-?\d+", s)]
     arrays = {name: body for name, body in
               re.findall(r"static const \w+ (\w+)\[\] = \{(.*?)\n?\};", text, re.S)}

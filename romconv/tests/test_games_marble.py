@@ -55,7 +55,7 @@ def _repo(base, real):
     base.mkdir()
     (base / "romszip").symlink_to(real.romszip)
     for directory, name in marble_convert.TRACE_INPUTS:
-        source = real.repo / "source" / "test" / directory / name
+        source = real.test / directory / name
         if not source.is_file():
             pytest.skip(f"{source} missing")
         target = base / "source" / "test" / directory / name
@@ -66,7 +66,7 @@ def _repo(base, real):
 
 def _outputs(paths):
     files = [paths.machines / "marble" / "marble_rom.h"]
-    files += [paths.repo / "source" / "test" / d / n for d, n in marble_convert.OUTPUT_FIXTURES]
+    files += [paths.test / d / n for d, n in marble_convert.OUTPUT_FIXTURES]
     return [f.read_bytes() for f in files]
 
 

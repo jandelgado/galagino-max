@@ -28,12 +28,17 @@ TAG_BYTES = 4096        # cache tag sector before each entry
 CACHE_BYTES = 0x100000  # assets partition (source/partitions-assets.csv)
 
 
-def asset_id(name: str) -> int:
-    """FNV-1a 32 of the blob symbol name without `_blob`, e.g. `_1943_rom`."""
+def fnv1a(data: bytes) -> int:
+    """FNV-1a 32."""
     h = 0x811C9DC5
-    for b in name.encode():
+    for b in data:
         h = ((h ^ b) * 0x01000193) & 0xFFFFFFFF
     return h
+
+
+def asset_id(name: str) -> int:
+    """FNV-1a 32 of the blob symbol name without `_blob`, e.g. `_1943_rom`."""
+    return fnv1a(name.encode())
 
 
 def bundle_hash(data: bytes) -> bytes:

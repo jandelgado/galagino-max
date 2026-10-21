@@ -131,7 +131,7 @@ def _array(text, name):
 
 def parse_machine_header(path: Path):
     """(extras, ram, flash, any_order) from the ARENA_* constants; literals only."""
-    text = Path(path).read_text()
+    text = Path(path).read_text(encoding="utf-8")
     extras = []
     for v in _array(text, "ARENA_EXTRA"):
         if not re.fullmatch(r"\d+", v):
@@ -190,7 +190,9 @@ def plan_assets(assets: Sequence[Asset]) -> list[tuple[str, int, int, str, str]]
 
 
 def write_arena_plan(ctx: Context) -> None:
-    game = ctx.job.name
+    game = ctx.job.machine
+    if game is None:
+        raise ConversionError(f"job {ctx.job.name}: plan needs a machine dir")
     assets = plan_assets(ctx.manifest.assets())
     machine_dir = ctx.path(game + ".h").parent
     if not assets:

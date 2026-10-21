@@ -42,7 +42,7 @@ BASES = MappingProxyType({
 
 def read_games(paths: Paths) -> dict[str, bool]:
     """Every game of machines.h -> whether it is in the catalog."""
-    text = (paths.src / "machines.h").read_text()
+    text = (paths.src / "machines.h").read_text(encoding="utf-8")
     games = {g.lower() for g in re.findall(r"#ifdef (?:ENABLE|GAME)_(\w+)", text)}
     return {g: g not in EXCLUDED for g in sorted(games)}
 

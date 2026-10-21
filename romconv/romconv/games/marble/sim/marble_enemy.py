@@ -323,7 +323,7 @@ def load_sfixture(path):
     """Segments of source/test/test_marble_steelies/marble_steelies_trace.h (make_fixture.py
     stwrite): [{"race", "frame", "ram", "ticks": [(c6, c7, camera, frames, tick_state)]}]."""
     import re
-    text = open(path).read()
+    text = open(path, encoding="utf-8").read()
     num = lambda s: [int(v, 0) for v in re.findall(r"-?0x[0-9a-fA-F]+|-?\d+", s)]
     arrays = {name: body for name, body in
               re.findall(r"static const \w+ (\w+)\[\] = \{(.*?)\n?\};", text, re.S)}

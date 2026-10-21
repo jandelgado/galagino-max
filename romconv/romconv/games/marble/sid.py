@@ -173,7 +173,7 @@ class _Tune:
 
 
 def load_notes():
-    with open(Path(__file__).with_name(_NOTES_FILE)) as f:
+    with open(Path(__file__).with_name(_NOTES_FILE), encoding="utf-8") as f:
         return json.load(f)
 
 

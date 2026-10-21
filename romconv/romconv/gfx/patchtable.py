@@ -8,7 +8,7 @@ from romconv.core.errors import ConversionError
 def read_patch_table(path: Path) -> list[int]:
     """The delta values of a table file, in file order."""
     try:
-        lines = [line.strip() for line in path.read_text().splitlines() if line.strip()]
+        lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
         return [int(line, 16) for line in lines]
     except (OSError, ValueError) as e:
         raise ConversionError(f"patch table {path.name}: {e}") from e

@@ -25,7 +25,7 @@ def _remote_plain(machines: Path, dirname: str) -> dict[str, bool]:
     path = machines / dirname / f"{dirname}_arena_plan.h"
     if not path.exists():
         return {}
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     m = re.search(r"#ifdef ASSETS_REMOTE\n(.*?)#else", text, re.S)
     if not m:
         raise ValueError(f"{path}: no ASSETS_REMOTE block")

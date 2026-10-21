@@ -2421,7 +2421,7 @@ def load_fixture(path):
     """Segments of source/test/test_marble_physics/marble_trace.h (dev/marble/make_fixture.py):
     [{"race", "frame", "ram": [(addr, bytes)], "ticks": [(c6, c7, x, y, z, state)]}]."""
     import re
-    text = open(path).read()
+    text = open(path, encoding="utf-8").read()
     num = lambda s: [int(v, 0) for v in re.findall(r"-?0x[0-9a-fA-F]+|-?\d+", s)]
     arrays = {name: body for name, body in
               re.findall(r"static const \w+ (\w+)\[\] = \{(.*?)\n?\};", text, re.S)}
@@ -2479,7 +2479,7 @@ def load_objfixture(path):
     [{"race", "frame", "ram": [(addr, bytes)], "ticks": [(c6, c7, camera, x, y, z, state,
     vis, masks, slot_crc, dyn_crc)]}]."""
     import re
-    text = open(path).read()
+    text = open(path, encoding="utf-8").read()
     num = lambda s: [int(v, 0) for v in re.findall(r"-?0x[0-9a-fA-F]+|-?\d+", s)]
     arrays = {name: body for name, body in
               re.findall(r"static const \w+ (\w+)\[\] = \{(.*?)\n?\};", text, re.S)}
@@ -2532,7 +2532,7 @@ def load_dfixture(path, rng_in=False, arr=None):
     rng_in: marble_tubes_trace.h (twrite), ticks (c6, c7, camera, frames, rng, state). arr:
     segment array name (default by rng_in; marble_aerials_segments for awrite)."""
     import re
-    text = open(path).read()
+    text = open(path, encoding="utf-8").read()
     num = lambda s: [int(v, 0) for v in re.findall(r"-?0x[0-9a-fA-F]+|-?\d+", s)]
     arrays = {name: body for name, body in
               re.findall(r"static const \w+ (\w+)\[\] = \{(.*?)\n?\};", text, re.S)}

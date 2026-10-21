@@ -45,8 +45,8 @@ class Paths:
         return self.build / "assets"
 
     @property
-    def manifests(self) -> Path:
-        return self.build / "manifest"
+    def test(self) -> Path:
+        return self.repo / "source" / "test"
 
     @property
     def tmp(self) -> Path:

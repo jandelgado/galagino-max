@@ -27,14 +27,14 @@ ROOTS = (
     "source/src/catalog.h",
     "source/src/emulation/pokey_poly.h",
     "source/src/cpus",
-    "source/test/test_bundle_unpack/fixture.h",
+    "source/test",
     "galagino-server/data/g",
     "romconv/build/assets",
 )
 # Taken whole (every file), deleted whole before a run.
 WHOLE = ("galagino-server/data/g", "romconv/build/assets")
 # Also removed before a run.
-CLEAN_DIRS = ("romconv/build/assets", "romconv/build/manifest", "galagino-server/data/g")
+CLEAN_DIRS = ("romconv/build/assets", "galagino-server/data/g")
 
 DIFF_LINES = 40
 

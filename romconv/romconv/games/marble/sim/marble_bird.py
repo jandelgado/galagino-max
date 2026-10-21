@@ -181,7 +181,7 @@ def load_bdfixture(path):
     """Segments of source/test/test_marble_birds/marble_birds_trace.h (make_fixture.py bdwrite):
     [{"race", "frame", "ram", "ticks": [(c6, c7, camera, frames, tick_state)]}]."""
     import re
-    text = open(path).read()
+    text = open(path, encoding="utf-8").read()
     num = lambda s: [int(v, 0) for v in re.findall(r"-?0x[0-9a-fA-F]+|-?\d+", s)]
     arrays = {name: body for name, body in
               re.findall(r"static const \w+ (\w+)\[\] = \{(.*?)\n?\};", text, re.S)}

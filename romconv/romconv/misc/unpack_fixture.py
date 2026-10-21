@@ -7,19 +7,12 @@ from romconv.emit.asset import PLAIN_DICT_BYTES
 from romconv.emit.lzma import lzma_compress
 from romconv.emit.text import hex_block
 from romconv.emit.write import banner
-from romconv.remote.bundle import BundleWriter
+from romconv.remote.bundle import BundleWriter, fnv1a
 
 
 def _gen(n: int) -> bytes:
     # same formula as gen() in test_bundle_unpack.cpp
     return bytes((i * 7 + (i >> 11)) & 0xFF for i in range(n))
-
-
-def _fnv1a(data: bytes) -> int:
-    h = 0x811C9DC5
-    for b in data:
-        h = ((h ^ b) * 0x01000193) & 0xFFFFFFFF
-    return h
 
 
 def _convert(ctx: Context) -> None:
@@ -31,12 +24,12 @@ def _convert(ctx: Context) -> None:
     w.add("fx_big", big, lzma_compress(big, PLAIN_DICT_BYTES), "PLAIN")
     w.add("fx_tiny", tiny, lzma_compress(tiny, PLAIN_DICT_BYTES), "PLAIN")
     wire, entry = w.build(), w.entry()
-    out = ctx.paths.repo / "source" / "test" / "test_bundle_unpack" / "fixture.h"
+    out = ctx.paths.test / "test_bundle_unpack" / "fixture.h"
     with open(out, "w", encoding="utf-8", newline="\n") as f:
         f.write(banner(__file__))
         f.write(f"static const uint8_t wire[{len(wire)}] = {{\n  {hex_block(wire)}\n}};\n")
         f.write(f"static const uint32_t ENTRY_LENGTH = {len(entry)}u;\n")
-        f.write(f"static const uint32_t ENTRY_FNV = 0x{_fnv1a(entry):08X}u;\n")
+        f.write(f"static const uint32_t ENTRY_FNV = 0x{fnv1a(entry):08X}u;\n")
     ctx.log.info(f"fixture: wire {len(wire)} bytes, entry {len(entry)} bytes")
 
 

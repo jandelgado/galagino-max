@@ -45,8 +45,10 @@ games (`1942`, `btime`, `invaders`, ...) and `logos`, `z80`, `m6502`,
 `pokey_poly`, `unpack_fixture`, `namco54`, `williams_palette`,
 `system1_palette`, `catalog`, `bundles`. A game that needs a family's
 shared output (`galaga` -> `namco54`, a Williams game -> `williams_palette`,
-a System 1 game -> `system1_palette`) pulls that job in; the utility jobs and
-`catalog` always run, `bundles` only builds the bundles of the named games.
+a System 1 game -> `system1_palette`) pulls that job in; the jobs every build
+needs always run (`z80`, `m6502`, `logos`, `pokey_poly`, `unpack_fixture`,
+`catalog`), so a named game builds on a fresh clone. `bundles` only builds the
+bundles of the named games.
 
 A ROM that is missing from its zip in [romszip](../romszip) (or has the wrong
 SHA-1) fails only its own job with a message naming zip and file; the other

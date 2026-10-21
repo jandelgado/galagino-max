@@ -12,7 +12,7 @@ def header_path(paths: Paths) -> Path:
 
 def read_layouts(path: Path) -> dict[str, tuple[int, int]]:
     """{"local": (a, b), "remote": (a, b)}; ValueError if a define is missing."""
-    defs = dict(re.findall(r"^#define (ARENA_\w+) (\d+)$", Path(path).read_text(), re.M))
+    defs = dict(re.findall(r"^#define (ARENA_\w+) (\d+)$", Path(path).read_text(encoding="utf-8"), re.M))
     try:
         b = int(defs["ARENA_B_SIZE"])
         return {"local": (int(defs["ARENA_A_LOCAL"]), b),

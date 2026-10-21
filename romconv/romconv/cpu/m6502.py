@@ -25,4 +25,4 @@ def _convert(ctx: Context) -> None:
     apply_patch(Path(__file__).parent / "patches" / "mos6502.patch", dest)
 
 
-JOB = Job(name="m6502", convert=_convert, zips=(_ZIP,))
+JOB = Job(name="m6502", convert=_convert, zips=(_ZIP,), always=True)

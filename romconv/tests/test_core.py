@@ -38,6 +38,20 @@ def test_rom_reads_member_and_checks_sha1(paths, log, make_zip):
     assert "nope.bin" in str(err.value)
 
 
+def test_rom_tries_remaining_zips_after_sha1_mismatch(paths, log, make_zip):
+    good = b"good"
+    make_zip("a.zip", {"r.bin": b"bad"})
+    make_zip("b.zip", {"r.bin": good})
+    ctx = Context(_job(zips=("a.zip", "b.zip")), paths, (), log)
+    assert ctx.rom("r.bin", _sha1(good)) == good
+    assert ctx.rom_optional(["r.bin"], _sha1(good)) == good
+    # nothing matches: error names every mismatch
+    with pytest.raises(ConversionError) as err:
+        ctx.rom("r.bin", _sha1(b"other"))
+    assert "a.zip: r.bin" in str(err.value)
+    assert "b.zip: r.bin" in str(err.value)
+
+
 def test_rom_optional_returns_none(paths, log, make_zip):
     make_zip("g.zip", {"a.bin": b"x"})
     ctx = Context(_job(zips=("g.zip",)), paths, (), log)
