@@ -63,11 +63,11 @@ def _convert(ctx: Context) -> None:
     words = _sprite_words(gfx)
 
     write_bytes(ctx, "ccastles_rom.h", "ccastles_rom", rom,
-                "M6502 ROM: 0x0000 = CPU 0xa000-0xffff (bank 0), 0x6000 = bank 1 for 0xa000-0xdfff.", "ccastles")
+                "M6502 ROM: 0x0000 = CPU 0xa000-0xffff (bank 0), 0x6000 = bank 1 for 0xa000-0xdfff.", __file__)
     write_array(ctx, "ccastles_sprites.h", "ccastles_sprites", "uint32_t", "[16]", len(words) // 16, words,
-                "256 8x16 sprites, uint32_t per row, pixel i in bits 4i..4i+2, pen 7 transparent.", "ccastles")
+                "256 8x16 sprites, uint32_t per row, pixel i in bits 4i..4i+2, pen 7 transparent.", __file__)
     write_bytes(ctx, "ccastles_proms.h", "ccastles_proms", proms,
-                "0x000 write protect PROM 110, 0x100 priority PROM 111.", "ccastles")
+                "0x000 write protect PROM 110, 0x100 priority PROM 111.", __file__)
 
     check_budget(ctx, len(rom) + len(words) * 4 + len(proms) + _VRAM_BYTES)
 

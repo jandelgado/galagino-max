@@ -73,16 +73,16 @@ def _convert(ctx: Context) -> None:
     # fg block B); the main ROM compresses badly and sprites are read least
     write_asset(ctx, "solomon_main_rom.h", "main Z80 0000-bfff, f000-ffff at offset c000, flash",
                 lambda f: emit_plain(f, "solomon_main_rom", "unsigned char", "", len(rom), _bytes_body(rom)),
-                "solomon")
+                __file__)
     write_asset(ctx, "solomon_sprites.h",
                 "512 sprites 16x16 4 bpp, [row][0] px 0-7, [row][1] px 8-15, first in bits 31-28, flash",
                 lambda f: emit_plain(f, "solomon_sprites", "uint32_t", "[16][2]", 512, _sprites_body(sprites)),
-                "solomon")
-    write_bytes(ctx, "solomon_audio_rom.h", "solomon_audio_rom", audio, "sound Z80 0000-3fff", "solomon")
+                __file__)
+    write_bytes(ctx, "solomon_audio_rom.h", "solomon_audio_rom", audio, "sound Z80 0000-3fff", __file__)
     write_array(ctx, "solomon_fg_tiles.h", "solomon_fg_tiles", "uint32_t", "[8]", 2048, fg,
-                "2048 fg chars 8x8 4 bpp, pixel 0 in bits 31-28", "solomon")
+                "2048 fg chars 8x8 4 bpp, pixel 0 in bits 31-28", __file__)
     write_array(ctx, "solomon_bg_tiles.h", "solomon_bg_tiles", "uint32_t", "[8]", 2048, bg,
-                "2048 bg chars 8x8 4 bpp, pixel 0 in bits 31-28", "solomon")
+                "2048 bg chars 8x8 4 bpp, pixel 0 in bits 31-28", __file__)
 
     # unpack order in the ctor: bg -> A, fg -> B, audio -> A
     sizes = {"bg": len(bg) * 4, "fg": len(fg) * 4, "audio": len(audio)}

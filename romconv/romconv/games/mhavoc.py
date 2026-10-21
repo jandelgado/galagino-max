@@ -15,7 +15,7 @@ _MAX_LINES = 1024
 
 
 def _write(ctx, name, data, description):
-    return write_bytes(ctx, f"{name}.h", name, data, description, "mhavoc")
+    return write_bytes(ctx, f"{name}.h", name, data, description, __file__)
 
 
 def _convert(ctx: Context) -> None:

@@ -18,8 +18,8 @@ def convert_cmap(ctx: Context) -> None:
 
     with ctx.header("dkongjr_cmap.h") as f:
         f.write("// File generato automaticamente per la colormap di Donkey Kong Jr.\n")
-        f.write("// Palette da: ../../roms/c-2e.bpr, ../../roms/c-2f.bpr\n")
-        f.write("// Lookup da:  ../../roms/v-2n.bpr\n\n")
+        f.write("// Palette da: dkongjrj.zip: c-2e.bpr, c-2f.bpr\n")
+        f.write("// Lookup da:  dkongjrj.zip: v-2n.bpr\n\n")
 
         # tiles: 4 palette banks
         flat = []

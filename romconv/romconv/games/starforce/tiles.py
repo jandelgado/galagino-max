@@ -3,6 +3,7 @@ from collections.abc import Sequence
 from romconv.core.context import Context
 from romconv.core.errors import ConversionError
 from romconv.emit.asset import emit_compressed, emit_plain
+from romconv.emit.write import module_path
 from romconv.games.starforce.sets import SetSpec
 
 _BPP = 3
@@ -55,7 +56,7 @@ def _write_bg_tiles(ctx: Context, game: str, layer: str, tiles: Sequence[Sequenc
     num_tiles = len(tiles)
     chunks_per_row = _BG_SIZE // 8
     with ctx.header(f"{game}_{layer}_tiles.h") as f:
-        f.write("// File generato da bg_tiles.py\n")
+        f.write(f"// File generato da {module_path(__file__)}\n")
         f.write(f"// Contiene i {num_tiles} tiles di background ({_BG_SIZE}x{_BG_SIZE}, 3bpp).\n")
         f.write("// I tiles non sono stati ruotati.\n")
         f.write("// L'ordine dei bitplane è stato INVERTITO.\n")
@@ -128,7 +129,7 @@ def convert_fg_tiles(ctx: Context, game: str, spec: SetSpec) -> None:
     tiles = [_rotate_90_cw(tile) for tile in tiles]
 
     with ctx.header(f"{game}_fg_tiles.h") as f:
-        f.write("// File generato da starforce_fg_conv.py\n")
+        f.write(f"// File generato da {module_path(__file__)}\n")
         f.write(f"// Contiene i {_FG_TILES} tiles di foreground (8x8, 3bpp) per Star Force.\n")
         f.write("// Ogni riga di 8 pixel (ciascuno di 3 bit) è impacchettata in un intero a 32 bit.\n")
         f.write("// I tiles sono stati ruotati di 90 gradi in senso orario.\n")

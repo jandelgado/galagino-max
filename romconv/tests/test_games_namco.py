@@ -1,5 +1,5 @@
 """Offline checks of the Mappy and Tower of Druaga C++ logic (formerly
-internal/mappy/test_mappy_logic.py and internal/todruaga/test_todruaga_logic.py), plus
+the former mappy/test_mappy_logic.py and todruaga/test_todruaga_logic.py), plus
 the todruaga conversion output."""
 import re
 

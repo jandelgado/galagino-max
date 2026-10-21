@@ -6,7 +6,7 @@ be checked line by line. Facts and formats: MARBLE.md "Marble physics", "Terrain
 
 The program ROM the model reads is an explicit SimRom (Mem.rom, Terrain.rom): the converter
 swaps in recording and block-checking views of it for its self-checks. The tools that
-validate the model against MAME traces live in internal/marble/tools.
+validate the model against MAME traces live in dev/marble.
 """
 import copy
 import re
@@ -2418,7 +2418,7 @@ def player_mos(m):
 
 
 def load_fixture(path):
-    """Segments of source/test/test_marble_physics/marble_trace.h (tools/make_fixture.py):
+    """Segments of source/test/test_marble_physics/marble_trace.h (dev/marble/make_fixture.py):
     [{"race", "frame", "ram": [(addr, bytes)], "ticks": [(c6, c7, x, y, z, state)]}]."""
     import re
     text = open(path).read()

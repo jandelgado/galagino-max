@@ -37,7 +37,7 @@ _PROM = (["tma1-c-4p.4p"], "90b739c4c7f24a88b6ac5ca29b06c032906a2801")
 
 
 def _write(ctx, filename, description, emit):
-    return write_asset(ctx, filename, description, emit, "mario")
+    return write_asset(ctx, filename, description, emit, __file__)
 
 
 def _chars(ctx):
@@ -76,9 +76,9 @@ def _convert(ctx: Context) -> None:
     assert len(sound) == 0x1000
 
     total = write_bytes(ctx, "mario_rom_main.h", "mario_rom_main", main_rom,
-                        "Z80 ROM: 0x0000-0x5fff, then 0xf000-0xffff at 0x6000.", "mario")
+                        "Z80 ROM: 0x0000-0x5fff, then 0xf000-0xffff at 0x6000.", __file__)
     total += write_bytes(ctx, "mario_rom_sound.h", "mario_rom_sound", sound,
-                         "M58715 ROM 6k as in the file (program 0x000-0xfff in EA mode).", "mario")
+                         "M58715 ROM 6k as in the file (program 0x000-0xfff in EA mode).", __file__)
 
     words = _chars(ctx)
     total += _write(ctx, "mario_tiles.h", "512 chars 8x8 2bpp, uint16_t row, pixel x in bits 2x.",

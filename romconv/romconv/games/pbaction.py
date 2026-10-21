@@ -1,5 +1,5 @@
 # ============================================================
-# pbaction_rom_convert.py
+# romconv/romconv/games/pbaction.py
 #
 # One-shot ROM converter for the Galagino Plus `pbaction` machine.
 # The `pbaction` machine IS MAME `pbaction` = "Pinball Action (set 1)"
@@ -12,7 +12,7 @@
 # wrong/renamed dump is caught early.
 #
 # USAGE
-#     python3 pbaction_rom_convert.py
+#     ./convert.sh pbaction
 #
 # INPUT FILES  (MAME `pbaction` set 1 - `mame pbaction -verifyroms` must pass)
 #     b-p7.bin b-n7.bin b-l7.bin           maincpu   0x0000 / 0x4000 / 0x8000
@@ -83,7 +83,7 @@ _PBACTION_ROMS = MappingProxyType({
 
 # --------------------------------------------------------------------------
 
-# mame_decode / rot_galagino: see romconv/pyconv/gfxutil.py. planes[0] is
+# mame_decode / rot_galagino: see romconv/romconv/gfx/gfxutil.py. planes[0] is
 # the most-significant pen bit, planes[-1] the least, matching
 # gfx_element::decode() in src/emu/drawgfx.cpp.
 

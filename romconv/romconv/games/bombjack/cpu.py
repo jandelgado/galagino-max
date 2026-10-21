@@ -48,5 +48,5 @@ def convert_bg_maps(ctx: Context) -> None:
 
     with ctx.header("bombjack_bg_maps.h") as f:
         f.write("// File generato automaticamente per la mappa del background di Bomb Jack.\n")
-        f.write("// Dati estratti da: ../../roms/02_p04t.bin\n\n")
+        f.write("// Dati estratti da: bombjack.zip: 02_p04t.bin\n\n")
         emit_compressed(f, "bombjack_bg_maps", "unsigned char", "", len(final_rom_data), list(final_rom_data))

@@ -21,9 +21,9 @@ _GFX = (
 
 def _convert(ctx: Context) -> None:
     total = write_bytes(ctx, "centipede_rom.h", "centipede_rom", rom_bytes_all(ctx, _PROGRAM),
-                  "Main M6502 ROM, 8 KiB mapped at 0x2000-0x3fff.", "centipede")
+                  "Main M6502 ROM, 8 KiB mapped at 0x2000-0x3fff.", __file__)
     total += write_bytes(ctx, "centipede_gfx.h", "centipede_gfx", rom_bytes_all(ctx, _GFX),
-                   "Tiles/sprites, 2 bpp planar: LSB plane 0x000-0x7ff, MSB plane 0x800-0xfff.", "centipede")
+                   "Tiles/sprites, 2 bpp planar: LSB plane 0x000-0x7ff, MSB plane 0x800-0xfff.", __file__)
     # the machine builds 2 KiB tile + 8 KiB sprite column tables from gfx in start()
     total += 2048 + 8192
     check_budget(ctx, total)

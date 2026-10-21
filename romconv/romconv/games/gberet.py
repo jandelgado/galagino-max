@@ -52,7 +52,7 @@ def _write_cmap(ctx, pal, tile_clut, spr_clut):
         f.write("// Sprites: 16 colors x 16 pens, lookup 577h10 -> palette nibble\n")
         write_color_tables(f, "gberet_spr", pal, spr_clut, 0x00, " PROGMEM")
 
-    write_asset(ctx, "gberet_cmap.h", None, emit, "gberet")
+    write_asset(ctx, "gberet_cmap.h", None, emit, __file__)
 
 
 def _convert(ctx: Context) -> None:
@@ -61,12 +61,12 @@ def _convert(ctx: Context) -> None:
     tiles = _decode_tiles(rom_bytes(ctx, _TILES))
     sprites = _decode_sprites(rom_bytes_all(ctx, _SPRITES))
 
-    write_bytes(ctx, "gberet_rom.h", "gberet_rom", rom, "Z80 ROM 0x0000-0xbfff", "gberet")
+    write_bytes(ctx, "gberet_rom.h", "gberet_rom", rom, "Z80 ROM 0x0000-0xbfff", __file__)
     write_array(ctx, "gberet_tilemap.h", "gberet_tilemap", "uint32_t", "[8]", 512, tiles,
-                "512 chars 8x8 4 bpp, row = 8 pens, pixel 0 in bits 31-28", "gberet")
+                "512 chars 8x8 4 bpp, row = 8 pens, pixel 0 in bits 31-28", __file__)
     write_array(ctx, "gberet_spritemap.h", "gberet_spritemap", "uint32_t", "[16][2]", 512, sprites,
                 "512 sprites 16x16 4 bpp, [row][0] pixels 0-7, [row][1] pixels 8-15, first in bits 31-28",
-                "gberet")
+                __file__)
     _write_cmap(ctx, _palette(rom_bytes(ctx, _PAL)), rom_bytes(ctx, _TILE_CLUT), rom_bytes(ctx, _SPR_CLUT))
 
     sizes = {"rom": len(rom), "tilemap": len(tiles) * 4, "spritemap": len(sprites) * 4}

@@ -128,7 +128,7 @@ def decode_sprite_tiles(gfx_spr):
 
 # Drastically shrinks the source WAVs (44100/22050 Hz, 16 bit) down to the
 # 24000 Hz signed-8bit format the other machines' samples already use (see
-# xevious_rom_convert.py write_sample_boom): resample to the fixed audio
+# romconv/games/namco/xevious.py write_sample_boom): resample to the fixed audio
 # output rate (no runtime resampling needed) and requantize to 8 bit,
 # peak-normalized per clip.
 def _low_pass_taps(cutoff, taps=63):
@@ -167,7 +167,7 @@ def _write_samples(ctx):
     # zaxxon_rom_main.h), and up to 12 of these can play concurrently, so
     # heap-decompressing even one (let alone several at once) doesn't fit --
     # same tradeoff as zaxxon_tilemap.h. Encoded as 4-bit IMA-ADPCM (see
-    # romconv/pyconv/adpcm.py), decoded inline per-sample by
+    # romconv/romconv/gfx/adpcm.py), decoded inline per-sample by
     # Audio::zaxxon_render_buffer (ima_adpcm_decode in audio.cpp) -- halves
     # flash usage vs raw 8-bit PCM with no heap/RAM cost.
     total_pcm = total_encoded = 0

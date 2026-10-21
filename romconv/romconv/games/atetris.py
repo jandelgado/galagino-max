@@ -26,10 +26,10 @@ def _convert(ctx: Context) -> None:
     rom = rom_bytes(ctx, _MAIN)
     gfx = rom_bytes(ctx, _TILES)
     write_bytes(ctx, "atetris_rom.h", "atetris_rom", rom,
-                "Main M6502 ROM, 64 KiB: 0x0000-0x7fff slapstic banks, 0x8000-0xffff fixed.", "atetris")
+                "Main M6502 ROM, 64 KiB: 0x0000-0x7fff slapstic banks, 0x8000-0xffff fixed.", __file__)
     words = _tile_words(gfx)
     write_array(ctx, "atetris_tiles.h", "atetris_tiles", "uint32_t", "[8]", len(words) // 8, words,
-                "2048 8x8 tiles, uint32_t per row, pixel i in bits 4i..4i+3.", "atetris")
+                "2048 8x8 tiles, uint32_t per row, pixel i in bits 4i..4i+3.", __file__)
     check_budget(ctx, len(rom) + len(words) * 4)
 
 

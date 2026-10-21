@@ -43,17 +43,17 @@ def _convert(ctx: Context) -> None:
     rom0 = bytes(ctx.rom(*_ROM0))
     program = rom0[:0x2000] + rom_bytes_all(ctx, _PROGRAM) + rom0[0x2000:]
     total = write_bytes(ctx, "starwars_rom.h", "starwars_rom", program,
-                        "Main M6809 ROM: 0x6000-0xffff (bank page 0 at 0x6000), then bank page 1.", "starwars")
+                        "Main M6809 ROM: 0x6000-0xffff (bank page 0 at 0x6000), then bank page 1.", __file__)
     total += write_bytes(ctx, "starwars_vrom.h", "starwars_vrom", rom_bytes_all(ctx, _VECTOR),
-                         "AVG vector ROM, 4 KiB mapped at 0x3000-0x3fff.", "starwars")
+                         "AVG vector ROM, 4 KiB mapped at 0x3000-0x3fff.", __file__)
     total += write_bytes(ctx, "starwars_srom.h", "starwars_srom", rom_bytes_all(ctx, _SOUND),
-                         "Sound M6809 ROM, 16 KiB mapped at 0x4000-0x7fff and 0xc000-0xffff.", "starwars")
+                         "Sound M6809 ROM, 16 KiB mapped at 0x4000-0x7fff and 0xc000-0xffff.", __file__)
 
     proms = [bytes(ctx.rom(name, sha1)) for name, sha1 in _MATH_PROMS]
     micro = [(proms[0][i] & 0xf) << 12 | (proms[1][i] & 0xf) << 8 | (proms[2][i] & 0xf) << 4 |
              (proms[3][i] & 0xf) for i in range(0x400)]
     total += write_bytes(ctx, "starwars_mproms.h", "starwars_mproms", micro,
-                         "Matrix processor microcode, 1024 words: strobes 15-8, AM 7, address 6-0.", "starwars",
+                         "Matrix processor microcode, 1024 words: strobes 15-8, AM 7, address 6-0.", __file__,
                          ctype="unsigned short")
 
     total += _LINE_BUFFER_BYTES + _GO_LIST_BYTES + _MATH_RAM_BYTES

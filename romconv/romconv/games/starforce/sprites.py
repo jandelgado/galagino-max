@@ -3,6 +3,7 @@ from collections.abc import Sequence
 from romconv.core.context import Context
 from romconv.core.errors import ConversionError
 from romconv.emit.asset import emit_compressed
+from romconv.emit.write import module_path
 from romconv.games.starforce.sets import SetSpec
 
 _BPP = 3
@@ -81,7 +82,7 @@ def convert_sprites(ctx: Context, game: str, spec: SetSpec) -> None:
 
     # Arena: compresses 4-8x, the main CPU ROM moved to flash in its place
     with ctx.header(f"{game}_sprites.h") as f:
-        f.write("// File generato da starforce_sprite_conv.py (versione con logica di decodifica corretta)\n"
+        f.write(f"// File generato da {module_path(__file__)} (versione con logica di decodifica corretta)\n"
                 "#include <stdint.h>\n\n")
         f.write(f"// Dati per {len(sprites_16)} sprite {_SIZE_16}x{_SIZE_16}, 3bpp, ruotati di 90 gradi CW.\n")
         emit_compressed(f, f"{game}_sprites_16x16", "uint32_t", "[%d][%d]" % (_SIZE_16, chunks_per_row),

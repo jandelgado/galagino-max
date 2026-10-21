@@ -227,7 +227,7 @@ def decode_level(r, n):
     """Level n (0..5) -> rows x 36 playfield words as in playfield RAM.
 
     Same per-row inputs as level init 0x16f6c and scroll redraw 0x13ee6: tile offset
-    word and attribute byte, both indexed by row (verified against MAME, tools/pf_check.py).
+    word and attribute byte, both indexed by row (verified against MAME, dev/marble/pf_check.py).
     """
     d = u32(r, _LEVEL_TABLE + 4 * n)
     bank = BANK[n]

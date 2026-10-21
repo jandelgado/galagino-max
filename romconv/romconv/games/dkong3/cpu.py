@@ -37,6 +37,6 @@ def convert_sound(ctx: Context) -> None:
         for name, symbol, comment in _SOUND_ROMS:
             rom_data = ctx.rom(name)
             f.write(f"// --- {comment} ---\n")
-            f.write(f"// Dati dal file: ../../roms/{name}\n")
+            f.write(f"// Dati dal file: dkong3.zip: {name}\n")
             emit_compressed(f, symbol, "unsigned char", "", len(rom_data), list(rom_data))
             f.write("\n")

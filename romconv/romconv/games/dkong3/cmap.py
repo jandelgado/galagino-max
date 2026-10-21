@@ -82,7 +82,7 @@ def convert_color_codes(ctx: Context) -> None:
 
     with ctx.header("dkong3_color_codes.h") as f:
         f.write("// File generato automaticamente per la PROM dei codici colore dei tile di Donkey Kong 3.\n")
-        f.write("// Dati estratti da: ../../roms/dkc1-v.2n\n\n")
+        f.write("// Dati estratti da: dkong3.zip: dkc1-v.2n\n\n")
         f.write("const unsigned char color_codes_prom[256] = {\n")
 
         lines = []

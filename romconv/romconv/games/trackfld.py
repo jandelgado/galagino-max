@@ -78,7 +78,7 @@ def _write_cmap(ctx, pal, tile_clut, spr_clut):
         f.write("// Sprites: 16 colors x 16 pens, lookup 361b17 -> palette nibble\n")
         write_color_tables(f, "trackfld_spr", pal, spr_clut, 0x00, "")
 
-    write_asset(ctx, "trackfld_cmap.h", None, emit, "trackfld")
+    write_asset(ctx, "trackfld_cmap.h", None, emit, __file__)
 
 
 def _convert(ctx: Context) -> None:
@@ -90,15 +90,15 @@ def _convert(ctx: Context) -> None:
     sprite_count, sprites = _decode_sprites(rom_bytes_all(ctx, _SPRITES))
 
     write_bytes(ctx, "trackfld_rom_main.h", "trackfld_rom_main", main_rom,
-                "KONAMI-1 6809 ROM 0x6000-0xffff (encrypted opcodes)", "trackfld")
+                "KONAMI-1 6809 ROM 0x6000-0xffff (encrypted opcodes)", __file__)
     write_bytes(ctx, "trackfld_rom_sound.h", "trackfld_rom_sound", sound_rom, "Z80 ROM 0x0000-0x1fff",
-                "trackfld")
-    write_bytes(ctx, "trackfld_vlm.h", "trackfld_vlm", vlm, "VLM5030 speech ROM", "trackfld")
+                __file__)
+    write_bytes(ctx, "trackfld_vlm.h", "trackfld_vlm", vlm, "VLM5030 speech ROM", __file__)
     write_array(ctx, "trackfld_tilemap.h", "trackfld_tilemap", "uint32_t", "[8]", tile_count, tiles,
-                f"{tile_count} chars 8x8 4 bpp, row = 8 pens, pixel 0 in bits 31-28", "trackfld")
+                f"{tile_count} chars 8x8 4 bpp, row = 8 pens, pixel 0 in bits 31-28", __file__)
     write_array(ctx, "trackfld_spritemap.h", "trackfld_spritemap", "uint32_t", "[16][2]", sprite_count, sprites,
                 f"{sprite_count} sprites 16x16 4 bpp, [row][0] pixels 0-7, [row][1] pixels 8-15, "
-                "first in bits 31-28", "trackfld")
+                "first in bits 31-28", __file__)
     _write_cmap(ctx, _palette(rom_bytes(ctx, _PAL)), rom_bytes(ctx, _TILE_CLUT), rom_bytes(ctx, _SPR_CLUT))
 
     ctx.log.info(f"  tiles {tile_count}, sprites {sprite_count}")

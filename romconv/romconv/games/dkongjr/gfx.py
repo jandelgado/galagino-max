@@ -47,7 +47,7 @@ def convert_tilemap(ctx: Context) -> None:
 
     with ctx.header("dkongjr_tilemap.h") as f:
         f.write("// File generato automaticamente per la tilemap di Donkey Kong Jr.\n")
-        f.write("// Dati estratti da: ../../roms/v_3na.bin, ../../roms/v_3pa.bin\n\n")
+        f.write("// Dati estratti da: dkongjrj.zip: v_3na.bin, v_3pa.bin\n\n")
         flat = [v for c in chars for v in _tile_values(c)]
         emit_compressed(f, "dkongjr_tilemap", "unsigned short", "[8]", _TILES, flat)
 
@@ -91,8 +91,8 @@ def convert_sprites(ctx: Context) -> None:
 
     with ctx.header("dkongjr_spritemap.h") as f:
         f.write("// File generato automaticamente per gli sprite di Donkey Kong Jr.\n")
-        f.write("// Dati estratti da: ../../roms/v_7c.bin, ../../roms/v_7d.bin, ../../roms/v_7e.bin, "
-                "../../roms/v_7f.bin\n\n")
+        f.write("// Dati estratti da: dkongjrj.zip: v_7c.bin, v_7d.bin, v_7e.bin, "
+                "v_7f.bin\n\n")
         # unflipped: dkongjr::blit_sprite flips at run time
         flat = [v for s in sprites for v in _sprite_values(s)]
         emit_compressed(f, "dkongjr_sprites", "uint32_t", "[16]", _SPRITES, flat)

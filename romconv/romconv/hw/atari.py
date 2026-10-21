@@ -23,7 +23,7 @@ def convert_vector(ctx: Context, game: str, program: Sequence[tuple[str, str]], 
     prog, vec = rom_bytes_all(ctx, program), rom_bytes_all(ctx, vector)
     if program_bytes is not None:
         assert len(prog) == program_bytes and len(vec) == vector_bytes
-    total = write_bytes(ctx, f"{game}_rom.h", f"{game}_rom", prog, program_description, game)
-    total += write_bytes(ctx, f"{game}_vrom.h", f"{game}_vrom", vec, vector_description, game)
+    total = write_bytes(ctx, f"{game}_rom.h", f"{game}_rom", prog, program_description, __file__)
+    total += write_bytes(ctx, f"{game}_vrom.h", f"{game}_vrom", vec, vector_description, __file__)
     total += _LINE_BUFFER_BYTES + _GO_LIST_BYTES
     check_budget(ctx, total)

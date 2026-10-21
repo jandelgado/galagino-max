@@ -46,8 +46,8 @@ def convert_sprite_colormap(ctx: Context) -> None:
 
     with ctx.header("mrdo_sprite_colormap.h") as f:
         f.write("// Colormap per gli SPRITE di Mr. Do! (formato Little Endian).\n")
-        f.write("// Generato usando '../../../source/src/machines/mrdo/mrdo_palette.h' "
-                "e '../../roms/f10--1.bin'.\n\n")
+        f.write("// Generato usando 'source/src/machines/mrdo/mrdo_palette.h' "
+                "e 'mrdo.zip: f10--1.bin'.\n\n")
         f.write("#pragma once\n#include <stdint.h>\n\n")
         f.write("const uint16_t mrdo_sprite_colormap[16][4] = {\n")
 

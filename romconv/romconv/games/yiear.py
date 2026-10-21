@@ -64,7 +64,7 @@ def _palette(prom):
 def _write_palette(ctx, pal):
     write_asset(ctx, "yiear_palette.h", "PROM 407c10, RGB565 byte-swapped: sprites 0-15, tiles 16-31",
                 lambda out: out.write("const unsigned short yiear_palette[32] = {\n  "
-                                      + ", ".join(f"0x{c:04x}" for c in pal) + "\n};\n"), "yiear")
+                                      + ", ".join(f"0x{c:04x}" for c in pal) + "\n};\n"), __file__)
 
 
 def _convert(ctx: Context) -> None:
@@ -74,13 +74,13 @@ def _convert(ctx: Context) -> None:
     tiles = _decode_tiles(rom_bytes_all(ctx, _TILES))
     sprites = _decode_sprites(rom_bytes_all(ctx, _SPRITES))
 
-    write_bytes(ctx, "yiear_rom.h", "yiear_rom", rom, "6809 ROM 0x8000-0xffff", "yiear")
-    write_bytes(ctx, "yiear_vlm.h", "yiear_vlm", vlm, "VLM5030 speech ROM", "yiear")
+    write_bytes(ctx, "yiear_rom.h", "yiear_rom", rom, "6809 ROM 0x8000-0xffff", __file__)
+    write_bytes(ctx, "yiear_vlm.h", "yiear_vlm", vlm, "VLM5030 speech ROM", __file__)
     write_array(ctx, "yiear_tilemap.h", "yiear_tilemap", "uint32_t", "[8]", _TILE_COUNT, tiles,
-                "512 chars 8x8 4 bpp, row = 8 pens, pixel 0 in bits 31-28", "yiear")
+                "512 chars 8x8 4 bpp, row = 8 pens, pixel 0 in bits 31-28", __file__)
     write_array(ctx, "yiear_spritemap.h", "yiear_spritemap", "uint32_t", "[16][2]", _SPRITE_COUNT, sprites,
                 "512 sprites 16x16 4 bpp, [row][0] pixels 0-7, [row][1] pixels 8-15, first in bits 31-28",
-                "yiear")
+                __file__)
     _write_palette(ctx, _palette(rom_bytes(ctx, _PROM)))
 
     log_sizes(ctx, {"rom": len(rom), "vlm": len(vlm), "tilemap": len(tiles) * 4, "spritemap": len(sprites) * 4},

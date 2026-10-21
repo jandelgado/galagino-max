@@ -3,6 +3,7 @@ from collections.abc import Sequence
 from romconv.core.context import Context
 from romconv.core.errors import ConversionError
 from romconv.emit.asset import emit_compressed
+from romconv.emit.write import module_path
 
 _TILE_ROMS = ("dk3v.3n", "dk3v.3p")
 _TILES = 512
@@ -53,7 +54,7 @@ def convert_tilemap(ctx: Context) -> None:
     with ctx.header("dkong3_tilemap.h") as f:
         f.write("// File generato automaticamente per la tilemap di Donkey Kong 3.\n")
         f.write("// I tile sono stati ruotati di 90° antiorario e flippati verticalmente.\n")
-        f.write("// Dati estratti da: ../../roms/dk3v.3n, ../../roms/dk3v.3p\n\n")
+        f.write("// Dati estratti da: dkong3.zip: dk3v.3n, dk3v.3p\n\n")
         flat = [v for c in chars for v in _tile_values(c)]
         emit_compressed(f, "dkong3_tilemap", "unsigned short", "[8]", _TILES, flat)
 
@@ -92,7 +93,7 @@ def convert_sprites(ctx: Context) -> None:
         sprites.append(_decode_sprite(data_chunks))
 
     with ctx.header("dkong3_spritemap.h") as f:
-        f.write("// File generato da sprites_conv.py (modifica: flip/rotazione per sprite)\n")
-        f.write("// Dati da: ../../roms/dk3v.7c, ../../roms/dk3v.7d, ../../roms/dk3v.7e, ../../roms/dk3v.7f\n\n")
+        f.write(f"// File generato da {module_path(__file__)} (modifica: flip/rotazione per sprite)\n")
+        f.write("// Dati da: dkong3.zip: dk3v.7c, dk3v.7d, dk3v.7e, dk3v.7f\n\n")
         flat = [v for s in sprites for v in _sprite_values(s)]
         emit_compressed(f, "dkong3_sprites", "uint32_t", "[16]", _SPRITES, flat)

@@ -1,6 +1,7 @@
 from romconv.core.context import Context
 from romconv.core.errors import ConversionError
 from romconv.emit.asset import emit_compressed
+from romconv.emit.write import module_path
 
 # (pengo.zip name, name of older MAME versions, SHA-1) at 0x0000, 0x1000, ...
 _CPU_ROMS = (
@@ -27,7 +28,7 @@ def convert_cpu(ctx: Context) -> None:
         all_rom_data.extend(ctx.rom([name, old_name], sha1))
 
     with ctx.header("pengo_rom.h") as f:
-        f.write("// File generato da cpu_conv.py\n")
+        f.write(f"// File generato da {module_path(__file__)}\n")
         f.write("// ROM per: Pengo Main CPU ROM (set 'pengo')\n")
         f.write(f"// Dimensione totale: {len(all_rom_data)} bytes\n\n")
         emit_compressed(f, "pengo_rom", "unsigned char", "", len(all_rom_data), list(all_rom_data))

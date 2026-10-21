@@ -1,11 +1,11 @@
 """Marble Madness sound (MARBLE.md "Sound"): MAME captures of the arcade's YM2151 / POKEY
-writes per command (tools/mame_sound.lua) become songs of the C64
+writes per command (dev/marble/mame_sound.lua) become songs of the C64
 tune's own player (Marble_Madness.sid, format in MARBLE.md): jingles as songs that replace
 the music, effects as one track songs on slot 1 / SID voice 0 started by a 6502 stub over the
 music, a silent song for STOP. Timing: tempo 0x3840, duration index k = 2^(7-k) frames,
 every length a chain of events (frame exact).
 
-The capture is not distributed: tools/marble_sid_extract.py reduces it to the note lists in
+The capture is not distributed: dev/marble/marble_sid_extract.py reduces it to the note lists in
 marble_sound_notes.json (no ROM or register data), which build() reads.
 """
 import json

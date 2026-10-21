@@ -42,7 +42,7 @@ def test_sim_rom_is_explicit():
 
 def test_missing_trace_names_the_tool(tmp_path, log):
     run = marble_convert.Run(Context(marble.JOB, Paths(tmp_path), (), log), None, None)
-    with pytest.raises(ConversionError, match="make_fixture.py swrite"):
+    with pytest.raises(ConversionError, match="dev.marble.make_fixture swrite"):
         run.trace(marble_convert.SPRITE_FIXTURE, "swrite")
 
 

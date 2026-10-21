@@ -32,5 +32,5 @@ def convert_sound(ctx: Context) -> None:
 
     with ctx.header("dkongjr_rom2.h") as f:
         f.write("// File header generato automaticamente per la Sound CPU di dkongjrj\n")
-        f.write("// Contiene i dati del file: ../../roms/c_3h.bin\n\n")
+        f.write("// Contiene i dati del file: dkongjrj.zip: c_3h.bin\n\n")
         emit_compressed(f, "dkongjr_rom2", "unsigned char", "", len(rom_data), list(rom_data))

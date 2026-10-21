@@ -29,9 +29,9 @@ def _convert(ctx: Context) -> None:
     speech = rom_bytes_all(ctx, _SPEECH)
     total = write_bytes(ctx, "berzerk_rom.h", "berzerk_rom", rom,
                         "Z80 ROM image 0x0000-0x3fff (0x0800-0x0fff NVRAM hole, 0x3800 unpopulated).",
-                        "berzerk")
+                        __file__)
     total += write_bytes(ctx, "berzerk_speech.h", "berzerk_speech", speech, "S14001A speech ROM, 4 KiB.",
-                         "berzerk")
+                         __file__)
     total += _VIDEO_STATE_BYTES
     check_budget(ctx, total)
 

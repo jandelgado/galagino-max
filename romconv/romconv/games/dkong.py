@@ -19,8 +19,7 @@ def _convert(ctx: Context) -> None:
 
     # Arena has room: compressed
     for name in ("walk0", "walk1", "walk2", "jump", "stomp", "fall"):
-        sample(ctx, f"dkong_sample_{name}", f"dkong_{name}.s8", f"dkong_sample_{name}.h", compress=True,
-               src_text=f"../samples/dkong_{name}.s8")
+        sample(ctx, f"dkong_sample_{name}", f"dkong_{name}.s8", f"dkong_sample_{name}.h", compress=True)
 
 
 JOB = Job(name="dkong", convert=_convert, machine="dkong", zips=("dkong.zip",))

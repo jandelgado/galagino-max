@@ -28,9 +28,9 @@ def _convert(ctx: Context) -> None:
     sc01 = bytes(ctx.rom(_SC01[0], _SC01[1], zip="votrsc01.zip"))
     assert len(sc01) == 512
     total = write_bytes(ctx, "gorf_rom.h", "gorf_rom", rom,
-                        "Z80 ROM image: 0x0000-0x3fff then 0x8000-0xbfff stored at 0x4000-0x7fff.", "gorf")
+                        "Z80 ROM image: 0x0000-0x3fff then 0x8000-0xbfff stored at 0x4000-0x7fff.", __file__)
     total += write_bytes(ctx, "gorf_sc01.h", "gorf_sc01", sc01, "Votrax SC-01 internal phoneme ROM, 512 B.",
-                         "gorf")
+                         __file__)
     total += _EXTRA_BYTES
     check_budget(ctx, total)
 
