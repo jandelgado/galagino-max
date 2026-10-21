@@ -9,22 +9,6 @@ from romconv.core.errors import ConversionError
 from romconv.remote.catalog import BASES, job_name
 
 GAMES = [
-    "roadfighter",
-    "rocnrope",
-    "scregg",
-    "solomon",
-    "spacduel",
-    "starwars",
-    "tempest",
-    "thepit",
-    "timeplt",
-    "tp84",
-    "trackfld",
-    "tutankhm",
-    "vanguard",
-    "vulgus",
-    "yiear",
-    "zaxxon",
 ]
 
 

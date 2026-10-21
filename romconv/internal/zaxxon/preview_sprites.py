@@ -3,8 +3,11 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join("..", "pyconv"))
+sys.path.insert(0, os.path.join("..", ".."))
 from gfxutil import load_file, render_tile_grid
-from zaxxon_rom_convert import ROM_SET, ZAXXON_FILES, decode_sprite_tiles
+from romconv.games.zaxxon import ZAXXON_FILES, decode_sprite_tiles
+
+ROM_SET = os.path.join("..", "..", "..", "romszip", "zaxxon.zip")
 
 OUTPUT_IMAGE_FILE = "zaxxon_sprites_preview.png"
 TILES_PER_ROW = 8
@@ -14,9 +17,9 @@ PREVIEW_PALETTE = {
 }
 
 def main():
-    spr1 = load_file(ROM_SET, ZAXXON_FILES["gfx_spr_1"]["names"], ZAXXON_FILES["gfx_spr_1"]["sha1"])
-    spr2 = load_file(ROM_SET, ZAXXON_FILES["gfx_spr_2"]["names"], ZAXXON_FILES["gfx_spr_2"]["sha1"])
-    spr3 = load_file(ROM_SET, ZAXXON_FILES["gfx_spr_3"]["names"], ZAXXON_FILES["gfx_spr_3"]["sha1"])
+    spr1 = load_file(ROM_SET, [ZAXXON_FILES["gfx_spr_1"][0]], ZAXXON_FILES["gfx_spr_1"][1])
+    spr2 = load_file(ROM_SET, [ZAXXON_FILES["gfx_spr_2"][0]], ZAXXON_FILES["gfx_spr_2"][1])
+    spr3 = load_file(ROM_SET, [ZAXXON_FILES["gfx_spr_3"][0]], ZAXXON_FILES["gfx_spr_3"][1])
     tiles = decode_sprite_tiles(spr1 + spr2 + spr3)
     render_tile_grid(tiles, 32, 32, PREVIEW_PALETTE, TILES_PER_ROW, OUTPUT_IMAGE_FILE)
 

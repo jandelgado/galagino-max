@@ -9,7 +9,9 @@ from romconv.games import (alibaba, anteater, arkanoid, asteroids, atetris, bagm
                            galaga, galaxian, game_1942, game_1943, gberet, gng, gorf, gravitar, gyruss, hero,
                            invaders, ladybug, lizwiz, llander, marble, mario, mcr, megazone, mhavoc, mikie,
                            millipede, missile, motorace, mpatrol, mrdo, mrtnt, mspacman, nibbler, pacman,
-                           pbaction, pengo, phoenix, pleiads, pooyan, starforce, theglob, vanvan, williams)
+                           pbaction, pengo, phoenix, pleiads, pooyan, roadfighter, rocnrope, scregg, solomon,
+                           spacduel, starforce, starwars, tempest, theglob, thepit, timeplt, tp84, trackfld,
+                           tutankhm, vanguard, vanvan, vulgus, williams, yiear, zaxxon)
 from romconv.games.namco import digdug2, gaplus, mappy, phozon, todruaga, xevious
 from romconv.games.system1 import jobs as system1
 from romconv.gfx import logo
@@ -97,6 +99,22 @@ ALL: tuple[Job, ...] = (
     phoenix.JOB,
     pleiads.JOB,
     pooyan.JOB,
+    roadfighter.JOB,
+    rocnrope.JOB,
+    scregg.JOB,
+    solomon.JOB,
+    spacduel.JOB,
+    starwars.JOB,
+    tempest.JOB,
+    thepit.JOB,
+    timeplt.JOB,
+    tp84.JOB,
+    trackfld.JOB,
+    tutankhm.JOB,
+    vanguard.JOB,
+    vulgus.JOB,
+    yiear.JOB,
+    zaxxon.JOB,
     catalog.JOB,
     bundles.JOB,
 )

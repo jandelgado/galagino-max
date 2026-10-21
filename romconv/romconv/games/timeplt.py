@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Time Pilot ROM converter for GALAGINO
 Konami 1982 - timeplt ROM set
@@ -12,29 +11,12 @@ ROM set:
            timeplt.e9 (256) = sprite color lookup
            timeplt.e12 (256) = char color lookup
 """
+from romconv.core.context import Context
+from romconv.core.job import Job
+from romconv.emit.asset import emit_compressed
+from romconv.gfx.color import rgb565_swapped
+from romconv.gfx.gfxutil import hex16
 
-import os, sys
-
-sys.path.insert(0, os.path.join("..", "pyconv"))
-from asset_emit import emit_compressed
-from gfxutil import hex8, hex16, hex32
-from convutil import fatal
-
-ROM_SRC = os.path.normpath(os.path.join("..", "..", "roms"))
-OUT_DIR = os.path.normpath(os.path.join("..", "..", "..", "source", "src", "machines", "timeplt"))
-
-def load_file(name):
-    path = os.path.join(ROM_SRC, name)
-    if not os.path.exists(path):
-        for alt in [name.lower(), name.upper()]:
-            alt_path = os.path.join(ROM_SRC, alt)
-            if os.path.exists(alt_path):
-                path = alt_path
-                break
-    if not os.path.exists(path):
-        fatal(f"File '{name}' non trovato in {os.path.abspath(ROM_SRC)}")
-    with open(path, "rb") as f:
-        return bytearray(f.read())
 
 # ---- Color PROM -> RGB565 palette ----
 # Time Pilot uses resistor-weighted DAC:
@@ -42,8 +24,8 @@ def load_file(name):
 #   timeplt.b5: bits 7-6=GREEN low 2 bits, bits 5-1=RED(5 weights), bit0=unused
 # Resistor weights: 1.2K, 820, 560, 470, 390 ohm
 # Normalized weights: 0x19, 0x24, 0x35, 0x40, 0x4D
-def convert_palette(prom_b4, prom_b5):
-    weights = [0x19, 0x24, 0x35, 0x40, 0x4D]
+def _convert_palette(prom_b4, prom_b5):
+    weights = (0x19, 0x24, 0x35, 0x40, 0x4D)
     rgb565 = []
     for i in range(32):
         b4 = prom_b4[i]
@@ -70,21 +52,13 @@ def convert_palette(prom_b4, prom_b5):
              weights[3] * ((b4 >> 6) & 1) +
              weights[4] * ((b4 >> 7) & 1))
 
-        # Clamp to 255
-        r = min(r, 255)
-        g = min(g, 255)
-        b = min(b, 255)
-
+        # (rgb565_swapped clamps to 255)
         # Convert to RGB565 byte-swapped for ESP32 SPI
-        r5 = (r >> 3) & 0x1F
-        g6 = (g >> 2) & 0x3F
-        b5 = (b >> 3) & 0x1F
-        val = (r5 << 11) | (g6 << 5) | b5
-        rgb565.append(((val & 0xFF) << 8) | ((val >> 8) & 0xFF))
+        rgb565.append(rgb565_swapped(r, g, b))
     return rgb565
 
 # ---- Build full palette using lookup PROMs ----
-def build_colormap(base_palette, prom_e12, prom_e9):
+def _build_colormap(base_palette, prom_e12, prom_e9):
     """
     Char palettes: 32 palettes x 4 colors = 128 entries
     Sprite palettes: 64 palettes x 4 colors = 256 entries
@@ -117,7 +91,7 @@ def build_colormap(base_palette, prom_e12, prom_e9):
 # Pixel decode uses Gyruss-identical MSB-first approach (0x80 >> bit)
 # PLUS 90 CW rotation because Time Pilot uses tileaddr (Gyruss does NOT)
 
-def convert_tiles(gfx_data):
+def _convert_tiles(gfx_data):
     num_tiles = len(gfx_data) // 16  # 512 tiles
     tiles = []
     for tile_idx in range(num_tiles):
@@ -156,7 +130,7 @@ def convert_tiles(gfx_data):
 # Transposed rendering at runtime handles the ROT90 display rotation.
 # This preserves correct tiling for multi-sprite objects (clouds).
 
-def convert_sprites(gfx_data):
+def _convert_sprites(gfx_data):
     num_sprites = len(gfx_data) // 64  # 256 sprites
 
     # Decode all sprites in landscape orientation (NO rotation)
@@ -198,20 +172,20 @@ def convert_sprites(gfx_data):
     return sprites
 
 # ---- Write C header files ----
-def write_rom(filename, name, data):
-    with open(filename, 'w') as f:
+def _write_rom(ctx, filename, name, data):
+    with ctx.header(filename) as f:
         f.write("// Time Pilot program ROM ({} bytes)\n".format(len(data)))
         emit_compressed(f, name, "unsigned char", "", len(data), list(data))
-    print("Written: {} ({} bytes)".format(filename, len(data)))
+    ctx.log.info("Written: {} ({} bytes)".format(filename, len(data)))
 
-def write_sound_rom(filename, name, data):
-    with open(filename, 'w') as f:
+def _write_sound_rom(ctx, filename, name, data):
+    with ctx.header(filename) as f:
         f.write("// Time Pilot sound ROM ({} bytes)\n".format(len(data)))
         emit_compressed(f, name, "unsigned char", "", len(data), list(data))
-    print("Written: {} ({} bytes)".format(filename, len(data)))
+    ctx.log.info("Written: {} ({} bytes)".format(filename, len(data)))
 
-def write_tilemap(filename, tiles, char_colors):
-    with open(filename, 'w') as f:
+def _write_tilemap(ctx, filename, tiles, char_colors):
+    with ctx.header(filename) as f:
         f.write("// Time Pilot tilemap: {} tiles, 8x8, 2bpp\n".format(len(tiles)))
         flat = [v for rows in tiles for v in rows]
         emit_compressed(f, "timeplt_tilemap", "unsigned short", "[8]", len(tiles), flat)
@@ -227,11 +201,11 @@ def write_tilemap(filename, tiles, char_colors):
                 f.write(",")
             f.write("  // palette {}\n".format(pal))
         f.write("};\n")
-    print("Written: {} ({} tiles, 32 char palettes)".format(filename, len(tiles)))
+    ctx.log.info("Written: {} ({} tiles, 32 char palettes)".format(filename, len(tiles)))
 
-def write_spritemap(filename, sprites, sprite_colors):
+def _write_spritemap(ctx, filename, sprites, sprite_colors):
     num_sprites = len(sprites)
-    with open(filename, 'w') as f:
+    with ctx.header(filename) as f:
         f.write("// Time Pilot spritemap: {} sprites, 16x16, 2bpp, unflipped\n".format(num_sprites))
         flat = [v for rows in sprites for v in rows]
         emit_compressed(f, "timeplt_spritemap", "uint32_t", "[16]", num_sprites, flat)
@@ -247,63 +221,51 @@ def write_spritemap(filename, sprites, sprite_colors):
                 f.write(",")
             f.write("  // palette {}\n".format(pal))
         f.write("};\n")
-    print("Written: {} ({} sprites, 64 sprite palettes)".format(filename, num_sprites))
+    ctx.log.info("Written: {} ({} sprites, 64 sprite palettes)".format(filename, num_sprites))
 
 # ---- Main ----
-def main():
-    os.makedirs(OUT_DIR, exist_ok=True)
-
-    print(f"Caricamento ROM da: {os.path.abspath(ROM_SRC)}")
-    print(f"Destinazione file: {os.path.abspath(OUT_DIR)}")
-
+def _convert(ctx: Context) -> None:
     # Carica tutti i file
-    tm1 = load_file("tm1")
-    tm2 = load_file("tm2")
-    tm3 = load_file("tm3")
-    tm4 = load_file("tm4")
-    tm5 = load_file("tm5")
-    tm6 = load_file("tm6")
-    tm7 = load_file("tm7")
-    prom_b4 = load_file("timeplt.b4")
-    prom_b5 = load_file("timeplt.b5")
-    prom_e9 = load_file("timeplt.e9")
-    prom_e12 = load_file("timeplt.e12")
+    tm1 = ctx.rom("tm1")
+    tm2 = ctx.rom("tm2")
+    tm3 = ctx.rom("tm3")
+    tm4 = ctx.rom("tm4")
+    tm5 = ctx.rom("tm5")
+    tm6 = ctx.rom("tm6")
+    tm7 = ctx.rom("tm7")
+    prom_b4 = ctx.rom("timeplt.b4")
+    prom_b5 = ctx.rom("timeplt.b5")
+    prom_e9 = ctx.rom("timeplt.e9")
+    prom_e12 = ctx.rom("timeplt.e12")
 
-    # Verifica che tutti i file siano stati caricati
-    files_ok = all(v is not None for v in [tm1, tm2, tm3, tm4, tm5, tm6, tm7, prom_b4, prom_b5, prom_e9, prom_e12])
-    if not files_ok:
-        fatal("Non tutti i file sono stati caricati correttamente.")
-
-    print("Loaded all ROMs from {}".format(ROM_SRC))
-    print("  tm1-tm3: {} + {} + {} = {} bytes (main CPU)".format(len(tm1), len(tm2), len(tm3), len(tm1)+len(tm2)+len(tm3)))
-    print("  tm7: {} bytes (sound CPU)".format(len(tm7)))
-    print("  tm6: {} bytes (tiles)".format(len(tm6)))
-    print("  tm4+tm5: {} + {} = {} bytes (sprites)".format(len(tm4), len(tm5), len(tm4)+len(tm5)))
+    ctx.log.info("  tm1-tm3: {} + {} + {} = {} bytes (main CPU)".format(len(tm1), len(tm2), len(tm3), len(tm1)+len(tm2)+len(tm3)))
+    ctx.log.info("  tm7: {} bytes (sound CPU)".format(len(tm7)))
+    ctx.log.info("  tm6: {} bytes (tiles)".format(len(tm6)))
+    ctx.log.info("  tm4+tm5: {} + {} = {} bytes (sprites)".format(len(tm4), len(tm5), len(tm4)+len(tm5)))
 
     # Combine program ROM (24KB, pad to 0x6000)
     program = tm1 + tm2 + tm3
-    write_rom(os.path.join(OUT_DIR, "timeplt_rom.h"), "timeplt_rom", program)
+    _write_rom(ctx, "timeplt_rom.h", "timeplt_rom", program)
 
     # Sound ROM
-    write_sound_rom(os.path.join(OUT_DIR, "timeplt_snd_rom.h"), "timeplt_snd_rom", tm7)
+    _write_sound_rom(ctx, "timeplt_snd_rom.h", "timeplt_snd_rom", tm7)
 
     # Convert palette
-    base_palette = convert_palette(prom_b4, prom_b5)
-    char_colors, sprite_colors = build_colormap(base_palette, prom_e12, prom_e9)
+    base_palette = _convert_palette(prom_b4, prom_b5)
+    char_colors, sprite_colors = _build_colormap(base_palette, prom_e12, prom_e9)
 
     # Convert tiles (tm6 = 8KB = 512 tiles of 16 bytes each)
-    tiles = convert_tiles(tm6)
-    write_tilemap(os.path.join(OUT_DIR, "timeplt_tilemap.h"), tiles, char_colors)
+    tiles = _convert_tiles(tm6)
+    _write_tilemap(ctx, "timeplt_tilemap.h", tiles, char_colors)
 
     # Convert sprites (tm4+tm5 = 16KB = 256 sprites of 64 bytes each)
     sprite_data = tm4 + tm5
-    sprites = convert_sprites(sprite_data)
-    write_spritemap(os.path.join(OUT_DIR, "timeplt_spritemap.h"), sprites, sprite_colors)
+    sprites = _convert_sprites(sprite_data)
+    _write_spritemap(ctx, "timeplt_spritemap.h", sprites, sprite_colors)
 
     # NOTE: timeplt_dipswitches.h is maintained manually, not overwritten here
 
-    print("\n--- OPERAZIONE COMPLETATA ---")
-    print(f"Tutti i file sono stati generati in: {os.path.abspath(OUT_DIR)}")
+    ctx.log.info("--- OPERAZIONE COMPLETATA ---")
 
-if __name__ == "__main__":
-    main()
+
+JOB = Job(name="timeplt", convert=_convert, machine="timeplt", zips=("timeplt.zip",))
