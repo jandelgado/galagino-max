@@ -34,7 +34,6 @@ static const uint8_t PAIR_BYTES = 54;  // 44 fields of 10 bits per diagonal pair
 static const uint8_t FIELDS = 44;      // field 43 (column 21, odd diagonal) not stored
 
 // Arena buffers of loadRom(): physics reads them every tick, flash keeps them LZMA packed
-static uint8_t *prog = nullptr;         // marble_prog: all program ROM blocks
 static uint8_t *terrainBuf = nullptr;   // bases of loadedRace (maxd words), then its index
 static uint8_t loadedRace = NO_RACE;
 
@@ -57,10 +56,6 @@ static const uint8_t *loadTables(const FlashAsset<unsigned char, COMPRESSED> &b)
 }
 
 void loadRom() {
-  const Asset<unsigned char, COMPRESSED> p(marble_prog_blob);
-  prog = Arena::alloc<uint8_t>(p.size());
-  p.decodeInto(prog);
-
   marble_tables = loadTables(marble_tables_blob);
 
   terrainBuf = Arena::alloc(MARBLE_TERRAIN_MAX, alignof(uint16_t));
@@ -83,20 +78,6 @@ void Mem::setRace(uint8_t race) {
 // the terrain buffer holds one race: a Mem of the race before a switch must not read it
 void Mem::checkRace() const {
   if (race != loadedRace) { fail("terrain of unloaded race", race); }
-}
-
-uint8_t Mem::romb(uint32_t a) const {
-  // blocks are sorted by address and do not overlap: last block starting at or below a
-  uint8_t lo = 0, hi = MARBLE_PROG_BLOCKS;
-  while (lo < hi) {
-    const uint8_t mid = (lo + hi) / 2;
-    if (marble_prog_blocks[mid].addr <= a) { lo = mid + 1; } else { hi = mid; }
-  }
-  if (lo) {
-    const MarbleProgBlock &b = marble_prog_blocks[lo - 1];
-    if (a - b.addr < b.len) { return prog[b.off + a - b.addr]; }
-  }
-  fail("ROM", a);
 }
 
 uint32_t animEntry(uint32_t p) { return be32(marble_anim.at(p, 4)); }

@@ -1,11 +1,12 @@
 """Program ROM tables of the Marble Madness remake (MARBLE.md "Remake data").
 
-The remake reads 68010 program ROM data by address (`Mem::romb`, blocks of marble_prog). This
-module defines which bytes, one list of definitions per phase: typed tables (_Array, _Lists,
-_Struct) emitted into marble_tables / marble_rom.h, Raw bytes still shipped as blocks, Model
-bytes only the Python model reads. defs() is the single source for the emitted data and for
-the coverage proof (tests/test_games_marble.py replays every MAME fixture and race sweep on
-the model and fails on a read outside)."""
+The remake reads 68010 program ROM data through typed accessors (marble_rom.h, marble_mem.h).
+This module defines which bytes, one list of definitions per phase: tables by index (_Array,
+_Lists, _Struct), spans by 68010 address for the data the work RAM points to (_Keyed:
+animation lists, frame headers, scripts, paths ...), and bytes only the Python model reads
+(_Model). defs() is the single source for the emitted data and for the coverage proof
+(tests/test_games_marble.py replays every MAME fixture and race sweep on the model and fails
+on a read outside)."""
 import struct
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -101,15 +102,6 @@ class _Struct:
 
 
 @dataclass(frozen=True)
-class _Raw:
-    """Bytes still shipped as address keyed blocks of marble_prog (Mem::romb)."""
-    addrs: frozenset
-
-    def bytes(self, sim):
-        return self.addrs
-
-
-@dataclass(frozen=True)
 class _Keyed:
     """Bytes the remake reads by 68010 address (the work RAM holds the pointers): raw spans
     of one kind, MarbleSpans marble_<kind> (animEntry, frameBox, framePos ...)."""
@@ -128,10 +120,6 @@ class _Model:
 
     def bytes(self, sim):
         return set(range(self.addr, self.addr + self.n))
-
-
-def _raw(addr, n):
-    return _Raw(frozenset(range(addr, addr + n)))
 
 
 def _anim_lists(sim, lists):
@@ -359,7 +347,7 @@ def _sprites(run):
             _Array("tag3_pal", mo.TAG3_PAL, "uint8_t", mo.TAG3_FRAMES, "tag 3 palette")]
 
 
-def _merge(addrs, gap=8):
+def _merge(addrs, gap=0):
     """Sorted byte addresses -> [first, end) ranges, joining gaps up to gap bytes."""
     out = []
     for a in sorted(addrs):
@@ -415,18 +403,6 @@ def phase_bytes(run, terrains):
     return tuple(set().union(*(d.bytes(run.sim) for d in phase)) for phase in defs(run, terrains))
 
 
-def blocks(plain, phases):
-    """[(address, bytes)] of the Raw definitions per phase, cumulative: the blocks of the last
-    phase are emitted as marble_prog."""
-    out, cum = [], set()
-    for phase in phases:
-        for d in phase:
-            if isinstance(d, _Raw):
-                cum |= d.addrs
-        out.append([(a, bytes(plain[a:e])) for a, e in _merge(cum)])
-    return out
-
-
 def emit(f, sim, phases, add):
     """Typed definitions of every phase into marble_rom.h; add(data, align) appends to
     marble_tables and returns the offset. Returns the table bytes per phase."""
@@ -457,7 +433,7 @@ def emit(f, sim, phases, add):
                 size += sum(_SIZE[c] for _, _, c in d.fields)
         sizes.append(size)
     for kind, addrs in sorted(keyed.items()):
-        spans = [(a, e, add(sim.prog[a:e], 1)) for a, e in _merge(addrs, 0)]
+        spans = [(a, e, add(sim.prog[a:e], 1)) for a, e in _merge(addrs)]
         print(f"static const MarbleSpan marble_{kind}_spans[{len(spans)}] = {{\n  "
               + ",\n  ".join(f"{{ 0x{a:05x}, {e - a}, {off} }}" for a, e, off in spans) + "\n};", file=f)
         print(f"static const MarbleSpans marble_{kind} = {{ marble_{kind}_spans, {len(spans)}, "

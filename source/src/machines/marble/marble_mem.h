@@ -9,10 +9,11 @@ struct MarbleSpriteSet;
 // 68010 memory as the marble physics sees it (MARBLE.md "Marble physics", "Remake data"):
 //
 //   0x400000-0x401fff  work RAM, big-endian image in a caller buffer (rb/rw/rl, wb/ww/wl)
-//   0x000000-0x02ffff  program ROM, only the bytes in marble_prog_blocks (romb/romw/roml)
+//   0x000000-0x02ffff  program ROM data: tables by index (marble_rom.h, MarbleTable) and the
+//                      accessors below for data the work RAM points to by 68010 address
 //   video RAM, slapstic terrain of the race: vertex codes, base heights, records
 //
-// Any access outside these aborts with the address: a missing ROM block or a port bug.
+// Any access outside these aborts with the address: a missing table entry or a port bug.
 namespace marble_physics {
 
 static const uint32_t RAM_BASE = 0x400000;
@@ -37,8 +38,8 @@ inline int16_t s16(uint32_t v) { return (int16_t)v; }
 
 [[noreturn]] void fail(const char *what, uint32_t addr);
 
-// Unpacks the program ROM blocks and marble_tables to the Arena and reserves the terrain
-// buffer. Once per machine instance, before the first Mem: the buffers die with the Arena.
+// Unpacks marble_tables to the Arena (local builds) and reserves the terrain buffer. Once
+// per machine instance, before the first Mem: the buffers die with the Arena.
 void loadRom();
 
 class Mem {
@@ -56,10 +57,6 @@ public:
   void wb(uint32_t a, uint8_t v) { ram[off(a)] = v; }
   void ww(uint32_t a, uint16_t v) { wb(a, v >> 8); wb(a + 1, (uint8_t)v); }
   void wl(uint32_t a, uint32_t v) { ww(a, v >> 16); ww(a + 2, (uint16_t)v); }
-
-  uint8_t romb(uint32_t a) const;  // program ROM blocks (marble_prog): going away
-  uint16_t romw(uint32_t a) const { return romb(a) << 8 | romb(a + 1); }
-  uint32_t roml(uint32_t a) const { return (uint32_t)romw(a) << 16 | romw(a + 2); }
 
   // Terrain of the race: diagonal d (0 .. maxd() - 1), field f = column + 22 on odd
   // diagonals (Terrain.index), quadrant q of a record code (descriptor +0x00).
