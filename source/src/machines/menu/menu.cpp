@@ -572,6 +572,7 @@ const char *mchName(signed char machineType) {
     case MCH_SHOLLOW:       return "Satan's Hollow";
     case MCH_MOTOS:         return "Motos";
     case MCH_JUNGLEH:       return "Jungle Hunt";
+    case MCH_MEGAZONE:      return "Mega Zone";
     case MCH_SELFTEST:      return "Self Test";
     case MCH_CIRCUSC:       return "Circus Charlie";
     case MCH_ROCNROPE:      return "Roc'n Rope";

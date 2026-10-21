@@ -1,0 +1,6 @@
+megazone_rom_main.h
+megazone_rom_sound.h
+megazone_rom_i8039.h
+megazone_chars.h
+megazone_sprites.h
+megazone_palette.h

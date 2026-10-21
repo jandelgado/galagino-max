@@ -118,6 +118,7 @@ GAMES = [
     "shollow",
     "motos",
     "jungleh",
+    "megazone",
     "elevator",
     "mhavoc",
 ]

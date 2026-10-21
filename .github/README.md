@@ -245,5 +245,6 @@ evicted first. Menu entries not cached yet show a NET marker.
 | Satan's Hollow (shollow.zip)  | ![Satan's Hollow marquee](/logos/shollow.png) | ![Satan's Hollow screenshot](/images/shollow.png) | Also needs midssio.zip. FIRE=fire, UP/DOWN=shield (controller B=shield) |
 | Motos (motos.zip)             | ![Motos marquee](/logos/motos.png) | ![Motos screenshot](/images/motos.png) | Dig Dug II board. FIRE=power, START=jump (controller B=jump) |
 | Jungle Hunt (junglek.zip)     | ![Jungle Hunt marquee](/logos/jungleh.png) | ![Jungle Hunt screenshot](/images/jungleh.png) | Set jungleh (US) from junglek.zip, Taito SJ board without MCU. FIRE=jump/stab |
+| Mega Zone (megazone.zip)      | ![Mega Zone marquee](/logos/megazone.png) | ![Mega Zone screenshot](/images/megazone.png) | FIRE=fire |
 
 ### ...

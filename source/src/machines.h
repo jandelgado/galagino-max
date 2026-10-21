@@ -270,6 +270,12 @@
     #include "machines/mhavoc/mhavoc_bundle.h"
   #endif
 #endif
+#ifdef GAME_MEGAZONE
+  #include "machines/megazone/megazone.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/megazone/megazone_bundle.h"
+  #endif
+#endif
 #ifdef GAME_JUNGLEH
   #include "machines/jungleh/jungleh.h"
   #ifdef ASSETS_REMOTE
@@ -1514,6 +1520,13 @@ constexpr machineInfo machines[] = {
     mhavoc::menuLeds,
 #endif
     MCH_MHAVOC, nullptr BUNDLE_REF(mhavoc_bundle_ref) },
+#endif
+#ifdef GAME_MEGAZONE
+  { createMachine<megazone>, megazone::logo,
+#ifdef LED_PIN
+    megazone::menuLeds,
+#endif
+    MCH_MEGAZONE, nullptr BUNDLE_REF(megazone_bundle_ref) },
 #endif
 #ifdef GAME_JUNGLEH
   { createMachine<jungleh>, jungleh::logo,
