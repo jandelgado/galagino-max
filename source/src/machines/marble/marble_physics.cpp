@@ -1259,7 +1259,7 @@ void anim_25fc2(Mem &m, uint32_t a2) {
     m.wb(a2 + SHARD_TICK, 0);
     m.wb(a2 + SHARDS_ON, 1);
   }
-  if (m.roml(m.rl(a2 + ANIM)) != LIST_END) { return; }
+  if (animEntry(m.rl(a2 + ANIM)) != LIST_END) { return; }
 
   if (st == DIZZY || st == EATEN) {
     m.wb(a2 + ANIM_5F, 0);

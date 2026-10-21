@@ -87,11 +87,11 @@ static uint32_t playerHdr(const Mem &m) {
   const uint8_t st = marble_physics::state(m);
   const bool drawn = st == marble_physics::DIZZY || st == marble_physics::BROKEN ||
                      st == ST_EATEN || st == ST_DISSOLVE;
-  return m.rb(PLAYER + VISIBLE) && drawn ? m.roml(m.rl(PLAYER + ANIM)) : 0;
+  return m.rb(PLAYER + VISIBLE) && drawn ? marble_physics::animEntry(m.rl(PLAYER + ANIM)) : 0;
 }
 
 static uint32_t shardHdr(const Mem &m, uint32_t a, bool shown) {
-  return shown && m.rb(a + SHARDS_ON) ? m.roml(m.rl(a + SHARDS)) : 0;
+  return shown && m.rb(a + SHARDS_ON) ? marble_physics::animEntry(m.rl(a + SHARDS)) : 0;
 }
 
 // steelie frame drawn: 0x21f36, the shatter frame rl(+0x5a) while shattering, 0 if hidden
@@ -103,7 +103,7 @@ static bool shown(const Mem &m, uint8_t i) {
 static uint32_t steelieHdr(const Mem &m, uint8_t i) {
   if (!shown(m, i)) { return 0; }
   const uint32_t a = steelie(i);
-  return m.rb(a + SLOT) == SHATTERING ? m.roml(m.rl(a + ANIM)) : STEELIE_FRAME;
+  return m.rb(a + SLOT) == SHATTERING ? marble_physics::animEntry(m.rl(a + ANIM)) : STEELIE_FRAME;
 }
 
 static const char *playerDiff(const Mem &m, const MarbleSteelieTick &t) {

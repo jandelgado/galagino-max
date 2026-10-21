@@ -1105,6 +1105,12 @@ def convert(ctx):
               "    if (i >= N) { marble_physics::fail(what, i); }\n"
               "    return marble_table<T>(at)[i];\n  }\n};", file=f)
         print("struct MarbleRange { uint16_t first, n; };  // entries of one race's list", file=f)
+        print("// Program ROM bytes by 68010 address, sorted spans of one kind (marble_mem.h accessors)",
+              file=f)
+        print("struct MarbleSpan { uint32_t addr; uint16_t len, off; };", file=f)
+        print("struct MarbleSpans {\n  const MarbleSpan *spans;\n  uint8_t n;\n  const char *what;\n"
+              "  const uint8_t *at(uint32_t a, uint8_t len) const;  // len bytes at a, or fail\n};",
+              file=f)
         print("struct MarbleLevelInfo { uint16_t rows; uint16_t tiles; };", file=f)
         print(f"static const uint8_t MARBLE_TITLE_LEVEL = {md.LEVELS};  // the title playfield",
               file=f)

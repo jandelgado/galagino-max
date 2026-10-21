@@ -22,6 +22,7 @@ namespace marble_minis {
 
 using marble_physics::Mem;
 using marble_physics::s8;
+using marble_physics::animEntry;
 using marble_physics::s16;
 using marble_enemies::MINIS;
 using marble_enemies::MINI_SIZE;
@@ -311,7 +312,7 @@ void stepV(Mem &m, uint32_t a2) {
 // the animation cursor steps; true at the list end
 bool animEnd(Mem &m, uint32_t a2) {
   m.wl(a2 + ANIM, m.rl(a2 + ANIM) + 4);
-  return m.roml(m.rl(a2 + ANIM)) == NO_FRAME;
+  return animEntry(m.rl(a2 + ANIM)) == NO_FRAME;
 }
 
 // 0x1912c per mini: ticker (NEAR every tick, else every 3rd); steelie steps by v (a new

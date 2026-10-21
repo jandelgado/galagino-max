@@ -88,6 +88,30 @@ def object_bytes(rom, race):
     return out
 
 
+def anim_bytes(rom, race):
+    """Animation list bytes of the object slots of one race (entries of 4 or 8 bytes up to the
+    0xffffffff end), a subset of object_bytes()."""
+    _, roots = scripts_of(rom, race)
+    _, anims, _ = walk(rom, roots)
+    out = set()
+    for lst, stride, tag, mode in anims:
+        n = 0
+        while rom.l(lst + n * stride) != 0xffffffff and n < 500: n += 1
+        out.update(range(lst, lst + n * stride + 4))
+    return out
+
+
+def global_anim_bytes(rom):
+    """The three global animation lists of tag 3 (0x40044a/e/52, wrap targets 0x211fe,
+    0x2121e, 0x2126e, 0x212b2) with the long before each (0x13068 reads it)."""
+    out = set()
+    for a in (0x211fe, 0x2121e, 0x2126e, 0x212b2):
+        e = a
+        while rom.l(e) != 0xffffffff: e += 4
+        out.update(range(a - 4, e + 4))
+    return out
+
+
 def object_tables(rom):
     """Tables all races share: spawn list pointers, slot address table (0x12d6e), the three
     global animation lists tag 3 steps (0x40044a/e/52, wrap targets 0x211fe, 0x2121e,

@@ -25,6 +25,8 @@ using marble_physics::DYN;
 using marble_physics::CAMERA;
 using marble_physics::CAMERA_L;
 using marble_physics::s8;
+using marble_physics::animEntry;
+using marble_physics::frameBox;
 using marble_physics::s16;
 
 // 0x12d32: a free gate slot sends the sound of its zone, ROM tables 0x1ef42 (zones 0x18-0x1d)
@@ -219,7 +221,7 @@ void wave_1d06a(Mem &m, int8_t n) {
 void anim_render_13334(Mem &m, uint32_t a) {
   const uint8_t mode = m.rb(a + MODE);
   if (mode == MODE_PATCH || mode == MODE_MO_TERRAIN) {
-    if (gl(m, m.rl(a + ANIM)) == END_MARK) { return; }
+    if (animEntry(m.rl(a + ANIM)) == END_MARK) { return; }
     if (mode == MODE_PATCH || m.rb(a + STATE) == ST_ANIM1 || m.rb(a + STATE) == ST_ANIM2) {
       m.wl(ANIM_REQ, m.rl(a + ANIM));
       m.wl(CUR_SLOT, a);
@@ -242,7 +244,7 @@ void anim_render_13334(Mem &m, uint32_t a) {
 // start and count +0x1c down (0 = loop forever). True: the script continues.
 bool anim_next_132e0(Mem &m, uint32_t a) {
   m.wl(a + ANIM, m.rl(a + ANIM) + (m.rb(a + MODE) ? 8 : 4));
-  if (gl(m, m.rl(a + ANIM)) != END_MARK) { return false; }
+  if (animEntry(m.rl(a + ANIM)) != END_MARK) { return false; }
 
   m.wl(a + ANIM, m.rl(a + (m.rb(a + STATE) == ST_ANIM2 ? ANIM2 : ANIM1)));
   if (m.rw(a + COUNT) == 0) { return false; }
@@ -428,11 +430,11 @@ void tag3_step(Mem &m, uint32_t ptr, uint32_t timer, uint8_t reload, Wrap wrap) 
 
   m.wb(timer, reload);
   m.wl(ptr, m.rl(ptr) + 4);
-  if (gl(m, m.rl(ptr)) != END_MARK) { return; }
+  if (animEntry(m.rl(ptr)) != END_MARK) { return; }
 
   switch (wrap) {
     case WRAP_0:
-      if (gl(m, m.rl(MASK_TAB0) - 4) == 0x211f2) {
+      if (animEntry(m.rl(MASK_TAB0) - 4) == 0x211f2) {
         m.wl(MASK_TAB0, 0x2121e);
         m.wb(MASK_T0, m.rb(MASK_T0) + 0xf);
       } else {
@@ -945,9 +947,9 @@ void gate(Mem &m, uint32_t a2, uint32_t s, uint8_t tag, int16_t d6, int16_t a0) 
 void bounceBox(Mem &m, uint32_t a2, uint32_t s, int16_t d6, int16_t a0) {
   if (!m.rb(s + STATE)) { return; }
 
-  const uint32_t rec = gl(m, m.rl(s + ANIM));
-  const int16_t x0 = s8(m.romb(rec + 4)), y0 = s8(m.romb(rec + 5));
-  const int16_t x1 = x0 + s8(m.romb(rec + 6)), y1 = y0 + s8(m.romb(rec + 7));
+  const uint8_t *box = frameBox(animEntry(m.rl(s + ANIM)));
+  const int16_t x0 = s8(box[0]), y0 = s8(box[1]);
+  const int16_t x1 = x0 + s8(box[2]), y1 = y0 + s8(box[3]);
   const int16_t lx = -(x1 + BOX_MARGIN), hx = -(x0 - BOX_MARGIN);
   const int16_t ly = -(y1 + BOX_MARGIN), hy = -(y0 - BOX_MARGIN);
   if (!within(d6, a0, lx, hx, ly, hy)) { return; }
@@ -1130,7 +1132,7 @@ void applyQueued(Mem &m) {
   const uint32_t obj = m.rl(CUR_SLOT);
   if (obj && m.rb(obj + MODE) == MODE_PATCH) { m.wl(PATCHED, rec); }
 
-  const uint32_t dyn = gl(m, rec + 4);
+  const uint32_t dyn = animEntry(rec + 4);
   if (dyn) {
     const int16_t first = s16(gw(m, dyn));
     const uint16_t n = gw(m, dyn + 2);

@@ -11,6 +11,21 @@
 
 const uint8_t *marble_tables = nullptr;  // loadRom(): marble_tables_blob in the Arena
 
+const uint8_t *MarbleSpans::at(uint32_t a, uint8_t len) const {
+  // spans are sorted by address and do not overlap: last span starting at or below a
+  uint8_t lo = 0, hi = n;
+  while (lo < hi) {
+    const uint8_t mid = (lo + hi) / 2;
+    if (spans[mid].addr <= a) { lo = mid + 1; } else { hi = mid; }
+  }
+  if (lo) {
+    const MarbleSpan &s = spans[lo - 1];
+    if (a - s.addr + len <= s.len) { return marble_tables + s.off + (a - s.addr); }
+  }
+  marble_physics::fail(what, a);
+}
+
+
 namespace marble_physics {
 
 static const uint8_t RACES = 6;
@@ -83,6 +98,19 @@ uint8_t Mem::romb(uint32_t a) const {
   }
   fail("ROM", a);
 }
+
+static uint32_t be32(const uint8_t *p) {
+  return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3];
+}
+
+uint32_t animEntry(uint32_t p) { return be32(marble_anim.at(p, 4)); }
+
+const uint8_t *frameBox(uint32_t hdr) {
+  static const uint8_t NONE[4] = {0, 0, 0, 0};
+  return hdr == 0xffffffff ? NONE : marble_frame.at(hdr + 4, 4);
+}
+
+const uint8_t *framePos(uint32_t hdr) { return marble_frame.at(hdr, 4); }
 
 uint16_t Mem::maxd() const { return terrain->maxd; }
 

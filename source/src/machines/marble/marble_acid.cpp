@@ -23,6 +23,8 @@ namespace marble_acid {
 
 using marble_physics::Mem;
 using marble_physics::s8;
+using marble_physics::animEntry;
+using marble_physics::frameBox;
 using marble_physics::s16;
 using marble_enemies::ACIDS;
 using marble_enemies::ACID_SIZE;
@@ -202,7 +204,7 @@ void tick_1725a(Mem &m, uint32_t a2) {
     if (m.sb(a2 + TICKS) > TICKS_SLOW) { m.wb(a2 + TICKS, TICKS_FAST); }
     const uint32_t p = m.rl(a2 + FRAME) + 4;
     m.wl(a2 + FRAME, p);
-    if (m.roml(p) == NO_FRAME) {
+    if (animEntry(p) == NO_FRAME) {
       m.wl(a2 + FRAME, m.rl(a2 + ANIM));
       m.wl(a2 + PX, m.rl(a2 + PX) + m.rl(a2 + VX));
       m.wl(a2 + PY, m.rl(a2 + PY) + m.rl(a2 + VY));
@@ -214,10 +216,10 @@ void tick_1725a(Mem &m, uint32_t a2) {
 
 // contact box offsets of an acid's current frame (header bytes 4-7)
 void box(const Mem &m, uint32_t a2, int16_t b[4]) {
-  const uint32_t f = m.roml(m.rl(a2 + FRAME));
+  const uint32_t f = animEntry(m.rl(a2 + FRAME));
   for (uint8_t k = 0; k < 4; k++) {
     const int8_t d = k < 2 ? BOX_DEFAULT : BOX_DEFAULT_SIZE;
-    b[k] = f == NO_FRAME ? d : s8(m.romb(f + 4 + k));
+    b[k] = f == NO_FRAME ? d : s8(frameBox(f)[k]);
   }
 }
 

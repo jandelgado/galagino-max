@@ -108,6 +108,17 @@ class _Raw:
 
 
 @dataclass(frozen=True)
+class _Keyed:
+    """Bytes the remake reads by 68010 address (the work RAM holds the pointers): raw spans
+    of one kind, MarbleSpans marble_<kind> (animEntry, frameBox, framePos ...)."""
+    kind: str
+    addrs: frozenset
+
+    def bytes(self, sim):
+        return self.addrs
+
+
+@dataclass(frozen=True)
 class _Model:
     """Bytes only the Python model reads: the remake has them as fields or lists elsewhere."""
     addr: int
@@ -119,6 +130,14 @@ class _Model:
 
 def _raw(addr, n):
     return _Raw(frozenset(range(addr, addr + n)))
+
+
+def _anim_lists(sim, lists):
+    """Bytes of animation lists (longs up to and including the 0xffffffff end)."""
+    out = set()
+    for a in lists:
+        out |= set(range(a, a + 4 * len(mo.anim_list(sim, a)) + 4))
+    return out
 
 
 _DESC_BYTES = 0x2e  # descriptor fields +0x00..+0x2d
@@ -170,7 +189,7 @@ def _steelie_bytes(run):
     return out
 
 
-def _piston_bytes(run):
+def _pistons(run):
     """Phase 4b-5 tables (whole): first and reload timers, the 4 variant pointers of both
     kinds and their 12 word tables, cells, tops, the animation list (0xffffffff end)."""
     sim = run.sim
@@ -182,9 +201,7 @@ def _piston_bytes(run):
             out |= set(range(a, a + 2 * (len(pp.PISTONS) - pp.FIXED)))
     out |= set(range(pp.CELL_X, pp.CELL_X + 36)) | set(range(pp.CELL_Y, pp.CELL_Y + 36))
     out |= set(range(pp.TOP, pp.TOP + 72))
-    for a in mo.PISTON_LISTS:
-        out |= set(range(a, a + 4 * len(mo.anim_list(sim, a)) + 4))
-    return out
+    return [_Raw(frozenset(out)), _Keyed("anim", frozenset(_anim_lists(sim, mo.PISTON_LISTS)))]
 
 
 def _frame_bytes(sim, lists, first, end):
@@ -216,29 +233,26 @@ def _shape_bytes(run):
     return out
 
 
-def _mini_bytes(run):
+def _minis(run):
     """Phase 4b-4b tables (whole): the mini pointer table, the step tables 0x244b6/0x244d6,
     the cell bitmap 0x24496, the animation lists (0xffffffff end) and the draw list box
     bytes +4..+7 of their frames (0x1b12a types 7-9)."""
     sim = run.sim
     out = set(range(0x1f096, 0x1f096 + 36)) | set(range(mn.GRID, mn.GRID + 32))
     out |= set(range(mn.DX, mn.DX + 32)) | set(range(mn.DY, mn.DY + 32))
-    for a in mo.MINI_LISTS:
-        out |= set(range(a, a + 4 * len(mo.anim_list(sim, a)) + 4))
-    return out | _frame_bytes(sim, mo.MINI_LISTS, 4, 8)
+    return [_Raw(frozenset(out)), _Keyed("anim", frozenset(_anim_lists(sim, mo.MINI_LISTS))),
+            _Keyed("frame", frozenset(_frame_bytes(sim, mo.MINI_LISTS, 4, 8)))]
 
 
-def _bird_bytes(run):
+def _birds(run):
     """Phase 4b-4a tables (whole): the bird pointer table, the spawn cells, the animation
     lists (0xffffffff end)."""
     sim = run.sim
     out = set(range(0x1f0ba, 0x1f0ba + 40)) | set(range(bd.POINTS, bd.POINTS + 10))
-    for a in mo.BIRD_LISTS:
-        out |= set(range(a, a + 4 * len(mo.anim_list(sim, a)) + 4))
-    return out
+    return [_Raw(frozenset(out)), _Keyed("anim", frozenset(_anim_lists(sim, mo.BIRD_LISTS)))]
 
 
-def _acid_bytes(run):
+def _acid(run):
     """Phase 4b-3 tables (whole): spawn table pointers and entries per race (0xff end), the
     random path lists, every path up to its 0xff end, the acid pointer table, the animation
     lists (0xffffffff end) and the box bytes +4..+7 of their frames (0x1b12a type 0xe, the
@@ -247,9 +261,6 @@ def _acid_bytes(run):
     out = set(range(ac.SPAWN_TABLE, ac.SPAWN_TABLE + 4 * md.LEVELS))
     out |= set(range(0x1f07a, 0x1f07a + 28))
     out |= set(range(ac.SINGLE[0], ac.GROUP[1] + 24))
-    out |= _frame_bytes(sim, mo.ACID_LISTS, 4, 8)
-    for a in mo.ACID_LISTS:
-        out |= set(range(a, a + 4 * len(mo.anim_list(sim, a)) + 4))
     paths = [sim.l(t) for t in range(ac.SINGLE[0], ac.GROUP[1] + 24, 4)]
     for race in range(md.LEVELS):
         e = sim.l(ac.SPAWN_TABLE + 4 * race)
@@ -263,10 +274,11 @@ def _acid_bytes(run):
         while sim.prog[q] != 0xff:
             q += 4
         out |= set(range(p, q + 1))
-    return out
+    return [_Raw(frozenset(out)), _Keyed("anim", frozenset(_anim_lists(sim, mo.ACID_LISTS))),
+            _Keyed("frame", frozenset(_frame_bytes(sim, mo.ACID_LISTS, 4, 8)))]
 
 
-def _slinky_bytes(run):
+def _slinkies(run):
     """Phase 4b-2 tables (whole): spawn table pointers and entries per race (0xff end), every
     entry's waypoint list up to its 0xff end, the slinky pointer table, the animation lists
     (0xffffffff end) and the header bytes +0..+7 of their frames (occlusion 0x264aa, the
@@ -274,9 +286,6 @@ def _slinky_bytes(run):
     sim = run.sim
     out = set(range(sl.SPAWN_TABLE, sl.SPAWN_TABLE + 4 * md.LEVELS))
     out |= set(range(0x1f006, 0x1f006 + 16)) | set(range(sl.REAR, sl.REAR + 0x20))
-    out |= _frame_bytes(sim, mo.SLINKY_LISTS, 0, 8)
-    for a in mo.SLINKY_LISTS:
-        out |= set(range(a, a + 4 * len(mo.anim_list(sim, a)) + 4))
     for race in range(md.LEVELS):
         e = sim.l(sl.SPAWN_TABLE + 4 * race)
         while sim.prog[e] != 0xff:
@@ -286,7 +295,8 @@ def _slinky_bytes(run):
             out |= set(range(sim.l(e + 2), p + 2)) | set(range(e, e + 8))
             e += 8
         out.add(e)
-    return out
+    return [_Raw(frozenset(out)), _Keyed("anim", frozenset(_anim_lists(sim, mo.SLINKY_LISTS))),
+            _Keyed("frame", frozenset(_frame_bytes(sim, mo.SLINKY_LISTS, 0, 8)))]
 
 
 def _deaths(run):
@@ -294,12 +304,10 @@ def _deaths(run):
     overlay entries (the remake reads the frame headers from them), the tables the death and
     score code index (whole; the fixtures read only parts)."""
     sim = run.sim
-    raw = set()
-    for a in mo.DEATH_LISTS:
-        raw |= set(range(a, a + 4 * len(mo.anim_list(sim, a)) + 4))
-    raw |= set(range(ms.ANIM_SHARDS, ms.ANIM_SHARDS + 4 * run.death.shards))
+    anim = _anim_lists(sim, mo.DEATH_LISTS)
+    anim |= set(range(ms.ANIM_SHARDS, ms.ANIM_SHARDS + 4 * run.death.shards))
     return [
-        _Raw(frozenset(raw)),
+        _Keyed("anim", frozenset(anim)),
         _Array("sine", ms.SINE, "int16_t", 0x66, "sine"),            # sine_pair 0..0x64, sine_lerp i + 1 <= 0x65
         _Model(ms.LERP, 2 * 0x35),                                   # lerp_1ee6e: i = (arg >> 10) - 0xc, i + 1 <= 0x34
         _Model(ms.DOT_ANGLE, 2 * 39),                                # dots_1c014: word 3 * ady + dx, ady <= 0xc, dx <= 2
@@ -313,21 +321,21 @@ def _deaths(run):
     ]
 
 
-def _sprite_bytes(run):
-    """Phase 4a tables (whole) as a byte address set: frame header box bytes +4..+7 of every
-    frame of every mode 0/2 animation list (0x1b12a boxes of the draw list entries, tags
-    drawn or not), the empty animation (0x20c14, its header read at
-    0xffffffff + 4 = ROM 0x3-0x6), the tag 3 palette command bytes 0x1df18."""
+def _sprites(run):
+    """Phase 4a: the draw list entry longs and frame header box bytes +4..+7 of every frame of
+    every mode 0/2 animation list (0x1b12a boxes, tags drawn or not), the sprite frames of the
+    race sets, the empty animation (0x20c14; its header 0xffffffff + 4 = ROM 0x3-0x6, zeros
+    for the remake: frameBox), the tag 3 palette command bytes 0x1df18."""
     sim = run.sim
-    out = set(range(3, 7)) | set(range(ms.ANIM_NONE, ms.ANIM_NONE + 4))
-    out |= set(range(mo.TAG3_PAL, mo.TAG3_PAL + mo.TAG3_FRAMES))
+    anim, frame = set(range(ms.ANIM_NONE, ms.ANIM_NONE + 4)), set()
     for race in range(md.LEVELS):
         for e, h in mo.box_headers(sim, race):
-            out |= set(range(e, e + 4))
-            if h != 0xffffffff: out |= set(range(h + 4, h + 8))
+            anim |= set(range(e, e + 4))
+            if h != 0xffffffff: frame |= set(range(h + 4, h + 8))
         for h in run.sprites[race].hdrs:
-            out |= set(range(h + 4, h + 8))
-    return out
+            frame |= set(range(h + 4, h + 8))
+    return [_Keyed("anim", frozenset(anim)), _Keyed("frame", frozenset(frame)), _Model(3, 4),
+            _Array("tag3_pal", mo.TAG3_PAL, "uint8_t", mo.TAG3_FRAMES, "tag 3 palette")]
 
 
 def _merge(addrs, gap=8):
@@ -341,12 +349,15 @@ def _merge(addrs, gap=8):
     return out
 
 
-def _phase3_bytes(run):
+def _objects(run):
     """Phase 3 tables (whole): level objects, occlusion (edge bitmaps are edge lists)."""
-    out = set(od.object_tables(run.sim)) | od.occlusion_bytes(run.sim)
+    sim = run.sim
+    anim = od.global_anim_bytes(sim)
+    out = set(od.object_tables(sim)) | od.occlusion_bytes(sim)
     for race in range(md.LEVELS):
-        out |= od.object_bytes(run.sim, race)
-    return out
+        out |= od.object_bytes(sim, race)
+        anim |= od.anim_bytes(sim, race)
+    return [_Raw(frozenset(out - anim)), _Keyed("anim", frozenset(anim))]
 
 
 def defs(run, terrains):
@@ -355,11 +366,9 @@ def defs(run, terrains):
     4b-4a birds, tubes and shapes, 4b-4b minis, 4b-5 pistons. Whole tables, walked to their
     terminators; tests/test_games_marble.py replays every MAME fixture and race sweep on the
     model and fails on a read outside them."""
-    return (_physics(terrains), [_Raw(frozenset(_phase3_bytes(run)))], [_Raw(frozenset(_sprite_bytes(run)))],
-            _deaths(run), [_Raw(frozenset(_steelie_bytes(run)))],
-            [_Raw(frozenset(_slinky_bytes(run)))], [_Raw(frozenset(_acid_bytes(run)))],
-            [_Raw(frozenset(_bird_bytes(run) | _shape_bytes(run)))], [_Raw(frozenset(_mini_bytes(run)))],
-            [_Raw(frozenset(_piston_bytes(run)))])
+    return (_physics(terrains), _objects(run), _sprites(run), _deaths(run),
+            [_Raw(frozenset(_steelie_bytes(run)))], _slinkies(run), _acid(run),
+            _birds(run) + [_Raw(frozenset(_shape_bytes(run)))], _minis(run), _pistons(run))
 
 
 def phase_bytes(run, terrains):
@@ -382,11 +391,14 @@ def blocks(plain, phases):
 def emit(f, sim, phases, add):
     """Typed definitions of every phase into marble_rom.h; add(data, align) appends to
     marble_tables and returns the offset. Returns the table bytes per phase."""
-    sizes = []
+    sizes, keyed = [], {}
     for phase in phases:
         size = 0
         for d in phase:
-            if isinstance(d, _Array):
+            if isinstance(d, _Keyed):
+                keyed[d.kind] = keyed.get(d.kind, frozenset()) | d.addrs
+                size += len(d.addrs)
+            elif isinstance(d, _Array):
                 data = d.data(sim)
                 print(f"static const MarbleTable<{d.ctype}, {d.n}> marble_{d.name} = "
                       f"{{ {add(data, _SIZE[d.ctype])}, \"{d.what}\" }};  // 0x{d.addr:05x}", file=f)
@@ -405,4 +417,10 @@ def emit(f, sim, phases, add):
                       + ", ".join(str(v) for v in d.values(sim)) + f" }};  // 0x{d.addr:05x}", file=f)
                 size += sum(_SIZE[c] for _, _, c in d.fields)
         sizes.append(size)
+    for kind, addrs in sorted(keyed.items()):
+        spans = [(a, e, add(sim.prog[a:e], 1)) for a, e in _merge(addrs, 0)]
+        print(f"static const MarbleSpan marble_{kind}_spans[{len(spans)}] = {{\n  "
+              + ",\n  ".join(f"{{ 0x{a:05x}, {e - a}, {off} }}" for a, e, off in spans) + "\n};", file=f)
+        print(f"static const MarbleSpans marble_{kind} = {{ marble_{kind}_spans, {len(spans)}, "
+              f"\"{kind}\" }};", file=f)
     return sizes

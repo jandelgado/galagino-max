@@ -24,6 +24,8 @@ namespace marble_slinkies {
 
 using marble_physics::Mem;
 using marble_physics::s8;
+using marble_physics::animEntry;
+using marble_physics::frameBox;
 using marble_physics::s16;
 using marble_enemies::NSLINKIES;
 using marble_enemies::SLINKIES;
@@ -460,7 +462,7 @@ void tick_14966(Mem &m, uint32_t a2) {
     m.wb(a2 + TICK, 0);
     const uint32_t p = m.rl(a2 + CURSOR) + (uint32_t)(m.sb(a2 + STEP) * 4);
     m.wl(a2 + CURSOR, p);
-    if (m.roml(p) == NO_FRAME || p == m.rl(a2 + ANIM)) {
+    if (animEntry(p) == NO_FRAME || p == m.rl(a2 + ANIM)) {
       m.wl(a2 + CURSOR, m.rl(a2 + ANIM));
       const uint8_t st = m.rb(a2 + STATE);
       if (m.sb(a2 + STEP) > 0 && (st == WALK || st == BACK)) {
@@ -479,10 +481,10 @@ void tick_14966(Mem &m, uint32_t a2) {
 
 // contact box offsets of a slinky's current frame (header bytes 4-7)
 void box(const Mem &m, uint32_t a2, int16_t b[4]) {
-  const uint32_t f = m.roml(m.rl(a2 + CURSOR));
+  const uint32_t f = animEntry(m.rl(a2 + CURSOR));
   for (uint8_t k = 0; k < 4; k++) {
     const int8_t d = k < 2 ? BOX_DEFAULT : BOX_DEFAULT_SIZE;
-    b[k] = f == NO_FRAME ? d : s8(m.romb(f + 4 + k));
+    b[k] = f == NO_FRAME ? d : s8(frameBox(f)[k]);
   }
 }
 

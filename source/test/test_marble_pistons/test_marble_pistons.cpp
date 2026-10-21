@@ -90,11 +90,11 @@ static uint32_t playerHdr(const Mem &m) {
   const uint8_t st = marble_physics::state(m);
   const bool drawn = st == marble_physics::DIZZY || st == marble_physics::BROKEN ||
                      st == marble_physics::EATEN || st == marble_physics::DISSOLVING;
-  return m.rb(PLAYER + VISIBLE) && drawn ? m.roml(m.rl(PLAYER + ANIM)) : 0;
+  return m.rb(PLAYER + VISIBLE) && drawn ? marble_physics::animEntry(m.rl(PLAYER + ANIM)) : 0;
 }
 
 static uint32_t shardHdr(const Mem &m) {
-  return m.rb(PLAYER + VISIBLE) && m.rb(PLAYER + SHARDS_ON) ? m.roml(m.rl(PLAYER + SHARDS)) : 0;
+  return m.rb(PLAYER + VISIBLE) && m.rb(PLAYER + SHARDS_ON) ? marble_physics::animEntry(m.rl(PLAYER + SHARDS)) : 0;
 }
 
 static const char *playerDiff(const Mem &m, const MarblePistonTick &t) {
@@ -121,7 +121,7 @@ static const char *playerDiff(const Mem &m, const MarblePistonTick &t) {
 
 // piston frame drawn: rl(anim cursor) while listed, else 0
 static uint32_t pistonHdr(const Mem &m, uint8_t i) {
-  return listedCount(m, TYPE_PISTON, i) ? m.roml(m.rl(piston(i) + T_ANIM)) : 0;
+  return listedCount(m, TYPE_PISTON, i) ? marble_physics::animEntry(m.rl(piston(i) + T_ANIM)) : 0;
 }
 
 static const char *pistonDiff(const Mem &m, uint8_t i, const MarblePistonObj &s) {
@@ -211,7 +211,7 @@ static uint8_t pistonMos(const Mem &m, const marble_video::VideoState &v, uint8_
   const int16_t ox = m.sw(a + T_SCREEN);
   const int16_t oy = (int16_t)(top + ARCADE_H - m.sw(a + T_SCREEN + 2));
   const MarbleSpriteSet &ds = marble_physics::deathSet();
-  const uint8_t frame = marble_physics::deathFrame(m.roml(m.rl(a + T_ANIM)));
+  const uint8_t frame = marble_physics::deathFrame(marble_physics::animEntry(m.rl(a + T_ANIM)));
   for (uint8_t j = 0; j < v.n; j++) {
     const Obj &o = v.objs[j];
     if (o.x != ox || o.y != oy || o.set != (SET_DEATH | SET_PISTON) || o.frame != frame) {

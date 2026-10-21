@@ -55,7 +55,7 @@ public:
   void ww(uint32_t a, uint16_t v) { wb(a, v >> 8); wb(a + 1, (uint8_t)v); }
   void wl(uint32_t a, uint32_t v) { ww(a, v >> 16); ww(a + 2, (uint16_t)v); }
 
-  uint8_t romb(uint32_t a) const;
+  uint8_t romb(uint32_t a) const;  // program ROM blocks (marble_prog): going away
   uint16_t romw(uint32_t a) const { return romb(a) << 8 | romb(a + 1); }
   uint32_t roml(uint32_t a) const { return (uint32_t)romw(a) << 16 | romw(a + 2); }
 
@@ -88,6 +88,15 @@ private:
   const MarbleTerrainInfo *terrain = nullptr;
   uint8_t race = 0;
 };
+
+// Program ROM data by 68010 address (the work RAM holds these pointers; marble_rom.h spans).
+// animEntry: long of an animation list (0xffffffff ends a list; mode 1/2 entries are two
+// longs). frameBox: frame header bytes +4..+7 (dx, dy, sx, sy); the empty animation's
+// 0xffffffff header reads zeros (the arcade reads BIOS vectors there). framePos: bytes +0..+3
+// (x, y, width, height), slinky frames only.
+uint32_t animEntry(uint32_t p);
+const uint8_t *frameBox(uint32_t hdr);
+const uint8_t *framePos(uint32_t hdr);
 
 // sprite set of level n (races share sets), for the renderer
 const MarbleSpriteSet &spriteSet(uint8_t level);

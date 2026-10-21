@@ -23,6 +23,7 @@ namespace marble_pistons {
 
 using marble_physics::Mem;
 using marble_physics::s8;
+using marble_physics::animEntry;
 using marble_physics::s16;
 using marble_enemies::PISTONS;
 using marble_enemies::PISTON_SIZE;
@@ -171,7 +172,7 @@ void update_1844a(Mem &m) {
       }
     } else if (t == UP) {
       m.wl(e + ANIM, m.rl(e + ANIM) + 4);
-      if (m.roml(m.rl(e + ANIM)) == NO_FRAME) {
+      if (animEntry(m.rl(e + ANIM)) == NO_FRAME) {
         marble_drawlist::remove(m, listObj(e), TYPE_PISTON);
         m.ww(e + TIMER, timerWord(m, m.rb(e + INDEX), TIMER_RELOAD));
       }

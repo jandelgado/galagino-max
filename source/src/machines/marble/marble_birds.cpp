@@ -23,6 +23,7 @@ namespace marble_birds {
 
 using marble_physics::Mem;
 using marble_physics::s8;
+using marble_physics::animEntry;
 using marble_physics::s16;
 using marble_enemies::BIRDS;
 using marble_enemies::BIRD_SIZE;
@@ -207,7 +208,7 @@ void tick(Mem &m, uint32_t a2) {
   if (m.sb(a2 + TICKS) <= m.sb(a2 + TICK)) {
     m.wb(a2 + TICK, 0);
     m.wl(a2 + ANIM, m.rl(a2 + ANIM) + 4);
-    const bool end = m.roml(m.rl(a2 + ANIM)) == NO_FRAME;
+    const bool end = animEntry(m.rl(a2 + ANIM)) == NO_FRAME;
     if (end && m.rb(a2 + STATE) != DONE) {
       rewalk(m, a2);
     } else if (end) {

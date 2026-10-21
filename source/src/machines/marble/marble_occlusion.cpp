@@ -17,6 +17,8 @@ using marble_physics::CAMERA;
 using marble_physics::DYN;
 using marble_physics::RACE;
 using marble_physics::s8;
+using marble_physics::animEntry;
+using marble_physics::framePos;
 using marble_physics::s16;
 
 namespace {
@@ -130,11 +132,11 @@ void occlusion_264aa(Mem &m, uint32_t a2, Kind d3) {
   int16_t sy;
   int32_t col, ncol = 3, top = 0xe;
   if (d3 == SLINKY_BOX) {  // frame header bytes: x, y offset, width (columns), height (tiles)
-    const uint32_t f = m.roml(m.rl(a2 + SLINKY_FRAME));
-    if (s8(m.romb(f + 2)) > 2) { ncol = 5; }
-    top = s8(m.romb(f + 3)) * 8;
-    col = (s16(s8(m.romb(f)) + m.rw(a2 + SLINKY_SCREEN)) >> 3) + (ncol == 3 ? 1 : 2);
-    sy = s16(s8(m.romb(f + 1)) + m.rw(a2 + SLINKY_SCREEN + 2));
+    const uint8_t *f = framePos(animEntry(m.rl(a2 + SLINKY_FRAME)));
+    if (s8(f[2]) > 2) { ncol = 5; }
+    top = s8(f[3]) * 8;
+    col = (s16(s8(f[0]) + m.rw(a2 + SLINKY_SCREEN)) >> 3) + (ncol == 3 ? 1 : 2);
+    sy = s16(s8(f[1]) + m.rw(a2 + SLINKY_SCREEN + 2));
   } else if (bird) {
     col = s16(m.rw(a2 + BIRD_SCREEN) + 3) >> 3;
     sy = s16(m.rw(a2 + BIRD_SCREEN + 2) - 8);
