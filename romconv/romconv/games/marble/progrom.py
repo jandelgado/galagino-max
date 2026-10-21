@@ -362,7 +362,15 @@ def _objects(run):
         _Array("spawn_groups", 0x1ded8, "uint32_t", 16, "spawn group"),             # 4 groups of 4 scripts
         _Array("slot_addr", 0x1f016, "uint32_t", 25, "slot"),                       # 0x12d6e slot addresses
         _Array("wave", 0x24c7a, "uint8_t", 0x24e28 - 0x24c7a, "wave table"),        # 0x1d06a tables, by offset
-        _Raw(frozenset(od.occlusion_bytes(sim))),
+        # occlusion 0x264aa: shape diagonal offsets (3 x 5 per column), flat entry code and y by
+        # height difference, quadrant masks and vertex offsets of 0x177f8, the occluder lists
+        _Array("occ_shapes", 0x1eaba, "int8_t", 15, "occlusion shape"),
+        _Array("flat_h", 0x1ead2, "uint16_t", 17, "flat code"),
+        _Array("flat_y", 0x1eaf4, "uint16_t", 17, "flat y"),
+        _Array("quad_masks", 0x24176, "uint16_t", 4, "quadrant mask"),
+        _Array("quads", 0x2417e, "uint32_t", 8, "quadrant"),
+        _Array("occluder_tabs", 0x1ea2a, "uint32_t", 36, "occluder table"),   # per column: 6 word offsets per race
+        _Keyed("occluder", frozenset(od.occluder_bytes(sim))),                # the tables and records (occluderWord)
     ]
 
 

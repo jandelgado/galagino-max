@@ -96,13 +96,12 @@ def global_anim_bytes(rom):
     return out
 
 
-def occlusion_bytes(rom):
-    """Program ROM bytes 0x264aa reads (edges come from the converter edge lists): shape and mask tables, the
-    vertex tables of 0x177f8, the explicit occluder lists (0x1ea2a)."""
-    out = set(range(0x1eaba, 0x1eaba + 16))
-    out.update(range(0x1ead2, 0x1ead2 + 34)); out.update(range(0x1eaf4, 0x1eaf4 + 34))
-    out.update(range(0x24176, 0x24176 + 8 + 32))
-    out.update(range(0x1ea2a, 0x1ea2a + 144))
+def occluder_bytes(rom):
+    """Explicit occluder lists of 0x264aa (0x1ea2a): per column 0-35 a table of 6 word offsets
+    (one per race, 0 = none) to records of 5 words (diagonal limit, depth, control, y, entry
+    code) up to a limit word of -1. Lists overlap by whole words (a list may start inside the
+    record of another), so the remake keeps them word addressed."""
+    out = set()
     for c in range(36):
         tab = rom.l(0x1ea2a + 4 * c)
         out.update(range(tab, tab + 12))

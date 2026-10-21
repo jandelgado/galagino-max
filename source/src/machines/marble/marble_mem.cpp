@@ -107,6 +107,8 @@ uint32_t scriptLong(uint32_t pc) { return be32(marble_script.at(pc, 4)); }
 
 uint16_t dynWord(uint32_t p, uint16_t k) { return be16(marble_dyn.at(p + 2 * k, 2)); }
 
+uint16_t occluderWord(uint32_t a) { return be16(marble_occluder.at(a, 2)); }
+
 const uint8_t *frameBox(uint32_t hdr) {
   static const uint8_t NONE[4] = {0, 0, 0, 0};
   return hdr == 0xffffffff ? NONE : marble_frame.at(hdr + 4, 4);

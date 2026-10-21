@@ -19,6 +19,7 @@ using marble_physics::RACE;
 using marble_physics::s8;
 using marble_physics::animEntry;
 using marble_physics::framePos;
+using marble_physics::occluderWord;
 using marble_physics::s16;
 
 namespace {
@@ -46,12 +47,6 @@ static const uint32_t PLAYER2 = 0x4000fa;
 static const uint32_t FLAG = 0x400988;      // long: quadrant parity of the vertex pair
 static const uint32_t FLAG_LO = 0x40098a;   // low word of FLAG: column bias of the vertex field
 
-static const uint32_t SHAPES = 0x1eaba;     // 3 x 5 diagonal offsets per column
-static const uint32_t OCCLUDERS = 0x1ea2a;  // per column: table of per race record lists
-static const uint32_t FLAT_H = 0x1ead2;     // entry code by height difference
-static const uint32_t FLAT_Y = 0x1eaf4;
-static const uint32_t QUADS = 0x2417e;      // 4 x (2 longs: quadrant offsets)
-static const uint32_t QUAD_MASKS = 0x24176;
 
 static const uint16_t MASK_FULL = 0x6ce0;  // height 6 tiles, MO code 0x4e0 (all pen 1)
 static const uint8_t COLS = 5;
@@ -75,7 +70,7 @@ uint16_t vertexHeight_177f8(const Mem &m, int32_t d, int32_t col, int16_t k) {
 
   for (;;) {
     if (code & 0xf000) {
-      if (code & 0xf000 & m.romw(QUAD_MASKS + s16(d3 * 2))) {
+      if (code & 0xf000 & marble_quad_masks[(uint16_t)d3]) {
         return (uint16_t)((code & 0x7f) - 0x40 + base);
       }
 
@@ -89,9 +84,9 @@ uint16_t vertexHeight_177f8(const Mem &m, int32_t d, int32_t col, int16_t k) {
       continue;
     }
 
-    const uint32_t tab = QUADS + 8 * (d3 & 0x1fffffff);
-    const uint8_t a = m.record(code, (uint8_t)m.roml(tab));
-    const uint8_t b = m.record(code, (uint8_t)m.roml(tab + 4));
+    const uint16_t q = (uint16_t)(2 * (d3 & 0x1fffffff));
+    const uint8_t a = m.record(code, (uint8_t)marble_quads[q]);
+    const uint8_t b = m.record(code, (uint8_t)marble_quads[q + 1]);
     const uint8_t hv = a > b ? a : b;
     if (hv == 0) { return 0; }
     return (uint16_t)(hv - 0x80 + base);
@@ -153,7 +148,7 @@ void occlusion_264aa(Mem &m, uint32_t a2, Kind d3) {
 
   const int32_t diag = s16((y >> 19) + (x >> 19) - 0x15);
   const int32_t diag2 = s16((int32_t)(((int64_t)x + y) >> 19) - 0x15);
-  uint32_t shape = SHAPES;
+  uint8_t shape = 0;  // marble_occ_shapes: 3 x 5 diagonal offsets per column
   if (diag != diag2) {
     shape += 10;
   } else if ((col ^ diag) & 1) {
@@ -185,28 +180,28 @@ void occlusion_264aa(Mem &m, uint32_t a2, Kind d3) {
   };
 
   for (int32_t c = c0; c < c0 + ncol; c++) {
-    int32_t d = s8(m.romb(shape + c - c0)) + diag;
+    int32_t d = marble_occ_shapes[shape + c - c0] + diag;
     if (d < 0) { d = 0; }
 
     // explicit occluders per column and race: records of 5 words (diagonal limit, depth,
     // control, y, entry code)
-    const uint32_t tab = m.roml(OCCLUDERS + 4 * c);
-    const uint16_t sel = d3 >= SLINKY_BOX ? 0 : m.romw(tab + 2 * race);
+    const uint32_t tab = marble_occluder_tabs[c];
+    const uint16_t sel = d3 >= SLINKY_BOX ? 0 : occluderWord(tab + 2 * race);
     bool done = false;
     if (sel) {
       uint32_t r = tab + 2 * sel;
       for (;;) {
-        const int32_t lim = s16(m.romw(r));
+        const int32_t lim = s16(occluderWord(r));
         if (lim == -1) { break; }
         if (lim < d) {
           r += 10;
           continue;
         }
-        if (d < lim - s16(m.romw(r + 2))) { break; }
+        if (d < lim - s16(occluderWord(r + 2))) { break; }
 
-        const int32_t ctl = s16(m.romw(r + 4));
-        const int32_t yy = s16(m.romw(r + 6) + cam);
-        const uint16_t code = m.romw(r + 8);
+        const int32_t ctl = s16(occluderWord(r + 4));
+        const int32_t yy = s16(occluderWord(r + 6) + cam);
+        const uint16_t code = occluderWord(r + 8);
         done = true;
         if (ctl >= 0 && ctl < 8) {
           if (yy >= sy - ctl) {
@@ -263,12 +258,12 @@ void occlusion_264aa(Mem &m, uint32_t a2, Kind d3) {
     }
 
     if (y0 <= y1) {
-      const uint32_t i = 2 * (y1 - y0);
-      emit(m.romw(FLAT_H + i), (uint16_t)(c << 3), (uint16_t)(m.romw(FLAT_Y + i) + y0));
+      const uint16_t i = (uint16_t)(y1 - y0);
+      emit(marble_flat_h[i], (uint16_t)(c << 3), (uint16_t)(marble_flat_y[i] + y0));
     } else {
-      const uint32_t i = 2 * (y0 - y1);
-      emit((uint16_t)(m.romw(FLAT_H + i) + 0x8000), (uint16_t)(c << 3),
-           (uint16_t)(m.romw(FLAT_Y + i) + y1));
+      const uint16_t i = (uint16_t)(y0 - y1);
+      emit((uint16_t)(marble_flat_h[i] + 0x8000), (uint16_t)(c << 3),
+           (uint16_t)(marble_flat_y[i] + y1));
     }
   }
 

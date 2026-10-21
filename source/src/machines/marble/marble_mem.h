@@ -104,6 +104,9 @@ const uint8_t *framePos(uint32_t hdr);
 uint16_t scriptWord(uint32_t pc);
 uint32_t scriptLong(uint32_t pc);
 uint16_t dynWord(uint32_t p, uint16_t k);
+// occluderWord: word of the explicit occluder tables and records of 0x264aa at a (the lists
+// overlap by whole words, so they stay 68010 addressed: marble_occluder_tabs[column] + offsets)
+uint16_t occluderWord(uint32_t a);
 
 // sprite set of level n (races share sets), for the renderer
 const MarbleSpriteSet &spriteSet(uint8_t level);
