@@ -266,7 +266,7 @@ static void test_steelie_objects(void) {
     const MarbleSteelieSegment &seg = marble_steelies_segments[sg];
     loadRam(seg);
     Mem m(ram, seg.race);
-    const int16_t descTop = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+    const int16_t descTop = m.desc().top;
 
     for (uint16_t k = 0; k < seg.nticks; k++) {
       const MarbleSteelieTick &t = seg.ticks[k];
@@ -317,7 +317,7 @@ static void beginRace(uint8_t race) {
 // steelie i spawned at camera cam: the band must be its entry's lo or hi
 static void checkSpawn(const Mem &m, uint8_t race, uint8_t i, int16_t cam) {
   const uint32_t a = steelie(i);
-  const int16_t top = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+  const int16_t top = m.desc().top;
   const int16_t band = (int16_t)(cam - top) >> 4;
   const int16_t hi = m.sw(a + BAND_HI) + (m.rl(a + NODES) == SPAWN_HI16 ? 16 : 0);
   if (band == m.sw(a + BAND_LO) || band == hi) { return; }
@@ -348,8 +348,8 @@ static void test_race_sweep(void) {
   for (uint8_t race = 0; race < RACES; race++) {
     beginRace(race);
     Mem m(ram, race);
-    const int16_t top = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
-    const int16_t range = (int16_t)m.romw(m.desc() + marble_physics::DESC_RANGE);
+    const int16_t top = m.desc().top;
+    const int16_t range = m.desc().range;
     const int16_t n = range / SWEEP_STEP + 1;
     uint8_t spawns = 0, removals = 0;
     uint32_t tick = 0;
@@ -390,8 +390,8 @@ static void test_shatter_and_switch(void) {
   for (uint8_t race : STEELIE_RACES) {
     beginRace(race);
     Mem m(ram, race);
-    const int16_t top = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
-    const int16_t range = (int16_t)m.romw(m.desc() + marble_physics::DESC_RANGE);
+    const int16_t top = m.desc().top;
+    const int16_t range = m.desc().range;
     int16_t cam = top;
     uint32_t tick = 0;
     int8_t live = -1;

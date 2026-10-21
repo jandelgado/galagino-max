@@ -86,7 +86,7 @@ uint8_t Mem::romb(uint32_t a) const {
 
 uint16_t Mem::maxd() const { return terrain->maxd; }
 
-uint32_t Mem::desc() const { return terrain->desc; }
+const MarbleTerrainInfo &Mem::desc() const { return *terrain; }
 
 int16_t Mem::edgeFrom(uint8_t col, uint8_t d) const {
   const uint16_t ult = rw(ULT_COL);

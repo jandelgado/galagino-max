@@ -22,8 +22,6 @@ using marble_physics::ULT_COL;
 using marble_physics::DYN;
 using marble_physics::CAMERA;
 using marble_physics::CAMERA_L;
-using marble_physics::DESC_TOP;
-using marble_physics::DESC_RANGE;
 using marble_physics::s8;
 using marble_physics::s16;
 
@@ -1090,7 +1088,7 @@ void slots_29cce(Mem &m, uint32_t a2) {
 // 0x14c46, 0x17346) before the slots, the silly race bird flag after them; the aerial
 // extras and the silly minis are not ported.
 void cameraBands(Mem &m, int16_t oldCam, int16_t newCam) {
-  const int16_t top = (int16_t)m.romw(m.desc() + DESC_TOP);
+  const int16_t top = m.desc().top;
   const int16_t a = (int16_t)(oldCam - top) >> 4, b = (int16_t)(newCam - top) >> 4;
   if ((a & 0xff) == (b & 0xff)) { return; }
   marble_enemies::cameraBands(m, a, b);  // 0x15a12 steelies before the slots
@@ -1195,8 +1193,7 @@ void init(Mem &m, uint8_t race) {
   m.ww(DYN_PAUSE, 0xffff);
   m.wb(DYN_FLAG, 0);
 
-  const uint32_t cam = m.romw(m.desc() + DESC_TOP) +
-      (race == RACE_SILLY ? m.romw(m.desc() + DESC_RANGE) : 0);
+  const uint32_t cam = (uint16_t)m.desc().top + (race == RACE_SILLY ? (uint16_t)m.desc().range : 0);
   m.wl(CAMERA_L, cam);
   if (race == RACE_INTERMEDIATE) {
     for (uint8_t k = 0; k < DYN_INTERMEDIATE_N; k++) {

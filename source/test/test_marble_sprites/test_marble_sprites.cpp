@@ -243,8 +243,8 @@ static void test_race_sweep(void) {
     memset(ram, 0, sizeof(ram));
     Mem m(ram, race);
     marble_physics::startRace(m, race);
-    const uint16_t top = m.romw(m.desc() + marble_physics::DESC_TOP);
-    const uint16_t n = m.romw(m.desc() + marble_physics::DESC_RANGE) / STEP + 1;
+    const uint16_t top = (uint16_t)m.desc().top;
+    const uint16_t n = (uint16_t)m.desc().range / STEP + 1;
 
     uint8_t most = 0;
     for (uint8_t pass = 0; pass < 3; pass++) {

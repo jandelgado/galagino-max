@@ -14,8 +14,6 @@ using marble_physics::Mem;
 using marble_physics::CAMERA;
 using marble_physics::DYN;
 using marble_physics::RACE;
-using marble_physics::DESC_TOP;
-using marble_physics::DESC_END;
 using marble_physics::s8;
 using marble_physics::s16;
 
@@ -63,8 +61,7 @@ bool isPlayer(uint32_t a) { return a == marble_physics::PLAYER || a == PLAYER2; 
 // higher of two quadrants picked by k + FLAG. 0 = no floor. The sim reads the terrain
 // video RAM image; here the field comes from the terrain index (Mem::vertexCode).
 uint16_t vertexHeight_177f8(const Mem &m, int32_t d, int32_t col, int16_t k) {
-  const uint32_t desc = m.desc();
-  if (s16(d) >= s16(m.romw(desc + DESC_END))) { return 0; }
+  if (s16(d) >= (int16_t)m.maxd()) { return 0; }
 
   const int32_t d3 = k + m.sl(FLAG);
   int32_t f = (s16(col + m.rw(FLAG_LO)) >> 1) + 2;
@@ -175,8 +172,7 @@ void occlusion_264aa(Mem &m, uint32_t a2, Kind d3) {
     ncol = 0x24 - c0;
   }
 
-  const uint32_t desc = m.desc();
-  const int32_t cam = s16(m.rw(CAMERA) - m.romw(desc + DESC_TOP));
+  const int32_t cam = s16(m.rw(CAMERA) - m.desc().top);
   const uint16_t race = m.rw(RACE);
   uint32_t covered = 0;
 

@@ -280,10 +280,20 @@ def phase_bytes(run, terrains):
             _bird_bytes(run) | _shape_bytes(run), _mini_bytes(run), _piston_bytes(run))
 
 
-def blocks(plain, tables):
-    """[(address, bytes)] per phase, cumulative: the blocks of the last phase are emitted."""
+def model_bytes(terrains):
+    """Bytes the model reads that the remake gets as fields, not blocks: the terrain
+    descriptors (MarbleTerrainInfo top, range, cell; maxd, records and edges)."""
+    out = set()
+    for t in terrains:
+        out |= set(range(t.desc, t.desc + _DESC_BYTES))
+    return out
+
+
+def blocks(plain, tables, skip):
+    """[(address, bytes)] per phase, cumulative without skip: the blocks of the last phase are
+    emitted."""
     out, cum = [], set()
     for t in tables:
-        cum |= t
+        cum |= t - skip
         out.append([(a, bytes(plain[a:e])) for a, e in _merge(cum)])
     return out

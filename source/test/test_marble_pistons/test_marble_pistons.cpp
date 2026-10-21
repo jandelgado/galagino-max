@@ -238,7 +238,7 @@ static void test_piston_objects(void) {
     const MarblePistonSegment &seg = marble_piston_segments[sg];
     loadRam(seg);
     Mem m(ram, seg.race);
-    const int16_t descTop = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+    const int16_t descTop = m.desc().top;
 
     for (uint16_t k = 0; k < seg.nticks; k++) {
       const MarblePistonTick &t = seg.ticks[k];
@@ -308,8 +308,8 @@ static void test_race_sweep(void) {
   for (uint8_t race = 0; race < RACES; race++) {
     beginRace(race);
     Mem m(ram, race);
-    const int16_t top = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
-    const int16_t range = (int16_t)m.romw(m.desc() + marble_physics::DESC_RANGE);
+    const int16_t top = m.desc().top;
+    const int16_t range = m.desc().range;
     const int16_t n = range / SWEEP_STEP + 1;
     uint32_t tick = 0;
     for (uint8_t pass = 0; pass < 3; pass++) {
@@ -343,8 +343,8 @@ static void test_armed_sweep(void) {
   Mem m(ram, RACE_AERIAL);
   m.wb(PLAYER + ZONE, ARM_ZONE);
   marble_enemies::arm_186ac(m);
-  const int16_t top = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
-  const int16_t range = (int16_t)m.romw(m.desc() + marble_physics::DESC_RANGE);
+  const int16_t top = m.desc().top;
+  const int16_t range = m.desc().range;
   const int16_t n = range / SWEEP_STEP + 1;
   uint32_t tick = 0;
   uint8_t most = 0, mostUp = 0;

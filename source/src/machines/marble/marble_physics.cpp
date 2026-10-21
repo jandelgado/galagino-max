@@ -1061,7 +1061,7 @@ void start_259b4(Mem &m, uint8_t race, uint32_t a2) {
   dyn_init(m, race);
 
   // start cell: high byte x, low byte y; position = cell * 8 + 4
-  const uint16_t cell = m.romw(m.desc() + DESC_CELL);
+  const uint16_t cell = m.desc().cell;
   m.wl(a2 + PX, ((uint32_t)(cell >> 8) << 19) + 0x40000);
   m.wl(a2 + PY, ((uint32_t)(cell & 0xff) << 19) + 0x40000);
   m.ww(CELL_Y, 0xffff);

@@ -533,7 +533,7 @@ void sort(Mem &m) {
 
 uint8_t build(const Mem &m, int16_t cam, int16_t cullMargin, VideoState &v) {
   static const uint8_t NOT_SEEN = 0xff;
-  const int32_t top = (int32_t)cam - (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+  const int32_t top = (int32_t)cam - m.desc().top;
   Out o = {v, 0, 0};
   v.lift = LIFT_NONE;
   v.marbleAt = NOT_SEEN;

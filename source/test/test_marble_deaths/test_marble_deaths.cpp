@@ -267,7 +267,7 @@ static void test_player_objects(void) {
     loadRam(seg);
     Mem m(ram, seg.race);
     marble_drawlist::init(m);
-    const int16_t descTop = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+    const int16_t descTop = m.desc().top;
 
     for (uint16_t k = 0; k < seg.nticks; k++) {
       const MarbleDeathTick &t = seg.ticks[k];

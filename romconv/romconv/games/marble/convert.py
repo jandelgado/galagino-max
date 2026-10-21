@@ -22,7 +22,6 @@ import struct
 import zlib
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from functools import partial
 
 from romconv.core.context import Context
 from romconv.core.errors import ConversionError
@@ -191,6 +190,7 @@ def _frame_crc(rows, tiles, mapw, pal, sx, sy):
 _FLASH_BUDGET = 50 * 1024
 _PHASE3_BUDGET = 25 * 1024
 _PAIR_BYTES = 54   # two diagonals, 44 x 10 bit fields MSB first, last 8 bits not stored
+_DESC_TOP, _DESC_RANGE, _DESC_CELL = 0x10, 0x12, 0x14   # descriptor words: camera top, range, start cell
 _MO_CODES = range(0x01, 0x2e)  # particle half 0x01-0x02, marble body 0x03-0x06, 0x07, dots 0x0d-0x2d
 
 
@@ -366,7 +366,7 @@ def _emit_physics(run, f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, 
     print("struct MarbleTerrainInfo {\n  FlashAsset<unsigned char, COMPRESSED> packed; "
           "uint16_t pairs;\n"
           "  uint16_t codes_at, ncodes;\n  uint16_t records_at;\n"
-          "  uint16_t maxd;\n  uint16_t nrecords; uint32_t desc;\n"
+          "  uint16_t maxd;\n  uint16_t nrecords;\n  int16_t top, range; uint16_t cell;\n"
           "  uint16_t edges_at; uint8_t nedges;\n"
           "  const uint16_t *codes() const { return marble_table<uint16_t>(codes_at); }\n"
           "  const uint8_t *records() const { return marble_table<uint8_t>(records_at); }\n"
@@ -424,12 +424,13 @@ def _emit_physics(run, f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, 
         t = terrains[n]
         print(f"  {{ marble_terrain_{n}_blob, {len(index) // _PAIR_BYTES}, "
               f"{codes_at[tuple(codes)]}, {len(codes)}, {records_at[n]}, "
-              f"{t.maxd}, {len(records)}, 0x{t.desc:05x}, "
+              f"{t.maxd}, {len(records)}, {ms.s16(run.sim.w(t.desc + _DESC_TOP))}, "
+              f"{ms.s16(run.sim.w(t.desc + _DESC_RANGE))}, {run.sim.w(t.desc + _DESC_CELL)}, "
               f"{edges_at[n]}, {len(offs[n])} }},", file=f)
     print("};", file=f)
     size["terrain info"] = 6 * 32  # 32 bit pointers, padded
 
-    phases = pr.blocks(run.sim.prog, pr.phase_bytes(run, terrains))
+    phases = pr.blocks(run.sim.prog, pr.phase_bytes(run, terrains), pr.model_bytes(terrains))
     blocks = phases[-1]
     race_sweeps(run, ms.Mem, terrains)
     print("// Program ROM bytes the physics, level objects and occlusion read (68010 address,",

@@ -30,9 +30,6 @@ static const uint32_t CAMERA = 0x40097e;    // camera word (low word of CAMERA_L
 static const uint32_t MSG_CHAIN = 0x401f04, MSG_STATE = 0x401f1c, MSG_FRAMES = 0x401f20;
 static const uint32_t MSG_COUNT = 0x401f28;
 
-// terrain descriptor (Mem::desc()) fields, program ROM
-static const uint32_t DESC_TOP = 0x10, DESC_RANGE = 0x12, DESC_CELL = 0x14, DESC_END = 0x18;
-
 inline int8_t s8(uint32_t v) { return (int8_t)v; }
 inline int16_t s16(uint32_t v) { return (int16_t)v; }
 
@@ -68,7 +65,7 @@ public:
   uint16_t base(int16_t d) const;
   uint16_t vertexCode(int16_t d, int16_t f) const;
   uint8_t record(uint16_t code, uint8_t q) const;
-  uint32_t desc() const;
+  const MarbleTerrainInfo &desc() const;  // top, range, cell of the race
   // 0x264aa terrain edge: first diagonal >= d (d < maxd) of screen column col with an edge,
   // in the table of the current ultimate scroll frame (ULT_COL). Every column ends in maxd - 1.
   int16_t edgeFrom(uint8_t col, uint8_t d) const;
