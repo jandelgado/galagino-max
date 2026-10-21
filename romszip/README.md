@@ -14,7 +14,7 @@ Put rom zip files here:
 *  anteater.zip
 *  bombjack.zip
 *  mrdo.zip
-*  pengo2u.zip
+*  pengo.zip
 *  bagmanm2.zip
 *  gyruss.zip
 *  ladybug.zip

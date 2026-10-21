@@ -147,7 +147,7 @@ evicted first. Menu entries not cached yet show a NET marker.
 | Bombjack (bombjack.zip)        | ![Bombjack marquee](/logos/bombjack.png)     | ![Bombjack screenshot](/images/bombjack.png)     |       |
 | Mr. Do! (mrdo.zip)             | ![Mr. Do! marquee](/logos/mrdo.png)         | ![Mr. Do! screenshot](/images/mrdo.png)         |       |
 | Bagman (bagmanm2.zip)          | ![Bagman marquee](/logos/bagman.png)       | ![Bagman screenshot](/images/bagman.png)       |       |
-| Pengo (pengo2u.zip)            | ![Pengo marquee](/logos/pengo.png)        | ![Pengo screenshot](/images/pengo.png)        |       |
+| Pengo (pengo.zip)              | ![Pengo marquee](/logos/pengo.png)        | ![Pengo screenshot](/images/pengo.png)        |       |
 | MsPacman (mspacman.zip)        | ![MsPacman marquee](/logos/mspacman.png)     | ![MsPacman screenshot](/images/mspacman.png)     |       |
 | Galaxian (galaxian.zip)        | ![Galaxian marquee](/logos/galaxian.png)     | ![Galaxian screenshot](/images/galaxian.png)     |       |
 | LadyBug (ladybug.zip)          | ![LadyBug marquee](/logos/ladybug.png)      | ![LadyBug screenshot](/images/ladybug.png)      |       |
