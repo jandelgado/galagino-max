@@ -27,6 +27,11 @@ using marble_physics::CAMERA_L;
 using marble_physics::s8;
 using marble_physics::animEntry;
 using marble_physics::frameBox;
+using marble_physics::scriptWord;
+using marble_physics::scriptLong;
+using marble_physics::dynWord;
+using marble_physics::be16;
+using marble_physics::be32;
 using marble_physics::s16;
 
 // 0x12d32: a free gate slot sends the sound of its zone, ROM tables 0x1ef42 (zones 0x18-0x1d)
@@ -91,11 +96,7 @@ static const uint32_t CUR_SLOT = 0x400974;     // slot that queued it
 static const uint32_t PATCHED = 0x400978;      // record of the last playfield patch
 
 // ROM
-static const uint32_t ROM_END = 0x30000;
 static const uint32_t ANIM_NONE = 0x20c14;     // empty animation (first long 0xffffffff)
-static const uint32_t SLOT_LIST = 0x1f016;     // slot addresses
-static const uint32_t SPAWN_LISTS = 0x1dec0;   // per race: entries lo, hi, script (6 bytes)
-static const uint32_t SPAWN_GROUPS = 0x1ded8;  // 4 groups of 4 scripts
 static const uint32_t WAVE_SCRIPT = 0x1d854;
 static const uint8_t DYN_INTERMEDIATE_N = 66;   // marble_dyn_intermediate
 static const uint32_t END_MARK = 0xffffffff;
@@ -107,10 +108,6 @@ static const uint8_t TAG_POST = 0x05, TAG_BOUNDS_LO = 5, TAG_BOUNDS_HI = 0x3b;
 static const uint8_t ST_WAIT = 0, ST_ANIM1 = 1, ST_ANIM2 = 2, ST_START = 3, ST_ZONE = 4;
 static const uint8_t MODE_PATCH = 1, MODE_MO_TERRAIN = 2;
 static const uint8_t SPAWN_ADD = 0, SPAWN_REMOVE = 1;
-
-// ROM (< 0x30000) or work RAM, as the 68010 sees it
-uint16_t gw(const Mem &m, uint32_t a) { return a < ROM_END ? m.romw(a) : m.rw(a); }
-uint32_t gl(const Mem &m, uint32_t a) { return a < ROM_END ? m.roml(a) : m.rl(a); }
 
 inline uint32_t slotAddr(uint8_t i) { return SLOTS + (uint32_t)i * SLOT_SIZE; }
 
@@ -136,7 +133,7 @@ void slot_start_12f44(Mem &m, uint32_t a, uint8_t mode, uint32_t script = 0) {
 // 0x12d6e: first free slot, 0 = none
 uint32_t slot_free_12d6e(const Mem &m) {
   for (uint8_t i = 0; i < SLOT_N; i++) {
-    const uint32_t a = m.roml(SLOT_LIST + 4 * i);
+    const uint32_t a = marble_slot_addr[i];
     if (!m.rb(a + ACTIVE)) { return a; }
   }
   return 0;
@@ -144,12 +141,12 @@ uint32_t slot_free_12d6e(const Mem &m) {
 
 // 0x12dae: spawn entry already alive. An active slot runs its script, or a random group
 // entry (script 0) while a tag 0x0c slot is active.
-bool spawned_12dae(const Mem &m, uint32_t ent) {
+bool spawned_12dae(const Mem &m, const uint8_t *ent) {
   for (uint8_t i = 0; i < SLOT_N; i++) {
     const uint32_t a = slotAddr(i);
     if (m.rb(a + ACTIVE) != 1) { continue; }
-    if (m.roml(ent + 2) == m.rl(a + SCRIPT)) { return true; }
-    if (m.roml(ent + 2) == 0 && m.rb(a + TAG) == TAG_CROWD) { return true; }
+    if (be32(ent + 2) == m.rl(a + SCRIPT)) { return true; }
+    if (be32(ent + 2) == 0 && m.rb(a + TAG) == TAG_CROWD) { return true; }
   }
   return false;
 }
@@ -158,17 +155,17 @@ bool spawned_12dae(const Mem &m, uint32_t ent) {
 // from outside [lo, hi]; remove slots whose band range is left.
 void spawn_12dfa(Mem &m, int16_t oldB, int16_t newB) {
   const int8_t old = s8(oldB), nw = s8(newB);
-  uint32_t e = m.roml(SPAWN_LISTS + 4 * m.rw(RACE));
-  for (; m.romb(e) != 0xff; e += 6) {
-    const int8_t lo = s8(m.romb(e)), hi = s8(m.romb(e + 1));
+  for (uint16_t i = marble_spawn_lists_of[m.rw(RACE)].first; marble_spawn_lists[i][0] != 0xff; i++) {
+    const uint8_t *e = marble_spawn_lists[i];
+    const int8_t lo = s8(e[0]), hi = s8(e[1]);
     if (!(nw == lo || nw == hi) || (lo <= old && old <= hi)) { continue; }
     if (spawned_12dae(m, e)) { continue; }
 
-    uint32_t scripts[4] = {m.roml(e + 2), 0, 0, 0};
+    uint32_t scripts[4] = {be32(e + 2), 0, 0, 0};
     uint8_t n = 1;
     if (scripts[0] == 0) {  // random group of 4
-      const uint32_t g = SPAWN_GROUPS + 16 * (uint32_t)marble_rng::rng(m, 4);
-      for (uint8_t k = 0; k < 4; k++) { scripts[k] = m.roml(g + 4 * k); }
+      const uint8_t g = 4 * (uint8_t)marble_rng::rng(m, 4);
+      for (uint8_t k = 0; k < 4; k++) { scripts[k] = marble_spawn_groups[g + k]; }
       n = 4;
     }
     for (uint8_t k = 0; k < n; k++) {
@@ -193,23 +190,26 @@ void spawn_12dfa(Mem &m, int16_t oldB, int16_t newB) {
 // 0x1d06a: intermediate wave (tag 6): rewrites up to 4 x 3 dynamic terrain codes
 // (Marble Love terrain-wave-update-1d06a.ts, unverified: no trace reaches it)
 void wave_1d06a(Mem &m, int8_t n) {
+  static const uint32_t WAVE = 0x24c7a;  // marble_wave: the tables below, by 68010 address
+  auto wb = [](uint32_t a) { return marble_wave[a - WAVE]; };
+  auto ww = [&wb](uint32_t a) { return (uint16_t)(wb(a) << 8 | wb(a + 1)); };
   static const uint32_t tabs[4] = {0x24d5c, 0x24da8, 0x24dce, 0x24df4};
-  const int32_t d1 = n <= 0xc ? s8(m.romb(0x24e1a + n)) : n - 6;
+  const int32_t d1 = n <= 0xc ? s8(wb(0x24e1a + n)) : n - 6;
   uint32_t src = 0x24c98 + ((((uint32_t)(d1 - 7) & 3) + 7) << 2);
   uint32_t ctl = 0x24c7a + (d1 >> 2);
   uint32_t dst = DYN + (d1 >> 2) * 6;
   for (uint8_t i = 0; i < 4; i++) {
-    const int8_t c = s8(m.romb(ctl));
+    const int8_t c = s8(wb(ctl));
     if (c < 0) { break; }
 
-    const uint32_t k = (uint32_t)(s8(m.romb(src)) * 2);
+    const uint32_t k = (uint32_t)(s8(wb(src)) * 2);
     uint32_t t[3];
     if (c < 4) {
       t[0] = 0x24d10; t[1] = 0x24cc4; t[2] = tabs[c];
     } else {
       t[0] = 0x24d36; t[1] = 0x24cea; t[2] = 0x24d82;
     }
-    for (uint8_t j = 0; j < 3; j++) { m.ww(dst + 2 * j, m.romw(t[j] + k)); }
+    for (uint8_t j = 0; j < 3; j++) { m.ww(dst + 2 * j, ww(t[j] + k)); }
     src++;
     ctl++;
     dst += 6;
@@ -256,7 +256,7 @@ bool anim_next_132e0(Mem &m, uint32_t a) {
 uint16_t arg(Mem &m, uint32_t a) {
   const uint32_t pc = m.rl(a + PC);
   m.wl(a + PC, pc + 2);
-  return gw(m, pc);
+  return scriptWord(pc);
 }
 
 uint32_t shl(int16_t v, uint8_t n) { return (uint32_t)(int32_t)v << n; }
@@ -282,7 +282,7 @@ void script_12896(Mem &m, uint32_t a) {
           m.ww(a + PATCH_COL, arg(m, a));
           m.ww(a + PATCH_ROW, arg(m, a));
           const uint32_t pc = m.rl(a + PC);
-          m.wl(a + ANIM2, gl(m, pc));
+          m.wl(a + ANIM2, scriptLong(pc));
           m.wl(a + PC, pc + 4);
           m.wl(a + ANIM, m.rl(a + ANIM2));
           anim_render_13334(m, a);
@@ -351,18 +351,18 @@ void script_12896(Mem &m, uint32_t a) {
         }
         if (hit) {
           marble_sound::send(m, marble_sound::SND_JUMP);
-          m.wl(a + PC, gl(m, m.rl(a + PC)));
+          m.wl(a + PC, scriptLong(m.rl(a + PC)));
         } else {
           m.wl(a + PC, m.rl(a + PC) + 2);
         }
         break;
       }
       case 9:
-        m.wl(a + PC, gl(m, m.rl(a + PC)));
+        m.wl(a + PC, scriptLong(m.rl(a + PC)));
         break;
       case 10: {
         const uint32_t pc = m.rl(a + PC);
-        m.wl(a + PC, gl(m, pc));
+        m.wl(a + PC, scriptLong(pc));
         m.wl(a + RET_PC, pc + 4);
         break;
       }
@@ -372,7 +372,7 @@ void script_12896(Mem &m, uint32_t a) {
       case 12:
       case 13: {  // animation for state 2 / 1
         const uint32_t pc = m.rl(a + PC);
-        const uint32_t v = gl(m, pc);
+        const uint32_t v = scriptLong(pc);
         m.wl(a + (op == 12 ? ANIM2 : ANIM1), v);
         m.wl(a + ANIM, v);
         m.wl(a + PC, pc + 4);
@@ -411,7 +411,7 @@ void script_12896(Mem &m, uint32_t a) {
         const uint32_t pc = m.rl(a + PC);
         if (free) {
           gateSound(m, s8(m.rb(a + ZONE)));
-          m.wl(a + PC, gl(m, pc));
+          m.wl(a + PC, scriptLong(pc));
         } else {
           m.wl(a + PC, pc + 4);
         }
@@ -582,7 +582,6 @@ inline int32_t absl(int32_t v) { return v < 0 ? -v : v; }
 // (beginner), the silly funnel 0x22. The other tube tags are walls (shape 0x1cd00).
 static const uint8_t TAG_HOLE_B = 0x12, TAG_ENTRY_A = 0x13, TAG_ENTRY_B = 0x14;
 static const uint8_t TAG_HOLE_I = 0x20, TAG_FUNNEL = 0x22, TAG_HOLE_U = 0x25;
-static const uint32_t SHAPES = 0x24c5e;       // 0x1cd00 shape pointers: 16 byte plane entries
 static const uint8_t SHAPE_RIM = 0, SHAPE_ENTRY = 2;  // hole rims, 0x13/0x14 mouth walls
 static const uint32_t POS_Z = 0x400694, OLD_Z = 0x40068c;  // word: z of POS_X/Y; long
 static const uint8_t P_VZ = 0x08, P_PX = 0x0c, P_PY = 0x10, P_AIR = 0x36, P_DAMAGE = 0x57;
@@ -718,9 +717,9 @@ int8_t shapeHit(Mem &m, uint32_t a2, int16_t nx, int16_t ny, int16_t nz, int32_t
 }
 
 // a, b, c within the entry's x, y, z box (bytes 6-11: min, max pairs)
-bool inBox(const Mem &m, uint32_t e, int32_t a, int32_t b, int32_t c) {
-  return s8(m.romb(e + 6)) <= a && a <= s8(m.romb(e + 7)) && s8(m.romb(e + 8)) <= b &&
-         b <= s8(m.romb(e + 9)) && s8(m.romb(e + 10)) <= c && c <= s8(m.romb(e + 11));
+bool inBox(const uint8_t *e, int32_t a, int32_t b, int32_t c) {
+  return s8(e[6]) <= a && a <= s8(e[7]) && s8(e[8]) <= b && b <= s8(e[9]) && s8(e[10]) <= c &&
+         c <= s8(e[11]);
 }
 
 // 0x1cd00: the marble's new (POS_X/Y/Z) and old (OLD_X/Y/Z) position against shape k at
@@ -737,14 +736,15 @@ uint8_t shape_1cd00(Mem &m, uint32_t a2, uint32_t s, uint8_t k) {
   const int16_t x2 = s16((uint32_t)(rx - m.rw(OLD_X))), y2 = s16((uint32_t)(ry - m.rw(OLD_Y)));
   const int16_t z2 = s16((uint32_t)(rz - m.rw(OLD_Z)));
 
-  for (uint32_t e = m.roml(SHAPES + 4 * k);; e += 16) {
-    int16_t nx = s16(m.romw(e));
+  for (uint16_t i = marble_shapes_of[k].first;; i++) {
+    const uint8_t *e = marble_shapes[i];
+    int16_t nx = s16(be16(e));
     const bool last = nx > LAST;
     if (last) { nx = s16((uint32_t)(nx - LAST_BIAS)); }
-    const int16_t ny = s16(m.romw(e + 2)), nz = s16(m.romw(e + 4));
-    const int8_t cx = s8(m.romb(e + 12)), cy = s8(m.romb(e + 13)), cz = s8(m.romb(e + 14));
+    const int16_t ny = s16(be16(e + 2)), nz = s16(be16(e + 4));
+    const int8_t cx = s8(e[12]), cy = s8(e[13]), cz = s8(e[14]);
 
-    if (inBox(m, e, x1, y1, z1) || inBox(m, e, x2, y2, z2)) {
+    if (inBox(e, x1, y1, z1) || inBox(e, x2, y2, z2)) {
       const int32_t d5 = nz * s16((uint32_t)(z1 - cz)) + ny * s16((uint32_t)(y1 - cy)) +
                          nx * s16((uint32_t)(x1 - cx));
       const int32_t d6 = nz * s16((uint32_t)(z2 - cz)) + ny * s16((uint32_t)(y2 - cy)) +
@@ -1134,9 +1134,9 @@ void applyQueued(Mem &m) {
 
   const uint32_t dyn = animEntry(rec + 4);
   if (dyn) {
-    const int16_t first = s16(gw(m, dyn));
-    const uint16_t n = gw(m, dyn + 2);
-    for (uint16_t k = 0; k < n; k++) { m.ww(DYN + 2 * (first + k), gw(m, dyn + 4 + 2 * k)); }
+    const int16_t first = s16(dynWord(dyn, 0));
+    const uint16_t n = dynWord(dyn, 1);
+    for (uint16_t k = 0; k < n; k++) { m.ww(DYN + 2 * (first + k), dynWord(dyn, 2 + k)); }
   }
   m.wl(ANIM_REQ, 0);
 }

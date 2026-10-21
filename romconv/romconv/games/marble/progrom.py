@@ -47,19 +47,21 @@ class _Array:
 
 @dataclass(frozen=True)
 class _Lists:
-    """Per race lists behind a pointer table of md.LEVELS longs: entries of entry bytes up to
-    and including the one last() accepts. MarbleTable<uint8_t[entry], n> marble_<name> holds
-    all entries, MarbleRange marble_<name>_of[race] the first and count of a race."""
+    """Lists behind a pointer table of count longs (one per race unless given): entries of
+    entry bytes up to and including the one last() accepts. MarbleTable<uint8_t[entry], n>
+    marble_<name> holds all entries, MarbleRange marble_<name>_of[k] the first and count of
+    list k."""
     name: str
     table: int
     entry: int
     last: Callable[[bytes], bool]
     what: str
+    count: int = md.LEVELS   # pointers in the table (per race unless given)
 
     def ranges(self, sim):
-        """[(address, entries)] per race."""
+        """[(address, entries)] per list."""
         out = []
-        for race in range(md.LEVELS):
+        for race in range(self.count):
             a = sim.l(self.table + 4 * race)
             n = 1
             while not self.last(sim.prog[a + self.entry * (n - 1):a + self.entry * n]):
@@ -68,7 +70,7 @@ class _Lists:
         return out
 
     def bytes(self, sim):
-        out = set(range(self.table, self.table + 4 * md.LEVELS))
+        out = set(range(self.table, self.table + 4 * self.count))
         for a, n in self.ranges(sim):
             out |= set(range(a, a + self.entry * n))
         return out
@@ -162,20 +164,20 @@ def _physics(terrains):
         _Model(0x2be00, 0x18),                                     # descriptor per race: MarbleTerrainInfo
         *[_Model(t.desc, _DESC_BYTES) for t in terrains],
         _Array("dyn_intermediate", 0x1d370, "uint16_t", 66, "dyn codes"),   # race start (0x11ac2)
-        _raw(0x1699c, 0x16), _raw(0x1b908, 0x1c), _raw(0x24e4e, 0xe4),   # first dynamic code frames (0x13628)
+        _Keyed("dyn", frozenset(range(0x1699c, 0x1699c + 0x16)) | frozenset(range(0x1b908, 0x1b908 + 0x1c))
+               | frozenset(range(0x24e4e, 0x24e4e + 0xe4))),   # first dynamic code frames (0x13628: slot, count, words)
         _raw(0x1d364, 8), _raw(0x2419e, 0x88),                   # attract demo 0x1815a: waypoint list per demo race
         _Array("banner_chains", 0x242aa, "uint32_t", 7, "banner chain"),      # string chain per banner (BIOS 0x12a message)
     ]
 
 
 
-def _steelie_bytes(run):
+def _steelies(run):
     """Phase 4b-1 tables (whole): spawn table pointers and entries per race (0xff end), every
-    node list of an entry up to its 0xff, 0xff end, the steelie and object pointer tables, the
+    node list of an entry up to its 0xff, 0xff end, the object pointer table (targets), the
     pair list, the push table 0x24ad6 (|v high word| < 8), the score tables of k = 3."""
     sim = run.sim
     out = set(range(me.SPAWN_TABLE, me.SPAWN_TABLE + 4 * md.LEVELS))
-    out |= set(range(me.OBJ_PTRS, me.OBJ_PTRS + 16)) | set(range(0x1effe, 0x1effe + 8))
     out |= set(range(me.PAIR_LIST, me.PAIR_LIST + 16)) | set(range(me.REPEL, me.REPEL + 8))
     for race in range(md.LEVELS):
         e = sim.l(me.SPAWN_TABLE + 4 * race)
@@ -186,7 +188,7 @@ def _steelie_bytes(run):
             out |= set(range(sim.l(e + 2), p + 2)) | set(range(e, e + 8))
             e += 8
         out.add(e)
-    return out
+    return [_Raw(frozenset(out)), _Array("obj_targets", me.OBJ_PTRS, "uint32_t", 4, "target")]   # P1, P2, steelie 0, 1
 
 
 def _pistons(run):
@@ -213,24 +215,15 @@ def _frame_bytes(sim, lists, first, end):
     return out
 
 
-_SHAPES = 7           # 0x1cd00 shape pointers at ms.SHAPES
 _SHAPE_ENTRY = 16     # plane entry: normal (3 words), box (6 bytes), centre (3 bytes)
 _SHAPE_LAST = 0x800   # normal x above: last entry of the shape
 
 
-def _shape_bytes(run):
-    """Tube wall shapes 0x1cd00 (whole): the shape pointers and the plane entries of every
-    shape up to its last (normal x > 0x800)."""
-    sim = run.sim
-    out = set(range(ms.SHAPES, ms.SHAPES + 4 * _SHAPES))
-    for k in range(_SHAPES):
-        e = sim.l(ms.SHAPES + 4 * k)
-        while True:
-            out |= set(range(e, e + _SHAPE_ENTRY))
-            if ms.s16(sim.w(e)) > _SHAPE_LAST:
-                break
-            e += _SHAPE_ENTRY
-    return out
+def _shapes():
+    """Tube wall shapes 0x1cd00: the 7 shape pointers and the plane entries of every shape up
+    to its last (normal x > 0x800)."""
+    return _Lists("shapes", ms.SHAPES, _SHAPE_ENTRY, lambda b: ms.s16(b[0] << 8 | b[1]) > _SHAPE_LAST,
+                  "shape plane", count=7)
 
 
 def _minis(run):
@@ -238,18 +231,20 @@ def _minis(run):
     the cell bitmap 0x24496, the animation lists (0xffffffff end) and the draw list box
     bytes +4..+7 of their frames (0x1b12a types 7-9)."""
     sim = run.sim
-    out = set(range(0x1f096, 0x1f096 + 36)) | set(range(mn.GRID, mn.GRID + 32))
+    out = set(range(mn.GRID, mn.GRID + 32))
     out |= set(range(mn.DX, mn.DX + 32)) | set(range(mn.DY, mn.DY + 32))
     return [_Raw(frozenset(out)), _Keyed("anim", frozenset(_anim_lists(sim, mo.MINI_LISTS))),
-            _Keyed("frame", frozenset(_frame_bytes(sim, mo.MINI_LISTS, 4, 8)))]
+            _Keyed("frame", frozenset(_frame_bytes(sim, mo.MINI_LISTS, 4, 8))),
+            _Array("obj_minis", 0x1f096, "uint32_t", 9, "mini")]
 
 
 def _birds(run):
     """Phase 4b-4a tables (whole): the bird pointer table, the spawn cells, the animation
     lists (0xffffffff end)."""
     sim = run.sim
-    out = set(range(0x1f0ba, 0x1f0ba + 40)) | set(range(bd.POINTS, bd.POINTS + 10))
-    return [_Raw(frozenset(out)), _Keyed("anim", frozenset(_anim_lists(sim, mo.BIRD_LISTS)))]
+    out = set(range(bd.POINTS, bd.POINTS + 10))
+    return [_Raw(frozenset(out)), _Keyed("anim", frozenset(_anim_lists(sim, mo.BIRD_LISTS))),
+            _Array("obj_birds", 0x1f0ba, "uint32_t", 10, "bird")]
 
 
 def _acid(run):
@@ -259,7 +254,6 @@ def _acid(run):
     contact box 0x175c8)."""
     sim = run.sim
     out = set(range(ac.SPAWN_TABLE, ac.SPAWN_TABLE + 4 * md.LEVELS))
-    out |= set(range(0x1f07a, 0x1f07a + 28))
     out |= set(range(ac.SINGLE[0], ac.GROUP[1] + 24))
     paths = [sim.l(t) for t in range(ac.SINGLE[0], ac.GROUP[1] + 24, 4)]
     for race in range(md.LEVELS):
@@ -275,7 +269,8 @@ def _acid(run):
             q += 4
         out |= set(range(p, q + 1))
     return [_Raw(frozenset(out)), _Keyed("anim", frozenset(_anim_lists(sim, mo.ACID_LISTS))),
-            _Keyed("frame", frozenset(_frame_bytes(sim, mo.ACID_LISTS, 4, 8)))]
+            _Keyed("frame", frozenset(_frame_bytes(sim, mo.ACID_LISTS, 4, 8))),
+            _Array("obj_acids", 0x1f07a, "uint32_t", 7, "acid")]
 
 
 def _slinkies(run):
@@ -285,7 +280,7 @@ def _slinkies(run):
     boxes of 0x1b12a type 4 and the contact 0x14e92), the lunge height table."""
     sim = run.sim
     out = set(range(sl.SPAWN_TABLE, sl.SPAWN_TABLE + 4 * md.LEVELS))
-    out |= set(range(0x1f006, 0x1f006 + 16)) | set(range(sl.REAR, sl.REAR + 0x20))
+    out |= set(range(sl.REAR, sl.REAR + 0x20))
     for race in range(md.LEVELS):
         e = sim.l(sl.SPAWN_TABLE + 4 * race)
         while sim.prog[e] != 0xff:
@@ -296,7 +291,8 @@ def _slinkies(run):
             e += 8
         out.add(e)
     return [_Raw(frozenset(out)), _Keyed("anim", frozenset(_anim_lists(sim, mo.SLINKY_LISTS))),
-            _Keyed("frame", frozenset(_frame_bytes(sim, mo.SLINKY_LISTS, 0, 8)))]
+            _Keyed("frame", frozenset(_frame_bytes(sim, mo.SLINKY_LISTS, 0, 8))),
+            _Array("obj_slinkies", 0x1f006, "uint32_t", 4, "slinky")]
 
 
 def _deaths(run):
@@ -350,14 +346,24 @@ def _merge(addrs, gap=8):
 
 
 def _objects(run):
-    """Phase 3 tables (whole): level objects, occlusion (edge bitmaps are edge lists)."""
+    """Phase 3: level objects (scripts, animation lists, terrain code blocks, spawn lists and
+    groups, slot addresses, the intermediate wave tables 0x1d06a), occlusion (edge bitmaps are
+    edge lists)."""
     sim = run.sim
-    anim = od.global_anim_bytes(sim)
-    out = set(od.object_tables(sim)) | od.occlusion_bytes(sim)
+    code, anim, dyn = set(), od.global_anim_bytes(sim), set()
     for race in range(md.LEVELS):
-        out |= od.object_bytes(sim, race)
-        anim |= od.anim_bytes(sim, race)
-    return [_Raw(frozenset(out - anim)), _Keyed("anim", frozenset(anim))]
+        c, a, d = od.object_parts(sim, race)
+        code |= c
+        anim |= a
+        dyn |= d
+    return [
+        _Keyed("script", frozenset(code)), _Keyed("anim", frozenset(anim)), _Keyed("dyn", frozenset(dyn)),
+        _Lists("spawn_lists", 0x1dec0, 6, lambda b: b[0] == 0xFF, "spawn entry"),   # lo, hi, script
+        _Array("spawn_groups", 0x1ded8, "uint32_t", 16, "spawn group"),             # 4 groups of 4 scripts
+        _Array("slot_addr", 0x1f016, "uint32_t", 25, "slot"),                       # 0x12d6e slot addresses
+        _Array("wave", 0x24c7a, "uint8_t", 0x24e28 - 0x24c7a, "wave table"),        # 0x1d06a tables, by offset
+        _Raw(frozenset(od.occlusion_bytes(sim))),
+    ]
 
 
 def defs(run, terrains):
@@ -367,8 +373,8 @@ def defs(run, terrains):
     terminators; tests/test_games_marble.py replays every MAME fixture and race sweep on the
     model and fails on a read outside them."""
     return (_physics(terrains), _objects(run), _sprites(run), _deaths(run),
-            [_Raw(frozenset(_steelie_bytes(run)))], _slinkies(run), _acid(run),
-            _birds(run) + [_Raw(frozenset(_shape_bytes(run)))], _minis(run), _pistons(run))
+            _steelies(run), _slinkies(run), _acid(run),
+            _birds(run) + [_shapes()], _minis(run), _pistons(run))
 
 
 def phase_bytes(run, terrains):
@@ -408,9 +414,9 @@ def emit(f, sim, phases, add):
                 print(f"static const MarbleTable<uint8_t[{d.entry}], {len(data) // d.entry}> marble_{d.name} = "
                       f"{{ {add(data, 1)}, \"{d.what}\" }};  // 0x{d.table:05x}: lists per race, terminator included",
                       file=f)
-                print(f"static const MarbleRange marble_{d.name}_of[{md.LEVELS}] = {{ "
+                print(f"static const MarbleRange marble_{d.name}_of[{d.count}] = {{ "
                       + ", ".join(f"{{ {first}, {n} }}" for first, n in where) + " };", file=f)
-                size += len(data) + 4 * md.LEVELS
+                size += len(data) + 4 * d.count
             elif isinstance(d, _Struct):
                 print(f"struct {d.cname} {{ " + " ".join(f"{c} {n};" for n, _, c in d.fields) + " };", file=f)
                 print(f"static const {d.cname} marble_{d.name} = {{ "

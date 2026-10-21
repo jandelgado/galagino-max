@@ -31,6 +31,8 @@ static const uint32_t MSG_CHAIN = 0x401f04, MSG_STATE = 0x401f1c, MSG_FRAMES = 0
 static const uint32_t MSG_COUNT = 0x401f28;
 
 inline int8_t s8(uint32_t v) { return (int8_t)v; }
+inline uint16_t be16(const uint8_t *p) { return (uint16_t)(p[0] << 8 | p[1]); }
+inline uint32_t be32(const uint8_t *p) { return (uint32_t)be16(p) << 16 | be16(p + 2); }
 inline int16_t s16(uint32_t v) { return (int16_t)v; }
 
 [[noreturn]] void fail(const char *what, uint32_t addr);
@@ -97,6 +99,11 @@ private:
 uint32_t animEntry(uint32_t p);
 const uint8_t *frameBox(uint32_t hdr);
 const uint8_t *framePos(uint32_t hdr);
+// scriptWord/Long: level object byte code at pc. dynWord: word k of a terrain code block
+// (0x13628: slot, count, words) at p, reached from mode 1/2 animation entries or dyn_init.
+uint16_t scriptWord(uint32_t pc);
+uint32_t scriptLong(uint32_t pc);
+uint16_t dynWord(uint32_t p, uint16_t k);
 
 // sprite set of level n (races share sets), for the renderer
 const MarbleSpriteSet &spriteSet(uint8_t level);

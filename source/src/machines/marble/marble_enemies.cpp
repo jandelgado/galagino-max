@@ -12,6 +12,8 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
+#include "marble_rom.h"
+
 // 1:1 port of dev/marble/marble_enemy.py (function names as there; Marble Love sub-158f6.ts,
 // helper-182ba.ts, helper-1bc88.ts, scroll-sub-15a12.ts, state-sub-15bd0.ts). Integer
 // semantics follow the model: int64_t where its Python values exceed 32 bits.
@@ -57,7 +59,6 @@ static const uint16_t PLAYER_SIZE = 0xe2;
 // program ROM
 static const uint32_t SPAWN_TABLE = 0x22706;  // per race: 8 byte entries, 0xff end
 static const uint32_t SPAWN_HI16 = 0x2276e;   // beginner start entry: hi - 16
-static const uint32_t OBJ_PTRS = 0x1eff6;     // P1, P2, steelie 0, steelie 1
 static const uint32_t PAIR_LIST = 0x24ac6;    // 0x1bc88 partners, same 4
 static const uint32_t REPEL = 0x24ad6;        // s8 push per |v high word|
 static const uint8_t SPAWN_ENTRY = 8, NODE_SIZE = 6, LINKS = 4;
@@ -130,7 +131,7 @@ void advance_160ae(Mem &m, uint32_t a2, uint8_t k) {
 
 // 0x15c46: link (0-3) whose node is nearest to the target object
 uint8_t best_15c46(const Mem &m, uint32_t a2) {
-  const uint32_t t = m.roml(OBJ_PTRS + 4 * m.sw(a2 + TARGET));
+  const uint32_t t = marble_obj_targets[(uint16_t)m.sw(a2 + TARGET)];
   const uint32_t cur = m.rl(a2 + NODE), base = m.rl(a2 + NODES);
   uint8_t bi = 0;
   uint32_t bd = 0x7fffffff;
@@ -221,7 +222,7 @@ void node_15db6(Mem &m, uint32_t a2) {
 void ai_182ba(Mem &m, uint32_t a2) {
   node_15db6(m, a2);
   if (m.rb(a2 + AIR) != 2) {
-    const uint32_t a0 = m.roml(OBJ_PTRS + 4 * m.sw(a2 + TARGET));
+    const uint32_t a0 = marble_obj_targets[(uint16_t)m.sw(a2 + TARGET)];
     int64_t d2, d3;
     const int8_t st = s8(m.rb(a0 + MODE));
     if (m.rb(a2 + MODE) == CHASE && m.rb(a0 + SLOT) == LIVE &&

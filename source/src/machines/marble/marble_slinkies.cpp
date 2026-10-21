@@ -8,6 +8,8 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
+#include "marble_rom.h"
+
 // 1:1 port of dev/marble/marble_slinky.py (function names as there; Marble Love state-sub-14c46.ts,
 // sub-14966.ts, helper-15148.ts, state-dispatch-15460.ts, state-sub-15670.ts,
 // nearest-neighbor.ts, sprite-coords-jsr-150d0.ts, script-slot-bbox-test-14e92.ts; the lunge
@@ -71,7 +73,6 @@ static const uint16_t PLAYER_SIZE = 0xe2;
 
 // program ROM
 static const uint32_t SPAWN_TABLE = 0x2257a;  // per race: 8 byte entries, 0xff end
-static const uint32_t OBJ_PTRS = 0x1eff6;     // P1, P2, steelie 0, steelie 1
 static const uint32_t REAR = 0x2255a;         // s8 z lift (px) per lunge tick 6..0x25
 static const uint32_t NO_FRAME = 0xffffffff;
 
@@ -122,7 +123,7 @@ int16_t divs(int64_t n, int64_t d) {
 // waypoint record byte k (0: cell x, 1: cell y, 2: next record offset)
 int8_t wp(const Mem &m, uint32_t p, uint8_t k) { return s8(m.romb(p + k)); }
 
-uint32_t prey(const Mem &m, uint32_t a2) { return m.roml(OBJ_PTRS + 4 * m.sw(a2 + PREY)); }
+uint32_t prey(const Mem &m, uint32_t a2) { return marble_obj_targets[(uint16_t)m.sw(a2 + PREY)]; }
 
 void groundZ(Mem &m, uint32_t a2) {
   m.wl(a2 + PZ, (uint32_t)marble_physics::cellHeight(m, a2));

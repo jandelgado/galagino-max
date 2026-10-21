@@ -99,11 +99,13 @@ uint8_t Mem::romb(uint32_t a) const {
   fail("ROM", a);
 }
 
-static uint32_t be32(const uint8_t *p) {
-  return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3];
-}
-
 uint32_t animEntry(uint32_t p) { return be32(marble_anim.at(p, 4)); }
+
+uint16_t scriptWord(uint32_t pc) { return be16(marble_script.at(pc, 2)); }
+
+uint32_t scriptLong(uint32_t pc) { return be32(marble_script.at(pc, 4)); }
+
+uint16_t dynWord(uint32_t p, uint16_t k) { return be16(marble_dyn.at(p + 2 * k, 2)); }
 
 const uint8_t *frameBox(uint32_t hdr) {
   static const uint8_t NONE[4] = {0, 0, 0, 0};

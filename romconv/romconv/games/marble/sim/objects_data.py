@@ -66,57 +66,29 @@ def walk(rom, roots, patch=None):
     return code, anims, tags
 
 
-def object_bytes(rom, race):
-    """Program ROM bytes the object slots of one race read: spawn list, scripts, animation
-    lists, terrain blocks. Playfield tile blocks (never read by the sim, patched by the
-    remake from `patches`) and MO frames (format 0x1a8d2, Phase 4) are not included."""
-    ents, roots = scripts_of(rom, race)
+def object_parts(rom, race):
+    """Program ROM bytes the object slots of one race read, as (script bytes, animation list
+    bytes, terrain code blocks of mode 1/2 entries). Playfield tile blocks (never read by the
+    sim, patched by the remake from `patches`) and MO frames (format 0x1a8d2, Phase 4) are not
+    included."""
+    _, roots = scripts_of(rom, race)
     code, anims, tags = walk(rom, roots)
-    out = set(code)
-    a = rom.l(0x1dec0 + 4 * race)
-    out.update(range(a, a + 6 * len(ents) + 1))
-    if any(sc == 0 for _, _, sc in ents): out.update(range(0x1ded8, 0x1ded8 + 64))
+    lists, dyn = set(), set()
     for lst, stride, tag, mode in anims:
         n = 0
         while rom.l(lst + n * stride) != 0xffffffff and n < 500: n += 1
-        out.update(range(lst, lst + n * stride + 4))
+        lists.update(range(lst, lst + n * stride + 4))
         if stride != 8: continue
         for k in range(n):
             d = rom.l(lst + k * stride + 4)
-            if d: out.update(range(d, d + 4 + 2 * rom.w(d + 2)))
-    if race == 2: out.update(range(0x24c7a, 0x24e28))    # wave tables 0x1d06a
-    return out
-
-
-def anim_bytes(rom, race):
-    """Animation list bytes of the object slots of one race (entries of 4 or 8 bytes up to the
-    0xffffffff end), a subset of object_bytes()."""
-    _, roots = scripts_of(rom, race)
-    _, anims, _ = walk(rom, roots)
-    out = set()
-    for lst, stride, tag, mode in anims:
-        n = 0
-        while rom.l(lst + n * stride) != 0xffffffff and n < 500: n += 1
-        out.update(range(lst, lst + n * stride + 4))
-    return out
+            if d: dyn.update(range(d, d + 4 + 2 * rom.w(d + 2)))
+    return set(code), lists, dyn
 
 
 def global_anim_bytes(rom):
     """The three global animation lists of tag 3 (0x40044a/e/52, wrap targets 0x211fe,
     0x2121e, 0x2126e, 0x212b2) with the long before each (0x13068 reads it)."""
     out = set()
-    for a in (0x211fe, 0x2121e, 0x2126e, 0x212b2):
-        e = a
-        while rom.l(e) != 0xffffffff: e += 4
-        out.update(range(a - 4, e + 4))
-    return out
-
-
-def object_tables(rom):
-    """Tables all races share: spawn list pointers, slot address table (0x12d6e), the three
-    global animation lists tag 3 steps (0x40044a/e/52, wrap targets 0x211fe, 0x2121e,
-    0x2126e, 0x212b2; 0x13068 also reads the long before the pointer)."""
-    out = set(range(0x1dec0, 0x1dec0 + 24)) | set(range(0x1f016, 0x1f016 + 100))
     for a in (0x211fe, 0x2121e, 0x2126e, 0x212b2):
         e = a
         while rom.l(e) != 0xffffffff: e += 4
