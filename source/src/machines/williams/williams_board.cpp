@@ -27,7 +27,8 @@ void WilliamsBoard::reset() {
   pia[PIA_INPUTS].reset();
   pia[PIA_SYSTEM].reset();
   snd.reset();
-  cycles = soundCycles = stall = frame = 0;
+  cycles = soundCycles = stall = frame = idleStart = 0;
+  touched = true;  // no pass recorded yet
   keyState = 0;
   memset(&cpu6809, 0, sizeof(cpu6809));
   m6809_reset(&cpu6809);
@@ -54,6 +55,7 @@ void WilliamsBoard::runFrame() {
   }
   scan.flip();
   cycles -= FRAME_CYCLES;  // keep the overshoot of the last instruction
+  idleStart -= FRAME_CYCLES;
   soundCycles -= FRAME_CYCLES;
   frame++;
 }
@@ -83,10 +85,37 @@ void WilliamsBoard::runMain(uint32_t until) {
     } else {
       cpu6809.irq_pending = 0;
     }
+    const uint16_t pc = cpu6809.PC;
     cycles += m6809_step(&cpu6809, 1);
     cycles += stall;
     stall = 0;
+    if (cpu6809.PC <= pc) {  // backward jump: a loop pass ended
+      skipIdle(until);
+    }
   }
+}
+
+// A pass that came back to the same PC with the same registers, without
+// writes or I/O reads, repeats unchanged until the IRQ (Joust's TST ,X /
+// BNE, Robotron's and Defender's flag polls). The IRQ line only moves at
+// slice boundaries or on PIA accesses, so the whole passes that fit the
+// slice run at once; the cut pass is stepped.
+void WilliamsBoard::skipIdle(uint32_t until) {
+  const m6809_state &c = cpu6809;
+  const bool same = !touched && !c.halted && c.PC == idle.PC && c.A == idle.A &&
+                    c.B == idle.B && c.X == idle.X && c.Y == idle.Y && c.U == idle.U &&
+                    c.S == idle.S && c.DP == idle.DP && c.CC == idle.CC;
+  const uint32_t pass = cycles - idleStart;
+  idle = c;
+  idleStart = cycles;
+  touched = false;
+  // an unmasked IRQ line is taken before the next instruction
+  if (!same || cycles >= until || (pia[PIA_SYSTEM].irq() && !(c.CC & M6809_CC_I))) {
+    return;
+  }
+
+  cycles += (until - cycles) / pass * pass;
+  idleStart = cycles;
 }
 
 uint8_t WilliamsBoard::videoCounter() const {
@@ -146,10 +175,15 @@ void WilliamsBoard::cmosWrite(uint16_t addr, uint8_t val) {
 uint8_t WilliamsBoard::readLow(uint16_t addr) { return ram[addr]; }
 
 uint8_t WilliamsBoard::read(uint16_t addr) {
-  return addr < RAM_SIZE ? readLow(addr) : readHigh(addr);
+  if (addr < RAM_SIZE) {
+    return readLow(addr);
+  }
+  touched = true;  // I/O: PIA, video counter
+  return readHigh(addr);
 }
 
 void WilliamsBoard::write(uint16_t addr, uint8_t val) {
+  touched = true;
   if (addr < RAM_SIZE) {
     ram[addr] = val;  // ROM overlays never block writes
     return;

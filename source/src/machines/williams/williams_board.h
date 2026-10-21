@@ -74,6 +74,7 @@ private:
 
   void beam(int line);
   void runMain(uint32_t until);
+  void skipIdle(uint32_t until);
   void syncSound();
 
   BoardConfig cfg;
@@ -87,6 +88,9 @@ private:
   uint32_t soundCycles = 0;  // 6809 cycle the 6808 has run up to
   uint32_t stall = 0;   // blitter halt, charged after the instruction
   uint32_t frame = 0;
+  m6809_state idle;          // main CPU after the last backward jump
+  uint32_t idleStart = 0;    // cycles at that jump
+  bool touched = true;       // write or I/O read since then
   unsigned int keyState = 0;
 };
 
