@@ -3,8 +3,9 @@ from collections.abc import Sequence
 from romconv.core.errors import ConversionError
 from romconv.core.job import Job
 from romconv.cpu import m6502, z80
-from romconv.games import (anteater, bagman, crush, digdug, dkong, eyes, frogger, galaga, galaxian, game_1942,
-                           lizwiz, mcr, mrtnt, pacman, theglob, vanvan, williams)
+from romconv.games import (anteater, bagman, bombjack, commando, crush, digdug, dkong, dkong3, dkongjr, eyes,
+                           frogger, galaga, galaxian, game_1942, gng, invaders, lizwiz, mcr, mrdo, mrtnt, pacman,
+                           pengo, starforce, theglob, vanvan, williams)
 from romconv.games.namco import digdug2, gaplus, mappy, phozon, todruaga, xevious
 from romconv.games.system1 import jobs as system1
 from romconv.gfx import logo
@@ -33,6 +34,15 @@ ALL: tuple[Job, ...] = (
     pacman.JOB,
     theglob.JOB,
     vanvan.JOB,
+    bombjack.JOB,
+    commando.JOB,
+    dkong3.JOB,
+    dkongjr.JOB,
+    gng.JOB,
+    invaders.JOB,
+    mrdo.JOB,
+    pengo.JOB,
+    *starforce.JOBS,
     *galaxian.JOBS,
     mappy.JOB,
     gaplus.JOB,
