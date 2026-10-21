@@ -49,6 +49,7 @@ void Arena::init() {
 
 void Arena::reset() {
   CriticalSection guard;
+  scratchPtr = nullptr;
   usedA = 0;
   usedB = 0;
   limitA = plannedA = BLOCK_A_SIZE;
@@ -57,6 +58,7 @@ void Arena::reset() {
 
 void Arena::reserve(const ArenaPlan *plan) {
   CriticalSection guard;
+  scratchPtr = nullptr;
   usedA = 0;
   usedB = 0;
   const uint32_t a = plan ? plan->a : 0;
@@ -108,6 +110,54 @@ uint8_t *Arena::alloc(uint32_t bytes, uint32_t align, ArenaBlock block) {
   printf("fatal: arena out of memory, wanted=%d, left=%d\n", bytes, bytesUsed());
   abort();
   return nullptr;
+}
+
+uint8_t *Arena::scratchPtr = nullptr;
+uint32_t Arena::scratchLimit = 0;
+
+// lowers the block's first-fit limit below the scratch
+static uint8_t *takeTop(uint8_t *block, uint32_t used, uint32_t &limit, uint32_t bytes) {
+  if (bytes > limit) {
+    return nullptr;
+  }
+  const uint32_t top = (limit - bytes) & ~3u;
+  if (top < used) {
+    return nullptr;
+  }
+  limit = top;
+  return block + top;
+}
+
+uint8_t *Arena::scratch(uint32_t bytes) {
+  CriticalSection guard;
+  if (scratchPtr) {
+    return nullptr;
+  }
+  const uint32_t oldA = limitA;
+  const uint32_t oldB = limitB;
+  uint8_t *p = takeTop(blockA, usedA, limitA, bytes);
+  scratchLimit = oldA;
+  if (!p) {
+    p = takeTop(blockB, usedB, limitB, bytes);
+    scratchLimit = oldB;
+  }
+  scratchPtr = p;
+  return p;
+}
+
+bool Arena::release(const void *p) {
+  CriticalSection guard;
+  if (!p || p != scratchPtr) {
+    return false;
+  }
+  if (scratchPtr >= blockA && scratchPtr < blockA + BLOCK_A_SIZE) {
+    limitA = scratchLimit;
+  }
+  else {
+    limitB = scratchLimit;
+  }
+  scratchPtr = nullptr;
+  return true;
 }
 
 uint32_t Arena::bytesUsed() {

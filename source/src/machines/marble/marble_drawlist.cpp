@@ -1,6 +1,7 @@
 #include "marble_drawlist.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 #include "../../emulation/asset.h"
 #include "marble_enemies.h"
@@ -565,4 +566,4 @@ uint8_t build(const Mem &m, int16_t cam, int16_t cullMargin, VideoState &v) {
 
 }  // namespace marble_drawlist
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

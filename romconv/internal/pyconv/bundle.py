@@ -1,21 +1,32 @@
 #!/usr/bin/env python3
-# Remote asset bundle: one file per game on galagino-server, downloaded by
-# the device loader into its data partition and memory-mapped.
+# Remote asset bundle: one file per game on galagino-server. The device
+# loader streams it, decodes PLAIN entries and writes a cache entry into its
+# data partition, then memory-maps that entry.
 #
-# Layout, little endian (source/src/net/bundle.cpp parses it):
+# Layout, little endian, wire bundle and cache entry alike
+# (source/src/net/bundle.cpp, bundle_unpack.cpp parse it):
 #   header  magic u32, version u16, entry count u16
 #   entries id u32, offset u32, stored length u32, raw length u32, flags u32
-#   data    per entry at offset (from bundle start), 4-byte aligned
+#   data    per entry at offset (from bundle start), 4-byte aligned, in order
+#
+# Flags:   wire                          cache entry
+#   PLAIN  LZMA, 64 KB dictionary        RAW, stored == raw (read in place)
+#   COMP.  PACKED, app's LZMA stream     PACKED, copied (unpacked to Arena)
 import hashlib
 import os
 import struct
 
 MAGIC = 0x42474C47  # "GLGB"
-VERSION = 1
+VERSION = 2
 HEADER = struct.Struct("<LHH")
 ENTRY = struct.Struct("<5L")
-FLAG_RAW = 0  # stored bytes are the raw asset bytes
-ALIGN = 4     # uint32_t assets are read in place
+FLAG_RAW = 0     # stored bytes are the raw asset bytes
+FLAG_PACKED = 1  # props byte + LZMA1 stream, unpacked into Arena on use
+FLAG_LZMA = 2    # wire only: decoded into a RAW entry by the loader
+ALIGN = 4        # uint32_t assets are read in place
+MAX_ENTRIES = 64
+TAG_BYTES = 4096        # cache tag sector before each entry
+CACHE_BYTES = 0x100000  # assets partition (source/partitions-assets.csv)
 
 
 def asset_id(name):
@@ -31,26 +42,48 @@ def bundle_hash(data):
     return hashlib.sha256(data).digest()[:8]
 
 
+def _layout(items):
+    """Header + table + 4-byte aligned data; items: (id, data, raw len, flags)."""
+    table = bytearray(HEADER.pack(MAGIC, VERSION, len(items)))
+    data = bytearray()
+    start = HEADER.size + ENTRY.size * len(items)
+    for aid, stored, raw_len, flags in items:
+        data += b"\0" * (-(start + len(data)) % ALIGN)
+        table += ENTRY.pack(aid, start + len(data), len(stored), raw_len, flags)
+        data += stored
+    return bytes(table + data)
+
+
 class BundleWriter:
     def __init__(self):
         self.assets = []
 
-    def add(self, name, raw):
+    def add(self, name, raw, packed, mode):
+        """mode PLAIN: packed = 64 KB dictionary stream; COMPRESSED: the
+        app's stream (`<name>_packed`), its length is in the remote blob."""
+        if mode not in ("PLAIN", "COMPRESSED"):
+            raise ValueError(f"{name}: unknown mode {mode}")
         aid = asset_id(name)
         # duplicate name or FNV collision: the device would resolve the wrong asset
-        if any(aid == other for other, _ in self.assets):
+        if any(aid == a[0] for a in self.assets):
             raise ValueError(f"asset id 0x{aid:08X} of {name} already in bundle")
-        self.assets.append((aid, bytes(raw)))
+        if len(self.assets) == MAX_ENTRIES:
+            raise ValueError(f"{name}: more than {MAX_ENTRIES} assets in one bundle")
+        self.assets.append((aid, bytes(raw), bytes(packed), mode))
 
     def build(self):
-        table = bytearray(HEADER.pack(MAGIC, VERSION, len(self.assets)))
-        data = bytearray()
-        start = HEADER.size + ENTRY.size * len(self.assets)
-        for aid, raw in self.assets:
-            data += b"\0" * (-(start + len(data)) % ALIGN)
-            table += ENTRY.pack(aid, start + len(data), len(raw), len(raw), FLAG_RAW)
-            data += raw
-        return bytes(table + data)
+        """Wire bundle, as served under /g/<hash>."""
+        return _layout([(aid, packed, len(raw), FLAG_LZMA if mode == "PLAIN" else FLAG_PACKED)
+                        for aid, raw, packed, mode in self.assets])
+
+    def entry(self):
+        """Cache entry the device writes for build()."""
+        out = _layout([(aid, raw, len(raw), FLAG_RAW) if mode == "PLAIN"
+                       else (aid, packed, len(raw), FLAG_PACKED)
+                       for aid, raw, packed, mode in self.assets])
+        if len(out) + TAG_BYTES > CACHE_BYTES:
+            raise ValueError(f"cache entry {len(out)} bytes does not fit the assets partition")
+        return out
 
 
 def write_bundle(data, server_root):

@@ -11,6 +11,7 @@
 #include "arena.h"
 #include "lzma/LzmaDec.h"
 #ifdef ASSETS_REMOTE
+#include "../catalog.h"     // BUILTIN_<DIR> of the generated asset headers
 #include "../net/bundle.h"
 #endif
 
@@ -39,12 +40,18 @@ struct FlashAsset<T, PLAIN> {
 
 // block: where unpack() puts it (omitted: ARENA_ANY, first fit). Shares
 // count's word: ~400 blobs in flash.
+// packed == nullptr: remote asset (ASSETS_REMOTE), resolved by id in the
+// mounted bundle. id only exists in ASSETS_REMOTE builds: mode 1 blobs keep
+// their size.
 template<typename T>
 struct FlashAsset<T, COMPRESSED> {
     const uint8_t *packed;
     uint32_t packedLen;
     uint32_t count : 30;
     ArenaBlock block : 2;
+#ifdef ASSETS_REMOTE
+    uint32_t id;
+#endif
 };
 
 template<typename T>
@@ -56,7 +63,7 @@ public:
 #ifdef ASSETS_REMOTE
     // once per machine, never in data(): no per-frame cost
     constexpr Asset(const FlashAsset<T, PLAIN> &blob)
-      : data_(blob.data ? blob.data : (const T *)Bundle::find(blob.id, blob.count * sizeof(T))),
+      : data_(blob.data ? blob.data : (const T *)Bundle::find(blob.id, Bundle::FLAG_RAW)),
         count_(blob.count) { }
 #else
     constexpr Asset(const FlashAsset<T, PLAIN> &blob)
@@ -84,8 +91,15 @@ public:
     constexpr Asset(const uint8_t *packed, uint32_t packedLen, uint32_t count,
                     ArenaBlock block = ARENA_ANY)
       : packed(packed), packedLen(packedLen), count(count), block(block), current(nullptr) { }
+#ifdef ASSETS_REMOTE
+    // once per machine; id 0: no asset (AnyAsset's empty side)
+    Asset(const FlashAsset<T, COMPRESSED> &blob)
+      : Asset(blob.packed || !blob.id ? blob.packed : (const uint8_t *)Bundle::find(blob.id, Bundle::FLAG_PACKED),
+              blob.packedLen, blob.count, blob.block) { }
+#else
     constexpr Asset(const FlashAsset<T, COMPRESSED> &blob)
       : Asset(blob.packed, blob.packedLen, blob.count, blob.block) { }
+#endif
 
     // No release(): the cache dies with its machine, Arena::reset() frees
     // the memory. Menu logos (logo.h) use decodeInto().
@@ -109,6 +123,12 @@ public:
     // Packed layout (romconv asset_emit.py): 1 LZMA properties byte
     // (lc/lp/pb), then a raw LZMA1 stream with end marker.
     void decodeInto(T *dst) const {
+#ifdef ASSETS_REMOTE
+      if (!packed) {
+        printf("Asset: remote asset missing in the mounted bundle\n");
+        abort();
+      }
+#endif
       const SizeT outLen = count * sizeof(T);
 
       // dst holds the whole output, so back-references read from it: no
@@ -120,9 +140,9 @@ public:
       SizeT destLen = outLen;
       SizeT srcLen = packedLen - 1;
       ELzmaStatus status;
-      // probability table only, 5.5 KB at lc=lp=0, freed before return
+      // probability table only, 5.2 KB at lc=lp=0, freed before return
       SRes res = LzmaDecode((Byte *)dst, &destLen, packed + 1, &srcLen,
-                            props, LZMA_PROPS_SIZE, LZMA_FINISH_END, &status, &heapAlloc);
+                            props, LZMA_PROPS_SIZE, LZMA_FINISH_END, &status, &probsAlloc);
 
       if (res != SZ_OK || destLen != outLen) {
         printf("Asset: decompress failed (res=%d, status=%d, got %u/%u bytes)\n",
@@ -154,9 +174,19 @@ private:
       current = buf;
     }
 
-    static void *heapAllocFn(ISzAllocPtr, size_t size) { return malloc(size); }
-    static void heapFreeFn(ISzAllocPtr, void *address) { free(address); }
-    static constexpr ISzAlloc heapAlloc = { heapAllocFn, heapFreeFn };
+    // Arena scratch first: the system heap is small and, after WiFi,
+    // fragmented (largest block ~14 KB); malloc only if the Arena gap is
+    // too small or the other core is decoding
+    static void *probsAllocFn(ISzAllocPtr, size_t size) {
+      void *p = Arena::scratch(size);
+      return p ? p : malloc(size);
+    }
+    static void probsFreeFn(ISzAllocPtr, void *address) {
+      if (!Arena::release(address)) {
+        free(address);
+      }
+    }
+    static constexpr ISzAlloc probsAlloc = { probsAllocFn, probsFreeFn };
 
     const uint8_t *packed;
     uint32_t packedLen;
@@ -166,6 +196,6 @@ private:
 };
 
 template<typename T>
-constexpr ISzAlloc Asset<T, COMPRESSED>::heapAlloc;
+constexpr ISzAlloc Asset<T, COMPRESSED>::probsAlloc;
 
 #endif

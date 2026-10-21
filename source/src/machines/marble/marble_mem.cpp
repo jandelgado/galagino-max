@@ -1,6 +1,7 @@
 #include "marble_mem.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,7 +31,7 @@ void fail(const char *what, uint32_t addr) {
 // marble_tables in flash (PLAIN) or unpacked into its planned Arena block,
 // as romconv's Arena plan picks per layout
 static const uint8_t *loadTables(const FlashAsset<unsigned char, PLAIN> &b) {
-  return b.data;
+  return Asset<unsigned char, PLAIN>(b).data();  // resolves remote blobs
 }
 
 static const uint8_t *loadTables(const FlashAsset<unsigned char, COMPRESSED> &b) {
@@ -163,4 +164,4 @@ uint8_t Mem::record(uint16_t code, uint8_t q) const {
 
 }  // namespace marble_physics
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

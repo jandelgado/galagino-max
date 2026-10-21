@@ -1,4 +1,5 @@
-#ifdef ENABLE_MRVIKING
+#include "../../catalog.h"
+#ifdef GAME_MRVIKING
 
 #include "mrviking.h"
 #include "mrviking_logo.h"
@@ -46,4 +47,4 @@ void mrviking::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_MRVIKING
+#endif // GAME_MRVIKING

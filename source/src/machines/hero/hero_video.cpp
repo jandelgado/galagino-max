@@ -1,4 +1,5 @@
-#ifdef ENABLE_HERO
+#include "../../catalog.h"
+#ifdef GAME_HERO
 
 #include "hero_video.h"
 #include "hero_cmap.h"
@@ -296,4 +297,4 @@ void scaleLine(const uint8_t *src, uint16_t *dst) {
 
 } // namespace hero_video
 
-#endif // ENABLE_HERO
+#endif // GAME_HERO

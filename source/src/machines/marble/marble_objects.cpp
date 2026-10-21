@@ -1,7 +1,8 @@
 #include "marble_objects.h"
 #include "marble_enemies.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 #include "marble_drawlist.h"
 #include "marble_physics.h"
@@ -1211,4 +1212,4 @@ void init(Mem &m, uint8_t race) {
 
 }  // namespace marble_objects
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

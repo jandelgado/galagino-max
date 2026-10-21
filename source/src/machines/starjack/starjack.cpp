@@ -1,4 +1,5 @@
-#ifdef ENABLE_STARJACK
+#include "../../catalog.h"
+#ifdef GAME_STARJACK
 
 #include "starjack.h"
 #include "starjack_logo.h"
@@ -41,4 +42,4 @@ void starjack::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_STARJACK
+#endif // GAME_STARJACK

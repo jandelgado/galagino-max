@@ -78,6 +78,8 @@
 #include "wifi.h"
 
 static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
+static constexpr uint32_t SETTLE_POLL_MS = 10;
+static constexpr uint32_t SETTLE_POLLS_MAX = 20;
 static constexpr uint16_t HTTP_DEFAULT_PORT = 80;
 static constexpr uint32_t RECV_TIMEOUT_S = 5;
 static constexpr uint32_t CONNECT_TCP_TIMEOUT_S = 5;
@@ -380,7 +382,26 @@ static void initOnce() {
   esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, onEvent, nullptr);
 }
 
-static bool wifiUp() {
+// a task that deleted itself (the emulation task, just stopped) is counted
+// until the idle task frees it: wait until the count settles, or the
+// tasksGone() check in down() could free a WiFi task stack too early
+static void tasksSettle() {
+  UBaseType_t n = uxTaskGetNumberOfTasks();
+  for (uint32_t i = 0; i < SETTLE_POLLS_MAX; i++) {
+    delay(SETTLE_POLL_MS);
+    const UBaseType_t now = uxTaskGetNumberOfTasks();
+    if (now == n) {
+      return;
+    }
+    n = now;
+  }
+}
+
+static uint32_t connectStart = 0;
+static bool started = false;
+
+// init + start; connecting goes on in the WiFi task
+static bool wifiStart() {
   osi = g_wifi_osi_funcs;
   osi._malloc = wMalloc32;
   osi._free = wFree;
@@ -394,9 +415,7 @@ static bool wifiUp() {
   osi._wifi_zalloc = wZalloc;
   osi._task_create_pinned_to_core = wTaskCreatePinned;
   osi._task_create = wTaskCreate;
-  // the emulation task deletes itself after emulation_stop(); its TCB may
-  // still be pending cleanup. Safe because the loader erases (seconds, with
-  // yields) before up(). Calling up() right after a machine stop needs a wait.
+  tasksSettle();
   tasksBefore = uxTaskGetNumberOfTasks();
 
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -425,16 +444,20 @@ static bool wifiUp() {
   esp_wifi_set_config(WIFI_IF_STA, &sta);
 
   gotIp = false;
-  const uint32_t t0 = millis();
+  connectStart = millis();
   esp_wifi_start();
-  while (!gotIp && millis() - t0 < CONNECT_TIMEOUT_MS) {
+  return true;
+}
+
+static bool wifiWait() {
+  while (!gotIp && millis() - connectStart < CONNECT_TIMEOUT_MS) {
     delay(50);
   }
   if (!gotIp) {
     printf("wifi: connect timeout\n");
     return false;
   }
-  printf("wifi: connected in %u ms\n", millis() - t0);
+  printf("wifi: connected %u ms after begin\n", millis() - connectStart);
   return true;
 }
 
@@ -522,13 +545,22 @@ bool Wifi::get(const char *url, HttpBody &body) {
   return ok && body.complete();
 }
 
-bool Wifi::up() {
+bool Wifi::begin() {
   initOnce();
   heapOpen();
-  return wifiUp();
+  started = wifiStart();
+  return started;
+}
+
+bool Wifi::up() {
+  if (!started && !begin()) {
+    return false;
+  }
+  return wifiWait();
 }
 
 void Wifi::down() {
+  started = false;
   esp_wifi_disconnect();
   esp_wifi_stop();
   esp_wifi_deinit();

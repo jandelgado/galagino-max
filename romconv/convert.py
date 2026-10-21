@@ -120,8 +120,14 @@ GAMES = [
 games = GAMES if len(sys.argv[1:]) == 0 else sys.argv[1:]
 info(f"--------- Convert {'all' if games is GAMES else ' '.join(games)} ---------")
 run("internal/pokey_poly.py")
+run("internal/pyconv/make_unpack_fixture.py")
 
 for game in games:
     run(f"internal/pyconv/conv_{game}.py")
+
+# mode 3 (ASSETS_REMOTE): gating macros, then one bundle per catalog game
+info("--------- Catalog and remote bundles ---------")
+run("internal/pyconv/catalog.py")
+run("internal/pyconv/bundles.py")
 
 info("--- Success ---")

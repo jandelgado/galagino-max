@@ -26,6 +26,7 @@
 #include "machines/selftest/selftest.h"
 #ifdef ASSETS_REMOTE
   #include "net/loader.h"
+  #include "net/loader_screen.h"
 #endif
 #ifdef LED_PIN
   #include "emulation/led.h"
@@ -275,7 +276,8 @@ static void switchTo(int8_t index) {
     lastIndex = index;
     menuPreselect = index;
 #ifdef ASSETS_REMOTE
-    if (!Loader::prepare(machines[index].bundle)) {
+    LoaderScreen screen(video, frame_buffer, input);
+    if (!Loader::prepare(machines[index].bundle, screen)) {
       switchTo(SHOW_MENU);
       return;
     }

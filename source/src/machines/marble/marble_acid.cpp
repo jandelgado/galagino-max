@@ -5,7 +5,8 @@
 #include "marble_rng.h"
 #include "marble_sound.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 // 1:1 port of tools/marble_acid.py (function names as there; Marble Love
 // string-range-dispatch-17346.ts, string-step-1725a.ts, entity-waypoint-step-1d1ec.ts,
@@ -310,4 +311,4 @@ void target_176d2(Mem &m, uint32_t a2) { marble_acid::target(m, a2); }
 
 }  // namespace marble_enemies
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

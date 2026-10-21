@@ -2,6 +2,8 @@
 #define ARENA_H
 
 #include <cstdint>
+#include <new>
+#include <type_traits>
 #include "arena_layout.h"
 
 // Where an asset unpacks: ANY = first fit (A, then B); A/B = that block's
@@ -77,6 +79,23 @@ public:
         return (T *)alloc(count * sizeof(T), alignof(T));
     }
 
+    // One T built in the Arena, never destroyed: reset() drops it. For
+    // machine state too big for the machine object, which lives in the
+    // system heap (after WiFi its largest block is ~14 KB).
+    template<typename T>
+    static T *create() {
+        static_assert(std::is_trivially_destructible<T>::value, "Arena never runs destructors");
+        return new (alloc<T>(1)) T();
+    }
+
+    // Transient buffer at the top of a block's free gap (A first), for
+    // the LZMA probability table of one unpack: no lasting Arena cost and
+    // no system heap. One at a time; nullptr if taken (other core) or no
+    // gap fits: the caller falls back to malloc. Alignment 4.
+    static uint8_t *scratch(uint32_t bytes);
+    // true if p is the scratch, now given back; false: p is not ours
+    static bool release(const void *p);
+
     // diagnostics only
     static uint32_t bytesUsed();
 
@@ -93,6 +112,10 @@ private:
     static uint32_t limitB;
     static uint32_t plannedA;
     static uint32_t plannedB;
+    // scratch: at the lowered limit of its block, nullptr if free;
+    // scratchLimit: that limit before
+    static uint8_t *scratchPtr;
+    static uint32_t scratchLimit;
 };
 
 #endif

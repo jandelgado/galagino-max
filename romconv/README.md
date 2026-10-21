@@ -73,3 +73,30 @@ split per layout:
 - `emit_*(..., plan=False)` keeps an asset out of the plan (e.g. ADPCM
   samples, whose count is not a byte count, or assets outside the game's
   directory).
+
+## Remote bundles (mode 3, `ASSETS_REMOTE`)
+
+A mode 3 build keeps the games of its env's `ENABLE_<X>` list in the app
+and downloads every other catalog game from galagino-server. After the
+per-game converters, `convert.py` runs two more steps:
+
+- `internal/pyconv/catalog.py` writes `source/src/catalog.h` (git-ignored):
+  `GAME_<X>` (machine code compiled in: `ENABLE_<X>`, or any catalog game in
+  an `ASSETS_REMOTE` build) and `BUILTIN_<DIR>` (assets of
+  `machines/<dir>/` in the app; a built-in subclass keeps its base game's
+  assets, e.g. `ENABLE_MSPACMAN` keeps pacman's). The catalog is every game
+  in `machines.h` except the broken ones (`EXCLUDED`).
+- `internal/pyconv/bundles.py [game ...]` builds one bundle per catalog
+  game from the sidecars `asset_emit.py` leaves in `build/assets/<dir>/`
+  (`<name>.json`, `.raw`, `.lz` full dictionary, `.lz64` 64 KB
+  dictionary). It writes `galagino-server/data/g/<hash>` and
+  `<game>_bundle.h` (`BundleRef`: hash, wire and cache entry length, name)
+  and prints, per game, wire and cache entry bytes and what the 64 KB
+  dictionary costs over a full one.
+
+Every asset header emitted into a machine dir carries a remote blob form
+behind `#if defined(ASSETS_REMOTE) && !defined(BUILTIN_<DIR>)`. Logos and
+the shared dirs (`namco54`, `williams`) stay built in. In the bundle,
+PLAIN assets are LZMA with a 64 KB dictionary (the device decodes them while
+downloading, into raw flash), COMPRESSED assets carry the app's own stream.
+Bundle layout: `internal/pyconv/bundle.py`.

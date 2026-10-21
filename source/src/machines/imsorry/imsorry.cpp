@@ -1,4 +1,5 @@
-#ifdef ENABLE_IMSORRY
+#include "../../catalog.h"
+#ifdef GAME_IMSORRY
 
 #include "imsorry.h"
 #include "imsorry_logo.h"
@@ -48,4 +49,4 @@ void imsorry::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_IMSORRY
+#endif // GAME_IMSORRY

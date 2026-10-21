@@ -1,4 +1,5 @@
-#ifdef ENABLE_HVYMETAL
+#include "../../catalog.h"
+#ifdef GAME_HVYMETAL
 
 #include "hvymetal.h"
 #include "hvymetal_logo.h"
@@ -54,4 +55,4 @@ void hvymetal::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_HVYMETAL
+#endif // GAME_HVYMETAL

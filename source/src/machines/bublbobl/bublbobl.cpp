@@ -60,7 +60,8 @@ bublbobl::bublbobl() :
     const BublboblFxBlob &b = bublbobl_fx_blobs[e];
     fx_samples[e].len = b.samples;
     if (b.plain) {
-      fx_samples[e].data = b.plain->data;
+      // Asset resolves remote blobs (ASSETS_REMOTE)
+      fx_samples[e].data = Asset<unsigned char, PLAIN>(*b.plain).data();
       continue;
     }
 

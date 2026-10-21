@@ -4,7 +4,8 @@
 #include "../machineBase.h"
 #include "../../emulation/ay8910.h"
 
-#ifdef ENABLE_MOTORACE
+#include "../../catalog.h"
+#ifdef GAME_MOTORACE
 
 #include "motorace_logo.h"
 #include "motorace_dipswitches.h"
@@ -94,5 +95,5 @@ private:
 // Global pointer per callback M6803
 extern motorace *g_motorace_instance;
 
-#endif // ENABLE_MOTORACE
+#endif // GAME_MOTORACE
 #endif // MOTORACE_H

@@ -1,6 +1,7 @@
 #include "marble_hud.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 #include <stdio.h>
 #include <string.h>
@@ -446,4 +447,4 @@ void blend(const Grid &g, int row, uint16_t *dst) {
 
 }  // namespace marble_hud
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

@@ -4,7 +4,8 @@
 #include "../machineBase.h"
 #include "marble_arena_plan.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 #include "marble_logo.h"
 #include "marble_level.h"
@@ -81,5 +82,5 @@ private:
   bool sid_on = false;                        // audio core
 };
 
-#endif // ENABLE_MARBLE
+#endif // GAME_MARBLE
 #endif // MARBLE_H

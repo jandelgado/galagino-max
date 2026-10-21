@@ -1,4 +1,5 @@
-#ifdef ENABLE_PITFALL2
+#include "../../catalog.h"
+#ifdef GAME_PITFALL2
 
 #include "pitfall2.h"
 #include "pitfall2_logo.h"
@@ -49,4 +50,4 @@ void pitfall2::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_PITFALL2
+#endif // GAME_PITFALL2

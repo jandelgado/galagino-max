@@ -67,7 +67,7 @@ def parse_logo(inname, outname, preview=None):
 
     with open(outname, "w") as f:
         print('#include "../../emulation/logo.h"', file=f)
-        emit_compressed(f, c_name, "unsigned char", "", len(raw), raw)
+        emit_compressed(f, c_name, "unsigned char", "", len(raw), raw, remote=False)
         print(f"static constexpr Logo {c_name}({c_name}_blob);", file=f)
 
 if len(sys.argv) not in (3, 4):

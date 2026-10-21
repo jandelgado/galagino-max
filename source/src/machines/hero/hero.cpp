@@ -1,6 +1,7 @@
 #include "hero.h"
 
-#ifdef ENABLE_HERO
+#include "../../catalog.h"
+#ifdef GAME_HERO
 
 #include "hero_data.h"
 #include "../../emulation/pokey.h"
@@ -113,4 +114,4 @@ void hero::menuLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_HERO
+#endif // GAME_HERO

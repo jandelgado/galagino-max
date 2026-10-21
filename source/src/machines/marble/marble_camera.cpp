@@ -1,6 +1,7 @@
 #include "marble_camera.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 #include "marble_physics.h"
 #include "marble_video.h"
@@ -196,4 +197,4 @@ int16_t pan(int16_t p, int16_t x) {
 
 }  // namespace marble_camera
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

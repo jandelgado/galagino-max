@@ -1,4 +1,5 @@
-#ifdef ENABLE_FOURDWARRIO
+#include "../../catalog.h"
+#ifdef GAME_FOURDWARRIO
 
 #include "fourdwarrio.h"
 #include "fourdwarrio_logo.h"
@@ -50,4 +51,4 @@ void fourdwarrio::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_FOURDWARRIO
+#endif // GAME_FOURDWARRIO

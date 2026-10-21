@@ -1,4 +1,5 @@
-#ifdef ENABLE_PLEIADS
+#include "../../catalog.h"
+#ifdef GAME_PLEIADS
 
 #include "pleiads.h"
 #include "pleiads_rom.h"
@@ -173,4 +174,4 @@ void pleiads::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_PLEIADS
+#endif // GAME_PLEIADS

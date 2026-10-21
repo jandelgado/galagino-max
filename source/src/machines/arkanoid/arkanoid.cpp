@@ -1,4 +1,5 @@
-#ifdef ENABLE_ARKANOID
+#include "../../catalog.h"
+#ifdef GAME_ARKANOID
 
 #include "arkanoid.h"
 #include "arkanoid_rom.h"
@@ -197,4 +198,4 @@ void arkanoid::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_ARKANOID
+#endif // GAME_ARKANOID

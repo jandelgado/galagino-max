@@ -1,6 +1,7 @@
 #include "marble_hiscore.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 #include <string.h>
 #include "marble_rom.h"
@@ -20,4 +21,4 @@ void defaults(Table &t) {
 
 }  // namespace marble_hiscore
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

@@ -5,7 +5,8 @@
 #include "../../emulation/sn76489.h"
 #include "../../emulation/seqlock.h"
 
-#ifdef ENABLE_ROADFIGHTER
+#include "../../catalog.h"
+#ifdef GAME_ROADFIGHTER
 
 #include "../../cpus/m6809/m6809.h"
 #include "roadfighter_palette.h"      // tile/sprite colormap (palette+clut bakate)
@@ -108,7 +109,10 @@ private:
   m6809_state main_cpu;
 
   // Audio Z80 state
-  unsigned char snd_ram[0x1000];   // $4000-$4FFF (4 KB)
+  // RAM and video state in the Arena: the machine object lives in the
+  // system heap, whose blocks after WiFi are too small for them
+  static const uint16_t SND_RAM_BYTES = 0x1000;
+  unsigned char *const snd_ram;    // $4000-$4FFF (4 KB)
   unsigned char sound_latch;
   unsigned char sn_latch;
   unsigned long snd_icnt;
@@ -138,8 +142,8 @@ private:
     unsigned char spr[0xC0];
     unsigned char flip_screen;
   };
-  Seqlock<VideoState> vblank;
-  VideoState video = {};
+  Seqlock<VideoState> &vblank;
+  VideoState &video;
   void blit_sprite_strip(int tcol, unsigned char s);
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
@@ -151,5 +155,5 @@ protected:
   static const int DAC_GAIN = 2;
 };
 
-#endif // ENABLE_ROADFIGHTER
+#endif // GAME_ROADFIGHTER
 #endif // ROADFIGHTER_H

@@ -24,7 +24,7 @@ static void put32(std::vector<uint8_t> &b, uint32_t at, uint32_t v) {
 static std::vector<uint8_t> oneEntry() {
   std::vector<uint8_t> b(36, 0);
   put32(b, 0, 0x42474C47);
-  b[4] = 1;
+  b[4] = 2;
   b[6] = 1;
   const uint32_t e[5] = {ID, 28, 8, 8, 0};
   for (uint32_t i = 0; i < 5; i++) {
@@ -57,6 +57,37 @@ static void test_remote_blob_missing(void) {
   TEST_ASSERT_NULL(a.data());
 }
 
+// LZMA stream of 16 raw bytes 0..15 (asset_emit.lzma_compress, pb 0)
+static const uint8_t PACKED[] = {
+  0x00,0x00,0x00,0x00,0x54,0xE8,0x2A,0x60,0x1C,0x69,0x6D,0x6E,0x8C,0x19,0x05,0xD9,
+  0x96,0xA4,0xAC,0x5C,0x2E,0xFF,0xFE,0x4F,0x28,0x00};
+static const uint32_t PACKED_ID = 0x5678;
+
+// one PACKED entry: id PACKED_ID, the stream at offset 28
+static std::vector<uint8_t> packedEntry() {
+  std::vector<uint8_t> b(28 + sizeof(PACKED), 0);
+  put32(b, 0, 0x42474C47);
+  b[4] = 2;
+  b[6] = 1;
+  const uint32_t e[5] = {PACKED_ID, 28, sizeof(PACKED), 16, Bundle::FLAG_PACKED};
+  for (uint32_t i = 0; i < 5; i++) {
+    put32(b, 8 + 4 * i, e[i]);
+  }
+  memcpy(&b[28], PACKED, sizeof(PACKED));
+  return b;
+}
+
+static void test_remote_compressed_unpacks(void) {
+  std::vector<uint8_t> b = packedEntry();
+  TEST_ASSERT_TRUE(Bundle::mount(b.data(), b.size()));
+  static constexpr FlashAsset<uint8_t, COMPRESSED> blob = {nullptr, sizeof(PACKED), 16, ARENA_ANY, PACKED_ID};
+  Asset<uint8_t, COMPRESSED> a(blob);
+  const uint8_t *d = a.data();
+  for (uint8_t i = 0; i < 16; i++) {
+    TEST_ASSERT_EQUAL_UINT8(i, d[i]);
+  }
+}
+
 // base classes fed by subclass blobs (system1, starforce) see remote blobs too
 static void test_any_asset_remote_blob_resolves(void) {
   std::vector<uint8_t> b = oneEntry();
@@ -68,10 +99,12 @@ static void test_any_asset_remote_blob_resolves(void) {
 }
 
 int main(int, char **) {
+  Arena::init();
   UNITY_BEGIN();
   RUN_TEST(test_builtin_blob_unchanged);
   RUN_TEST(test_remote_blob_resolves);
   RUN_TEST(test_remote_blob_missing);
   RUN_TEST(test_any_asset_remote_blob_resolves);
+  RUN_TEST(test_remote_compressed_unpacks);
   return UNITY_END();
 }

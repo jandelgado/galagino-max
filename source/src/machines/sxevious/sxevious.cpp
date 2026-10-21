@@ -1,4 +1,5 @@
-#ifdef ENABLE_SXEVIOUS
+#include "../../catalog.h"
+#ifdef GAME_SXEVIOUS
 
 #include "sxevious.h"
 #include "sxevious_logo.h"
@@ -29,4 +30,4 @@ void sxevious::menuLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_SXEVIOUS
+#endif // GAME_SXEVIOUS

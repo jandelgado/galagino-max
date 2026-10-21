@@ -1,4 +1,5 @@
-#ifdef ENABLE_UPNDOWN
+#include "../../catalog.h"
+#ifdef GAME_UPNDOWN
 
 #include "upndown.h"
 #include "upndown_logo.h"
@@ -43,4 +44,4 @@ void upndown::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_UPNDOWN
+#endif // GAME_UPNDOWN

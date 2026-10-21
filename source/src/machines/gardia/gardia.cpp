@@ -1,4 +1,5 @@
-#ifdef ENABLE_GARDIA
+#include "../../catalog.h"
+#ifdef GAME_GARDIA
 
 #include "gardia.h"
 #include "gardia_logo.h"
@@ -52,4 +53,4 @@ void gardia::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_GARDIA
+#endif // GAME_GARDIA

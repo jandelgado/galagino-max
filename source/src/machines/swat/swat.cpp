@@ -1,4 +1,5 @@
-#ifdef ENABLE_SWAT
+#include "../../catalog.h"
+#ifdef GAME_SWAT
 
 #include "swat.h"
 #include "swat_logo.h"
@@ -46,4 +47,4 @@ void swat::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_SWAT
+#endif // GAME_SWAT

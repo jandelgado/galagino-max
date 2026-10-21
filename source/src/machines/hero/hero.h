@@ -4,7 +4,8 @@
 #include "../machineBase.h"
 #include "../../emulation/pokey.h"
 
-#ifdef ENABLE_HERO
+#include "../../catalog.h"
+#ifdef GAME_HERO
 
 #include "hero_logo.h"
 #include "hero_game.h"
@@ -52,5 +53,5 @@ private:
   Pokey pokey[1] = {Pokey(Pokey::CLOCKS_1789KHZ)};
 };
 
-#endif // ENABLE_HERO
+#endif // GAME_HERO
 #endif // HERO_H

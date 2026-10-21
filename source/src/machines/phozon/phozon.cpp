@@ -1,4 +1,5 @@
-#ifdef ENABLE_PHOZON
+#include "../../catalog.h"
+#ifdef GAME_PHOZON
 
 #include "phozon.h"
 
@@ -520,4 +521,4 @@ void phozon::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // ENABLE_PHOZON
+#endif // GAME_PHOZON

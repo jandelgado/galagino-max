@@ -1,6 +1,7 @@
 #include "marble_level.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 #include "../../emulation/arena.h"
 #include "../../emulation/asset.h"
@@ -59,4 +60,4 @@ uint8_t patchIndex(uint32_t record) {
 
 }  // namespace marble_level
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE

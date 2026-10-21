@@ -1,6 +1,7 @@
 #include "marble_sound.h"
 
-#ifdef ENABLE_MARBLE
+#include "../../catalog.h"
+#ifdef GAME_MARBLE
 
 #include "marble_flow.h"
 #include "marble_rom.h"
@@ -41,4 +42,4 @@ void step(Sound &s) {
 
 }  // namespace marble_sound
 
-#endif  // ENABLE_MARBLE
+#endif  // GAME_MARBLE
