@@ -11,7 +11,7 @@ from romconv.emit.asset import emit_compressed, emit_plain
 from romconv.games.system1.crypt import decrypt_main
 from romconv.games.system1.sets import SETS, SetSpec, load_roms
 from romconv.gfx.bits import BIT
-from romconv.gfx.color import rgb565_swapped
+from romconv.gfx.color import prom_level_4bit, rgb565_swapped
 from romconv.gfx.resnet import combine, resistor_weights
 
 _MIX_NO_COLLIDE = 0x04
@@ -65,9 +65,8 @@ def _palette565() -> list[int]:
 
 # MAME system1_palette() with color PROMs (R, G, B, 4 bits each)
 def _prom_palette565(prom: bytes) -> list[int]:
-    def level(v):
-        return 0x0e * BIT(v, 0) + 0x1f * BIT(v, 1) + 0x43 * BIT(v, 2) + 0x8f * BIT(v, 3)
-    return [rgb565_swapped(level(prom[i]), level(prom[256 + i]), level(prom[512 + i])) for i in range(256)]
+    return [rgb565_swapped(prom_level_4bit(prom[i]), prom_level_4bit(prom[256 + i]),
+                           prom_level_4bit(prom[512 + i])) for i in range(256)]
 
 
 def _write_palette(f, name: str, comment: str, vals: Sequence[int]) -> None:

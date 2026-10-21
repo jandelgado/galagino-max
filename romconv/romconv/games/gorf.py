@@ -1,0 +1,36 @@
+"""Convert the MAME gorf ROM set and the SC-01 speech ROM into galagino headers."""
+from romconv.core.context import Context
+from romconv.core.job import Job
+from romconv.hw.atari import check_budget, write
+
+_PROGRAM = (  # (name, Z80 address, SHA1) from MAME ROM_START( gorf )
+    ("gorf-a.bin", 0x0000, "76e2e3ad1a66755f1a369167fdb157690fd44a52"),
+    ("gorf-b.bin", 0x1000, "2601faf12d0ab4972c5535ffd722b03ecd8c097c"),
+    ("gorf-c.bin", 0x2000, "0b363a71d7585a4828e08668ebb2999c55e02721"),
+    ("gorf-d.bin", 0x3000, "392214cc6ed4155bfe022d36f0f86c2594a5ab57"),
+    ("gorf-e.bin", 0x8000, "720fb8b48e20c1fc281d8804259016c3c5364a07"),
+    ("gorf-f.bin", 0x9000, "9c9d6d3bfee6556dc7a01de81d6148dd02f04fc9"),
+    ("gorf-g.bin", 0xa000, "9edccceea5af015275582553ed238c40c73d8f4f"),
+    ("gorf-h.bin", 0xb000, "5aa8d824814ee1c30eaf0044da78d3aa8220dcaa"),
+)
+_SC01 = ("sc01.bin", "268b5884dce04e49e2376df3e2dc82e852b708c1")  # romszip/votrsc01.zip
+# Arena: VRAM + two VideoState copies + votrax coefficient tables
+# (VotraxSc01::TABLE_BYTES) + palette, row map, star list (see gorf.cpp)
+_EXTRA_BYTES = 16384 + 2 * (204 * 80 + 16) + 15232 + 4096
+
+
+def _convert(ctx: Context) -> None:
+    rom = bytearray(0x8000)  # 0x0000-0x3fff, then 0x8000-0xbfff stored at 0x4000
+    for name, addr, sha1 in _PROGRAM:
+        base = addr if addr < 0x4000 else addr - 0x4000
+        rom[base:base + 0x1000] = ctx.rom(name, sha1, zip="gorf.zip")
+    sc01 = bytes(ctx.rom(_SC01[0], _SC01[1], zip="votrsc01.zip"))
+    assert len(sc01) == 512
+    total = write(ctx, "gorf", "gorf_rom.h", "gorf_rom", rom,
+                  "Z80 ROM image: 0x0000-0x3fff then 0x8000-0xbfff stored at 0x4000-0x7fff.")
+    total += write(ctx, "gorf", "gorf_sc01.h", "gorf_sc01", sc01, "Votrax SC-01 internal phoneme ROM, 512 B.")
+    total += _EXTRA_BYTES
+    check_budget(ctx, total)
+
+
+JOB = Job(name="gorf", convert=_convert, machine="gorf", zips=("gorf.zip", "votrsc01.zip"))

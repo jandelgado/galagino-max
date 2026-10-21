@@ -1,0 +1,259 @@
+import zipfile
+import zlib
+
+import numpy as np
+import pytest
+
+from romconv import registry
+from romconv.core.context import Context
+from romconv.core.errors import ConversionError
+from romconv.games import (alibaba, arkanoid, asteroids, atetris, berzerk, bnj, btime, bublbobl, bwidow, bzone,
+                           cavenger, cbdash, ccastles, centipede, circusc, elevator, fantasy, game_1943, gberet,
+                           gorf, gravitar, gyruss)
+from romconv.games.bublbobl import sound_map
+from romconv.gfx import gfxutil
+from romconv.gfx.color import prom_level_4bit, prom_rgb_332, rgb565_swapped
+from romconv.gfx.patchtable import apply_patch_values, read_patch_table
+from romconv.hw import atari, snk6502
+
+JOBS = (game_1943.JOB, alibaba.JOB, arkanoid.JOB, asteroids.JOB, atetris.JOB, berzerk.JOB, bnj.JOB, btime.JOB,
+        bublbobl.JOB, bwidow.JOB, bzone.JOB, cavenger.JOB, cbdash.JOB, ccastles.JOB, centipede.JOB, circusc.JOB,
+        *elevator.JOBS, fantasy.JOB, gberet.JOB, gorf.JOB, gravitar.JOB, gyruss.JOB)
+
+
+def _ctx(job, paths, log):
+    return Context(job, paths, (), log)
+
+
+def test_job_shapes():
+    jobs = {j.name: j for j in JOBS}
+    assert len(jobs) == 23
+    assert {n for n, j in jobs.items() if j.plan} == {"bnj", "bublbobl"}
+    assert jobs["btime"].machine == "burgertime" and jobs["bnj"].deps == ("btime",)
+    assert jobs["alibaba"].deps == ("pacman",)
+    assert jobs["jungleh"].zips == ("junglek.zip",) and jobs["elevator"].zips == ("elevator.zip",)
+    assert jobs["gorf"].zips == ("gorf.zip", "votrsc01.zip")
+    assert jobs["ccastles"].zips == ("ccastlesj.zip", "ccastles.zip")
+    assert jobs["bublbobl"].zips == ("boblbobl.zip", "bublbobl.zip")
+    assert all(j.machine and j.zips for j in jobs.values())
+
+
+def test_registered_with_dependencies():
+    registered = {j.name: j for j in registry.ALL}
+    for job in JOBS:
+        assert registered[job.name] is job
+    assert {"btime", "bnj"} <= {j.name for j in registry.resolve(["bnj"])}
+
+
+def test_missing_zip_names_zip_and_file(paths, log):
+    with pytest.raises(ConversionError, match=r"asteroid\.zip.*035145-04e\.ef2"):
+        asteroids.JOB.convert(_ctx(asteroids.JOB, paths, log))
+
+
+def test_wrong_sha1_is_an_error(paths, log, make_zip):
+    make_zip("atetris.zip", {"136066-1100.45f": b"x", "136066-1101.35a": b"y"})
+    with pytest.raises(ConversionError, match="SHA-1 mismatch"):
+        atetris.JOB.convert(_ctx(atetris.JOB, paths, log))
+
+
+# --- shared helpers ---
+
+def test_prom_level_4bit_weights():
+    assert prom_level_4bit(0) == 0
+    assert prom_level_4bit(1) == 0x0e and prom_level_4bit(8) == 0x8f
+    assert prom_level_4bit(15) == 0x0e + 0x1f + 0x43 + 0x8f
+
+
+def test_prom_rgb_332_weights():
+    assert prom_rgb_332(0) == (0, 0, 0)
+    assert prom_rgb_332(0xff) == (0xff, 0xff, 0x47 + 0x97)
+    assert prom_rgb_332(0x04)[0] == 0x97 and prom_rgb_332(0x40)[2] == 0x47
+
+
+def test_patch_table_roundtrip(tmp_path):
+    table = tmp_path / "x.table"
+    table.write_text("0x0001\n\n0x0000\n0xFFFF\n")
+    assert read_patch_table(table) == [1, 0, 0xFFFF]
+    assert apply_patch_values([1, 2, 3, 4], [1, 0, 0xFFFF], 0xFFFF) == [2, 2, 2, 4]
+    assert apply_patch_values([5], [1, 1], 0xFF) == [6]
+
+
+def test_patch_table_errors(tmp_path):
+    with pytest.raises(ConversionError, match="missing.table"):
+        read_patch_table(tmp_path / "missing.table")
+    bad = tmp_path / "bad.table"
+    bad.write_text("zz\n")
+    with pytest.raises(ConversionError, match="bad.table"):
+        read_patch_table(bad)
+
+
+def test_gyruss_patch_tables_fit_the_assets():
+    tiles = read_patch_table(gyruss._HERE / "til_patch.table")
+    sprites = read_patch_table(gyruss._HERE / "spr_patch.table")
+    assert len(tiles) == 512 * 8 and len(sprites) >= 512 * 16
+
+
+def test_atari_budget_and_vector_write(paths, log, make_zip):
+    atari.check_budget(_ctx(asteroids.JOB, paths, log), atari.ARENA_BUDGET - 1)
+    with pytest.raises(ConversionError, match="Arena budget"):
+        atari.check_budget(_ctx(asteroids.JOB, paths, log), atari.ARENA_BUDGET)
+    assert atari._LINE_BUFFER_BYTES == 1024 * 16 + 1024 * 4 + 72
+
+
+def test_atari_convert_vector_checks_sizes(paths, log, make_zip):
+    import hashlib
+    make_zip("t.zip", {"p": b"\1" * 4, "v": b"\2" * 4})
+    sha = {n: hashlib.sha1(d).hexdigest() for n, d in (("p", b"\1" * 4), ("v", b"\2" * 4))}
+    job = asteroids.JOB.__class__(name="t", convert=lambda c: None, machine="asteroids", zips=("t.zip",))
+    ctx = _ctx(job, paths, log)
+    (paths.machines / "asteroids").mkdir(parents=True)
+    with pytest.raises(AssertionError):
+        atari.convert_vector(ctx, "t", [("p", sha["p"])], [("v", sha["v"])], "a", "b", program_bytes=5,
+                             vector_bytes=4)
+    atari.convert_vector(ctx, "t", [("p", sha["p"])], [("v", sha["v"])], "a", "b")
+    text = (paths.machines / "asteroids" / "t_rom.h").read_text()
+    assert text.startswith("// Generated by romconv/internal/t/t_rom_convert.py; do not edit.\n// a\n")
+
+
+# --- game logic ---
+
+def test_1943_line_packing_roundtrip():
+    tile = [[(x * 3 + y) & 15 for x in range(32)] for y in range(32)]
+    words = game_1943._lines(tile, 4)
+    assert len(words) == 128
+    assert game_1943._unpack(words, 32, 4) == tile
+    chars = [[(x + y) & 3 for x in range(8)] for y in range(8)]
+    assert game_1943._unpack(game_1943._lines(chars, 2), 8, 2) == chars
+
+
+def test_alibaba_decode_layout_reads_zero_beyond_the_region():
+    img = alibaba._decode_layout(b"\xff", 2, 1, 1, 1, [0], [0, 8], [0], 8)
+    assert img == [[[1, 0]]]
+
+
+def test_alibaba_rect_rotation():
+    assert alibaba._rotate_cw_rect([[1, 2, 3], [4, 5, 6]]) == [[4, 1], [5, 2], [6, 3]]
+
+
+def test_arkanoid_pack_is_rotated_msb_first():
+    tile = [[0] * 8 for _ in range(8)]
+    tile[0][0] = 5
+    # rot_galagino: out[y][x] = tile[7 - x][y]: tile[0][0] lands at out[0][7], the lowest nibble
+    assert arkanoid._pack(tile)[0] == 5
+    tile[7][0] = 3  # out[0][0], the highest nibble
+    assert arkanoid._pack(tile)[0] == 3 << 28 | 5
+
+
+def test_atetris_tile_words_high_nibble_is_left_pixel():
+    assert atetris._tile_words(bytes([0x12, 0x34, 0x56, 0x78])) == [0x87654321]
+
+
+def test_cavenger_helpers():
+    assert cavenger._rev4(0b0001) == 0b1000 and cavenger._rev4(0b0110) == 0b0110
+    assert cavenger._bit(0, 3) == 1 and cavenger._bit(8, 3) == 0
+    assert cavenger._rows2bpp([[[1, 2, 3, 0]]]) == [1 | 2 << 2 | 3 << 4]
+
+
+def test_circusc_decode_packed_high_nibble_first():
+    assert circusc._decode_packed(bytes([0x12, 0x34]), 0, 4, 1) == [[1, 2, 3, 4]]
+
+
+def test_gberet_pack_row_and_palette():
+    assert gfxutil.step(2, 3, 3) == [2, 5, 8]
+    assert gfxutil.pack_nibbles([1, 2, 3]) == 0x123
+    assert gberet._palette([0xff])[0] == rgb565_swapped(0xff, 0xff, 0xde)
+
+
+def test_bublbobl_flip_dedupe():
+    tile = [[(x + y) & 15 for x in range(8)] for y in range(8)]
+    other = [[(7 - x) & 15 for x in range(8)] for _ in range(8)]
+    mirrored = [row[::-1] for row in tile]
+    unique, remap = bublbobl._dedupe([tile, mirrored, other, tile])
+    assert len(unique) == 3 and remap[0] == remap[3] == 1
+    assert remap[1] == 1 | bublbobl._TILE_FLIPX
+    assert remap[2] == 2
+    assert bublbobl._flip_tile(bublbobl._flip_tile(bublbobl._pack_tile(tile), 1, 1), 1, 1) \
+        == bublbobl._pack_tile(tile)
+
+
+def test_bublbobl_sound_map_is_consistent():
+    assert not set(sound_map.STAND_INS) & set(sound_map.EFFECTS)
+    assert set(sound_map.STAND_INS.values()) <= set(sound_map.EFFECTS)
+    assert not set(sound_map.MUSIC) & sound_map.STOP
+    with pytest.raises(TypeError):
+        sound_map.MUSIC[1] = 2
+
+
+def test_bublbobl_decimate_halves_the_rate():
+    out = bublbobl._decimate(np.ones(200))
+    assert len(out) == 100 and abs(out[50] - 1.0) < 0.01
+
+
+def test_cbdash_relocate():
+    assert cbdash._relocate(0x5FE8) == 0x87CA and cbdash._relocate(0x980C) == 0x88CA + 0x0C
+    assert cbdash._relocate(0xD418) == 0xD418 and cbdash._relocate(0x86CA) == 0x86CA
+    with pytest.raises(ConversionError, match="outside the rebuilt tune"):
+        cbdash._relocate(0x1234)
+
+
+def test_cbdash_blocks_drop_byte_zero():
+    cas = bytes(range(256)) * 3
+    assert cbdash._blocks(cas, 1, 2) == cas[1:256] + cas[257:512]
+
+
+def test_ccastles_sync_check():
+    sync = bytearray(256)
+    for y in range(24):
+        sync[y] |= 1
+    for y in (0, 64, 128, 192):
+        sync[y] |= 8
+    cc = ccastles._check_sync
+    cc(sync)
+    sync[5] &= ~1
+    with pytest.raises(ConversionError, match="sync PROM differs"):
+        cc(sync)
+
+
+def test_elevator_draw_order_layout():
+    order = elevator._draw_order(bytes(256))
+    assert len(order) == 32 * 4 and set(order) == {0}
+
+
+def test_elevator_zero_prom_fails_the_attract_check(paths, log):
+    prom = bytes(256)
+    order = elevator._draw_order(prom)
+    assert order[24:28] != [3, 2, 0, 1]
+
+
+def test_fantasy_load_checks_size_and_crc(paths, log, make_zip):
+    data = b"\x00" * 0x1000
+    make_zip("fantasyu.zip", {"ic12.cpu": data})
+    ctx = _ctx(fantasy.JOB, paths, log)
+    with pytest.raises(ConversionError, match="CRC32"):
+        snk6502.load(ctx, fantasy._MANIFEST, "ic12.cpu")
+    make_zip("fantasyu.zip", {"ic12.cpu": data[:10]})
+    with pytest.raises(ConversionError, match="expected 0x1000 bytes"):
+        snk6502.load(ctx, fantasy._MANIFEST, "ic12.cpu")
+    assert zlib.crc32(data) != fantasy._MANIFEST["ic12.cpu"][1]
+
+
+def test_fantasy_sample_must_be_pcm(tmp_path):
+    path = tmp_path / "s.zip"
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("a.wav", b"not a wav")
+    with zipfile.ZipFile(path) as z:
+        with pytest.raises(ConversionError, match="missing b.wav"):
+            snk6502.read_sample(z, "b.wav", 6000, "pack.zip")
+
+
+def test_gyruss_tile_decoding_planes():
+    data = bytearray(16)
+    data[0] = 0x11   # row 0, pixel 0: plane0 bit 0 and plane1 bit 4
+    assert gyruss._decode_tile_pixel(data, 0, 0, 0) == 3
+    data[8] = 0x20   # pixel 5 of row 0 lives in byte 8, bit 1; plane1 is bit 5
+    assert gyruss._decode_tile_pixel(data, 0, 0, 5) == 2
+    assert gyruss._decode_tiles(bytes(16)) == [[0] * 8]
+
+
+def test_gyruss_sprite_pixel_out_of_range_is_zero():
+    assert gyruss._decode_sprite_pixel(bytes(8), 0, 0, 0, 8) == 0

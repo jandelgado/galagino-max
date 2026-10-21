@@ -3,9 +3,11 @@ from collections.abc import Sequence
 from romconv.core.errors import ConversionError
 from romconv.core.job import Job
 from romconv.cpu import m6502, z80
-from romconv.games import (anteater, bagman, bombjack, commando, crush, digdug, dkong, dkong3, dkongjr, eyes,
-                           frogger, galaga, galaxian, game_1942, gng, invaders, lizwiz, marble, mcr, mrdo, mrtnt,
-                           pacman, pengo, starforce, theglob, vanvan, williams)
+from romconv.games import (alibaba, anteater, arkanoid, asteroids, atetris, bagman, berzerk, bnj, bombjack,
+                           btime, bublbobl, bwidow, bzone, cavenger, cbdash, ccastles, centipede, circusc,
+                           commando, crush, digdug, dkong, dkong3, dkongjr, elevator, eyes, fantasy, frogger,
+                           galaga, galaxian, game_1942, game_1943, gberet, gng, gorf, gravitar, gyruss, invaders,
+                           lizwiz, marble, mcr, mrdo, mrtnt, pacman, pengo, starforce, theglob, vanvan, williams)
 from romconv.games.namco import digdug2, gaplus, mappy, phozon, todruaga, xevious
 from romconv.games.system1 import jobs as system1
 from romconv.gfx import logo
@@ -54,6 +56,28 @@ ALL: tuple[Job, ...] = (
     *system1.JOBS,
     *williams.JOBS,
     *mcr.JOBS,
+    game_1943.JOB,
+    alibaba.JOB,
+    arkanoid.JOB,
+    asteroids.JOB,
+    atetris.JOB,
+    berzerk.JOB,
+    bnj.JOB,
+    btime.JOB,
+    cavenger.JOB,
+    bublbobl.JOB,
+    bwidow.JOB,
+    bzone.JOB,
+    cbdash.JOB,
+    ccastles.JOB,
+    centipede.JOB,
+    circusc.JOB,
+    *elevator.JOBS,
+    fantasy.JOB,
+    gberet.JOB,
+    gorf.JOB,
+    gravitar.JOB,
+    gyruss.JOB,
     catalog.JOB,
     bundles.JOB,
 )

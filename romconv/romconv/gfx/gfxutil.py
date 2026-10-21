@@ -38,3 +38,16 @@ def hex16(v: int) -> str:
 
 def hex32(v: int) -> str:
     return "0x{:08x}".format(v & 0xFFFFFFFF)
+
+
+def step(start: int, inc: int, n: int) -> list[int]:
+    """MAME's STEPn(start, inc) offset list."""
+    return [start + i * inc for i in range(n)]
+
+
+def pack_nibbles(pens: Sequence[int]) -> int:
+    """4 bit pens into one word, first pen in the highest nibble."""
+    v = 0
+    for p in pens:
+        v = (v << 4) | p
+    return v
