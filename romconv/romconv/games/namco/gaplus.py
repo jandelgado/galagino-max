@@ -13,7 +13,8 @@ from romconv.core.context import Context
 from romconv.core.errors import ConversionError
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
-from romconv.games.namco.common import sprite_words, tile_rows, write_rom, write_wsg
+from romconv.emit.write import write_bytes
+from romconv.games.namco.common import sprite_words, tile_rows, write_wsg
 from romconv.gfx.adpcm import emit_adpcm
 from romconv.gfx.color import rgb565_swapped_scaled
 from romconv.gfx.gfxutil import mame_decode, rot_galagino
@@ -270,11 +271,11 @@ def _convert(ctx: Context) -> None:
               "Gaplus WSG 15XX waveforms: 8 waves x 32 samples", soundprom)
 
     assert len(main_rom) == 0x6000
-    write_rom(ctx, "gaplus_rom_main.h", "gaplus_rom_main", main_rom, "Gaplus main M6809 ROM 0xA000-0xFFFF")
+    write_bytes(ctx, "gaplus_rom_main.h", "gaplus_rom_main", main_rom, "Gaplus main M6809 ROM 0xA000-0xFFFF")
     assert len(sub_rom) == 0x6000
-    write_rom(ctx, "gaplus_rom_sub.h", "gaplus_rom_sub", sub_rom, "Gaplus sub M6809 ROM 0xA000-0xFFFF")
+    write_bytes(ctx, "gaplus_rom_sub.h", "gaplus_rom_sub", sub_rom, "Gaplus sub M6809 ROM 0xA000-0xFFFF")
     assert len(soundcpu) == 0x2000
-    write_rom(ctx, "gaplus_rom_sub2.h", "gaplus_rom_sub2", soundcpu,
+    write_bytes(ctx, "gaplus_rom_sub2.h", "gaplus_rom_sub2", soundcpu,
               "Gaplus sound (sub2) M6809 ROM 0xE000-0xFFFF")
 
     stars = _gen_starfield()

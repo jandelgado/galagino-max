@@ -5,6 +5,7 @@
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
+from romconv.emit.write import write_bytes
 from romconv.hw.btime import decode_chars, decode_tiles16
 
 _MAINCPU = (("d00.e14", "e1a329a4452eeb90801d001140ce865bf1ea7716"),
@@ -22,12 +23,6 @@ _PROM1 = ("dc0.c6", "d09738915da456449bb4e8d9eefb8e6378f0edea")  # palette
 
 
 # ------------------------------------------------------------
-def _write_rom(ctx, name, sym, data, comment):
-    with ctx.header(name) as f:
-        print(f"// {comment}", file=f)
-        emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
-
-
 def _write_char_tiles(ctx, tiles):
     with ctx.header("scregg_chartiles.h") as f:
         print("// Scrambled Egg char set #1", file=f)
@@ -76,7 +71,7 @@ def _convert(ctx: Context) -> None:
     # 0xb000-0xbfff resta a 0 (non presente nel set "btime" Data East set 1).
     maincpu = cpu01 + cpu02 + cpu03 + cpu04 + cpu05
     assert len(maincpu) == 0x5000  # 0x3000-0x7fff
-    _write_rom(ctx, "scregg_rom.h", "scregg_rom", bytes(maincpu),
+    write_bytes(ctx, "scregg_rom.h", "scregg_rom", bytes(maincpu),
                "Scrambled Egg main CPU ROM 0xb000-0xffff (0xb000-0xbfff empty in this")
 
     _write_c_array(ctx, "scregg_colorprom.h", "scregg_colorprom", prom1, "Scregg color PROMs")

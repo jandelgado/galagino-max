@@ -6,7 +6,8 @@ xevious.cpp (video: palette, tile_info, planet map, sprites). The Namco 54xx ROM
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
-from romconv.games.namco.common import sprite_words, tile_rows, write_rom, write_wsg
+from romconv.emit.write import write_bytes
+from romconv.games.namco.common import sprite_words, tile_rows, write_wsg
 from romconv.gfx.color import rgb565_swapped_scaled
 from romconv.gfx.gfxutil import mame_decode, rot_galagino
 from romconv.hw.namco import nudge
@@ -200,18 +201,18 @@ def _convert(ctx: Context) -> None:
 
     # planet map (schematic 9B): raw flash data read at run time by xevious_bb_r()/xevious_bs_w()
     # (0xf000-0xffff), one blob like the real gfx4 region: 2a@0, 2b@0x1000, 2c@0x3000
-    write_rom(ctx, "xevious_planetmap.h", "xevious_planetmap",
+    write_bytes(ctx, "xevious_planetmap.h", "xevious_planetmap",
               roms["xvi_9.2a"] + roms["xvi_10.2b"] + roms["xvi_11.2c"],
               "Xevious planet-map lookup ROM (xvi_9.2a+xvi_10.2b+xvi_11.2c), 0x4000 byte: "
               "rom2a@0x0000 rom2b@0x1000 rom2c@0x3000, read via xevious_bb_r()")
 
     cpu1_rom = roms["xvi_1.3p"] + roms["xvi_2.3m"] + roms["xvi_3.2m"] + roms["xvi_4.2l"]
-    write_rom(ctx, "xevious_rom_cpu1.h", "xevious_rom_cpu1", cpu1_rom,
+    write_bytes(ctx, "xevious_rom_cpu1.h", "xevious_rom_cpu1", cpu1_rom,
               "Xevious CPU1 (main) Z80 ROM 0x0000-0x3FFF (xvi_1.3p+xvi_2.3m+xvi_3.2m+xvi_4.2l)")
     cpu2_rom = roms["xvi_5.3f"] + roms["xvi_6.3j"]
-    write_rom(ctx, "xevious_rom_cpu2.h", "xevious_rom_cpu2", cpu2_rom,
+    write_bytes(ctx, "xevious_rom_cpu2.h", "xevious_rom_cpu2", cpu2_rom,
               "Xevious CPU2 (motion) Z80 ROM 0x0000-0x1FFF (xvi_5.3f+xvi_6.3j)")
-    write_rom(ctx, "xevious_rom_cpu3.h", "xevious_rom_cpu3", roms["xvi_7.2c"],
+    write_bytes(ctx, "xevious_rom_cpu3.h", "xevious_rom_cpu3", roms["xvi_7.2c"],
               "Xevious CPU3 (sound) Z80 ROM 0x0000-0x0FFF (xvi_7.2c)")
     ctx.log.info("Xevious conversion done.")
 
@@ -232,7 +233,7 @@ _SX_CPU2 = (
 
 def _write_sx_rom(ctx: Context, symbol: str, parts, comment: str) -> int:
     data = b"".join(ctx.rom(name, sha1) for name, sha1 in parts)
-    write_rom(ctx, symbol + ".h", symbol, data, comment)
+    write_bytes(ctx, symbol + ".h", symbol, data, comment)
     return len(data)
 
 

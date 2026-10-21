@@ -2,8 +2,9 @@
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
-from romconv.games.namco.common import (inverted_tiles, interleaved_sprites, sprite_words, tile_rows,
-                                        tile_tables, write_rom, write_wsg)
+from romconv.emit.write import write_bytes
+from romconv.games.namco.common import (interleaved_sprites, inverted_tiles, sprite_words, tile_rows,
+                                        tile_tables, write_wsg)
 from romconv.gfx.color import rgb565_swapped_packed
 from romconv.hw.namco import nudge
 
@@ -66,9 +67,9 @@ def _convert(ctx: Context) -> None:
     write_wsg(ctx, "todruaga_wavetable.h", "todruaga_wavetable",
               "Tower of Druaga WSG 15XX waveforms (td1-3.3m): 8 waves x 32 samples", wave)
 
-    write_rom(ctx, "todruaga_rom_main.h", "todruaga_rom_main", main_hi + main_lo,
+    write_bytes(ctx, "todruaga_rom_main.h", "todruaga_rom_main", main_hi + main_lo,
               "Tower of Druaga main M6809 ROM 0x8000-0xFFFF (td2_3.1d+td2_1.1b)")
-    write_rom(ctx, "todruaga_rom_sub.h", "todruaga_rom_sub", sub,
+    write_bytes(ctx, "todruaga_rom_sub.h", "todruaga_rom_sub", sub,
               "Tower of Druaga sound M6809 ROM 0xE000-0xFFFF (td1_4.1k)")
     ctx.log.info("Tower of Druaga conversion finished.")
 

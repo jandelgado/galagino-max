@@ -11,6 +11,7 @@ from romconv.emit.asset import emit_compressed
 from romconv.gfx.color import prom_level_4bit, rgb565_swapped
 from romconv.gfx.gfxutil import mame_decode, rot_galagino
 from romconv.plan import layout
+from romconv.plan.budget import log_sizes
 
 _ROM_SIZE = 0xC000   # 0000-bfff mapped; second half of arkgc.2 unused
 _TILE_COUNT, _COLORS = 4096, 512
@@ -60,12 +61,8 @@ def _convert(ctx: Context) -> None:
     ctx.log.info("wrote arkanoid_palette.h")
 
     sizes = {"rom": len(main), "tiles": len(unique) * 32, "tile_map": _TILE_COUNT * 2, "rgb": _COLORS * 2}
-    for k, v in sizes.items():
-        ctx.log.info(f"  {k:8s} {v:6d}")
-    total = sum(sizes.values())
     ctx.log.info(f"unique tiles {len(unique)} of {_TILE_COUNT}")
-    ctx.log.info(f"Arena total {total} B (budget 182000)")
-    assert total < 182000
+    log_sizes(ctx, sizes)
     assert sizes["tiles"] + sizes["tile_map"] < arena_block   # one Arena block
 
 

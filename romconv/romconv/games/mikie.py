@@ -8,9 +8,11 @@
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
+from romconv.emit.write import write_asset
 from romconv.gfx.color import rgb565_swapped
-from romconv.gfx.gfxutil import mame_decode
+from romconv.gfx.gfxutil import column_words, mame_decode, pack_pairs
 from romconv.gfx.resnet import combine, resistor_weights
+from romconv.plan.budget import log_sizes
 
 _TILE_COUNT = 512
 _SPRITE_COUNT = 512
@@ -44,24 +46,14 @@ def _convert(ctx: Context) -> None:
     # --- tiles: gfx_8x8x4_packed_msb ---
     tiles_dec = mame_decode(tiles, 8, 8, [0, 1, 2, 3], [4 * i for i in range(8)],
                             [32 * i for i in range(8)], 256, _TILE_COUNT)
-    tile_words = []
-    for t in tiles_dec:
-        for nx in range(8):
-            w = 0
-            for k in range(8):
-                w |= t[k][nx] << (4 * k)
-            tile_words.append(w)
+    tile_words = column_words(tiles_dec, 4)
 
     # --- sprites: MAME spritelayout, two gfx sets one byte apart ---
     spr_dec = []
     for bank_bit in (0, 8):
         spr_dec += mame_decode(sprites, 16, 16, _SPR_PLANES, _SPR_XOFFS, _SPR_YOFFS, 128 * 8, 256,
                                base_bit=bank_bit)
-    spr_bytes = []
-    for s in spr_dec:
-        for row in s:
-            for x in range(0, 16, 2):
-                spr_bytes.append(row[x] | (row[x + 1] << 4))
+    spr_bytes = pack_pairs(spr_dec)
 
     # --- palette: compute_resistor_weights(0, 255, -1, 4, {2200,1000,470,220}, w, 470, 0) ---
     (w,), _ = resistor_weights(0, 255, -1.0, [([2200, 1000, 470, 220], 470, 0)])
@@ -74,9 +66,7 @@ def _convert(ctx: Context) -> None:
     lut = [b & 0x0F for b in char_lut] + [b & 0x0F for b in spr_lut]
 
     def write(name, fn):
-        with ctx.header(name) as f:
-            fn(f)
-        ctx.log.info(f"wrote {name}")
+        write_asset(ctx, name, None, fn)
 
     # uint16_t == unsigned short, uint32_t == unsigned int for emit_compressed
     write("mikie_rom_main.h", lambda f: emit_compressed(f, "mikie_rom_main", "unsigned char", "", len(main), main))
@@ -94,11 +84,7 @@ def _convert(ctx: Context) -> None:
 
     sizes = {"main": len(main), "audio": len(audio), "tiles": _TILE_COUNT * 32,
              "sprites": _SPRITE_COUNT * 128, "rgb": 512, "lut": 512}
-    for k, v in sizes.items():
-        ctx.log.info(f"  {k:8s} {v:6d}")
-    total = sum(sizes.values())
-    ctx.log.info(f"Arena total {total} B (budget 182000)")
-    assert total < 182000
+    log_sizes(ctx, sizes)
 
 
 JOB = Job(name="mikie", convert=_convert, machine="mikie", zips=("mikie.zip",))

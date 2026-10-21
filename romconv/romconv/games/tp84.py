@@ -8,10 +8,12 @@
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
+from romconv.emit.write import write_asset
 from romconv.gfx.color import rgb565_swapped
-from romconv.gfx.gfxutil import mame_decode, rot_galagino
+from romconv.gfx.gfxutil import mame_decode, pack_pairs, pack_pens, rot_galagino
 from romconv.gfx.resnet import combine, resistor_weights
 from romconv.plan import layout
+from romconv.plan.budget import log_sizes
 
 
 def _convert(ctx: Context) -> None:
@@ -41,25 +43,15 @@ def _convert(ctx: Context) -> None:
     # --- tiles: MAME charlayout, rotated for galagino ---
     tiles_dec = mame_decode(tiles, 8, 8, [4, 0], [0, 1, 2, 3, 64, 65, 66, 67],
                             [8 * i for i in range(8)], 128, 1024)
-    tile_words = []
-    for t in tiles_dec:
-        r = rot_galagino(t)          # r[nx][k] = t[7-k][nx]: row = native x, pixel k = native y 7-k
-        for row in r:
-            w = 0
-            for k, p in enumerate(row):
-                w |= p << (2 * k)
-            tile_words.append(w)
+    # rot_galagino: r[nx][k] = t[7-k][nx]: row = native x, pixel k = native y 7-k
+    tile_words = [pack_pens(row, 2) for t in tiles_dec for row in rot_galagino(t)]
 
     # --- sprites: MAME spritelayout, native orientation ---
     half = len(sprites) * 8 // 2
     spr_dec = mame_decode(sprites, 16, 16, [half + 4, half + 0, 4, 0],
                           [0, 1, 2, 3, 64, 65, 66, 67, 128, 129, 130, 131, 192, 193, 194, 195],
                           [8 * i for i in range(8)] + [256 + 8 * i for i in range(8)], 512, 256)
-    spr_bytes = []
-    for s in spr_dec:
-        for row in s:
-            for x in range(0, 16, 2):
-                spr_bytes.append(row[x] | (row[x + 1] << 4))
+    spr_bytes = pack_pairs(spr_dec)
 
     # --- palette: MAME compute_resistor_weights(0, 255, -1, 4, {1000,470,220,100}, w, 470, 0) ---
     (w,), _ = resistor_weights(0, 255, -1.0, [([1000, 470, 220, 100], 470, 0)])
@@ -78,9 +70,7 @@ def _convert(ctx: Context) -> None:
     lut = [b & 0x0F for b in char_lut] + [b & 0x0F for b in spr_lut]
 
     def write(name, fn):
-        with ctx.header(name) as f:
-            fn(f)
-        ctx.log.info(f"wrote {name}")
+        write_asset(ctx, name, None, fn)
 
     # uint16_t == unsigned short; emit_compressed knows the latter
     write("tp84_rom_main.h", lambda f: emit_compressed(f, "tp84_rom_main", "unsigned char", "", len(main), main))
@@ -99,11 +89,7 @@ def _convert(ctx: Context) -> None:
 
     sizes = {"main": len(main), "sub": len(sub), "audio": len(audio),
              "tiles": 1024 * 16, "sprites": 256 * 128, "rgb": 512, "lut": 512}
-    for k, v in sizes.items():
-        ctx.log.info(f"  {k:8s} {v:6d}")
-    total = sum(sizes.values())
-    ctx.log.info(f"Arena total {total} B (CAPACITY {arena_capacity})")
-    assert total < arena_capacity
+    log_sizes(ctx, sizes, arena_capacity)
 
 
 JOB = Job(name="tp84", convert=_convert, machine="tp84", zips=("tp84.zip",))

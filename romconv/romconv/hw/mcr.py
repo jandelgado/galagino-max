@@ -3,18 +3,14 @@
 Decoders return pen grids [y][x] in native orientation; each game rotates,
 mirrors and packs them for its panel layout.
 """
-from romconv.gfx.gfxutil import mame_decode
-
-
-def _step(start, inc, n):
-    return [start + i * inc for i in range(n)]
+from romconv.gfx.gfxutil import mame_decode, step
 
 
 def decode_tiles_raw(rom):
     # mcr_bg_layout: 8x8, planes {half+0, half+1, 0, 1}, 16 bytes per tile
     half = len(rom) * 4
     count = half // 128
-    return mame_decode(rom, 8, 8, [half, half + 1, 0, 1], _step(0, 2, 8), _step(0, 16, 8), 128, count)
+    return mame_decode(rom, 8, 8, [half, half + 1, 0, 1], step(0, 2, 8), step(0, 16, 8), 128, count)
 
 
 def decode_sprites_raw(rom):
@@ -25,7 +21,7 @@ def decode_sprites_raw(rom):
     for byte in (0, 8, 16, 24):
         for quarter in range(4):
             xoffs += [quarter * q + byte, quarter * q + byte + 4]
-    return mame_decode(rom, 32, 32, _step(0, 1, 4), xoffs, _step(0, 32, 32), 1024, count)
+    return mame_decode(rom, 32, 32, step(0, 1, 4), xoffs, step(0, 32, 32), 1024, count)
 
 
 def duty_gain(prom):

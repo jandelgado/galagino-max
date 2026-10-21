@@ -1,7 +1,8 @@
 """Convert the MAME gorf ROM set and the SC-01 speech ROM into galagino headers."""
 from romconv.core.context import Context
 from romconv.core.job import Job
-from romconv.hw.atari import check_budget, write
+from romconv.emit.write import write_bytes
+from romconv.plan.budget import check_budget
 
 _PROGRAM = (  # (name, Z80 address, SHA1) from MAME ROM_START( gorf )
     ("gorf-a.bin", 0x0000, "76e2e3ad1a66755f1a369167fdb157690fd44a52"),
@@ -26,9 +27,10 @@ def _convert(ctx: Context) -> None:
         rom[base:base + 0x1000] = ctx.rom(name, sha1, zip="gorf.zip")
     sc01 = bytes(ctx.rom(_SC01[0], _SC01[1], zip="votrsc01.zip"))
     assert len(sc01) == 512
-    total = write(ctx, "gorf", "gorf_rom.h", "gorf_rom", rom,
-                  "Z80 ROM image: 0x0000-0x3fff then 0x8000-0xbfff stored at 0x4000-0x7fff.")
-    total += write(ctx, "gorf", "gorf_sc01.h", "gorf_sc01", sc01, "Votrax SC-01 internal phoneme ROM, 512 B.")
+    total = write_bytes(ctx, "gorf_rom.h", "gorf_rom", rom,
+                        "Z80 ROM image: 0x0000-0x3fff then 0x8000-0xbfff stored at 0x4000-0x7fff.", "gorf")
+    total += write_bytes(ctx, "gorf_sc01.h", "gorf_sc01", sc01, "Votrax SC-01 internal phoneme ROM, 512 B.",
+                         "gorf")
     total += _EXTRA_BYTES
     check_budget(ctx, total)
 

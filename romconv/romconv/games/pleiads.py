@@ -8,8 +8,10 @@ from types import MappingProxyType
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
+from romconv.emit.write import write_asset
 from romconv.gfx.color import rgb565_swapped
-from romconv.gfx.gfxutil import mame_decode
+from romconv.gfx.gfxutil import column_words, mame_decode
+from romconv.plan.budget import log_sizes
 
 _MAIN = (
     ("ic47.r1", "52a3232e99920805ce9e195b8a6338ae7044dd18"),
@@ -47,7 +49,7 @@ _MAME_COLORS = MappingProxyType({
 def _tiles(data):
     dec = mame_decode(data, 8, 8, [256 * 8 * 8, 0], [7, 6, 5, 4, 3, 2, 1, 0],
                       [8 * i for i in range(8)], 8 * 8, _TILE_COUNT)
-    return [sum(t[y][x] << (2 * y) for y in range(8)) for t in dec for x in range(8)]
+    return column_words(dec, 2)
 
 
 def _color(prom_lo, prom_hi, i):
@@ -77,9 +79,7 @@ def _convert(ctx: Context) -> None:
     palette = [_color(prom_lo, prom_hi, i) for i in range(256)]
 
     def write(name, fn):
-        with ctx.header(name) as f:
-            fn(f)
-        ctx.log.info(f"wrote {name}")
+        write_asset(ctx, name, None, fn)
 
     write("pleiads_rom.h", lambda f: emit_compressed(f, "pleiads_rom", "unsigned char", "", len(main), main))
 
@@ -92,11 +92,7 @@ def _convert(ctx: Context) -> None:
           lambda f: emit_compressed(f, "pleiads_palette", "unsigned short", "", 256, palette))
 
     sizes = {"main": len(main), "bg": _TILE_COUNT * 16, "fg": _TILE_COUNT * 16, "palette": 512}
-    for k, v in sizes.items():
-        ctx.log.info(f"  {k:8s} {v:6d}")
-    total = sum(sizes.values())
-    ctx.log.info(f"Arena total {total} B (budget 182000)")
-    assert total < 182000
+    log_sizes(ctx, sizes)
 
 
 JOB = Job(name="pleiads", convert=_convert, machine="pleiads", zips=("pleiads.zip",))

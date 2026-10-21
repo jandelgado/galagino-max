@@ -9,14 +9,15 @@ from functools import partial
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
-from romconv.games.namco.common import (inverted_tiles, interleaved_sprites, sprite_words, tile_rows,
-                                        tile_tables, write_rom, write_wsg)
+from romconv.emit.write import write_bytes
+from romconv.games.namco.common import (interleaved_sprites, inverted_tiles, sprite_words, tile_rows,
+                                        tile_tables, write_wsg)
 from romconv.gfx.color import rgb565_swapped_packed
 from romconv.hw.namco import nudge
+from romconv.plan.budget import log_sizes
 
 _NUM_SPRITES = 256
 _SPRITE_GROUPS = 16
-_ARENA_LIMIT = 182000
 
 # (name, size, sha1) per MAME ROM_START: main hi, main lo, sub, tiles, sprites even, sprites odd,
 # palette, char lookup, sprite lookup, waveform
@@ -93,9 +94,9 @@ def _convert(ctx: Context, game: str, files) -> None:
     _write_colormaps(ctx, game, roms[pal], roms[char_lut], roms[spr_lut])
 
     main_rom = roms[main_hi] + roms[main_lo]
-    write_rom(ctx, f"{game}_rom_main.h", f"{game}_rom_main", main_rom,
+    write_bytes(ctx, f"{game}_rom_main.h", f"{game}_rom_main", main_rom,
               f"{game} main M6809 ROM 0x8000-0xFFFF ({main_hi}+{main_lo})")
-    write_rom(ctx, f"{game}_rom_sub.h", f"{game}_rom_sub", roms[sub],
+    write_bytes(ctx, f"{game}_rom_sub.h", f"{game}_rom_sub", roms[sub],
               f"{game} sound M6809 ROM 0xE000-0xFFFF ({sub})")
     # 256 bytes, low nibble = 8 waveforms x 32 samples, centered (-8..7)
     write_wsg(ctx, f"{game}_wavetable.h", f"{game}_wavetable",
@@ -111,9 +112,7 @@ def _convert(ctx: Context, game: str, files) -> None:
     }
     for name, size in sizes.items():
         ctx.log.info(f"  {name}: {size} bytes unpacked")
-    total = sum(sizes.values())
-    ctx.log.info(f"Arena budget: {total} bytes (limit {_ARENA_LIMIT})")
-    assert total < _ARENA_LIMIT
+    log_sizes(ctx, sizes)
 
     ctx.log.info(f"{game} conversion finished.")
 

@@ -21,6 +21,7 @@
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
+from romconv.emit.write import write_bytes
 from romconv.gfx.color import rgb565_swapped_packed
 from romconv.gfx.gfxutil import rot_galagino
 from romconv.hw.namco import nudge
@@ -125,12 +126,6 @@ def _write_colormaps(ctx, pal_prom, char_lut, spr_lut):
         print("};", file=f)
 
 
-def _write_rom(ctx, name, sym, data, comment):
-    with ctx.header(name) as f:
-        print(f"// {comment}", file=f)
-        emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
-
-
 # ------------------------------------------------------------
 def _convert(ctx: Context) -> None:
     roms = {name: ctx.rom(name, sha1) for name, sha1 in _REQUIRED}
@@ -151,10 +146,10 @@ def _convert(ctx: Context) -> None:
     main_rom = (roms["380_s05.3h"] + roms["380_q04.4h"] + roms["380_q03.5h"] + roms["380_q02.6h"] +
                 roms["380_q01.7h"])
 
-    _write_rom(ctx, "circusc_main_rom.h", "circusc_main_rom", main_rom,
+    write_bytes(ctx, "circusc_main_rom.h", "circusc_main_rom", main_rom,
                "Circus Charlie main KONAMI-1 ROM 0x6000-0xffff")
 
-    _write_rom(ctx, "circusc_audio_rom.h", "circusc_audio_rom",
+    write_bytes(ctx, "circusc_audio_rom.h", "circusc_audio_rom",
                roms["380_l14.5c"] + roms["380_l15.7c"],
                "Circus Charlie sound Z80 ROM 0x0000-0x3fff")
 

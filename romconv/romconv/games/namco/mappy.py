@@ -2,8 +2,9 @@
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
-from romconv.games.namco.common import (inverted_tiles, interleaved_sprites, sprite_words, tile_rows,
-                                        tile_tables, write_rom, write_wsg)
+from romconv.emit.write import write_bytes
+from romconv.games.namco.common import (interleaved_sprites, inverted_tiles, sprite_words, tile_rows,
+                                        tile_tables, write_wsg)
 from romconv.gfx.color import rgb565_swapped_packed
 from romconv.hw.namco import nudge
 
@@ -69,9 +70,9 @@ def _convert(ctx: Context) -> None:
     write_wsg(ctx, "mappy_wavetable.h", "mappy_wavetable",
               "Mappy WSG 15XX waveforms (mp1-3.3m): 8 forme x 32 campioni", proms4)
 
-    write_rom(ctx, "mappy_rom_main.h", "mappy_rom_main", cpu01 + cpu02 + cpu03,
+    write_bytes(ctx, "mappy_rom_main.h", "mappy_rom_main", cpu01 + cpu02 + cpu03,
               "Mappy main M6809 ROM 0xA000-0xFFFF (mpx_3.1d+mp1_2.1c+mpx_1.1b)")
-    write_rom(ctx, "mappy_rom_sub.h", "mappy_rom_sub", subcpu,
+    write_bytes(ctx, "mappy_rom_sub.h", "mappy_rom_sub", subcpu,
               "Mappy sound M6809 ROM 0xE000-0xFFFF (mp1_4.1k)")
     ctx.log.info("Mappy conversion finished.")
 

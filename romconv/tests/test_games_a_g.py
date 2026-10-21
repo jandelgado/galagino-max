@@ -45,7 +45,14 @@ def test_registered_with_dependencies():
     assert {"btime", "bnj"} <= {j.name for j in registry.resolve(["bnj"])}
 
 
-def test_missing_zip_names_zip_and_file(paths, log):
+@pytest.mark.parametrize("job", JOBS, ids=lambda j: j.name)
+def test_missing_zip_is_a_conversion_error_naming_the_zip(job, paths, log, arena_layout):
+    with pytest.raises(ConversionError, match=job.zips[0].replace(".", r"\.")):
+        job.convert(_ctx(job, paths, log))
+
+
+def test_missing_member_names_zip_and_file(paths, log, make_zip):
+    make_zip("asteroid.zip", {"other": b""})
     with pytest.raises(ConversionError, match=r"asteroid\.zip.*035145-04e\.ef2"):
         asteroids.JOB.convert(_ctx(asteroids.JOB, paths, log))
 
@@ -93,11 +100,10 @@ def test_gyruss_patch_tables_fit_the_assets():
     assert len(tiles) == 512 * 8 and len(sprites) >= 512 * 16
 
 
-def test_atari_budget_and_vector_write(paths, log, make_zip):
-    atari.check_budget(_ctx(asteroids.JOB, paths, log), atari.ARENA_BUDGET - 1)
-    with pytest.raises(ConversionError, match="Arena budget"):
-        atari.check_budget(_ctx(asteroids.JOB, paths, log), atari.ARENA_BUDGET)
-    assert atari._LINE_BUFFER_BYTES == 1024 * 16 + 1024 * 4 + 72
+def test_atari_line_buffer_sizes():
+    # 1024 lines of 16 + 2 * 2 bytes and 36 strip heads; GO list 1024 lines of 16 + 8 bytes and 8 more
+    assert atari._LINE_BUFFER_BYTES == 20552
+    assert atari._GO_LIST_BYTES == 24584
 
 
 def test_atari_convert_vector_checks_sizes(paths, log, make_zip):
@@ -219,10 +225,12 @@ def test_elevator_draw_order_layout():
     assert len(order) == 32 * 4 and set(order) == {0}
 
 
-def test_elevator_zero_prom_fails_the_attract_check(paths, log):
-    prom = bytes(256)
-    order = elevator._draw_order(prom)
-    assert order[24:28] != [3, 2, 0, 1]
+def test_elevator_attract_order_check():
+    order = [0] * 128
+    with pytest.raises(ConversionError, match="attract mode order"):
+        elevator._check_draw_order(order)
+    order[24:28] = [3, 2, 0, 1]
+    elevator._check_draw_order(order)
 
 
 def test_fantasy_load_checks_size_and_crc(paths, log, make_zip):

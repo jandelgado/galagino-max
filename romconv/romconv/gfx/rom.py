@@ -62,3 +62,14 @@ def emit_rom(ctx: Context, symbol: str, roms: Sequence[str], header: str, *, app
             emit_compressed(f, symbol, "unsigned char", "", len(all_bytes), list(all_bytes))
         else:
             emit_plain(f, symbol, "unsigned char", "", len(all_bytes), "  " + hex_block(all_bytes))
+
+
+def rom_bytes(ctx: Context, entry: tuple[str | Sequence[str], str | None], zip: str | None = None) -> bytes:
+    """One (name(s), sha1) ROM file as bytes."""
+    names, sha1 = entry
+    return bytes(ctx.rom(names, sha1, zip))
+
+
+def rom_bytes_all(ctx: Context, entries: Sequence[tuple[str | Sequence[str], str | None]]) -> bytes:
+    """The ROM files concatenated."""
+    return b"".join(rom_bytes(ctx, e) for e in entries)

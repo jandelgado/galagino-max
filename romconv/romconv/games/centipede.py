@@ -1,7 +1,9 @@
 """Convert the MAME centiped3 (Centipede revision 3) ROM set into galagino headers."""
 from romconv.core.context import Context
 from romconv.core.job import Job
-from romconv.hw.atari import check_budget, load_all, write
+from romconv.emit.write import write_bytes
+from romconv.gfx.rom import rom_bytes_all
+from romconv.plan.budget import check_budget
 
 # MAME centiped3: name -> SHA1. PROM 136001-213.p4 is unused by the video
 # hardware and dropped.
@@ -18,10 +20,10 @@ _GFX = (
 
 
 def _convert(ctx: Context) -> None:
-    total = write(ctx, "centipede", "centipede_rom.h", "centipede_rom", load_all(ctx, _PROGRAM),
-                  "Main M6502 ROM, 8 KiB mapped at 0x2000-0x3fff.")
-    total += write(ctx, "centipede", "centipede_gfx.h", "centipede_gfx", load_all(ctx, _GFX),
-                   "Tiles/sprites, 2 bpp planar: LSB plane 0x000-0x7ff, MSB plane 0x800-0xfff.")
+    total = write_bytes(ctx, "centipede_rom.h", "centipede_rom", rom_bytes_all(ctx, _PROGRAM),
+                  "Main M6502 ROM, 8 KiB mapped at 0x2000-0x3fff.", "centipede")
+    total += write_bytes(ctx, "centipede_gfx.h", "centipede_gfx", rom_bytes_all(ctx, _GFX),
+                   "Tiles/sprites, 2 bpp planar: LSB plane 0x000-0x7ff, MSB plane 0x800-0xfff.", "centipede")
     # the machine builds 2 KiB tile + 8 KiB sprite column tables from gfx in start()
     total += 2048 + 8192
     check_budget(ctx, total)

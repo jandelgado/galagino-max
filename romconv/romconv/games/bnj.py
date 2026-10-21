@@ -4,6 +4,7 @@
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
+from romconv.emit.write import write_bytes
 from romconv.gfx.gfxutil import mame_decode, rot_galagino
 from romconv.hw.btime import decode_chars, decode_tiles16
 
@@ -49,12 +50,6 @@ def _bnj_bg_layout_decode(gfx2):
 
 
 # ------------------------------------------------------------
-def _write_rom(ctx, name, sym, data, comment):
-    with ctx.header(name) as f:
-        print(f"// {comment}", file=f)
-        emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
-
-
 def _write_char_tiles(ctx, tiles):
     with ctx.header("bnj_chartiles.h") as f:
         print("// Bump 'n' Jump char set #1 (gfx1).", file=f)
@@ -113,11 +108,11 @@ def _convert(ctx: Context) -> None:
     # meccanismo di btime/CPU-7 ma bitswap fisso senza stato) ---
     maincpu = cpu01 + cpu02 + cpu03
     assert len(maincpu) == 0x6000  # 0xa000-0xffff
-    _write_rom(ctx, "bnj_rom_main.h", "bnj_rom_main", maincpu,
+    write_bytes(ctx, "bnj_rom_main.h", "bnj_rom_main", maincpu,
                "Bump 'n' Jump main CPU ROM 0xa000-0xffff (24KB), DECO C10707 "
                "(bitswap bit5<->bit6 for all fetch opcode.")
 
-    _write_rom(ctx, "bnj_rom_audio.h", "bnj_rom_audio", audio,
+    write_bytes(ctx, "bnj_rom_audio.h", "bnj_rom_audio", audio,
                "Bump 'n' Jump audio CPU ROM 0xe000-0xefff (mirrored 0x1000-0x1fff)")
 
     ctx.log.info("Bump'n'Jump (ROM/gfx) conversion done.")

@@ -9,8 +9,10 @@
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
+from romconv.emit.write import write_asset
 from romconv.gfx.color import prom_level_4bit, rgb565_swapped
-from romconv.gfx.gfxutil import mame_decode
+from romconv.gfx.gfxutil import column_words, mame_decode
+from romconv.plan.budget import log_sizes
 
 _CHAR_COUNT, _TILE_COUNT, _SPRITE_COUNT = 512, 512, 256
 
@@ -57,10 +59,7 @@ def _convert(ctx: Context) -> None:
     # --- chars: charlayout ---
     chars_dec = mame_decode(chars, 8, 8, [4, 0], [0, 1, 2, 3, 8, 9, 10, 11],
                             [16 * i for i in range(8)], 16 * 8, _CHAR_COUNT)
-    char_words = []
-    for t in chars_dec:
-        for nx in range(8):
-            char_words.append(sum(t[k][nx] << (2 * k) for k in range(8)))
+    char_words = column_words(chars_dec, 2)
 
     # --- tiles: tilelayout, 3 planes RGN_FRAC(n,3) ---
     third = len(tiles) * 8 // 3
@@ -82,9 +81,7 @@ def _convert(ctx: Context) -> None:
     lut = list(char_lut) + list(spr_lut) + list(tile_lut)
 
     def write(name, fn):
-        with ctx.header(name) as f:
-            fn(f)
-        ctx.log.info(f"wrote {name}")
+        write_asset(ctx, name, None, fn)
 
     write("vulgus_rom_main.h",
           lambda f: emit_compressed(f, "vulgus_rom_main", "unsigned char", "", len(main), main))
@@ -105,11 +102,7 @@ def _convert(ctx: Context) -> None:
 
     sizes = {"main": len(main), "audio": len(audio), "chars": _CHAR_COUNT * 16,
              "tiles": _TILE_COUNT * 128, "sprites": _SPRITE_COUNT * 128, "rgb": 512, "lut": 768}
-    for k, v in sizes.items():
-        ctx.log.info(f"  {k:8s} {v:6d}")
-    total = sum(sizes.values())
-    ctx.log.info(f"Arena total {total} B (budget 182000)")
-    assert total < 182000
+    log_sizes(ctx, sizes)
 
 
 JOB = Job(name="vulgus", convert=_convert, machine="vulgus", zips=("vulgus.zip",))

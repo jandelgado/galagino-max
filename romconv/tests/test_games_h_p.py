@@ -36,15 +36,20 @@ def test_registered():
     assert "pacman" in {j.name for j in registry.resolve(["mspacman"])}
 
 
-@pytest.mark.parametrize("job,first", [(llander.JOB, "034572-02.f1"), (missile.JOB, "035820-02.h1"),
-                                       (mpatrol.JOB, "mpa-1.3m"), (mikie.JOB, "n14.11c"),
-                                       (pooyan.JOB, "1.4a"), (ladybug.JOB, "l1.c4")])
-def test_missing_zip_names_zip_and_file(job, first, paths, log):
-    with pytest.raises(ConversionError, match=rf"{job.zips[0]}.*{first}"):
+@pytest.mark.parametrize("job", [j for j in JOBS if j is not hero.JOB], ids=lambda j: j.name)
+def test_missing_zip_is_a_conversion_error_naming_the_zip(job, paths, log):
+    with pytest.raises(ConversionError, match=job.zips[0].replace(".", r"\.")):
         job.convert(_ctx(job, paths, log))
 
 
+def test_missing_member_names_zip_and_file(paths, log, make_zip):
+    make_zip("llander.zip", {"other": b""})
+    with pytest.raises(ConversionError, match=r"llander\.zip.*034572-02\.f1"):
+        llander.JOB.convert(_ctx(llander.JOB, paths, log))
+
+
 def test_hero_needs_a_cart(paths, log):
+    # no H.E.R.O..zip: the loose PAL cart is the fallback, and it is missing too
     with pytest.raises(ConversionError, match=r"H\.E\.R\.O\.-pal\.bin"):
         hero.JOB.convert(_ctx(hero.JOB, paths, log))
 
@@ -102,7 +107,6 @@ def test_motorace_prom_colors():
 
 
 def test_mpatrol_decoding_helpers():
-    assert mpatrol._step(2, 3, 3) == [2, 5, 8]
     assert len(mpatrol._decode_chars(bytes(0x2000))) == 512 * 8
     assert len(mpatrol._decode_sprites(bytes(0x4000))) == 128 * 16
     # background decode needs the 0xff fill to be solid pen 3 below row 64

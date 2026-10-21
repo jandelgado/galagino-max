@@ -3,7 +3,6 @@ from collections.abc import Sequence
 
 from romconv.core.context import Context
 from romconv.core.header import HeaderWriter
-from romconv.emit.asset import emit_compressed
 from romconv.gfx.gfxutil import mame_decode, rot_galagino
 from romconv.hw.namco import nudge
 
@@ -61,12 +60,6 @@ def interleaved_sprites(even: Sequence[int], odd: Sequence[int], size: int,
     data[1::2] = odd
     return [rot_galagino(s) for s in
             mame_decode(bytes(data), 16, 16, _SPRITE_PLANES, _SPRITE_XOFFS, _SPRITE_YOFFS, 1024, count)]
-
-
-def write_rom(ctx: Context, header: str, symbol: str, data: Sequence[int], comment: str) -> None:
-    with ctx.header(header) as f:
-        print(f"// {comment}", file=f)
-        emit_compressed(f, symbol, "unsigned char", "", len(data), list(data))
 
 
 def write_wsg(ctx: Context, header: str, symbol: str, comment: str, prom: Sequence[int]) -> None:

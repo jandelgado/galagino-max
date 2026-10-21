@@ -1,7 +1,9 @@
 """Convert the MAME starwars (Star Wars set 1) ROM set into galagino headers."""
 from romconv.core.context import Context
 from romconv.core.job import Job
-from romconv.hw.atari import check_budget, load_all, write
+from romconv.emit.write import write_bytes
+from romconv.gfx.rom import rom_bytes_all
+from romconv.plan.budget import check_budget
 
 # MAME starwars: name -> SHA1. The AVG state PROM 136021-109.4b is dropped:
 # the display list is decoded at instruction level.
@@ -39,20 +41,20 @@ _MATH_RAM_BYTES = 0x1000
 
 def _convert(ctx: Context) -> None:
     rom0 = bytes(ctx.rom(*_ROM0))
-    program = rom0[:0x2000] + load_all(ctx, _PROGRAM) + rom0[0x2000:]
-    total = write(ctx, "starwars", "starwars_rom.h", "starwars_rom", program,
-                  "Main M6809 ROM: 0x6000-0xffff (bank page 0 at 0x6000), then bank page 1.")
-    total += write(ctx, "starwars", "starwars_vrom.h", "starwars_vrom", load_all(ctx, _VECTOR),
-                   "AVG vector ROM, 4 KiB mapped at 0x3000-0x3fff.")
-    total += write(ctx, "starwars", "starwars_srom.h", "starwars_srom", load_all(ctx, _SOUND),
-                   "Sound M6809 ROM, 16 KiB mapped at 0x4000-0x7fff and 0xc000-0xffff.")
+    program = rom0[:0x2000] + rom_bytes_all(ctx, _PROGRAM) + rom0[0x2000:]
+    total = write_bytes(ctx, "starwars_rom.h", "starwars_rom", program,
+                        "Main M6809 ROM: 0x6000-0xffff (bank page 0 at 0x6000), then bank page 1.", "starwars")
+    total += write_bytes(ctx, "starwars_vrom.h", "starwars_vrom", rom_bytes_all(ctx, _VECTOR),
+                         "AVG vector ROM, 4 KiB mapped at 0x3000-0x3fff.", "starwars")
+    total += write_bytes(ctx, "starwars_srom.h", "starwars_srom", rom_bytes_all(ctx, _SOUND),
+                         "Sound M6809 ROM, 16 KiB mapped at 0x4000-0x7fff and 0xc000-0xffff.", "starwars")
 
     proms = [bytes(ctx.rom(name, sha1)) for name, sha1 in _MATH_PROMS]
     micro = [(proms[0][i] & 0xf) << 12 | (proms[1][i] & 0xf) << 8 | (proms[2][i] & 0xf) << 4 |
              (proms[3][i] & 0xf) for i in range(0x400)]
-    total += write(ctx, "starwars", "starwars_mproms.h", "starwars_mproms", micro,
-                   "Matrix processor microcode, 1024 words: strobes 15-8, AM 7, address 6-0.",
-                   ctype="unsigned short")
+    total += write_bytes(ctx, "starwars_mproms.h", "starwars_mproms", micro,
+                         "Matrix processor microcode, 1024 words: strobes 15-8, AM 7, address 6-0.", "starwars",
+                         ctype="unsigned short")
 
     total += _LINE_BUFFER_BYTES + _GO_LIST_BYTES + _MATH_RAM_BYTES
     check_budget(ctx, total)

@@ -1,14 +1,11 @@
 """The Pit ROM converter for galagino (MAME set thepit)."""
 from romconv.core.context import Context
-from romconv.core.errors import ConversionError
 from romconv.core.job import Job
-from romconv.emit.asset import emit_compressed
+from romconv.emit.write import write_array, write_bytes
 from romconv.gfx.bits import BIT
 from romconv.gfx.color import prom_rgb_332, rgb565_swapped
-from romconv.gfx.gfxutil import mame_decode, rot_galagino, step
-
-
-_ARENA_CAPACITY = 182000
+from romconv.gfx.gfxutil import mame_decode, pack_pens, rot_galagino, step
+from romconv.plan.budget import check_budget
 
 
 # MAME gfx1: pit8 at 0x0000, pit7 at 0x1000, planes { 0x1000*8, 0 }.
@@ -35,13 +32,7 @@ def _decode_sprites(region):
 
 # One word per galagino line, pixel 0 (leftmost column) in the low 2 bits.
 def _pack_rows(tile):
-    rows = []
-    for row in rot_galagino(tile):
-        v = 0
-        for x, pen in enumerate(row):
-            v |= pen << (2 * x)
-        rows.append(v)
-    return rows
+    return [pack_pens(row, 2) for row in rot_galagino(tile)]
 
 
 # MAME thepit_palette: 32 PROM colors, then 8 primary colors used by the
@@ -53,15 +44,6 @@ def _convert_palette(prom):
     for i in range(8):
         pal.append(rgb565_swapped(0xFF * BIT(i, 2), 0xFF * BIT(i, 1), 0xFF * BIT(i, 0)))
     return pal
-
-
-def _write(ctx, name, ctype, dims, count, flat, comment, elem_size):
-    with ctx.header(name + ".h") as f:
-        f.write(f"// {comment}\n")
-        emit_compressed(f, name, ctype, dims, count, flat)
-    size = len(flat) * elem_size
-    ctx.log.info(f"Wrote: {name}.h ({size} bytes resident)")
-    return size
 
 
 def _convert(ctx: Context) -> None:
@@ -84,21 +66,16 @@ def _convert(ctx: Context) -> None:
     sprites = [v for s in _decode_sprites(region) for v in _pack_rows(s)]
     cmap = _convert_palette(prom)
 
-    total = 0
-    total += _write(ctx, "thepit_main_rom", "unsigned char", "", len(main_rom), list(main_rom),
-                   "The Pit main CPU ROM", 1)
-    total += _write(ctx, "thepit_sound_rom", "unsigned char", "", len(sound_rom), list(sound_rom),
-                   "The Pit sound CPU ROM", 1)
-    total += _write(ctx, "thepit_tiles", "unsigned short", "[8]", 256, tiles,
-                   "The Pit chars: 256 x 8x8 2bpp, rotated, pixel 0 in bits 0-1", 2)
-    total += _write(ctx, "thepit_sprites", "uint32_t", "[16]", 64, sprites,
-                   "The Pit sprites: 64 x 16x16 2bpp, rotated, unflipped", 4)
-    total += _write(ctx, "thepit_cmap", "unsigned short", "[4]", len(cmap) // 4, cmap,
-                   "The Pit colors: rows 0-7 PROM palettes, rows 8-9 background 0-7", 2)
+    total = write_bytes(ctx, "thepit_main_rom.h", "thepit_main_rom", main_rom, "The Pit main CPU ROM")
+    total += write_bytes(ctx, "thepit_sound_rom.h", "thepit_sound_rom", sound_rom, "The Pit sound CPU ROM")
+    total += write_array(ctx, "thepit_tiles.h", "thepit_tiles", "unsigned short", "[8]", 256, tiles,
+                         "The Pit chars: 256 x 8x8 2bpp, rotated, pixel 0 in bits 0-1")
+    total += write_array(ctx, "thepit_sprites.h", "thepit_sprites", "uint32_t", "[16]", 64, sprites,
+                         "The Pit sprites: 64 x 16x16 2bpp, rotated, unflipped")
+    total += write_array(ctx, "thepit_cmap.h", "thepit_cmap", "unsigned short", "[4]", len(cmap) // 4, cmap,
+                         "The Pit colors: rows 0-7 PROM palettes, rows 8-9 background 0-7")
 
-    ctx.log.info(f"Arena budget: {total} / {_ARENA_CAPACITY} bytes")
-    if total >= _ARENA_CAPACITY:
-        raise ConversionError("Arena budget exceeded")
+    check_budget(ctx, total)
 
 
 JOB = Job(name="thepit", convert=_convert, machine="thepit", zips=("thepit.zip",))

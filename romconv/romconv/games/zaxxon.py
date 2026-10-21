@@ -20,11 +20,6 @@ from romconv.gfx.gfxutil import mame_decode, rot_galagino
 
 _AUDIO_ZIP = "zaxxon-audio.zip"
 
-import io
-import wave
-import zipfile
-
-
 # Discrete-sound sample set (Sega "with samples" board, zaxxon_a.cpp /
 # zaxxon_sample_names): 12 wav files, named by MAME's sample index. Same
 # source as the Battles/Xevious explosion samples (mamewavs), here the full

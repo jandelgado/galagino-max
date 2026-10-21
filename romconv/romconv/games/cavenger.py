@@ -10,6 +10,7 @@ from romconv.emit.asset import emit_compressed
 from romconv.gfx.color import rgb565_swapped
 from romconv.gfx.gfxutil import mame_decode
 from romconv.gfx.resnet import combine, resistor_weights
+from romconv.plan.budget import log_sizes
 
 _CHAR_COUNT, _BIG_COUNT, _SMALL_COUNT = 512, 128, 512
 _MAIN = (("1.c4", "f23bd6b9f427c26ac996a5c8ba29f356cf45c78a"),
@@ -74,11 +75,7 @@ def _convert(ctx: Context) -> None:
 
     sizes = {"main": len(main), "chars": _CHAR_COUNT * 16, "sprites": _BIG_COUNT * 64,
              "small": _SMALL_COUNT * 16, "rgb": 64, "lut": 64}
-    for k, v in sizes.items():
-        ctx.log.info(f"  {k:8s} {v:6d}")
-    total = sum(sizes.values())
-    ctx.log.info(f"Arena total {total} B (budget 182000)")
-    assert total < 182000
+    log_sizes(ctx, sizes)
 
 
 JOB = Job(name="cavenger", convert=_convert, machine="cavenger", zips=("cavenger.zip",))

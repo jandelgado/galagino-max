@@ -27,3 +27,12 @@ def make_zip(paths):
                 z.writestr(member, data)
 
     return _make
+
+
+@pytest.fixture
+def arena_layout(paths):
+    """source/src/emulation/arena_layout.h of the fake repo (jobs that check the Arena blocks read it)."""
+    header = paths.src / "emulation" / "arena_layout.h"
+    header.parent.mkdir(parents=True, exist_ok=True)
+    header.write_text("#define ARENA_A_LOCAL 91000\n#define ARENA_A_REMOTE 60000\n#define ARENA_B_SIZE 110500\n")
+    return header

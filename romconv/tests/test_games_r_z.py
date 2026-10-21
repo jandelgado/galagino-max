@@ -9,6 +9,7 @@ from romconv.core.context import Context
 from romconv.core.errors import ConversionError
 from romconv.games import (roadfighter, rocnrope, scregg, solomon, spacduel, starwars, tempest, thepit, timeplt,
                            tp84, trackfld, tutankhm, vanguard, vulgus, yiear, zaxxon)
+from romconv.emit.write import write_bytes
 from romconv.gfx.color import prom_rgb_332_resnet, rgb565_swapped
 from romconv.hw import btime, snk6502
 
@@ -37,11 +38,7 @@ def test_registry_has_no_legacy_games_left():
 
 
 @pytest.mark.parametrize("job", JOBS, ids=lambda j: j.name)
-def test_missing_zip_is_a_conversion_error_naming_the_zip(job, paths, log):
-    paths.machines.joinpath(job.machine).mkdir(parents=True, exist_ok=True)
-    header = paths.src / "emulation" / "arena_layout.h"
-    header.parent.mkdir(parents=True)
-    header.write_text("#define ARENA_A_LOCAL 91000\n#define ARENA_A_REMOTE 60000\n#define ARENA_B_SIZE 110500\n")
+def test_missing_zip_is_a_conversion_error_naming_the_zip(job, paths, log, arena_layout):
     with pytest.raises(ConversionError, match=job.zips[0].replace(".", r"\.")):
         job.convert(_ctx(job, paths, log))
 
@@ -109,12 +106,11 @@ def test_solomon_formats():
     assert len(solomon._decode_sprites(bytes(0x10000))) == 512
 
 
-def test_vector_and_starwars_headers_sizes(paths, log):
-    from romconv.hw import atari
+def test_write_bytes_returns_the_size_in_bytes(paths, log):
     ctx = _ctx(starwars.JOB, paths, log)
     paths.machines.joinpath("starwars").mkdir(parents=True)
-    assert atari.write(ctx, "starwars", "w.h", "w", [1, 2, 3], "d", ctype="unsigned short") == 6
-    assert atari.write(ctx, "starwars", "b.h", "b", [1, 2, 3], "d") == 3
+    assert write_bytes(ctx, "w.h", "w", [1, 2, 3], "d", "starwars", ctype="unsigned short") == 6
+    assert write_bytes(ctx, "b.h", "b", [1, 2, 3], "d", "starwars") == 3
 
 
 def test_thepit_palette_and_rows():

@@ -5,6 +5,7 @@
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
+from romconv.emit.write import write_bytes
 from romconv.hw.btime import decode_chars, decode_tiles16
 
 _MAINCPU = (("aa04.9b", "ed3f3712423979dcb351941fa85dce6a0a7bb16b"),
@@ -25,12 +26,6 @@ _BG_MAP = ("ab03.6b", "737af6e264183a1f151f277a07cf250d6abb3fd8")
 
 
 # ------------------------------------------------------------
-def _write_rom(ctx, name, sym, data, comment):
-    with ctx.header(name) as f:
-        print(f"// {comment}", file=f)
-        emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
-
-
 def _write_char_tiles(ctx, tiles):
     with ctx.header("burgertime_chartiles.h") as f:
         print("// Burger Time char set #1 (aa12.7k+ab13.9k+ab10.10k+ab11.12k+aa8.13k+ab9.15k)", file=f)
@@ -64,7 +59,7 @@ def _write_bg_tiles(ctx, tiles):
 
 
 def _write_bg_map(ctx, data):
-    _write_rom(ctx, "burgertime_bgmap.h", "burgertime_bgmap", data,
+    write_bytes(ctx, "burgertime_bgmap.h", "burgertime_bgmap", data,
                "Burger Time bg_map lookup ROM (ab03.6b), 0x800 byte grezzi: "
                "4 banchi x 0x200 selezionabili da m_btime_tilemap[i&3], ogni "
                "banco indicizzato 0..0xff, valore = indice diretto in burgertime_bgtiles "
@@ -104,12 +99,12 @@ def _convert(ctx: Context) -> None:
     # 0xb000-0xbfff resta a 0 (non presente nel set "btime" Data East set 1).
     maincpu = bytearray(0x1000) + cpu01 + cpu02 + cpu03 + cpu04
     assert len(maincpu) == 0x5000  # 0xb000-0xffff
-    _write_rom(ctx, "burgertime_rom_main.h", "burgertime_rom_main", bytes(maincpu),
+    write_bytes(ctx, "burgertime_rom_main.h", "burgertime_rom_main", bytes(maincpu),
                "Burger Time main CPU ROM 0xb000-0xffff (0xb000-0xbfff empty in this"
                "set), encrypted DECO CPU-7 -- runtime decryption (see burgertime.cpp "
                "fetch_cpu7)")
 
-    _write_rom(ctx, "burgertime_rom_audio.h", "burgertime_rom_audio", audio,
+    write_bytes(ctx, "burgertime_rom_audio.h", "burgertime_rom_audio", audio,
                "Burger Time audio CPU ROM 0xe000-0xefff (mirror 0x1000-0x1fff), not encrypted")
 
     ctx.log.info("Burger Time conversion finished.")

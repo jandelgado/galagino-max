@@ -2,15 +2,15 @@
 from types import MappingProxyType
 
 from romconv.core.context import Context
-from romconv.core.errors import ConversionError
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
-from romconv.games.namco.common import CHAR_PLANES, CHAR_XOFFS, write_rom, write_wsg
+from romconv.emit.write import write_bytes
+from romconv.games.namco.common import CHAR_PLANES, CHAR_XOFFS, write_wsg
 from romconv.gfx.color import rgb565_swapped_scaled
 from romconv.gfx.gfxutil import mame_decode, rot_galagino
+from romconv.gfx.rom import rom_bytes_all
 from romconv.hw.namco import nudge
-
-_ARENA_CAPACITY = 182000
+from romconv.plan.budget import log_sizes
 
 _FILES = MappingProxyType({
     "main": (("6e.rom", "87a948b289356675d0418c87c3c0ae36ceba3ee0"),
@@ -41,10 +41,6 @@ _TRANSPARENT_LUT = 0x0F  # lookup nibble 15: char pen 15 / sprite pen 31
 
 # palette PROM bits 0..3 drive 2.2k, 1k, 470, 220 ohm (no pull resistor)
 _RES = (2200, 1000, 470, 220)
-
-
-def _load(ctx: Context, key: str) -> bytes:
-    return b"".join(ctx.rom(name, sha1) for name, sha1 in _FILES[key])
 
 
 def _color_level(nibble: int) -> int:
@@ -116,37 +112,30 @@ def _write_colormaps(ctx: Context, pal, chrlut, sprlut) -> None:
         table(f, "phozon_colormap_sprites", sprites)
 
 
-def _write_rom(ctx: Context, header: str, symbol: str, data: bytes, comment: str) -> int:
-    write_rom(ctx, header, symbol, data, comment)
-    return len(data)
-
-
 def _convert(ctx: Context) -> None:
-    chars = mame_decode(_load(ctx, "chars"), 8, 8, CHAR_PLANES, CHAR_XOFFS, _YOFFS_8, 128, _COUNT)
-    sprites = mame_decode(_load(ctx, "sprites"), 8, 8, _SPR_PLANES, _SPR_XOFFS, _YOFFS_8, 128, _COUNT)
+    def rom(key):
+        return rom_bytes_all(ctx, _FILES[key])
+
+    chars = mame_decode(rom("chars"), 8, 8, CHAR_PLANES, CHAR_XOFFS, _YOFFS_8, 128, _COUNT)
+    sprites = mame_decode(rom("sprites"), 8, 8, _SPR_PLANES, _SPR_XOFFS, _YOFFS_8, 128, _COUNT)
 
     sizes = {
-        "phozon_rom_main": _write_rom(ctx, "phozon_rom_main.h", "phozon_rom_main", _load(ctx, "main"),
-                                      "Phozon main M6809 ROM 0x8000-0xFFFF (6e+6h+6c+6d)"),
-        "phozon_rom_sound": _write_rom(ctx, "phozon_rom_sound.h", "phozon_rom_sound", _load(ctx, "sound"),
-                                       "Phozon sound M6809 ROM 0xE000-0xFFFF (3b)"),
-        "phozon_rom_sub": _write_rom(ctx, "phozon_rom_sub.h", "phozon_rom_sub", _load(ctx, "sub"),
-                                     "Phozon sub M6809 ROM 0xE000-0xFFFF (9r)"),
+        "phozon_rom_main": write_bytes(ctx, "phozon_rom_main.h", "phozon_rom_main", rom("main"),
+                                       "Phozon main M6809 ROM 0x8000-0xFFFF (6e+6h+6c+6d)"),
+        "phozon_rom_sound": write_bytes(ctx, "phozon_rom_sound.h", "phozon_rom_sound", rom("sound"),
+                                        "Phozon sound M6809 ROM 0xE000-0xFFFF (3b)"),
+        "phozon_rom_sub": write_bytes(ctx, "phozon_rom_sub.h", "phozon_rom_sub", rom("sub"),
+                                      "Phozon sub M6809 ROM 0xE000-0xFFFF (9r)"),
         "phozon_tilemap": _write_chars(ctx, chars),
         "phozon_sprites": _write_sprites(ctx, sprites),
     }
 
-    pal = _palette(_load(ctx, "red"), _load(ctx, "green"), _load(ctx, "blue"))
-    _write_colormaps(ctx, pal, _load(ctx, "chrlut"), _load(ctx, "sprlut"))
+    pal = _palette(rom("red"), rom("green"), rom("blue"))
+    _write_colormaps(ctx, pal, rom("chrlut"), rom("sprlut"))
     write_wsg(ctx, "phozon_wavetable.h", "phozon_wavetable",
-              "Phozon WSG 15XX waveforms (sound.prm): 8 x 32 samples, -8..7", _load(ctx, "wave"))
+              "Phozon WSG 15XX waveforms (sound.prm): 8 x 32 samples, -8..7", rom("wave"))
 
-    for name, size in sizes.items():
-        ctx.log.info(f"  {name:18s} {size:6d} B")
-    total = sum(sizes.values())
-    ctx.log.info(f"  Arena total        {total:6d} / {_ARENA_CAPACITY} B")
-    if total >= _ARENA_CAPACITY:
-        raise ConversionError("phozon: assets exceed Arena capacity")
+    log_sizes(ctx, sizes)
     ctx.log.info("Phozon conversion finished.")
 
 

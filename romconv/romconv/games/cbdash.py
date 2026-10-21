@@ -12,7 +12,7 @@ from types import MappingProxyType
 from romconv.core.context import Context
 from romconv.core.errors import ConversionError
 from romconv.core.job import Job
-from romconv.emit.asset import emit_compressed
+from romconv.emit.write import write_bytes
 from romconv.misc.userfile import read_user_file
 
 _CAS = ("cbdash.cas", "5d163d8e31c58b20679c6be06b1aa02df621822b")
@@ -59,14 +59,6 @@ _PSID_LOAD, _PSID_INIT, _PSID_PLAY, _PSID_DATA = 0x08, 0x0A, 0x0C, 0x7C
 
 def _blocks(cas, first, last):
     return b"".join(cas[b * 256 + 1:b * 256 + 256] for b in range(first, last + 1))
-
-
-def _write(ctx, name, sym, data, comment):
-    with ctx.header(name) as f:
-        print(f"// {comment}", file=f)
-        emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
-    ctx.log.info(f"{sym}: {len(data)} bytes")
-    return len(data)
 
 
 def _relocate(addr):
@@ -127,20 +119,18 @@ def _convert(ctx: Context) -> None:
     # block 103 is an "EOB001" trailer the BIOS never reads
     assert cas[103 * 256 + 1:103 * 256 + 4] == b"EOB" and not any(cas[104 * 256:])
 
-    total = _write(ctx, "cbdash_rom_main.h", "cbdash_rom_main", main_img,
-                   "main RAM image, load at 0x0500, entry 0x0503")
-    total += _write(ctx, "cbdash_rom_sound.h", "cbdash_rom_sound", sound_img,
-                    "sound RAM image, load at 0x0200, entry 0x0203")
-    total += _write(ctx, "cbdash_rom_bios.h", "cbdash_rom_bios", bios,
-                    "BIOS B, main CPU 0xf000-0xffff, encrypted opcodes")
-    total += _write(ctx, "cbdash_rom_audio.h", "cbdash_rom_audio", audio,
-                    "sound CPU ROM 0xf800-0xffff")
+    total = write_bytes(ctx, "cbdash_rom_main.h", "cbdash_rom_main", main_img,
+                        "main RAM image, load at 0x0500, entry 0x0503")
+    total += write_bytes(ctx, "cbdash_rom_sound.h", "cbdash_rom_sound", sound_img,
+                         "sound RAM image, load at 0x0200, entry 0x0203")
+    total += write_bytes(ctx, "cbdash_rom_bios.h", "cbdash_rom_bios", bios,
+                         "BIOS B, main CPU 0xf000-0xffff, encrypted opcodes")
+    total += write_bytes(ctx, "cbdash_rom_audio.h", "cbdash_rom_audio", audio,
+                         "sound CPU ROM 0xf800-0xffff")
 
     sid = _sid_tune(ctx)
-    with ctx.header("cbdash_sid.h") as f:
-        print("// C64 Boulder Dash PSID (Peter Liepa, 1984 First Star), rebuilt contiguous", file=f)
-        emit_compressed(f, "cbdash_sid", "unsigned char", "", len(sid), list(sid))
-    ctx.log.info(f"cbdash_sid: {len(sid)} bytes")
+    write_bytes(ctx, "cbdash_sid.h", "cbdash_sid", sid,
+                "C64 Boulder Dash PSID (Peter Liepa, 1984 First Star), rebuilt contiguous")
     total += 2 * len(sid) - _PSID_DATA  # the file + the SidPlayer RAM window
     ctx.log.info(f"Arena (decompressed assets): {total} bytes")
 

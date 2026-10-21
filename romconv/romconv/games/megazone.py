@@ -8,9 +8,11 @@
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
+from romconv.emit.write import write_asset
 from romconv.gfx.color import rgb565_swapped
-from romconv.gfx.gfxutil import mame_decode
+from romconv.gfx.gfxutil import column_words, mame_decode, pack_pairs
 from romconv.gfx.resnet import combine, resistor_weights
+from romconv.plan.budget import log_sizes
 
 _CHAR_COUNT = 512
 _SPRITE_COUNT = 256
@@ -44,21 +46,11 @@ def _convert(ctx: Context) -> None:
     # --- chars: charlayout, nibble packed, plane 0 = MSB ---
     chars_dec = mame_decode(chars, 8, 8, [0, 1, 2, 3], [4 * i for i in range(8)],
                             [32 * i for i in range(8)], 256, _CHAR_COUNT)
-    char_words = []
-    for t in chars_dec:
-        for nx in range(8):
-            w = 0
-            for k in range(8):
-                w |= t[k][nx] << (4 * k)
-            char_words.append(w)
+    char_words = column_words(chars_dec, 4)
 
     # --- sprites: spritelayout ---
     spr_dec = mame_decode(sprites, 16, 16, _SPR_PLANES, _SPR_XOFFS, _SPR_YOFFS, 512, _SPRITE_COUNT)
-    spr_bytes = []
-    for s in spr_dec:
-        for row in s:
-            for x in range(0, 16, 2):
-                spr_bytes.append(row[x] | (row[x + 1] << 4))
+    spr_bytes = pack_pairs(spr_dec)
 
     # --- palette: compute_resistor_weights(0, 255, -1, 3 x {1000,470,220}, 3 x .., 2 x {470,220}, pulldown 1000) ---
     (rw, gw, bw), _ = resistor_weights(0, 255, -1.0, [([1000, 470, 220], 1000, 0),
@@ -75,9 +67,7 @@ def _convert(ctx: Context) -> None:
     lut = [b & 0x0F for b in spr_lut] + [(b & 0x0F) | 0x10 for b in chr_lut]
 
     def write(name, fn):
-        with ctx.header(name) as f:
-            fn(f)
-        ctx.log.info(f"wrote {name}")
+        write_asset(ctx, name, None, fn)
 
     write("megazone_rom_main.h",
           lambda f: emit_compressed(f, "megazone_rom_main", "unsigned char", "", len(main), list(main)))
@@ -98,11 +88,7 @@ def _convert(ctx: Context) -> None:
 
     sizes = {"main": len(main), "sound": len(sound), "i8039": len(i8039), "chars": _CHAR_COUNT * 32,
              "sprites": _SPRITE_COUNT * 128, "rgb": 64, "lut": 512}
-    for k, v in sizes.items():
-        ctx.log.info(f"  {k:8s} {v:6d}")
-    total = sum(sizes.values())
-    ctx.log.info(f"Arena total {total} B (budget 201500)")
-    assert total < 201500
+    log_sizes(ctx, sizes, 201500)
 
 
 JOB = Job(name="megazone", convert=_convert, machine="megazone", zips=("megazone.zip",))

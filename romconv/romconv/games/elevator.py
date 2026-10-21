@@ -11,8 +11,10 @@
 from functools import partial
 
 from romconv.core.context import Context
+from romconv.core.errors import ConversionError
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
+from romconv.plan.budget import log_sizes
 
 
 def _elevator_roms(ctx):
@@ -71,6 +73,12 @@ def _jungleh_roms(ctx):
     return main, sound, gfx, prom
 
 
+def _check_draw_order(order):
+    # attract mode: back to front b m s f (tilemap 3, 2, sprites, tilemap 1)
+    if order[4 * 0x06:4 * 0x06 + 4] != [3, 2, 0, 1]:
+        raise ConversionError(f"layer PROM draw order differs from the attract mode order: {order[24:28]}")
+
+
 def _draw_order(prom):
     order = []
     for i in range(32):
@@ -91,7 +99,7 @@ def _convert(game: str, ctx: Context) -> None:
     main, sound, gfx, prom = {"elevator": _elevator_roms, "jungleh": _jungleh_roms}[game](ctx)
 
     order = _draw_order(prom)
-    assert order[4 * 0x06:4 * 0x06 + 4] == [3, 2, 0, 1], order[24:28]   # attract: b m s f
+    _check_draw_order(order)
 
     for asset, data in (("main_rom", main), ("sound_rom", sound), ("gfx_rom", gfx), ("draw_order", order)):
         name = f"{game}_{asset}"
@@ -100,11 +108,7 @@ def _convert(game: str, ctx: Context) -> None:
         ctx.log.info(f"wrote {name}.h")
 
     sizes = {"main": len(main), "sound": len(sound), "gfx": len(gfx), "order": len(order), "charram": _CHARRAM}
-    for k, v in sizes.items():
-        ctx.log.info(f"  {k:8s} {v:6d}")
-    total = sum(sizes.values())
-    ctx.log.info(f"Arena total {total} B (budget 182000)")
-    assert total < 182000
+    log_sizes(ctx, sizes)
 
 
 JOBS = (

@@ -51,3 +51,23 @@ def pack_nibbles(pens: Sequence[int]) -> int:
     for p in pens:
         v = (v << 4) | p
     return v
+
+
+def pack_pens(pens: Sequence[int], bits: int) -> int:
+    """Pens into one word, first pen in the lowest `bits`."""
+    return sum(p << (bits * i) for i, p in enumerate(pens))
+
+
+def column_words(tiles: Sequence[Sequence[Sequence[int]]], bits: int) -> list[int]:
+    """8x8 tiles[t][y][x] as one word per native x column: the pens of y = 0..7, y = 0 lowest."""
+    return [pack_pens([t[y][x] for y in range(8)], bits) for t in tiles for x in range(8)]
+
+
+def pack_sprite_rows(sprites: Sequence[Sequence[Sequence[int]]]) -> list[int]:
+    """16x16 sprites[s][y][x] as two nibble words per row (x 0-7, x 8-15), first pen in the highest nibble."""
+    return [pack_nibbles(row[h * 8:h * 8 + 8]) for s in sprites for row in s for h in range(2)]
+
+
+def pack_pairs(sprites: Sequence[Sequence[Sequence[int]]]) -> list[int]:
+    """16x16 sprites[s][y][x] as 8 bytes per row, low nibble = even x."""
+    return [row[x] | (row[x + 1] << 4) for s in sprites for row in s for x in range(0, 16, 2)]
