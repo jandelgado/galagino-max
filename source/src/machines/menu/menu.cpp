@@ -60,7 +60,7 @@ Menu::Menu(const machineInfo *machines, int8_t machinesCount, int8_t shown, int8
   // released before they count
   last_mask = ~0u;
 
-  // start at the last game, render_row() scrolls on to the preselection
+  // start at the last game, scroll() moves on to the preselection
   if(machinesCount > 3) {
     scroll_offset = scrollTarget(shown + 1);
   }
@@ -74,6 +74,10 @@ Menu::Menu(const machineInfo *machines, int8_t machinesCount, int8_t shown, int8
       net_only[i >> 5] |= 1u << (i & 31);
     }
   }
+#if NO_DOWNLOADS_IN_ATTRACT
+  // highlight the game the menu attract will start
+  menu_sel = nextAvailable(menu_sel);
+#endif
 #endif
 }
 
@@ -117,6 +121,8 @@ void Menu::prepare_frame() {
     if(menu_sel > machinesCount) { menu_sel = 1; }
   }
 
+  scroll();
+
   if(pressed & (BUTTON_FIRE | BUTTON_START)) {
     select();
     return;
@@ -124,14 +130,39 @@ void Menu::prepare_frame() {
 
 #ifdef MASTER_ATTRACT_MENU_TIMEOUT
   if(millis() - attract_start > MASTER_ATTRACT_MENU_TIMEOUT) {
-    printf("MASTER ATTRACT ");
-#ifdef ASSETS_REMOTE
-    // no downloads while idle: network traffic, cache churn, flash wear
+#if defined(ASSETS_REMOTE) && NO_DOWNLOADS_IN_ATTRACT
+    // no downloads while idle: network traffic, cache churn, flash wear.
+    // Highlight moves on to the next downloaded game, which starts once
+    // scrolled into the middle.
     menu_sel = nextAvailable(menu_sel);
+    if(machinesCount > 3 && scroll_offset != scrollTarget(menu_sel)) { return; }
 #endif
+    printf("MASTER ATTRACT ");
     select();
   }
 #endif
+}
+
+// Moves the strip towards the highlighted logo, the short way round. The
+// highlight stays at most one logo from the middle slot, so on screen
+// however fast UP/DOWN repeat: a longer way jumps the rest.
+void Menu::scroll() {
+  static const int STEP = 12;  // lines per screen, divides 96
+
+  if(machinesCount <= 3) { return; }
+
+  const int total = machinesCount * 96;
+  int diff = (scrollTarget(menu_sel) - scroll_offset) % total;
+  if(diff < 0) { diff += total; }
+  if(diff > total / 2) { diff -= total; }
+
+  int jump = 0;
+  if(diff > 96) { jump = diff - 96; }
+  if(diff < -96) { jump = diff + 96; }
+  int step = diff - jump;
+  if(step > STEP) { step = STEP; }
+  if(step < -STEP) { step = -STEP; }
+  scroll_offset = (scroll_offset + jump + step + total) % total;
 }
 
 // scroll_offset that puts machine sel (1-based) in the middle slot
@@ -232,22 +263,6 @@ void Menu::render_row(short row) {
 #endif
     }
 #endif
-
-    if(row == 35) {
-      int new_offset = scrollTarget(menu_sel);
-
-      // check if we need to scroll
-      if(new_offset != scroll_offset) {
-        int diff = (new_offset - scroll_offset) % (machinesCount * 96);
-        if(diff < 0) diff += machinesCount * 96;
-        if(diff < machinesCount * 96 / 2)
-          scroll_offset = (scroll_offset + 8) % (machinesCount * 96);
-        else
-          scroll_offset = (scroll_offset - 8) % (machinesCount * 96);
-        if(scroll_offset < 0)
-          scroll_offset += machinesCount * 96;
-      }
-    }
   }
 
 #if defined(MASTER_ATTRACT_MENU_TIMEOUT) && defined(MASTER_ATTRACT_MENU_SHOW_COUNTDOWN)
@@ -391,6 +406,7 @@ void Menu::netLine(unsigned short *line, int logo_line) {
   }
 }
 
+#if NO_DOWNLOADS_IN_ATTRACT
 // sel (1-based) or the next game that starts without network
 int8_t Menu::nextAvailable(int8_t sel) {
   for(int8_t i = 0; i < machinesCount; i++) {
@@ -401,6 +417,7 @@ int8_t Menu::nextAvailable(int8_t sel) {
   }
   return sel;
 }
+#endif
 #endif
 
 // Decode only logos visible this frame. Caching all ~50 does not fit in RAM.
