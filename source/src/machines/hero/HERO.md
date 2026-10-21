@@ -131,7 +131,7 @@ room  F7 F8 F9 FA FB FC FD FE
   change; band colour `$FFAE[band] | hue` (`06` bottom, `04` middle, `02` top).
 - Palette: MAME `tia_ntsc_video_device::init_palette()` (phase shift 26.2)
   reproduces every snapshot colour exactly.
-- Room check: `romconv/internal/hero/tools/roomcheck.py` matches 768 of 768
+- Room check: `romconv/dev/hero/roomcheck.py` matches 768 of 768
   bands (256 rooms x 3) with MAME, the animated middle band of moving-wall
   rooms excluded.
 - 2600 playfield is 160 pixels wide; H.E.R.O. blanks the left 8 (HMOVE bar).
@@ -248,7 +248,7 @@ hero reappears at x `$FFAC[dir]` (`93`, `0f`). `$9E` tracks the furthest screen.
   a MAME RAM dump taken when the game increments `$81` (`$D700`, harness
   `H_RAM_TAP`); MAME's own frame boundary drifts against the game loop.
 - Host test `source/test/test_hero_game`: 13 MAME runs
-  (`romconv/internal/hero/tools/traces/`, `make_fixture.sh`) replayed from a
+  (`romconv/dev/hero/traces/`, `make_fixture.sh`) replayed from a
   loaded RAM state with the recorded SWCHA/INPT4/SWCHB; every modelled RAM
   byte must match every frame (collision latches on their used bits). Runs:
   walking/flying, shaft, level 1 with dynamite and a death, laser kill,
@@ -490,14 +490,14 @@ Two TIA channels, no music, silent in the demo:
 
 ## Tools used
 
-In `romconv/internal/hero/tools/`:
+In `romconv/dev/hero/`:
 
 - `dis6502.py`: recursive 6502 disassembler for F8 carts (follows bank
   switches through hotspot accesses, origins `$D000`/`$F000`).
 - `harness.lua`, `run_mame.sh`: headless MAME `a2600` with scripted input,
   RAM pokes, RAM dumps, bank aware ROM read log, snapshots.
 - `capture_rooms.py`: snapshots of all 256 rooms (pokes `$F5`, `$9C`, `$A0`).
-- `trace.py`: per-frame RAM CSV of a script; `trace_fixture.py` and
+- `trace_run.py`: per-frame RAM CSV of a script; `trace_fixture.py` and
   `traces/make_fixture.sh`: the host test fixture (delta-coded records of RAM,
   SWCHA, INPT4, SWCHB at the `$81` increment).
 - `roomcheck.py`: decode check against the snapshots, writes the host test

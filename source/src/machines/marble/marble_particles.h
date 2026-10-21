@@ -6,7 +6,7 @@
 #include "marble_video.h"
 
 // Bouncing marbles of the title and the final screen (MARBLE.md "Attract"; model
-// tools/marble_attract.py): slots 0x400a9c (x, y in 1/16 px, vx, vy, mode word) in the work
+// dev/marble/marble_attract.py): slots 0x400a9c (x, y in 1/16 px, vx, vy, mode word) in the work
 // RAM image, count 0x4003e2. The emulation core inits and bounces them, publish turns them
 // into view positions for the renderer.
 //

@@ -4,7 +4,8 @@ Basis for a galagino remake: graphics, levels and music come from the ROM, the l
 reimplemented in C++ (no 68010 emulation). The game logic is ported from Marble Love
 (https://github.com/magno73/marble-love, MIT, notice in LICENSE-marble-love), a
 function-by-function TypeScript port of the arcade ROM, named by ROM address. Facts below were read from the disassembly
-(capstone, romconv/internal/marble/tools) unless marked otherwise.
+(capstone, romconv/dev/marble) unless marked otherwise. The dev tools run from `romconv/` as
+`uv run python -m dev.marble.<tool>` (the commands below).
 
 ## ROM (MAME `marble`, set 1, atari/atarisy1.cpp)
 
@@ -17,7 +18,7 @@ function-by-function TypeScript port of the arcade ROM, named by ROM address. Fa
   = bank 2 tiles 2048-4095 (149/151/153), 4 bpp with plane 3 empty.
 - Screen 336x240 ROT0 (set_raw 7.159 MHz, 456x262). The playfield used by races is 36
   tiles = 288 px wide, drawn from playfield RAM column 3 (0xa00006).
-- Palette: IRGB_4444, 1024 entries. Display colour (converter `marble_data.irgb_hw`): each
+- Palette: IRGB_4444, 1024 entries. Display colour (converter `irgb_hw` in romconv/romconv/games/marble/data.py): each
   4 bit component times the intensity table 0, 3, 4, ..., 0x11 (intensity 1 is dark grey,
   e.g. the aerial ramp 0x1eee = 42 grey), as the user's reference screenshot shows on every
   colour; MAME 0.289's linear intensity (`_irgb`, kept for trace screenshots) makes those
@@ -44,7 +45,7 @@ function-by-function TypeScript port of the arcade ROM, named by ROM address. Fa
   level init 0x16f6c (32 rows from row 0 into 0xa00006, race 4 from the bottom) and
   scroll redraw 0x13ee6 (one row per 8 px of camera, row (camera - +0x10) / 8 - 1, +0x20
   when scrolling down). decode_level() matches MAME playfield RAM for every row of all 6
-  races (tools/pf_check.py). Reading the attribute table at +0x2a + 0x4e gives wrong
+  races (dev/marble/pf_check.py). Reading the attribute table at +0x2a + 0x4e gives wrong
   colour sets (practice row 9 grey band).
 - Camera: 0x40097c (long, +0x10 .. +0x10 + +0x12), playfield y scroll 0x400000. Race
   index: 0x400394 (word, 0-5).
@@ -69,11 +70,11 @@ function-by-function TypeScript port of the arcade ROM, named by ROM address. Fa
 
 ## MAME playfield oracle
 
-`romconv/internal/marble/tools/mame_pf.lua` dumps playfield RAM every 30 frames; without
+`romconv/dev/marble/mame_pf.lua` dumps playfield RAM every 30 frames; without
 `MARBLE_LEVEL` it records attract mode. With `MARBLE_LEVEL=n` it inserts a coin, starts,
 forces race n (write tap on 0x400394) and drives the camera with a read tap on the
 marble screen y (0x400038: 0x00 = scroll down, 0xf0 = scroll up), so every row is drawn
-by the game. `tools/pf_check.py PFSEQ.BIN` matches RAM rows to decode_level() and exits 1
+by the game. `dev/marble/pf_check.py PFSEQ.BIN` matches RAM rows to decode_level() and exits 1
 on any difference.
 
 ```sh
@@ -81,7 +82,7 @@ MARBLE_OUT=$PWD MARBLE_LEVEL=2 MARBLE_FRAMES=2200 SDL_VIDEODRIVER=dummy \
   SDL_AUDIODRIVER=dummy mame marble -rompath romszip -video none -sound none -nothrottle \
   -noautosave -skip_gameinfo -snapshot_directory "$PWD" -cfg_directory "$PWD/cfg" \
   -nvram_directory "$PWD/nv" -autoboot_script /abs/path/mame_pf.lua
-python3 romconv/internal/marble/tools/pf_check.py pfseq.bin
+uv run python -m dev.marble.pf_check pfseq.bin
 ```
 
 Seen rows per race (2200 frames): 70/75, 140/145, 129/135, 122/128, 142/142, 107/108,
@@ -155,7 +156,7 @@ Player object 0x400018 (player 2 0x4000fa, stride 0xe2). 16.16 fixed point, pixe
 | +0xc6/+0xc7 | byte | trackball delta port 2 / port 0 (0x1ac18) |
 | +0xca, +0xd2 | byte, word | dot point renormalised next (0-7), death count |
 
-Tick (0x121b8, ported 1:1 in tools/marble_sim.py `physics_121b8`):
+Tick (0x121b8, ported 1:1 in dev/marble/marble_sim.py `physics_121b8`):
 
 1. Input 0x17f66: vx += s8(+0xc7) * 0x160, vy -= s8(+0xc6) * 0x160 (state 1: scaled by
    0x1f - +0x56). Only on ground or edge (+0x36 != 2) and surface code in {0, 0x2d-0x31,
@@ -208,7 +209,7 @@ equal z). Practice uses tags 0x11 (no-op) and 0x1a-0x1f. Tag 0x05 is ported from
 Love (no trace contact). Tags 0x0a-0x0d, 0x12-0x16, 0x20-0x27 (gates, pipes, catapult) are
 not ported (section Level objects).
 
-Validation (tools/marble_sim.py, traces from tools/mame_trace.lua, random stick input,
+Validation (dev/marble/marble_sim.py, traces from dev/marble/mame_trace.lua, random stick input,
 3000 frames): `ticks` from each MAME snapshot and `run` free running from the first
 snapshot, terrain from ROM, slots/dynamic codes/enemy scratch copied from the trace.
 Position and velocity match exactly (0 px) for every tick except deaths and enemy
@@ -223,7 +224,7 @@ MARBLE_OUT=$PWD MARBLE_LEVEL=0 MARBLE_FRAMES=3000 MARBLE_INPUT_FRAME=1000 \
   MARBLE_INPUT=60:4:0,60:0:-6 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy mame marble \
   -rompath romszip -video none -sound none -nothrottle -noautosave -skip_gameinfo \
   -cfg_directory "$PWD/cfg" -nvram_directory "$PWD/nv" -autoboot_script /abs/mame_trace.lua
-python3 romconv/internal/marble/tools/marble_sim.py run trace.bin 0   # also: ticks, terrain
+uv run python -m dev.marble.marble_sim run trace.bin 0   # also: ticks, terrain
 ```
 
 ### Player states, deaths, RNG
@@ -308,7 +309,7 @@ lost, sparkle; 40 px drop: shatter, sparkle) and rolls again within 300 ticks; a
 while dead starts clean.
 
 ```sh
-python3 romconv/internal/marble/tools/make_fixture.py rwrite \
+uv run python -m dev.marble.make_fixture rwrite \
   source/test/test_marble_deaths/marble_start_trace.h
 ```
 
@@ -324,7 +325,7 @@ sparkle 48). bd2 (beginner, 800:700:812:-256:11,1400:676:780:-186:11,1900:628:77
 
 ```sh
 MARBLE_TICK=start ... mame_trace.lua            # one snapshot per main loop tick
-python3 romconv/internal/marble/tools/marble_sim.py deaths pd1/trace.bin 0 \
+uv run python -m dev.marble.marble_sim deaths pd1/trace.bin 0 \
   0:798 800:998 1000:1498 1500:2400             # FROM:TO segments between teleports
 ```
 
@@ -399,7 +400,7 @@ race by 0x1a444 at level init (0x16f6c), read by 0x1caba.
   camera = 0x40097e; x + y summed as longs, asr 1), sy counts up from the bottom of the
   240 line screen (start sy 184 near the top; camera rule below). Surface codes 0x2f-0x31
   add 2 to z on odd x when |vx| > 0x4000 (bumps). Stored at +0x1e/+0x20. Verified against
-  the traces (tools/mame_trace.lua, 10 traces): +0x20 equals the formula with the previous
+  the traces (dev/marble/mame_trace.lua, 10 traces): +0x20 equals the formula with the previous
   tick's camera in 9547 of 9640 ticks, the rest differ by 1-3 px in ticks where code after
   0x1b9cc moved the marble (mostly surface 0x2d).
 - Motion object RAM 0xa02000 (bank 0, 64 entries, 4 word planes of 0x80 bytes): word 0
@@ -432,7 +433,7 @@ race by 0x1a444 at level init (0x16f6c), read by 0x1caba.
 Static and scripted level pieces (start walls, gates, tubes, moving floors, animated
 playfield patches) are slots, not tiles. Sources: ROM disassembly and Marble Love
 (script-slot-step-13068.ts, helper-12896.ts, sub-29cce.ts, scroll-range-144e4.ts,
-terrain-wave-update-1d06a.ts); ported in tools/marble_sim.py and validated against MAME
+terrain-wave-update-1d06a.ts); ported in dev/marble/marble_sim.py and validated against MAME
 traces (below). Enemies (0x4009a4, 0x401302, ...) are other arrays and not covered.
 
 Tick order (main loop 0x10fce, 30 Hz): 0x13ee6 (first 0x1344c, then camera; a camera
@@ -514,7 +515,7 @@ tile block = bytes w, h, then w x h playfield words written at column +0x26, rac
 ultimate rows instead (row index in the record); terrain block = word first slot, word
 count, words to 0x40076e.
 
-Objects per race (tools/objects_data.py):
+Objects per race (dev/marble/objects_data.py):
 
 | race | spawned tags | dynamic codes from |
 | --- | --- | --- |
@@ -583,7 +584,7 @@ where the TS reads +0x18).
 Validation: `marble_sim.py occl TRACE RACE` (projection + masks of every tick from a MAME
 snapshot): 10249 ticks of 14 traces, all races, 1903 with masks, 394 with the marble
 hidden, 0 differ (one aerial tick where the respawn sparkle 0x13ade wrote +0x38 is
-skipped). `tools/marble_occlusion.py` renders MAME frames (mame_trace.lua `MARBLE_SHOTS`)
+skipped). `dev/marble/marble_occlusion.py` renders MAME frames (mame_trace.lua `MARBLE_SHOTS`)
 from playfield + MO RAM with the MAME merge and with the remake rule (marble MOs + masks
 from the logic entries): intermediate start, 46 live frames: both equal the MAME PNG
 pixel for pixel in a box around the marble; without masks 9 frames differ (up to 156 px).
@@ -609,7 +610,7 @@ load resets the applied value.
 Visible level objects are motion objects built by the MO list 0x26f3e (Marble Love
 late-game-logic-26f3e.ts, mo-block-emit-1a8d2.ts, buffer-fill-1b12a.ts,
 sort-adjacent-objects-1a7a8.ts, slot-insert-sorted-18e6c.ts, helper-18f46.ts). Ported in
-`tools/marble_mo.py`.
+`dev/marble/marble_mo.py`.
 
 Draw list. Op 0 of a slot script (0x12896) with mode != 1 calls 0x18e6c(tag, slot index):
 a 14 byte entry (type = tag, index, box words x, y, z min, x, y, z max) in the first free of
@@ -707,7 +708,7 @@ columns + parts 2 + 1 + 2), 35 (intermediate: 2 waves of up to 10 + 4 strip + fl
 pens 0-7), intermediate 531 (wave 390 + strip 120, strip pens 0-3), 678 distinct over all races
 = 21696 B at 4 bpp; frame data (lists, headers, bodies) 112 / 720 / 1821 B.
 
-Validation (`tools/marble_mo.py`, traces in $TMPDIR, `mame_trace.lua` with `MARBLE_PLACE`):
+Validation (`dev/marble/marble_mo.py`, traces in $TMPDIR, `mame_trace.lua` with `MARBLE_PLACE`):
 - `check` (model MO list from snapshot work RAM == the MO RAM bank 0x4003b0, words and links):
   b1 794 snapshots with slot MOs, b2 644, p1 292, u1 335, i1 428, cam0 785, cam1 827, cam2 679,
   cam5 739; every slot entity equal except 30 after a lag frame (logic tick of 3+ frames,
@@ -726,11 +727,11 @@ Validation (`tools/marble_mo.py`, traces in $TMPDIR, `mame_trace.lua` with `MARB
   shots_pal.bin (palette RAM per shot).
 
 ```sh
-python3 romconv/internal/marble/tools/marble_mo.py check TRACE RACE
-python3 romconv/internal/marble/tools/marble_mo.py sort TRACE RACE [PLACE_FRAME ...]
-python3 romconv/internal/marble/tools/marble_mo.py render DIR/shots.bin DIR/snap/marble \
+uv run python -m dev.marble.marble_mo check TRACE RACE
+uv run python -m dev.marble.marble_mo sort TRACE RACE [PLACE_FRAME ...]
+uv run python -m dev.marble.marble_mo render DIR/shots.bin DIR/snap/marble \
   DIR/trace.bin RACE OUTDIR [N ...]
-python3 romconv/internal/marble/tools/marble_mo.py data
+uv run python -m dev.marble.marble_mo data
 ```
 
 ## Camera
@@ -765,9 +766,9 @@ python3 romconv/internal/marble/tools/marble_mo.py data
 
 ## Remake data
 
-`./convert.sh marble` (romconv/internal/marble/marble_rom_convert.py) appends the physics
+`./convert.sh marble` (romconv/romconv/games/marble/convert.py) appends the physics
 data to `source/src/machines/marble/marble_rom.h` (generated, untracked). Terrain comes from
-`Terrain` in tools/marble_sim.py, so the bytes equal the MAME video RAM image (`marble_sim.py
+`Terrain` in dev/marble/marble_sim.py, so the bytes equal the MAME video RAM image (`marble_sim.py
 terrain`). Flash: 45937 B (terrain 38870, program ROM blocks 4237, marble sprites 2830).
 
 Terrain, `marble_terrain[race]` (`MarbleTerrainInfo`):
@@ -838,7 +839,7 @@ MO y + 5, top 3 screen lines lower), dots 0x0d-0x21 (h 1, hflip used); 0x22-0x2c
 around deaths.
 
 Host test fixture `source/test/test_marble_physics/marble_trace.h` (committed, derived
-numbers only), `tools/make_fixture.py`:
+numbers only), `dev/marble/make_fixture.py`:
 
 - `marble_trace_segments[MARBLE_TRACE_SEGMENTS]`: race, MAME frame, initial work RAM
   blocks `{addr, len, bytes}` (everything else 0: object 0x400018 + 0xe2, race words
@@ -860,11 +861,11 @@ numbers only), `tools/make_fixture.py`:
   RAM: zeroing them diverges at tick 345.
 
 ```sh
-python3 romconv/internal/marble/tools/make_fixture.py search TRACE RACE [MIN]
-python3 romconv/internal/marble/tools/make_fixture.py write \
+uv run python -m dev.marble.make_fixture search TRACE RACE [MIN]
+uv run python -m dev.marble.make_fixture write \
   source/test/test_marble_physics/marble_trace.h 0:p4/trace.bin:2056:360 \
   0:p3/trace.bin:1420:211 1:b2/trace.bin:1187:359
-python3 romconv/internal/marble/tools/marble_sim.py fixture \
+uv run python -m dev.marble.marble_sim fixture \
   source/test/test_marble_physics/marble_trace.h   # replay, no trace needed
 ```
 
@@ -951,11 +952,11 @@ numbers only), `make_fixture.py owrite`:
   with hflip, 214 with the marble hidden.
 
 ```sh
-python3 romconv/internal/marble/tools/make_fixture.py osearch TRACE RACE [MIN]
-python3 romconv/internal/marble/tools/make_fixture.py owrite \
+uv run python -m dev.marble.make_fixture osearch TRACE RACE [MIN]
+uv run python -m dev.marble.make_fixture owrite \
   source/test/test_marble_objects/marble_objects_trace.h 0:mt/p3/trace.bin:730:340 \
   1:lo/cam1/trace.bin:2399:340 2:lo/i2/trace.bin:660:251 2:mt/q2/trace.bin:1942:300
-python3 romconv/internal/marble/tools/marble_sim.py objfixture \
+uv run python -m dev.marble.marble_sim objfixture \
   source/test/test_marble_objects/marble_objects_trace.h   # replay, no trace needed
 ```
 
@@ -963,7 +964,7 @@ python3 romconv/internal/marble/tools/marble_sim.py objfixture \
 
 Same converter run; flash 9327 B (converter prints it: prog blocks 874, tiles 5131, frames 328,
 columns 2370, header ids 118, palettes 452, set table 54). `emit_sprites`; model and ids in
-`tools/marble_mo.py` (`Sprites`, `DrawList`, `publish`).
+`dev/marble/marble_mo.py` (`Sprites`, `DrawList`, `publish`).
 
 - Sprite sets (`marble_sprites[]`, `MarbleSpriteSet {frames, cols, addr, nhdr, nframes,
   ntiles}`, `marble_sprite_race[6]` race -> set): races with equal frames and tiles share a set
@@ -1050,12 +1051,12 @@ fixture.
 | practice p1 800 | 100 | flags 43 ticks, 1 insert |
 
 ```sh
-python3 romconv/internal/marble/tools/make_fixture.py ssearch TRACE RACE [MIN]
-python3 romconv/internal/marble/tools/make_fixture.py swrite \
+uv run python -m dev.marble.make_fixture ssearch TRACE RACE [MIN]
+uv run python -m dev.marble.make_fixture swrite \
   source/test/test_marble_sprites/marble_sprites_trace.h 1:mo/b1/trace.bin:853:35 \
   1:mo/b1/trace.bin:933:200 1:mo/b2/trace.bin:933:198 1:mo/b2/trace.bin:1601:120 \
   2:mo/i1/trace.bin:1212:260 5:mo/u1/trace.bin:1094:150 0:mo/p1/trace.bin:800:100
-python3 romconv/internal/marble/tools/marble_mo.py spritefixture \
+uv run python -m dev.marble.marble_mo spritefixture \
   source/test/test_marble_sprites/marble_sprites_trace.h   # replay, no trace needed
 ```
 
@@ -1063,7 +1064,7 @@ python3 romconv/internal/marble/tools/marble_mo.py spritefixture \
 
 Same converter run; flash 3772 B (converter prints it: prog blocks 900, tiles 1864, frames
 176, columns 696, header ids 88, palette 32, set 16). `emit_death`; model in
-`tools/marble_mo.py` (`DeathSprites`).
+`dev/marble/marble_mo.py` (`DeathSprites`).
 
 - Death set (`marble_death_set`, `MarbleSpriteSet` as the race sets, ids = ascending header
   order, `nframes = nhdr`, no strip), the same in every race: the frames of the player
@@ -1121,10 +1122,10 @@ alone (`dfixture`) and equals MAME in each tick.
 | beginner bd2 2501 | 80 | fall 24 px, dizzy 48 |
 
 ```sh
-python3 romconv/internal/marble/tools/make_fixture.py dwrite \
+uv run python -m dev.marble.make_fixture dwrite \
   source/test/test_marble_deaths/marble_deaths_trace.h 0:pd1/trace.bin:802:60 \
   0:pd1/trace.bin:1002:168 1:bd2/trace.bin:1971:148 1:bd2/trace.bin:2501:80
-python3 romconv/internal/marble/tools/marble_sim.py dfixture \
+uv run python -m dev.marble.marble_sim dfixture \
   source/test/test_marble_deaths/marble_deaths_trace.h   # replay, no trace needed
 ```
 
@@ -1232,7 +1233,7 @@ columns 24, header ids 8, palette 16).
 ## Enemies
 
 Model:
-`tools/marble_enemy.py` (steelie update and 0x1bc88, Marble Love ports by address).
+`dev/marble/marble_enemy.py` (steelie update and 0x1bc88, Marble Love ports by address).
 
 | array | count x size | draw type, ptr table | races (max live) |
 | --- | --- | --- | --- |
@@ -1300,8 +1301,8 @@ Data (per race: slots + enemies): tiles 21, 333, 761, 545, 87, 255 (LZMA 15.9 KB
 player death frames 170 tiles; frame headers 179, columns 383.
 
 ```sh
-python3 romconv/internal/marble/tools/marble_enemy.py steelie TRACE RACE
-python3 romconv/internal/marble/tools/marble_enemy.py spawn TRACE RACE
+uv run python -m dev.marble.marble_enemy steelie TRACE RACE
+uv run python -m dev.marble.marble_enemy spawn TRACE RACE
 # camera driven silly race: MARBLE_CAMERA=800:1700 MARBLE_CAMERA_SY=240 (mame_trace.lua)
 ```
 
@@ -1389,12 +1390,12 @@ the draw list in link order).
 
 ```sh
 S=$TMPDIR/st
-python3 romconv/internal/marble/tools/make_fixture.py stwrite \
+uv run python -m dev.marble.make_fixture stwrite \
   source/test/test_marble_steelies/marble_steelies_trace.h 1:$S/b1/trace.bin:1015:120 \
   1:$S/d1/trace.bin:1155:70:400018:459:552:-110 1:$S/d2/trace.bin:1155:85:4009a4:459:552:-80 \
   1:$S/d4/trace.bin:1299:60:4009a4:493:528:-110 5:$S/u1/trace.bin:1031:120 \
   3:$S/a1/trace.bin:965:55
-python3 romconv/internal/marble/tools/marble_enemy.py sfixture \
+uv run python -m dev.marble.marble_enemy sfixture \
   source/test/test_marble_steelies/marble_steelies_trace.h   # replay, no trace needed
 ```
 
@@ -1405,7 +1406,7 @@ Marble Love TS (`state-sub-14c46.ts`, `sub-14966.ts`, `helper-15148.ts`,
 `sprite-coords-jsr-150d0.ts`, `fun-264aa.ts` mode 2, `script-slot-bbox-test-14e92.ts`,
 `refresh-frame-10fce.ts` player states 5/7), except 0x14a28-0x14bba (not in the TS; ported
 from the disassembly by user ruling 2026-10-12, that block only). Model
-`tools/marble_slinky.py`, `marble_slinky.enable(m)` (`m.slinkies`): spawner 0x14c46 after
+`dev/marble/marble_slinky.py`, `marble_slinky.enable(m)` (`m.slinkies`): spawner 0x14c46 after
 0x15a12 in `camera_bands_144e4`, 0x1493c after the steelies, 0x14e92 for players in 0x121b8
 after 0x1bc88 (races 1/2/5), player states 5 (0x257ba) and 7 (0x25812) in `object_253ec`.
 
@@ -1516,13 +1517,13 @@ mask[30]}`, MOs, draw list without acid).
 
 ```sh
 S=$TMPDIR
-python3 romconv/internal/marble/tools/make_fixture.py slwrite \
+uv run python -m dev.marble.make_fixture slwrite \
   source/test/test_marble_slinkies/marble_slinkies_trace.h 1:$S/sl/b7/trace.bin:1231:130 \
   1:$S/sl/b6/trace.bin:1301:95 2:$S/sl/i1/trace.bin:990:105 5:$S/sl/u1/trace.bin:902:100 \
   1:$S/st/b1/trace.bin:1015:60
-python3 romconv/internal/marble/tools/marble_slinky.py slfixture \
+uv run python -m dev.marble.marble_slinky slfixture \
   source/test/test_marble_slinkies/marble_slinkies_trace.h
-python3 romconv/internal/marble/tools/marble_slinky.py slinkies TRACE RACE FROM:TO
+uv run python -m dev.marble.marble_slinky slinkies TRACE RACE FROM:TO
 ```
 
 ### Acid in the main tick model (Phase 4b-3)
@@ -1531,7 +1532,7 @@ Marble Love TS only (`string-range-dispatch-17346.ts`, `dispatch-strings-17230.t
 `string-step-1725a.ts`, `entity-waypoint-step-1d1ec.ts`, `sub-1d242.ts`, `sprite-coords.ts`
 0x1778e, `string-viewport-hit-175c8.ts`, `string-target-step-176d2.ts`,
 `refresh-frame-10fce.ts` JT[9]); no TS gap, no TS/MAME disagreement. Model
-`tools/marble_acid.py`, `marble_acid.enable(m)` (`m.acid`, on in `marble_enemy.setup`):
+`dev/marble/marble_acid.py`, `marble_acid.enable(m)` (`m.acid`, on in `marble_enemy.setup`):
 spawner 0x17346 after 0x14c46 in `camera_bands_144e4`, 0x17230 after the slinkies, 0x175c8 for
 players in 0x121b8 right after 0x14e92 (a hit runs 0x1bab2), player state 9 (0x2584e) in
 `object_253ec`.
@@ -1615,13 +1616,13 @@ draw list in order).
 
 ```sh
 S=$TMPDIR/ac
-python3 romconv/internal/marble/tools/make_fixture.py acwrite \
+uv run python -m dev.marble.make_fixture acwrite \
   source/test/test_marble_acid/marble_acid_trace.h 2:$S/ia/trace.bin:1600:19 \
   2:$S/ia/trace.bin:1642:150 5:$S/ua/trace.bin:1153:110 5:$S/ua/trace.bin:902:60
-python3 romconv/internal/marble/tools/marble_acid.py acfixture \
+uv run python -m dev.marble.marble_acid acfixture \
   source/test/test_marble_acid/marble_acid_trace.h
-python3 romconv/internal/marble/tools/marble_acid.py acids TRACE RACE FROM:TO
-python3 romconv/internal/marble/tools/marble_acid.py spawncheck TRACE RACE [mid]
+uv run python -m dev.marble.marble_acid acids TRACE RACE FROM:TO
+uv run python -m dev.marble.marble_acid spawncheck TRACE RACE [mid]
 ```
 
 ### Birds in the main tick model (Phase 4b-4a)
@@ -1629,7 +1630,7 @@ python3 romconv/internal/marble/tools/marble_acid.py spawncheck TRACE RACE [mid]
 Marble Love TS (`scroll-range-144e4.ts` mode 4, `state-sub-19baa.ts`, `state-sub-19a40.ts`,
 `marble-cell-dispatch-19e42.ts`, `bbox-hit-test-19d94.ts`, `refresh-frame-10fce.ts` JT[11]),
 except 0x264aa mode 3 (TS no-op; ported from the disassembly by user ruling 2026-10-12, that
-block only). Model `tools/marble_bird.py`, `marble_bird.enable(m)` (`m.birds`, on in
+block only). Model `dev/marble/marble_bird.py`, `marble_bird.enable(m)` (`m.birds`, on in
 `marble_enemy.setup`): 0x400762 in `camera_bands_144e4` after the slot spawner (silly race),
 0x19baa after the acid, 0x19d94 for players in 0x121b8 after 0x175c8 (then state 0xb leaves
 0x121b8 before the zones 0x1365c), player state 0xb (0x25876) in `object_253ec`.
@@ -1712,13 +1713,13 @@ their MOs, 0x400762, the draw list in order).
 
 ```sh
 S=$TMPDIR/bd
-python3 romconv/internal/marble/tools/make_fixture.py bdwrite \
+uv run python -m dev.marble.make_fixture bdwrite \
   source/test/test_marble_birds/marble_birds_trace.h 4:$S/b1/trace.bin:1132:115 \
   4:$S/b2/trace.bin:1180:60
-python3 romconv/internal/marble/tools/marble_bird.py bdfixture \
+uv run python -m dev.marble.marble_bird bdfixture \
   source/test/test_marble_birds/marble_birds_trace.h
-python3 romconv/internal/marble/tools/marble_bird.py birds TRACE RACE FROM:TO
-python3 romconv/internal/marble/tools/marble_bird.py sweep
+uv run python -m dev.marble.marble_bird birds TRACE RACE FROM:TO
+uv run python -m dev.marble.marble_bird sweep
 ```
 
 ### Minis in the main tick model (Phase 4b-4b)
@@ -1728,7 +1729,7 @@ Marble Love TS (`scroll-range-144e4.ts` mode 4, `array-9-init-and-dispatch-18ffa
 `state-sub-1960e.ts`, `sub-19692.ts`, `state-sub-198bc.ts`, `sub-19976.ts`, `sub-1937c.ts`,
 `helper-1924e.ts`, `sprite-coords.ts` 0x199d6), except 0x1973c (TS calls 0x198bc directly) and
 0x1953e (TS writes one list per type) from the disassembly by user ruling 2026-10-12. Model
-`tools/marble_mini.py`, `marble_mini.enable(m)` (`m.minis`, on in `marble_enemy.setup`): band
+`dev/marble/marble_mini.py`, `marble_mini.enable(m)` (`m.minis`, on in `marble_enemy.setup`): band
 spawn/clear in `camera_bands_144e4` before the bird flag, 0x1912c after the acid, 0x1924e for
 players in 0x121b8 after 0x175c8 (before 0x19d94).
 
@@ -1788,13 +1789,13 @@ mnwrite`): b1 702 (98 ticks, wander), m3 1000 (120, kind 1, collect), b1 1301 (9
 with birds live), t6 904 (100, tube).
 
 ```sh
-python3 romconv/internal/marble/tools/make_fixture.py mnwrite \
+uv run python -m dev.marble.make_fixture mnwrite \
   source/test/test_marble_minis/marble_minis_trace.h 4:$TMPDIR/bd/b1/trace.bin:702:98 \
   4:$TMPDIR/mn/m3/trace.bin:1000:120 4:$TMPDIR/bd/b1/trace.bin:1301:98 \
   4:$TMPDIR/tu/t6/trace.bin:904:100
-python3 romconv/internal/marble/tools/marble_mini.py mnfixture \
+uv run python -m dev.marble.marble_mini mnfixture \
   source/test/test_marble_minis/marble_minis_trace.h
-python3 romconv/internal/marble/tools/marble_mini.py minis TRACE RACE FROM:TO
+uv run python -m dev.marble.marble_mini minis TRACE RACE FROM:TO
 ```
 
 ### Tubes
@@ -1869,10 +1870,10 @@ segments): silly t3 904 (296 ticks), t6 904 (372 ticks); b1 1440 (110), b2 1429 
 
 ```sh
 T=$TMPDIR/t4c; H=source/test/test_marble_deaths/marble_tubes_trace.h; cp $H $T/old.h
-python3 romconv/internal/marble/tools/make_fixture.py twrite $H $T/old.h \
+uv run python -m dev.marble.make_fixture twrite $H $T/old.h \
   1:$T/b1/trace.bin:1440:110 1:$T/b2/trace.bin:1429:40 1:$T/b3/trace.bin:1429:30 \
   1:$T/b5/trace.bin:1469:50 2:$T/i1/trace.bin:1416:50 5:$T/u1/trace.bin:1375:50
-python3 romconv/internal/marble/tools/marble_sim.py tfixture \
+uv run python -m dev.marble.marble_sim tfixture \
   source/test/test_marble_deaths/marble_tubes_trace.h
 ```
 
@@ -1883,7 +1884,7 @@ Marble Love TS (`post-state-change-13966.ts`, `state-sub-186ac.ts`, `read-abs-lo
 `object-render-update-1365c.ts`), plus three facts from the disassembly: 0x121b8 refreshes the
 cell (0x1bab2) when 0x1881c returns 1 (0x123f8); 0x1365c clears / recloses aerial slots on a
 zone 4 entry (0x13892, see Marble physics 7); the launch sign quirk below. Model
-`tools/marble_piston.py`, `marble_piston.enable(m)` (`m.pistons`, on in `marble_enemy.setup`).
+`dev/marble/marble_piston.py`, `marble_piston.enable(m)` (`m.pistons`, on in `marble_enemy.setup`).
 
 Entry 0x401650 + 0x10 k: +0 k, +2 timer word (0xffff up), +4/+5 cell x/y, +6 top z word, +8
 anim cursor, +0xc screen (x, y words). 0x400760 armed, 0x400764 timer table of entries
@@ -1946,20 +1947,20 @@ Flash after Phase 4b-5: 4107841 B (+2676 over the minis build, 20.4 KB left).
 
 ```sh
 S=$TMPDIR/ps
-python3 romconv/internal/marble/tools/make_fixture.py pswrite \
+uv run python -m dev.marble.make_fixture pswrite \
   source/test/test_marble_pistons/marble_pistons_trace.h 3:$S/p1/trace.bin:1001:40 \
   3:$S/p1/trace.bin:1241:10 3:$S/p3/trace.bin:1575:24 3:$S/p4/trace.bin:1483:20 3:$S/p4/trace.bin:1770:12 \
   3:$S/p6/trace.bin:1478:16
-python3 romconv/internal/marble/tools/marble_piston.py psfixture \
+uv run python -m dev.marble.marble_piston psfixture \
   source/test/test_marble_pistons/marble_pistons_trace.h
-python3 romconv/internal/marble/tools/marble_piston.py pistons TRACE 3 FROM:TO
+uv run python -m dev.marble.marble_piston pistons TRACE 3 FROM:TO
 ```
 
 ### Aerial objects (Phase 4c-2)
 
 Marble Love TS (`sub-29cce.ts` runCatapult0A, runGate0B/0D, runBounce0C,
 `refresh-frame-10fce.ts` JT[10], `slot-spawn-pattern-13d38.ts`); model
-`tools/marble_aerial.py` (`enable`, on in `marble_enemy.setup`). Aerial slots (objects table
+`dev/marble/marble_aerial.py` (`enable`, on in `marble_enemy.setup`). Aerial slots (objects table
 above): six gates at bands 3-30, each waiting (state 4) for its zone 30-35 (zone lines at the
 corridors, e.g. cells (31..35, 36) down: 30, x 38 right: 31, x 47 right: 32); catapult 0x0a at
 cell (63, 70), bands 16-37; four bounce boxes 0x0c (random group 0x1ded8, x cell 105, y
@@ -2010,7 +2011,7 @@ a10 moves through the machine start path. Flash +2428 B.
 
 ```sh
 T=$TMPDIR/t4c
-python3 romconv/internal/marble/tools/make_fixture.py awrite \
+uv run python -m dev.marble.make_fixture awrite \
   source/test/test_marble_aerial/marble_aerial_trace.h 3:$T/a5/trace.bin:1341:140 \
   3:$T/a8/trace.bin:1341:140 3:$T/a9/trace.bin:1341:140 3:$T/a10/trace.bin:1341:139 \
   3:$T/a13/trace.bin:1643:210
@@ -2070,10 +2071,10 @@ carry runs (crc of the model run), time bonus segment (`marble_bonus_trace.h`).
 
 ```sh
 T=$TMPDIR/t3a
-python3 romconv/internal/marble/tools/marble_flow.py check $T/p0/trace.bin $T/g?/trace.bin
-python3 romconv/internal/marble/tools/make_fixture.py fwrite \
+uv run python -m dev.marble.marble_flow check $T/p0/trace.bin $T/g?/trace.bin
+uv run python -m dev.marble.make_fixture fwrite \
   source/test/test_marble_flow/marble_flow_trace.h $T/p0/trace.bin $T/g?/trace.bin
-python3 romconv/internal/marble/tools/make_fixture.py tbwrite \
+uv run python -m dev.marble.make_fixture tbwrite \
   source/test/test_marble_flow/marble_bonus_trace.h 1:$T/s8t/trace.bin:1351:120
 ```
 
@@ -2086,7 +2087,7 @@ transparent); font `136032.104.f5` (atarisy1.zip, 512 glyphs, 2bpp, `anlayout`);
 the big final score). Codes 0x00-0x7f small font, ASCII (`' '` = 0); 0x100-0x17f big font:
 digit d = 2x2 tiles 0x100 + 4d, space digit wide (0x13c), comma one column (0x13c over 0x16e),
 big letters proportional (tile runs captured from MAME, the BIOS tables 0x72ac/0x0ccc are not
-read). Texts: ROM strings (`tools/marble_hud.py` S_*), number formats from the captures.
+read). Texts: ROM strings (`dev/marble/marble_hud.py` S_*), number formats from the captures.
 
 Items (arcade row, column, colour; o = opaque):
 - Top (race init + 4 until the bonus / time out end): `_____` row 0 col 3 (7), `SCORE` row 1
@@ -2140,9 +2141,9 @@ run and of all race ends equal to `hud_states` of the MAME traces, +-1 frame;
 `marble_hud_trace.h`, `make_fixture.py hwrite`).
 
 ```sh
-T=$TMPDIR/hud/a   # tools/mame_trace.lua MARBLE_TICK=frame MARBLE_ALPHA=1, runs p0 g0-g5
-python3 romconv/internal/marble/tools/marble_hud.py check $T/p0 $T/g?
-python3 romconv/internal/marble/tools/make_fixture.py hwrite \
+T=$TMPDIR/hud/a   # dev/marble/mame_trace.lua MARBLE_TICK=frame MARBLE_ALPHA=1, runs p0 g0-g5
+uv run python -m dev.marble.marble_hud check $T/p0 $T/g?
+uv run python -m dev.marble.make_fixture hwrite \
   source/test/test_marble_flow/marble_hud_trace.h $T/p0 $T/g?
 ```
 
@@ -2203,8 +2204,8 @@ sequencer counts. `marble_attract.py logo` on attract shots: logo words and pale
 
 ```sh
 T=$TMPDIR/attr   # run.sh: mame_trace.lua MARBLE_TICK=frame MARBLE_ALPHA=1 (MARBLE_ATTRACT=1 for a0)
-python3 romconv/internal/marble/tools/marble_attract.py check $T/p0 $T/g5 $T/a0
-python3 romconv/internal/marble/tools/marble_attract.py logo $TMPDIR/attract
+uv run python -m dev.marble.marble_attract check $T/p0 $T/g5 $T/a0
+uv run python -m dev.marble.marble_attract logo $TMPDIR/attract
 ```
 
 ### Demo race
@@ -2254,7 +2255,7 @@ cursor, list end, RNG equal to MAME in all 7 demos of a0 and p0; banners +-1 fra
 `marble_demo.py fwrite` writes `test_marble_flow/marble_demo_trace.h`.
 
 ```sh
-python3 romconv/internal/marble/tools/marble_demo.py check $T/a0 $T/p0
+uv run python -m dev.marble.marble_demo check $T/a0 $T/p0
 ```
 
 ## Sound
@@ -2265,7 +2266,7 @@ effects) and a POKEY (a few effects). The 68010 sends one command byte per event
 latch 0xfe0001 (0x158ac, nothing while the word 0x4003b8 is set). The remake emulates none of
 this: music, jingles and effects are songs of the C64 tune's own player.
 
-Commands (MAME, `tools/mame_sound.lua`; practice race, music stopped with 0x00 before each):
+Commands (MAME, `dev/marble/mame_sound.lua`; practice race, music stopped with 0x00 before each):
 
 - 0x00 stops the music, 0x02 does not; 0x03 every frame and 0x07 every 16 frames are silent.
   Attract mode sends no sound.
@@ -2311,7 +2312,7 @@ Sandcastle); disassembled here:
   frame.
 - RAM outside the payload: 0x0750/0x0751 (frame counter), reads of 0x0aab/0x0ac7.
 
-Capture (`tools/mame_sound.lua`, MODE=capture): per command a file `cmd_XX.txt` with
+Capture (`dev/marble/mame_sound.lua`, MODE=capture): per command a file `cmd_XX.txt` with
 `init ym|pokey <reg> <val>` (registers before the command), `ym|pokey <t> <reg> <val>` (t in
 60 Hz frames since the command) and `game <t> <cmd> 0` (the game's own command, the
 converter cuts there); MODE=log logs the main CPU's commands and 0x400390 changes, NOCOIN=1
@@ -2320,26 +2321,26 @@ when `mame_trace.lua` runs alongside (wrapper `dofile`s both).
 ```sh
 # effects WIN=150, jingle candidates WIN=600; 24 / 4 commands per run (the practice race
 # times out after about 3980 frames)
-MODE=capture OUT=$D/out CMDS=1f,20,... WIN=150 FRAMES=5200 ... -autoboot_script $R/romconv/internal/marble/tools/mame_sound.lua
+MODE=capture OUT=$D/out CMDS=1f,20,... WIN=150 FRAMES=5200 ... -autoboot_script $R/romconv/dev/marble/mame_sound.lua
 (cd $D/out && python3 -m zipfile -c $D/marble_sound.zip cmd_*.txt)
 # reduce to note lists, the converter's only sound input besides the HVSC tune
-python3 romconv/internal/marble/marble_sid.py --extract $D/marble_sound.zip
+uv run python -m dev.marble.marble_sid_extract --extract $D/marble_sound.zip
 # goal: practice crossing y 63
 MODE=log NOCOIN=1 OUT=$D/g0 MARBLE_LEVEL=0 MARBLE_PLACE=900:604:492:-36 \
   MARBLE_PLACE_V=900:0:131072 MARBLE_RACE_UNTIL=1000 ... -autoboot_script $D/both.lua
 ```
 
 The capture holds the arcade's register writes and is not distributed;
-`marble_sound_notes.json` (next to marble_sid.py) keeps only the extracted notes.
+`marble_sound_notes.json` (next to romconv/romconv/games/marble/sid.py) keeps only the extracted notes.
 
-Remake: `romconv/internal/marble/marble_sid.py` builds the jingles and effects as songs of
+Remake: `romconv/romconv/games/marble/sid.py` builds the jingles and effects as songs of
 the C64 player (appended to the payload, song table entries, a silent song, a 6502 stub that
 starts an effect on slot 1 / voice 0 over the music); `marble_sound.{h,cpp}` maps commands to
 song and effect requests; `marble::renderSid` plays them on SidPlayer. The logic sends the
 arcade bytes at the ported sites (jump, bounce, fall, dizzy, break, shards, lost, steelie hit,
 slinky catch, bird, acid, piston launch, time bonus, gate table), the flow at a race load (0x00
 and the race music, no intro delay), time out (0x09, 0x3f) and game over (0x61). Converted:
-16 effects (`EFFECTS` in marble_sid.py) and the 0x3f jingle; the race end pieces 0x17/0x18,
+16 effects (`EFFECTS` in romconv/romconv/games/marble/sid.py) and the 0x3f jingle; the race end pieces 0x17/0x18,
 0x10, 0x16, 0x1a-0x1e, the aerial gate tones 0x47-0x52 and 0x5d/0x60 are ignored. Flash: 6860 B
 (build 2026-10-13, compressed SID file 5532 B). Host test `test_marble_sound` (songs without
 strays, effect over the music keeps voices 1-2, command mapping; SOUND_WAV_DIR=dir writes
@@ -2347,7 +2348,7 @@ listening WAVs), `test_marble_flow` (race music, time out jingle, break sound).
 
 ## Flash compression and Arena
 
-LZMA data is packed by romconv (`asset_emit.py`: 1 properties byte, raw LZMA1 stream). The
+LZMA data is packed by romconv (`romconv/romconv/emit/asset.py`: 1 properties byte, raw LZMA1 stream). The
 firmware unpacks it with `Asset::decodeInto()` into fixed Arena buffers, reserved once per
 machine instance. Marble never uses the `Asset::data()` cache: a pointer cached in a static
 dangles after the Arena reset of the next machine switch. Every unpack mallocs the 5.5 KB LZMA

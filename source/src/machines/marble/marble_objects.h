@@ -5,7 +5,7 @@
 #include "marble_mem.h"
 
 // Level object slots (MARBLE.md "Level objects"): 25 slots of 0x56 bytes at 0x400a9c in the
-// work RAM image, a 1:1 port of tools/marble_sim.py with objects on. Slots are spawned by
+// work RAM image, a 1:1 port of dev/marble/marble_sim.py with objects on. Slots are spawned by
 // camera band changes, run a byte code script (walls, gates, animated terrain) and collide
 // with the player marble.
 //

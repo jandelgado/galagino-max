@@ -415,7 +415,7 @@ static void test_gng_wav_dump(void) {
   }
 }
 
-// --- Boulder Dash, rebuilt by romconv/internal/cbdash/cbdash_rom_convert.py ---
+// --- Boulder Dash, rebuilt by romconv/romconv/games/cbdash.py ---
 
 #ifdef HAVE_CBDASH_SID
 // cbdash_sid_blob is compressed: decode once

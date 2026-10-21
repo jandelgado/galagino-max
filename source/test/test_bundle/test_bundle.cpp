@@ -5,7 +5,7 @@
 #include <unity.h>
 
 // Bundle header parsing and asset lookup (src/net/bundle.cpp). Layout:
-// romconv/internal/pyconv/bundle.py.
+// romconv/romconv/remote/bundle.py.
 #include "../../src/net/bundle.cpp"
 
 void setUp(void) {}

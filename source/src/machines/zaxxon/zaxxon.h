@@ -15,7 +15,7 @@
 
 // ============================================================
 // Zaxxon (Sega 1982, set "zaxxon" US rev D). Single Z80 @ 3.04125MHz
-// (48.66MHz/16). Memory map (from schematics, see zaxxon_rom_convert.py):
+// (48.66MHz/16). Memory map (from schematics, see romconv/romconv/games/zaxxon.py):
 //   0000-4fff ROM (20KB, not encrypted on this set)
 //   6000-6fff work RAM
 //   8000-83ff fg videoram (mirrored)

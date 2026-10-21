@@ -9,7 +9,7 @@
 #include "marble_rng.h"
 #include "marble_sound.h"
 
-// 1:1 port of the level object part of tools/marble_sim.py (function names and order as
+// 1:1 port of the level object part of dev/marble/marble_sim.py (function names and order as
 // there). Integer semantics of the 68010: word results wrap at 16 bits, long results at 32
 // bits (done in uint32_t), >> on signed values is asr.
 

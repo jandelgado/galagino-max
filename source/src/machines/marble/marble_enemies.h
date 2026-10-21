@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "marble_mem.h"
 
-// Enemies (MARBLE.md "Enemies"), a 1:1 port of tools/marble_enemy.py on the work RAM image.
+// Enemies (MARBLE.md "Enemies"), a 1:1 port of dev/marble/marble_enemy.py on the work RAM image.
 // Phase 4b-1: steelies (black marbles), 2 records of 0x7c bytes at 0x4009a4, the player
 // object layout plus AI fields. They spawn by camera band, follow a node graph (patrol),
 // hunt or chase the player when angry, bump the marble and break or shatter on landings.

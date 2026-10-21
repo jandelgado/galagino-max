@@ -9,7 +9,7 @@
 // Joust (Williams 1982), MAME williams/williams.cpp, set joust.
 class joust : public williams {
 public:
-  // Arena::alloc besides planned assets, read by romconv (arena_plan.py):
+  // Arena::alloc besides planned assets, read by romconv (romconv/romconv/plan/arena.py):
   // williams_rgb (256 colors, base ctor), board RAM and 2 scanout buffers (hw, any order)
   static constexpr uint32_t ARENA_EXTRA[] = { 512, 49152, 35040, 35040 };
   static constexpr bool ARENA_EXTRA_ANY_ORDER = true;  // hw(...) arguments

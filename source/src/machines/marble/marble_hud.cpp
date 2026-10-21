@@ -9,7 +9,7 @@
 #include "marble_particles.h"
 #include "marble_physics.h"
 
-// Port of tools/marble_hud.py (items, view, palette).
+// Port of dev/marble/marble_hud.py (items, view, palette).
 
 namespace marble_hud {
 

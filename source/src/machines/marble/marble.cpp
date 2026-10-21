@@ -35,7 +35,7 @@ using marble_physics::PLAYER;
 // FIRE held while steering: turbo, as the C64, Amiga and NES ports. Speed cap stays the arcade's.
 #define MARBLE_STICK_TURBO_K 18
 
-// the extended PSID file (marble_sid.py). Only decodeInto() is used: data() would cache an
+// the extended PSID file (romconv/romconv/games/marble/sid.py). Only decodeInto() is used: data() would cache an
 // Arena pointer in this static, stale after the Arena reset of the next machine switch
 static const Asset<unsigned char, COMPRESSED> sid_file(marble_sid_blob);
 // C64 0x0700-0x0aff (player frame counter and reads) live in tune RAM at MARBLE_SID_ALIAS

@@ -63,7 +63,7 @@ public:
 #endif
 
   static constexpr uint16_t TUNE_RAM_SIZE = 0x10000 - 0xEA40;
-  // Arena::alloc besides planned assets, read by romconv (arena_plan.py):
+  // Arena::alloc besides planned assets, read by romconv (romconv/romconv/plan/arena.py):
   // ctor: SID tune RAM, fx_samples (upper bound: 64-bit host), the packed
   // effects fx0b, fx1e, fx25, coin. Checked in bublbobl.cpp.
   static constexpr uint32_t ARENA_EXTRA[] = { 5568, 176, 12807, 8232, 9499, 6797 };
@@ -77,7 +77,7 @@ private:
   static constexpr uint16_t SLICES = 2500;
 
   // idle loops, left only through the vblank IRQ (MAME trace,
-  // romconv/internal/bublbobl/trace_idle.lua): stepping them is wasted
+  // romconv/dev/bublbobl/trace_idle.lua): stepping them is wasted
   static constexpr uint16_t MAIN_IDLE_PC = 0x01ed; // jr $01ED
   static constexpr uint16_t SUB_IDLE_PC = 0x000a;  // jp $000A
 

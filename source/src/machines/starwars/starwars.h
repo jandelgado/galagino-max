@@ -65,7 +65,7 @@ public:
   void m6809_write(m6809_state *s, uint16_t addr, uint8_t val) override;
   unsigned char m6809_read_opcode(m6809_state *s, uint16_t addr) override;
 
-  // keep in sync with MAX_LINES in starwars_rom_convert.py
+  // keep in sync with MAX_LINES in romconv/romconv/games/starwars.py
   static const uint16_t MAX_LINES = 2048;
 
 private:

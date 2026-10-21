@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "marble_mem.h"
 
-// Game flow of one player (MARBLE.md "Game flow"; model tools/marble_flow.py): the
+// Game flow of one player (MARBLE.md "Game flow"; model dev/marble/marble_flow.py): the
 // 0x400390 sequencer of the arcade main loop 0x1101e and the race timer of the vblank IRQ
 // 0x28a96. The arcade's blocking main loop parts (race intro, bonus wait, level load) are
 // frame counters here, fitted to MAME traces.

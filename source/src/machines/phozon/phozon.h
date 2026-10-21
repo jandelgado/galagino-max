@@ -9,7 +9,7 @@
 //
 // MAME: namco/mappy.cpp (phozon_cpu*_map, mappy_state::phozon),
 // namco/mappy_v.cpp (phozon_draw_sprites, screen_update_phozon).
-// Gfx pre-rotated ROT90 by romconv/internal/phozon/phozon_rom_convert.py:
+// Gfx pre-rotated ROT90 by romconv/romconv/games/namco/phozon.py:
 //   galagino row (0..287)    == MAME x
 //   galagino column (0..223) == 223 - MAME y
 // ============================================================================

@@ -21,7 +21,7 @@ static const int32_t OUT_MAX = 500;
 // 12 channels, indexed exactly as MAME's sample table so ZaxxonSound can trigger
 // them by index without knowing individual symbol names. Each points at a
 // 4-bit IMA-ADPCM stream (2-byte predictor header + packed nibbles, see
-// romconv/pyconv/adpcm.py), decoded per-sample by ZaxxonSound::render.
+// romconv/romconv/gfx/adpcm.py), decoded per-sample by ZaxxonSound::render.
 // Resolved through Asset in the ctor: a remote blob (ASSETS_REMOTE) has no
 // data pointer of its own.
 static const FlashAsset<unsigned char, PLAIN> *const zaxxon_sample_blob[12] = {

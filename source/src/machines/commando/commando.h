@@ -75,7 +75,7 @@ private:
   static const uint16_t SPRITE_BYTES = 96 * 4;
   static const uint16_t BG_BYTES = 0x800; // code + attr
   static const uint16_t TUNE_RAM_SIZE = 0x1000; // $5000-$5FFF, see test_sidplayer
-  // Arena::alloc besides planned assets, read by romconv (arena_plan.py):
+  // Arena::alloc besides planned assets, read by romconv (romconv/romconv/plan/arena.py):
   // SID tune RAM (ctor)
   static constexpr uint32_t ARENA_EXTRA[] = { 4096 };
   static_assert(ARENA_EXTRA[0] == TUNE_RAM_SIZE, "update ARENA_EXTRA");
@@ -91,7 +91,7 @@ private:
   const unsigned char *sound_rom = nullptr;
   const uint32_t (*sprite_banks[3])[32] = {};
   // bg tiles split in two: one asset cannot span both Arena blocks
-  static const uint16_t TILES_A = 418;  // romconv conv_commando.py TILES_A
+  static const uint16_t TILES_A = 418;  // romconv/romconv/games/commando.py TILES_A
   const uint32_t (*tiles_a)[32] = nullptr;
   const uint32_t (*tiles_b)[32] = nullptr;
   const unsigned short (*chars)[8] = nullptr;

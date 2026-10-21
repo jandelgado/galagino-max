@@ -120,7 +120,7 @@ public:
     // the data() cache. Lets callers reuse fixed buffers; repeated
     // new[]/delete[] fragments the heap.
     //
-    // Packed layout (romconv asset_emit.py): 1 LZMA properties byte
+    // Packed layout (romconv/romconv/emit/asset.py): 1 LZMA properties byte
     // (lc/lp/pb), then a raw LZMA1 stream with end marker.
     void decodeInto(T *dst) const {
 #ifdef ASSETS_REMOTE

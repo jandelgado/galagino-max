@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 // 4-bit IMA-ADPCM decode: one nibble in, predictor+step updated in place.
-// Must match romconv/internal/pyconv/adpcm.py's encoder exactly.
+// Must match romconv/romconv/gfx/adpcm.py's encoder exactly.
 namespace ima_adpcm {
   static const int ima_step_table[89] = {
     7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,
@@ -28,7 +28,7 @@ namespace ima_adpcm {
     step_index = (int8_t)(index < 0 ? 0 : (index > 88 ? 88 : index));
   }
 
-  // One sample stream in romconv/pyconv/adpcm.py format (2-byte predictor,
+  // One sample stream in romconv/romconv/gfx/adpcm.py format (2-byte predictor,
   // then one nibble per sample), played one decoded sample per next() and
   // held `hold` output samples (2: 12 kHz data at 24 kHz output).
   //

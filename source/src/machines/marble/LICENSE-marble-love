@@ -1,4 +1,4 @@
-The Marble Madness game logic in this directory and in romconv/internal/marble is
+The Marble Madness game logic in this directory and in romconv/romconv/games/marble and romconv/dev/marble is
 ported from Marble Love (https://github.com/magno73/marble-love), used under the
 following license:
 

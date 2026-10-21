@@ -25,7 +25,7 @@ class marble : public machineBase
 {
 public:
   // Arena::alloc besides planned assets (only marble_tables), read by romconv
-  // (arena_plan.py): ctor: level map, tiles, sprite tiles, program ROM,
+  // (romconv/romconv/plan/arena.py): ctor: level map, tiles, sprite tiles, program ROM,
   // terrain; start(): SID file, SID RAM. Checked in marble.cpp.
   static constexpr uint32_t ARENA_EXTRA[] = { 10440, 57344, 39904, 20291, 6902, 14332, 15360 };
 
