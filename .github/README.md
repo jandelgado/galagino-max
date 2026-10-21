@@ -244,5 +244,6 @@ evicted first. Menu entries not cached yet show a NET marker.
 | Major Havoc (mhavoc.zip)      | ![Major Havoc marquee](/logos/mhavoc.png) | ![Major Havoc screenshot](/images/mhavoc.png) | Rev 3. Left/right=roller, FIRE=fire/jump, DOWN=shield (controller A=fire, B=shield). No start button: START presses FIRE. Small text enlarged |
 | Satan's Hollow (shollow.zip)  | ![Satan's Hollow marquee](/logos/shollow.png) | ![Satan's Hollow screenshot](/images/shollow.png) | Also needs midssio.zip. FIRE=fire, UP/DOWN=shield (controller B=shield) |
 | Motos (motos.zip)             | ![Motos marquee](/logos/motos.png) | ![Motos screenshot](/images/motos.png) | Dig Dug II board. FIRE=power, START=jump (controller B=jump) |
+| Jungle Hunt (junglek.zip)     | ![Jungle Hunt marquee](/logos/jungleh.png) | ![Jungle Hunt screenshot](/images/jungleh.png) | Set jungleh (US) from junglek.zip, Taito SJ board without MCU. FIRE=jump/stab |
 
 ### ...
