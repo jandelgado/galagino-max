@@ -8,6 +8,7 @@ from romconv.core.paths import Paths, default
 from romconv.games import marble
 from romconv.games.marble import convert as marble_convert
 from romconv.games.marble import data as md
+from romconv.games.marble import progrom as pr
 from romconv.games.marble import sid as msid
 from romconv.games.marble.sim import marble_mo as mo
 from romconv.games.marble.sim import marble_sim as ms
@@ -94,7 +95,7 @@ def test_repeatable_in_process(tmp_path, log):
 
 
 @pytest.mark.slow
-def test_prog_tables_cover_every_read(log):
+def test_phase_bytes_cover_every_read(log):
     """Every program ROM byte the model reads (all fixture replays, race starts and sweeps) is in
     the tables the converter emits; every slapstic read is in the race's terrain records."""
     real = default()
@@ -116,7 +117,7 @@ def test_prog_tables_cover_every_read(log):
     rec = partial(mr.RecMem, rom=full.with_prog(mr.RecProg(run.sim.prog, reads)), slap=slap)
     mr.sim_runs(run, rec, terrains, full)
 
-    outside = sorted(reads - set().union(*marble_convert.prog_tables(run, terrains)))
+    outside = sorted(reads - set().union(*pr.phase_bytes(run, terrains)))
     assert not outside, "reads outside the tables: " + " ".join(f"{a:05x}" for a in outside[:32])
     for t in terrains:
         _, _, records, recs, _ = marble_convert.terrain_race(t)
