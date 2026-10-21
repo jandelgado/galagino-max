@@ -9,6 +9,8 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
+#include "marble_rom.h"
+
 // 1:1 port of dev/marble/marble_bird.py (function names as there; Marble Love
 // scroll-range-144e4.ts mode 4, state-sub-19baa.ts, state-sub-19a40.ts,
 // marble-cell-dispatch-19e42.ts, bbox-hit-test-19d94.ts). Integer semantics follow the model.
@@ -65,7 +67,6 @@ static const uint32_t SPAWN_ON = 0x400762;           // byte, set by birdBands
 static const uint32_t POS_X = 0x400690, POS_Y = 0x400692;  // words
 
 // program ROM
-static const uint32_t POINTS = 0x244f6;              // 5 spawn cells (x, y bytes)
 static const uint32_t NO_FRAME = 0xffffffff;
 static const uint32_t ANIM_SPAWN = 0x224ca, ANIM_WALK = 0x224d6;
 static const uint32_t ANIM_LAND = 0x224e2, ANIM_CARRY = 0x22546;
@@ -141,7 +142,7 @@ void init_19a40(Mem &m, uint32_t a, int8_t cx, int8_t cy) {
 void spawn_19a40(Mem &m) {
   for (uint8_t pass = 0; pass < PASSES; pass++) {
     for (uint8_t k = 0; k < NPOINTS; k++) {
-      const int8_t cx = s8(m.romb(POINTS + 2 * k)), cy = s8(m.romb(POINTS + 2 * k + 1));
+      const int8_t cx = marble_bird_points[2 * k], cy = marble_bird_points[2 * k + 1];
       uint8_t first = 0;
       const uint8_t n = inColumn(m, cx, first);
       if (n > pass) { continue; }

@@ -8,6 +8,8 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
+#include "marble_rom.h"
+
 // 1:1 port of dev/marble/marble_piston.py (function names as there; Marble Love state-sub-186ac.ts,
 // read-abs-long-1844a.ts, state-sub-1881c.ts, sprite-coords.ts 0x18972, sprite-derive.ts
 // 0x1bb28; the 0x1881c result and launch sign from the disassembly).
@@ -68,9 +70,6 @@ static const uint16_t PLAYER_SIZE = 0xe2;
 
 // program ROM
 static const uint32_t ANIM_UP = 0x21342;
-static const uint32_t TIMER_FIRST = 0x242c6, TIMER_RELOAD = 0x242f6;  // words, entries < 0x18
-static const uint32_t VARIANT_FIRST = 0x243e6, VARIANT_RELOAD = 0x243f6;  // 4 longs each
-static const uint32_t CELLS_X = 0x24406, CELLS_Y = 0x2442a, TOPS = 0x2444e;
 
 uint32_t piston(uint8_t k) { return PISTONS + PISTON_SIZE * k; }
 
@@ -78,8 +77,8 @@ uint32_t piston(uint8_t k) { return PISTONS + PISTON_SIZE * k; }
 uint32_t listObj(uint32_t e) { return e - 0x19; }
 
 // timer of entry k: table word k (k < 0x18), else word k - 0x18 of the variant table
-uint16_t timerWord(const Mem &m, uint8_t k, uint32_t fixed) {
-  return k < FIXED ? m.romw(fixed + 2 * k) : m.romw(m.rl(TIMERS) + 2 * (k - FIXED));
+uint16_t timerWord(const Mem &m, uint8_t k, const MarbleTable<uint16_t, FIXED> &fixed) {
+  return k < FIXED ? fixed[k] : marble_physics::pistonTimer(m.rl(TIMERS), k - FIXED);
 }
 
 // 0x18972: screen position +0xc from the cell (* 8) and the top (0x400690/2 written)
@@ -107,18 +106,18 @@ bool armedPlayer(const Mem &m) {
 // last cell in the scratch
 void arm(Mem &m) {
   const uint8_t v = (uint8_t)marble_rng::rng(m, VARIANTS);
-  m.wl(TIMERS, m.roml(VARIANT_FIRST + 4 * v));
+  m.wl(TIMERS, marble_piston_variant_first[v]);
   for (uint8_t k = 0; k < NPISTONS; k++) {
     const uint32_t e = piston(k);
     m.wb(e + INDEX, k);
-    m.ww(e + TIMER, timerWord(m, k, TIMER_FIRST));
-    m.wb(e + CELL_X, m.romb(CELLS_X + k));
-    m.wb(e + CELL_Y, m.romb(CELLS_Y + k));
+    m.ww(e + TIMER, timerWord(m, k, marble_piston_timer_first));
+    m.wb(e + CELL_X, marble_piston_cells_x[k]);
+    m.wb(e + CELL_Y, marble_piston_cells_y[k]);
     marble_physics::cellScratch(m, (int16_t)(s8(m.rb(e + CELL_X)) * 8),
                                 (int16_t)(s8(m.rb(e + CELL_Y)) * 8));
-    m.ww(e + TOP, m.romw(TOPS + 2 * k));
+    m.ww(e + TOP, marble_piston_tops[k]);
   }
-  m.wl(TIMERS, m.roml(VARIANT_RELOAD + 4 * v));
+  m.wl(TIMERS, marble_piston_variant_reload[v]);
   m.wb(ARMED, 1);
 }
 
@@ -174,7 +173,7 @@ void update_1844a(Mem &m) {
       m.wl(e + ANIM, m.rl(e + ANIM) + 4);
       if (animEntry(m.rl(e + ANIM)) == NO_FRAME) {
         marble_drawlist::remove(m, listObj(e), TYPE_PISTON);
-        m.ww(e + TIMER, timerWord(m, m.rb(e + INDEX), TIMER_RELOAD));
+        m.ww(e + TIMER, timerWord(m, m.rb(e + INDEX), marble_piston_timer_reload));
       }
     }
     if (m.rw(e + TIMER) == UP) { coords_18972(m, e); }

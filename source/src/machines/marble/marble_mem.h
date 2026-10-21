@@ -111,6 +111,7 @@ uint16_t occluderWord(uint32_t a);
 // links), slinky and acid waypoints (4), attract demo waypoints (4); 0xff ends a list.
 uint8_t pathByte(uint32_t p, uint8_t k);
 uint32_t demoWaypoints(uint8_t race);   // first waypoint record of an attract demo race
+uint16_t pistonTimer(uint32_t p, uint8_t k);   // word k of the piston variant timer table at p
 
 // sprite set of level n (races share sets), for the renderer
 const MarbleSpriteSet &spriteSet(uint8_t level);

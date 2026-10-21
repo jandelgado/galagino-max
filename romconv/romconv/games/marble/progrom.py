@@ -196,19 +196,30 @@ def _steelies(run):
     ]
 
 
+_PISTON_VARIANTS = 4
+
+
 def _pistons(run):
-    """Phase 4b-5 tables (whole): first and reload timers, the 4 variant pointers of both
-    kinds and their 12 word tables, cells, tops, the animation list (0xffffffff end)."""
+    """Phase 4b-5: first and reload timers of entries 0-0x17, the 4 variant pointers of both
+    kinds and their 12 word tables (pistonTimer), cells, tops, the animation list (0xffffffff
+    end)."""
     sim = run.sim
-    out = set(range(pp.TIMER0, pp.TIMER0 + 2 * pp.FIXED)) | set(range(pp.TIMER, pp.TIMER + 2 * pp.FIXED))
+    tables = set()
     for base in (pp.VARIANT0, pp.VARIANT):
-        out |= set(range(base, base + 16))
-        for v in range(4):
+        for v in range(_PISTON_VARIANTS):
             a = sim.l(base + 4 * v)
-            out |= set(range(a, a + 2 * (len(pp.PISTONS) - pp.FIXED)))
-    out |= set(range(pp.CELL_X, pp.CELL_X + 36)) | set(range(pp.CELL_Y, pp.CELL_Y + 36))
-    out |= set(range(pp.TOP, pp.TOP + 72))
-    return [_Raw(frozenset(out)), _Keyed("anim", frozenset(_anim_lists(sim, mo.PISTON_LISTS)))]
+            tables |= set(range(a, a + 2 * (len(pp.PISTONS) - pp.FIXED)))
+    return [
+        _Array("piston_timer_first", pp.TIMER0, "uint16_t", pp.FIXED, "piston timer"),
+        _Array("piston_timer_reload", pp.TIMER, "uint16_t", pp.FIXED, "piston reload"),
+        _Array("piston_variant_first", pp.VARIANT0, "uint32_t", _PISTON_VARIANTS, "piston variant"),
+        _Array("piston_variant_reload", pp.VARIANT, "uint32_t", _PISTON_VARIANTS, "piston variant"),
+        _Keyed("timer", frozenset(tables)),
+        _Array("piston_cells_x", pp.CELL_X, "uint8_t", len(pp.PISTONS), "piston cell"),
+        _Array("piston_cells_y", pp.CELL_Y, "uint8_t", len(pp.PISTONS), "piston cell"),
+        _Array("piston_tops", pp.TOP, "uint16_t", len(pp.PISTONS), "piston top"),
+        _Keyed("anim", frozenset(_anim_lists(sim, mo.PISTON_LISTS))),
+    ]
 
 
 def _frame_bytes(sim, lists, first, end):
@@ -236,9 +247,10 @@ def _minis(run):
     the cell bitmap 0x24496, the animation lists (0xffffffff end) and the draw list box
     bytes +4..+7 of their frames (0x1b12a types 7-9)."""
     sim = run.sim
-    out = set(range(mn.GRID, mn.GRID + 32))
-    out |= set(range(mn.DX, mn.DX + 32)) | set(range(mn.DY, mn.DY + 32))
-    return [_Raw(frozenset(out)), _Keyed("anim", frozenset(_anim_lists(sim, mo.MINI_LISTS))),
+    return [_Array("mini_grid", mn.GRID, "uint16_t", 16, "mini grid"),       # 0x19460: solid cell bitmap, 16 rows
+            _Array("mini_step_x", mn.DX, "int16_t", 16, "mini step"),        # 0x19976: step words per direction (<< 8)
+            _Array("mini_step_y", mn.DY, "int16_t", 16, "mini step"),
+            _Keyed("anim", frozenset(_anim_lists(sim, mo.MINI_LISTS))),
             _Keyed("frame", frozenset(_frame_bytes(sim, mo.MINI_LISTS, 4, 8))),
             _Array("obj_minis", 0x1f096, "uint32_t", 9, "mini")]
 
@@ -247,8 +259,8 @@ def _birds(run):
     """Phase 4b-4a tables (whole): the bird pointer table, the spawn cells, the animation
     lists (0xffffffff end)."""
     sim = run.sim
-    out = set(range(bd.POINTS, bd.POINTS + 10))
-    return [_Raw(frozenset(out)), _Keyed("anim", frozenset(_anim_lists(sim, mo.BIRD_LISTS))),
+    return [_Array("bird_points", bd.POINTS, "int8_t", 10, "bird point"),   # 5 spawn cells (x, y)
+            _Keyed("anim", frozenset(_anim_lists(sim, mo.BIRD_LISTS))),
             _Array("obj_birds", 0x1f0ba, "uint32_t", 10, "bird")]
 
 

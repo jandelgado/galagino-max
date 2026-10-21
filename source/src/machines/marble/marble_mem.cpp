@@ -113,6 +113,8 @@ uint8_t pathByte(uint32_t p, uint8_t k) { return *marble_path.at(p + k, 1); }
 
 uint32_t demoWaypoints(uint8_t race) { return marble_demo_waypoints[race]; }
 
+uint16_t pistonTimer(uint32_t p, uint8_t k) { return be16(marble_timer.at(p + 2 * k, 2)); }
+
 const uint8_t *frameBox(uint32_t hdr) {
   static const uint8_t NONE[4] = {0, 0, 0, 0};
   return hdr == 0xffffffff ? NONE : marble_frame.at(hdr + 4, 4);

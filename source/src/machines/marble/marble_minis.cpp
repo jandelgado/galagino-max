@@ -7,6 +7,8 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
+#include "marble_rom.h"
+
 // 1:1 port of dev/marble/marble_mini.py (function names as there; Marble Love
 // array-9-init-and-dispatch-18ffa.ts, array-9-clear-and-dispatch.ts, refresh-helper-1912c.ts,
 // object-type-dispatch-194ba.ts, state-sub-1960e.ts, sub-19692.ts, state-sub-198bc.ts,
@@ -66,8 +68,6 @@ static const uint32_t SCORED = 0x40039c;
 static const uint16_t PLAYER_SIZE = 0xe2;
 
 // program ROM
-static const uint32_t STEP_X = 0x244b6, STEP_Y = 0x244d6;  // words per direction (<< 8)
-static const uint32_t GRID = 0x24496;                      // 16 row words, set = solid
 static const uint8_t GRID_X0 = 0x59, GRID_Y0 = 0x5a, GRID_N = 0xf;
 static const uint32_t NO_FRAME = 0xffffffff;
 static const uint32_t WALK_STEELIE = 0x21f72;
@@ -108,13 +108,14 @@ bool blocked_1937c(const Mem &m, uint32_t a2) {
   }
   const int8_t cx = s8((uint32_t)((x >> 3) - GRID_X0)), cy = s8((uint32_t)((y >> 3) - GRID_Y0));
   if (cx < 0 || cx > GRID_N || cy < 0 || cy > GRID_N) { return true; }
-  return (m.romw(GRID + 2 * cy) & (1u << cx)) != 0;
+  return (marble_mini_grid[cy] & (1u << cx)) != 0;
 }
 
 // 0x19976: one step in direction +0x26; v = the step (steelie: / 4)
 void step_19976(Mem &m, uint32_t a2) {
   const int8_t d = m.sb(a2 + DIR);
-  int32_t dx = s16(m.romw(STEP_X + 2 * d)) * 256, dy = s16(m.romw(STEP_Y + 2 * d)) * 256;
+  // DIR is written unmasked (DIR - 4): a negative d fails here, the arcade reads before the table
+  int32_t dx = marble_mini_step_x[(uint16_t)d] * 256, dy = marble_mini_step_y[(uint16_t)d] * 256;
   m.wl(a2 + PX, m.rl(a2 + PX) + (uint32_t)dx);
   m.wl(a2 + PY, m.rl(a2 + PY) + (uint32_t)dy);
   if (m.rb(a2 + TYPE) == STEELIE) {

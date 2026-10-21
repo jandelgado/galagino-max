@@ -386,12 +386,12 @@ static void test_arm_scratch(void) {
   for (uint8_t i = 0; i < NPISTONS; i++) {
     const uint32_t a = piston(i);
     TEST_ASSERT_EQUAL_UINT8(i, m.rb(a));
-    TEST_ASSERT_EQUAL_UINT8(m.romb(0x24406 + i), m.rb(a + T_CX));
-    TEST_ASSERT_EQUAL_UINT8(m.romb(0x2442a + i), m.rb(a + T_CY));
-    TEST_ASSERT_EQUAL_HEX16(m.romw(0x2444e + 2 * i), m.rw(a + T_TOP));
+    TEST_ASSERT_EQUAL_UINT8(marble_piston_cells_x[i], m.rb(a + T_CX));
+    TEST_ASSERT_EQUAL_UINT8(marble_piston_cells_y[i], m.rb(a + T_CY));
+    TEST_ASSERT_EQUAL_HEX16(marble_piston_tops[i], m.rw(a + T_TOP));
   }
   bool variant = false;
-  for (uint8_t v = 0; v < 4; v++) { variant |= m.rl(TIMERS) == m.roml(0x243f6 + 4 * v); }
+  for (uint8_t v = 0; v < 4; v++) { variant |= m.rl(TIMERS) == marble_piston_variant_reload[v]; }
   TEST_ASSERT_TRUE(variant);
 
   const uint32_t last = piston(NPISTONS - 1);
