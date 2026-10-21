@@ -14,8 +14,9 @@ from romconv.core.job import Job
 from romconv.core.paths import Paths
 from romconv.emit.asset import PLAIN_DICT_BYTES
 from romconv.emit.lzma import lzma_decompress
+from romconv.emit.text import c_symbol
 from romconv.remote.bundle import BundleWriter, bundle_hash, write_bundle
-from romconv.remote.catalog import NO_BLOBS, bundle_dirs, c_symbol, job_name, read_games
+from romconv.remote.catalog import NO_BLOBS, bundle_dirs, job_name, read_games
 
 
 def _remote_plain(machines: Path, dirname: str) -> dict[str, bool]:
@@ -40,7 +41,7 @@ def _assets(game: str, paths: Paths) -> list[tuple[str, bytes, bytes, str, int]]
                 continue
             raise ValueError(f"no sidecars of dir {d} in {src} (convert it first)")
         plan = _remote_plain(paths.machines, d)
-        for meta_file in sorted(src.glob("*.json")):
+        for meta_file in sorted(src.glob("*.json"), key=lambda p: p.name):
             name = meta_file.stem
             mode = json.loads(meta_file.read_bytes())["mode"]
             if mode == "PLANNED":
@@ -108,7 +109,7 @@ def _convert(ctx: Context) -> None:
         try:
             r = make_bundle(ctx, game)
         except ValueError as e:
-            raise ConversionError(f"{game}: {e}")
+            raise ConversionError(f"{game}: {e}") from e
         if not r:
             ctx.log.info(f"  {game:12} no asset blobs, always built in")
             continue

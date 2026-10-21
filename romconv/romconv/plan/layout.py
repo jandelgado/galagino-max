@@ -7,7 +7,7 @@ from romconv.core.paths import Paths
 
 
 def header_path(paths: Paths) -> Path:
-    return paths.repo / "source" / "src" / "emulation" / "arena_layout.h"
+    return paths.src / "emulation" / "arena_layout.h"
 
 
 def read_layouts(path: Path) -> dict[str, tuple[int, int]]:
@@ -18,4 +18,4 @@ def read_layouts(path: Path) -> dict[str, tuple[int, int]]:
         return {"local": (int(defs["ARENA_A_LOCAL"]), b),
                 "remote": (int(defs["ARENA_A_REMOTE"]), b)}
     except KeyError as e:
-        raise ValueError(f"{path}: missing #define {e.args[0]}")
+        raise ValueError(f"{path}: missing #define {e.args[0]}") from e

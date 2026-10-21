@@ -1,8 +1,8 @@
 # mos6502.patch
 
-Applied by `m6502patch.py` after unpacking + renaming
+Applied by the `m6502` job (`romconv/romconv/cpu/m6502.py`) after unpacking + renaming
 `romszip/M6502-081707.zip` into `source/src/cpus/mos6502/`, via
-`romconv/pypatch.py` (`patch-ng`, no system `patch` binary needed).
+`romconv/romconv/cpu/pypatch.py` (`patch-ng`, no system `patch` binary needed).
 
 ## Regenerating after a ZIP update
 

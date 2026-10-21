@@ -15,9 +15,8 @@ from pathlib import Path
 from romconv.core.context import Context
 from romconv.core.errors import ConversionError
 from romconv.core.manifest import Asset
-from romconv.emit.text import WIDTH
+from romconv.emit.text import WIDTH, c_symbol
 from romconv.plan.layout import header_path, read_layouts
-from romconv.remote.catalog import c_symbol
 
 
 def _r4(n):
@@ -203,7 +202,7 @@ def write_arena_plan(ctx: Context) -> None:
             try:
                 modes, reserve = solve(assets, extras, (a, b), ram, flash, any_order)
             except ValueError as e:
-                raise ValueError(f"{game}: {e}")
+                raise ValueError(f"{game}: {e}") from e
             plans[layout] = (modes, reserve)
             plain = [n for n in sorted(modes) if modes[n] == "PLAIN"]
             plain_bytes = sum(x[1] for x in assets if modes[x[0]] == "PLAIN")
@@ -211,6 +210,6 @@ def write_arena_plan(ctx: Context) -> None:
                          f" extras {sum(map(_r4, extras))}, PLAIN {plain_bytes} B: {' '.join(plain) or '-'}")
         text = plan_header(game, plans, {x[0]: x[4] for x in assets}, extras_key(extras, any_order), layouts)
     except ValueError as e:
-        raise ConversionError(str(e))
+        raise ConversionError(str(e)) from e
     with ctx.header(game + "_arena_plan.h", plan=False, remote=False) as f:
         f.write(text)

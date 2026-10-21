@@ -1,7 +1,7 @@
 # z80.patch
 
-Applied by `z80patch.py` after unpacking `romszip/Z80-081707.zip` into
-`source/src/cpus/z80/`, via `romconv/pypatch.py` (`patch-ng`, no system
+Applied by the `z80` job (`romconv/romconv/cpu/z80.py`) after unpacking `romszip/Z80-081707.zip` into
+`source/src/cpus/z80/`, via `romconv/romconv/cpu/pypatch.py` (`patch-ng`, no system
 `patch` binary needed).
 
 ## Regenerating after a ZIP update

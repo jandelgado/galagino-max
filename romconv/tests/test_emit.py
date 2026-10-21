@@ -217,6 +217,18 @@ def test_no_remote_form_without_remote_dir(tmp_path):
     assert "ASSETS_REMOTE" not in out and manifest.assets() == []
 
 
+def test_planned_asset_without_remote_dir_registers(tmp_path):
+    # the arena plan reads the manifest: a planned asset must be there in any remote form
+    out, manifest = _emit(tmp_path, emit_compressed, "foo_s", "unsigned char", "", 2, [1, 2],
+                          plan_game="foo", remote_dir=None)
+    assert "ASSETS_REMOTE" not in out
+    a = _asset(manifest, "foo_s")
+    assert (a.mode, a.hint, a.dir) == ("PLANNED", "COMPRESSED", "foo")
+    out, manifest = _emit(tmp_path, emit_plain, "foo_t", "unsigned char", "", 2, "  0x01,0x02",
+                          plan_game="foo", remote_dir=None)
+    assert _asset(manifest, "foo_t").hint == "PLAIN"
+
+
 def test_shared_dir_no_remote_form(tmp_path, log):
     paths = Paths(tmp_path)
     ctx = Context(Job("williams", _noop, machine="williams"), paths, (), log)

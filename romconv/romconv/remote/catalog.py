@@ -56,11 +56,6 @@ def job_name(game: str) -> str:
     return _JOB_NAMES.get(game, game)
 
 
-def c_symbol(name: str) -> str:
-    """C identifier for a game or asset name: digit-led names get a `_` (1943)."""
-    return "_" + name if name[0].isdigit() else name
-
-
 def _guard(names, remote=False):
     conds = [f"defined(ENABLE_{n.upper()})" for n in names]
     if remote:

@@ -8,8 +8,6 @@ from romconv.core.errors import ConversionError
 from romconv.remote.catalog import BASES, job_name
 
 GAMES = [
-    "logos",
-    "z80",
     "1942",
     "alibaba",
     "amidar",
@@ -39,7 +37,6 @@ GAMES = [
     "ladybug",
     "lizwiz",
     "llander",
-    "m6502",
     "mappy",
     "mario",
     "mooncresta",
@@ -142,21 +139,24 @@ def with_bases(names):
     return out
 
 
-games = GAMES if len(sys.argv[1:]) == 0 else with_bases(sys.argv[1:])
-info(f"--------- Convert {'all' if games is GAMES else ' '.join(games)} ---------")
-run("internal/pokey_poly.py")
-run("internal/pyconv/make_unpack_fixture.py")
+names = sys.argv[1:]
+registry_names = {j.name for j in registry.ALL}
+ordered = with_bases(names)
+legacy = GAMES if not names else [n for n in ordered if n not in registry_names]
+ported = [] if not names else [n for n in ordered if n in registry_names]
+info(f"--------- Convert {'all' if not names else ' '.join(ordered)} ---------")
 
-for game in games:
+for game in legacy:
     run(f"internal/pyconv/conv_{game}.py")
 
-# mode 3 (ASSETS_REMOTE): gating macros, then the bundles of the converted catalog games
-info("--------- Catalog and remote bundles ---------")
+# ported jobs, then mode 3 (ASSETS_REMOTE): gating macros and the bundles of the converted catalog games
+info("--------- Ported jobs, catalog and remote bundles ---------")
+requested = (*legacy, *registry_names) if not names else tuple(ordered)
 try:
-    code = runner.run(["catalog", "bundles"], jobs=1, requested=(*games, *(j.name for j in registry.ALL)))
+    code = runner.run(ported or (["bundles"] if names else []), jobs=1, requested=requested)
 except ConversionError as e:
     fatal(str(e))
 if code != 0:
-    fatal("catalog or bundles failed")
+    fatal("a ported job failed")
 
 info("--- Success ---")

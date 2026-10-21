@@ -37,3 +37,8 @@ def flat_body(ctype: str, values: Sequence[int]) -> str:
         vals = ["0x{:X}".format(v & mask) for v in values]
     rows = [",".join(vals[i:i + 16]) for i in range(0, len(vals), 16)]
     return "  " + ",\n  ".join(rows)
+
+
+def c_symbol(name: str) -> str:
+    """C identifier for a game or asset name: digit-led names get a `_` (1943)."""
+    return "_" + name if name[0].isdigit() else name

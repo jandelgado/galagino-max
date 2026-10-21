@@ -35,6 +35,13 @@ def _inner_elements(inner_dims: str) -> int:
     return n
 
 
+def _register(f: HeaderWriter, dir: str, name: str, ctype: str, inner_dims: str, count: int, mode: str,
+              raw: bytes, packed: bytes, hint: str | None) -> None:
+    lz64 = None if mode == "COMPRESSED" else lzma_compress(raw, PLAIN_DICT_BYTES)
+    f.manifest.add(Asset(dir=dir, name=name, ctype=ctype, inner=inner_dims, count=count, mode=mode,
+                         raw=raw, packed=packed, lz64=lz64, hint=hint))
+
+
 def _remote_open(f: HeaderWriter, rdir: str, name: str, ctype: str, inner_dims: str, count: int,
                  mode: str, raw: bytes, packed: bytes, hint: str | None) -> None:
     """Remote blob(s) and the #else of the built-in form; mode PLANNED: both
@@ -51,9 +58,7 @@ def _remote_open(f: HeaderWriter, rdir: str, name: str, ctype: str, inner_dims: 
     else:
         print(plain if mode == "PLAIN" else comp, file=f)
     print("#else", file=f)
-    lz64 = None if mode == "COMPRESSED" else lzma_compress(raw, PLAIN_DICT_BYTES)
-    f.manifest.add(Asset(dir=rdir, name=name, ctype=ctype, inner=inner_dims, count=count, mode=mode,
-                         raw=raw, packed=packed, lz64=lz64, hint=hint))
+    _register(f, rdir, name, ctype, inner_dims, count, mode, raw, packed, hint)
 
 
 def _remote_close(f: HeaderWriter, rdir: str | None) -> None:
@@ -74,6 +79,9 @@ def _emit_planned(f: HeaderWriter, game: str, name: str, ctype: str, inner_dims:
     print(f"// arena-asset {name} {len(raw)} {WIDTH[ctype]} {hint} {t}", file=f)
     if rdir:
         _remote_open(f, rdir, name, ctype, inner_dims, count, "PLANNED", raw, packed, hint)
+    else:
+        # no remote form (shared dir), but the arena plan needs every planned asset
+        _register(f, f.machine, name, ctype, inner_dims, count, "PLANNED", raw, packed, hint)
     print(f"#if {name}_PLAIN", file=f)
     # aligned like an Arena copy: readers may load wider words (marble_tables)
     print(f"alignas(4) static const {ctype} {name}_data[]{inner_dims} = {{\n{array_body}\n}};", file=f)

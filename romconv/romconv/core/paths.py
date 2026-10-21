@@ -9,6 +9,18 @@ class Paths:
     repo: Path
 
     @property
+    def romconv(self) -> Path:
+        return self.repo / "romconv"
+
+    @property
+    def samples(self) -> Path:
+        return self.repo / "samples"
+
+    @property
+    def logos(self) -> Path:
+        return self.repo / "logos"
+
+    @property
     def romszip(self) -> Path:
         return self.repo / "romszip"
 
@@ -26,7 +38,7 @@ class Paths:
 
     @property
     def build(self) -> Path:
-        return self.repo / "romconv" / "build"
+        return self.romconv / "build"
 
     @property
     def assets(self) -> Path:

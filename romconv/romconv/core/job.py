@@ -13,7 +13,8 @@ class Job:
     """One unit of conversion work, addressed by name.
 
     deps are pulled into a partial run; they do not order jobs of one phase.
-    phase 2 jobs run in-process after all phase 1 jobs succeeded."""
+    phase 2 jobs run in-process after all phase 1 jobs succeeded. always: part
+    of every partial run too (utility jobs)."""
 
     name: str
     convert: Callable[[Context], None]
@@ -22,3 +23,4 @@ class Job:
     plan: bool = False
     deps: tuple[str, ...] = ()
     phase: int = 1
+    always: bool = False

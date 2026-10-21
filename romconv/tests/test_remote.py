@@ -16,7 +16,8 @@ from romconv.registry import resolve
 from romconv.remote import bundles, catalog
 from romconv.remote.bundle import (CACHE_BYTES, FLAG_LZMA, FLAG_PACKED, TAG_BYTES, BundleWriter, asset_id,
                                    bundle_hash)
-from romconv.remote.catalog import BASES, EXCLUDED, bundle_dirs, c_symbol, catalog_h, read_games
+from romconv.emit.text import c_symbol
+from romconv.remote.catalog import BASES, EXCLUDED, bundle_dirs, catalog_h, read_games
 
 
 def _noop(ctx):
