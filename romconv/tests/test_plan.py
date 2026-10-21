@@ -1,4 +1,3 @@
-import importlib
 import random
 import shutil
 import time
@@ -14,8 +13,6 @@ from romconv.core.paths import Paths, default
 from romconv.plan.arena import (extras_key, parse_machine_header, plan_assets, plan_header, solve,
                                 write_arena_plan)
 from romconv.plan.layout import header_path, read_layouts
-
-LEGACY_DIR = Path(__file__).resolve().parents[1] / "internal" / "pyconv"
 
 W = [49152, 35040, 35040]  # Williams RAM + 2 scanout buffers
 REMOTE, LOCAL = (69000, 110500), (91000, 110500)
@@ -122,15 +119,6 @@ def test_machine_header_parse(tmp_path):
         parse_machine_header(p)  # expression
 
 
-def test_markers_legacy(tmp_path, monkeypatch):
-    # parse_markers is replaced by the manifest; removed with arena_plan.py in Task 16
-    monkeypatch.syspath_prepend(str(LEGACY_DIR))
-    legacy = importlib.import_module("arena_plan")
-    (tmp_path / "a.h").write_text("// arena-asset g_rom 16384 1 PLAIN unsigned char[8][8]\n#if g_rom_PLAIN\n")
-    (tmp_path / "g_arena_plan.h").write_text("// arena-asset stale 1 1\n")
-    assert legacy.parse_markers(str(tmp_path)) == [("g_rom", 16384, 1, "PLAIN", "unsigned char[8][8]")]
-
-
 def test_extras_order():
     # extras run in declared order; any_order: every order must fit
     # (Arena::alloc as function arguments: unspecified order)
@@ -206,24 +194,55 @@ def _plan_repo(tmp_path):
     return paths
 
 
-def test_plan_from_manifest_equals_marker_plan(tmp_path, log, monkeypatch):
-    # the old path read `// arena-asset` markers back from the headers
-    monkeypatch.syspath_prepend(str(LEGACY_DIR))
-    legacy = importlib.import_module("arena_plan")
-    paths = _plan_repo(tmp_path)
-    machine = paths.machines / "g"
-    (machine / "g_rom.h").write_text("".join(f"// arena-asset {n} {s} {a} {h} {t}\n"
-                                              for n, s, a, h, t in _MARKERS))
-    monkeypatch.setattr(legacy, "MACHINES", str(paths.machines))
-    legacy.main("g")
-    old = (machine / "g_arena_plan.h").read_text()
-    (machine / "g_arena_plan.h").unlink()
+_PLAN_BODY = """\
+#ifndef G_ARENA_PLAN_H
+#define G_ARENA_PLAN_H
+#include "../../emulation/asset.h"
+static constexpr uint32_t g_arena_extras_key = 1558752u;
+#ifdef ASSETS_REMOTE
+static_assert(Arena::BLOCK_A_SIZE == 69000 && Arena::BLOCK_B_SIZE == 110500, "Arena layout changed: rerun romconv");
+#define g_cmap_PLAIN 1
+#define g_cmap_BLOCK ARENA_ANY
+using g_cmap_asset = Asset<unsigned short, PLAIN>;
+#define g_main_PLAIN 0
+#define g_main_BLOCK ARENA_A
+using g_main_asset = Asset<unsigned char, COMPRESSED>;
+#define g_tiles_PLAIN 1
+#define g_tiles_BLOCK ARENA_ANY
+using g_tiles_asset = Asset<unsigned char[8][8], PLAIN>;
+#define g_words_PLAIN 0
+#define g_words_BLOCK ARENA_A
+using g_words_asset = Asset<uint32_t[2], COMPRESSED>;
+static constexpr ArenaPlan g_arena_plan = { 20480, 0 };
+#else
+static_assert(Arena::BLOCK_A_SIZE == 91000 && Arena::BLOCK_B_SIZE == 110500, "Arena layout changed: rerun romconv");
+#define g_cmap_PLAIN 1
+#define g_cmap_BLOCK ARENA_ANY
+using g_cmap_asset = Asset<unsigned short, PLAIN>;
+#define g_main_PLAIN 0
+#define g_main_BLOCK ARENA_A
+using g_main_asset = Asset<unsigned char, COMPRESSED>;
+#define g_tiles_PLAIN 1
+#define g_tiles_BLOCK ARENA_ANY
+using g_tiles_asset = Asset<unsigned char[8][8], PLAIN>;
+#define g_words_PLAIN 0
+#define g_words_BLOCK ARENA_A
+using g_words_asset = Asset<uint32_t[2], COMPRESSED>;
+static constexpr ArenaPlan g_arena_plan = { 20480, 0 };
+#endif
+#endif
+"""
 
+
+def test_plan_header_text(tmp_path, log):
+    # asset order by name, remote and local split of the same assets
+    paths = _plan_repo(tmp_path)
     ctx = Context(Job("g", _noop, machine="g", plan=True), paths, (), log)
     for a in _manifest_from_markers(_MARKERS).assets():
         ctx.manifest.add(a)
     write_arena_plan(ctx)
-    assert (machine / "g_arena_plan.h").read_text() == old
+    text = (paths.machines / "g" / "g_arena_plan.h").read_text()
+    assert text.split("\n", 1)[1] == _PLAN_BODY
 
 
 def test_plan_without_planned_assets_is_error(tmp_path, log):

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.cpu.pypatch import apply_patch
@@ -21,7 +23,7 @@ def _convert(ctx: Context) -> None:
         (dest / name).write_bytes(ctx.rom(f"Z80/{name}").replace(b"\r\n", b"\n"))
 
     ctx.log.info("Patching Z80.h / Z80.c")
-    apply_patch(ctx.paths.romconv / "internal" / "z80" / "z80.patch", dest)
+    apply_patch(Path(__file__).parent / "patches" / "z80.patch", dest)
 
 
 JOB = Job(name="z80", convert=_convert, zips=(_ZIP,))

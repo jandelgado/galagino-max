@@ -1,8 +1,8 @@
-import importlib
 import re
 import struct
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from romconv.core.context import Context
@@ -12,9 +12,8 @@ from romconv.core.manifest import Manifest
 from romconv.core.paths import Paths, default
 from romconv.emit.asset import PLAIN_DICT_BYTES, emit_compressed, emit_plain
 from romconv.emit.lzma import lzma_decompress
+from romconv.gfx.adpcm import emit_adpcm
 from romconv.remote.bundle import asset_id
-
-LEGACY_DIR = Path(__file__).resolve().parents[1] / "internal" / "pyconv"
 
 
 def _noop(ctx):
@@ -133,15 +132,13 @@ def test_plan_false_keeps_unplanned_form(tmp_path):
     assert out == ref_comp
 
 
-def test_adpcm_stays_unplanned_legacy(tmp_path, monkeypatch):
-    # legacy emitter reads ROMCONV_PLAN; removed with adpcm.py in Task 16
-    import io
-
-    monkeypatch.syspath_prepend(str(LEGACY_DIR))
-    monkeypatch.setenv("ROMCONV_PLAN", "tst")
-    f = io.StringIO()
-    importlib.import_module("adpcm").emit_adpcm(f, "_a", [0, 100, -100, 50])
-    assert "arena-asset" not in f.getvalue()
+def test_adpcm_stays_unplanned(tmp_path):
+    manifest = Manifest()
+    f = HeaderWriter(tmp_path / "foo" / "x.h", "foo", "tst", "foo", manifest)
+    with f:
+        emit_adpcm(f, "_a", np.array([0, 100, -100, 50], dtype=np.int16))
+    assert "arena-asset" not in f.path.read_text()
+    assert all(a.mode != "PLANNED" for a in manifest.assets())
 
 
 # test_asset_emit_remote
@@ -264,50 +261,3 @@ def test_no_direct_flash_asset_reads_in_machines():
             for f in re.finditer(r"\b%s\s*(\.|->)\s*(data|packed)\b" % re.escape(m.group(1)), body):
                 hits.append(f"{path}: {m.group(1)}{f.group(1)}{f.group(2)}")
     assert not hits, "FlashAsset fields read directly, wrap in Asset:\n" + "\n".join(sorted(set(hits)))
-
-
-# legacy comparison, removed with internal/pyconv/asset_emit.py in Task 16
-
-
-def _legacy_emit(tmp_path, monkeypatch, dirname, fn_name, *args, plan=None, **kw):
-    monkeypatch.syspath_prepend(str(LEGACY_DIR))
-    monkeypatch.setenv("ROMCONV_ASSET_DIR", str(tmp_path / "legacy_assets"))
-    if plan:
-        monkeypatch.setenv("ROMCONV_PLAN", plan)
-    else:
-        monkeypatch.delenv("ROMCONV_PLAN", raising=False)
-    legacy = importlib.import_module("asset_emit")
-    path = tmp_path / "legacy" / "machines" / dirname / "x.h"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        getattr(legacy, fn_name)(f, *args, **kw)
-    return path.read_text()
-
-
-@pytest.mark.parametrize("plan", [None, "foo"])
-def test_compressed_text_matches_legacy(tmp_path, monkeypatch, plan):
-    values = list(range(200)) * 3
-    args = ("foo_c", "unsigned short", "[2]", len(values) // 2, values)
-    old = _legacy_emit(tmp_path, monkeypatch, "foo", "emit_compressed", *args, plan=plan)
-    new, manifest = _emit(tmp_path, emit_compressed, *args, plan_game=plan, remote_dir="foo")
-    assert new == old
-    manifest.persist(tmp_path / "new_assets")
-    _assert_same_sidecars(tmp_path)
-
-
-@pytest.mark.parametrize("plan", [None, "foo"])
-def test_plain_text_matches_legacy(tmp_path, monkeypatch, plan):
-    body = " { 0x1,0x2 },\n { 0x3,0x4 }"
-    args = ("foo_p", "uint32_t", "[2]", 2, body)
-    old = _legacy_emit(tmp_path, monkeypatch, "foo", "emit_plain", *args, plan=plan)
-    new, manifest = _emit(tmp_path, emit_plain, *args, plan_game=plan, remote_dir="foo")
-    assert new == old
-    manifest.persist(tmp_path / "new_assets")
-    _assert_same_sidecars(tmp_path)
-
-
-def _assert_same_sidecars(tmp_path):
-    old_root, new_root = tmp_path / "legacy_assets", tmp_path / "new_assets"
-    old = {p.relative_to(old_root): p.read_bytes() for p in old_root.rglob("*") if p.is_file()}
-    new = {p.relative_to(new_root): p.read_bytes() for p in new_root.rglob("*") if p.is_file()}
-    assert old and old == new

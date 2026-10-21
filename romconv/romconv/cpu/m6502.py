@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.cpu.pypatch import apply_patch
@@ -20,7 +22,7 @@ def _convert(ctx: Context) -> None:
         (dest / dst).write_bytes(ctx.rom(f"M6502/{src}").replace(b"\r\n", b"\n"))
 
     ctx.log.info(f"Patching {', '.join(_RENAME)}")
-    apply_patch(ctx.paths.romconv / "internal" / "mos6502" / "mos6502.patch", dest)
+    apply_patch(Path(__file__).parent / "patches" / "mos6502.patch", dest)
 
 
 JOB = Job(name="m6502", convert=_convert, zips=(_ZIP,))
