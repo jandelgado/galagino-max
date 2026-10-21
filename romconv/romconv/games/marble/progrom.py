@@ -166,29 +166,34 @@ def _physics(terrains):
         _Array("dyn_intermediate", 0x1d370, "uint16_t", 66, "dyn codes"),   # race start (0x11ac2)
         _Keyed("dyn", frozenset(range(0x1699c, 0x1699c + 0x16)) | frozenset(range(0x1b908, 0x1b908 + 0x1c))
                | frozenset(range(0x24e4e, 0x24e4e + 0xe4))),   # first dynamic code frames (0x13628: slot, count, words)
-        _raw(0x1d364, 8), _raw(0x2419e, 0x88),                   # attract demo 0x1815a: waypoint list per demo race
+        _Array("demo_waypoints", 0x1d364, "uint32_t", 2, "demo race"),   # attract demo 0x1815a: waypoint list per demo race
+        _Keyed("path", frozenset(range(0x2419e, 0x2419e + 0x88))),        # the two waypoint lists, 0 terminated
         _Array("banner_chains", 0x242aa, "uint32_t", 7, "banner chain"),      # string chain per banner (BIOS 0x12a message)
     ]
 
 
 
 def _steelies(run):
-    """Phase 4b-1 tables (whole): spawn table pointers and entries per race (0xff end), every
-    node list of an entry up to its 0xff, 0xff end, the object pointer table (targets), the
-    pair list, the push table 0x24ad6 (|v high word| < 8), the score tables of k = 3."""
+    """Phase 4b-1: spawn table and entries per race (0xff end), every node list of an entry up
+    to its 0xff, 0xff end (pathByte), the object pointer table (targets), the pair list, the
+    push table 0x24ad6 (|v high word| < 8)."""
     sim = run.sim
-    out = set(range(me.SPAWN_TABLE, me.SPAWN_TABLE + 4 * md.LEVELS))
-    out |= set(range(me.PAIR_LIST, me.PAIR_LIST + 16)) | set(range(me.REPEL, me.REPEL + 8))
+    nodes = set()
     for race in range(md.LEVELS):
         e = sim.l(me.SPAWN_TABLE + 4 * race)
         while sim.prog[e] != 0xff:
             p = sim.l(e + 2)
             while not (sim.prog[p] == 0xff and sim.prog[p + 1] == 0xff):
                 p += 6
-            out |= set(range(sim.l(e + 2), p + 2)) | set(range(e, e + 8))
+            nodes |= set(range(sim.l(e + 2), p + 2))
             e += 8
-        out.add(e)
-    return [_Raw(frozenset(out)), _Array("obj_targets", me.OBJ_PTRS, "uint32_t", 4, "target")]   # P1, P2, steelie 0, 1
+    return [
+        _Lists("steelie_spawns", me.SPAWN_TABLE, 8, lambda b: b[0] == 0xFF, "steelie spawn"),   # lo, hi, nodes, zone
+        _Keyed("path", frozenset(nodes)),
+        _Array("obj_targets", me.OBJ_PTRS, "uint32_t", 4, "target"),   # P1, P2, steelie 0, 1
+        _Array("pair_list", me.PAIR_LIST, "uint32_t", 4, "pair"),      # 0x1bc88 partners, same 4
+        _Array("repel", me.REPEL, "int8_t", 8, "repel"),
+    ]
 
 
 def _pistons(run):
@@ -247,52 +252,60 @@ def _birds(run):
             _Array("obj_birds", 0x1f0ba, "uint32_t", 10, "bird")]
 
 
+_ACID_PATH_LISTS = 14   # 0x23d62: single A, single B (one long each), group A, group B (six)
+
+
 def _acid(run):
-    """Phase 4b-3 tables (whole): spawn table pointers and entries per race (0xff end), the
-    random path lists, every path up to its 0xff end, the acid pointer table, the animation
-    lists (0xffffffff end) and the box bytes +4..+7 of their frames (0x1b12a type 0xe, the
-    contact box 0x175c8)."""
+    """Phase 4b-3: spawn table and entries per race (0xff end), the random path lists, every
+    path up to its 0xff end (pathByte), the acid pointer table, the animation lists
+    (0xffffffff end) and the box bytes +4..+7 of their frames (0x1b12a type 0xe, the contact
+    box 0x175c8)."""
     sim = run.sim
-    out = set(range(ac.SPAWN_TABLE, ac.SPAWN_TABLE + 4 * md.LEVELS))
-    out |= set(range(ac.SINGLE[0], ac.GROUP[1] + 24))
-    paths = [sim.l(t) for t in range(ac.SINGLE[0], ac.GROUP[1] + 24, 4)]
+    paths = [sim.l(t) for t in range(ac.SINGLE[0], ac.SINGLE[0] + 4 * _ACID_PATH_LISTS, 4)]
     for race in range(md.LEVELS):
         e = sim.l(ac.SPAWN_TABLE + 4 * race)
         while sim.prog[e] != 0xff:
-            out |= set(range(e, e + 8))
             if sim.l(e + 2): paths.append(sim.l(e + 2))
             e += 8
-        out.add(e)
+    out = set()
     for p in paths:
         q = p
         while sim.prog[q] != 0xff:
             q += 4
         out |= set(range(p, q + 1))
-    return [_Raw(frozenset(out)), _Keyed("anim", frozenset(_anim_lists(sim, mo.ACID_LISTS))),
-            _Keyed("frame", frozenset(_frame_bytes(sim, mo.ACID_LISTS, 4, 8))),
-            _Array("obj_acids", 0x1f07a, "uint32_t", 7, "acid")]
+    return [
+        _Lists("acid_spawns", ac.SPAWN_TABLE, 8, lambda b: b[0] == 0xFF, "acid spawn"),   # lo, hi, path, kind
+        _Array("acid_paths", ac.SINGLE[0], "uint32_t", _ACID_PATH_LISTS, "acid path"),
+        _Keyed("path", frozenset(out)),
+        _Keyed("anim", frozenset(_anim_lists(sim, mo.ACID_LISTS))),
+        _Keyed("frame", frozenset(_frame_bytes(sim, mo.ACID_LISTS, 4, 8))),
+        _Array("obj_acids", 0x1f07a, "uint32_t", 7, "acid"),
+    ]
 
 
 def _slinkies(run):
-    """Phase 4b-2 tables (whole): spawn table pointers and entries per race (0xff end), every
-    entry's waypoint list up to its 0xff end, the slinky pointer table, the animation lists
-    (0xffffffff end) and the header bytes +0..+7 of their frames (occlusion 0x264aa, the
-    boxes of 0x1b12a type 4 and the contact 0x14e92), the lunge height table."""
+    """Phase 4b-2: spawn table and entries per race (0xff end), every entry's waypoint list up
+    to its 0xff end (pathByte), the slinky pointer table, the animation lists (0xffffffff end)
+    and the header bytes +0..+7 of their frames (occlusion 0x264aa, the boxes of 0x1b12a type
+    4 and the contact 0x14e92), the lunge height table."""
     sim = run.sim
-    out = set(range(sl.SPAWN_TABLE, sl.SPAWN_TABLE + 4 * md.LEVELS))
-    out |= set(range(sl.REAR, sl.REAR + 0x20))
+    paths = set()
     for race in range(md.LEVELS):
         e = sim.l(sl.SPAWN_TABLE + 4 * race)
         while sim.prog[e] != 0xff:
             p = sim.l(e + 2)
             while sim.prog[p] != 0xff and sim.prog[p + 1] != 0xff:
                 p += 4
-            out |= set(range(sim.l(e + 2), p + 2)) | set(range(e, e + 8))
+            paths |= set(range(sim.l(e + 2), p + 2))
             e += 8
-        out.add(e)
-    return [_Raw(frozenset(out)), _Keyed("anim", frozenset(_anim_lists(sim, mo.SLINKY_LISTS))),
-            _Keyed("frame", frozenset(_frame_bytes(sim, mo.SLINKY_LISTS, 0, 8))),
-            _Array("obj_slinkies", 0x1f006, "uint32_t", 4, "slinky")]
+    return [
+        _Lists("slinky_spawns", sl.SPAWN_TABLE, 8, lambda b: b[0] == 0xFF, "slinky spawn"),   # lo, hi, path, zone
+        _Keyed("path", frozenset(paths)),
+        _Keyed("anim", frozenset(_anim_lists(sim, mo.SLINKY_LISTS))),
+        _Keyed("frame", frozenset(_frame_bytes(sim, mo.SLINKY_LISTS, 0, 8))),
+        _Array("obj_slinkies", 0x1f006, "uint32_t", 4, "slinky"),
+        _Array("rear", sl.REAR, "int8_t", 0x20, "lunge lift"),   # z lift (px) per lunge tick 6..0x25
+    ]
 
 
 def _deaths(run):

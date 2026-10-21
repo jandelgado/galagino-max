@@ -26,6 +26,8 @@ namespace marble_slinkies {
 
 using marble_physics::Mem;
 using marble_physics::s8;
+using marble_physics::pathByte;
+using marble_physics::be32;
 using marble_physics::animEntry;
 using marble_physics::frameBox;
 using marble_physics::s16;
@@ -61,7 +63,7 @@ enum : uint8_t {
 
 static const uint8_t LIVE = 1, MASK_N = 5, MASK_ENTRY = 6;
 static const uint8_t TYPE_SLINKY = 4;            // draw list type
-static const uint8_t SPAWN_ENTRY = 8, WAYPOINT = 4, END = 0xff;
+static const uint8_t WAYPOINT = 4, END = 0xff;
 static const uint8_t EATEN_TICKS = 0x32, LOST_SPARKLE = 0x65;
 static const uint8_t AIRBORNE = 2;
 
@@ -72,8 +74,6 @@ static const uint32_t POS_X = 0x400690, POS_Y = 0x400692, POS_Z = 0x400694;  // 
 static const uint16_t PLAYER_SIZE = 0xe2;
 
 // program ROM
-static const uint32_t SPAWN_TABLE = 0x2257a;  // per race: 8 byte entries, 0xff end
-static const uint32_t REAR = 0x2255a;         // s8 z lift (px) per lunge tick 6..0x25
 static const uint32_t NO_FRAME = 0xffffffff;
 
 // animation lists (0x15460)
@@ -121,7 +121,7 @@ int16_t divs(int64_t n, int64_t d) {
 }
 
 // waypoint record byte k (0: cell x, 1: cell y, 2: next record offset)
-int8_t wp(const Mem &m, uint32_t p, uint8_t k) { return s8(m.romb(p + k)); }
+int8_t wp(const Mem &, uint32_t p, uint8_t k) { return s8(pathByte(p, k)); }
 
 uint32_t prey(const Mem &m, uint32_t a2) { return marble_obj_targets[(uint16_t)m.sw(a2 + PREY)]; }
 
@@ -142,13 +142,13 @@ void coords_150d0(Mem &m, uint32_t a2) {
 }
 
 // 0x14c46 init of a free slinky from spawn entry e: first waypoint, walking, in the draw list
-void init_14c46(Mem &m, uint32_t a2, uint32_t e) {
-  const uint32_t path = m.roml(e + 2);
+void init_14c46(Mem &m, uint32_t a2, const uint8_t *e) {
+  const uint32_t path = be32(e + 2);
   m.wl(a2 + NEXT, path);
   m.wl(a2 + PATH, path);
-  m.wb(a2 + ZONE, m.romb(e + 6));
-  m.ww(a2 + BAND_LO, (uint16_t)(int16_t)s8(m.romb(e)));
-  m.ww(a2 + BAND_HI, (uint16_t)(int16_t)s8(m.romb(e + 1)));
+  m.wb(a2 + ZONE, e[6]);
+  m.ww(a2 + BAND_LO, (uint16_t)(int16_t)s8(e[0]));
+  m.ww(a2 + BAND_HI, (uint16_t)(int16_t)s8(e[1]));
   m.wl(a2 + PX, (uint32_t)(wp(m, path, 0) * CELL + HALF_CELL));
   m.wl(a2 + PY, (uint32_t)(wp(m, path, 1) * CELL + HALF_CELL));
   groundZ(m, a2);
@@ -275,7 +275,7 @@ void nearest_14dec(Mem &m, uint32_t a2) {
   const int16_t cx = cell(m.rl(a2 + PX)), cy = cell(m.rl(a2 + PY));
   uint32_t bp = NO_FRAME;
   uint16_t best = WAYPOINT_FAR;
-  for (uint32_t p = m.rl(a2 + PATH); m.romb(p) != END && m.romb(p + 1) != END; p += WAYPOINT) {
+  for (uint32_t p = m.rl(a2 + PATH); pathByte(p, 0) != END && pathByte(p, 1) != END; p += WAYPOINT) {
     const uint16_t dx = (uint16_t)(abs64(s16(cx - wp(m, p, 0))) << 4);
     const uint16_t dy = (uint16_t)(abs64(s16(cy - wp(m, p, 1))) << 4);
     const uint16_t d = octant(dx, dy);
@@ -427,7 +427,7 @@ void lunge_14a28(Mem &m, uint32_t a2) {
   const int8_t c = m.sb(a2 + LUNGE);
   if (c >= LUNGE_FIRST && c < LUNGE_END) {
     const int32_t d5 = marble_physics::cellHeight(m, a2);
-    m.wl(a2 + PZ, (uint32_t)((int32_t)s8(m.romb(REAR + c - LUNGE_FIRST)) * 0x10000 + d5));
+    m.wl(a2 + PZ, (uint32_t)((int32_t)marble_rear[c - LUNGE_FIRST] * 0x10000 + d5));
     const uint32_t o = prey(m, a2);
     const uint8_t st = m.rb(o + P_STATE);
     if (m.rb(o + P_SLOT) == LIVE && m.rb(o + P_ZONE) == m.rb(a2 + ZONE) && !m.rb(o + P_AIR) &&
@@ -536,21 +536,22 @@ void init(Mem &m) {
 // outside [lo, hi] and whose waypoint list no live slinky has (free slot: highest free index,
 // none free ends the scan); then remove slinkies whose band range is left.
 void bands(Mem &m, int8_t a, int8_t b) {
-  for (uint32_t e = m.roml(SPAWN_TABLE + 4 * m.rw(marble_physics::RACE)); m.romb(e) != END;
-       e += SPAWN_ENTRY) {
+  for (uint16_t i = marble_slinky_spawns_of[m.rw(marble_physics::RACE)].first;
+       marble_slinky_spawns[i][0] != END; i++) {
+    const uint8_t *e = marble_slinky_spawns[i];
     uint32_t free = 0;
     bool used = false;
-    for (uint8_t i = 0; i < NSLINKIES; i++) {
-      const uint32_t s = slinky(i);
+    for (uint8_t k = 0; k < NSLINKIES; k++) {
+      const uint32_t s = slinky(k);
       if (!m.rb(s + SLOT)) {
         free = s;
-      } else if (m.rl(s + PATH) == m.roml(e + 2)) {
+      } else if (m.rl(s + PATH) == be32(e + 2)) {
         used = true;
       }
     }
     if (!free) { break; }
 
-    const int8_t lo = s8(m.romb(e)), hi = s8(m.romb(e + 1));
+    const int8_t lo = s8(e[0]), hi = s8(e[1]);
     if (!used && (b == lo || b == hi) && !(lo <= a && a <= hi)) { init_14c46(m, free, e); }
   }
 

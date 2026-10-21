@@ -933,18 +933,18 @@ void waypoint_1815a(Mem &m, uint32_t a2) {
   uint16_t d4, d6;
   for (;;) {
     uint32_t a3 = m.rl(WAYPOINT);
-    if (!m.romb(a3)) { return; }
+    if (!pathByte(a3, 0)) { return; }
 
-    d2 = s32((int64_t)(s8(m.romb(a3)) * (1 << 19)) - m.sl(a2 + PX) + WAYPOINT_BIAS);
-    d3 = s32((int64_t)(s8(m.romb(a3 + 1)) * (1 << 19)) - m.sl(a2 + PY) + WAYPOINT_BIAS);
-    d5 = s8(m.romb(a3 + 2)) * (1 << 16);
+    d2 = s32((int64_t)(s8(pathByte(a3, 0)) * (1 << 19)) - m.sl(a2 + PX) + WAYPOINT_BIAS);
+    d3 = s32((int64_t)(s8(pathByte(a3, 1)) * (1 << 19)) - m.sl(a2 + PY) + WAYPOINT_BIAS);
+    d5 = s8(pathByte(a3, 2)) * (1 << 16);
     d4 = (uint16_t)(abs64(d2) >> 12);
     d6 = (uint16_t)(abs64(d3) >> 12);
     if (d4 >= WAYPOINT_NEAR || d6 >= WAYPOINT_NEAR) { break; }
 
-    if (s8(m.romb(a3 + 3)) >= 0) { banner_12a(m, m.romb(a3 + 3)); }
+    if (s8(pathByte(a3, 3)) >= 0) { banner_12a(m, pathByte(a3, 3)); }
     a3 += 4;
-    if (!m.romb(a3)) {
+    if (!pathByte(a3, 0)) {
       m.ww(WAYPOINTS_END, 1);
       m.wb(a2 + TIMER_TICKS, 0xff);  // timer stopped
     }

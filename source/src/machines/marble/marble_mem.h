@@ -107,6 +107,10 @@ uint16_t dynWord(uint32_t p, uint16_t k);
 // occluderWord: word of the explicit occluder tables and records of 0x264aa at a (the lists
 // overlap by whole words, so they stay 68010 addressed: marble_occluder_tabs[column] + offsets)
 uint16_t occluderWord(uint32_t a);
+// pathByte: byte k of a record at p of a path: steelie node lists (6 bytes: cell x, y, 4
+// links), slinky and acid waypoints (4), attract demo waypoints (4); 0xff ends a list.
+uint8_t pathByte(uint32_t p, uint8_t k);
+uint32_t demoWaypoints(uint8_t race);   // first waypoint record of an attract demo race
 
 // sprite set of level n (races share sets), for the renderer
 const MarbleSpriteSet &spriteSet(uint8_t level);
