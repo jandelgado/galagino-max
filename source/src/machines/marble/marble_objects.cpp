@@ -4,6 +4,8 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
+#include "marble_rom.h"
+
 #include "marble_drawlist.h"
 #include "marble_physics.h"
 #include "marble_rng.h"
@@ -93,8 +95,7 @@ static const uint32_t SLOT_LIST = 0x1f016;     // slot addresses
 static const uint32_t SPAWN_LISTS = 0x1dec0;   // per race: entries lo, hi, script (6 bytes)
 static const uint32_t SPAWN_GROUPS = 0x1ded8;  // 4 groups of 4 scripts
 static const uint32_t WAVE_SCRIPT = 0x1d854;
-static const uint32_t DYN_INTERMEDIATE = 0x1d370;
-static const uint8_t DYN_INTERMEDIATE_N = 0x42;
+static const uint8_t DYN_INTERMEDIATE_N = 66;   // marble_dyn_intermediate
 static const uint32_t END_MARK = 0xffffffff;
 
 static const uint8_t RACE_INTERMEDIATE = 2, RACE_SILLY = 4;
@@ -1112,7 +1113,7 @@ void update(Mem &m) {
   }
   if (m.rb(WAVES)) {
     for (uint8_t k = 0; k < DYN_INTERMEDIATE_N; k++) {
-      m.ww(DYN + 2 * k, m.romw(DYN_INTERMEDIATE + 2 * k));
+      m.ww(DYN + 2 * k, marble_dyn_intermediate[k]);
     }
   }
   for (uint8_t i = 0; i < SLOT_N; i++) { slot_step_13068(m, slotAddr(i)); }
@@ -1197,7 +1198,7 @@ void init(Mem &m, uint8_t race) {
   m.wl(CAMERA_L, cam);
   if (race == RACE_INTERMEDIATE) {
     for (uint8_t k = 0; k < DYN_INTERMEDIATE_N; k++) {
-      m.ww(DYN + 2 * k, m.romw(DYN_INTERMEDIATE + 2 * k));
+      m.ww(DYN + 2 * k, marble_dyn_intermediate[k]);
     }
   }
 

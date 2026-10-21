@@ -3,6 +3,8 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
+#include "marble_rom.h"
+
 #include "marble_physics.h"
 
 // Integer semantics of the 68010 as in marble_physics.cpp: words wrap at 16 bits, >> on
@@ -46,7 +48,6 @@ static const uint32_t SHAPES = 0x1eaba;     // 3 x 5 diagonal offsets per column
 static const uint32_t OCCLUDERS = 0x1ea2a;  // per column: table of per race record lists
 static const uint32_t FLAT_H = 0x1ead2;     // entry code by height difference
 static const uint32_t FLAT_Y = 0x1eaf4;
-static const uint32_t DROP = 0x1ed62;
 static const uint32_t QUADS = 0x2417e;      // 4 x (2 longs: quadrant offsets)
 static const uint32_t QUAD_MASKS = 0x24176;
 
@@ -76,7 +77,7 @@ uint16_t vertexHeight_177f8(const Mem &m, int32_t d, int32_t col, int16_t k) {
         return (uint16_t)((code & 0x7f) - 0x40 + base);
       }
 
-      const uint16_t bias = m.romw(DROP + ((code & 0xf80) >> 6));
+      const uint16_t bias = marble_drop[(code & 0xf80) >> 7];
       if (bias == 0x1000) { return 0; }
       return (uint16_t)((code & 0x7f) - 0x40 - s16(bias) + base);
     }

@@ -1,10 +1,16 @@
 """Program ROM tables of the Marble Madness remake (MARBLE.md "Remake data").
 
 The remake reads 68010 program ROM data by address (`Mem::romb`, blocks of marble_prog). This
-module defines which bytes: whole tables, walked to their terminators, one set per phase.
-phase_bytes() is the single source for the emitted blocks and for the coverage proof
-(tests/test_games_marble.py replays every MAME fixture and race sweep on the model and fails
-on a read outside)."""
+module defines which bytes, one list of definitions per phase: typed tables (_Array, _Lists,
+_Struct) emitted into marble_tables / marble_rom.h, Raw bytes still shipped as blocks, Model
+bytes only the Python model reads. defs() is the single source for the emitted data and for
+the coverage proof (tests/test_games_marble.py replays every MAME fixture and race sweep on
+the model and fails on a read outside)."""
+import struct
+from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Callable
+
 from romconv.games.marble import data as md
 from romconv.games.marble.sim import marble_acid as ac
 from romconv.games.marble.sim import marble_bird as bd
@@ -17,42 +23,131 @@ from romconv.games.marble.sim import marble_slinky as sl
 from romconv.games.marble.sim import objects_data as od
 
 
-# Program ROM tables the physics, start, respawn and camera read (address, length). Read
-# extents follow from the index ranges in marble_sim.py; the recorded reads below must fall
-# inside these plus the descriptors, zone line and checkpoint lists.
-_PROG_TABLES = (
-    (0x24b3a, 0x2a),  # 0x1caba vertex steps, even and odd diagonals (4 x 6 bytes each)
-    (0x1ed62, 0x40),  # two level codes: drop per (code >> 7) & 0x1f
-    (0x23d40, 0x10),  # 0x1706c edge push per cell fraction 0-7
-    (0x2398c, 0x05),  # 0x160f6 teeter speeds 0-4
-    (0x1eef8, 0x22),  # 0x25e7c friction, 17 words
-    (0x1eb16, 0x24),  # zone line list per race, goal velocity x (0x1eb2e) and y (0x1eb34)
-    (0x1ef1a, 0x18),  # checkpoint list per race (respawn 0x2637a)
-    (0x1f1ca, 0x0e),  # camera 0x13ee6 thresholds and speeds
-    (0x2be00, 0x18),  # level descriptor per race
-    (0x1d370, 0x84),  # intermediate dynamic terrain codes at race start (0x11ac2)
-    (0x1699c, 0x16),  # practice, beginner, ultimate dynamic codes: first animation frame
-    (0x1b908, 0x1c),  # (0x13628: slot, count, words)
-    (0x24e4e, 0xe4),
-    (0x1d364, 0x08),  # attract demo 0x1815a: waypoint list per demo race (practice, beginner)
-    (0x2419e, 0x88),  # the two waypoint lists, 0 terminated
-    (0x242aa, 0x1c),  # banner string chain per banner (BIOS 0x12a message)
-)
-_DESC_BYTES = 0x2e  # descriptor fields +0x00..+0x2d
+_SIZE = MappingProxyType({"int8_t": 1, "uint8_t": 1, "int16_t": 2, "uint16_t": 2, "uint32_t": 4})
+_PACK = MappingProxyType({"int8_t": "b", "uint8_t": "B", "int16_t": "h", "uint16_t": "H", "uint32_t": "I"})
 
-# Phase 4b-0 tables the death code indexes (address, bytes): the fixture reads only parts
-_DEATH_TABLES = (
-    (ms.SINE, 2 * 0x66),        # sine_pair 0..0x64, sine_lerp i + 1 <= 0x65 (d6 <= 0x1922)
-    (ms.LERP, 2 * 0x35),        # lerp_1ee6e: i = (arg >> 10) - 0xc, i + 1 <= 0x34
-    (ms.DOT_ANGLE, 2 * 39),     # dots_1c014: word 3 * ady + dx, ady <= 0xc, dx <= 2
-    (ms.DOT_DY, 13),            # dots_1c014: ady <= 0xc
-    (ms.ORBIT_STEPS, 16),       # sparkle star offsets
-    (0x1d3f4, 16),              # dots_init_25b40 rest pose x, y
-    (0x24a94, 6),               # timeout_1bbaa rng limit per race
-    (0x24aae, 24),              # timeout_1bbaa zone list per race (0xff end, below)
-    (ms.SCORES, 2 * 17),        # score_285b0 points: goal (race * 2 + 3), time bonus (0x10)
-    (ms.SCORE_TEXTS, 4 * 17),   # score_285b0 score texts
-)
+
+@dataclass(frozen=True)
+class _Array:
+    """Table at a fixed address: MarbleTable<ctype, n> marble_<name> in marble_tables (native
+    endian), element i < n checked at the site."""
+    name: str
+    addr: int
+    ctype: str
+    n: int
+    what: str
+
+    def bytes(self, sim):
+        return set(range(self.addr, self.addr + self.n * _SIZE[self.ctype]))
+
+    def data(self, sim):
+        raw = bytes(sim.prog[self.addr:self.addr + self.n * _SIZE[self.ctype]])
+        return struct.pack(f"<{self.n}{_PACK[self.ctype]}", *struct.unpack(f">{self.n}{_PACK[self.ctype]}", raw))
+
+
+@dataclass(frozen=True)
+class _Lists:
+    """Per race lists behind a pointer table of md.LEVELS longs: entries of entry bytes up to
+    and including the one last() accepts. MarbleTable<uint8_t[entry], n> marble_<name> holds
+    all entries, MarbleRange marble_<name>_of[race] the first and count of a race."""
+    name: str
+    table: int
+    entry: int
+    last: Callable[[bytes], bool]
+    what: str
+
+    def ranges(self, sim):
+        """[(address, entries)] per race."""
+        out = []
+        for race in range(md.LEVELS):
+            a = sim.l(self.table + 4 * race)
+            n = 1
+            while not self.last(sim.prog[a + self.entry * (n - 1):a + self.entry * n]):
+                n += 1
+            out.append((a, n))
+        return out
+
+    def bytes(self, sim):
+        out = set(range(self.table, self.table + 4 * md.LEVELS))
+        for a, n in self.ranges(sim):
+            out |= set(range(a, a + self.entry * n))
+        return out
+
+    def data(self, sim):
+        """(entries, [(first, n)] per race)."""
+        data, where = bytearray(), []
+        for a, n in self.ranges(sim):
+            where.append((len(data) // self.entry, n))
+            data += sim.prog[a:a + self.entry * n]
+        return bytes(data), where
+
+
+@dataclass(frozen=True)
+class _Struct:
+    """Named fields at offsets of a record: a literal `struct cname` constant marble_<name>."""
+    name: str
+    cname: str
+    addr: int
+    fields: tuple   # (field, offset, ctype)
+
+    def bytes(self, sim):
+        return {self.addr + o + k for _, o, c in self.fields for k in range(_SIZE[c])}
+
+    def values(self, sim):
+        return [struct.unpack(f">{_PACK[c]}", bytes(sim.prog[self.addr + o:self.addr + o + _SIZE[c]]))[0]
+                for _, o, c in self.fields]
+
+
+@dataclass(frozen=True)
+class _Raw:
+    """Bytes still shipped as address keyed blocks of marble_prog (Mem::romb)."""
+    addrs: frozenset
+
+    def bytes(self, sim):
+        return self.addrs
+
+
+@dataclass(frozen=True)
+class _Model:
+    """Bytes only the Python model reads: the remake has them as fields or lists elsewhere."""
+    addr: int
+    n: int
+
+    def bytes(self, sim):
+        return set(range(self.addr, self.addr + self.n))
+
+
+def _raw(addr, n):
+    return _Raw(frozenset(range(addr, addr + n)))
+
+
+_DESC_BYTES = 0x2e  # descriptor fields +0x00..+0x2d
+_CAMERA = (("slow", 0, "uint8_t"), ("mid", 2, "uint8_t"), ("fast", 4, "uint8_t"), ("low", 6, "int16_t"),
+           ("high", 8, "int16_t"), ("near", 10, "int16_t"), ("far", 12, "int16_t"))
+
+
+def _physics(terrains):
+    """Phase 2: physics, race start, respawn, camera, attract demo."""
+    return [
+        _Array("steps", 0x24b3a, "uint16_t", 21, "vertex steps"),   # 0x1caba: 4 x 3 words from word 0 (even diagonal) or 9 (odd)
+        _Array("drop", 0x1ed62, "uint16_t", 32, "drop"),            # two level codes: drop per (code >> 7) & 0x1f
+        _Array("push", 0x23d40, "int16_t", 8, "push"),              # 0x1706c edge push per cell fraction 0-7
+        _Array("teeter", 0x2398c, "int8_t", 5, "teeter"),           # 0x160f6 lift by distance to the edge 0-4
+        _Array("friction", 0x1eef8, "int16_t", 17, "friction"),     # 0x25e7c
+        _Lists("zone_lines", 0x1eb16, 6, lambda b: b[3] == 0xFF and b[4] == 0xFF, "zone line"),
+        _Array("goal_vx", 0x1eb2e, "int8_t", md.LEVELS, "goal vx"),
+        _Array("goal_vy", 0x1eb34, "int8_t", md.LEVELS, "goal vy"),
+        _Lists("checkpoints", 0x1ef1a, 4, lambda b: b[0] == 0xFF, "checkpoint"),   # respawn 0x2637a
+        _Struct("camera_params", "MarbleCamera", 0x1f1ca, _CAMERA),      # 0x13ee6 speeds, sy thresholds and margins
+        _Model(0x1f1ca, 14),                                       # the model reads the speeds as words
+        _Model(0x2be00, 0x18),                                     # descriptor per race: MarbleTerrainInfo
+        *[_Model(t.desc, _DESC_BYTES) for t in terrains],
+        _Array("dyn_intermediate", 0x1d370, "uint16_t", 66, "dyn codes"),   # race start (0x11ac2)
+        _raw(0x1699c, 0x16), _raw(0x1b908, 0x1c), _raw(0x24e4e, 0xe4),   # first dynamic code frames (0x13628)
+        _raw(0x1d364, 8), _raw(0x2419e, 0x88),                   # attract demo 0x1815a: waypoint list per demo race
+        _Array("banner_chains", 0x242aa, "uint32_t", 7, "banner chain"),      # string chain per banner (BIOS 0x12a message)
+    ]
+
 
 
 def _steelie_bytes(run):
@@ -63,7 +158,6 @@ def _steelie_bytes(run):
     out = set(range(me.SPAWN_TABLE, me.SPAWN_TABLE + 4 * md.LEVELS))
     out |= set(range(me.OBJ_PTRS, me.OBJ_PTRS + 16)) | set(range(0x1effe, 0x1effe + 8))
     out |= set(range(me.PAIR_LIST, me.PAIR_LIST + 16)) | set(range(me.REPEL, me.REPEL + 8))
-    out |= set(range(ms.SCORES + 6, ms.SCORES + 8)) | set(range(ms.SCORE_TEXTS + 12, ms.SCORE_TEXTS + 16))
     for race in range(md.LEVELS):
         e = sim.l(me.SPAWN_TABLE + 4 * race)
         while sim.prog[e] != 0xff:
@@ -195,24 +289,28 @@ def _slinky_bytes(run):
     return out
 
 
-def _death_bytes(run):
-    """Phase 4b-0 tables (whole): the player animation lists (0xffffffff end included), the
-    reached shatter overlay entries (the remake reads the frame headers from them), the tables
-    of DEATH_TABLES and the time out zone lists."""
+def _deaths(run):
+    """Phase 4b-0: the player animation lists (0xffffffff end included), the reached shatter
+    overlay entries (the remake reads the frame headers from them), the tables the death and
+    score code index (whole; the fixtures read only parts)."""
     sim = run.sim
-    out = set()
+    raw = set()
     for a in mo.DEATH_LISTS:
-        out |= set(range(a, a + 4 * len(mo.anim_list(sim, a)) + 4))
-    out |= set(range(ms.ANIM_SHARDS, ms.ANIM_SHARDS + 4 * run.death.shards))
-    for a, length in _DEATH_TABLES:
-        out |= set(range(a, a + length))
-    for race in range(md.LEVELS):
-        z = sim.l(0x24aae + 4 * race)
-        end = z
-        while sim.prog[end] != 0xff:
-            end += 1
-        out |= set(range(z, end + 1))
-    return out
+        raw |= set(range(a, a + 4 * len(mo.anim_list(sim, a)) + 4))
+    raw |= set(range(ms.ANIM_SHARDS, ms.ANIM_SHARDS + 4 * run.death.shards))
+    return [
+        _Raw(frozenset(raw)),
+        _Array("sine", ms.SINE, "int16_t", 0x66, "sine"),            # sine_pair 0..0x64, sine_lerp i + 1 <= 0x65
+        _Model(ms.LERP, 2 * 0x35),                                   # lerp_1ee6e: i = (arg >> 10) - 0xc, i + 1 <= 0x34
+        _Model(ms.DOT_ANGLE, 2 * 39),                                # dots_1c014: word 3 * ady + dx, ady <= 0xc, dx <= 2
+        _Model(ms.DOT_DY, 13),                                       # dots_1c014: ady <= 0xc
+        _Array("star_steps", ms.ORBIT_STEPS, "int8_t", 16, "star step"),   # 8 x (dx, dy) sparkle star offsets
+        _Model(0x1d3f4, 16),                                         # dots_init_25b40 rest pose x, y
+        _Array("bonus_limit", 0x24a94, "uint8_t", md.LEVELS, "bonus limit"),   # timeout_1bbaa rng limit per race
+        _Lists("bonus_zones", 0x24aae, 1, lambda b: b[0] == 0xFF, "bonus zone"),   # timeout_1bbaa zones per race
+        _Array("scores", ms.SCORES, "int16_t", 17, "score"),         # score_285b0 points: goal (race * 2 + 3), time bonus (0x10)
+        _Array("score_texts", ms.SCORE_TEXTS, "uint32_t", 17, "score text"),   # score_285b0 score texts
+    ]
 
 
 def _sprite_bytes(run):
@@ -243,24 +341,6 @@ def _merge(addrs, gap=8):
     return out
 
 
-def _table_bytes(run, descs):
-    """Phase 2 tables (whole) as a byte address set."""
-    sim = run.sim
-    tables = list(_PROG_TABLES) + [(d, _DESC_BYTES) for d in descs]
-    for n in range(md.LEVELS):
-        for table, entry, last in ((0x1eb16, 6, lambda b: b[3] == 0xFF and b[4] == 0xFF),
-                                   (0x1ef1a, 4, lambda b: b[0] == 0xFF)):
-            a = sim.l(table + 4 * n)
-            start = a
-            while not last(sim.prog[a:a + entry]):
-                a += entry
-            tables.append((start, a + entry - start))
-    covered = set()
-    for a, length in tables:
-        covered |= set(range(a, a + length))
-    return covered
-
-
 def _phase3_bytes(run):
     """Phase 3 tables (whole): level objects, occlusion (edge bitmaps are edge lists)."""
     out = set(od.object_tables(run.sim)) | od.occlusion_bytes(run.sim)
@@ -269,31 +349,60 @@ def _phase3_bytes(run):
     return out
 
 
+def defs(run, terrains):
+    """Program ROM data the remake reads, one list of definitions per phase: 2 physics, 3
+    objects and occlusion, 4a sprites, 4b-0 deaths, 4b-1 steelies, 4b-2 slinkies, 4b-3 acid,
+    4b-4a birds, tubes and shapes, 4b-4b minis, 4b-5 pistons. Whole tables, walked to their
+    terminators; tests/test_games_marble.py replays every MAME fixture and race sweep on the
+    model and fails on a read outside them."""
+    return (_physics(terrains), [_Raw(frozenset(_phase3_bytes(run)))], [_Raw(frozenset(_sprite_bytes(run)))],
+            _deaths(run), [_Raw(frozenset(_steelie_bytes(run)))],
+            [_Raw(frozenset(_slinky_bytes(run)))], [_Raw(frozenset(_acid_bytes(run)))],
+            [_Raw(frozenset(_bird_bytes(run) | _shape_bytes(run)))], [_Raw(frozenset(_mini_bytes(run)))],
+            [_Raw(frozenset(_piston_bytes(run)))])
+
+
 def phase_bytes(run, terrains):
-    """Program ROM bytes the remake reads, one set per phase: 2 physics, 3 objects and
-    occlusion, 4a sprites, 4b-0 deaths, 4b-1 steelies, 4b-2 slinkies, 4b-3 acid, 4b-4a birds,
-    tubes and shapes, 4b-4b minis, 4b-5 pistons. Whole tables, walked to their terminators;
-    tests/test_games_marble.py replays every MAME fixture and race sweep on the model and
-    fails on a read outside them."""
-    return (_table_bytes(run, [t.desc for t in terrains]), _phase3_bytes(run), _sprite_bytes(run),
-            _death_bytes(run), _steelie_bytes(run), _slinky_bytes(run), _acid_bytes(run),
-            _bird_bytes(run) | _shape_bytes(run), _mini_bytes(run), _piston_bytes(run))
+    """Byte address set per phase of defs()."""
+    return tuple(set().union(*(d.bytes(run.sim) for d in phase)) for phase in defs(run, terrains))
 
 
-def model_bytes(terrains):
-    """Bytes the model reads that the remake gets as fields, not blocks: the terrain
-    descriptors (MarbleTerrainInfo top, range, cell; maxd, records and edges)."""
-    out = set()
-    for t in terrains:
-        out |= set(range(t.desc, t.desc + _DESC_BYTES))
-    return out
-
-
-def blocks(plain, tables, skip):
-    """[(address, bytes)] per phase, cumulative without skip: the blocks of the last phase are
-    emitted."""
+def blocks(plain, phases):
+    """[(address, bytes)] of the Raw definitions per phase, cumulative: the blocks of the last
+    phase are emitted as marble_prog."""
     out, cum = [], set()
-    for t in tables:
-        cum |= t - skip
+    for phase in phases:
+        for d in phase:
+            if isinstance(d, _Raw):
+                cum |= d.addrs
         out.append([(a, bytes(plain[a:e])) for a, e in _merge(cum)])
     return out
+
+
+def emit(f, sim, phases, add):
+    """Typed definitions of every phase into marble_rom.h; add(data, align) appends to
+    marble_tables and returns the offset. Returns the table bytes per phase."""
+    sizes = []
+    for phase in phases:
+        size = 0
+        for d in phase:
+            if isinstance(d, _Array):
+                data = d.data(sim)
+                print(f"static const MarbleTable<{d.ctype}, {d.n}> marble_{d.name} = "
+                      f"{{ {add(data, _SIZE[d.ctype])}, \"{d.what}\" }};  // 0x{d.addr:05x}", file=f)
+                size += len(data)
+            elif isinstance(d, _Lists):
+                data, where = d.data(sim)
+                print(f"static const MarbleTable<uint8_t[{d.entry}], {len(data) // d.entry}> marble_{d.name} = "
+                      f"{{ {add(data, 1)}, \"{d.what}\" }};  // 0x{d.table:05x}: lists per race, terminator included",
+                      file=f)
+                print(f"static const MarbleRange marble_{d.name}_of[{md.LEVELS}] = {{ "
+                      + ", ".join(f"{{ {first}, {n} }}" for first, n in where) + " };", file=f)
+                size += len(data) + 4 * md.LEVELS
+            elif isinstance(d, _Struct):
+                print(f"struct {d.cname} {{ " + " ".join(f"{c} {n};" for n, _, c in d.fields) + " };", file=f)
+                print(f"static const {d.cname} marble_{d.name} = {{ "
+                      + ", ".join(str(v) for v in d.values(sim)) + f" }};  // 0x{d.addr:05x}", file=f)
+                size += sum(_SIZE[c] for _, _, c in d.fields)
+        sizes.append(size)
+    return sizes

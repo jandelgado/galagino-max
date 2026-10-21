@@ -36,7 +36,7 @@ static const uint8_t *loadTables(const FlashAsset<unsigned char, PLAIN> &b) {
 
 static const uint8_t *loadTables(const FlashAsset<unsigned char, COMPRESSED> &b) {
   const Asset<unsigned char, COMPRESSED> t(b);
-  uint8_t *tables = Arena::alloc(t.size(), alignof(uint16_t), b.block);
+  uint8_t *tables = Arena::alloc(t.size(), alignof(uint32_t), b.block);
   t.decodeInto(tables);
   return tables;
 }

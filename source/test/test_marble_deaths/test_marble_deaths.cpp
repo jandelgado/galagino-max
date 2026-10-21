@@ -479,18 +479,18 @@ static uint32_t startCrc(const Mem &m) {
 // make_fixture.py place_goal: marble on the middle cell of the first goal line (zone list
 // 0x1eb16), z on the terrain, rolling MARBLE_GOAL_V towards zone 0xff, zone of the other side
 static void placeGoal(Mem &m, uint8_t race) {
-  static const uint32_t ZONE_LISTS = 0x1eb16;
-  static const uint8_t GOAL_ZONE = 0xff, LINE = 6;
-  uint32_t a0 = m.roml(ZONE_LISTS + 4 * race);
-  while (m.romb(a0 + 3) != GOAL_ZONE && m.romb(a0 + 4) != GOAL_ZONE) { a0 += LINE; }
-  TEST_ASSERT_FALSE(m.romb(a0 + 3) == GOAL_ZONE && m.romb(a0 + 4) == GOAL_ZONE);
+  static const uint8_t GOAL_ZONE = 0xff;
+  uint16_t i = marble_zone_lines_of[race].first;
+  while (marble_zone_lines[i][3] != GOAL_ZONE && marble_zone_lines[i][4] != GOAL_ZONE) { i++; }
+  const uint8_t *a0 = marble_zone_lines[i];
+  TEST_ASSERT_FALSE(a0[3] == GOAL_ZONE && a0[4] == GOAL_ZONE);
 
-  const int8_t x = (int8_t)m.romb(a0), y = (int8_t)m.romb(a0 + 1), end = (int8_t)m.romb(a0 + 2);
+  const int8_t x = (int8_t)a0[0], y = (int8_t)a0[1], end = (int8_t)a0[2];
   const bool horiz = x < 0;
   const int16_t ax = x < 0 ? -x : x, ay = y < 0 ? -y : y;
   const int16_t mid = ((horiz ? ax : ay) + end) / 2;
   const int16_t cx = horiz ? mid : ax, cy = horiz ? ay : mid;
-  const bool up = m.romb(a0 + 4) == GOAL_ZONE;
+  const bool up = a0[4] == GOAL_ZONE;
 
   m.wl(PLAYER + PX, (uint32_t)(cx * 8 + 4) << 16);
   m.wl(PLAYER + PY, (uint32_t)(cy * 8 + 4) << 16);
@@ -500,7 +500,7 @@ static void placeGoal(Mem &m, uint8_t race) {
   const uint32_t z = (uint32_t)marble_physics::height_1cc62(m);
   m.wl(PLAYER + PZ, z);
   m.wl(PLAYER + GROUND_Z, z);
-  m.wb(PLAYER + ZONE, m.romb(a0 + (up ? 3 : 4)));
+  m.wb(PLAYER + ZONE, a0[up ? 3 : 4]);
   m.wb(PLAYER + AIR, 0);
   m.wl(PLAYER + (horiz ? VY : VX), (uint32_t)(up ? MARBLE_GOAL_V : -MARBLE_GOAL_V));
 }
@@ -641,7 +641,6 @@ static const TubeRun TUBE_RUNS[] = {
 
 static void test_tube_runs(void) {
   static const uint16_t SETTLE = 400, TICKS = 300;
-  static const uint32_t SCORES = 0x23cd4;  // 0x285b0 points per entry (words)
   for (const TubeRun &r : TUBE_RUNS) {
     beginRace(r.race);
     Mem m(ram, r.race);
@@ -666,7 +665,7 @@ static void test_tube_runs(void) {
       inputTick(m, 0, 0);
     }
     TEST_ASSERT_EQUAL_UINT8_MESSAGE(marble_physics::ROLL, marble_physics::state(m), msg);
-    const int16_t points = (int16_t)m.romw(SCORES + 2 * r.points);
+    const int16_t points = marble_scores[r.points];
     TEST_ASSERT_EQUAL_UINT32_MESSAGE(score + (uint32_t)points, m.rl(PLAYER + SCORE), msg);
   }
 }
