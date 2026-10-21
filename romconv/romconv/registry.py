@@ -3,7 +3,10 @@ from collections.abc import Sequence
 from romconv.core.errors import ConversionError
 from romconv.core.job import Job
 from romconv.cpu import m6502, z80
+from romconv.games import (anteater, bagman, crush, digdug, dkong, eyes, frogger, galaga, game_1942, lizwiz,
+                           mrtnt, pacman, theglob, vanvan)
 from romconv.gfx import logo
+from romconv.hw import namco54
 from romconv.misc import pokey_poly, unpack_fixture
 from romconv.remote import bundles, catalog
 
@@ -13,6 +16,21 @@ ALL: tuple[Job, ...] = (
     z80.JOB,
     m6502.JOB,
     logo.LOGOS_JOB,
+    namco54.JOB,
+    game_1942.JOB,
+    anteater.JOB,
+    bagman.JOB,
+    crush.JOB,
+    digdug.JOB,
+    dkong.JOB,
+    eyes.JOB,
+    frogger.JOB,
+    galaga.JOB,
+    lizwiz.JOB,
+    mrtnt.JOB,
+    pacman.JOB,
+    theglob.JOB,
+    vanvan.JOB,
     catalog.JOB,
     bundles.JOB,
 )

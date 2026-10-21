@@ -2,7 +2,6 @@ from collections.abc import Sequence
 
 from romconv.core.context import Context
 from romconv.core.errors import ConversionError
-from romconv.core.header import HeaderWriter
 from romconv.emit.asset import emit_compressed
 from romconv.gfx.color import rgb565_swapped_4bit, rgb565_swapped_dkong, rgb565_swapped_packed
 

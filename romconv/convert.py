@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run
+import os
 import sys
 
 from internal.pyconv.convutil import fatal, info, run
@@ -8,12 +9,9 @@ from romconv.core.errors import ConversionError
 from romconv.remote.catalog import BASES, job_name
 
 GAMES = [
-    "1942",
     "alibaba",
     "amidar",
-    "anteater",
     "asteroids",
-    "bagman",
     "bnj",
     "bombjack",
     "centipede",
@@ -21,31 +19,22 @@ GAMES = [
     "btime",
     "circusc",
     "commando",
-    "crush",
-    "digdug",
     "digdug2",
-    "dkong",
     "dkong3",
     "dkongjr",
-    "eyes",
-    "frogger",
-    "galaga",
     "galaxian",
     "gaplus",
     "gyruss",
     "invaders",
     "ladybug",
-    "lizwiz",
     "llander",
     "mappy",
     "mario",
     "mooncresta",
     "motorace",
     "mrdo",
-    "mrtnt",
     "mspacman",
     "nibbler",
-    "pacman",
     "pbaction",
     "pengo",
     "phoenix",
@@ -57,13 +46,11 @@ GAMES = [
     "starforce",
     "baluba",
     "supercobra",
-    "theglob",
     "timeplt",
     "todruaga",
     "tp84",
     "turtles",
     "tutankhm",
-    "vanvan",
     "vanguard",
     "fantasy",
     "xevious",
@@ -128,32 +115,57 @@ GAMES = [
     "tokisens",
 ]
 
+
 def with_bases(names):
-    """Each game after the games whose assets its bundle also holds."""
+    """Each still-legacy game after the games whose assets its bundle also
+    holds. Ported jobs name them as Job.deps instead."""
     out = []
     for name in names:
-        for base in BASES.get(name, ()):
+        for base in BASES.get(name, ()) if name in GAMES else ():
             if job_name(base) not in out and job_name(base) not in names:
                 out.append(job_name(base))
         out.append(name)
     return out
 
 
-names = sys.argv[1:]
-registry_names = {j.name for j in registry.ALL}
+def parse_args(args):
+    """([-j N | -jN] [name ...]) -> (jobs, names)"""
+    jobs, names = os.cpu_count() or 1, []
+    it = iter(args)
+    for arg in it:
+        if arg == "-j":
+            arg = "-j" + next(it, "")
+        if arg.startswith("-j") and arg[2:].isdigit() and int(arg[2:]) > 0:
+            jobs = int(arg[2:])
+        elif arg.startswith("-"):
+            fatal(f"usage: convert.py [-j N] [name ...]  (bad option {arg!r})")
+        else:
+            names.append(arg)
+    return jobs, names
+
+
+jobs, names = parse_args(sys.argv[1:])
+registry_names = [j.name for j in registry.ALL]
+unknown = [n for n in names if n not in GAMES and n not in registry_names]
+if unknown:
+    fatal(f"unknown name {' '.join(unknown)}; see GAMES in convert.py and romconv/registry.py")
+
+# legacy drivers run first, one after the other; ported jobs run in the pool
 ordered = with_bases(names)
-legacy = GAMES if not names else [n for n in ordered if n not in registry_names]
-ported = [] if not names else [n for n in ordered if n in registry_names]
-info(f"--------- Convert {'all' if not names else ' '.join(ordered)} ---------")
+legacy = GAMES if not names else [n for n in ordered if n in GAMES]
+ported = [n for n in ordered if n in registry_names]
+info(f"--------- Convert {'all' if not names else ' '.join(names)} ---------")
 
 for game in legacy:
     run(f"internal/pyconv/conv_{game}.py")
 
-# ported jobs, then mode 3 (ASSETS_REMOTE): gating macros and the bundles of the converted catalog games
+# Ported jobs, then mode 3 (ASSETS_REMOTE): gating macros and the bundles of the
+# requested catalog games. A partial run asks for what the user named: bases
+# run to feed the sidecars, but their bundles are not rebuilt.
 info("--------- Ported jobs, catalog and remote bundles ---------")
-requested = (*legacy, *registry_names) if not names else tuple(ordered)
+requested = (*GAMES, *registry_names) if not names else tuple(names)
 try:
-    code = runner.run(ported or (["bundles"] if names else []), jobs=1, requested=requested)
+    code = runner.run(ported or (["bundles"] if names else []), jobs=jobs, requested=requested)
 except ConversionError as e:
     fatal(str(e))
 if code != 0:
