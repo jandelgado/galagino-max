@@ -48,11 +48,11 @@ void tp84::start() {
 }
 
 // Instruction fetches outside the ROM windows (RAM code)
-unsigned char IRAM_ATTR tp84::m6809_read_opcode(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM tp84::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   return m6809_read(s, addr);
 }
 
-unsigned char IRAM_ATTR tp84::m6809_read(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM tp84::m6809_read(m6809_state *s, uint16_t addr) {
   if (s == &sub_cpu) {
     if (addr >= 0xE000) return sub_rom[addr - 0xE000];
     if ((addr & 0xF800) == 0x8000) return memory[TP84_SHARED + (addr & 0x7FF)];
@@ -101,7 +101,7 @@ uint8_t tp84::main_read_io(uint16_t addr) {
   return 0xFF;                                           // P2 0x2840, unmapped
 }
 
-void IRAM_ATTR tp84::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
+void GAME_IRAM tp84::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if (s == &sub_cpu) {
     sub_polls = 0;
     if ((addr & 0xF800) == 0x8000) {
@@ -281,7 +281,7 @@ void tp84::prepare_frame(void) {
 // full 32x32 map (stride 32, col = tile x), the HUD its 4 saved columns
 // (stride 4). xin = x inside the tile, tm_y0 = tilemap y of column 0
 // (native Y 239). Columns walk native Y down.
-static inline void IRAM_ATTR tile_line(uint16_t *dst, const uint8_t *vram, const uint8_t *cram,
+static inline void GAME_IRAM tile_line(uint16_t *dst, const uint8_t *vram, const uint8_t *cram,
     uint8_t stride, uint8_t col, const uint16_t (*tiles)[8], const uint16_t (*cmap)[4],
     uint8_t xin, uint8_t tm_y0) {
   uint8_t ty = tm_y0 >> 3;
@@ -304,7 +304,7 @@ static inline void IRAM_ATTR tile_line(uint16_t *dst, const uint8_t *vram, const
 }
 
 // Strip row 2..33 = native X 8*(row-2) .. +7; column c = native Y 239 - c.
-void IRAM_ATTR tp84::render_row(short row) {
+void GAME_IRAM tp84::render_row(short row) {
   if (row < 2 || row >= 34 || !game_started) return;   // frame_buffer arrives cleared
   const bool hud = row < 4 || row >= 32;               // native X 0-15 / 240-255
   for (int l = 0; l < 8; l++) {
@@ -326,7 +326,7 @@ void IRAM_ATTR tp84::render_row(short row) {
 
 // Native box X [x, x+16), Y [y, y+16), clipped to the slot's band
 // [top, end) and visible Y 16..239. No wrap (MAME transmask clips).
-void IRAM_ATTR tp84::blit_sprite(short row, const tp84_hw::Sprite &s) {
+void GAME_IRAM tp84::blit_sprite(short row, const tp84_hw::Sprite &s) {
   const int x = s.x, y = 240 - (int)s.sy;
   const int r0 = 8 * row - 16, r1 = r0 + 8;            // native X range of this strip
   const int xa = x > r0 ? x : r0, xb = (x + 16) < r1 ? (x + 16) : r1;

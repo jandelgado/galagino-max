@@ -49,7 +49,7 @@ void circusc::start() {
 // rocnrope: mask = (a&0x02 ? 0x80:0x20) | (a&0x08 ? 0x08:0x02), solo
 // per fetch dalla ROM >= 0x6000).
 // ============================================================
-unsigned char IRAM_ATTR circusc::m6809_read_opcode(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM circusc::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   if (addr >= 0x6000) {
     uint8_t xormask = ((addr & 0x02) ? 0x80 : 0x20) | ((addr & 0x08) ? 0x08 : 0x02);
     return main_rom_ptr[addr - 0x6000] ^ xormask;
@@ -57,7 +57,7 @@ unsigned char IRAM_ATTR circusc::m6809_read_opcode(m6809_state *s, uint16_t addr
   return m6809_read(s, addr);
 }
 
-unsigned char IRAM_ATTR circusc::m6809_read(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM circusc::m6809_read(m6809_state *s, uint16_t addr) {
   if (addr >= 0x6000)
     return main_rom_ptr[addr - 0x6000];
 
@@ -95,7 +95,7 @@ unsigned char IRAM_ATTR circusc::m6809_read(m6809_state *s, uint16_t addr) {
   return 0xFF;
 }
 
-void IRAM_ATTR circusc::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
+void GAME_IRAM circusc::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if ((addr & 0xE000) == 0x2000) {        // RAM 0x2000-0x3FFF
     memory[addr - 0x2000] = val;
     return;
@@ -187,9 +187,33 @@ void circusc::wrZ80(unsigned short Addr, unsigned char Value) {
 // Il DAC viene campionato nel loop a 400 campioni/frame (= 24kHz) nel
 // ring: il render audio fa solo pop (MAI steppare CPU nel render audio).
 // ============================================================
+// Main CPU idle loop (decrypted opcodes):
+//   60ed LDX <$1a / LDD ,X / ASLA / LBCS $6203;  6203 JMP $60ed
+// waits for the task queue slot [<$1a] to lose bit 7, ~70% of the main
+// CPU's instructions. Only the vblank IRQ handler (after the slices) fills
+// the queue: while PC is on the LDX and the slot is still empty, a slice
+// is skipped. 9 instructions per slice over a 5 instruction loop: every
+// alignment reaches the LDX within 5 slices.
+static const uint16_t IDLE_PC = 0x60ED;
+static const uint8_t IDLE_PTR_DP = 0x1A;
+static const uint8_t IDLE_SLOT_EMPTY = 0x80;
+static const int IDLE_PASS_INSTR = 5;
+static const int IDLE_PASS_CYCLES = 21;   // one pass in the core's cycles (test only)
+
+bool circusc::main_idle() {
+  if (main_cpu.PC != IDLE_PC) {
+    return false;
+  }
+  const uint16_t ptr = (main_cpu.DP << 8) | IDLE_PTR_DP;
+  const uint16_t slot = (m6809_read(&main_cpu, ptr) << 8) | m6809_read(&main_cpu, ptr + 1);
+  return m6809_read(&main_cpu, slot) & IDLE_SLOT_EMPTY;
+}
+
 void circusc::run_frame(void) {
   for (int i = 0; i < INST_PER_FRAME / 2; i++) {
-    m6809_step(&main_cpu, 9);
+    if (!main_idle()) {
+      m6809_step(&main_cpu, 9);
+    }
 
     StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]);
     StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]);

@@ -81,11 +81,11 @@ void yiear::reset() {
 
 // ── 6809 ──
 
-unsigned char IRAM_ATTR yiear::m6809_read_opcode(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM yiear::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   return m6809_read(s, addr);
 }
 
-unsigned char IRAM_ATTR yiear::m6809_read(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM yiear::m6809_read(m6809_state *s, uint16_t addr) {
   if (addr >= ROM_BASE) {
     return rom_ptr[addr - ROM_BASE];
   }
@@ -129,7 +129,7 @@ uint8_t yiear::read_io(uint16_t addr) {
   }
 }
 
-void IRAM_ATTR yiear::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
+void GAME_IRAM yiear::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if (addr >= RAM_BASE && addr < RAM_BASE + YIEAR_MEM_END) {
     memory[addr - RAM_BASE] = val;
     return;
@@ -167,6 +167,36 @@ void yiear::vlm_catch_up() {
 
 // ── frame ──
 
+// Main CPU idle loop (MAME dasm):
+//   807c LDX <$da / LDD ,X / ASLA / BCS $807c
+// waits for the task queue slot [<$da] to lose bit 7, ~75% of the main
+// CPU's cycles. The NMI and IRQ handlers fill the queue (NMI taken at line
+// starts, before this), so while PC is on the LDX, the slot is still empty
+// and no IRQ can be taken, the rest of the line is spinning: charged in whole passes, cycle exact (main_cycles
+// times the VLM).
+static const uint16_t IDLE_PC = 0x807C, IDLE_END = 0x8083;  // LDX .. after BCS
+static const uint8_t IDLE_PTR_DP = 0xDA;
+static const uint8_t IDLE_SLOT_EMPTY = 0x80;
+static const int IDLE_PASS_INSTR = 4;
+static const int IDLE_PASS_CYCLES = 15;   // LDX 5 + LDD 5 + ASLA 2 + BCS 3
+
+bool yiear::in_idle_loop() const {
+  return main_cpu.PC > IDLE_PC && main_cpu.PC < IDLE_END;
+}
+
+bool yiear::main_idle() {
+  if (main_cpu.PC != IDLE_PC) {
+    return false;
+  }
+  // the core takes an IRQ only through m6809_irq(), called while irq_line
+  if (irq_line && !(main_cpu.CC & M6809_CC_I)) {
+    return false;
+  }
+  const uint16_t ptr = (main_cpu.DP << 8) | IDLE_PTR_DP;
+  const uint16_t slot = (m6809_read(&main_cpu, ptr) << 8) | m6809_read(&main_cpu, ptr + 1);
+  return m6809_read(&main_cpu, slot) & IDLE_SLOT_EMPTY;
+}
+
 // One frame from line 0: NMI (edge) every 32 lines, vblank IRQ at line 240.
 // The IRQ line is level: re-requested while held, like MAME ASSERT_LINE.
 void yiear::run_frame(void) {
@@ -184,8 +214,15 @@ void yiear::run_frame(void) {
 
     debt += CYCLES_PER_LINE;
     while (debt > 0) {
+      if (main_idle()) {
+        const int spun = (debt + IDLE_PASS_CYCLES - 1) / IDLE_PASS_CYCLES * IDLE_PASS_CYCLES;
+        debt -= spun;
+        main_cycles += spun;
+        break;
+      }
       if (irq_line) { m6809_irq(&main_cpu); }  // taken once CC.I clears
-      const int c = m6809_step(&main_cpu, 4);
+      // single steps inside the loop: a 4 step can't drift onto its LDX
+      const int c = m6809_step(&main_cpu, in_idle_loop() ? 1 : 4);
       const int used = c > 0 ? c : 1;
       debt -= used;
       main_cycles += used;

@@ -134,12 +134,12 @@ void phozon::mainlatch_w(uint16_t addr) {
 // ============================================================================
 
 // 15XX shared RAM: registers live in soundregs[] for the audio renderer
-uint8_t IRAM_ATTR phozon::shared_r(uint16_t off) {
+uint8_t GAME_IRAM phozon::shared_r(uint16_t off) {
   off &= 0x03FF;
   return (off < WSG_REGS) ? soundregs[off] : memory[PHOZON_SHARED_OFF + off];
 }
 
-void IRAM_ATTR phozon::shared_w(uint16_t off, uint8_t val) {
+void GAME_IRAM phozon::shared_w(uint16_t off, uint8_t val) {
   off &= 0x03FF;
   if (off < WSG_REGS) {
     soundregs[off] = val;
@@ -148,7 +148,7 @@ void IRAM_ATTR phozon::shared_w(uint16_t off, uint8_t val) {
   memory[PHOZON_SHARED_OFF + off] = val;
 }
 
-uint8_t IRAM_ATTR phozon::main_r(uint16_t addr) {
+uint8_t GAME_IRAM phozon::main_r(uint16_t addr) {
   if (addr < SHARED_RAM_END) {
     return memory[addr];
   }
@@ -164,7 +164,7 @@ uint8_t IRAM_ATTR phozon::main_r(uint16_t addr) {
   return 0xFF;
 }
 
-void IRAM_ATTR phozon::main_w(uint16_t addr, uint8_t val) {
+void GAME_IRAM phozon::main_w(uint16_t addr, uint8_t val) {
   if (addr < SHARED_RAM_END) {
     memory[addr] = val;
     if (!game_started && addr < 0x0800 && val != 0) {
@@ -186,7 +186,7 @@ void IRAM_ATTR phozon::main_w(uint16_t addr, uint8_t val) {
   // 0x7000 watchdog: ignored
 }
 
-uint8_t IRAM_ATTR phozon::sub_r(uint16_t addr) {
+uint8_t GAME_IRAM phozon::sub_r(uint16_t addr) {
   if (addr < SHARED_RAM_END) {
     return memory[addr];
   }
@@ -202,7 +202,7 @@ uint8_t IRAM_ATTR phozon::sub_r(uint16_t addr) {
   return 0xFF;
 }
 
-void IRAM_ATTR phozon::sub_w(uint16_t addr, uint8_t val) {
+void GAME_IRAM phozon::sub_w(uint16_t addr, uint8_t val) {
   if (addr < SHARED_RAM_END) {
     memory[addr] = val;
     return;
@@ -216,7 +216,7 @@ void IRAM_ATTR phozon::sub_w(uint16_t addr, uint8_t val) {
   }
 }
 
-unsigned char IRAM_ATTR phozon::m6809_read(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM phozon::m6809_read(m6809_state *s, uint16_t addr) {
   if (s == &main_cpu) {
     return main_r(addr);
   }
@@ -234,7 +234,7 @@ unsigned char IRAM_ATTR phozon::m6809_read(m6809_state *s, uint16_t addr) {
   return 0xFF;
 }
 
-void IRAM_ATTR phozon::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
+void GAME_IRAM phozon::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if (s == &main_cpu) {
     main_w(addr, val);
     return;
@@ -248,7 +248,7 @@ void IRAM_ATTR phozon::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   }
 }
 
-unsigned char IRAM_ATTR phozon::m6809_read_opcode(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM phozon::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   return m6809_read(s, addr);
 }
 

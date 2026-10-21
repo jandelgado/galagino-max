@@ -103,6 +103,7 @@ private:
     void render_tiles(short row, char prio);
     void mainlatch_w(uint16_t addr);
     void install_rom_direct(void);
+    bool poll_idle(m6809_state &cpu, uint16_t loop, uint8_t lda_len, uint16_t flag);
 
     // Namco custom I/O: chip 0 = 58XX (coins/inputs), chip 1 = 56XX (DIPs)
     void io_chips_reset(void);

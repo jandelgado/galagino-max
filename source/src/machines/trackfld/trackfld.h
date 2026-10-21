@@ -83,6 +83,8 @@ private:
 
   void latch_w(uint8_t bit, bool q);
   void publish_video();
+  bool main_idle();
+  bool in_idle_loop() const;
   void vlm_catch_up();
   void dac_tick();
   uint8_t read_io(uint16_t addr);

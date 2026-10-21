@@ -53,6 +53,8 @@ public:
   void wrZ80(unsigned short Addr, unsigned char Value) override;
 
   void run_frame(void) override;
+  bool main_idle();
+  bool in_idle_loop() const;
   void prepare_frame(void) override;
   void render_row(short row) override;
 #ifdef LED_PIN

@@ -410,6 +410,25 @@ void gyruss::produce_drum_samples(void) {
 // Frame execution
 // ============================================================
 
+// Main CPU idle loop (MAME dasm):
+//   05f4 JP 05f7 / LD A,($5865) / LD H,A / LD A,($9433) / LD L,A /
+//        LD A,(HL) / RLCA / JP C,05f4
+// waits for the task queue slot (HL) to lose bit 7, ~40% of the main CPU's
+// instructions. A pass restarts at 05f4 and reloads A, H and L, so slices
+// are skipped there while bit 7 is still set. Checked per slice: a write
+// from anywhere ends the wait within 3 instructions.
+static const uint16_t MAIN_IDLE_PC = 0x05F4;
+static const uint16_t QUEUE_PTR_HI = 0x5865, QUEUE_PTR_LO = 0x9433;
+static const uint8_t QUEUE_SLOT_EMPTY = 0x80;
+
+bool gyruss::main_idle() {
+  if (cpu[0].PC.W != MAIN_IDLE_PC) {
+    return false;
+  }
+  const uint16_t slot = (rdZ80(QUEUE_PTR_HI) << 8) | rdZ80(QUEUE_PTR_LO);
+  return rdZ80(slot) & QUEUE_SLOT_EMPTY;
+}
+
 void gyruss::run_frame(void) {
   multiplexUsed = 0;
   multiplexUsedPart1 = 0;
@@ -417,7 +436,9 @@ void gyruss::run_frame(void) {
   for (int i = 0; i < 1536; i++) {
     if ((i % 6) == 0) scanline_counter++;
 
-    StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]);
+    if (!main_idle()) {
+      StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]);
+    }
     m6809_step(&sub_cpu, 4);
 
     if (multiplexUsed && !multiplexUsedPart1) {

@@ -106,6 +106,8 @@ public:
   int roadf_dac_sample() const { return dac_sample; }
 
 private:
+  bool main_idle();
+
   m6809_state main_cpu;
 
   // Audio Z80 state

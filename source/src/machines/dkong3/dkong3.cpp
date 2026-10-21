@@ -102,7 +102,7 @@ static int dk3_apu_sample(dk3_apu_t *a, int ticks) {
 // ---------------------------------------------------------------------------
 // 6502 memory map for sound CPU #0  (ROM: dkong3_rom_sound_a)
 // ---------------------------------------------------------------------------
-IRAM_ATTR uint8_t dkong3::snd0_read(m6502_t *cpu, uint16_t addr) {
+GAME_IRAM uint8_t dkong3::snd0_read(m6502_t *cpu, uint16_t addr) {
     dkong3 *s = (dkong3*)cpu->user;
     if (addr >= 0x8000) return s->snd_rom_ptr[0][addr & 0x1FFF]; // fast path: ~85% of reads
     if (addr < 0x0800) return s->snd_ram[0][addr & 0x07FF];
@@ -116,7 +116,7 @@ IRAM_ATTR uint8_t dkong3::snd0_read(m6502_t *cpu, uint16_t addr) {
     return 0;
 }
 
-IRAM_ATTR void dkong3::snd0_write(m6502_t *cpu, uint16_t addr, uint8_t val) {
+GAME_IRAM void dkong3::snd0_write(m6502_t *cpu, uint16_t addr, uint8_t val) {
     dkong3 *s = (dkong3*)cpu->user;
     if (addr < 0x0800) { s->snd_ram[0][addr] = val; return; }
     dk3_apu_t &a = s->apu[0];
@@ -159,7 +159,7 @@ IRAM_ATTR void dkong3::snd0_write(m6502_t *cpu, uint16_t addr, uint8_t val) {
 // ---------------------------------------------------------------------------
 // 6502 memory map for sound CPU #1  (ROM: dkong3_rom_sound_b)
 // ---------------------------------------------------------------------------
-IRAM_ATTR uint8_t dkong3::snd1_read(m6502_t *cpu, uint16_t addr) {
+GAME_IRAM uint8_t dkong3::snd1_read(m6502_t *cpu, uint16_t addr) {
     dkong3 *s = (dkong3*)cpu->user;
     if (addr >= 0x8000) return s->snd_rom_ptr[1][addr & 0x1FFF]; // fast path
     if (addr < 0x0800) return s->snd_ram[1][addr & 0x07FF];
@@ -173,7 +173,7 @@ IRAM_ATTR uint8_t dkong3::snd1_read(m6502_t *cpu, uint16_t addr) {
     return 0;
 }
 
-IRAM_ATTR void dkong3::snd1_write(m6502_t *cpu, uint16_t addr, uint8_t val) {
+GAME_IRAM void dkong3::snd1_write(m6502_t *cpu, uint16_t addr, uint8_t val) {
     dkong3 *s = (dkong3*)cpu->user;
     if (addr < 0x0800) { s->snd_ram[1][addr] = val; return; }
     dk3_apu_t &a = s->apu[1];

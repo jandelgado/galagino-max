@@ -221,6 +221,27 @@ void roadfighter::outZ80(unsigned short Port, unsigned char Value) { }
 // IRQ0 main a fine frame (vblank) se irq_mask.
 // ============================================================
 
+// Main CPU idle loop (decrypted opcodes, as trackfld):
+//   40bb LDX <$1a / LDD ,X / ASLA / BCS $40bb
+// waits for the task queue slot [<$1a] to lose bit 7, ~50% of the main
+// CPU's instructions. Only the vblank IRQ handler fills the queue and the
+// IRQ comes after the slices, so the rest of the slice is spinning:
+// charged in whole passes.
+static const uint16_t IDLE_PC = 0x40BB;
+static const uint8_t IDLE_PTR_DP = 0x1A;
+static const uint8_t IDLE_SLOT_EMPTY = 0x80;
+static const int IDLE_PASS_INSTR = 4;
+static const int IDLE_PASS_CYCLES = 15;   // LDX 5 + LDD 5 + ASLA 2 + BCS 3
+
+bool roadfighter::main_idle() {
+  if (main_cpu.PC != IDLE_PC) {
+    return false;
+  }
+  const uint16_t ptr = (main_cpu.DP << 8) | IDLE_PTR_DP;
+  const uint16_t slot = (m6809_read(&main_cpu, ptr) << 8) | m6809_read(&main_cpu, ptr + 1);
+  return m6809_read(&main_cpu, slot) & IDLE_SLOT_EMPTY;
+}
+
 void roadfighter::run_frame(void) {
   // Acceleratore a TOGGLE su FIRE: ogni tap (premi+lascia il pomello EC11) alterna
   //   marcia LENTA <-> marcia VELOCE (sempre in accelerazione, niente folle).
@@ -252,6 +273,11 @@ void roadfighter::run_frame(void) {
     slice_rem_acc += slice_step_rem;
     if (slice_rem_acc >= SLICES_PER_FRAME) { slice_rem_acc -= SLICES_PER_FRAME; slice_target++; }
     while (m6809_cycles < slice_target && safety < SAFETY_LIMIT) {
+      if (main_idle()) {
+        const int debt = slice_target - m6809_cycles;
+        m6809_cycles += (debt + IDLE_PASS_CYCLES - 1) / IDLE_PASS_CYCLES * IDLE_PASS_CYCLES;
+        break;
+      }
       int c = m6809_step(&main_cpu, 1);
       if (c <= 0) c = 1;
       m6809_cycles += c;

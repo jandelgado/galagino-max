@@ -146,7 +146,7 @@ void gorf::reset() {
   dc = DcBlock();
 }
 
-unsigned char IRAM_ATTR gorf::opZ80(unsigned short Addr) {
+unsigned char GAME_IRAM gorf::opZ80(unsigned short Addr) {
   if (Addr < VRAM_BASE) {
     return rom[Addr];
   }
@@ -156,7 +156,7 @@ unsigned char IRAM_ATTR gorf::opZ80(unsigned short Addr) {
   return rdZ80(Addr);
 }
 
-unsigned char IRAM_ATTR gorf::rdZ80(unsigned short Addr) {
+unsigned char GAME_IRAM gorf::rdZ80(unsigned short Addr) {
   if (Addr < VRAM_BASE) {
     return rom[Addr];
   }
@@ -180,7 +180,7 @@ unsigned char IRAM_ATTR gorf::rdZ80(unsigned short Addr) {
   return 0;
 }
 
-void IRAM_ATTR gorf::wrZ80(unsigned short Addr, unsigned char Value) {
+void GAME_IRAM gorf::wrZ80(unsigned short Addr, unsigned char Value) {
   if (Addr < VRAM_BASE) {
     // function generator: shift/rotate/expand, OR/XOR with the VRAM byte
     uint8_t *dst = &vram[Addr];
@@ -412,7 +412,7 @@ void gorf::prepare_frame(void) {
 }
 
 // 2 bit pixel of the render copy at (gameRow, column)
-uint8_t IRAM_ATTR gorf::pixelAt(int gameRow, int col) const {
+uint8_t GAME_IRAM gorf::pixelAt(int gameRow, int col) const {
   const Regs &r = video->regs;
   const int effy = col - TOP;
   const int lines = r.vblank < gorf_video::LINES ? r.vblank : gorf_video::LINES;
@@ -422,7 +422,7 @@ uint8_t IRAM_ATTR gorf::pixelAt(int gameRow, int col) const {
 }
 
 // stars on pixel 0 where the output stays black (both rows of a merged pair)
-void IRAM_ATTR gorf::drawStars(int gameRow, int gameRow2, uint16_t *dst) {
+void GAME_IRAM gorf::drawStars(int gameRow, int gameRow2, uint16_t *dst) {
   const Regs &r = video->regs;
   const int last = gameRow2 >= 0 ? gameRow2 : gameRow;
   for (int g = gameRow; g <= last; g++) {
@@ -438,7 +438,7 @@ void IRAM_ATTR gorf::drawStars(int gameRow, int gameRow2, uint16_t *dst) {
 }
 
 // 8 panel lines; each maps to one game row or a merged pair
-void IRAM_ATTR gorf::render_row(short row) {
+void GAME_IRAM gorf::render_row(short row) {
   const Regs &r = video->regs;
   for (int l = 0; l < 8; l++) {
     const int y = row * 8 + l;

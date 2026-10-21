@@ -96,6 +96,7 @@ public:
   }
 
   void run_frame(void) override;
+  bool main_idle();
   void prepare_frame(void) override;
   void render_row(short row) override;
   static const Logo &logo(void) { return circusc_logo; }

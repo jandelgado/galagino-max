@@ -78,6 +78,7 @@ private:
     void render_tiles(short row, char prio);
     void mainlatch_w(uint16_t addr);
     void install_rom_direct(void);
+    bool poll_idle(m6809_state &cpu, uint16_t loop, uint8_t lda_len, uint16_t flag);
 
     // --- Namco 58XX custom I/O (2 chips), MAME namcoio.cpp ---
     struct n58xx_S {

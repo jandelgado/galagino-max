@@ -2,6 +2,14 @@
 #define MACHINEBASE_H
 
 #include "Arduino.h"
+
+// Per-game hot functions. GAME_NO_IRAM (remote builds) keeps them in flash:
+// the IRAM they took (18 KB) is worth more to the CPU cores there.
+#ifdef GAME_NO_IRAM
+#define GAME_IRAM
+#else
+#define GAME_IRAM IRAM_ATTR
+#endif
 #include "../cpus/z80/Z80.h"
 #include "../cpus/i8048/i8048.h"
 #include "../cpus/mos6502/M6502.h"

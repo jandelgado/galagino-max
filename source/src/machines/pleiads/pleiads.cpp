@@ -122,7 +122,7 @@ void pleiads::prepare_frame(void) {
 
 // One panel line (native X x) of a 32x32 tilemap: columns walk native Y
 // from 207 down to 0. Pen = bank << 6 | fg << 5 | (code >> 5) << 2 | p.
-void IRAM_ATTR pleiads::layer_line(uint16_t *dst, const uint8_t *map, const uint16_t (*gfx)[8],
+void GAME_IRAM pleiads::layer_line(uint16_t *dst, const uint8_t *map, const uint16_t (*gfx)[8],
                                    int x, uint16_t pen_base, bool transparent) {
   const int tx = x >> 3, nx = x & 7;
   uint16_t *d = dst + COL_OFFSET + VIS_Y - 1;          // column of native Y 0
@@ -139,7 +139,7 @@ void IRAM_ATTR pleiads::layer_line(uint16_t *dst, const uint8_t *map, const uint
 }
 
 // Strip row 2..33 = native X 8 * (row - 2) .. +7.
-void IRAM_ATTR pleiads::render_row(short row) {
+void GAME_IRAM pleiads::render_row(short row) {
   if (row < 2 || row >= 34) { return; }
 
   const uint16_t bank = video.palette_bank << 6;

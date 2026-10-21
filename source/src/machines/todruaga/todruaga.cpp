@@ -90,7 +90,7 @@ void todruaga::mainlatch_w(uint16_t addr) {
 // Bus M6809 — dispatch per puntatore di stato (main vs sub)
 // ============================================================================
 
-unsigned char IRAM_ATTR todruaga::m6809_read(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM todruaga::m6809_read(m6809_state *s, uint16_t addr) {
   if (s == &sub_cpu) {
     // sub: 0x0000-0x03FF RAM condivisa (0x00-0x3F = registri WSG)
     if (addr < 0x0400)
@@ -118,7 +118,7 @@ unsigned char IRAM_ATTR todruaga::m6809_read(m6809_state *s, uint16_t addr) {
   return 0xFF;
 }
 
-void IRAM_ATTR todruaga::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
+void GAME_IRAM todruaga::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
   if (s == &sub_cpu) {
     if (addr < 0x0400) {
       if (addr < 0x40) soundregs[addr] = val;
@@ -164,7 +164,7 @@ void IRAM_ATTR todruaga::m6809_write(m6809_state *s, uint16_t addr, uint8_t val)
   // 0x8000 = watchdog: ignorato
 }
 
-unsigned char IRAM_ATTR todruaga::m6809_read_opcode(m6809_state *s, uint16_t addr) {
+unsigned char GAME_IRAM todruaga::m6809_read_opcode(m6809_state *s, uint16_t addr) {
   // nessuna cifratura: fetch diretto dalla ROM per il caso comune
   if (s == &sub_cpu) {
     if (addr >= 0xE000)
@@ -180,11 +180,40 @@ unsigned char IRAM_ATTR todruaga::m6809_read_opcode(m6809_state *s, uint16_t add
 // Frame loop: interleave fine main/sub + vblank (come mappy)
 // ============================================================================
 
+// wait loops "LDA flag / BEQ loop" (MAME dasm), most of both CPUs' slices:
+//   main dd14 LDA $1000 / BEQ $dd14
+//   sub  e431 LDA <$a1  / BEQ $e431   (shared RAM, written by the main CPU)
+static const uint16_t MAIN_IDLE_PC = 0xDD14, MAIN_IDLE_FLAG = 0x1000;
+static const uint16_t SUB_IDLE_PC = 0xE431;
+static const uint8_t SUB_IDLE_FLAG_DP = 0xA1;
+static const uint8_t LDA_EXT_LEN = 3, LDA_DIR_LEN = 2;
+
+// true while the next pass of the wait loop at `loop` loops again: PC on
+// the LDA, or on the BEQ with Z set (A loaded 0), and the flag still 0
+bool todruaga::poll_idle(m6809_state &cpu, uint16_t loop, uint8_t lda_len, uint16_t flag) {
+  const bool on_beq = cpu.PC == loop + lda_len && (cpu.CC & M6809_CC_Z);
+  if (cpu.PC != loop && !on_beq) {
+    return false;
+  }
+  return !m6809_read(&cpu, flag);
+}
+
 void todruaga::run_frame(void) {
   for (int i = 0; i < TODRUAGA_SLICES; i++) {
-    m6809_step(&main_cpu, 4);
-    if (!sub_reset)
+    // per slice: the other CPU can set the flag mid-frame
+    const bool main_idle = poll_idle(main_cpu, MAIN_IDLE_PC, LDA_EXT_LEN, MAIN_IDLE_FLAG);
+    const uint16_t sub_flag = (sub_cpu.DP << 8) | SUB_IDLE_FLAG_DP;
+    const bool sub_idle = sub_reset || poll_idle(sub_cpu, SUB_IDLE_PC, LDA_DIR_LEN, sub_flag);
+    if (main_idle && sub_idle) {
+      break;
+    }
+
+    if (!main_idle) {
+      m6809_step(&main_cpu, 4);
+    }
+    if (!sub_idle) {
       m6809_step(&sub_cpu, 4);
+    }
   }
 
   // vblank: IRQ alle CPU se abilitate dal mainlatch, poi i namcoio eseguono

@@ -591,7 +591,7 @@ static inline uint32_t charRow(const uint8_t *c) {
 // 8c + scrollx, its lines move by colscroll[c] + scrolly (MAME copy_layer).
 // turned: MAME's flipped scroll x, seen through the ROT180 screen, has the
 // fine scroll and fudge negated; y is the same.
-void IRAM_ATTR elevator::drawLayer(uint8_t w, uint8_t y0) {
+void GAME_IRAM elevator::drawLayer(uint8_t w, uint8_t y0) {
   static const int8_t FUDGE1[LAYERS] = {3, 1, -1};
   static const int8_t FUDGE2[LAYERS] = {8, 10, 12};
 
@@ -642,7 +642,7 @@ void IRAM_ATTR elevator::drawLayer(uint8_t w, uint8_t y0) {
 
 // one line of a 16x16 sprite, characters 4 code + 0..3 (TL TR BL BR),
 // drawn at x and x - 256, clipped to native x 3..254
-void IRAM_ATTR elevator::drawSpriteLine(const sprite_S &s, uint8_t y, uint16_t *dst) {
+void GAME_IRAM elevator::drawSpriteLine(const sprite_S &s, uint8_t y, uint16_t *dst) {
   const uint8_t r = s.flip_y ? 15 - (y - s.y) : y - s.y;
   const uint8_t *chars = charram + (s.flags ? CHAR_BANK : 0) + 8 * (4 * s.code + 2 * (r >> 3)) + (r & 7);
   const uint32_t half[2] = {charRow(chars), charRow(chars + 8)};
@@ -665,7 +665,7 @@ void IRAM_ATTR elevator::drawSpriteLine(const sprite_S &s, uint8_t y, uint16_t *
   }
 }
 
-void IRAM_ATTR elevator::drawSprites(uint8_t y0) {
+void GAME_IRAM elevator::drawSprites(uint8_t y0) {
   for (int i = 0; i < active_sprites; i++) {
     const sprite_S &s = sprite[i];
     for (uint8_t l = 0; l < 8; l++) {
@@ -683,7 +683,7 @@ void IRAM_ATTR elevator::drawSprites(uint8_t y0) {
 // with turned offsets. Without flip, panel strip row shows native strip
 // FIRST_ROW + LAST_ROW - 1 - row turned 180 degrees; reversing the whole
 // strip buffer turns it (the crop is symmetric, native x 8..247).
-void IRAM_ATTR elevator::render_row(short row) {
+void GAME_IRAM elevator::render_row(short row) {
   if (row < FIRST_ROW || row >= LAST_ROW) {
     return;
   }
@@ -701,7 +701,7 @@ void IRAM_ATTR elevator::render_row(short row) {
   }
 }
 
-void IRAM_ATTR elevator::renderStrip(short row) {
+void GAME_IRAM elevator::renderStrip(short row) {
   const uint8_t y0 = VIS_TOP + 8 * (row - FIRST_ROW);
   const uint16_t bg = palette[8 * (video.colorbank[1] & 7)];
   for (int i = 0; i < 8 * WIDTH; i++) {

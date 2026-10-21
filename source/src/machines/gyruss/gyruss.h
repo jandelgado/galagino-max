@@ -139,6 +139,7 @@ public:
     void stop_audio_task();
     void run_audio_batch(int steps);
     inline bool is_audio_cpu();
+    bool main_idle();
     volatile uint8_t audio_running;
 
 protected:
