@@ -240,5 +240,6 @@ evicted first. Menu entries not cached yet show a NET marker.
 | Track & Field (trackfld.zip)  | ![Track & Field marquee](/logos/trackfld.png) | ![Track & Field screenshot](/images/trackfld.png) | VLM5030 speech. Left/right=run, FIRE=jump |
 | Tron (tron.zip)               | ![Tron marquee](/logos/tron.png) | ![Tron screenshot](/images/tron.png) | The aim dial turns toward the stick direction. FIRE=fire |
 | Discs of Tron (dotron.zip)    | ![Discs of Tron marquee](/logos/dotron.png) | ![Discs of Tron screenshot](/images/dotron.png) | Auto-aim at the opponent. FIRE=throw |
+| Elevator Action (elevator.zip) | ![Elevator Action marquee](/logos/elevator.png) | ![Elevator Action screenshot](/images/elevator.png) | Bootleg set elevatorb (no MCU). FIRE=shoot, UP+FIRE=jump (controller B=jump) |
 
 ### ...

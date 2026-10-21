@@ -258,6 +258,12 @@
     #include "machines/dotron/dotron_bundle.h"
   #endif
 #endif
+#ifdef GAME_ELEVATOR
+  #include "machines/elevator/elevator.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/elevator/elevator_bundle.h"
+  #endif
+#endif
 
 #ifdef GAME_MOONCRESTA
   #include "machines/mooncresta/mooncresta.h"
@@ -1470,6 +1476,13 @@ constexpr machineInfo machines[] = {
     dotron::menuLeds,
 #endif
     MCH_DOTRON, nullptr BUNDLE_REF(dotron_bundle_ref) },
+#endif
+#ifdef GAME_ELEVATOR
+  { createMachine<elevator>, elevator::logo,
+#ifdef LED_PIN
+    elevator::menuLeds,
+#endif
+    MCH_ELEVATOR, nullptr BUNDLE_REF(elevator_bundle_ref) },
 #endif
 };
 
