@@ -245,6 +245,13 @@ def test_galaga_pulls_namco54():
     assert [j.name for j in resolve(["galaga"], jobs)] == ["namco54", "galaga", "catalog", "bundles"]
 
 
+def test_resolve_pulls_deps_of_always_jobs():
+    jobs = (Job("owner", _noop), Job("util", _noop, deps=("owner",), always=True), Job("pacman", _noop),
+            Job("late", _noop, deps=("owner",), phase=2))
+    assert [j.name for j in resolve(["pacman"], jobs)] == ["owner", "util", "pacman", "late"]
+    assert [j.name for j in resolve(["util"], jobs)] == ["owner", "util", "late"]
+
+
 # test_catalog
 
 

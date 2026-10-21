@@ -3,8 +3,9 @@ from collections.abc import Sequence
 from romconv.core.errors import ConversionError
 from romconv.core.job import Job
 from romconv.cpu import m6502, z80
-from romconv.games import (anteater, bagman, crush, digdug, dkong, eyes, frogger, galaga, game_1942, lizwiz,
-                           mrtnt, pacman, theglob, vanvan)
+from romconv.games import (anteater, bagman, crush, digdug, dkong, eyes, frogger, galaga, galaxian, game_1942,
+                           lizwiz, mrtnt, pacman, theglob, vanvan)
+from romconv.games.namco import digdug2, gaplus, mappy, phozon, todruaga, xevious
 from romconv.gfx import logo
 from romconv.hw import namco54
 from romconv.misc import pokey_poly, unpack_fixture
@@ -31,6 +32,13 @@ ALL: tuple[Job, ...] = (
     pacman.JOB,
     theglob.JOB,
     vanvan.JOB,
+    *galaxian.JOBS,
+    mappy.JOB,
+    gaplus.JOB,
+    todruaga.JOB,
+    phozon.JOB,
+    *digdug2.JOBS,
+    *xevious.JOBS,
     catalog.JOB,
     bundles.JOB,
 )
@@ -50,8 +58,8 @@ def resolve(names: Sequence[str], jobs: Sequence[Job] | None = None) -> list[Job
     jobs = ALL if jobs is None else jobs
     if not names:
         return list(jobs)
-    wanted = {j.name for j in jobs if j.phase == 2 or j.always}
-    todo = list(names)
+    todo = [j.name for j in jobs if j.phase == 2 or j.always] + list(names)
+    wanted: set[str] = set()
     while todo:
         job = by_name(todo.pop(), jobs)
         if job.name not in wanted:
