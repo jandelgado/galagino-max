@@ -270,6 +270,12 @@
     #include "machines/mhavoc/mhavoc_bundle.h"
   #endif
 #endif
+#ifdef GAME_SHOLLOW
+  #include "machines/shollow/shollow.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/shollow/shollow_bundle.h"
+  #endif
+#endif
 
 #ifdef GAME_MOONCRESTA
   #include "machines/mooncresta/mooncresta.h"
@@ -1496,6 +1502,13 @@ constexpr machineInfo machines[] = {
     mhavoc::menuLeds,
 #endif
     MCH_MHAVOC, nullptr BUNDLE_REF(mhavoc_bundle_ref) },
+#endif
+#ifdef GAME_SHOLLOW
+  { createMachine<shollow>, shollow::logo,
+#ifdef LED_PIN
+    shollow::menuLeds,
+#endif
+    MCH_SHOLLOW, nullptr BUNDLE_REF(shollow_bundle_ref) },
 #endif
 };
 

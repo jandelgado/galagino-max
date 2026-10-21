@@ -1,5 +1,5 @@
 #include "../../catalog.h"
-#if defined(GAME_TRON) || defined(GAME_DOTRON)
+#if defined(GAME_TRON) || defined(GAME_DOTRON) || defined(GAME_SHOLLOW)
 
 #include "mcr_ssio.h"
 #include <string.h>
