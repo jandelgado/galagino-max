@@ -80,6 +80,28 @@ void test_prescaler(void) {
   TEST_ASSERT_EQUAL_UINT32(3456, y.cyclesToTimerB());
 }
 
+// ymfm: busy for 32 * prescaler chip cycles after a data write
+void test_busy_after_write(void) {
+  Ym2203 y(1, 1);
+  wr(y, 0x26, 0xFA);
+  TEST_ASSERT_EQUAL_UINT8(0x80, y.readStatus() & 0x80);
+  y.tick(191);
+  TEST_ASSERT_EQUAL_UINT8(0x80, y.readStatus() & 0x80);
+  y.tick(1);
+  TEST_ASSERT_EQUAL_UINT8(0, y.readStatus() & 0x80);
+}
+
+// ymfm: timer B starts short by the free-running x16 divider phase
+void test_b_divider_phase(void) {
+  Ym2203 y(1, 1);
+  y.tick(5 * 72 + 10);  // 5 FM clocks into the divider
+  timerBNb(y);
+  TEST_ASSERT_EQUAL_UINT32(6912 - 5 * 72, y.cyclesToTimerB());
+  y.tick(6912 - 5 * 72);
+  TEST_ASSERT_EQUAL_UINT8(2, y.readStatus() & 2);
+  TEST_ASSERT_EQUAL_UINT32(6912, y.cyclesToTimerB());  // reload: full period
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_timer_b_period);
@@ -89,5 +111,7 @@ int main(void) {
   RUN_TEST(test_a_not_set_without_enable);
   RUN_TEST(test_a_period);
   RUN_TEST(test_prescaler);
+  RUN_TEST(test_busy_after_write);
+  RUN_TEST(test_b_divider_phase);
   return UNITY_END();
 }

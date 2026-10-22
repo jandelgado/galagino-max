@@ -21,6 +21,7 @@ void Ym2203::writeAddress(uint8_t a) {
 }
 
 void Ym2203::writeData(uint8_t value) {
+  busy_left = 32u * pre;  // ymfm ym2203::write_data
   if (addr < Ay8910::REG_COUNT) {
     ssg_regs[addr] = value;
     return;
@@ -56,10 +57,14 @@ void Ym2203::reset(void) {
   status = 0;
   a_run = false;
   b_run = false;
+  busy_left = 0;
+  clocks = 0;
 }
 
 // reg 27: b0/b1 load, b2/b3 flag enable, b4/b5 flag reset (ymfm
 // fm_engine::engine_mode_write). A running timer is not restarted.
+// Timer B's x16 divider runs free: a start shortens its first count by
+// the divider phase, 0-15 FM clocks (12 * prescaler chip cycles each).
 void Ym2203::writeMode(uint8_t value) {
   mode = value;
   status &= (uint8_t)~((value >> 4) & 3);
@@ -70,14 +75,18 @@ void Ym2203::writeMode(uint8_t value) {
     a_run = false;
   }
   if ((value & 2) && !b_run) {
+    const uint32_t fm_clock = 12u * pre;
     b_run = true;
-    b_left = periodB();
+    b_left = periodB() - (clocks / fm_clock & 15) * fm_clock;
+    clocks %= 16 * fm_clock;
   } else if (!(value & 2)) {
     b_run = false;
   }
 }
 
 void Ym2203::tick(uint32_t cycles) {
+  clocks += cycles;
+  busy_left = cycles < busy_left ? busy_left - cycles : 0;
   if (a_run) {
     uint32_t c = cycles;
     while (c >= a_left) {

@@ -22,9 +22,9 @@ public:
   void reset(void);
 
   // emulation core: timers. b0 timer A flag, b1 timer B flag, b7 busy
-  // (never set: the busy window is shorter than a Z80 poll).
-  uint8_t readStatus() const { return status; }
-  // advance both timers by chip clock cycles
+  // (32 * prescaler cycles after a data write, only when tick() runs).
+  uint8_t readStatus() const { return busy_left ? status | STATUS_BUSY : status; }
+  // advance timers and busy by chip clock cycles
   void tick(uint32_t chip_cycles);
   // cycles until timer B expires, UINT32_MAX when stopped
   uint32_t cyclesToTimerB() const { return b_run ? b_left : UINT32_MAX; }
@@ -58,6 +58,10 @@ private:
   bool b_run = false;
   uint32_t a_left = 0;
   uint32_t b_left = 0;
+  uint32_t busy_left = 0;
+  uint32_t clocks = 0;  // chip cycles, phase of the free-running B divider
+
+  static const uint8_t STATUS_BUSY = 0x80;
 
   // chip cycles, ymfm: 12 operators * pre * (1024 - NA) / 16 * (256 - NB)
   uint32_t periodA() const { return 12u * pre * (1024u - a_val); }
