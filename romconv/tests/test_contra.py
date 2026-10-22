@@ -1,9 +1,10 @@
-import hashlib
 import zipfile
 
 import pytest
 
 from romconv import registry
+from romconv.core.context import Context
+from romconv.core.errors import ConversionError
 from romconv.core.paths import default
 from romconv.games import contra
 
@@ -51,3 +52,10 @@ def test_real_gfx_unique_count():
     unique, index = contra.dedupe(words)
     assert len(words) == 2 * 16384 and len(unique) == 17138
     assert all(unique[index[i]] == words[i] for i in range(0, len(words), 97))
+
+
+def test_sid_hash_is_checked(paths, log):
+    paths.romszip.mkdir(parents=True)
+    (paths.romszip / "Gryzor.sid").write_bytes(b"tune")
+    with pytest.raises(ConversionError, match="SHA-1 mismatch"):
+        contra._convert_sid(Context(contra.JOB, paths, (), log))

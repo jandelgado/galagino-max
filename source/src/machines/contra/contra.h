@@ -5,7 +5,9 @@
 #include "../../cpus/m6809/m6809.h"
 #include "../../emulation/seqlock.h"
 #include "../../emulation/spriteflip.h"
+#include "../../emulation/sidplayer.h"
 #include "contra_dipswitches.h"
+#include "contra_sound.h"
 #include "contra_logo.h"
 
 // Contra (Konami 1987), MAME konami/contra.cpp, set contra.
@@ -14,7 +16,8 @@
 //     |  0000-00bf  K007121 #0/#1 registers, 007452 math, inputs, latch
 //     |  0c00-5fff  palette, RAM, tile/sprite RAM of both K007121
 //     |  6000-7fff  16 x 8 KB ROM banks, 8000-ffff fixed ROM
-//     +--latch 001c--> sound 6809 + YM2151: not emulated, Gryzor.sid
+//     +--latch 001c--> sound 6809 + YM2151: not emulated; the commands
+//                      cue Gryzor.sid (contra_sound.h) on the audio core
 //
 // The CPU sees ram[] for 0000-5fff (addresses = offsets).
 //
@@ -40,11 +43,13 @@ protected:
   Asset<unsigned char, COMPRESSED> contra_lut;
   Asset<uint32_t[8], PLAIN> contra_tiles;
   Asset<unsigned short, PLAIN> contra_tile_index;
+  Asset<unsigned char, PLAIN> contra_sid;
 
 public:
   contra();
   signed char machineType() override { return MCH_CONTRA; }
   void reset() override;
+  void renderAudio(int16_t *out, int n) override;
 
   unsigned char m6809_read(m6809_state *s, uint16_t addr) override;
   void m6809_write(m6809_state *s, uint16_t addr, uint8_t val) override;
@@ -90,6 +95,7 @@ private:
   };
 
   uint8_t readPort(uint16_t addr);
+  void cue(uint8_t cmd);
   bool idle(void);
   void writeCtrl(int chip, uint8_t reg, uint8_t val);
   void writeMath(uint8_t reg, uint8_t val);
@@ -120,6 +126,17 @@ private:
   uint8_t ctrl[CHIPS][CTRL_REGS] = {};  // K007121 control registers
   uint8_t bank = 0;                     // 6000-7fff ROM bank
   bool irq_line = false;                // K007121 #0 vblank IRQ, level
+
+  // sound commands: pushed by the emulation core, cued in renderAudio()
+  static const uint8_t SND_RING = 8;
+  static const uint16_t TUNE_RAM_SIZE = 0x1000;   // C64 $03EC-$13EB
+  volatile uint8_t snd_ring[SND_RING] = {};
+  volatile uint8_t snd_wr = 0, snd_rd = 0;
+  PsidInfo tune;
+  SidPlayer player;
+  bool tune_ok = false;
+  bool sid_on = false;     // player renders
+  bool music_on = false;   // a song runs: effects go through its driver
 
   // 007452: w0 * w1 -> r0/r1; w4w5 / w2w3 -> r4/r5 quotient, r2/r3 remainder
   uint8_t math_regs[MATH_REGS] = {};

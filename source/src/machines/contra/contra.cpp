@@ -5,6 +5,7 @@
 #include "contra_rom_main.h"
 #include "contra_prom.h"
 #include "contra_gfx.h"
+#include "contra_sid.h"
 
 // one frame = 264 lines of 384 px at 6 MHz, CPU 3 MHz: 50688 cycles
 static constexpr int LINES = 264;
@@ -23,6 +24,10 @@ static constexpr uint16_t BANK_SELECT = 0x7000;
 static constexpr uint16_t IDLE_PC = 0x8126;
 static constexpr uint8_t IDLE_PTR = 0x0e;      // direct page pointer to the flag
 static constexpr uint8_t IDLE_BUSY = 0x80;
+
+static constexpr uint16_t SND_LATCH = 0x1c;
+static constexpr uint16_t SID_FX_ENTRY = 0x04f1;   // Gryzor.sid: effect A = 0-8
+static constexpr uint8_t SID_FX_SONG = 3;          // songs 3-11 = effects 0-8
 
 static constexpr uint8_t CTRL_IRQ = 7;           // b1 IRQ enable, 0 acknowledges
 static constexpr uint8_t CTRL7_IRQ_ENABLE = 0x02;
@@ -59,7 +64,7 @@ static const unsigned int JUMP_KEY = BUTTON_EXTRA;
 
 contra::contra()
   : contra_main_rom(contra_main_rom_blob), contra_lut(contra_lut_blob), contra_tiles(contra_tiles_blob),
-    contra_tile_index(contra_tile_index_blob) {
+    contra_tile_index(contra_tile_index_blob), contra_sid(contra_sid_blob) {
   // m6809_reset() reads the reset vector through main_rom
   main_rom = contra_main_rom.data();
   lut = contra_lut.data();
@@ -70,6 +75,12 @@ contra::contra()
   vblank = Arena::create<Seqlock<VideoState>>();
   video = Arena::create<VideoState>();
   sprite_latch = (uint8_t(*)[SPRITE_LIST])Arena::alloc<uint8_t>(CHIPS * SPRITE_LIST);
+  tune_ok = psidParse(contra_sid.data(), contra_sid.size(), &tune) &&
+            player.load(tune, Arena::alloc<uint8_t>(TUNE_RAM_SIZE), TUNE_RAM_SIZE);
+  if (!tune_ok) {
+    printf("contra: Gryzor.sid is not a supported PSID\n");
+  }
+
   pens = (uint16_t(*)[COLORS][PENS])Arena::alloc<uint16_t>(CHIPS * COLORS * PENS);
   blocks = Arena::alloc<SpriteBlock>(CHIPS * (MAX_BLOCKS + BLOCKS_LIMIT));
 }
@@ -83,6 +94,8 @@ void contra::reset() {
   bank = 0;
   irq_line = false;
   memset(sprite_latch, 0, CHIPS * SPRITE_LIST);
+  snd_wr = snd_rd = 0;
+  sid_on = music_on = false;
 
   m6809_reset(&main_cpu);
   main_cpu.rom_direct = main_rom + FIXED_ROM;   // must follow m6809_reset()
@@ -175,8 +188,13 @@ void GAME_IRAM contra::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
     writeMath(addr - 0x08, val);
   } else if (addr >= 0x60 && addr < 0x68) {
     writeCtrl(1, addr - 0x60, val);
-  } else if (addr == 0x1c) {
+  } else if (addr == SND_LATCH) {
     game_started = 1;   // first sound command: attract runs
+    const uint8_t next = (snd_wr + 1) & (SND_RING - 1);
+    if (next != snd_rd) {   // full: drop
+      snd_ring[snd_wr] = val;
+      snd_wr = next;
+    }
   }
   // 18 coin counter, 1a sound IRQ, 1e watchdog: ignored
 }
@@ -460,6 +478,49 @@ void contra::render_row(short row) {
     drawLayer(0, x, dst, false);
   }
   drawSprites(row);
+}
+
+// ---- Sound ----
+
+// runs the tune's 6502 code, so on the audio core
+void contra::cue(uint8_t cmd) {
+  const ContraCue c = contraCue(cmd);
+  switch (c.kind) {
+    case CUE_STOP:
+      sid_on = music_on = false;
+      break;
+    case CUE_MUSIC:
+      player.start(c.arg);
+      sid_on = music_on = true;
+      break;
+    case CUE_FX:
+      if (music_on) {
+        player.jsr(SID_FX_ENTRY, c.arg);
+        break;
+      }
+      player.start(SID_FX_SONG + c.arg);
+      sid_on = true;
+      break;
+    case CUE_NONE:
+      break;
+  }
+}
+
+void contra::renderAudio(int16_t *out, int n) {
+  while (snd_rd != snd_wr) {
+    const uint8_t cmd = snd_ring[snd_rd];
+    snd_rd = (snd_rd + 1) & (SND_RING - 1);
+    if (tune_ok) {
+      cue(cmd);
+    }
+  }
+
+  if (!sid_on) {
+    memset(out, 0, n * sizeof(*out));
+    return;
+  }
+  player.render(out, n);
+  audioClampAll(out, n, AUDIO_MAX);
 }
 
 #ifdef LED_PIN

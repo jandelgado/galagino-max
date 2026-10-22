@@ -9,6 +9,7 @@ blocks). Stored rotated to the panel: native pixel (x, y) of a tile -> line x, c
   contra_tile_index  2 x 16384 codes -> contra_tiles index, PLAIN (64 KB)
   contra_main_rom  633i02 + 633m03, 0x20000 banked 6809 ROM, PLAIN (over the Arena budget)
   contra_lut       4 x 256 color lookup PROMs, low nibble
+  contra_sid       Gryzor.sid (HVSC, C64 port by Ocean), whole file: music and effects
 The sound ROM is not used: Gryzor.sid replaces the sound CPU and YM2151.
 """
 from collections.abc import Callable, Sequence
@@ -18,6 +19,7 @@ from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed, emit_plain
 from romconv.emit.write import banner
+from romconv.misc.userfile import read_user_file
 
 _SHA1 = MappingProxyType({
     "633i02.17a": "6c29568419bc49f0be3995b0c34edd9038f6f8d9",
@@ -35,6 +37,8 @@ _SHA1 = MappingProxyType({
 _GFX = (("633e04.7d", "633e05.7f"), ("633e06.16d", "633e07.16f"))  # (even, odd) per K007121
 _PROMS = ("633e08.10g", "633e09.12g", "633f10.18g", "633f11.20g")
 _MAIN = ("633i02.17a", "633m03.18a")
+_SID_FILE = "Gryzor.sid"
+_SID_SHA1 = "337bfa29401763bcb0f0d0cecd8db7bb4ed94d52"
 _TILE_BYTES = 32
 _TILE_SIZE = 8
 
@@ -121,10 +125,21 @@ def _convert_lut(ctx: Context) -> None:
         emit_compressed(f, "contra_lut", "unsigned char", "", len(lut), lut)
 
 
+def _convert_sid(ctx: Context) -> None:
+    """The Jason C. Brooke tune, user supplied like the ROMs."""
+    data = read_user_file(ctx, _SID_FILE, _SID_SHA1, "HVSC MUSICIANS/B/Brooke_Jason/Gryzor.sid")
+    with ctx.header("contra_sid.h") as f:
+        f.write(banner(__file__))
+        f.write("// C64 Gryzor PSID (Jason C. Brooke, 1988 Ocean), whole file\n")
+        # plain: SidPlayer copies the payload into its RAM window anyway
+        emit_plain(f, "contra_sid", "unsigned char", "", len(data), _body(data, "0x%02x", 16))
+
+
 def _convert(ctx: Context) -> None:
     _convert_cpu(ctx)
     _convert_gfx(ctx)
     _convert_lut(ctx)
+    _convert_sid(ctx)
 
 
 JOB = Job(name="contra", convert=_convert, machine="contra", zips=("contra.zip",))
