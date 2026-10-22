@@ -17,6 +17,10 @@ static constexpr uint8_t IO_WATCHDOG = 0, IO_SOUND = 2, IO_OUTPUT = 3;
 static constexpr uint16_t SPRITE_BASE = 0x3000, VRAM_BASE = 0x3800, CHAR_BASE = 0x4000;
 static constexpr uint16_t PALETTE_BASE = 0x5000;
 
+// one video frame (318 x 256 pixels at 5 MHz) in sound CPU cycles:
+// 894886 * 81408 / 5000000 = 14570.0
+static constexpr uint32_t PIXEL_HZ = 5000000, FRAME_PIXELS = 318 * 256;
+
 // IN1 (active high): service switch active low, kept open
 static constexpr uint8_t IN1_START1 = 0x01, IN1_START2 = 0x02, IN1_COIN1 = 0x04;
 static constexpr uint8_t IN1_SERVICE_OFF = 0x40;
@@ -27,13 +31,14 @@ static constexpr uint8_t STICK_UP_RIGHT = 0x04, STICK_DOWN_LEFT = 0x08;
 
 qbert::qbert()
   : qbert_main_rom(qbert_main_rom_blob), qbert_tiles(qbert_tiles_blob), qbert_sprites(qbert_sprites_blob),
-    qbert_levels(qbert_levels_blob) {
+    qbert_levels(qbert_levels_blob), qbert_sound_rom(qbert_sound_rom_blob), qbert_sc01(qbert_sc01_blob) {
   rom = qbert_main_rom.data();
   tiles = qbert_tiles.data();
   sprites = qbert_sprites.data();
   levels = qbert_levels.data();
   vblank = Arena::create<Seqlock<qbert_video::VideoState>>();
   video = Arena::create<qbert_video::VideoState>();
+  sound.attach(qbert_sound_rom.data(), qbert_sc01.data(), Arena::alloc(VotraxSc01::TABLE_BYTES, 4));
 }
 
 void qbert::reset() {
@@ -44,8 +49,12 @@ void qbert::reset() {
   i8086::setBus(bus);
   i8086::reset();
   booted = false;
-  soundCmd = 0;
   outputLatch = 0;
+  sound.reset();
+  cmdCount = 0;
+  soundPhase = 0;
+  dc = DcBlock();
+  lastSample = 0;
 }
 
 // ---- 8088 I/O ----
@@ -78,7 +87,9 @@ void qbert::wrio(uint16_t a, uint8_t v) {
   if (a >= IO_BASE) {
     switch (a & 7) {
       case IO_SOUND:
-        soundCmd = v;
+        if (cmdCount < CMD_QUEUE) {
+          cmdQueue[cmdCount++] = v;
+        }
         game_started = 1;
         break;
       case IO_OUTPUT:
@@ -173,6 +184,33 @@ void qbert::run_frame(void) {
   }
   booted = true;
   runCpu();
+  runSound();
+}
+
+// ---- Sound ----
+
+// the frame's commands first, back to back: a pair like ff, f4 still makes
+// its PA7 edge
+void qbert::runSound(void) {
+  for (uint8_t i = 0; i < cmdCount; i++) {
+    sound.command(cmdQueue[i]);
+  }
+  cmdCount = 0;
+
+  const uint64_t ticks = (uint64_t)GottliebSound::SOUND_HZ * FRAME_PIXELS + soundPhase;
+  soundPhase = (uint32_t)(ticks % PIXEL_HZ);
+  sound.run((uint32_t)(ticks / PIXEL_HZ));
+}
+
+// audio core: drain the board's 24 kHz ring, hold the last value on underrun
+void qbert::renderAudio(int16_t *out, int n) {
+  for (int i = 0; i < n; i++) {
+    const int s = sound.sample();
+    if (s != GottliebSound::EMPTY) {
+      lastSample = (int16_t)s;
+    }
+    out[i] = audioClamp(dc.filter(lastSample), AUDIO_MAX);
+  }
 }
 
 // ---- LEDs ----

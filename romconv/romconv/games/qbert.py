@@ -25,6 +25,8 @@ _MAIN = (("qb-rom2.bin", "4cfc5d52dd6c82163e035af82d6112c0c93a3797"),   # 0xa000
          ("qb-rom0.bin", "7f8f66d1e6a7905e93cce07fc92e8801370b7194"))   # 0xe000
 _SOUND = (("qb-snd1.bin", "8b7d03fbf2ebaa71b3a7e2f636a0d1bb9b796e43"),  # 0x7000
           ("qb-snd2.bin", "09d8053e7e99679b602dcda230d64db7fe6cb7f5"))  # 0x7800
+# Votrax SC-01-A speech ROM (MAME votrsc01a)
+_SC01 = ("sc01a.bin", "1d6da90b1807a01b5e186ef08476119a862b5e6d")
 _BG = (("qb-bg0.bin", "12aa6df499eb6996ee35f56acac403ff6290f844"),
        ("qb-bg1.bin", "5bb67e333255c0ea679ab4312256a8a71a950db8"))
 _FG = (("qb-fg3.bin", "ae16087a6ceec84551b5d7aae4036e0ed432cbb7"),
@@ -71,6 +73,7 @@ def _convert(ctx: Context) -> None:
 
     main = main_image(read)
     sound = _join(read, _SOUND)
+    sc01 = bytes(ctx.rom(_SC01[0], _SC01[1], zip="votrax-qbert.zip"))
     tiles = tile_words(_join(read, _BG))
     sprites = sprite_words(decode_sprites(_join(read, _FG)))
 
@@ -80,6 +83,7 @@ def _convert(ctx: Context) -> None:
     def rom(f):
         emit_compressed(f, "qbert_main_rom", "unsigned char", "", len(main), main)
         emit_compressed(f, "qbert_sound_rom", "unsigned char", "", len(sound), sound)
+        emit_compressed(f, "qbert_sc01", "unsigned char", "", len(sc01), sc01)
 
     def gfx(f):
         emit_compressed(f, "qbert_tiles", "uint32_t", "[8]", _TILE_COUNT, tiles)
@@ -88,8 +92,8 @@ def _convert(ctx: Context) -> None:
 
     write("qbert_rom.h", rom)
     write("qbert_gfx.h", gfx)
-    log_sizes(ctx, {"main": len(main), "sound": len(sound), "tiles": _TILE_COUNT * 32,
+    log_sizes(ctx, {"main": len(main), "sound": len(sound), "sc01": len(sc01), "tiles": _TILE_COUNT * 32,
                     "sprites": _SPRITE_COUNT * 128, "levels": 16})
 
 
-JOB = Job(name="qbert", convert=_convert, machine="qbert", zips=("qbert.zip",))
+JOB = Job(name="qbert", convert=_convert, machine="qbert", zips=("qbert.zip", "votrax-qbert.zip"))

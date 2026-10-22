@@ -3,6 +3,8 @@
 
 #include "../machineBase.h"
 #include "../../emulation/seqlock.h"
+#include "../../emulation/dc_block.h"
+#include "gottlieb_sound.h"
 #include "../../cpus/i8086/i8086.h"
 #include "qbert_video.h"
 #include "qbert_dipswitches.h"
@@ -33,6 +35,8 @@ protected:
   Asset<uint32_t[8], COMPRESSED> qbert_tiles;
   Asset<uint32_t[32], COMPRESSED> qbert_sprites;
   Asset<unsigned char, COMPRESSED> qbert_levels;
+  Asset<unsigned char, COMPRESSED> qbert_sound_rom;
+  Asset<unsigned char, COMPRESSED> qbert_sc01;
 
 public:
   qbert();
@@ -41,6 +45,7 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
+  void renderAudio(int16_t *out, int n) override;
   const int renderWidth() override { return 240; }
   const int renderBuffer() override { return 240 * 2 * 8; }
   static const Logo &logo(void) { return qbert_logo; }
@@ -63,6 +68,7 @@ private:
   void enterNmi(void);
   void runCpu(void);
   void publishVideo(void);
+  void runSound(void);
 
   uint8_t rdio(uint16_t a);
   void wrio(uint16_t a, uint8_t v);
@@ -107,7 +113,14 @@ private:
   qbert_video::Sprite spriteList[qbert_video::SPRITES];
   int spriteCount = 0;
 
-  uint8_t soundCmd = 0;            // 0x5802, read by the sound board (later)
+  // sound board: commands queued by the main CPU, run after it each frame
+  static const uint8_t CMD_QUEUE = 8;
+  GottliebSound sound;
+  uint8_t cmdQueue[CMD_QUEUE];
+  uint8_t cmdCount = 0;
+  uint32_t soundPhase = 0;         // frame length remainder, see runSound()
+  DcBlock dc;
+  int16_t lastSample = 0;
   uint8_t outputLatch = 0;         // 0x5803: b0 bg priority, b1/b2 flip, b5 knocker
 };
 

@@ -171,7 +171,6 @@ void VotraxSc01::reset() {
   inflection = 0;
   ar = true;
   sampleCount = 0;
-  clockHi = false;
   clockHz = CLOCK_LO;
   fn = &fnSet[0];
   clkAcc = sampleAcc = 0;
@@ -204,11 +203,30 @@ void VotraxSc01::reset() {
 }
 
 void VotraxSc01::write(uint8_t data) {
-  clockHi = (data & 0x40) != 0;
-  clockHz = clockHi ? CLOCK_HI : CLOCK_LO;
-  fn = &fnSet[clockHi ? 1 : 0];
-  inflection = (data & 0x80) ? 0 : 2;
-  phone = data & 0x3f;
+  setClock((data & 0x40) ? CLOCK_HI : CLOCK_LO);
+  writePhone(data & 0x3f, (data & 0x80) ? 0 : 2);
+}
+
+void VotraxSc01::setClock(uint32_t hz) {
+  clockHz = hz;
+  if (hz == CLOCK_LO || hz == CLOCK_HI) {
+    fn = &fnSet[hz == CLOCK_HI];
+    return;
+  }
+  if (hz != fnVarHz) {
+    double a[4], b[4];
+    buildNoiseShaper(hz / 18.0, hz / 36.0, a, b, 15500, 14854, 8450, 9523, 14083);
+    fnVar.a0 = (votrax_real)(a[0] / b[0]);
+    fnVar.b1 = (votrax_real)(b[1] / b[0]);
+    fnVar.b2 = (votrax_real)(b[2] / b[0]);
+    fnVarHz = hz;
+  }
+  fn = &fnVar;
+}
+
+void VotraxSc01::writePhone(uint8_t ph, uint8_t infl) {
+  inflection = infl & 3;
+  phone = ph & 0x3f;
   ar = false;
 
   // commit about 0.1 ms from now, unless one is already pending

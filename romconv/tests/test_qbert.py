@@ -10,7 +10,7 @@ _ZIP = default().romszip / "qbert.zip"
 
 
 def test_job_registered():
-    assert qbert.JOB.machine == "qbert" and qbert.JOB.zips == ("qbert.zip",)
+    assert qbert.JOB.machine == "qbert" and qbert.JOB.zips == ("qbert.zip", "votrax-qbert.zip")
     assert {j.name: j for j in registry.ALL}["qbert"] is qbert.JOB
 
 
