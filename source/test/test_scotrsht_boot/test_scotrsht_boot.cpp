@@ -222,13 +222,18 @@ static void test_idle_pass_cycles(void) {
     machine->ym.tick(machine->step_sound());
   }
   TEST_ASSERT_EQUAL_HEX16(IDLE_PC, machine->cpu[0].PC.W);
+  // step 3-instruction passes until one returns to IDLE_PC
   int cycles = 0;
-  for (int i = 0; i < 3; i++) {
-    cycles += machine->step_sound();
+  bool seen = false;
+  for (int n = 0; n < 1000 && !seen; n++) {
+    cycles = 0;
+    for (int i = 0; i < 3; i++) {
+      cycles += machine->step_sound();
+    }
+    seen = machine->cpu[0].PC.W == IDLE_PC;
   }
-  if (machine->cpu[0].PC.W == IDLE_PC) {
-    TEST_ASSERT_EQUAL_INT(IDLE_PASS_CYCLES, cycles);
-  }
+  TEST_ASSERT_TRUE(seen);
+  TEST_ASSERT_EQUAL_INT(IDLE_PASS_CYCLES, cycles);
 }
 
 // Main CPU task queue wait loop: 6 instructions, 26 cycles per pass.

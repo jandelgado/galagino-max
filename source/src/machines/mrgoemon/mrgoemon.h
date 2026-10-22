@@ -19,7 +19,6 @@ public:
 
   unsigned char rdZ80(unsigned short Addr) override;
   void          wrZ80(unsigned short Addr, unsigned char Value) override;
-  unsigned char opZ80(unsigned short Addr) override;
   void reset() override;
 
 private:
