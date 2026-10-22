@@ -56,14 +56,21 @@ static bool is_blank(const void *bitmap, uint16_t size) {
 }
 
 zaxxon::zaxxon()
-  : zaxxon_bgtiles(zaxxon_bgtiles_blob),
-    zaxxon_chartiles(zaxxon_chartiles_blob),
-    zaxxon_palette(zaxxon_palette_blob),
-    zaxxon_fgcolor_codes(zaxxon_fgcolor_codes_blob),
-    zaxxon_rom_main(zaxxon_rom_main_blob),
-    zaxxon_spritetiles(zaxxon_spritetiles_blob),
-    zaxxon_tilemap_code(zaxxon_tilemap_code_blob),
-    zaxxon_tilemap_color(zaxxon_tilemap_color_blob) {
+  : zaxxon({zaxxon_bgtiles_blob, zaxxon_chartiles_blob, zaxxon_palette_blob,
+            zaxxon_fgcolor_codes_blob, zaxxon_rom_main_blob, zaxxon_spritetiles_blob,
+            zaxxon_tilemap_code_blob, zaxxon_tilemap_color_blob},
+           ZAXXON_DIP_A, nullptr) { }
+
+zaxxon::zaxxon(const ZaxxonAssets &assets, uint8_t dip_a, const uint8_t *rom_ops)
+  : zaxxon_bgtiles(assets.bgtiles),
+    zaxxon_chartiles(assets.chartiles),
+    zaxxon_palette(assets.palette),
+    zaxxon_fgcolor_codes(assets.fgcolor_codes),
+    zaxxon_rom_main(assets.rom_main),
+    zaxxon_spritetiles(assets.spritetiles),
+    zaxxon_tilemap_code(assets.tilemap_code),
+    zaxxon_tilemap_color(assets.tilemap_color),
+    dip_a(dip_a) {
   // eager; blocks come from romconv (zaxxon_arena_plan.h): any order fits
   zaxxon_bgtiles.data();
   zaxxon_spritetiles.data();
@@ -72,6 +79,7 @@ zaxxon::zaxxon()
   zaxxon_palette.data();
   zaxxon_fgcolor_codes.data();
   rom_main_ptr = zaxxon_rom_main.data();
+  rom_ops_ptr = rom_ops ? rom_ops : rom_main_ptr;
 
   for (uint16_t c = 0; c < CHAR_CODES; c++) {
     char_blank[c] = is_blank(zaxxon_chartiles[c], sizeof(zaxxon_chartiles[c]));
@@ -93,7 +101,7 @@ void zaxxon::start(void) {
 
 unsigned char zaxxon::opZ80(unsigned short Addr) {
   if (Addr < zaxxon_rom_main.size())
-    return rom_main_ptr[Addr];
+    return rom_ops_ptr[Addr];
   return 0xff;
 }
 
@@ -149,7 +157,7 @@ unsigned char zaxxon::rdZ80(unsigned short Addr) {
   }
   // c002      DSW0
   if (Addr == 0xc002) {
-    return ZAXXON_DIP_A;
+    return dip_a;
   }
   // c003      DSW1
   if (Addr == 0xc003) {
