@@ -252,5 +252,6 @@ evicted first. Menu entries not cached yet show a NET marker.
 | Mario Bros. (mario.zip)       | ![Mario Bros. marquee](/logos/mario.png) | ![Mario Bros. screenshot](/images/mario.png) | 256 columns shown in a 240 column window that pans after player 1 (`MARIO_SCROLL`, alternatives `MARIO_SCALE`, `MARIO_CROP` in config.h). FIRE or UP=jump |
 | Mr. Do's Castle (docastle.zip) | ![Mr. Do's Castle marquee](/logos/docastle.png) | ![Mr. Do's Castle screenshot](/images/docastle.png) | FIRE=hammer |
 | Super Zaxxon (szaxxon.zip)    | ![Super Zaxxon marquee](/logos/szaxxon.png) | ![Super Zaxxon screenshot](/images/szaxxon.png) | Same audio as Zaxxon, needs zaxxon-audio.zip. FIRE=fire |
+| Contra (contra.zip)           | ![Contra marquee](/logos/contra.png) | ![Contra screenshot](/images/contra.png) | Music and effects from the C64 port: needs Gryzor.sid (HVSC MUSICIANS/B/Brooke_Jason) in romszip/. FIRE=fire, START=jump (controller B=jump) |
 
 ### ...
