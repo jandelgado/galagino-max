@@ -33,6 +33,9 @@ static constexpr int CODES = 16384;           // tile codes per K007121
 static constexpr uint8_t LAYER_CHIP[3] = {0, 1, 0};
 static constexpr uint16_t LAYER_CRAM[3] = {CONTRA_CRAM0, CONTRA_CRAM1, CONTRA_CRAM2};
 static constexpr uint16_t LAYER_VRAM[3] = {CONTRA_VRAM0, CONTRA_VRAM1, CONTRA_VRAM2};
+static constexpr int SPRITE_DX = 40;          // MAME set_sprite_offsets(40, 16)
+static constexpr int BLOCKS_LIMIT = 15;       // a 32x32 sprite may pass MAX_BLOCKS by 15
+static constexpr uint8_t BLOCK_CHIP1 = 0x01, BLOCK_FLIPX = 0x02, BLOCK_FLIPY = 0x04;
 
 // main CPU inputs (konamipt.h KONAMI8_SYSTEM_UNK / KONAMI8_B12_UNK), active low
 static constexpr uint8_t SYS_COIN1 = 0x01, SYS_START1 = 0x08;
@@ -60,7 +63,9 @@ contra::contra()
   ram = Arena::alloc<uint8_t>(CONTRA_RAM_END);
   vblank = Arena::create<Seqlock<VideoState>>();
   video = Arena::create<VideoState>();
+  sprite_latch = (uint8_t(*)[SPRITE_LIST])Arena::alloc<uint8_t>(CHIPS * SPRITE_LIST);
   pens = (uint16_t(*)[COLORS][PENS])Arena::alloc<uint16_t>(CHIPS * COLORS * PENS);
+  blocks = Arena::alloc<SpriteBlock>(CHIPS * (MAX_BLOCKS + BLOCKS_LIMIT));
 }
 
 void contra::reset() {
@@ -71,6 +76,7 @@ void contra::reset() {
   product = quotient = remainder = 0;
   bank = 0;
   irq_line = false;
+  memset(sprite_latch, 0, CHIPS * SPRITE_LIST);
 
   m6809_reset(&main_cpu);
   main_cpu.rom_direct = main_rom + FIXED_ROM;   // must follow m6809_reset()
@@ -234,7 +240,9 @@ void contra::run_frame(void) {
   }
 }
 
-// Latch what render reads, where K007121 buffers its sprite list (line 240).
+// Latch what render reads at line 240. The K007121 draws sprites into a
+// framebuffer: the list latched here shows one frame later (MAME: the
+// sprite list buffered at the vblank before the drawn frame).
 void contra::publishVideo(void) {
   vblank->publish([this](VideoState &v) {
     memcpy(v.palette, &ram[CONTRA_PALETTE], sizeof(v.palette));
@@ -242,13 +250,19 @@ void contra::publishVideo(void) {
       memcpy(v.cram[l], &ram[LAYER_CRAM[l]], MAP_BYTES);
       memcpy(v.vram[l], &ram[LAYER_VRAM[l]], MAP_BYTES);
     }
-    for (int c = 0; c < CHIPS; c++) {
-      const uint16_t base = c ? CONTRA_SPRITES1 : CONTRA_SPRITES0;
-      const uint16_t bank = (ctrl[c][3] & CTRL3_SPRITE_BANK) ? SPRITE_LIST : 0;
-      memcpy(v.sprites[c], &ram[base + bank], SPRITE_LIST);
-    }
+    memcpy(v.sprites, sprite_latch, sizeof(v.sprites));
     memcpy(v.ctrl, ctrl, sizeof(v.ctrl));
   });
+  latchSprites();
+}
+
+// k007121.cpp sprites_buffer(): the list bank selected by ctrl3 b3
+void contra::latchSprites(void) {
+  for (int c = 0; c < CHIPS; c++) {
+    const uint16_t base = c ? CONTRA_SPRITES1 : CONTRA_SPRITES0;
+    const uint16_t bank = (ctrl[c][3] & CTRL3_SPRITE_BANK) ? SPRITE_LIST : 0;
+    memcpy(sprite_latch[c], &ram[base + bank], SPRITE_LIST);
+  }
 }
 
 // ---- Video ----
@@ -256,6 +270,9 @@ void contra::publishVideo(void) {
 void contra::prepare_frame(void) {
   vblank->read(*video);
   buildPens();
+  block_count = 0;
+  listSprites(0);
+  listSprites(1);
 }
 
 // MAME contra palette(): pen = chip << 11 | color << 4 | pix -> lookup PROM
@@ -266,8 +283,10 @@ void contra::buildPens(void) {
     for (int color = 0; color < COLORS; color++) {
       const int pal = color >> 4;
       const uint8_t *prom = &lut[((chip << 1) | (pal & 1)) << 8 | (color & 15) << 4];
+      opaque[chip][color] = 0;
       for (int pix = 0; pix < PENS; pix++) {
         const uint8_t entry = (!(pal & 1) && !prom[pix]) ? 0 : (uint8_t)(pal << 4 | prom[pix]);
+        opaque[chip][color] |= entry ? 1u << pix : 0;
         const uint16_t w = video->palette[2 * entry] | video->palette[2 * entry + 1] << 8;
         const uint16_t r = w & 0x1f, g = (w >> 5) & 0x1f, b = (w >> 10) & 0x1f;
         const uint16_t v = (uint16_t)(r << 11 | (g << 1 | g >> 4) << 5 | b);
@@ -322,6 +341,84 @@ void contra::drawLayer(int layer, int x, uint16_t *dst, bool opaque) const {
   }
 }
 
+// k007121.cpp sprites_draw(): the list ends where its 8x8 blocks reach 264;
+// each sprite is 1-16 blocks, code bits from bytes 0, 1 and 4
+void contra::listSprites(int chip) {
+  static const uint8_t X_OFFSET[4] = {0x0, 0x1, 0x4, 0x5};
+  static const uint8_t Y_OFFSET[4] = {0x0, 0x2, 0x8, 0xa};
+  const uint8_t *src = video->sprites[chip];
+  const uint8_t color_bank = (video->ctrl[chip][6] & 0x30) << 1;
+
+  for (int used = 0, i = 0; used < MAX_BLOCKS; i++, src += SPRITE_BYTES) {
+    const uint8_t attr = src[4];
+    int w = 1, h = 1, align = 0;
+    switch (attr & 0x0e) {
+      case 0x02: w = 2; align = 1; break;
+      case 0x04: h = 2; align = 2; break;
+      case 0x00: w = h = 2; align = 3; break;
+      case 0x08: w = h = 4; align = 0xf; break;
+    }
+    used += w * h;
+
+    int number = (src[0] + ((src[1] & 3) << 8) + ((attr & 0xc0) << 4)) << 2;
+    number = (number + ((src[1] >> 2) & 3)) & ~align;
+    const int sx = src[3] - ((attr & 1) ? 256 : 0) + SPRITE_DX;
+    const int sy = src[2] >= 240 ? src[2] - 256 : src[2];
+    const bool flipx = attr & 0x10, flipy = attr & 0x20;
+    const uint8_t color = (uint8_t)((src[1] >> 4) + color_bank);
+    const uint8_t flags = (uint8_t)((chip ? BLOCK_CHIP1 : 0) | (flipx ? BLOCK_FLIPX : 0) | (flipy ? BLOCK_FLIPY : 0));
+
+    for (int y = 0; y < h; y++) {
+      for (int x = 0; x < w; x++) {
+        const int code = number + X_OFFSET[flipx ? w - 1 - x : x] + Y_OFFSET[flipy ? h - 1 - y : y];
+        const int bx = sx + x * 8, by = sy + y * 8;
+        if (bx + 8 <= HUD_END || bx >= NATIVE_W || by + 8 <= 16 || by > VIS_LAST_Y) {
+          continue;
+        }
+        SpriteBlock &b = blocks[block_count++];
+        b.x = (int16_t)bx;
+        b.col = (int16_t)(VIS_LAST_Y - by - 7);
+        b.tile = tile_index[chip * CODES + code];
+        b.color = color;
+        b.flags = flags;
+      }
+    }
+  }
+}
+
+// blocks over the strip's lines, clipped to X 40..279 and the 224 columns
+void contra::drawSprites(short row) {
+  const int x0 = row * 8 - TOP;
+  for (int i = 0; i < block_count; i++) {
+    const SpriteBlock &b = blocks[i];
+    if (b.x + 8 <= x0 || b.x >= x0 + 8) {
+      continue;
+    }
+    const int chip = b.flags & BLOCK_CHIP1;
+    const uint16_t *pen = pens[chip][b.color];
+    const uint16_t mask = opaque[chip][b.color];
+
+    for (int line = 0; line < 8; line++) {
+      const int x = b.x + line;
+      if (x < x0 || x >= x0 + 8 || x < HUD_END || x >= NATIVE_W) {
+        continue;
+      }
+      uint32_t w = tiles[b.tile][(b.flags & BLOCK_FLIPX) ? 7 - line : line];
+      if (b.flags & BLOCK_FLIPY) {
+        w = rev4bpp(w);
+      }
+      uint16_t *dst = frame_buffer + (x - x0) * WIDTH;
+      for (int k = 0; k < 8; k++, w >>= 4) {
+        const int col = b.col + k;
+        const uint8_t pix = w & 15;
+        if ((mask >> pix & 1) && col >= 0 && col < WIDTH) {
+          dst[col] = pen[pix];
+        }
+      }
+    }
+  }
+}
+
 // MAME screen_update: background pen, layer 1, layer 0, sprites #0, #1
 // (X 40..279); text layer over X 0..39
 void contra::render_row(short row) {
@@ -342,6 +439,7 @@ void contra::render_row(short row) {
     drawLayer(1, x, dst, true);
     drawLayer(0, x, dst, false);
   }
+  drawSprites(row);
 }
 
 #ifdef LED_PIN

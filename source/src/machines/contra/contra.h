@@ -4,6 +4,7 @@
 #include "../machineBase.h"
 #include "../../cpus/m6809/m6809.h"
 #include "../../emulation/seqlock.h"
+#include "../../emulation/spriteflip.h"
 #include "contra_dipswitches.h"
 #include "contra_logo.h"
 
@@ -67,6 +68,17 @@ private:
   static const int SPRITE_LIST = 0x800;     // one bank of a K007121 sprite RAM
   static const int COLORS = 128;            // per K007121, 16 pens each
   static const int PENS = 16;
+  static const int MAX_BLOCKS = 264;        // 8x8 sprite blocks per K007121 list
+  static const int SPRITE_BYTES = 5;
+
+  // one visible 8x8 sprite block, in draw order
+  struct SpriteBlock {
+    int16_t x;        // native X of its first column
+    int16_t col;      // panel column of its native bottom row
+    uint16_t tile;    // contra_tiles index
+    uint8_t color;    // pens[chip] color
+    uint8_t flags;    // chip, flips
+  };
 
   // Render input latched at vblank (seqlock.h): palette, tilemaps, the
   // selected sprite list banks, control registers
@@ -82,9 +94,12 @@ private:
   void writeMath(uint8_t reg, uint8_t val);
   uint8_t readMath(uint8_t reg);
   void publishVideo(void);
+  void latchSprites(void);
   void buildPens(void);
   uint16_t tileCode(int layer, int index, uint8_t &color) const;
   void drawLayer(int layer, int x, uint16_t *dst, bool opaque) const;
+  void listSprites(int chip);
+  void drawSprites(short row);
 
   m6809_state main_cpu;
   const uint8_t *main_rom = nullptr;
@@ -94,8 +109,12 @@ private:
   const uint16_t *tile_index = nullptr;
 
   Seqlock<VideoState> *vblank = nullptr;   // Arena
+  uint8_t (*sprite_latch)[SPRITE_LIST] = nullptr;   // Arena, [chip], drawn next frame
   VideoState *video = nullptr;             // Arena, render copy
   uint16_t (*pens)[COLORS][PENS] = nullptr;  // Arena, [chip], RGB565 swapped
+  uint16_t opaque[CHIPS][COLORS];            // bit p: sprite pen p drawn (lookup != 0)
+  SpriteBlock *blocks = nullptr;             // Arena, CHIPS * (MAX_BLOCKS + 15)
+  int block_count = 0;
 
   uint8_t ctrl[CHIPS][CTRL_REGS] = {};  // K007121 control registers
   uint8_t bank = 0;                     // 6000-7fff ROM bank

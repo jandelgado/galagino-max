@@ -67,14 +67,17 @@ static void boot(void) {
 }
 
 static void load(const MameFrame &m) {
-  memcpy(machine->ctrl, m.ctrl, sizeof(m.ctrl));
   uint8_t *ram = machine->ram;
+  // sprite lists: the K007121 draws the list latched at the vblank before
+  memcpy(machine->ctrl, m.prev_ctrl, sizeof(m.prev_ctrl));
+  memcpy(&ram[0x3000], m.prev_sprites0, sizeof(m.prev_sprites0));
+  memcpy(&ram[0x5000], m.prev_sprites1, sizeof(m.prev_sprites1));
+  machine->latchSprites();
+
+  memcpy(machine->ctrl, m.ctrl, sizeof(m.ctrl));
   memcpy(&ram[0x0c00], m.palette, sizeof(m.palette));
   memcpy(&ram[0x2000], m.layer0_2, sizeof(m.layer0_2));
   memcpy(&ram[0x4000], m.layer1, sizeof(m.layer1));
-  // sprite lists: MAME latches them at the vblank before the drawn frame
-  memcpy(&ram[0x3000], m.prev_sprites0, sizeof(m.prev_sprites0));
-  memcpy(&ram[0x5000], m.prev_sprites1, sizeof(m.prev_sprites1));
   machine->publishVideo();
 }
 
