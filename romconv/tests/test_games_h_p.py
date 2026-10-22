@@ -65,19 +65,13 @@ def test_hero_palettes():
     assert hero._palette("p", hero._ntsc_rgb).startswith("static const uint16_t p[128] = {\n")
 
 
-def test_ladybug_tables_and_base_tilemap(log):
-    for table in ("til_patch.table", "spr_patch.table", "rom_patch.table"):
-        assert len(read_patch_table(ladybug._HERE / table)) > 0
-
-    class Ctx:
-        pass
-
-    ctx = Ctx()
-    ctx.log = log
-    data = bytearray(512 * 16)
-    data[0], data[1] = 0x80, 0x80   # pixel 0 of row 0: both planes -> pen 3
-    words = ladybug._generate_base_tilemap(ctx, data)
+def test_ladybug_gfx_decoders():
+    assert len(read_patch_table(ladybug._HERE / "rom_patch.table")) > 0
+    data = bytearray(0x2000)
+    data[0], data[0x1000] = 0x01, 0x01  # x 0 y 0 in both planes -> pen 3
+    words = ladybug._decode_tiles(data)
     assert len(words) == 512 * 8 and words[0] == 3 and words[1] == 0
+    assert len(ladybug._decode_sprites(bytes(0x2000))) == 128 * 16
 
 
 def test_mario_data_files():

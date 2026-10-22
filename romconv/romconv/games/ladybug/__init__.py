@@ -1,21 +1,20 @@
-"""Lady Bug ROM converter: ladybug.zip -> galagino headers, with the per-position delta patches of
-the *.table files (next to this file)."""
+"""Lady Bug ROM converter: ladybug.zip -> galagino headers, with the per-position delta patch of
+rom_patch.table (next to this file) on the program ROM."""
 from pathlib import Path
 
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
 from romconv.emit.write import module_path
+from romconv.gfx.gfxutil import column_words, mame_decode, pack_pens, step
 from romconv.gfx.patchtable import apply_patch_values, read_patch_table
 
 _HERE = Path(__file__).parent
 
 # Costanti specifiche di Lady Bug
 _TILE_COUNT = 512
-_TILE_SIZE = 16
 
 _SPRITE_COUNT = 128
-_SPRITE_SIZE = 64
 
 _CPU_FILES = (
     ("l1.c4", 0x1000),
@@ -25,79 +24,24 @@ _CPU_FILES = (
     ("l5.j4", 0x1000),
     ("l6.k4", 0x1000),
 )
-_TILES_FILE = "l0.h7"
-_SPRITE_FILES = ("l7.m7", "l8.l7")
 
 _TARGET_SIZE = 24 * 1024
 
 
-def _generate_base_tilemap(ctx, tile_data):
-    values = []
-    expected_size = _TILE_COUNT * _TILE_SIZE
-    if len(tile_data) != expected_size:
-        ctx.log.warning(f" ATTENZIONE: tile data {len(tile_data)} bytes, attesi {expected_size}")
-        if len(tile_data) < expected_size:
-            tile_data.extend([0] * (expected_size - len(tile_data)))
-
-    for tile in range(_TILE_COUNT):
-        for row in range(8):
-            addr = tile * _TILE_SIZE + row * 2
-            if addr + 1 < len(tile_data):
-                plane0 = tile_data[addr]
-                plane1 = tile_data[addr + 1]
-                word = 0
-                for bit in range(8):
-                    p0 = (plane0 >> (7 - bit)) & 1
-                    p1 = (plane1 >> (7 - bit)) & 1
-                    pixel = (p1 << 1) | p0
-                    word |= (pixel << (bit * 2))
-                values.append(word)
-            else:
-                values.append(0)
-    return values
+def _decode_tiles(gfx1):
+    """512 chars (MAME charlayout, two separate bitplanes) as uint16 words per
+    native x column (ROT270)."""
+    tiles = mame_decode(gfx1, 8, 8, [0, _TILE_COUNT * 64], list(range(7, -1, -1)), step(0, 8, 8), 64, _TILE_COUNT)
+    return column_words(tiles, 2)
 
 
-def _generate_base_spritemap(ctx, sprite_bank0, sprite_bank1):
-    sprite_data = bytearray()
-    sprite_data.extend(sprite_bank0)
-    sprite_data.extend(sprite_bank1)
-
-    expected_size = _SPRITE_COUNT * _SPRITE_SIZE
-    if len(sprite_data) != expected_size:
-        ctx.log.warning(f" ATTENZIONE: sprite data {len(sprite_data)} bytes, attesi {expected_size}")
-        if len(sprite_data) < expected_size:
-            sprite_data.extend([0] * (expected_size - len(sprite_data)))
-
-    original_sprites = []
-    for sprite in range(_SPRITE_COUNT):
-        for row in range(16):
-            addr = sprite * _SPRITE_SIZE + row * 4
-            if addr + 3 < len(sprite_data):
-                plane0_low = sprite_data[addr]
-                plane0_high = sprite_data[addr + 1]
-                plane1_low = sprite_data[addr + 2]
-                plane1_high = sprite_data[addr + 3]
-
-                low_word = 0
-                high_word = 0
-
-                for bit in range(8):
-                    p0 = (plane0_low >> (7 - bit)) & 1
-                    p1 = (plane1_low >> (7 - bit)) & 1
-                    pixel = (p1 << 1) | p0
-                    low_word |= (pixel << (bit * 2))
-
-                    p0 = (plane0_high >> (7 - bit)) & 1
-                    p1 = (plane1_high >> (7 - bit)) & 1
-                    pixel = (p1 << 1) | p0
-                    high_word |= (pixel << (bit * 2))
-
-                long_val = (high_word << 16) | low_word
-                original_sprites.append(long_val)
-            else:
-                original_sprites.append(0)
-
-    return original_sprites
+def _decode_sprites(gfx2):
+    """128 sprites (MAME spritelayout, packed bitplanes), unflipped, as one
+    uint32 per native x column: pens of y = 0..15, y = 0 lowest."""
+    xoffs = step(0, 2, 8) + step(8 * 16, 2, 8)
+    yoffs = step(23 * 16, -16, 8) + step(7 * 16, -16, 8)
+    sprites = mame_decode(gfx2, 16, 16, [1, 0], xoffs, yoffs, 64 * 8, _SPRITE_COUNT)
+    return [pack_pens([sp[y][x] for y in range(16)], 2) for sp in sprites for x in range(16)]
 
 
 def _write_cpu_rom_header(ctx, cpu_data):
@@ -192,18 +136,8 @@ def _convert(ctx: Context) -> None:
         else:
             cpu_data.extend([0] * (_TARGET_SIZE - len(cpu_data)))
 
-    tile_data = ctx.rom(_TILES_FILE)
-    sprite_bank0 = ctx.rom(_SPRITE_FILES[0])
-    sprite_bank1 = ctx.rom(_SPRITE_FILES[1])
-
-    # === PASSO 1: Genera valori base ===
-    ctx.log.info("FASE 1: Generazione dati base...")
-
-    tile_base = _generate_base_tilemap(ctx, tile_data)
-    ctx.log.info(f" Generati {len(tile_base)} valori tile base")
-
-    sprite_base = _generate_base_spritemap(ctx, sprite_bank0, sprite_bank1)
-    ctx.log.info(f" Generati {len(sprite_base)} valori sprite base")
+    tile_final = _decode_tiles(ctx.rom("l9.f7") + ctx.rom("l0.h7"))
+    sprite_final = _decode_sprites(ctx.rom("l8.l7") + ctx.rom("l7.m7"))
 
     cpu_list = list(cpu_data)
     ctx.log.info(f" CPU data: {len(cpu_list)} bytes")
@@ -211,15 +145,8 @@ def _convert(ctx: Context) -> None:
     # === PASSO 2: Applica le patch ===
     ctx.log.info("FASE 2: Applicazione patch...")
 
-    # Tile patch (16 bit)
-    tile_final = apply_patch_values(tile_base, read_patch_table(_HERE / "til_patch.table"), 0xFFFF)
-
     # CPU patch (8 bit)
     cpu_final = bytearray(apply_patch_values(cpu_list, read_patch_table(_HERE / "rom_patch.table"), 0xFF))
-
-    # Sprite patch: delta sugli sprite non flippati (ladybug::blit_sprite
-    # applica il flip a runtime)
-    sprite_final = apply_patch_values(sprite_base, read_patch_table(_HERE / "spr_patch.table"), 0xFFFFFFFF)
 
     # === PASSO 3: Scrivi i file finali ===
     ctx.log.info("FASE 3: Scrittura file finali...")
