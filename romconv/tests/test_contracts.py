@@ -339,7 +339,8 @@ LEGACY_NAMES = frozenset("""
     tokisens
 """.split())
 NEW_NAMES = frozenset({"namco54", "system1_palette", "williams_palette", "pokey_poly", "unpack_fixture",
-                       "catalog", "bundles", "docastle", "contra", "mrgoemon", "jailbrek"})
+                       "catalog", "bundles", "docastle", "contra", "mrgoemon", "jailbrek",
+                       "scotrsht"})
 
 
 def test_cli_names_unchanged():
