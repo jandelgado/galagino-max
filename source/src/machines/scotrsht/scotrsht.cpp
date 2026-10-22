@@ -41,9 +41,13 @@ static const int MIN_STEP_CYCLES = 4;
 static const int INT_CYCLES = 13;  // IM 1 acknowledge
 static const uint8_t YM_TIMER_B = 0x02;
 
-// FM output: 1943 levels (one chip)
+// FM output (the music). MAME routes FM and SSG at equal gain: a
+// full-volume FM carrier (+-8191) as loud as an SSG square (0..16382).
+// Shift 6: carrier +-128, SSG channel +-75 (AY_GAIN 5). Twice MAME's
+// ratio: Ay8910's linear volume overstates the SSG at the volumes the
+// game uses (mostly 11-12). One minute of attract peaks at 388.
 static const uint32_t FM_RATE = 24000;
-static const int FM_SHIFT = 9;
+static const int FM_SHIFT = 6;
 
 // Sound idle loop (MAME dasm), waits for the timer B flag:
 //   021c EI / 021d IN A,(0) / AND 02h / JR Z,021d
