@@ -321,7 +321,8 @@ inline void __attribute__((noinline)) fireBlinkLeds(CRGB *leds, Input *input, ui
   }
   static const uint8_t BLINK = 4;  // frames per phase
   frame++;
-  fill_solid(leds, NUM_LEDS, (frame & BLINK) ? color : CRGB(CRGB::Black));
+  const CRGB c = (frame & BLINK) ? color : CRGB(CRGB::Black);
+  for (int i = 0; i < NUM_LEDS; i++) leds[i] = c;
 }
 #endif
 
