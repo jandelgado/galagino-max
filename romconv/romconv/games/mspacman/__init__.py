@@ -1,18 +1,9 @@
-"""
-Convertitore ROM Ms. Pac-Man con applicazione patch lineare
-- Genera il file spritemap temporaneo (come il convertitore originale)
-- Applica le patch linearmente valore per valore per posizione
-- Produce il file finale corretto
-- Elimina i file temporanei
-"""
-from pathlib import Path
-
+"""Ms. Pac-Man ROM converter: decrypted program ROM, Pac-Man format tiles and sprites."""
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
-from romconv.gfx.patchtable import apply_patch_values, read_patch_table
-
-_HERE = Path(__file__).parent
+from romconv.gfx.sprites import spritemap
+from romconv.gfx.tiles import charmap
 
 
 def _decode_byte(b):
@@ -33,35 +24,6 @@ def _addr_swap12(i):
             ((i>>2)&1)<<2   | ((i>>1)&1)<<1  | ((i>>0)&1)<<0)
 
 
-def _generate_sprite_values(gfx5e, gfx5f):
-    sprite_offset = 2048
-    max_gfx_size = len(gfx5f)
-    SPRITE_COUNT = 64
-    
-    # Unflipped: pacman::blit_sprite flips at draw time.
-    all_values = []
-    
-    for s in range(SPRITE_COUNT):
-        for r in range(16):
-            base = sprite_offset + (s * 64) + r
-            
-            b0l = gfx5f[base] if base < max_gfx_size else 0
-            b0h = gfx5f[base + 16] if (base + 16) < max_gfx_size else 0
-            b1l = gfx5f[base + 32] if (base + 32) < max_gfx_size else 0
-            b1h = gfx5f[base + 48] if (base + 48) < max_gfx_size else 0
-            
-            wl, wh = 0, 0
-            for bit in range(8):
-                p0l, p1l = (b0l >> (7-bit)) & 1, (b1l >> (7-bit)) & 1
-                p0h, p1h = (b0h >> (7-bit)) & 1, (b1h >> (7-bit)) & 1
-                wl |= (((p1l << 1) | p0l) << (bit * 2))
-                wh |= (((p1h << 1) | p0h) << (bit * 2))
-            val = (wh << 16) | wl
-            
-            all_values.append(val)
-
-    return all_values
-
 def _convert(ctx: Context) -> None:
     # Carica i ROM
     pac6e = ctx.rom("pacman.6e")
@@ -70,8 +32,6 @@ def _convert(ctx: Context) -> None:
     u5 = ctx.rom("u5")
     u6 = ctx.rom("u6")
     u7 = ctx.rom("u7")
-    gfx5e = ctx.rom("5e")
-    gfx5f = ctx.rom("5f")
 
     # 1. CPU ROM
     ctx.log.info("Generazione CPU ROM...")
@@ -103,43 +63,11 @@ def _convert(ctx: Context) -> None:
         for i in range(8):
             drom[dst + i] = drom[src + i]
 
-    # 2. TILEMAP
-    ctx.log.info("Generazione mspacman_tilemap.h...")
-    tile_count = 256
-    tile_base = []
-    
-    for t in range(tile_count):
-        for row in range(8):
-            idx = t * 8 + row
-            b0, b1 = gfx5e[idx], gfx5f[idx]
-            val = 0
-            for bit in range(8):
-                p0, p1 = (b0 >> (7-bit)) & 1, (b1 >> (7-bit)) & 1
-                val |= (((p1 << 1) | p0) << (bit * 2))
-            tile_base.append(val)
-    
-    tile_base = apply_patch_values(tile_base, read_patch_table(_HERE / "til_patch.table"), 0xFFFF)
+    # 2. Tiles and sprites: same format as Pac-Man
+    charmap(ctx, "mspacman_tilemap", "5e", "mspacman_tilemap.h", compress=True)
+    spritemap(ctx, "mspacman_sprites", "pacman", ["5f"], "mspacman_spritemap.h", compress=True)
 
-    with ctx.header("mspacman_tilemap.h") as f:
-        emit_compressed(f, "mspacman_tilemap", "unsigned short", "[8]", tile_count, tile_base)
-    ctx.log.info("  Scritto mspacman_tilemap.h")
-
-    # 3. SPRITEMAP - genera i valori base, applica la patch per posizione
-    # direttamente sulla lista piatta (non piu' a regex su testo C, ora che
-    # l'array e' compresso), poi scrive il file finale.
-    ctx.log.info("=== GENERAZIONE SPRITEMAP ===")
-
-    sprite_values = _generate_sprite_values(gfx5e, gfx5f)
-    ctx.log.info(f"  Generati {len(sprite_values)} valori")
-
-    sprite_values = apply_patch_values(sprite_values, read_patch_table(_HERE / "spr_patch.table"), 0xFFFFFFFF)
-
-    with ctx.header("mspacman_spritemap.h") as f:
-        emit_compressed(f, "mspacman_sprites", "uint32_t", "[16]", 64, sprite_values)
-
-    ctx.log.info("  File finale: mspacman_spritemap.h")
-
-    # 4. ROM FILES
+    # 3. ROM FILES
     ctx.log.info("Generazione ROM files...")
     with ctx.header("mspacman_pacrom.h") as f:
         emit_compressed(f, "mspacman_pacrom", "unsigned char", "", 0x4000, list(drom[0:0x4000]))

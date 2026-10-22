@@ -121,9 +121,6 @@ def test_mspacman_address_and_data_swaps():
         assert 0 <= mspacman._addr_swap12(i) < 0x1000
     assert sorted(mspacman._decode_byte(b) for b in range(256)) == list(range(256))
     assert mspacman._decode_byte(1) == 0x80
-    for table in ("til_patch.table", "spr_patch.table"):
-        assert len(read_patch_table(mspacman._HERE / table)) > 0
-    assert len(mspacman._generate_sprite_values(bytes(0x1000), bytes(0x1000))) == 64 * 16
 
 
 def test_pbaction_sprite32_check():
