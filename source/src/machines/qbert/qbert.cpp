@@ -90,7 +90,6 @@ void qbert::wrio(uint16_t a, uint8_t v) {
         if (cmdCount < CMD_QUEUE) {
           cmdQueue[cmdCount++] = v;
         }
-        game_started = 1;
         break;
       case IO_OUTPUT:
         outputLatch = v;
@@ -182,7 +181,10 @@ void qbert::run_frame(void) {
     publishVideo();
     enterNmi();
   }
+  // from the first frame on: attract with demo sounds off sends no sound
+  // command, the usual "first command" start signal
   booted = true;
+  game_started = 1;
   runCpu();
   runSound();
 }
