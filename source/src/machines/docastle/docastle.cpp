@@ -340,7 +340,7 @@ void docastle::run_frame(void) {
 
 // ── video core ──
 
-// MAME draws offs 0x1fc first, 0 last (on top): keep that order
+// MAME draws offs 0x1fc first, 0 last; the first drawn wins: keep that order
 void docastle::prepare_frame(void) {
   vblank.read(video);
 
@@ -386,9 +386,10 @@ void docastle::renderTiles(int strip) {
   }
 }
 
-// MAME draw_sprites with the priority bitmap: pens 8-14 draw, pen 15 draws
-// only over an earlier sprite, every opaque pen takes the pixel. Tile pens
-// 8-15 are drawn over all sprites, so those pixels are skipped here.
+// MAME draw_sprites with the priority bitmap (prio_transmask adds bit 31 to
+// pmask): an opaque pen (8-15) takes a free pixel, a taken pixel stays with
+// the earlier sprite. Pen 15 only takes the pixel (mask), never draws. Tile
+// pens 8-15 are drawn over all sprites, so those pixels are skipped here.
 void docastle::renderSprites(int strip) {
   memset(covered, 0, sizeof(covered));
   const int x_last = 8 * (33 - strip) + 7;  // native x of strip row 0
@@ -421,9 +422,11 @@ void docastle::renderSprites(int strip) {
         if (pen < PEN_FG) {
           continue;
         }
-        const bool draw = pen != PEN_MASK || covered[r][y];
+        if (covered[r][y]) {
+          continue;
+        }
         covered[r][y] = 1;
-        if (draw && !fg[r][y]) {
+        if (pen != PEN_MASK && !fg[r][y]) {
           dst[y] = pal[pen & 7];
         }
       }

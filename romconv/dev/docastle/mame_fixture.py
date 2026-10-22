@@ -5,10 +5,8 @@ test fixture source/test/test_docastle_video/mame_frames.h.
 usage: uv run python -m dev.docastle.mame_fixture <capture dir> <out.h> <frame> ...
        uv run python -m dev.docastle.mame_fixture <capture dir> --overlaps
 Snapshot N in <capture dir>/snap/docastle is frame FIRST + STEP * N (300, 10).
-Tiles and sprites from <frame>. In some gameplay frames MAME's snapshot
-differs from a model of its own screen_update fed with these dumps by a
-few sprite pixels (RAM sampled at another time): use frames where they
-match. --overlaps lists snapshot frames with overlapping sprites."""
+Tiles and sprites from <frame>. --overlaps lists snapshot frames with
+overlapping sprites."""
 import sys
 import zlib
 from pathlib import Path

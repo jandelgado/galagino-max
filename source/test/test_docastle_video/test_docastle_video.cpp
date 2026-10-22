@@ -134,6 +134,10 @@ static void test_frame_1040(void) { check(3); }  // overlapping sprites
 static void test_frame_1270(void) { check(4); }
 static void test_frame_1500(void) { check(5); }  // high scores
 static void test_frame_1700(void) { check(6); }
+// sprites overlapping: the first drawn (offs 0x1fc) wins, pen 15 is mask only
+static void test_frame_820(void) { check(7); }
+static void test_frame_1110(void) { check(8); }
+static void test_frame_1210(void) { check(9); }
 
 // columns and rows outside the 192x240 view stay black
 static void test_borders_black(void) {
@@ -161,6 +165,9 @@ int main(int argc, char **argv) {
   RUN_TEST(test_frame_1270);
   RUN_TEST(test_frame_1500);
   RUN_TEST(test_frame_1700);
+  RUN_TEST(test_frame_820);
+  RUN_TEST(test_frame_1110);
+  RUN_TEST(test_frame_1210);
   RUN_TEST(test_borders_black);
 #endif
   return UNITY_END();
