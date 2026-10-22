@@ -276,6 +276,12 @@
     #include "machines/choplift/choplift_bundle.h"
   #endif
 #endif
+#ifdef GAME_TOKISENS
+  #include "machines/tokisens/tokisens.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/tokisens/tokisens_bundle.h"
+  #endif
+#endif
 #ifdef GAME_MEGAZONE
   #include "machines/megazone/megazone.h"
   #ifdef ASSETS_REMOTE
@@ -1533,6 +1539,13 @@ constexpr machineInfo machines[] = {
     choplift::menuLeds,
 #endif
     MCH_CHOPLIFT, &choplift_arena_plan BUNDLE_REF(choplift_bundle_ref) },
+#endif
+#ifdef GAME_TOKISENS
+  { createMachine<tokisens>, tokisens::logo,
+#ifdef LED_PIN
+    tokisens::menuLeds,
+#endif
+    MCH_TOKISENS, &tokisens_arena_plan BUNDLE_REF(tokisens_bundle_ref) },
 #endif
 #ifdef GAME_MEGAZONE
   { createMachine<megazone>, megazone::logo,

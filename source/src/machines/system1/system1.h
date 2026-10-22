@@ -33,6 +33,7 @@ private:
   AnyAsset<unsigned char> lookup_prom;
   AnyAsset<unsigned char> opcode_rom;
   AnyAsset<unsigned char> bank_rom;
+  AnyAsset<unsigned char> bank_opcode_rom;
 
 public:
   void reset() override;
@@ -65,14 +66,26 @@ protected:
     AssetRef<unsigned char> opcodes;
     AssetRef<unsigned char> banks;  // 16 KB banks at 8000-bfff (Config::bank)
     const uint16_t *palette;      // palette RAM byte -> RGB565, else system1_palette
+    // MC-8123: opcode image of the banks, follows the data bank
+    AssetRef<unsigned char> bankOpcodes;
   };
   // sound latch / video mode chip: 8255 PPI (sys1ppi) or Z80 PIO (sys1pio).
-  // System 2 (sys2) is a PPI board with the mute bit inverted.
-  enum Board : uint8_t { BOARD_PPI, BOARD_PIO, BOARD_SYS2 };
+  // System 2 is a PPI board with the mute bit inverted: BOARD_SYS2 with
+  // row scroll (MAME sys2row), BOARD_SYS2_FIXED with one x scroll (sys2).
+  enum Board : uint8_t { BOARD_PPI, BOARD_PIO, BOARD_SYS2, BOARD_SYS2_FIXED };
 
   // ROT270: panel row = native x (column games). ROT0: panel row = native
-  // line, a 240 px window into the 256 px line (landscape games, upright)
-  enum Orientation : uint8_t { ROT270, ROT0 };
+  // line, a 240 px window into the 256 px line (landscape games, upright).
+  // ROT90: ROT270 turned by 180 degrees.
+  enum Orientation : uint8_t { ROT270, ROT0, ROT90 };
+
+  // VRAM: the CPU window only (pages 0-1 in memory[]), or all 8 System 2
+  // pages in the Arena, banked into the window by PPI port C bits 1-2.
+  // VRAM_PAGED needs ARENA_EXTRA entries of PAGED_VRAM_BYTES and twice
+  // PAGED_SNAP_BYTES (bg page copies, published and rendered).
+  enum Vram : uint8_t { VRAM_WINDOW, VRAM_PAGED };
+  static constexpr uint32_t PAGED_VRAM_BYTES = system1_video::SYS2_PAGES * system1_video::PAGE_BYTES;
+  static constexpr uint32_t PAGED_SNAP_BYTES = system1_video::BG_PAGES * system1_video::PAGE_BYTES;
 
   // main ROM banking at 8000-bfff: none, MAME bank44 (Heavy Metal):
   // bank = video mode bit 6, bit 2, or bank0c (Choplifter): bits 3, 2
@@ -90,6 +103,7 @@ protected:
     system1_video::Window window;  // ROT0 only
     Bank bank;          // omitted: BANK_NONE
     Buttons buttons;    // omitted: BUTTONS_GENERIC
+    Vram vram;          // omitted: VRAM_WINDOW
   };
   system1(const Roms &roms, const Config &config);
 
@@ -152,11 +166,16 @@ private:
   bool muted() const;
   system1_video::VideoBoard videoBoard() const;
   void selectBank();
+  uint8_t *vramWindow();
+  const uint8_t *vramBase() const;
+  uint8_t pageMask() const;
   void startVblank();
   void drawSprites(int strip);
   void mixStrip(int strip);
   void renderRot0(int strip);
   int playerX() const;
+  int rowOf(int x) const;
+  int xOf(int row) const;
   system1_video::LineSrc lineSrc() const;
 
   system1_video::TileSet tiles;
@@ -167,6 +186,11 @@ private:
   const uint8_t *opcodes;  // nullptr: M1 fetches read mainRom
   const uint8_t *banks;    // nullptr: no banked ROM
   const uint8_t *bank;     // current bank at 8000-bfff
+  const uint8_t *bankOps;     // nullptr: banks hold their own opcodes
+  const uint8_t *bankOpcode;  // current bank's opcodes
+  uint8_t *vramPages;     // VRAM_PAGED: 8 pages, else nullptr
+  uint8_t *snapPublished; // VRAM_PAGED: bg pages latched at vblank (Seqlock data)
+  uint8_t *snapRender;    // VRAM_PAGED: render copy of snapPublished
   const uint16_t *paletteLut;
   uint16_t mainRomSize;
   uint16_t soundRomSize;
