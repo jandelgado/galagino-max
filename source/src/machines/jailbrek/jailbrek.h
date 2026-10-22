@@ -38,6 +38,13 @@ public:
   jailbrek();
 
   signed char machineType() override { return MCH_JAILBREK; }
+  static const Logo &logo(void);
+
+#ifdef LED_PIN
+  static void menuLeds(CRGB *leds);
+  void gameLeds(CRGB *leds) override;
+#endif
+
   void renderAudio(int16_t *out, int n) override;
   const int renderWidth() override { return OUT_WIDTH; }
   const int renderBuffer() override { return OUT_WIDTH * 2 * 8; }
@@ -83,6 +90,10 @@ private:
   void render_tiles_rows(unsigned short *dst, int line);
   void render_tiles_cols(unsigned short *dst, int line);
   void render_line(unsigned short *dst, int line);
+
+#ifdef LED_PIN
+  uint8_t led_frame = 0;  // gameLeds() blink counter
+#endif
 
   m6809_state main_cpu;
   uint32_t main_cycles = 0;  // 6809 cycles since reset

@@ -640,6 +640,7 @@ const char *mchName(signed char machineType) {
     case MCH_PHOZON:        return "Phozon";
     case MCH_GBERET:        return "Green Beret";
     case MCH_MRGOEMON:      return "Mr. Goemon";
+    case MCH_JAILBREK:      return "Jail Break";
     case MCH_HERO:          return "H.E.R.O.";
     case MCH_MARBLE:        return "Marble Madness";
   }

@@ -462,6 +462,12 @@
     #include "machines/mrgoemon/mrgoemon_bundle.h"
   #endif
 #endif
+#ifdef GAME_JAILBREK
+  #include "machines/jailbrek/jailbrek.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/jailbrek/jailbrek_bundle.h"
+  #endif
+#endif
 #ifdef GAME_HERO
   #include "machines/hero/hero.h"
   #ifdef ASSETS_REMOTE
@@ -1484,6 +1490,13 @@ constexpr machineInfo machines[] = {
     mrgoemon::menuLeds,
 #endif
     MCH_MRGOEMON, &mrgoemon_arena_plan BUNDLE_REF(mrgoemon_bundle_ref) },
+#endif
+#ifdef GAME_JAILBREK
+  { createMachine<jailbrek>, jailbrek::logo,
+#ifdef LED_PIN
+    jailbrek::menuLeds,
+#endif
+    MCH_JAILBREK, &jailbrek_arena_plan BUNDLE_REF(jailbrek_bundle_ref) },
 #endif
 #ifdef GAME_HERO
   { createMachine<hero>, hero::logo,

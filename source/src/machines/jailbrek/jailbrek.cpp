@@ -10,6 +10,7 @@
 #ifdef GAME_JAILBREK
 
 #include "jailbrek.h"
+#include "jailbrek_logo.h"
 #include "../../emulation/input.h"
 #include "jailbrek_rom.h"
 #include "jailbrek_vlm.h"
@@ -364,6 +365,36 @@ void jailbrek::render_row(short row) {
     render_line(dst, line);
   }
 }
+
+const Logo &jailbrek::logo(void) {
+  return jailbrek_logo;
+}
+
+#ifdef LED_PIN
+// from logos/jailbrek.png: red, orange, yellow
+static const CRGB JAILBREK_LED_RED = CRGB(0xe61e1e);
+static const CRGB JAILBREK_LED_ORANGE = CRGB(0xf18a0e);
+static const CRGB JAILBREK_LED_YELLOW = CRGB(0xfff078);
+
+void jailbrek::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[NUM_LEDS] = {
+      JAILBREK_LED_RED, JAILBREK_LED_ORANGE, JAILBREK_LED_YELLOW, JAILBREK_LED_YELLOW,
+      JAILBREK_LED_YELLOW, JAILBREK_LED_ORANGE, JAILBREK_LED_RED};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
+}
+
+static const uint8_t JAILBREK_FIRE_BLINK = 4;  // frames per blink phase
+
+// blink red while FIRE is held, else the menu colors
+void jailbrek::gameLeds(CRGB *leds) {
+  if (!(input->buttons_get() & BUTTON_FIRE)) {
+    menuLeds(leds);
+    return;
+  }
+  led_frame++;
+  fill_solid(leds, NUM_LEDS, (led_frame & JAILBREK_FIRE_BLINK) ? JAILBREK_LED_RED : CRGB::Black);
+}
+#endif
 
 // ── audio, video core ──
 
