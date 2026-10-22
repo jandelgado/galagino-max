@@ -575,6 +575,7 @@ const char *mchName(signed char machineType) {
     case MCH_MEGAZONE:      return "Mega Zone";
     case MCH_CHOPLIFT:      return "Choplifter";
     case MCH_TOKISENS:      return "Toki no Senshi";
+    case MCH_TAPPER:        return "Tapper";
     case MCH_SELFTEST:      return "Self Test";
     case MCH_CIRCUSC:       return "Circus Charlie";
     case MCH_ROCNROPE:      return "Roc'n Rope";

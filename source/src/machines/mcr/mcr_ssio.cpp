@@ -1,5 +1,5 @@
 #include "../../catalog.h"
-#if defined(GAME_TRON) || defined(GAME_DOTRON) || defined(GAME_SHOLLOW)
+#if defined(GAME_TRON) || defined(GAME_DOTRON) || defined(GAME_SHOLLOW) || defined(GAME_TAPPER)
 
 #include "mcr_ssio.h"
 #include <string.h>
@@ -19,6 +19,10 @@ static const int MIN_STEP_CYCLES = 4;
 static const uint8_t IDLE_LOOP[] = {0x3a, 0x00, 0x00, 0xb7, 0x28, 0xfa};
 static const uint8_t IDLE_FLAG_LO = 1, IDLE_FLAG_HI = 2;
 static const int IDLE_PASS_CYCLES = 29;
+// ld hl,ref / loop: ld a,(flag) / cp (hl) / jr c,loop (tapper 0x0272)
+static const uint8_t IDLE_CMP_LOOP[] = {0x21, 0x00, 0x00, 0x3a, 0x00, 0x00, 0xbe, 0x38, 0xfa};
+static const uint8_t IDLE_CMP_REF_LO = 1, IDLE_CMP_REF_HI = 2, IDLE_CMP_LOOP_OFFS = 3;
+static const int IDLE_CMP_PASS_CYCLES = 32;
 static const uint8_t RAM_PAGE = 0x8;  // 8000-8fff, see rd()
 
 // ICount starts at 0 every step: block opcodes (LDIR) loop while ICount > 0,
@@ -47,10 +51,14 @@ void McrSsio::attach(const uint8_t *r, uint16_t size, uint8_t *m, const uint8_t 
 }
 
 // The sound program waits for its ISR in a loop that only polls a RAM flag
-// (tron 0x0101, dotron 0x010b, flag 0x8374). run() charges a pass of it
-// without stepping the Z80: up to 3/4 of the sound CPU time.
+// (tron 0x0101, dotron 0x010b, flag 0x8374) or compares two RAM bytes
+// (tapper 0x0272: 0x8041 < 0x8040). run() charges a pass of it without
+// stepping the Z80: up to 3/4 of the sound CPU time.
 void McrSsio::findIdleLoop() {
   idlePc = NO_IDLE_LOOP;
+  if (findIdleCmpLoop()) {
+    return;
+  }
   for (uint16_t a = 0; a + sizeof(IDLE_LOOP) <= romSize; a++) {
     const uint8_t *p = rom + a;
     if (p[0] != IDLE_LOOP[0] || memcmp(p + 3, IDLE_LOOP + 3, sizeof(IDLE_LOOP) - 3)) {
@@ -62,8 +70,43 @@ void McrSsio::findIdleLoop() {
     }
     idlePc = a;
     idleFlag = flag & (RAM_SIZE - 1);
+    idleRef = NO_IDLE_REF;
+    idlePassCycles = IDLE_PASS_CYCLES;
     return;
   }
+}
+
+bool McrSsio::findIdleCmpLoop() {
+  for (uint16_t a = 0; a + sizeof(IDLE_CMP_LOOP) <= romSize; a++) {
+    const uint8_t *p = rom + a;
+    if (p[0] != IDLE_CMP_LOOP[0] || p[3] != IDLE_CMP_LOOP[3] ||
+        memcmp(p + 6, IDLE_CMP_LOOP + 6, sizeof(IDLE_CMP_LOOP) - 6)) {
+      continue;
+    }
+    const uint16_t ref = p[IDLE_CMP_REF_LO] | (p[IDLE_CMP_REF_HI] << 8);
+    const uint16_t flag = p[IDLE_CMP_LOOP_OFFS + IDLE_FLAG_LO] | (p[IDLE_CMP_LOOP_OFFS + IDLE_FLAG_HI] << 8);
+    if ((ref >> 12) != RAM_PAGE || (flag >> 12) != RAM_PAGE) {
+      continue;
+    }
+    idlePc = a + IDLE_CMP_LOOP_OFFS;
+    idleFlag = flag & (RAM_SIZE - 1);
+    idleRef = ref & (RAM_SIZE - 1);
+    idlePassCycles = IDLE_CMP_PASS_CYCLES;
+    return true;
+  }
+  return false;
+}
+
+// HL still points at ref inside the loop: an ISR that runs meanwhile
+// restores it before it returns to the loop
+bool McrSsio::idle(const Z80 &cpu) const {
+  if (cpu.PC.W != idlePc) {
+    return false;
+  }
+  if (idleRef == NO_IDLE_REF) {
+    return !ram[idleFlag];
+  }
+  return ram[idleFlag] < ram[idleRef];
 }
 
 void McrSsio::reset() {
@@ -96,8 +139,7 @@ void McrSsio::run(Z80 &cpu, int cycles) {
     if (irqLine && (cpu.IFF & IFF_1)) {
       IntZ80(&cpu, INT_RST38);
     }
-    const bool idle = cpu.PC.W == idlePc && !ram[idleFlag];
-    const int used = idle ? IDLE_PASS_CYCLES : mcrStepZ80(cpu);
+    const int used = idle(cpu) ? idlePassCycles : mcrStepZ80(cpu);
     debt -= used;
     tickCounter(used);
   }

@@ -115,6 +115,7 @@ GAMES = [
     "trackfld",
     "tron",
     "dotron",
+    "tapper",
     "shollow",
     "motos",
     "jungleh",

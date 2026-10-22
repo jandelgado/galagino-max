@@ -238,8 +238,8 @@ evicted first. Menu entries not cached yet show a NET marker.
 | Sinistar (sinistar.zip)       | ![Sinistar marquee](/logos/sinistar.png) | ![Sinistar screenshot](/images/sinistar.png) | Rev 3 upright. 49-way stick from the 8-way stick. FIRE=fire, START=sinibomb (EXTRA without COIN pin) |
 | Yie Ar Kung-Fu (yiear.zip)    | ![Yie Ar Kung-Fu marquee](/logos/yiear.png) | ![Yie Ar Kung-Fu screenshot](/images/yiear.png) | VLM5030 speech. FIRE=punch, START=kick |
 | Track & Field (trackfld.zip)  | ![Track & Field marquee](/logos/trackfld.png) | ![Track & Field screenshot](/images/trackfld.png) | VLM5030 speech. Left/right=run, FIRE=jump |
-| Tron (tron.zip)               | ![Tron marquee](/logos/tron.png) | ![Tron screenshot](/images/tron.png) | The aim dial turns toward the stick direction. FIRE=fire |
-| Discs of Tron (dotron.zip)    | ![Discs of Tron marquee](/logos/dotron.png) | ![Discs of Tron screenshot](/images/dotron.png) | Auto-aim at the opponent. FIRE=throw |
+| Tron (tron.zip)               | ![Tron marquee](/logos/tron.png) | ![Tron screenshot](/images/tron.png) | Also needs midssio.zip. The aim dial turns toward the stick direction. FIRE=fire |
+| Discs of Tron (dotron.zip)    | ![Discs of Tron marquee](/logos/dotron.png) | ![Discs of Tron screenshot](/images/dotron.png) | Also needs midssio.zip. Auto-aim at the opponent. FIRE=throw |
 | Elevator Action (elevator.zip) | ![Elevator Action marquee](/logos/elevator.png) | ![Elevator Action screenshot](/images/elevator.png) | Bootleg set elevatorb (no MCU). FIRE=shoot, UP+FIRE=jump (controller B=jump) |
 | Major Havoc (mhavoc.zip)      | ![Major Havoc marquee](/logos/mhavoc.png) | ![Major Havoc screenshot](/images/mhavoc.png) | Rev 3. Left/right=roller, FIRE=fire/jump, DOWN=shield (controller A=fire, B=shield). No start button: START presses FIRE. Small text enlarged |
 | Satan's Hollow (shollow.zip)  | ![Satan's Hollow marquee](/logos/shollow.png) | ![Satan's Hollow screenshot](/images/shollow.png) | Also needs midssio.zip. FIRE=fire, UP/DOWN=shield (controller B=shield) |
@@ -247,6 +247,7 @@ evicted first. Menu entries not cached yet show a NET marker.
 | Jungle Hunt (junglek.zip)     | ![Jungle Hunt marquee](/logos/jungleh.png) | ![Jungle Hunt screenshot](/images/jungleh.png) | Set jungleh (US) from junglek.zip, Taito SJ board without MCU. FIRE=jump/stab |
 | Mega Zone (megazone.zip)      | ![Mega Zone marquee](/logos/megazone.png) | ![Mega Zone screenshot](/images/megazone.png) | FIRE=fire |
 | Choplifter (choplift.zip)     | ![Choplifter marquee](/logos/choplift.png) | ![Choplifter screenshot](/images/choplift.png) | Set chopliftu (unprotected), Sega System 2. FIRE=shoot, START=turn (controller B=turn) |
-| Toki no Senshi (Chrono Soldier) (tokisens.zip)      | ![Tokisens marquee](/logos/tokisens.png) | ![Tokisens screenshot](/images/megazone.png) | FIRE=fire |
+| Toki no Senshi (Chrono Soldier) (tokisens.zip)      | ![Tokisens marquee](/logos/tokisens.png) | ![Tokisens screenshot](/images/tokisens.png) | FIRE=fire |
+| Tapper (tapper.zip)           | ![Tapper marquee](/logos/tapper.png) | ![Tapper screenshot](/images/Tapper.png) | Set "Tapper (Budweiser, set 1)", files tappg0.bin etc. Also needs midssio.zip. FIRE=fire |
 
 ### ...

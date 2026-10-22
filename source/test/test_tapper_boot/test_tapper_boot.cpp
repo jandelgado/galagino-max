@@ -1,0 +1,319 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unity.h>
+
+// Boots the real Tapper ROM on the host through the machine class:
+// CTC IM 2 interrupts, SSIO sound CPU and latches, render path. Writes
+// frames to $TMPDIR/tapper_*.ppm for a look by eye. ROM headers come from
+// romconv (./convert.sh tapper) and are not in the repo: without them the
+// test is skipped. Arduino.h / FastLED.h / esp_attr.h here are host stubs.
+// Frame numbers count 60 Hz fields: MAME frame N (30 Hz) = field 2N.
+#if __has_include("../../src/machines/tapper/tapper_rom.h")
+#define HAVE_ROM 1
+#define ENABLE_TAPPER
+#include "../../src/emulation/lzma/LzmaDec.c"
+#include "../../src/emulation/arena.cpp"
+#include "../../src/cpus/z80/Z80.c"
+#define MCR_Z80_TABLES_INCLUDED
+#include "../../src/emulation/ay8910.cpp"
+#include "../../src/machines/mcr/mcr_ssio.cpp"
+// tests read sprite and input state
+#define private public
+#define protected public
+#include "../../src/machines/tapper/tapper.cpp"
+#undef private
+#undef protected
+#endif
+
+void setUp(void) {}
+void tearDown(void) {}
+
+#ifdef HAVE_ROM
+static unsigned int keys;
+unsigned int Input::buttons_get(void) { return keys; }
+static bool demoOff;
+bool Input::demoSoundsOff(void) { return demoOff; }
+
+static tapper *machine;
+static uint32_t frame;
+static uint32_t watchdogWrites, latchWrites, ip0Reads;
+
+static const uint8_t PORT_WATCHDOG = 0xe0, PORT_LATCH0 = 0x1c, PORT_IP0 = 0x00;
+
+// opcode fetches at one address per CPU
+static uint16_t watchPc[2];
+static uint32_t watchFetches[2];
+
+extern "C" {
+unsigned char OpZ80_INL(unsigned short a) {
+  watchFetches[machine->current_cpu] += a == watchPc[machine->current_cpu];
+  return machine->opZ80(a);
+}
+unsigned char OpPrefixZ80_INL(unsigned short a) { return machine->opZ80(a); }
+unsigned char RdZ80(unsigned short a) { return machine->rdZ80(a); }
+void WrZ80(unsigned short a, unsigned char v) { machine->wrZ80(a, v); }
+unsigned char InZ80(unsigned short p) {
+  if ((p & 0xff) == PORT_IP0) {
+    ip0Reads++;
+  }
+  return machine->inZ80(p);
+}
+void OutZ80(unsigned short p, unsigned char v) {
+  const uint8_t port = p & 0xff;
+  if (port == PORT_WATCHDOG) {
+    watchdogWrites++;
+  }
+  if (port >= PORT_LATCH0 && port < PORT_LATCH0 + 4) {
+    latchWrites++;
+  }
+  machine->outZ80(p, v);
+}
+void PatchZ80(Z80 *) {}
+word LoopZ80(Z80 *) { return INT_NONE; }
+}
+void Reset6502(M6502 *) {} // machineBase::reset(), no 6502 here
+
+static Input input;
+static unsigned short frame_buffer[240 * 8];
+static sprite_S sprites[128];
+static unsigned char memory[RAMSIZE];
+static uint16_t screen[288][240];
+
+static const uint32_t TITLE_FRAME = 400;     // MAME 200: "Tapper" title box
+static const uint32_t ATTRACT_FRAMES = 2400;
+static const uint32_t COIN_FRAME = 3000;
+static const uint32_t START_FRAME = 3120;
+static const uint32_t GAME_FRAME = 3600;
+static const int AUDIO_CHUNKS = 6;  // Audio::transmit() per screen
+
+static void boot(void) {
+  static bool booted = false;
+  if (booted) {
+    return;
+  }
+  booted = true;
+  Arena::init();
+  Arena::reserve(&tapper_arena_plan);  // like switchTo()
+  machine = new tapper();
+  machine->init(&input, frame_buffer, sprites, memory);
+  machine->reset();
+  machine->start();
+  machine->start();
+}
+
+// one 60 Hz frame as main.cpp drives it; returns the audio peak
+static int32_t runFrame(void) {
+  machine->run_frame();
+  frame++;
+
+  int32_t peak = 0;
+  for (int c = 0; c < AUDIO_CHUNKS; c++) {
+    int16_t out[64];
+    machine->renderAudio(out, 64);
+    for (int i = 0; i < 64; i++) {
+      const int32_t a = out[i] < 0 ? -out[i] : out[i];
+      peak = a > peak ? a : peak;
+    }
+  }
+  return peak;
+}
+
+static void runTo(uint32_t f) {
+  while (frame < f) {
+    runFrame();
+  }
+}
+
+// RGB565, bytes swapped for SPI -> 8 bit RGB
+static void putPixel(FILE *f, uint16_t v) {
+  v = (uint16_t)((v << 8) | (v >> 8));
+  const uint8_t rgb[3] = {(uint8_t)((v >> 8) & 0xf8), (uint8_t)((v >> 3) & 0xfc),
+                          (uint8_t)((v << 3) & 0xf8)};
+  fwrite(rgb, 1, 3, f);
+}
+
+// all 36 strips into screen[], also written as $TMPDIR/<name>.ppm
+static void renderScreen(const char *name) {
+  machine->prepare_frame();
+  for (int row = 0; row < 36; row++) {
+    memset(frame_buffer, 0, sizeof(frame_buffer));
+    machine->render_row(row);
+    memcpy(screen[row * 8], frame_buffer, sizeof(frame_buffer));
+  }
+  const char *dir = getenv("TMPDIR");
+  char path[512];
+  snprintf(path, sizeof(path), "%s/%s.ppm", dir ? dir : "/tmp", name);
+  FILE *f = fopen(path, "wb");
+  TEST_ASSERT_NOT_NULL(f);
+  fprintf(f, "P6\n240 288\n255\n");
+  for (int y = 0; y < 288; y++) {
+    for (int x = 0; x < 240; x++) {
+      putPixel(f, screen[y][x]);
+    }
+  }
+  fclose(f);
+  printf("frame %u written to %s\n", frame, path);
+}
+
+static uint32_t litPixels(int row0, int row1) {
+  uint32_t lit = 0;
+  for (int y = row0; y < row1; y++) {
+    for (int x = 0; x < 240; x++) {
+      lit += screen[y][x] != 0;
+    }
+  }
+  return lit;
+}
+
+// title: box in the upper half, nothing outside the 240 visible rows
+static void test_title_frame(void) {
+  boot();
+  runTo(TITLE_FRAME);
+  renderScreen("tapper_title");
+  TEST_ASSERT_EQUAL_UINT32(0, litPixels(0, 24));
+  TEST_ASSERT_EQUAL_UINT32(0, litPixels(264, 288));
+  TEST_ASSERT_GREATER_THAN_UINT32(5000, litPixels(80, 160));
+}
+
+// attract mode: CTC interrupts drive the game loop, it polls inputs, kicks
+// the watchdog, sends sound commands and draws tiles
+static void test_attract_runs(void) {
+  boot();
+  int32_t peak = 0;
+  while (frame < ATTRACT_FRAMES) {
+    const int32_t p = runFrame();
+    peak = p > peak ? p : peak;
+  }
+  printf("attract: watchdog %u, latch writes %u, IP0 reads %u, audio peak %d\n", watchdogWrites,
+         latchWrites, ip0Reads, peak);
+  TEST_ASSERT_TRUE(machine->game_started);
+  TEST_ASSERT_GREATER_THAN_UINT32(1000, watchdogWrites);
+  TEST_ASSERT_GREATER_THAN_UINT32(0, latchWrites);
+  TEST_ASSERT_GREATER_THAN_UINT32(0, ip0Reads);
+  TEST_ASSERT_GREATER_THAN_INT32(0, peak);
+  TEST_ASSERT_LESS_OR_EQUAL_INT32(AUDIO_MAX, peak);
+}
+
+// SSIO ports as MAME INPUT_PORTS_START(tapper), active low
+static void test_input_ports(void) {
+  boot();
+  keys = 0;
+  TEST_ASSERT_EQUAL_HEX8(0xff, machine->read_input(0));
+  TEST_ASSERT_EQUAL_HEX8(0xff, machine->read_input(1));
+  TEST_ASSERT_EQUAL_HEX8(0xfb, machine->read_input(3));  // demo sounds on, upright
+  demoOff = true;
+  TEST_ASSERT_EQUAL_HEX8(0xff, machine->read_input(3));  // SILENT_ATTRACT_MODE / FIRE at boot
+  demoOff = false;
+
+  keys = BUTTON_COIN | BUTTON_START;
+  TEST_ASSERT_EQUAL_HEX8(0xff & ~0x01 & ~0x04, machine->read_input(0));
+  keys = BUTTON_RIGHT;
+  TEST_ASSERT_EQUAL_HEX8(0xfe, machine->read_input(1));
+  keys = BUTTON_LEFT;
+  TEST_ASSERT_EQUAL_HEX8(0xfd, machine->read_input(1));
+  keys = BUTTON_DOWN;
+  TEST_ASSERT_EQUAL_HEX8(0xfb, machine->read_input(1));
+  keys = BUTTON_UP;
+  TEST_ASSERT_EQUAL_HEX8(0xf7, machine->read_input(1));
+  keys = BUTTON_FIRE;
+  TEST_ASSERT_EQUAL_HEX8(0xef, machine->read_input(1));
+  keys = 0;
+}
+
+// Both CPUs spend most of a frame in loops that wait for their ISR (attract:
+// main 82 %, sound 56 % of all instructions). run_frame() skips them.
+static void test_idle_loops_skipped(void) {
+  static const uint8_t MAIN_LOOP[] = {0x3a, 0x6c, 0xe1, 0xfe, 0x01, 0x38, 0xf9};
+  static const uint8_t SOUND_LOOP[] = {0x21, 0x40, 0x80, 0x3a, 0x41, 0x80, 0xbe, 0x38, 0xfa};
+  static const uint16_t MAIN_LOOP_PC = 0x60e8, SOUND_LOOP_PC = 0x0272;
+  static const uint32_t FRAMES = 60;
+  boot();
+  for (uint16_t i = 0; i < sizeof(MAIN_LOOP); i++) {
+    TEST_ASSERT_EQUAL_HEX8(MAIN_LOOP[i], machine->rdZ80(MAIN_LOOP_PC + i));
+  }
+  for (uint16_t i = 0; i < sizeof(SOUND_LOOP); i++) {
+    TEST_ASSERT_EQUAL_HEX8(SOUND_LOOP[i], machine->sound_rom[SOUND_LOOP_PC - 3 + i]);
+  }
+
+  watchPc[0] = MAIN_LOOP_PC;
+  watchPc[1] = SOUND_LOOP_PC;
+  watchFetches[0] = watchFetches[1] = 0;
+  runTo(frame + FRAMES);
+  watchPc[0] = watchPc[1] = 0xffff;
+  printf("idle loop fetches: main %u, sound %u\n", watchFetches[0], watchFetches[1]);
+  // a few per frame: the pass that leaves the loop
+  TEST_ASSERT_LESS_OR_EQUAL(FRAMES * 4, watchFetches[0]);
+  TEST_ASSERT_LESS_OR_EQUAL(FRAMES * 8, watchFetches[1]);
+}
+
+// coin + start reach the game: bartender and customers on screen
+static void test_coin_start_reaches_game(void) {
+  boot();
+  runTo(COIN_FRAME);
+  keys = BUTTON_COIN;
+  runTo(COIN_FRAME + 10);
+  keys = 0;
+  runTo(START_FRAME);
+  keys = BUTTON_START;
+  runTo(START_FRAME + 10);
+  keys = 0;
+  runTo(GAME_FRAME);
+  renderScreen("tapper_game");
+  printf("active sprites %d\n", machine->active_sprites);
+  TEST_ASSERT_GREATER_THAN_INT(2, machine->active_sprites);
+  TEST_ASSERT_GREATER_THAN_UINT32(20000, litPixels(24, 264));
+}
+
+#ifdef LED_PIN
+static bool sameLeds(const CRGB *a, const CRGB *b) {
+  for (int i = 0; i < NUM_LEDS; i++) {
+    if (a[i].r != b[i].r || a[i].g != b[i].g || a[i].b != b[i].b) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// a new sound command flashes all LEDs for a few frames, then menu colors
+static void test_leds_flash_on_sound_command(void) {
+  boot();
+  CRGB menu[NUM_LEDS], game[NUM_LEDS];
+  tapper::menuLeds(menu);
+  TEST_ASSERT_FALSE(menu[0].r == menu[3].r && menu[0].g == menu[3].g && menu[0].b == menu[3].b);
+
+  runTo(frame + 10);
+  machine->outZ80(PORT_LATCH0, (uint8_t)(machine->last_command + 1));
+  machine->gameLeds(game);
+  TEST_ASSERT_FALSE(sameLeds(game, menu));
+  for (int i = 1; i < NUM_LEDS; i++) {  // one flash color
+    TEST_ASSERT_EQUAL_UINT8(game[0].r, game[i].r);
+    TEST_ASSERT_EQUAL_UINT8(game[0].g, game[i].g);
+    TEST_ASSERT_EQUAL_UINT8(game[0].b, game[i].b);
+  }
+
+  keys = 0;
+  for (int i = 0; i < 4; i++) {
+    machine->run_frame();
+  }
+  machine->outZ80(PORT_LATCH0, machine->last_command);  // same command: no flash
+  machine->gameLeds(game);
+  TEST_ASSERT_TRUE(sameLeds(game, menu));
+}
+#endif
+#endif
+
+int main(int argc, char **argv) {
+  UNITY_BEGIN();
+#ifdef HAVE_ROM
+  RUN_TEST(test_title_frame);
+  RUN_TEST(test_attract_runs);
+  RUN_TEST(test_input_ports);
+  RUN_TEST(test_idle_loops_skipped);
+  RUN_TEST(test_coin_start_reaches_game);
+#ifdef LED_PIN
+  RUN_TEST(test_leds_flash_on_sound_command);
+#endif
+#endif
+  return UNITY_END();
+}
