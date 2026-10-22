@@ -239,7 +239,7 @@ void Ym2203Fm::render(int32_t *out, int n, uint32_t out_rate) {
 }
 
 uint32_t Ym2203Fm::fmRate() const {
-  return CLOCK / (12 * prescale);
+  return clock_hz / (12 * prescale);
 }
 
 // ym2203::write_address: $2D-$2F select the prescaler

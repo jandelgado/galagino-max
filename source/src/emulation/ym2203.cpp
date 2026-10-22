@@ -7,6 +7,14 @@ Ym2203::Ym2203(uint8_t ssg_inc, uint8_t ssg_gain, Ym2203Fm *fm)
 
 void Ym2203::writeAddress(uint8_t a) {
   addr = a;
+  // ymfm ym2203::write_address: $2d-$2f select the prescaler
+  if (a == 0x2d) {
+    pre = 6;
+  } else if (a == 0x2e && pre == 6) {
+    pre = 3;
+  } else if (a == 0x2f) {
+    pre = 2;
+  }
   if (fm) {
     fm->writeAddress(a);  // prescaler writes ($2d-$2f) are address-only
   }
@@ -17,6 +25,22 @@ void Ym2203::writeData(uint8_t value) {
     ssg_regs[addr] = value;
     return;
   }
+  switch (addr) {
+  case 0x24:
+    a_val = (uint16_t)((a_val & 3) | (value << 2));
+    break;
+  case 0x25:
+    a_val = (uint16_t)((a_val & 0x3fc) | (value & 3));
+    break;
+  case 0x26:
+    b_val = value;
+    break;
+  case 0x27:
+    writeMode(value);
+    break;
+  default:
+    break;
+  }
   if (fm) {
     fm->writeData(addr, value);
   }
@@ -25,6 +49,57 @@ void Ym2203::writeData(uint8_t value) {
 void Ym2203::reset(void) {
   addr = 0;
   memset(ssg_regs, 0, sizeof(ssg_regs));
+  a_val = 0;
+  b_val = 0;
+  pre = 6;
+  mode = 0;
+  status = 0;
+  a_run = false;
+  b_run = false;
+}
+
+// reg 27: b0/b1 load, b2/b3 flag enable, b4/b5 flag reset (ymfm
+// fm_engine::engine_mode_write). A running timer is not restarted.
+void Ym2203::writeMode(uint8_t value) {
+  mode = value;
+  status &= (uint8_t)~((value >> 4) & 3);
+  if ((value & 1) && !a_run) {
+    a_run = true;
+    a_left = periodA();
+  } else if (!(value & 1)) {
+    a_run = false;
+  }
+  if ((value & 2) && !b_run) {
+    b_run = true;
+    b_left = periodB();
+  } else if (!(value & 2)) {
+    b_run = false;
+  }
+}
+
+void Ym2203::tick(uint32_t cycles) {
+  if (a_run) {
+    uint32_t c = cycles;
+    while (c >= a_left) {
+      c -= a_left;
+      if (mode & 4) {
+        status |= 1;
+      }
+      a_left = periodA();
+    }
+    a_left -= c;
+  }
+  if (b_run) {
+    uint32_t c = cycles;
+    while (c >= b_left) {
+      c -= b_left;
+      if (mode & 8) {
+        status |= 2;
+      }
+      b_left = periodB();
+    }
+    b_left -= c;
+  }
 }
 
 void Ym2203::renderSsg(int16_t *out, int n) { ssg.render(ssg_regs, out, n); }
