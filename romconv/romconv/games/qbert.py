@@ -1,7 +1,5 @@
 # Q*bert (Gottlieb 1982), MAME gottlieb/gottlieb.cpp, set qbert.
-# The 8088 program is not emulated: romconv/dev/qbert/translate.py turned it
-# into source/src/machines/qbert/qbert_cpu.cpp once. The code still reads its
-# data tables from the ROM image emitted here.
+# The 8088 program runs on the i8086 core; the main ROM image is emitted whole.
 # Tiles: 8x8 4bpp (gfx_8x8x4_packed_msb), 256 codes, one uint32_t per native
 #   x column, nibble k = pixel at native y k (ROT270: native x = panel line).
 # Sprites: 16x16 4bpp (spr_layout, qb-fg3 = plane 0 = MSB), 256 codes, two
