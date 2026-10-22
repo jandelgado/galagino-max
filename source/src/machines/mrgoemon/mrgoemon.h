@@ -14,7 +14,7 @@ public:
 
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
-  void gameLeds(CRGB *leds) override { menuLeds(leds); }
+  void gameLeds(CRGB *leds) override;
 #endif
 
   unsigned char rdZ80(unsigned short Addr) override;

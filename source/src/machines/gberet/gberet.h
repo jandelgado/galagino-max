@@ -88,15 +88,15 @@ private:
   bool irq_line = false;    // held until e044 clears b1/b2
   uint8_t sprite_bank = 0;  // e043
   uint8_t sn_latch = 0;     // f200
-#ifdef LED_PIN
-  uint8_t led_frame = 0;
-#endif
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const uint32_t (*tiles)[8] = nullptr;
   const uint32_t (*sprites)[16][2] = nullptr;
 
 protected:
+#ifdef LED_PIN
+  uint8_t led_frame = 0;  // gameLeds() blink counter
+#endif
   const unsigned char *rom_ptr = nullptr;
   const unsigned short (*tile_cmap)[16];
   const unsigned short *tile_transp;

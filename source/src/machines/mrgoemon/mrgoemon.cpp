@@ -57,6 +57,18 @@ void mrgoemon::menuLeds(CRGB *leds) {
       MRGOEMON_LED_CREAM, MRGOEMON_LED_RED, MRGOEMON_LED_DARK};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
+
+static const uint8_t MRGOEMON_FIRE_BLINK = 4; // frames per blink phase
+
+// blink red while the pipe (FIRE) is held, else the menu colors
+void mrgoemon::gameLeds(CRGB *leds) {
+  if (!(input->buttons_get() & BUTTON_FIRE)) {
+    menuLeds(leds);
+    return;
+  }
+  led_frame++;
+  fill_solid(leds, NUM_LEDS, (led_frame & MRGOEMON_FIRE_BLINK) ? MRGOEMON_LED_RED : CRGB::Black);
+}
 #endif
 
 #endif // GAME_MRGOEMON
