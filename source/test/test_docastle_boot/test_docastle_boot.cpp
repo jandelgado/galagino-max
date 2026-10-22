@@ -60,9 +60,9 @@ static const uint32_t PRESS_FRAMES = 5;
 static const uint32_t GAME_FRAME = 1100;
 
 // main RAM, found by diffing MAME dumps around a coin and a start
+// (RAM_GAME_STATE, STATE_CREDIT: docastle.cpp)
 static const uint16_t RAM_CREDITS = 0x8012 - 0x8000;
-static const uint16_t RAM_GAME_STATE = 0x9249 - 0x8000;
-static const uint8_t STATE_ATTRACT = 0, STATE_CREDIT = 1, STATE_PLAYING = 4;
+static const uint8_t STATE_ATTRACT = 0, STATE_PLAYING = 4;
 static const int AUDIO_CHUNKS = 6;  // Audio::transmit() per screen
 
 static void boot(void) {

@@ -79,6 +79,10 @@ static const uint8_t SPRITE_FLIPX = 0x40, SPRITE_FLIPY = 0x80, SPRITE_COLOR = 0x
 static const uint8_t TILE_CODE_HI = 0x20, TILE_COLOR = 0x1f;
 static const uint8_t PEN_FG = 8, PEN_MASK = 15;
 
+// game state in main RAM (0 attract, 1 credit, 4 playing), from MAME RAM diffs
+static const uint16_t RAM_GAME_STATE = 0x9249 - 0x8000;
+static const uint8_t STATE_CREDIT = 1;
+
 docastle::docastle()
   : docastle_main_rom(docastle_main_rom_blob), docastle_slave_rom(docastle_slave_rom_blob),
     docastle_tiles(docastle_tiles_blob), docastle_sprites(docastle_sprites_blob) {
@@ -452,11 +456,27 @@ void docastle::renderAudio(int16_t *out, int n) {
 }
 
 #ifdef LED_PIN
+// logo colors (quantized logos/docastle.png): red, blue, yellow, pale yellow
+static const CRGB DOCASTLE_LED_RED(0xd90008), DOCASTLE_LED_BLUE(0x0000fb);
+static const CRGB DOCASTLE_LED_YELLOW(0xffd67d), DOCASTLE_LED_PALE(0xffff8a);
+
+static const uint8_t BLINK_FRAMES = 16;
+
 void docastle::menuLeds(CRGB *leds) {
-  defaultMenuLeds(leds);
+  static const CRGB menu_leds[NUM_LEDS] = {
+      DOCASTLE_LED_RED, DOCASTLE_LED_BLUE, DOCASTLE_LED_YELLOW, DOCASTLE_LED_PALE,
+      DOCASTLE_LED_YELLOW, DOCASTLE_LED_BLUE, DOCASTLE_LED_RED};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 
+// blinks yellow while a credit waits for START
 void docastle::gameLeds(CRGB *leds) {
+  static uint8_t blink = 0;
+  blink++;
+  if (memory[DOCASTLE_MEM_MAIN_RAM + RAM_GAME_STATE] == STATE_CREDIT && (blink & BLINK_FRAMES)) {
+    fill_solid(leds, NUM_LEDS, DOCASTLE_LED_YELLOW);
+    return;
+  }
   menuLeds(leds);
 }
 #endif
