@@ -10,6 +10,7 @@
 #ifdef GAME_SCOTRSHT
 
 #include "scotrsht.h"
+#include "scotrsht_logo.h"
 #include "../../emulation/input.h"
 #include "scotrsht_rom.h"
 #include "scotrsht_sound.h"
@@ -469,5 +470,34 @@ void scotrsht::renderAudio(int16_t *out, int n) {
   audioAdd(out, ssg, n);
   audioClampAll(out, n, AUDIO_MAX);
 }
+
+const Logo &scotrsht::logo(void) {
+  return scotrsht_logo;
+}
+
+#ifdef LED_PIN
+// from logos/scotrsht.png: cyan, pink
+static const CRGB SCOTRSHT_LED_CYAN = CRGB(0x00c2f8);
+static const CRGB SCOTRSHT_LED_PINK = CRGB(0xe03f92);
+
+void scotrsht::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[NUM_LEDS] = {
+      SCOTRSHT_LED_PINK, SCOTRSHT_LED_CYAN, SCOTRSHT_LED_CYAN, SCOTRSHT_LED_CYAN,
+      SCOTRSHT_LED_CYAN, SCOTRSHT_LED_CYAN, SCOTRSHT_LED_PINK};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
+}
+
+static const uint8_t SCOTRSHT_FIRE_BLINK = 4;  // frames per blink phase
+
+// blink pink while FIRE is held, else the menu colors
+void scotrsht::gameLeds(CRGB *leds) {
+  if (!(input->buttons_get() & BUTTON_FIRE)) {
+    menuLeds(leds);
+    return;
+  }
+  led_frame++;
+  fill_solid(leds, NUM_LEDS, (led_frame & SCOTRSHT_FIRE_BLINK) ? SCOTRSHT_LED_PINK : CRGB::Black);
+}
+#endif
 
 #endif // GAME_SCOTRSHT

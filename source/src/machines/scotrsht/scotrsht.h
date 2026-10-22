@@ -40,6 +40,12 @@ public:
   scotrsht();
 
   signed char machineType() override { return MCH_SCOTRSHT; }
+  static const Logo &logo(void);
+
+#ifdef LED_PIN
+  static void menuLeds(CRGB *leds);
+  void gameLeds(CRGB *leds) override;
+#endif
 
   void renderAudio(int16_t *out, int n) override;
 
@@ -100,6 +106,9 @@ private:
   uint8_t palbank = 0;
   uint8_t soundlatch = 0;
   bool latch_pending = false;  // drives the Z80 IRQ until 8000 is read
+#ifdef LED_PIN
+  uint8_t led_frame = 0;  // gameLeds() blink counter
+#endif
   bool idle_ok = false;        // sound idle loop found in the ROM
 
   // video core: colors of the current palette bank
