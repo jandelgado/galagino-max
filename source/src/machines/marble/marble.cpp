@@ -34,9 +34,6 @@ using marble_physics::PLAYER;
 // FIRE held while steering: turbo, as the C64, Amiga and NES ports. Speed cap stays the arcade's.
 #define MARBLE_STICK_TURBO_K 18
 
-// the extended PSID file (romconv/romconv/games/marble/sid.py). Only decodeInto() is used: data() would cache an
-// Arena pointer in this static, stale after the Arena reset of the next machine switch
-static const Asset<unsigned char, COMPRESSED> sid_file(marble_sid_blob);
 // C64 0x0700-0x0aff (player frame counter and reads) live in tune RAM at MARBLE_SID_ALIAS
 static const uint16_t SID_ALIAS_FROM = 0x0700, SID_ALIAS_SIZE = 0x400;
 
@@ -90,6 +87,9 @@ void marble::start() {
   if (!tune_loaded) {
     tune_loaded = true;
     uint8_t *file = Arena::alloc<uint8_t>(MARBLE_SID_SIZE);  // tune.payload points into it
+    // the extended PSID file (romconv/romconv/games/marble/sid.py); local: a remote blob
+    // resolves in the ctor, only after the bundle is mounted
+    const Asset<unsigned char, COMPRESSED> sid_file(marble_sid_blob);
     sid_file.decodeInto(file);
     tune_ok = psidParse(file, MARBLE_SID_SIZE, &tune) &&
               player.load(tune, Arena::alloc<uint8_t>(MARBLE_SID_RAM), MARBLE_SID_RAM);
