@@ -28,6 +28,7 @@
 #define QBERT_SPRITES  0x3400   // 3000-30ff sprite list, 64 x 4 (write only)
 #define QBERT_PALETTE  0x3500   // 5000-501f, 16 x (gb, r)
 #define QBERT_MEM_END  0x3520
+static_assert(QBERT_MEM_END <= RAMSIZE, "qbert memory layout exceeds RAMSIZE");
 
 class qbert : public machineBase {
 protected:

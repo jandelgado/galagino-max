@@ -79,6 +79,20 @@ void GottliebSound::run(uint32_t cycles) {
   }
 }
 
+// The main CPU sends its commands within microseconds, in one frame
+// burst. Spread over the frame: back to back, a pair like "ff f4 ff f5"
+// leaves one PA7 edge and the 6502 reads only the last command.
+void GottliebSound::runFrame(const uint8_t *cmds, int n, uint32_t cycles) {
+  uint32_t done = 0;
+  for (int i = 0; i < n; i++) {
+    const uint32_t at = (uint32_t)((uint64_t)cycles * i / n);
+    run(at - done);
+    done = at;
+    command(cmds[i]);
+  }
+  run(cycles - done);
+}
+
 void GottliebSound::step() {
   cpu.irq = riot.irq(now);
   const uint32_t skipped = skipIdle();

@@ -40,10 +40,12 @@ static void record(uint32_t cycle, uint16_t addr, uint8_t value) {
 static uint8_t table[VotraxSc01::TABLE_BYTES] __attribute__((aligned(4)));
 static GottliebSound board;
 
-// opcode fetches at the command wait loop (0x7035), see GottliebSound::skipIdle
-static uint32_t idleFetches;
+// opcode fetches at the command wait loop (0x7035), see GottliebSound::skipIdle,
+// and at the IRQ handler (vector 0x7089): one per command the 6502 takes
+static uint32_t idleFetches, irqEntries;
 static uint8_t countFetch(m6502_t *c, uint16_t a) {
   idleFetches += (a & 0x7fff) == 0x7035;
+  irqEntries += (a & 0x7fff) == 0x7089;
   return GottliebSound::read(c, a);
 }
 
@@ -86,12 +88,52 @@ static void test_writes_match_mame(void) {
   // 670629 passes without the skip; the rest run while a phone is in flight
   TEST_ASSERT_LESS_THAN_UINT32(100000, idleFetches);
 }
+
+// Two effects in one main CPU frame (attract sends "ff f4 ff f5"): the
+// board must take both, not only the last PA7 edge
+static void test_frame_with_two_commands(void) {
+  board.reset();
+  board.trace = nullptr;
+  board.cpu.fetch = countFetch;
+  board.run(MAME_COMMANDS[0].cycle);   // boot speech done, idle
+  irqEntries = 0;
+  const uint8_t cmds[] = {0xff, 0xf4, 0xff, 0xf5};
+  board.runFrame(cmds, sizeof(cmds), 14570);
+  TEST_ASSERT_EQUAL_UINT32(2, irqEntries);
+}
+
+// Boot phrase (first phone at cycle 126666, first DAC write after 5 M):
+// the output carries the Votrax alone and must be audible; the request
+// line drops per phone and comes back
+static void test_boot_speech_audible(void) {
+  board.reset();
+  board.trace = nullptr;
+  board.cpu.fetch = nullptr;
+  int peak = 0, requestDrops = 0;
+  bool request = board.speech.request();
+  for (uint32_t t = 0; t < 2000000; t += 20) {
+    board.run(20);   // finer than the shortest phone
+    if (request && !board.speech.request()) {
+      requestDrops++;
+    }
+    request = board.speech.request();
+    for (int s = board.sample(); s != GottliebSound::EMPTY; s = board.sample()) {
+      peak = abs(s) > peak ? abs(s) : peak;
+    }
+  }
+  printf("boot speech: peak %d, %d phones\n", peak, requestDrops);
+  TEST_ASSERT_GREATER_THAN_INT(20, requestDrops);
+  TEST_ASSERT_GREATER_THAN_INT(100, peak);
+  TEST_ASSERT_TRUE(request);   // phrase over
+}
 #endif
 
 int main(int argc, char **argv) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
   RUN_TEST(test_writes_match_mame);
+  RUN_TEST(test_frame_with_two_commands);
+  RUN_TEST(test_boot_speech_audible);
 #endif
   return UNITY_END();
 }

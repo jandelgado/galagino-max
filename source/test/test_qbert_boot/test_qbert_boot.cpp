@@ -152,6 +152,44 @@ static void lockstep(const char *name, const uint16_t *mameSp, const uint32_t *m
   delete m;
 }
 
+// stick switches are screen diagonals: cardinals turned 45 degrees
+// clockwise, diagonals direct (qbert.cpp readStick)
+static void test_stick_mapping(void) {
+  qbert *m = boot();
+  struct Case {
+    unsigned int keys;
+    uint8_t in4;
+  };
+  const Case cases[] = {
+      {0, 0},
+      {BUTTON_UP, 0x04},                     // up-right
+      {BUTTON_RIGHT, 0x01},                  // down-right
+      {BUTTON_DOWN, 0x08},                   // down-left
+      {BUTTON_LEFT, 0x02},                   // up-left
+      {BUTTON_UP | BUTTON_RIGHT, 0x04},
+      {BUTTON_DOWN | BUTTON_RIGHT, 0x01},
+      {BUTTON_DOWN | BUTTON_LEFT, 0x08},
+      {BUTTON_UP | BUTTON_LEFT, 0x02},
+      {BUTTON_UP | BUTTON_DOWN, 0x04},        // impossible on a stick: one switch only
+      {BUTTON_LEFT | BUTTON_RIGHT, 0x01},
+      {BUTTON_FIRE, 0},
+  };
+  for (const Case &c : cases) {
+    keys = c.keys;
+    TEST_ASSERT_EQUAL_HEX8(c.in4, m->rd8(0x5804));
+  }
+
+  // IN1 active high, service switch (0x40) open
+  keys = 0;
+  TEST_ASSERT_EQUAL_HEX8(0x40, m->rd8(0x5801));
+  keys = BUTTON_COIN | BUTTON_START;
+  TEST_ASSERT_EQUAL_HEX8(0x45, m->rd8(0x5801));
+  keys = BUTTON_B;
+  TEST_ASSERT_EQUAL_HEX8(0x42, m->rd8(0x5801));
+  keys = 0;
+  delete m;
+}
+
 // a frame cut by the budget resumes after the next NMI, as on the board
 static void test_budget_cut_resumes(void) {
   qbert *m = boot();
@@ -200,6 +238,7 @@ static void test_lockstep_game2(void) {
 int main(int argc, char **argv) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  RUN_TEST(test_stick_mapping);
   RUN_TEST(test_budget_cut_resumes);
   RUN_TEST(test_trap_resets);
   RUN_TEST(test_rom_writes_ignored);

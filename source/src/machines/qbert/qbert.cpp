@@ -191,17 +191,11 @@ void qbert::run_frame(void) {
 
 // ---- Sound ----
 
-// the frame's commands first, back to back: a pair like ff, f4 still makes
-// its PA7 edge
 void qbert::runSound(void) {
-  for (uint8_t i = 0; i < cmdCount; i++) {
-    sound.command(cmdQueue[i]);
-  }
-  cmdCount = 0;
-
   const uint64_t ticks = (uint64_t)GottliebSound::SOUND_HZ * FRAME_PIXELS + soundPhase;
   soundPhase = (uint32_t)(ticks % PIXEL_HZ);
-  sound.run((uint32_t)(ticks / PIXEL_HZ));
+  sound.runFrame(cmdQueue, cmdCount, (uint32_t)(ticks / PIXEL_HZ));
+  cmdCount = 0;
 }
 
 // audio core: drain the board's 24 kHz ring, hold the last value on underrun

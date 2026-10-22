@@ -26,6 +26,9 @@ public:
   void reset();
   void command(uint8_t cmd);
   void run(uint32_t cycles);
+
+  // one main CPU frame: its sound commands, then `cycles` 6502 cycles
+  void runFrame(const uint8_t *cmds, int n, uint32_t cycles);
   int sample();
 
 #ifdef GOTTLIEB_SOUND_TRACE
