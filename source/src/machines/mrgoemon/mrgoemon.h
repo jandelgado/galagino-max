@@ -10,6 +10,12 @@ public:
   mrgoemon();
 
   signed char machineType() override { return MCH_MRGOEMON; }
+  static const Logo &logo(void);
+
+#ifdef LED_PIN
+  static void menuLeds(CRGB *leds);
+  void gameLeds(CRGB *leds) override { menuLeds(leds); }
+#endif
 
   unsigned char rdZ80(unsigned short Addr) override;
   void          wrZ80(unsigned short Addr, unsigned char Value) override;

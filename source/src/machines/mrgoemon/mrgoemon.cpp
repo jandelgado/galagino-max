@@ -6,6 +6,7 @@
 #ifdef GAME_MRGOEMON
 
 #include "mrgoemon.h"
+#include "mrgoemon_logo.h"
 #include "mrgoemon_dipswitches.h"
 #include "mrgoemon_rom.h"
 #include "mrgoemon_tilemap.h"
@@ -39,5 +40,23 @@ void mrgoemon::wrZ80(unsigned short Addr, unsigned char Value) {
   }
   gberet::wrZ80(Addr, Value);
 }
+
+const Logo &mrgoemon::logo(void) {
+  return mrgoemon_logo;
+}
+
+#ifdef LED_PIN
+// from logos/mrgoemon.png: red letters, cream shadow, dark red
+static const CRGB MRGOEMON_LED_RED = CRGB(0xd61e1e);
+static const CRGB MRGOEMON_LED_CREAM = CRGB(0xf5e491);
+static const CRGB MRGOEMON_LED_DARK = CRGB(0x74161a);
+
+void mrgoemon::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[NUM_LEDS] = {
+      MRGOEMON_LED_DARK, MRGOEMON_LED_RED, MRGOEMON_LED_CREAM, MRGOEMON_LED_CREAM,
+      MRGOEMON_LED_CREAM, MRGOEMON_LED_RED, MRGOEMON_LED_DARK};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
+}
+#endif
 
 #endif // GAME_MRGOEMON

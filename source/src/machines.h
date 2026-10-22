@@ -456,6 +456,12 @@
     #include "machines/gberet/gberet_bundle.h"
   #endif
 #endif
+#ifdef GAME_MRGOEMON
+  #include "machines/mrgoemon/mrgoemon.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/mrgoemon/mrgoemon_bundle.h"
+  #endif
+#endif
 #ifdef GAME_HERO
   #include "machines/hero/hero.h"
   #ifdef ASSETS_REMOTE
@@ -1471,6 +1477,13 @@ constexpr machineInfo machines[] = {
     gberet::menuLeds,
 #endif
     MCH_GBERET, nullptr BUNDLE_REF(gberet_bundle_ref) },
+#endif
+#ifdef GAME_MRGOEMON
+  { createMachine<mrgoemon>, mrgoemon::logo,
+#ifdef LED_PIN
+    mrgoemon::menuLeds,
+#endif
+    MCH_MRGOEMON, &mrgoemon_arena_plan BUNDLE_REF(mrgoemon_bundle_ref) },
 #endif
 #ifdef GAME_HERO
   { createMachine<hero>, hero::logo,
