@@ -48,7 +48,7 @@ def _pack_rows(rows: Sequence[Sequence[int]]) -> list[int]:
 
 
 def _palette(prom: Sequence[int]) -> list[int]:
-    """MAME docastle_palette: R bits 5-7, G bits 2-4, B bits 0-1 (no 0x23 step)."""
+    """MAME 0.289 docastle palette: R bits 5-7, G bits 2-4, B bits 0-1."""
     def level(b0: int, b1: int, b2: int) -> int:
         return 0x23 * b0 + 0x4b * b1 + 0x91 * b2
 
@@ -57,7 +57,7 @@ def _palette(prom: Sequence[int]) -> list[int]:
 
     return [rgb565_swapped(level(bit(v, 5), bit(v, 6), bit(v, 7)),
                            level(bit(v, 2), bit(v, 3), bit(v, 4)),
-                           level(0, bit(v, 0), bit(v, 1))) for v in prom]
+                           0x52 * bit(v, 0) + 0xad * bit(v, 1)) for v in prom]
 
 
 def _elements(data: bytes, size: int) -> list[int]:

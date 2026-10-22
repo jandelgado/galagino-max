@@ -27,9 +27,10 @@ def test_pack_rows_puts_column_0_in_the_low_nibble():
 
 
 def test_palette_resistor_weights():
-    pal = docastle._palette(bytes([0x00, 0xff, 0x20, 0x01, 0x04]))
+    pal = docastle._palette(bytes([0x00, 0xff, 0x20, 0x01, 0x04, 0x02]))
     assert pal[0] == rgb565_swapped(0, 0, 0)
-    assert pal[1] == rgb565_swapped(0xff, 0xff, 0xdc)
+    assert pal[1] == rgb565_swapped(0xff, 0xff, 0xff)
     assert pal[2] == rgb565_swapped(0x23, 0, 0)
-    assert pal[3] == rgb565_swapped(0, 0, 0x4b)
+    assert pal[3] == rgb565_swapped(0, 0, 0x52)
     assert pal[4] == rgb565_swapped(0, 0x23, 0)
+    assert pal[5] == rgb565_swapped(0, 0, 0xad)
