@@ -3,6 +3,7 @@
 
 #include "qbert.h"
 #include "qbert_rom.h"
+#include "qbert_gfx.h"
 
 // frame wait: "cmp ax,[0x80]; je $" until the NMI handler counts the frame
 // (service mode has a copy)
@@ -24,8 +25,15 @@ static constexpr uint8_t IN1_SERVICE_OFF = 0x40;
 static constexpr uint8_t STICK_DOWN_RIGHT = 0x01, STICK_UP_LEFT = 0x02;
 static constexpr uint8_t STICK_UP_RIGHT = 0x04, STICK_DOWN_LEFT = 0x08;
 
-qbert::qbert() : qbert_main_rom(qbert_main_rom_blob) {
+qbert::qbert()
+  : qbert_main_rom(qbert_main_rom_blob), qbert_tiles(qbert_tiles_blob), qbert_sprites(qbert_sprites_blob),
+    qbert_levels(qbert_levels_blob) {
   rom = qbert_main_rom.data();
+  tiles = qbert_tiles.data();
+  sprites = qbert_sprites.data();
+  levels = qbert_levels.data();
+  vblank = Arena::create<Seqlock<qbert_video::VideoState>>();
+  video = Arena::create<qbert_video::VideoState>();
 }
 
 void qbert::reset() {
@@ -160,6 +168,7 @@ void qbert::runCpu(void) {
 
 void qbert::run_frame(void) {
   if (booted) {
+    publishVideo();
     enterNmi();
   }
   booted = true;
@@ -190,12 +199,27 @@ void qbert::gameLeds(CRGB *leds) {
 }
 #endif
 
-// ---- Video (Task 5) ----
+// ---- Video ----
 
-void qbert::prepare_frame(void) {}
+// at the vblank NMI, before its handler copies the next sprite list and
+// palette in: what the board shows for the frame that just ended
+void qbert::publishVideo(void) {
+  vblank->publish([this](qbert_video::VideoState &v) {
+    memcpy(v.vram, &ram[QBERT_VRAM], sizeof(v.vram));
+    memcpy(v.spr, &ram[QBERT_SPRITES], sizeof(v.spr));
+    memcpy(v.pal, &ram[QBERT_PALETTE], sizeof(v.pal));
+    v.ctrl = outputLatch;
+  });
+}
+
+void qbert::prepare_frame(void) {
+  vblank->read(*video);
+  qbert_video::buildPens(video->pal, levels, pens);
+  spriteCount = qbert_video::listSprites(video->spr, spriteList);
+}
 
 void qbert::render_row(short row) {
-  memset(frame_buffer, 0, renderBuffer());
+  qbert_video::renderStrip(row, *video, pens, tiles, sprites, spriteList, spriteCount, frame_buffer);
 }
 
 #endif

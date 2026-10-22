@@ -88,7 +88,12 @@ static void dumpFrame(const uint8_t *ram, uint16_t sp, const char *name) {
 }
 
 static qbert *boot(void) {
-  Arena::init();
+  static bool arenaReady = false;
+  if (!arenaReady) {
+    Arena::init();
+    arenaReady = true;
+  }
+  Arena::reset();   // the previous scenario's machine is gone
   qbert *m = new qbert();
   m->init(&input, frame_buffer, sprites, memory);
   m->reset();

@@ -4,6 +4,8 @@
 #   x column, nibble k = pixel at native y k (ROT270: native x = panel line).
 # Sprites: 16x16 4bpp (spr_layout, qb-fg3 = plane 0 = MSB), 256 codes, two
 #   words per native x column (y 0-7, y 8-15), same nibble order.
+# Palette: RAM, 4 bits per gun through a 2000/1000/470/240 ohm network
+#   (180 ohm pulldown); qbert_levels maps a 4-bit gun value to 0..255.
 from collections.abc import Callable
 
 from romconv.core.context import Context
@@ -11,6 +13,7 @@ from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
 from romconv.emit.write import write_asset
 from romconv.gfx.gfxutil import column_words, mame_decode, pack_pens
+from romconv.gfx.resnet import combine, resistor_weights
 from romconv.plan.budget import log_sizes
 
 _TILE_COUNT = 256
@@ -55,6 +58,12 @@ def sprite_words(sprites) -> list[int]:
             for s in sprites for x in range(16) for h in range(2)]
 
 
+def levels() -> list[int]:
+    """gottlieb.cpp video_start: compute_resistor_weights(0, 255, -1, 4 x {2000, 1000, 470, 240}, 180, 0)."""
+    (w,), _ = resistor_weights(0, 255, -1.0, [([2000, 1000, 470, 240], 180, 0)])
+    return [combine(w, v & 1, (v >> 1) & 1, (v >> 2) & 1, (v >> 3) & 1) for v in range(16)]
+
+
 def _convert(ctx: Context) -> None:
     def read(name: str) -> bytes:
         sha1 = dict(_MAIN + _SOUND + _BG + _FG)[name]
@@ -75,11 +84,12 @@ def _convert(ctx: Context) -> None:
     def gfx(f):
         emit_compressed(f, "qbert_tiles", "uint32_t", "[8]", _TILE_COUNT, tiles)
         emit_compressed(f, "qbert_sprites", "uint32_t", "[32]", _SPRITE_COUNT, sprites)
+        emit_compressed(f, "qbert_levels", "unsigned char", "", 16, levels())
 
     write("qbert_rom.h", rom)
     write("qbert_gfx.h", gfx)
     log_sizes(ctx, {"main": len(main), "sound": len(sound), "tiles": _TILE_COUNT * 32,
-                    "sprites": _SPRITE_COUNT * 128})
+                    "sprites": _SPRITE_COUNT * 128, "levels": 16})
 
 
 JOB = Job(name="qbert", convert=_convert, machine="qbert", zips=("qbert.zip",))

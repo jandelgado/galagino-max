@@ -44,3 +44,9 @@ def test_real_main_image_reset_vector():
         img = qbert.main_image(z.read)
     assert len(img) == 0x6000
     assert img[0x5FF0:0x5FF5] == bytes([0xEA, 0x00, 0xA0, 0x00, 0x00])
+
+
+def test_levels_from_resistor_weights():
+    lv = qbert.levels()
+    assert len(lv) == 16 and lv[0] == 0 and lv[15] == 255
+    assert lv == sorted(lv)

@@ -2,7 +2,9 @@
 #define QBERT_H
 
 #include "../machineBase.h"
+#include "../../emulation/seqlock.h"
 #include "../../cpus/i8086/i8086.h"
+#include "qbert_video.h"
 #include "qbert_dipswitches.h"
 #include "qbert_logo.h"
 
@@ -28,6 +30,9 @@
 class qbert : public machineBase {
 protected:
   Asset<unsigned char, COMPRESSED> qbert_main_rom;
+  Asset<uint32_t[8], COMPRESSED> qbert_tiles;
+  Asset<uint32_t[32], COMPRESSED> qbert_sprites;
+  Asset<unsigned char, COMPRESSED> qbert_levels;
 
 public:
   qbert();
@@ -57,6 +62,7 @@ private:
   bool frameWait(void) const;
   void enterNmi(void);
   void runCpu(void);
+  void publishVideo(void);
 
   uint8_t rdio(uint16_t a);
   void wrio(uint16_t a, uint8_t v);
@@ -91,6 +97,15 @@ private:
   uint32_t trapCount = 0;
   uint32_t budgetCuts = 0;
   int32_t budgetLeft = 0;          // of the last cpuRun()
+
+  const uint32_t (*tiles)[8] = nullptr;
+  const uint32_t (*sprites)[32] = nullptr;
+  const uint8_t *levels = nullptr;
+  Seqlock<qbert_video::VideoState> *vblank = nullptr;   // Arena
+  qbert_video::VideoState *video = nullptr;             // Arena, render copy
+  uint16_t pens[qbert_video::PENS] = {};
+  qbert_video::Sprite spriteList[qbert_video::SPRITES];
+  int spriteCount = 0;
 
   uint8_t soundCmd = 0;            // 0x5802, read by the sound board (later)
   uint8_t outputLatch = 0;         // 0x5803: b0 bg priority, b1/b2 flip, b5 knocker
