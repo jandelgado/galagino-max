@@ -3,6 +3,7 @@
 
 #include <type_traits>
 #include "szaxxon.h"
+#include "szaxxon_logo.h"
 #include "../zaxxon/zaxxon_dipswitches.h"
 #include "szaxxon_rom_main.h"
 #include "szaxxon_rom_ops.h"
@@ -40,5 +41,24 @@ szaxxon::szaxxon()
             szaxxon_fgcolor_codes_blob, szaxxon_rom_main_blob, szaxxon_spritetiles_blob,
             szaxxon_tilemap_code_blob, szaxxon_tilemap_color_blob},
            SZAXXON_DIP_A, rom_ops()) { }
+
+const Logo &szaxxon::logo(void) {
+  return szaxxon_logo;
+}
+
+#ifdef LED_PIN
+// from logos/szaxxon.png: red letters, blue and white outline. In game the
+// zaxxon alarm/explosion effect (zaxxon::gameLeds) stays.
+static const CRGB SZAXXON_LED_RED = CRGB(0xbf0001);
+static const CRGB SZAXXON_LED_BLUE = CRGB(0x3c759d);
+static const CRGB SZAXXON_LED_WHITE = CRGB(0xdee0e2);
+
+void szaxxon::menuLeds(CRGB *leds) {
+  static const CRGB menu_leds[NUM_LEDS] = {
+      SZAXXON_LED_RED, SZAXXON_LED_BLUE, SZAXXON_LED_WHITE, SZAXXON_LED_WHITE,
+      SZAXXON_LED_WHITE, SZAXXON_LED_BLUE, SZAXXON_LED_RED};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
+}
+#endif
 
 #endif // GAME_SZAXXON

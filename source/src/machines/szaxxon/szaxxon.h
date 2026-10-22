@@ -11,6 +11,11 @@ public:
   szaxxon();
 
   signed char machineType() override { return MCH_SZAXXON; }
+  static const Logo &logo(void);
+
+#ifdef LED_PIN
+  static void menuLeds(CRGB *leds);
+#endif
 };
 
 #endif
