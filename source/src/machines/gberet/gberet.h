@@ -6,7 +6,7 @@
 #include "../../emulation/any_asset.h"
 
 #include "../../catalog.h"
-#ifdef GAME_GBERET
+#if defined(GAME_GBERET) || defined(GAME_MRGOEMON)
 
 #include "gberet_logo.h"
 #include "gberet_dipswitches.h"
@@ -106,5 +106,5 @@ protected:
   Sn76489 sn[1] = {Sn76489(Sn76489::INC_1536KHZ, Sn76489::HOLD_SHORT_NOTES)};
 };
 
-#endif // GAME_GBERET
+#endif // GAME_GBERET || GAME_MRGOEMON
 #endif // GBERET_H

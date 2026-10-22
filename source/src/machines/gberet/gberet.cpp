@@ -11,7 +11,7 @@
 #include "../../emulation/input.h"
 
 #include "../../catalog.h"
-#ifdef GAME_GBERET
+#if defined(GAME_GBERET) || defined(GAME_MRGOEMON)
 
 #include "gberet_rom.h"
 #include "gberet_tilemap.h"
@@ -261,4 +261,4 @@ void gberet::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // GAME_GBERET
+#endif // GAME_GBERET || GAME_MRGOEMON
