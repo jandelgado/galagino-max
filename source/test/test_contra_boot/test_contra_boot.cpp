@@ -28,7 +28,11 @@ void tearDown(void) {}
 
 #ifdef HAVE_ROM
 static unsigned int keys;
-unsigned int Input::buttons_get(void) { return keys; }
+static uint32_t inputPolls;   // buttons_get() has side effects (virtual coin, reset timer)
+unsigned int Input::buttons_get(void) {
+  inputPolls++;
+  return keys;
+}
 bool Input::demoSoundsOff(void) { return false; }
 
 extern "C" void ResetZ80(Z80 *) {}
@@ -165,6 +169,18 @@ static void test_math_chip(void) {
   TEST_ASSERT_EQUAL_UINT8(1000 % 7, machine->m6809_read(&machine->main_cpu, 0x0a));
 }
 
+// only the input ports poll the buttons: math, DIP and scroll reads do not
+static void test_inputs_polled_by_input_ports_only(void) {
+  boot();
+  const uint32_t before = inputPolls;
+  machine->m6809_read(&machine->main_cpu, 0x08);
+  machine->m6809_read(&machine->main_cpu, 0x14);
+  machine->m6809_read(&machine->main_cpu, 0x20);
+  TEST_ASSERT_EQUAL_UINT32(before, inputPolls);
+  machine->m6809_read(&machine->main_cpu, 0x11);
+  TEST_ASSERT_EQUAL_UINT32(before + 1, inputPolls);
+}
+
 static void test_dip_switches(void) {
   boot();
   TEST_ASSERT_EQUAL_HEX8(CONTRA_DSW1, machine->m6809_read(&machine->main_cpu, 0x14));
@@ -190,6 +206,7 @@ int main(int argc, char **argv) {
 #ifdef HAVE_ROM
   RUN_TEST(test_math_chip);
   RUN_TEST(test_dip_switches);
+  RUN_TEST(test_inputs_polled_by_input_ports_only);
   RUN_TEST(test_boots_to_attract);
   RUN_TEST(test_no_unknown_opcodes);
   RUN_TEST(test_inputs);

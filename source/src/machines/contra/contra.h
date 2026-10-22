@@ -95,6 +95,8 @@ private:
   };
 
   uint8_t readPort(uint16_t addr);
+  uint8_t readSystem(unsigned int keys);
+  uint8_t readPlayer1(unsigned int keys);
   void cue(uint8_t cmd);
   bool idle(void);
   void writeCtrl(int chip, uint8_t reg, uint8_t val);
@@ -120,6 +122,8 @@ private:
   VideoState *video = nullptr;             // Arena, render copy
   uint16_t (*pens)[COLORS][PENS] = nullptr;  // Arena, [chip], RGB565 swapped
   uint16_t opaque[CHIPS][COLORS];            // bit p: sprite pen p drawn (lookup != 0)
+  uint8_t pens_palette[0x100];               // palette RAM pens were built from
+  bool pens_valid = false;
   SpriteBlock *blocks = nullptr;             // Arena, CHIPS * (MAX_BLOCKS + 15)
   int block_count = 0;
 

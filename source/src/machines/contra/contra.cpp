@@ -96,6 +96,7 @@ void contra::reset() {
   memset(sprite_latch, 0, CHIPS * SPRITE_LIST);
   snd_wr = snd_rd = 0;
   sid_on = music_on = false;
+  pens_valid = false;
 
   m6809_reset(&main_cpu);
   main_cpu.rom_direct = main_rom + FIXED_ROM;   // must follow m6809_reset()
@@ -122,38 +123,14 @@ unsigned char GAME_IRAM contra::m6809_read(m6809_state *s, uint16_t addr) {
   return ram[addr];
 }
 
+// buttons_get() only for the input ports: it has side effects (virtual
+// coin, reset timer)
 uint8_t contra::readPort(uint16_t addr) {
-  const unsigned int keys = input->buttons_get();
-  uint8_t v = 0xff;
   switch (addr) {
     case 0x10:
-      if (keys & BUTTON_COIN) {
-        v &= ~SYS_COIN1;
-      }
-      if (keys & BUTTON_START) {
-        v &= ~SYS_START1;
-      }
-      return v;
+      return readSystem(input->buttons_get());
     case 0x11:
-      if (keys & BUTTON_LEFT) {
-        v &= ~P1_LEFT;
-      }
-      if (keys & BUTTON_RIGHT) {
-        v &= ~P1_RIGHT;
-      }
-      if (keys & BUTTON_UP) {
-        v &= ~P1_UP;
-      }
-      if (keys & BUTTON_DOWN) {
-        v &= ~P1_DOWN;
-      }
-      if (keys & (BUTTON_FIRE | BUTTON_A | BUTTON_L1)) {
-        v &= ~P1_FIRE;
-      }
-      if (keys & (JUMP_KEY | BUTTON_B | BUTTON_R1)) {
-        v &= ~P1_JUMP;
-      }
-      return v;
+      return readPlayer1(input->buttons_get());
     case 0x12:
       return 0xff;   // player 2
     case 0x14:
@@ -167,6 +144,40 @@ uint8_t contra::readPort(uint16_t addr) {
     return readMath(addr - 0x08);
   }
   return ram[addr];   // K007121 scroll RAM 20-5f, 80-bf
+}
+
+uint8_t contra::readSystem(unsigned int keys) {
+  uint8_t v = 0xff;
+  if (keys & BUTTON_COIN) {
+    v &= ~SYS_COIN1;
+  }
+  if (keys & BUTTON_START) {
+    v &= ~SYS_START1;
+  }
+  return v;
+}
+
+uint8_t contra::readPlayer1(unsigned int keys) {
+  uint8_t v = 0xff;
+  if (keys & BUTTON_LEFT) {
+    v &= ~P1_LEFT;
+  }
+  if (keys & BUTTON_RIGHT) {
+    v &= ~P1_RIGHT;
+  }
+  if (keys & BUTTON_UP) {
+    v &= ~P1_UP;
+  }
+  if (keys & BUTTON_DOWN) {
+    v &= ~P1_DOWN;
+  }
+  if (keys & (BUTTON_FIRE | BUTTON_A | BUTTON_L1)) {
+    v &= ~P1_FIRE;
+  }
+  if (keys & (JUMP_KEY | BUTTON_B | BUTTON_R1)) {
+    v &= ~P1_JUMP;
+  }
+  return v;
 }
 
 void GAME_IRAM contra::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
@@ -307,7 +318,12 @@ void contra::latchSprites(void) {
 
 void contra::prepare_frame(void) {
   vblank->read(*video);
-  buildPens();
+  // pens depend on palette RAM only (the lookup PROMs are constant)
+  if (!pens_valid || memcmp(pens_palette, video->palette, sizeof(pens_palette))) {
+    buildPens();
+    memcpy(pens_palette, video->palette, sizeof(pens_palette));
+    pens_valid = true;
+  }
   block_count = 0;
   listSprites(0);
   listSprites(1);
@@ -467,14 +483,14 @@ void contra::render_row(short row) {
       continue;
     }
     uint16_t *dst = frame_buffer + i * WIDTH;
-    for (int col = 0; col < WIDTH; col++) {
-      dst[col] = bg;
-    }
     if (x < HUD_END) {
+      for (int col = 0; col < WIDTH; col++) {
+        dst[col] = bg;
+      }
       drawLayer(2, x, dst, false);
       continue;
     }
-    drawLayer(1, x, dst, true);
+    drawLayer(1, x, dst, true);   // opaque: covers the background pen
     drawLayer(0, x, dst, false);
   }
   drawSprites(row);
