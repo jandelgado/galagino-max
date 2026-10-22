@@ -383,16 +383,9 @@ void jailbrek::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 
-static const uint8_t JAILBREK_FIRE_BLINK = 4;  // frames per blink phase
-
 // blink red while FIRE is held, else the menu colors
 void jailbrek::gameLeds(CRGB *leds) {
-  if (!(input->buttons_get() & BUTTON_FIRE)) {
-    menuLeds(leds);
-    return;
-  }
-  led_frame++;
-  fill_solid(leds, NUM_LEDS, (led_frame & JAILBREK_FIRE_BLINK) ? JAILBREK_LED_RED : CRGB::Black);
+  fireBlinkLeds(leds, input, led_frame, JAILBREK_LED_RED, menuLeds);
 }
 #endif
 

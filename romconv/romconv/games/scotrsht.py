@@ -77,12 +77,12 @@ def _write_colors(ctx, pal, tile_lut, spr_lut):
         f.write("};\n")
 
     def emit_lut(f):
-        for name, data, what in (("tile", tile_lut, "7f char"), ("spr", spr_lut, "8f sprite")):
-            f.write(f"// {what} lookup, [color * 16 + pen] low nibble\n")
-            f.write(f"const unsigned char scotrsht_{name}_lut[256] PROGMEM = {{\n")
-            for i in range(0, 256, 16):
-                f.write("  " + ", ".join(f"0x{v:02x}" for v in data[i:i + 16]) + ",\n")
-            f.write("};\n")
+        both = [t | (s << 4) for t, s in zip(tile_lut, spr_lut)]
+        f.write("// [color * 16 + pen]: low nibble 7f char lookup, high nibble 8f sprite lookup\n")
+        f.write("const unsigned char scotrsht_lut[256] PROGMEM = {\n")
+        for i in range(0, 256, 16):
+            f.write("  " + ", ".join(f"0x{v:02x}" for v in both[i:i + 16]) + ",\n")
+        f.write("};\n")
         f.write("// sprite pen is transparent when its nibble is 0\n")
 
     write_asset(ctx, "scotrsht_palette.h", "256 colors, pal4bit, rgb565 byte-swapped", emit_pal, __file__)

@@ -310,6 +310,21 @@ struct machineInfo {
 #endif
 };
 
+#ifdef LED_PIN
+// gameLeds(): blink color while FIRE is held, else the menu colors.
+// noinline: one copy for all games.
+inline void __attribute__((noinline)) fireBlinkLeds(CRGB *leds, Input *input, uint8_t &frame,
+                                                    const CRGB &color, void (*menu)(CRGB *)) {
+  if (!(input->buttons_get() & BUTTON_FIRE)) {
+    menu(leds);
+    return;
+  }
+  static const uint8_t BLINK = 4;  // frames per phase
+  frame++;
+  fill_solid(leds, NUM_LEDS, (frame & BLINK) ? color : CRGB(CRGB::Black));
+}
+#endif
+
 // machines.h entry tail: the bundle field exists only in ASSETS_REMOTE builds
 #ifdef ASSETS_REMOTE
 #define BUNDLE_REF(ref) , ref

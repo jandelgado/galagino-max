@@ -34,6 +34,7 @@ static const uint8_t YM_ADDR_PORT = 0x00;
 static const uint8_t CTRL_IRQ = 0x02;  // 2044 b1, b3 flip ignored (upright)
 static const uint8_t PAL_BANK_SHIFT = 4, PAL_BANK_MASK = 7;  // 3000 b4-6
 static const uint8_t TILE_PAL = 0x80;  // tiles use colors 80-ff
+static const uint8_t LUT_SPR_SHIFT = 4;  // scotrsht_lut: high nibble sprite
 
 static const uint8_t OP_EI = 0xfb;
 static const int MIN_STEP_CYCLES = 4;
@@ -67,7 +68,7 @@ scotrsht::scotrsht()
   for (int c = 0; c < 16; c++) {
     spr_transp[c] = 0;
     for (int p = 0; p < 16; p++) {
-      if (!scotrsht_spr_lut[c * 16 + p]) {
+      if (!(scotrsht_lut[c * 16 + p] >> LUT_SPR_SHIFT)) {
         spr_transp[c] |= 1 << p;
       }
     }
@@ -322,8 +323,9 @@ void scotrsht::publish_video() {
 void scotrsht::build_cmaps(uint8_t bank) {
   for (int c = 0; c < 16; c++) {
     for (int p = 0; p < 16; p++) {
-      tile_cmap[c][p] = scotrsht_palette[TILE_PAL | bank << 4 | scotrsht_tile_lut[c * 16 + p]];
-      spr_cmap[c][p] = scotrsht_palette[bank << 4 | scotrsht_spr_lut[c * 16 + p]];
+      const uint8_t l = scotrsht_lut[c * 16 + p];
+      tile_cmap[c][p] = scotrsht_palette[TILE_PAL | bank << 4 | (l & 0x0f)];
+      spr_cmap[c][p] = scotrsht_palette[bank << 4 | l >> LUT_SPR_SHIFT];
     }
   }
   cmap_bank = bank;
@@ -487,16 +489,9 @@ void scotrsht::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 
-static const uint8_t SCOTRSHT_FIRE_BLINK = 4;  // frames per blink phase
-
 // blink pink while FIRE is held, else the menu colors
 void scotrsht::gameLeds(CRGB *leds) {
-  if (!(input->buttons_get() & BUTTON_FIRE)) {
-    menuLeds(leds);
-    return;
-  }
-  led_frame++;
-  fill_solid(leds, NUM_LEDS, (led_frame & SCOTRSHT_FIRE_BLINK) ? SCOTRSHT_LED_PINK : CRGB::Black);
+  fireBlinkLeds(leds, input, led_frame, SCOTRSHT_LED_PINK, menuLeds);
 }
 #endif
 
