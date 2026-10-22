@@ -9,7 +9,7 @@ from romconv.games import (alibaba, anteater, arkanoid, asteroids, atetris, bagm
                            frogger, galaga, galaxian, game_1942, game_1943, gberet, gng, gorf, gravitar,
                            gyruss, hero, invaders, jailbrek, ladybug, lizwiz, llander, marble, mario, mcr, megazone,
                            mhavoc, mikie, millipede, missile, motorace, mpatrol, mrdo, mrgoemon, mrtnt, mspacman,
-                           nibbler, pacman, pbaction, pengo, phoenix, pleiads, pooyan, roadfighter, rocnrope,
+                           nibbler, pacman, pbaction, pengo, phoenix, pleiads, pooyan, qbert, roadfighter, rocnrope,
                            scotrsht, scregg, solomon, spacduel, starforce, starwars, tempest, theglob, thepit, timeplt,
                            tp84, trackfld, tutankhm, vanguard, vanvan, vulgus, williams, yiear, zaxxon)
 from romconv.games.namco import digdug2, gaplus, mappy, phozon, todruaga, xevious
@@ -102,6 +102,7 @@ ALL: tuple[Job, ...] = (
     phoenix.JOB,
     pleiads.JOB,
     pooyan.JOB,
+    qbert.JOB,
     roadfighter.JOB,
     rocnrope.JOB,
     scotrsht.JOB,
