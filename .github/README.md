@@ -249,5 +249,6 @@ evicted first. Menu entries not cached yet show a NET marker.
 | Choplifter (choplift.zip)     | ![Choplifter marquee](/logos/choplift.png) | ![Choplifter screenshot](/images/choplift.png) | Set chopliftu (unprotected), Sega System 2. FIRE=shoot, START=turn (controller B=turn) |
 | Toki no Senshi (Chrono Soldier) (tokisens.zip)      | ![Tokisens marquee](/logos/tokisens.png) | ![Tokisens screenshot](/images/tokisens.png) | FIRE=fire |
 | Tapper (tapper.zip)           | ![Tapper marquee](/logos/tapper.png) | ![Tapper screenshot](/images/Tapper.png) | Set "Tapper (Budweiser, set 1)", files tappg0.bin etc. Also needs midssio.zip. FIRE=fire |
+| Mario Bros. (mario.zip)       | ![Mario Bros. marquee](/logos/mario.png) | ![Mario Bros. screenshot](/images/mario.png) | 256 columns shown in a 240 column window that pans after player 1 (`MARIO_SCROLL`, alternatives `MARIO_SCALE`, `MARIO_CROP` in config.h). FIRE or UP=jump |
 
 ### ...
