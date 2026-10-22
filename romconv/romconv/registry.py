@@ -115,7 +115,7 @@ ALL: tuple[Job, ...] = (
     vanguard.JOB,
     vulgus.JOB,
     yiear.JOB,
-    zaxxon.JOB,
+    *zaxxon.JOBS,
     catalog.JOB,
     bundles.JOB,
 )

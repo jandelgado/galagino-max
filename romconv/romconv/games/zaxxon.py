@@ -1,5 +1,5 @@
 # ============================================================
-# Zaxxon (Sega 1982) ROM converter for GALAGINO
+# Zaxxon and Super Zaxxon (Sega 1982) ROM converter for GALAGINO
 # Set MAME "zaxxon" (US rev D). Verified: every ROM's SHA1 matches MAME's
 # zaxxon.cpp ROM_START(zaxxon) exactly (silkscreen U-numbers in our dump
 # also match the board diagram in that driver's header comment).
@@ -17,6 +17,7 @@ from romconv.emit.asset import emit_compressed, emit_plain
 from romconv.gfx.adpcm import ima_encode
 from romconv.gfx.color import prom_rgb_332_resnet, rgb565_swapped
 from romconv.gfx.gfxutil import mame_decode, rot_galagino
+from romconv.hw import segacrpt
 
 _AUDIO_ZIP = "zaxxon-audio.zip"
 
@@ -67,6 +68,28 @@ ZAXXON_FILES = MappingProxyType({
     "prom_colors": ("zaxxon.u98", "01ae8450ccc302e1a5ae74230d44f6f531a962e2"),
     # zaxxon.u72 in MAME; loaded second -> foreground tile color-group select.
     "prom_fgsel": ("zaxxon.u72", "0cf08fb62f77d93ff7cb883c633e0db35906e11d"),
+})
+
+# Super Zaxxon (MAME ROM_START(szaxxon)): same board and layout, main CPU
+# encrypted with the Sega 315-5013. Samples are zaxxon's.
+_SZAXXON_FILES = MappingProxyType({
+    "maincpu1": ("1804e.u27", "b5d3beb296d52ed69b4ceacf329c20a72e3a1dce"),
+    "maincpu2": ("1803e.u28", "afb2bd2ffee3f5e589064f59b6ac21ed915094df"),
+    "maincpu3": ("1802e.u29", "91e3a0c0df6c9cf66980d1ffcc3830ffdbef8c2f"),
+    "gfx_tx_1": ("1815b.u68", "9f92bd15466048a5665bfc2ebc8c6504af9353eb"),
+    "gfx_tx_2": ("1816b.u69", "42ab7dc0e4e0d09213054597373383cdb6a55699"),
+    "gfx_bg_1": ("1807b.u113", "8682217dc800f43b73cd5e8501dbf3b7cd136dc1"),
+    "gfx_bg_2": ("1806b.u112", "a1bee07aa906366aa69866d1bdff38e2d90fafdd"),
+    "gfx_bg_3": ("1805b.u111", "f898e42d6bc1fd3629c9caee3c2af27805969ac6"),
+    "gfx_spr_1": ("1812e.u77", "d4085f15fcbfb9547a7f9e2cb7ce9276c4d6c08d"),
+    "gfx_spr_2": ("1813e.u78", "118e9d2b4f5daf96f5a38ccd92d0b046a470b0b2"),
+    "gfx_spr_3": ("1814e.u79", "2b3305dd55dc09d7394ed8ae691773972dba28b9"),
+    "tilemap_1": ("1809b.u91", "8170dd9f81c41104694951a2c74405d0c6d8b9b6"),
+    "tilemap_2": ("1808b.u90", "1e4d460ce8cca66b081ee8ec1a9adb6ef98274ec"),
+    "tilemap_3": ("1811b.u93", "b78c44d92078552835a20bcb7125fc9ca8af5048"),
+    "tilemap_4": ("1810b.u92", "51541ec78ab3f8241a5ddf7f99a46f5e44292992"),
+    "prom_colors": ("pr-5168.u98", "42840e9ab303fb64102a1dbae03d66c9cf743a9f"),
+    "prom_fgsel": ("pr-5167.u72", "0cf08fb62f77d93ff7cb883c633e0db35906e11d"),
 })
 
 def _planes3(region_bits):
@@ -198,53 +221,53 @@ def _write_samples(ctx):
     ctx.log.info(f"zaxxon samples total: {total_pcm} -> {total_encoded} bytes "
           f"({100.0 * (1.0 - total_encoded / total_pcm):.1f}% smaller)")
 
-def _write_rom(ctx, name, sym, data, comment):
+def _write_rom(ctx, name, sym, data, comment, plan=True):
   with ctx.header(name) as f:
     for line in comment.splitlines():
       print(f"// {line}" if line else "//", file=f)
-    emit_plain(f, sym, "unsigned char", "", len(data), _plain_hex_block(data))
+    emit_plain(f, sym, "unsigned char", "", len(data), _plain_hex_block(data), plan=plan)
 
-def _write_char_tiles(ctx, tiles):
-    with ctx.header("zaxxon_chartiles.h") as f:
+def _write_char_tiles(ctx, prefix, tiles):
+    with ctx.header(f"{prefix}_chartiles.h") as f:
         print("// Zaxxon foreground char set (gfx_tx). 256 tile 8x8 2bpp", file=f)
         print("// (pixel values 0-3). Color group comes from the prom_fgsel", file=f)
-        print("// lookup table (zaxxon_fgcolor_codes), not from tile data.", file=f)
-        print("// PLAIN/flash-resident: see ARENA BUDGET note in zaxxon_rom_main.h.", file=f)
+        print(f"// lookup table ({prefix}_fgcolor_codes), not from tile data.", file=f)
+        print(f"// PLAIN/flash-resident: see ARENA BUDGET note in {prefix}_rom_main.h.", file=f)
         body = ",\n".join("{" + ",".join("{" + ",".join(str(v) for v in t[y]) + "}" for y in range(8)) + "}"
                            for t in tiles)
-        emit_plain(f, "zaxxon_chartiles", "unsigned char", "[8][8]", len(tiles), body)
+        emit_plain(f, f"{prefix}_chartiles", "unsigned char", "[8][8]", len(tiles), body)
 
-def _write_bg_tiles(ctx, tiles):
-    with ctx.header("zaxxon_bgtiles.h") as f:
+def _write_bg_tiles(ctx, prefix, tiles):
+    with ctx.header(f"{prefix}_bgtiles.h") as f:
         print("// Zaxxon background tile graphics (gfx_bg). 1024 tile 8x8", file=f)
         print("// 3bpp (pixel values 0-7). Which tile/color goes where on the", file=f)
-        print("// 32x512 playfield comes from zaxxon_tilemap.h, not here.", file=f)
+        print(f"// 32x512 playfield comes from {prefix}_tilemap.h, not here.", file=f)
         flat = [v for t in tiles for y in range(8) for v in t[y]]
-        emit_compressed(f, "zaxxon_bgtiles", "unsigned char", "[8][8]", len(tiles), flat)
+        emit_compressed(f, f"{prefix}_bgtiles", "unsigned char", "[8][8]", len(tiles), flat)
 
-def _write_sprite_tiles(ctx, tiles):
-    with ctx.header("zaxxon_spritetiles.h") as f:
+def _write_sprite_tiles(ctx, prefix, tiles):
+    with ctx.header(f"{prefix}_spritetiles.h") as f:
         print("// Zaxxon sprites (gfx_spr). 64 sprite 32x32 3bpp (pixel", file=f)
         print("// values 0-7). COMPRESSED: see ARENA BUDGET note in", file=f)
-        print("// zaxxon_rom_main.h -- this is one of the two 65536-byte", file=f)
+        print(f"// {prefix}_rom_main.h -- this is one of the two 65536-byte", file=f)
         print("// assets that must each anchor its own Arena block.", file=f)
         flat = [v for t in tiles for y in range(32) for v in t[y]]
-        emit_compressed(f, "zaxxon_spritetiles", "unsigned char", "[32][32]", len(tiles), flat)
+        emit_compressed(f, f"{prefix}_spritetiles", "unsigned char", "[32][32]", len(tiles), flat)
 
 def _plain_hex_block(values, per_line=32):
     hexs = ["0x{:02X}".format(v) for v in values]
     rows = [",".join(hexs[i:i + per_line]) for i in range(0, len(hexs), per_line)]
     return ",\n".join(rows)
 
-def _write_tilemap(ctx, tile_code, tile_color):
-    with ctx.header("zaxxon_tilemap.h") as f:
+def _write_tilemap(ctx, prefix, tile_code, tile_color):
+    with ctx.header(f"{prefix}_tilemap.h") as f:
         print("// Zaxxon background playfield map: fixed 32 col x 512 row", file=f)
         print("// tilemap (16384 cells, row-major, TILEMAP_SCAN_ROWS order).", file=f)
-        print("// tile_code indexes zaxxon_bgtiles (0-1023); tile_color is", file=f)
+        print(f"// tile_code indexes {prefix}_bgtiles (0-1023); tile_color is", file=f)
         print("// the 4-bit bg color group (0-15).", file=f)
-        print("// Both COMPRESSED. See ARENA BUDGET note in zaxxon_rom_main.h.", file=f)
-        emit_compressed(f, "zaxxon_tilemap_code", "unsigned short", "", len(tile_code), list(tile_code))
-        emit_compressed(f, "zaxxon_tilemap_color", "unsigned char", "", len(tile_color), list(tile_color))
+        print(f"// Both COMPRESSED. See ARENA BUDGET note in {prefix}_rom_main.h.", file=f)
+        emit_compressed(f, f"{prefix}_tilemap_code", "unsigned short", "", len(tile_code), list(tile_code))
+        emit_compressed(f, f"{prefix}_tilemap_color", "unsigned char", "", len(tile_color), list(tile_color))
 
 # ---- Palette PROM (mro16/u76, 256 colors) -> RGB565 byte-swapped ----
 # zaxxon_state::zaxxon_palette: R = bit0-2 (1k/470/220), G = bit3-5
@@ -254,104 +277,108 @@ def _write_tilemap(ctx, tile_code, tile_color):
 def _convert_palette(prom):
     return [rgb565_swapped(*prom_rgb_332_resnet(v)) for v in prom]  # clamped, byte-swapped for SPI
 
-def _write_palette(ctx, rgb565, fgsel):
-    with ctx.header("zaxxon_palette.h") as f:
+def _write_palette(ctx, prefix, rgb565, fgsel):
+    with ctx.header(f"{prefix}_palette.h") as f:
         print("// Zaxxon palette: 256 entries, RGB565 byte-swapped for SPI.", file=f)
-        emit_compressed(f, "zaxxon_palette", "unsigned short", "", len(rgb565), rgb565)
+        emit_compressed(f, f"{prefix}_palette", "unsigned short", "", len(rgb565), rgb565)
         print("", file=f)
         print("// Foreground char color-group select (prom zaxxon.u72, raw).", file=f)
         print("// Indexed [sx + 32*(sy/4)] by fg tile screen column/quadrant;", file=f)
         print("// low nibble * 2 is the palette group for that character.", file=f)
-        emit_compressed(f, "zaxxon_fgcolor_codes", "unsigned char", "", len(fgsel), list(fgsel))
+        emit_compressed(f, f"{prefix}_fgcolor_codes", "unsigned char", "", len(fgsel), list(fgsel))
 
 # ------------------------------------------------------------
-def _convert_roms(ctx: Context) -> None:
-  cpu1 = ctx.rom(*ZAXXON_FILES["maincpu1"])
-  cpu2 = ctx.rom(*ZAXXON_FILES["maincpu2"])
-  cpu3 = ctx.rom(*ZAXXON_FILES["maincpu3"])
+def _convert_set(ctx: Context, prefix: str, files, rom_title: str, crypt=None) -> None:
+  """One board set: gfx, tilemap, palette and main ROM as <prefix>_*.h.
+  crypt: 315-5xxx table; then rom_main is the data image and
+  <prefix>_rom_ops.h the opcode image."""
+  roms = {k: ctx.rom(*v) for k, v in files.items()}
 
-  tx1 = ctx.rom(*ZAXXON_FILES["gfx_tx_1"])
-  tx2 = ctx.rom(*ZAXXON_FILES["gfx_tx_2"])
-
-  bg1 = ctx.rom(*ZAXXON_FILES["gfx_bg_1"])
-  bg2 = ctx.rom(*ZAXXON_FILES["gfx_bg_2"])
-  bg3 = ctx.rom(*ZAXXON_FILES["gfx_bg_3"])
-
-  spr1 = ctx.rom(*ZAXXON_FILES["gfx_spr_1"])
-  spr2 = ctx.rom(*ZAXXON_FILES["gfx_spr_2"])
-  spr3 = ctx.rom(*ZAXXON_FILES["gfx_spr_3"])
-
-  tm1 = ctx.rom(*ZAXXON_FILES["tilemap_1"])
-  tm2 = ctx.rom(*ZAXXON_FILES["tilemap_2"])
-  tm3 = ctx.rom(*ZAXXON_FILES["tilemap_3"])
-  tm4 = ctx.rom(*ZAXXON_FILES["tilemap_4"])
-
-  prom_colors = ctx.rom(*ZAXXON_FILES["prom_colors"])
-  prom_fgsel = ctx.rom(*ZAXXON_FILES["prom_fgsel"])
-
-  # ---- program ROM (0000-4fff, not encrypted on this set) ----
-  maincpu = cpu1 + cpu2 + cpu3
+  # ---- program ROM (0000-4fff) ----
+  maincpu = roms["maincpu1"] + roms["maincpu2"] + roms["maincpu3"]
   assert len(maincpu) == 0x5000
-  _write_rom(ctx, "zaxxon_rom_main.h", "zaxxon_rom_main", maincpu,
-            "Zaxxon main CPU ROM 0x0000-0x4fff (20KB), not encrypted (US rev D).\n"
+  if crypt:
+    maincpu, ops = segacrpt.decrypt(maincpu, crypt)
+    _write_ops(ctx, prefix, ops)
+  _write_rom(ctx, f"{prefix}_rom_main.h", f"{prefix}_rom_main", maincpu,
+            f"{rom_title}\n"
             "\n"
             "ARENA BUDGET (see arena.h): every COMPRESSED asset this machine\n"
             "uses stays resident for the machine's whole lifetime, so they all\n"
             "have to bin-pack into Arena's two blocks (91000, 110500) at once.\n"
-            "This ROM and zaxxon_chartiles are PLAIN (flash): they gain least\n"
+            f"This ROM and {prefix}_chartiles are PLAIN (flash): they gain least\n"
             "from compression (20480 -> ~14000, 16384 -> ~1250), so the Arena\n"
-            "holds zaxxon_tilemap_code (32768 -> ~3500) instead.\n"
+            f"holds {prefix}_tilemap_code (32768 -> ~3500) instead.\n"
             "\n"
             "zaxxon::zaxxon() unpacks every COMPRESSED asset eagerly, largest\n"
             "first: Arena fills block A before B, so access order is\n"
             "placement order:\n"
-            "  zaxxon_bgtiles        (65536) -> A (A: 65536)\n"
-            "  zaxxon_spritetiles    (65536) -> B (B: 65536)\n"
-            "  zaxxon_tilemap_code   (32768) -> B (B: 98304)\n"
-            "  zaxxon_tilemap_color  (16384) -> A (A: 81920)\n"
-            "  zaxxon_palette          (512) -> A (A: 82432)\n"
-            "  zaxxon_fgcolor_codes    (256) -> A (A: 82688)")
+            f"  {prefix}_bgtiles        (65536) -> A (A: 65536)\n"
+            f"  {prefix}_spritetiles    (65536) -> B (B: 65536)\n"
+            f"  {prefix}_tilemap_code   (32768) -> B (B: 98304)\n"
+            f"  {prefix}_tilemap_color  (16384) -> A (A: 81920)\n"
+            f"  {prefix}_palette          (512) -> A (A: 82432)\n"
+            f"  {prefix}_fgcolor_codes    (256) -> A (A: 82688)")
 
   # ---- gfx_tx: chars, 2bpp planar 8x8 ----
-  char_tiles = decode_char_tiles(tx1 + tx2)
-  _write_char_tiles(ctx, char_tiles)
+  char_tiles = decode_char_tiles(roms["gfx_tx_1"] + roms["gfx_tx_2"])
+  _write_char_tiles(ctx, prefix, char_tiles)
   ctx.log.info(f"char tiles: {len(char_tiles)}")
 
   # ---- gfx_bg: background tile graphics, 3bpp planar 8x8 ----
-  bg_tiles = decode_bg_tiles(bg1 + bg2 + bg3)
-  _write_bg_tiles(ctx, bg_tiles)
+  bg_tiles = decode_bg_tiles(roms["gfx_bg_1"] + roms["gfx_bg_2"] + roms["gfx_bg_3"])
+  _write_bg_tiles(ctx, prefix, bg_tiles)
   ctx.log.info(f"bg tiles: {len(bg_tiles)}")
 
   # ---- gfx_spr: sprites, 32x32 3bpp, zaxxon_spritelayout ----
-  sprite_tiles = decode_sprite_tiles(spr1 + spr2 + spr3)
-  _write_sprite_tiles(ctx, sprite_tiles)
+  sprite_tiles = decode_sprite_tiles(roms["gfx_spr_1"] + roms["gfx_spr_2"] + roms["gfx_spr_3"])
+  _write_sprite_tiles(ctx, prefix, sprite_tiles)
   ctx.log.info(f"sprite tiles: {len(sprite_tiles)}")
 
   # ---- tilemap_dat: fixed 32x512 bg playfield map, not gfx data ----
   # zaxxon_state::get_bg_tile_info: source split in half; low byte = tile
   # code, high half byte = (code_hi<<8 | color<<4). size = region/2.
-  tilemap_dat = tm1 + tm2 + tm3 + tm4
+  tilemap_dat = roms["tilemap_1"] + roms["tilemap_2"] + roms["tilemap_3"] + roms["tilemap_4"]
   assert len(tilemap_dat) == 0x8000
   size = len(tilemap_dat) // 2
   assert size == 32 * 512
   tile_code  = [tilemap_dat[i] + 256 * (tilemap_dat[i + size] & 3) for i in range(size)]
   tile_color = [tilemap_dat[i + size] >> 4 for i in range(size)]
   assert max(tile_code) < len(bg_tiles)
-  _write_tilemap(ctx, tile_code, tile_color)
+  _write_tilemap(ctx, prefix, tile_code, tile_color)
   ctx.log.info(f"tilemap: {size} cells (32x512)")
 
   # ---- palette ----
+  prom_colors, prom_fgsel = roms["prom_colors"], roms["prom_fgsel"]
   assert len(prom_colors) == 256 and len(prom_fgsel) == 256
   rgb565 = _convert_palette(prom_colors)
-  _write_palette(ctx, rgb565, prom_fgsel)
+  _write_palette(ctx, prefix, rgb565, prom_fgsel)
   ctx.log.info("palette: 256 colors + 256 fg color-select entries")
 
-  ctx.log.info("Zaxxon (ROM/gfx) conversion done.")
+def _write_ops(ctx, prefix, ops):
+  # PLAIN and unplanned: read only by opcode fetches, and the Arena
+  # budget above has no room for another 20480 bytes
+  _write_rom(ctx, f"{prefix}_rom_ops.h", f"{prefix}_rom_ops", ops,
+            "Decrypted opcode image 0x0000-0x4fff (MAME AS_OPCODES), read by\n"
+            "opZ80/opPrefixZ80; rom_main holds the decrypted data image.", plan=False)
 
 def _convert(ctx: Context) -> None:
-  _convert_roms(ctx)
+  _convert_set(ctx, "zaxxon", ZAXXON_FILES,
+               "Zaxxon main CPU ROM 0x0000-0x4fff (20KB), not encrypted (US rev D).")
+  ctx.log.info("Zaxxon (ROM/gfx) conversion done.")
   _write_samples(ctx)
   ctx.log.info("Zaxxon (audio) conversion done.")
 
 
-JOB = Job(name="zaxxon", convert=_convert, machine="zaxxon", zips=("zaxxon.zip", _AUDIO_ZIP), plan=True)
+def _convert_sz(ctx: Context) -> None:
+  _convert_set(ctx, "szaxxon", _SZAXXON_FILES,
+               "Super Zaxxon main CPU data image 0x0000-0x4fff (20KB), 315-5013 decrypted.",
+               segacrpt.TABLE_315_5013)
+  ctx.log.info("Super Zaxxon conversion done (samples shared with zaxxon).")
+
+
+JOBS = (
+    Job(name="zaxxon", convert=_convert, machine="zaxxon", zips=("zaxxon.zip", _AUDIO_ZIP), plan=True),
+    Job(name="szaxxon", convert=_convert_sz, machine="szaxxon", zips=("szaxxon.zip",), plan=True,
+        deps=("zaxxon",)),
+)

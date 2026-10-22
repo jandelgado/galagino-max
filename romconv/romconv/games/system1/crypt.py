@@ -6,9 +6,11 @@ from romconv.core.context import Context
 from romconv.games.system1 import mc8123
 from romconv.games.system1.sets import SetSpec, load_roms
 from romconv.gfx.bits import BIT
+from romconv.hw import segacrpt
 
 # MAME segacrpt_device.cpp sega_315_5048_device::decrypt(): per row
 # (A0, A4, A8, A12) an opcode and a data entry, indexed by src bits 3, 5
+# (decode: hw/segacrpt.py)
 _CRYPT = MappingProxyType({
     "315-5048": (
         (0x88, 0x08, 0x80, 0x00), (0xa0, 0xa8, 0x80, 0x88),
@@ -123,25 +125,6 @@ _CRYPT2 = MappingProxyType({
     ),
 })
 _CRYPT_SIZE = 0x8000
-_CRYPT_BITS = 0xa8  # bits 3, 5, 7 are swapped/inverted, the rest pass through
-
-
-# MAME segacrpt decode(): data image of the whole ROM, opcode image of 0000-7fff
-def _sega_decrypt(rom, table):
-    data = bytearray(rom)
-    ops = bytearray(_CRYPT_SIZE)
-    for a in range(_CRYPT_SIZE):
-        src = rom[a]
-        row = BIT(a, 0) | BIT(a, 4) << 1 | BIT(a, 8) << 2 | BIT(a, 12) << 3
-        col = BIT(src, 3) | BIT(src, 5) << 1
-        xor = 0
-        if src & 0x80:
-            col = 3 - col
-            xor = _CRYPT_BITS
-        keep = src & ~_CRYPT_BITS
-        ops[a] = keep | (table[2 * row][col] ^ xor)
-        data[a] = keep | (table[2 * row + 1][col] ^ xor)
-    return bytes(data), bytes(ops)
 
 
 def _swap2(src, t):
@@ -172,7 +155,7 @@ def decrypt_main(ctx: Context, spec: SetSpec, rom: bytes, zip: str) -> tuple[byt
     if name == "mc8123":
         return mc8123.decode(rom, load_roms(ctx, spec.key, zip))
     if name in _CRYPT:
-        return _sega_decrypt(rom, _CRYPT[name])
+        return segacrpt.decrypt(rom, _CRYPT[name])
     if name in _CRYPT2:
         return _sega_decrypt2(rom, _CRYPT2[name])
     assert name is None, f"unknown crypt {name}"
