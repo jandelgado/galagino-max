@@ -2,9 +2,7 @@
 # board, ROT90. Tiles stored per native x column for the ROT90 line
 # render: uint16_t[8], word[x] bits 2y = pixel at native y.
 # Palette: 256 RGB565, pen = bank << 6 | fg << 5 | (code >> 5) << 2 | p,
-# MAME pleiads_palette (bitswap 7,6,5,1,0,4,3,2), colors as MAME 0.289.
-from types import MappingProxyType
-
+# MAME pleiads_palette (bitswap 7,6,5,1,0,4,3,2).
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
@@ -32,31 +30,63 @@ _SIM, _NOP = 0x30, 0x00
 
 _TILE_COUNT = 256
 
-# MAME 0.289 pleiads_palette() output per (low PROM, high PROM) nibble pair,
-# read from the running driver (Lua palette dump, 2026-10-16). Its resnet
-# (open collector, shared bias) couples the channels, e.g. pure red is
-# ca1618, so a per-channel level table does not reproduce it. All 256 pens
-# of this PROM set use these 15 pairs.
-_MAME_COLORS = MappingProxyType({
-    (0b0000, 0b0000): 0x000000, (0b0001, 0b0000): 0x9f1114, (0b0001, 0b0001): 0xca1618,
-    (0b0010, 0b0010): 0x0a07bd, (0b0011, 0b0001): 0xd11eaa, (0b0011, 0b0011): 0xd31fd2,
-    (0b0100, 0b0100): 0x2edf2d, (0b0101, 0b0100): 0xcdf040, (0b0101, 0b0101): 0xf6f644,
-    (0b0110, 0b0000): 0x2ab5b6, (0b0110, 0b0010): 0x2db8e0, (0b0110, 0b0100): 0x35e7bf,
-    (0b0110, 0b0110): 0x36e8e9, (0b0111, 0b0100): 0xd4f7d5, (0b0111, 0b0111): 0xffffff,
-})
+# MAME pleiads_palette(): compute_res_net_all(pleiads_net_info), then
+# normalize_range(), which rescales luminance across all pens. The
+# resnet (open collector, shared bias) couples the channels: pure red is
+# ca1618, so a per-channel level table does not reproduce it.
+_VCC, _VOL = 5.0, 0.05
+_RBIAS, _RGND, _RIN = 100, 270, (270, 1)
+
+
+def _tdiv(a, b):
+    """C integer division, truncating toward zero."""
+    q = abs(a) // abs(b)
+    return q if (a >= 0) == (b >= 0) else -q
+
+
+def _res_net(inputs):
+    """resnet.cpp compute_res_net(): high open collector inputs float."""
+    g = 1 / _RBIAS + 1 / _RGND
+    v = _VCC / _RBIAS
+    for i, r in enumerate(_RIN):
+        if not inputs >> i & 1:
+            g += 1 / r
+            v += _VOL / r
+    return int(v / g * 255 / _VCC + 0.4)
+
+
+def _normalize(rgb):
+    """palette_t::normalize_range(0, 255) with its default 0..255 target."""
+    ys = [299 * r + 587 * g + 114 * b for r, g, b in rgb]
+    ymin, ymax = min(ys), max(ys)
+    clamp = lambda x: min(255, max(0, x))
+    out = []
+    for (r, g, b), y in zip(rgb, ys):
+        u = _tdiv((b - y // 1000) * 492, 1000)
+        v = _tdiv((r - y // 1000) * 877, 1000)
+        t = _tdiv((y - ymin) * 256, ymax - ymin)
+        out.append((clamp(t + _tdiv(1140 * v, 1000)),
+                    clamp(t - _tdiv(395 * u, 1000) - _tdiv(581 * v, 1000)),
+                    clamp(t + _tdiv(2032 * u, 1000))))
+    return out
+
+
+def _palette(prom_26, prom_33):
+    """256 RGB565 pens; 5.26 holds bit 0, 5.33 bit 1 of each channel."""
+    rgb = _normalize([(_res_net(lo & 1 | hi << 1 & 2), _res_net(lo >> 2 & 1 | hi >> 1 & 2),
+                       _res_net(lo >> 1 & 1 | hi & 2)) for lo, hi in zip(prom_26, prom_33)])
+    pens = []
+    for i in range(256):
+        b = [(i >> n) & 1 for n in range(8)]
+        col = b[7] << 7 | b[6] << 6 | b[5] << 5 | b[1] << 4 | b[0] << 3 | b[4] << 2 | b[3] << 1 | b[2]
+        pens.append(rgb565_swapped(*rgb[col]))
+    return pens
 
 
 def _tiles(data):
     dec = mame_decode(data, 8, 8, [256 * 8 * 8, 0], [7, 6, 5, 4, 3, 2, 1, 0],
                       [8 * i for i in range(8)], 8 * 8, _TILE_COUNT)
     return column_words(dec, 2)
-
-
-def _color(prom_lo, prom_hi, i):
-    b = [(i >> n) & 1 for n in range(8)]
-    col = b[7] << 7 | b[6] << 6 | b[5] << 5 | b[1] << 4 | b[0] << 3 | b[4] << 2 | b[3] << 1 | b[2]
-    c = _MAME_COLORS[(prom_lo[col] & 0x0F, prom_hi[col] & 0x0F)]
-    return rgb565_swapped(c >> 16, (c >> 8) & 0xFF, c & 0xFF)
 
 
 def _convert(ctx: Context) -> None:
@@ -73,10 +103,8 @@ def _convert(ctx: Context) -> None:
           + rom("ic24.bin", "421dedc674c6dde7abf01412df035a8eb8e6db9b"))
     fg = (rom("ic39.bin", "cd240bd056f761b2f9e2142049434f02cae3e315")
           + rom("ic40.bin", "8349008ab1d8ef08775b54170c37deb1d391fffc"))
-    prom_lo = rom("7611-5.33", "252880d80425b2e697146e76efdc6cb9f3ba0378")
-    prom_hi = rom("7611-5.26", "bdfab316ea26e2063879e7aa78b6ae2b55eb95c8")
-
-    palette = [_color(prom_lo, prom_hi, i) for i in range(256)]
+    palette = _palette(rom("7611-5.26", "bdfab316ea26e2063879e7aa78b6ae2b55eb95c8"),
+                       rom("7611-5.33", "252880d80425b2e697146e76efdc6cb9f3ba0378"))
 
     def write(name, fn):
         write_asset(ctx, name, None, fn)

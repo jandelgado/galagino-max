@@ -144,10 +144,12 @@ def test_phoenix_palette_and_tiles():
 
 
 def test_pleiads_sim_patch_and_palette():
-    assert pleiads._color(bytes(128), bytes(128), 0) == rgb565_swapped(0, 0, 0)
-    assert pleiads._color(bytes([0x07] * 128), bytes([0x07] * 128), 5) == rgb565_swapped(255, 255, 255)
-    with pytest.raises(KeyError):
-        pleiads._color(bytes([0x01] * 128), bytes([0x07] * 128), 0)
+    # MAME pens: 0 black, 7/7 white, 1/1 (pure red) ca1618
+    prom = bytes([0, 1] + [7] * 254)
+    palette = pleiads._palette(prom, prom)
+    assert palette[0] == rgb565_swapped(0, 0, 0)
+    assert palette[0x04] == rgb565_swapped(0xca, 0x16, 0x18)
+    assert palette[0xff] == rgb565_swapped(255, 255, 255)
 
 
 def test_pooyan_palette_and_pixels():
