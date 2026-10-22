@@ -35,8 +35,17 @@ unsigned int Input::buttons_get(void) { return keys; }
 static docastle *machine;
 static uint32_t frame;
 
+// idle loop entry fetches since boot, per CPU (docastle.cpp *_IDLE_PC)
+static uint32_t idleFetches[2];
+
 extern "C" {
-unsigned char OpZ80_INL(unsigned short a) { return machine->opZ80(a); }
+unsigned char OpZ80_INL(unsigned short a) {
+  const bool slave = machine->current_cpu == SLAVE_CPU;
+  if (slave ? a == SLAVE_IDLE_PC : a == MAIN_IDLE_PC || a == MAIN_POLL_PC) {
+    idleFetches[slave]++;
+  }
+  return machine->opZ80(a);
+}
 unsigned char OpPrefixZ80_INL(unsigned short a) { return machine->opZ80(a); }
 unsigned char RdZ80(unsigned short a) { return machine->rdZ80(a); }
 void WrZ80(unsigned short a, unsigned char v) { machine->wrZ80(a, v); }
@@ -222,6 +231,17 @@ static void test_input_mux(void) {
   TEST_ASSERT_EQUAL_HEX8(0xff, machine->readInputs(0));  // select 0 keeps the last data
   keys = 0;  // a button held at boot enters test mode
 }
+
+// idle loops are skipped, not stepped: one pass per IRQ (main 1, slave 8
+// per frame), not thousands
+static void test_idle_skip(void) {
+  boot();
+  runTo(GAME_FRAME + 120);
+  printf("idle fetches per frame: main %u, slave %u\n", idleFetches[MAIN_CPU] / frame,
+         idleFetches[SLAVE_CPU] / frame);
+  TEST_ASSERT_LESS_OR_EQUAL_UINT32(4, idleFetches[MAIN_CPU] / frame);
+  TEST_ASSERT_LESS_OR_EQUAL_UINT32(24, idleFetches[SLAVE_CPU] / frame);
+}
 #endif
 
 int main(int argc, char **argv) {
@@ -230,6 +250,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_input_mux);
   RUN_TEST(test_attract_runs);
   RUN_TEST(test_coin_and_start);
+  RUN_TEST(test_idle_skip);
 #endif
   return UNITY_END();
 }

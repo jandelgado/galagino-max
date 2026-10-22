@@ -58,6 +58,15 @@ static const int SLAVE_IRQ_PERIOD = 32;
 // SN76489A READY is low for 32 chip clocks after a write: slave WAIT
 static const int SN_WAIT_CYCLES = 32;
 
+// idle loops (ROM disassembly), left only by an IRQ
+static const uint16_t MAIN_IDLE_PC = 0x08d0;   // ei / jr $08d0
+static const uint16_t MAIN_POLL_PC = 0x09b6;   // ei / ld a,($95f2) / and $04 / jr nz,$09b6
+static const uint16_t SLAVE_IDLE_PC = 0x0213;  // ei / ld hl,$8050 / ld a,(hl) / cp $08 / jr c,$0213
+static const uint16_t RAM_MAIN_POLL = 0x95f2 - 0x8000;
+static const uint8_t MAIN_POLL_BIT = 0x04;
+static const uint16_t RAM_SLAVE_IRQS = 0x8050 - SLAVE_RAM;  // slave IRQ count, 8 a frame
+static const uint8_t SLAVE_IRQS_FRAME = 8;
+
 static const uint8_t OP_EI = 0xfb, OP_ED = 0xed, OP_LDI = 0xa0, OP_LDIR = 0xb0;
 static const int MIN_STEP_CYCLES = 4;
 
@@ -271,6 +280,27 @@ static int stepZ80(Z80 &z, uint8_t op) {
   return used > MIN_STEP_CYCLES ? used : MIN_STEP_CYCLES;
 }
 
+// Idle loops only wait for an IRQ, which arrives at a line start: no need
+// to step them. The pass after the IRQ runs normally.
+bool GAME_IRAM docastle::mainIdle() {
+  const Z80 &z = cpu[MAIN_CPU];
+  if (main_irq || !(z.IFF & IFF_1)) {
+    return false;
+  }
+  if (z.PC.W == MAIN_IDLE_PC) {
+    return true;
+  }
+  return z.PC.W == MAIN_POLL_PC && (memory[DOCASTLE_MEM_MAIN_RAM + RAM_MAIN_POLL] & MAIN_POLL_BIT);
+}
+
+bool GAME_IRAM docastle::slaveIdle() {
+  const Z80 &z = cpu[SLAVE_CPU];
+  if (slave_nmi || slave_irq || !(z.IFF & IFF_1) || z.PC.W != SLAVE_IDLE_PC) {
+    return false;
+  }
+  return memory[DOCASTLE_MEM_SLAVE_RAM + RAM_SLAVE_IRQS] < SLAVE_IRQS_FRAME;
+}
+
 int GAME_IRAM docastle::stepMain() {
   Z80 &z = cpu[MAIN_CPU];
   current_cpu = MAIN_CPU;
@@ -319,7 +349,9 @@ void docastle::run_frame(void) {
       slave_irq = true;
     }
 
-    // lockstep: the CPU behind runs; main in WAIT stalls behind the slave
+    // lockstep: the CPU behind runs; main in WAIT stalls behind the slave.
+    // Idle main sleeps to the line end; idle slave keeps pace with main,
+    // which may send it an NMI.
     const int end = (line + 1) * LINE_CYCLES;
     while (main_t < end || slave_t < end) {
       if (main_t <= slave_t ? main_t < end : slave_t >= end) {
@@ -327,8 +359,16 @@ void docastle::run_frame(void) {
           main_t = slave_t < end ? slave_t + 1 : end;
           continue;
         }
+        if (mainIdle()) {
+          main_t = end;
+          continue;
+        }
         main_t += stepMain();
       } else {
+        if (slaveIdle()) {
+          slave_t = main_t < end ? main_t : end;
+          continue;
+        }
         slave_t += stepSlave();
       }
     }

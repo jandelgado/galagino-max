@@ -68,6 +68,8 @@ private:
 
   int stepMain();
   int stepSlave();
+  bool mainIdle();
+  bool slaveIdle();
   bool latchReadBlocks();
   uint8_t readInputs(uint8_t offset);
   uint8_t inputPort(uint8_t select);
