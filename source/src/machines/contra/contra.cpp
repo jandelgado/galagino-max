@@ -18,6 +18,12 @@ static constexpr uint32_t FIXED_ROM = 0x18000;   // 8000-ffff = ROM 18000-1ffff
 static constexpr uint8_t BANK_MASK = 0x0f;
 static constexpr uint16_t BANK_SELECT = 0x7000;
 
+// main loop task poll, left once the IRQ handler clears bit 7 of the flag:
+//   8126 LDX <$0E / LDD ,X / ASLA / BCC $8108 / BRA $8126
+static constexpr uint16_t IDLE_PC = 0x8126;
+static constexpr uint8_t IDLE_PTR = 0x0e;      // direct page pointer to the flag
+static constexpr uint8_t IDLE_BUSY = 0x80;
+
 static constexpr uint8_t CTRL_IRQ = 7;           // b1 IRQ enable, 0 acknowledges
 static constexpr uint8_t CTRL7_IRQ_ENABLE = 0x02;
 static constexpr uint8_t CTRL3_SPRITE_BANK = 0x08;   // sprite list at +0x800
@@ -219,6 +225,16 @@ uint8_t contra::readMath(uint8_t reg) {
 
 // ---- Frame ----
 
+// at IDLE_PC with the flag still busy: the loop would only spin
+bool contra::idle(void) {
+  if (main_cpu.PC != IDLE_PC) {
+    return false;
+  }
+  const uint16_t ptr = (uint16_t)(main_cpu.DP << 8 | IDLE_PTR);
+  const uint16_t flag = (uint16_t)(m6809_read(&main_cpu, ptr) << 8 | m6809_read(&main_cpu, ptr + 1));
+  return m6809_read(&main_cpu, flag) & IDLE_BUSY;
+}
+
 // 264 lines; the IRQ is a level (k007121.cpp scanline()): asserted at line
 // 240 while enabled, re-offered each line until the game clears it
 void contra::run_frame(void) {
@@ -234,6 +250,10 @@ void contra::run_frame(void) {
 
     debt += CYCLES_LINE;
     while (debt > 0) {
+      if (idle()) {
+        debt = 0;   // nothing but the IRQ ends the poll, no cycle timers to feed
+        break;
+      }
       const int c = m6809_step(&main_cpu, 4);
       debt -= c > 0 ? c : 1;
     }

@@ -51,7 +51,8 @@ static const uint8_t VALID_P2[] = {0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x2
                                    0x9f, 0xa3, 0xac, 0xae, 0xaf, 0xb3, 0xbc, 0xbe, 0xbf, 0xce, 0xde,
                                    0xdf, 0xee, 0xef, 0xfe, 0xff};
 static const uint8_t VALID_P3[] = {0x3f, 0x83, 0x8c, 0x93, 0x9c, 0xa3, 0xac, 0xb3, 0xbc};
-static uint32_t unknownOps, opFetches;
+static uint32_t unknownOps, opFetches, idleFetches;
+static const uint16_t IDLE_LOOP = 0x8126;   // LDX <$0E / LDD ,X / ASLA / BCC / BRA
 
 static bool in(const uint8_t *set, size_t n, uint8_t v) {
   for (size_t i = 0; i < n; i++) {
@@ -72,6 +73,7 @@ unsigned char m6809_read_opcode(m6809_state *s, uint16_t a) {
   const uint8_t op = machine->m6809_read_opcode(s, a);
   const uint8_t next = machine->m6809_read(s, (uint16_t)(a + 1));
   opFetches++;
+  idleFetches += a == IDLE_LOOP;
   if (in(ILLEGAL_P0, sizeof(ILLEGAL_P0), op) ||
       (op == 0x10 && !in(VALID_P2, sizeof(VALID_P2), next)) ||
       (op == 0x11 && !in(VALID_P3, sizeof(VALID_P3), next))) {
@@ -136,6 +138,17 @@ static void test_no_unknown_opcodes(void) {
   TEST_ASSERT_EQUAL_UINT32(0, unknownOps);
 }
 
+// the main loop polls a task flag until the IRQ sets it (55 % of all
+// instructions unskipped); skipped passes leave a few fetches per frame
+static void test_idle_loop_skipped(void) {
+  boot();
+  runTo(frame + 600);
+  idleFetches = 0;
+  runTo(frame + 600);
+  printf("idle loop fetches %u in 600 frames\n", idleFetches);
+  TEST_ASSERT_LESS_THAN_UINT32(600 * 10, idleFetches);
+}
+
 // 007452: 0x12 * 0x34 and 1000 / 7 (k007452.cpp write/read)
 static void test_math_chip(void) {
   boot();
@@ -180,6 +193,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_boots_to_attract);
   RUN_TEST(test_no_unknown_opcodes);
   RUN_TEST(test_inputs);
+  RUN_TEST(test_idle_loop_skipped);
 #endif
   return UNITY_END();
 }

@@ -90,6 +90,7 @@ private:
   };
 
   uint8_t readPort(uint16_t addr);
+  bool idle(void);
   void writeCtrl(int chip, uint8_t reg, uint8_t val);
   void writeMath(uint8_t reg, uint8_t val);
   uint8_t readMath(uint8_t reg);
