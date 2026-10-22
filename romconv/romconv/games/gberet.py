@@ -44,34 +44,45 @@ def _palette(prom):
     return [rgb565_swapped(*prom_rgb_332(v)) for v in prom]
 
 
-def _write_cmap(ctx, pal, tile_clut, spr_clut):
+def _write_cmap(ctx, prefix, title, pal, tile_clut, spr_clut, lut_names):
     def emit(f):
-        f.write("// Green Beret color maps, RGB565 byte-swapped for the SPI display.\n\n")
-        f.write("// Characters: 16 colors x 16 pens, lookup 577h11 -> palette 0x10 | nibble\n")
-        write_color_tables(f, "gberet_tile", pal, tile_clut, 0x10, " PROGMEM")
-        f.write("// Sprites: 16 colors x 16 pens, lookup 577h10 -> palette nibble\n")
-        write_color_tables(f, "gberet_spr", pal, spr_clut, 0x00, " PROGMEM")
+        f.write(f"// {title} color maps, RGB565 byte-swapped for the SPI display.\n\n")
+        f.write(f"// Characters: 16 colors x 16 pens, lookup {lut_names[0]} -> palette 0x10 | nibble\n")
+        write_color_tables(f, f"{prefix}_tile", pal, tile_clut, 0x10, " PROGMEM")
+        f.write(f"// Sprites: 16 colors x 16 pens, lookup {lut_names[1]} -> palette nibble\n")
+        write_color_tables(f, f"{prefix}_spr", pal, spr_clut, 0x00, " PROGMEM")
 
-    write_asset(ctx, "gberet_cmap.h", None, emit, __file__)
+    write_asset(ctx, f"{prefix}_cmap.h", None, emit, __file__)
 
 
-def _convert(ctx: Context) -> None:
-    arena_block = layout.read_layouts(layout.header_path(ctx.paths))["local"][0]
-    rom = rom_bytes_all(ctx, _MAIN)
-    tiles = _decode_tiles(rom_bytes(ctx, _TILES))
-    sprites = _decode_sprites(rom_bytes_all(ctx, _SPRITES))
+def convert_set(ctx: Context, prefix: str, title: str, files: dict, rom_comment: str,
+                lut_names: tuple[str, str], check_arena: bool = True) -> None:
+    """Shared by the gberet board family; files: main, tiles, sprites, pal, tile_clut, spr_clut."""
+    rom = rom_bytes_all(ctx, files["main"])
+    tiles = _decode_tiles(rom_bytes(ctx, files["tiles"]))
+    sprites = _decode_sprites(rom_bytes_all(ctx, files["sprites"]))
 
-    write_bytes(ctx, "gberet_rom.h", "gberet_rom", rom, "Z80 ROM 0x0000-0xbfff", __file__)
-    write_array(ctx, "gberet_tilemap.h", "gberet_tilemap", "uint32_t", "[8]", 512, tiles,
+    write_bytes(ctx, f"{prefix}_rom.h", f"{prefix}_rom", rom, rom_comment, __file__)
+    write_array(ctx, f"{prefix}_tilemap.h", f"{prefix}_tilemap", "uint32_t", "[8]", 512, tiles,
                 "512 chars 8x8 4 bpp, row = 8 pens, pixel 0 in bits 31-28", __file__)
-    write_array(ctx, "gberet_spritemap.h", "gberet_spritemap", "uint32_t", "[16][2]", 512, sprites,
+    write_array(ctx, f"{prefix}_spritemap.h", f"{prefix}_spritemap", "uint32_t", "[16][2]", 512, sprites,
                 "512 sprites 16x16 4 bpp, [row][0] pixels 0-7, [row][1] pixels 8-15, first in bits 31-28",
                 __file__)
-    _write_cmap(ctx, _palette(rom_bytes(ctx, _PAL)), rom_bytes(ctx, _TILE_CLUT), rom_bytes(ctx, _SPR_CLUT))
+    _write_cmap(ctx, prefix, title, _palette(rom_bytes(ctx, files["pal"])), rom_bytes(ctx, files["tile_clut"]),
+                rom_bytes(ctx, files["spr_clut"]), lut_names)
 
     sizes = {"rom": len(rom), "tilemap": len(tiles) * 4, "spritemap": len(sprites) * 4}
     log_sizes(ctx, sizes)
-    assert sizes["rom"] + sizes["tilemap"] <= arena_block and sizes["spritemap"] <= arena_block
+    if check_arena:
+        arena_block = layout.read_layouts(layout.header_path(ctx.paths))["local"][0]
+        assert sizes["rom"] + sizes["tilemap"] <= arena_block and sizes["spritemap"] <= arena_block
+
+
+def _convert(ctx: Context) -> None:
+    convert_set(ctx, "gberet", "Green Beret",
+                dict(main=_MAIN, tiles=_TILES, sprites=_SPRITES, pal=_PAL, tile_clut=_TILE_CLUT,
+                     spr_clut=_SPR_CLUT),
+                "Z80 ROM 0x0000-0xbfff", ("577h11", "577h10"))
 
 
 JOB = Job(name="gberet", convert=_convert, machine="gberet", zips=("gberet.zip",))

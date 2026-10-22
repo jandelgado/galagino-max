@@ -165,3 +165,11 @@ def test_nibbler_crc_manifest_rejects_a_bad_dump(paths, log, make_zip):
         snk6502.load(ctx, nibbler._MANIFEST, "ic12")
     with pytest.raises(ConversionError, match="no file ic7"):
         snk6502.load(ctx, nibbler._MANIFEST, "ic7")
+
+
+def test_mrgoemon_job():
+    from romconv.games import mrgoemon
+    job = mrgoemon.JOB
+    assert job.name == "mrgoemon" and job.machine == "mrgoemon" and job.plan
+    assert job.zips == ("mrgoemon.zip",)
+    assert job in registry.ALL
