@@ -94,10 +94,15 @@ def test_patch_table_errors(tmp_path):
         read_patch_table(bad)
 
 
-def test_gyruss_patch_tables_fit_the_assets():
-    tiles = read_patch_table(gyruss._HERE / "til_patch.table")
-    sprites = read_patch_table(gyruss._HERE / "spr_patch.table")
-    assert len(tiles) == 512 * 8 and len(sprites) >= 512 * 16
+def test_gyruss_gfx_decoders():
+    data = bytearray(0x2000)
+    data[0] = 0x80  # bit offset 0: plane {0} of MAME's {4, 0} -> pen 2 at x 0, y 0
+    tiles = gyruss._decode_tiles(data)
+    assert len(tiles) == 512 * 8 and tiles[0] == 2 and tiles[1] == 0
+    sprites = bytearray(0x8000)
+    sprites[0x10] = 0x80  # second element, x 0 y 0, plane {0}: pen 1
+    rows = gyruss._decode_sprites(sprites)
+    assert len(rows) == 512 * 16 and rows[256 * 16] == 1 and rows[0] == 0
 
 
 def test_atari_line_buffer_sizes():
@@ -253,15 +258,3 @@ def test_fantasy_sample_must_be_pcm(tmp_path):
         with pytest.raises(ConversionError, match="missing b.wav"):
             snk6502.read_sample(z, "b.wav", 6000, "pack.zip")
 
-
-def test_gyruss_tile_decoding_planes():
-    data = bytearray(16)
-    data[0] = 0x11   # row 0, pixel 0: plane0 bit 0 and plane1 bit 4
-    assert gyruss._decode_tile_pixel(data, 0, 0, 0) == 3
-    data[8] = 0x20   # pixel 5 of row 0 lives in byte 8, bit 1; plane1 is bit 5
-    assert gyruss._decode_tile_pixel(data, 0, 0, 5) == 2
-    assert gyruss._decode_tiles(bytes(16)) == [[0] * 8]
-
-
-def test_gyruss_sprite_pixel_out_of_range_is_zero():
-    assert gyruss._decode_sprite_pixel(bytes(8), 0, 0, 0, 8) == 0
