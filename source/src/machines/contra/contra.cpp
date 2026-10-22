@@ -4,6 +4,7 @@
 #include "contra.h"
 #include "contra_rom_main.h"
 #include "contra_prom.h"
+#include "contra_gfx.h"
 
 // one frame = 264 lines of 384 px at 6 MHz, CPU 3 MHz: 50688 cycles
 static constexpr int LINES = 264;
@@ -19,6 +20,19 @@ static constexpr uint16_t BANK_SELECT = 0x7000;
 
 static constexpr uint8_t CTRL_IRQ = 7;           // b1 IRQ enable, 0 acknowledges
 static constexpr uint8_t CTRL7_IRQ_ENABLE = 0x02;
+static constexpr uint8_t CTRL3_SPRITE_BANK = 0x08;   // sprite list at +0x800
+
+// video, see contra.h
+static constexpr int WIDTH = 224;
+static constexpr int TOP = 4;                 // panel line of native X 0
+static constexpr int NATIVE_W = 280;
+static constexpr int HUD_END = 40;            // native X 0..39: text layer
+static constexpr int VIS_LAST_Y = 239;
+static constexpr int SCROLL_X_BIAS = 40;      // MAME set_scrollx(ctrl0 - 40)
+static constexpr int CODES = 16384;           // tile codes per K007121
+static constexpr uint8_t LAYER_CHIP[3] = {0, 1, 0};
+static constexpr uint16_t LAYER_CRAM[3] = {CONTRA_CRAM0, CONTRA_CRAM1, CONTRA_CRAM2};
+static constexpr uint16_t LAYER_VRAM[3] = {CONTRA_VRAM0, CONTRA_VRAM1, CONTRA_VRAM2};
 
 // main CPU inputs (konamipt.h KONAMI8_SYSTEM_UNK / KONAMI8_B12_UNK), active low
 static constexpr uint8_t SYS_COIN1 = 0x01, SYS_START1 = 0x08;
@@ -34,10 +48,19 @@ static const unsigned int JUMP_KEY = BUTTON_START;
 static const unsigned int JUMP_KEY = BUTTON_EXTRA;
 #endif
 
-contra::contra() : contra_main_rom(contra_main_rom_blob), contra_lut(contra_lut_blob) {
+contra::contra()
+  : contra_main_rom(contra_main_rom_blob), contra_lut(contra_lut_blob), contra_tiles(contra_tiles_blob),
+    contra_tile_index(contra_tile_index_blob) {
   // m6809_reset() reads the reset vector through main_rom
   main_rom = contra_main_rom.data();
+  lut = contra_lut.data();
+  tiles = contra_tiles.data();
+  tile_index = contra_tile_index.data();
+
   ram = Arena::alloc<uint8_t>(CONTRA_RAM_END);
+  vblank = Arena::create<Seqlock<VideoState>>();
+  video = Arena::create<VideoState>();
+  pens = (uint16_t(*)[COLORS][PENS])Arena::alloc<uint16_t>(CHIPS * COLORS * PENS);
 }
 
 void contra::reset() {
@@ -195,8 +218,9 @@ uint8_t contra::readMath(uint8_t reg) {
 void contra::run_frame(void) {
   int debt = 0;
   for (int line = 0; line < LINES; line++) {
-    if (line == VBLANK_LINE && (ctrl[0][CTRL_IRQ] & CTRL7_IRQ_ENABLE)) {
-      irq_line = true;
+    if (line == VBLANK_LINE) {
+      publishVideo();
+      irq_line |= (ctrl[0][CTRL_IRQ] & CTRL7_IRQ_ENABLE) != 0;
     }
     if (irq_line) {
       m6809_irq(&main_cpu);
@@ -207,6 +231,116 @@ void contra::run_frame(void) {
       const int c = m6809_step(&main_cpu, 4);
       debt -= c > 0 ? c : 1;
     }
+  }
+}
+
+// Latch what render reads, where K007121 buffers its sprite list (line 240).
+void contra::publishVideo(void) {
+  vblank->publish([this](VideoState &v) {
+    memcpy(v.palette, &ram[CONTRA_PALETTE], sizeof(v.palette));
+    for (int l = 0; l < LAYERS; l++) {
+      memcpy(v.cram[l], &ram[LAYER_CRAM[l]], MAP_BYTES);
+      memcpy(v.vram[l], &ram[LAYER_VRAM[l]], MAP_BYTES);
+    }
+    for (int c = 0; c < CHIPS; c++) {
+      const uint16_t base = c ? CONTRA_SPRITES1 : CONTRA_SPRITES0;
+      const uint16_t bank = (ctrl[c][3] & CTRL3_SPRITE_BANK) ? SPRITE_LIST : 0;
+      memcpy(v.sprites[c], &ram[base + bank], SPRITE_LIST);
+    }
+    memcpy(v.ctrl, ctrl, sizeof(v.ctrl));
+  });
+}
+
+// ---- Video ----
+
+void contra::prepare_frame(void) {
+  vblank->read(*video);
+  buildPens();
+}
+
+// MAME contra palette(): pen = chip << 11 | color << 4 | pix -> lookup PROM
+// (chip << 1 | odd palette) -> palette RAM entry; pen 0 of even palettes
+// with lookup 0 stays entry 0. xBGR555 -> RGB565, byte swapped.
+void contra::buildPens(void) {
+  for (int chip = 0; chip < CHIPS; chip++) {
+    for (int color = 0; color < COLORS; color++) {
+      const int pal = color >> 4;
+      const uint8_t *prom = &lut[((chip << 1) | (pal & 1)) << 8 | (color & 15) << 4];
+      for (int pix = 0; pix < PENS; pix++) {
+        const uint8_t entry = (!(pal & 1) && !prom[pix]) ? 0 : (uint8_t)(pal << 4 | prom[pix]);
+        const uint16_t w = video->palette[2 * entry] | video->palette[2 * entry + 1] << 8;
+        const uint16_t r = w & 0x1f, g = (w >> 5) & 0x1f, b = (w >> 10) & 0x1f;
+        const uint16_t v = (uint16_t)(r << 11 | (g << 1 | g >> 4) << 5 | b);
+        pens[chip][color][pix] = (uint16_t)(v << 8 | v >> 8);
+      }
+    }
+  }
+}
+
+// MAME get_tile_info / get_tx_tile_info: code bank bits from the attribute,
+// selected by ctrl5 (and masked by ctrl4 on the scrolling layers)
+uint16_t contra::tileCode(int layer, int index, uint8_t &color) const {
+  const uint8_t *c = video->ctrl[LAYER_CHIP[layer]];
+  const uint8_t attr = video->cram[layer][index];
+  int bank = ((attr >> ((c[5] & 3) + 3)) & 1) | ((attr >> (((c[5] >> 2) & 3) + 2)) & 2) |
+             ((attr >> (((c[5] >> 4) & 3) + 1)) & 4) | ((attr >> ((c[5] >> 6) & 3)) & 8);
+  if (layer != 2) {
+    const int mask = c[4] >> 4;
+    bank = (bank & ~mask) | (c[4] & mask);
+    bank = (attr >> 7) | bank << 1 | (c[3] & 1) << 5;
+  } else {
+    bank = (attr >> 7) | bank << 1;
+  }
+  color = (uint8_t)((c[6] & 0x30) * 2 + 16 + (attr & 7));
+  return (uint16_t)(video->vram[layer][index] + bank * 256);
+}
+
+// One panel line = native column x: walk native Y 239 down to 16, tile by
+// tile; a tile word holds the 8 pixels of one tile column, Y descending.
+void contra::drawLayer(int layer, int x, uint16_t *dst, bool opaque) const {
+  const uint8_t *c = video->ctrl[LAYER_CHIP[layer]];
+  const bool scrolls = layer != 2;
+  const int px = (x + (scrolls ? c[0] - SCROLL_X_BIAS : 0)) & 0xff;
+  const int py0 = (VIS_LAST_Y + (scrolls ? c[2] : 0)) & 0xff;
+  const uint16_t chip_codes = LAYER_CHIP[layer] * CODES;
+
+  for (int col = 0; col < WIDTH;) {
+    const int py = (py0 - col) & 0xff;
+    const int first = 7 - (py & 7);
+    const int n = 8 - first < WIDTH - col ? 8 - first : WIDTH - col;
+    uint8_t color;
+    const uint16_t code = tileCode(layer, (py >> 3) * 32 + (px >> 3), color);
+    uint32_t w = tiles[tile_index[chip_codes + code]][px & 7] >> (4 * first);
+    const uint16_t *pen = pens[LAYER_CHIP[layer]][color];
+    for (int k = 0; k < n; k++, w >>= 4) {
+      const uint8_t pix = w & 15;
+      if (pix || opaque) {
+        dst[col + k] = pen[pix];
+      }
+    }
+    col += n;
+  }
+}
+
+// MAME screen_update: background pen, layer 1, layer 0, sprites #0, #1
+// (X 40..279); text layer over X 0..39
+void contra::render_row(short row) {
+  const uint16_t bg = pens[1][(video->ctrl[1][6] & 0x30) * 2 + 16][0];
+  for (int i = 0; i < 8; i++) {
+    const int x = row * 8 + i - TOP;
+    if (x < 0 || x >= NATIVE_W) {
+      continue;
+    }
+    uint16_t *dst = frame_buffer + i * WIDTH;
+    for (int col = 0; col < WIDTH; col++) {
+      dst[col] = bg;
+    }
+    if (x < HUD_END) {
+      drawLayer(2, x, dst, false);
+      continue;
+    }
+    drawLayer(1, x, dst, true);
+    drawLayer(0, x, dst, false);
   }
 }
 

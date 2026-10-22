@@ -3,6 +3,7 @@
 
 #include "../machineBase.h"
 #include "../../cpus/m6809/m6809.h"
+#include "../../emulation/seqlock.h"
 #include "contra_dipswitches.h"
 #include "contra_logo.h"
 
@@ -15,6 +16,10 @@
 //     +--latch 001c--> sound 6809 + YM2151: not emulated, Gryzor.sid
 //
 // The CPU sees ram[] for 0000-5fff (addresses = offsets).
+//
+// Video ROT90: native (X, Y), X 0..279, visible Y 16..239 -> panel line
+// X + 4 (280 of 288 lines), column 239 - Y. Native X 0..39: fixed text
+// layer (HUD), X 40..279: two scrolling K007121 layers and sprites.
 
 // ram[] offsets (= main address) of the K007121 tilemaps and sprites
 #define CONTRA_PALETTE   0x0c00   // 128 x xBGR555 little endian
@@ -32,6 +37,8 @@ class contra : public machineBase {
 protected:
   Asset<unsigned char, PLAIN> contra_main_rom;
   Asset<unsigned char, COMPRESSED> contra_lut;
+  Asset<uint32_t[8], PLAIN> contra_tiles;
+  Asset<unsigned short, PLAIN> contra_tile_index;
 
 public:
   contra();
@@ -43,6 +50,8 @@ public:
   unsigned char m6809_read_opcode(m6809_state *s, uint16_t addr) override;
 
   void run_frame(void) override;
+  void prepare_frame(void) override;
+  void render_row(short row) override;
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
   void gameLeds(CRGB *leds) override;
@@ -53,15 +62,40 @@ private:
   static const int CHIPS = 2;
   static const int CTRL_REGS = 8;
   static const int MATH_REGS = 6;
+  static const int LAYERS = 3;              // 0, 1: scrolling (#0, #1), 2: text (#0)
+  static const int MAP_BYTES = 0x400;       // 32 x 32 tiles
+  static const int SPRITE_LIST = 0x800;     // one bank of a K007121 sprite RAM
+  static const int COLORS = 128;            // per K007121, 16 pens each
+  static const int PENS = 16;
+
+  // Render input latched at vblank (seqlock.h): palette, tilemaps, the
+  // selected sprite list banks, control registers
+  struct VideoState {
+    uint8_t palette[0x100];
+    uint8_t cram[LAYERS][MAP_BYTES], vram[LAYERS][MAP_BYTES];
+    uint8_t sprites[CHIPS][SPRITE_LIST];
+    uint8_t ctrl[CHIPS][CTRL_REGS];
+  };
 
   uint8_t readPort(uint16_t addr);
   void writeCtrl(int chip, uint8_t reg, uint8_t val);
   void writeMath(uint8_t reg, uint8_t val);
   uint8_t readMath(uint8_t reg);
+  void publishVideo(void);
+  void buildPens(void);
+  uint16_t tileCode(int layer, int index, uint8_t &color) const;
+  void drawLayer(int layer, int x, uint16_t *dst, bool opaque) const;
 
   m6809_state main_cpu;
   const uint8_t *main_rom = nullptr;
   uint8_t *ram = nullptr;              // Arena, CONTRA_RAM_END bytes
+  const uint8_t *lut = nullptr;        // 4 x 256 color lookup PROMs
+  const uint32_t (*tiles)[8] = nullptr;
+  const uint16_t *tile_index = nullptr;
+
+  Seqlock<VideoState> *vblank = nullptr;   // Arena
+  VideoState *video = nullptr;             // Arena, render copy
+  uint16_t (*pens)[COLORS][PENS] = nullptr;  // Arena, [chip], RGB565 swapped
 
   uint8_t ctrl[CHIPS][CTRL_REGS] = {};  // K007121 control registers
   uint8_t bank = 0;                     // 6000-7fff ROM bank
