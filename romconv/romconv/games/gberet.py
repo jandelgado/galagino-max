@@ -26,17 +26,17 @@ _TILE_CLUT = ("577h11.6f", "77cff7c9c8433f999a87776021935864cf9dccb4")
 _SPR_CLUT = ("577h10.5f", "406b8dfe54e6176082005cc5545e79c098672547")
 
 
-def _decode_tiles(rom):
+def decode_tiles(rom, count=512):
     # gfx_8x8x4_packed_msb
-    tiles = mame_decode(rom, 8, 8, step(0, 1, 4), step(0, 4, 8), step(0, 32, 8), 256, 512)
+    tiles = mame_decode(rom, 8, 8, step(0, 1, 4), step(0, 4, 8), step(0, 32, 8), 256, count)
     return [pack_nibbles(row) for t in tiles for row in t]
 
 
-def _decode_sprites(rom):
+def decode_sprites(rom, count=512):
     # gfx_8x8x4_row_2x2_group_packed_msb
     xoffs = step(0, 4, 8) + step(256, 4, 8)
     yoffs = step(0, 32, 8) + step(512, 32, 8)
-    sprites = mame_decode(rom, 16, 16, step(0, 1, 4), xoffs, yoffs, 1024, 512)
+    sprites = mame_decode(rom, 16, 16, step(0, 1, 4), xoffs, yoffs, 1024, count)
     return pack_sprite_rows(sprites)
 
 
@@ -44,7 +44,7 @@ def _palette(prom):
     return [rgb565_swapped(*prom_rgb_332(v)) for v in prom]
 
 
-def _write_cmap(ctx, prefix, title, pal, tile_clut, spr_clut, lut_names):
+def write_cmap(ctx, prefix, title, pal, tile_clut, spr_clut, lut_names):
     def emit(f):
         f.write(f"// {title} color maps, RGB565 byte-swapped for the SPI display.\n\n")
         f.write(f"// Characters: 16 colors x 16 pens, lookup {lut_names[0]} -> palette 0x10 | nibble\n")
@@ -59,8 +59,8 @@ def convert_set(ctx: Context, prefix: str, title: str, files: dict, rom_comment:
                 lut_names: tuple[str, str], check_arena: bool = True) -> None:
     """Shared by the gberet board family; files: main, tiles, sprites, pal, tile_clut, spr_clut."""
     rom = rom_bytes_all(ctx, files["main"])
-    tiles = _decode_tiles(rom_bytes(ctx, files["tiles"]))
-    sprites = _decode_sprites(rom_bytes_all(ctx, files["sprites"]))
+    tiles = decode_tiles(rom_bytes(ctx, files["tiles"]))
+    sprites = decode_sprites(rom_bytes_all(ctx, files["sprites"]))
 
     write_bytes(ctx, f"{prefix}_rom.h", f"{prefix}_rom", rom, rom_comment, __file__)
     write_array(ctx, f"{prefix}_tilemap.h", f"{prefix}_tilemap", "uint32_t", "[8]", 512, tiles,
@@ -68,7 +68,7 @@ def convert_set(ctx: Context, prefix: str, title: str, files: dict, rom_comment:
     write_array(ctx, f"{prefix}_spritemap.h", f"{prefix}_spritemap", "uint32_t", "[16][2]", 512, sprites,
                 "512 sprites 16x16 4 bpp, [row][0] pixels 0-7, [row][1] pixels 8-15, first in bits 31-28",
                 __file__)
-    _write_cmap(ctx, prefix, title, _palette(rom_bytes(ctx, files["pal"])), rom_bytes(ctx, files["tile_clut"]),
+    write_cmap(ctx, prefix, title, _palette(rom_bytes(ctx, files["pal"])), rom_bytes(ctx, files["tile_clut"]),
                 rom_bytes(ctx, files["spr_clut"]), lut_names)
 
     sizes = {"rom": len(rom), "tilemap": len(tiles) * 4, "spritemap": len(sprites) * 4}
