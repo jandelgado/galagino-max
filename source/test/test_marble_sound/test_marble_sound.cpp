@@ -83,7 +83,7 @@ static void test_effect_keeps_music_voices(void) {
   player.start(2);
   bool gate = false;
   for (int k = 0; k < 600; k++) {
-    if (k == 100) { player.jsr(MARBLE_SID_FX_STUB, MARBLE_FX_31); }
+    if (k == 100) { player.jsr(MARBLE_SID_FX_STUB, MARBLE_FX_32); }
     frame();
     uint8_t v[14];
     musicVoices(v);
@@ -99,24 +99,91 @@ static void test_effect_plays(void) {
   load();
   player.start(MARBLE_SID_SILENT);
   frame();
-  player.jsr(MARBLE_SID_FX_STUB, MARBLE_FX_31);
+  player.jsr(MARBLE_SID_FX_STUB, MARBLE_FX_32);
   bool gate = false;
   for (int k = 0; k < 5; k++) { frame(); gate = gate || (ram[SHADOW + 4 - LOAD] & 1); }
   TEST_ASSERT_TRUE(gate);
 }
 
-// restarting slot 1 (same effect twice, two in a row) keeps the voice count at slot 0 + 1
+// restarting slot 1 (same effect twice, one- and two-track effects in a row) keeps the voice
+// count at slot 0 + the effect's tracks
 static void test_effect_restart(void) {
   load();
   player.start(2);
   frame();
   for (int i = 0; i < 4; i++) {
-    player.jsr(MARBLE_SID_FX_STUB, i & 1 ? 0 : MARBLE_FX_31);
+    const bool two = i & 1;
+    player.jsr(MARBLE_SID_FX_STUB, two ? MARBLE_FX_2F : MARBLE_FX_32);
     frame();
-    TEST_ASSERT_EQUAL(2, ram[0x2728 - LOAD]);              // slots
-    TEST_ASSERT_EQUAL(ram[0x272c - LOAD] + 1, ram[0x2727 - LOAD]);  // voices: music + 1
+    TEST_ASSERT_EQUAL(2, ram[0x2728 - LOAD]);                            // slots
+    TEST_ASSERT_EQUAL(ram[0x272c - LOAD] + (two ? 2 : 1), ram[0x2727 - LOAD]);  // music + fx
   }
   for (int k = 0; k < 600; k++) { frame(); }
+  TEST_ASSERT_EQUAL(0, player.strays());
+}
+
+// period (samples) of the effect's tone over the last 3 frames: autocorrelation peak in
+// [lo, hi], parabolic interpolation
+static double period(const int16_t *x, int n, int lo, int hi) {
+  double best = -1e30, prev = 0, at = lo, before = 0, after = 0;
+  for (int lag = lo - 1; lag <= hi + 1; lag++) {
+    double c = 0;
+    for (int i = 0; i + lag < n; i++) { c += (double)x[i] * x[i + lag]; }
+    if (lag > lo - 1 && lag <= hi && c > best) { best = c; at = lag; before = prev; after = 0; }
+    if (lag == (int)at + 1) { after = c; }
+    prev = c;
+  }
+  const double d = before - 2 * best + after;
+  return d < 0 ? at + 0.5 * (before - after) / d : at;
+}
+
+// max / min period of an effect's tone over 24 frames, after its swell
+static double pitchSwing(uint8_t fx, int lo, int hi) {
+  load();
+  player.start(MARBLE_SID_SILENT);
+  frame();
+  player.jsr(MARBLE_SID_FX_STUB, fx);
+  static int16_t win[1200];
+  for (int k = 0; k < 40; k++) { frame(); }
+  double mn = 1e9, mx = 0;
+  for (int k = 0; k < 24; k++) {
+    memmove(win, win + 400, 800 * sizeof(int16_t));
+    player.render(win + 800, 400);
+    if (k < 2) { continue; }
+    const double p = period(win, 1200, lo, hi);
+    if (p < mn) { mn = p; }
+    if (p > mx) { mx = p; }
+  }
+  return mx / mn;
+}
+
+// jump (D5 + octave) wobbles +-0.3 semitone at 5 Hz; the time bonus bell (B5) stays put
+static void test_vibrato(void) {
+  const double jump = pitchSwing(MARBLE_FX_31, 36, 46);   // 587 Hz: 40.9 samples
+  const double bell = pitchSwing(MARBLE_FX_53, 22, 30);   // 988 Hz: 24.3 samples
+  char msg[64];
+  snprintf(msg, sizeof(msg), "jump %.4f bell %.4f", jump, bell);
+  TEST_ASSERT_TRUE_MESSAGE(jump > 1.025 && jump < 1.06, msg);   // 1.035
+  TEST_ASSERT_TRUE_MESSAGE(bell < 1.01, msg);                     // estimator jitter
+  TEST_ASSERT_EQUAL(0, player.strays());
+}
+
+// a two-track effect takes voice 1 from the music; the music gets it back afterwards
+static void test_two_track_effect_returns_voice(void) {
+  load();
+  player.start(2);
+  for (int k = 0; k < 100; k++) { frame(); }
+  player.jsr(MARBLE_SID_FX_STUB, MARBLE_FX_2F);
+  for (int k = 0; k < 200; k++) { frame(); }          // the goal effect is over after 120 frames
+  bool music = false;
+  uint8_t last = ram[SHADOW + 7 + 4 - LOAD];
+  for (int k = 0; k < 400; k++) {
+    frame();
+    const uint8_t ctrl = ram[SHADOW + 7 + 4 - LOAD];  // voice 1 control
+    music = music || ((ctrl & 1) && !(last & 1));     // a new note on voice 1
+    last = ctrl;
+  }
+  TEST_ASSERT_TRUE_MESSAGE(music, "the music must play on voice 1 again");
   TEST_ASSERT_EQUAL(0, player.strays());
 }
 
@@ -190,10 +257,10 @@ static void test_jingle_and_effect(void) {
   sendStep(0x3f);
   TEST_ASSERT_EQUAL(MARBLE_SONG_3F, snd.music & 0xff);
   const uint16_t e = snd.effect;
-  sendStep(0x31);
-  TEST_ASSERT_EQUAL(MARBLE_FX_31, snd.effect & 0xff);
+  sendStep(0x32);
+  TEST_ASSERT_EQUAL(MARBLE_FX_32, snd.effect & 0xff);
   TEST_ASSERT_EQUAL((e >> 8) + 1, snd.effect >> 8);
-  sendStep(0x31);  // again: a new request (restart)
+  sendStep(0x32);  // again: a new request (restart)
   TEST_ASSERT_EQUAL((e >> 8) + 2, snd.effect >> 8);
 }
 
@@ -225,6 +292,8 @@ int main(int, char **) {
   RUN_TEST(test_effect_keeps_music_voices);
   RUN_TEST(test_effect_plays);
   RUN_TEST(test_effect_restart);
+  RUN_TEST(test_two_track_effect_returns_voice);
+  RUN_TEST(test_vibrato);
   RUN_TEST(test_wav_dump);
   RUN_TEST(test_race_music);
   RUN_TEST(test_unknown_keeps_music);

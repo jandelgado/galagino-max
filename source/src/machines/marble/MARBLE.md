@@ -2311,7 +2311,8 @@ Sandcastle); disassembled here:
   volume 0x272e + s, tracks 0x272c + s, first virtual voice 0x2734 + s, voice mask 0x273a + s,
   priority 0x273c + s; virtual voice v: track pointer 0x2768 + 2v, length 0x2778 + 2v.
 - Instruments 0x397a, 8 bytes: pulse width, SR, AD, filter cutoff, filter control, waveform;
-  0-14 used (12, 13 noise), 15-31 free. Note-on (0x3c91) takes a free voice of the mask or
+  0-14 filled (12, 13 noise), but the songs only select 0, 5, 6 and 11 (0x81 events,
+  register trace); 15-31 empty. Note-on (0x3c91) takes a free voice of the mask or
   steals one of lower priority. SID register shadow 0x38df-0x38f7, copied to 0xd400 every
   frame.
 - RAM outside the payload: 0x0750/0x0751 (frame counter), reads of 0x0aab/0x0ac7.
@@ -2319,32 +2320,34 @@ Sandcastle); disassembled here:
 Capture (`dev/marble/mame_sound.lua`, MODE=capture): per command a file `cmd_XX.txt` with
 `init ym|pokey <reg> <val>` (registers before the command), `ym|pokey <t> <reg> <val>` (t in
 60 Hz frames since the command) and `game <t> <cmd> 0` (the game's own command, the
-converter cuts there); MODE=log logs the main CPU's commands and 0x400390 changes, NOCOIN=1
+listening cut stops there), plus `times.txt` (command, emulated seconds) to cut a
+`-wavwrite` recording; MODE=log logs the main CPU's commands and 0x400390 changes, NOCOIN=1
 when `mame_trace.lua` runs alongside (wrapper `dofile`s both).
 
 ```sh
 # effects WIN=150, jingle candidates WIN=600; 24 / 4 commands per run (the practice race
 # times out after about 3980 frames)
 MODE=capture OUT=$D/out CMDS=1f,20,... WIN=150 FRAMES=5200 ... -autoboot_script $R/romconv/dev/marble/mame_sound.lua
-(cd $D/out && python3 -m zipfile -c $D/marble_sound.zip cmd_*.txt)
-# reduce to note lists, the converter's only sound input besides the HVSC tune
-uv run python -m dev.marble.marble_sid_extract --extract $D/marble_sound.zip
+# reference WAVs: add -wavwrite $D/out/all.wav (works with -sound none), then one WAV per command
+uv run python -m dev.marble.marble_sfx_wav $D/out 150
 # goal: practice crossing y 63
 MODE=log NOCOIN=1 OUT=$D/g0 MARBLE_LEVEL=0 MARBLE_PLACE=900:604:492:-36 \
   MARBLE_PLACE_V=900:0:131072 MARBLE_RACE_UNTIL=1000 ... -autoboot_script $D/both.lua
 ```
 
-The capture holds the arcade's register writes and is not distributed;
-`marble_sound_notes.json` (next to romconv/romconv/games/marble/sid.py) keeps only the extracted notes.
+Nothing captured is tracked: the jingle and the effects in
+`romconv/romconv/games/marble/sfx.py` are written by ear from those WAVs (2026-10-23; no public
+description of Atari's RPM-2 sound driver format exists, Marble Love runs the sound ROM). They
+replace note lists that had been extracted from the register capture.
 
-Remake: `romconv/romconv/games/marble/sid.py` builds the jingles and effects as songs of
+Remake: `romconv/romconv/games/marble/sid.py` builds the jingles and effects of `sfx.py` as songs of
 the C64 player (appended to the payload, song table entries, a silent song, a 6502 stub that
-starts an effect on slot 1 / voice 0 over the music); `marble_sound.{h,cpp}` maps commands to
+starts an effect on slot 1 / voice 0, a second track on voice 1, over the music); `marble_sound.{h,cpp}` maps commands to
 song and effect requests; `marble::renderSid` plays them on SidPlayer. The logic sends the
 arcade bytes at the ported sites (jump, bounce, fall, dizzy, break, shards, lost, steelie hit,
 slinky catch, bird, acid, piston launch, time bonus, gate table), the flow at a race load (0x00
 and the race music, no intro delay), time out (0x09, 0x3f) and game over (0x61). Converted:
-16 effects (`EFFECTS` in romconv/romconv/games/marble/sid.py) and the 0x3f jingle; the race end pieces 0x17/0x18,
+16 effects (`EFFECTS` in romconv/romconv/games/marble/sfx.py) and the 0x3f jingle; the race end pieces 0x17/0x18,
 0x10, 0x16, 0x1a-0x1e, the aerial gate tones 0x47-0x52 and 0x5d/0x60 are ignored. Flash: 6860 B
 (build 2026-10-13, compressed SID file 5532 B). Host test `test_marble_sound` (songs without
 strays, effect over the music keeps voices 1-2, command mapping; SOUND_WAV_DIR=dir writes

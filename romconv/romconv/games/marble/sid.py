@@ -1,42 +1,38 @@
-"""Marble Madness sound (MARBLE.md "Sound"): MAME captures of the arcade's YM2151 / POKEY
-writes per command (dev/marble/mame_sound.lua) become songs of the C64
-tune's own player (Marble_Madness.sid, format in MARBLE.md): jingles as songs that replace
-the music, effects as one track songs on slot 1 / SID voice 0 started by a 6502 stub over the
-music, a silent song for STOP. Timing: tempo 0x3840, duration index k = 2^(7-k) frames,
-every length a chain of events (frame exact).
-
-The capture is not distributed: dev/marble/marble_sid_extract.py reduces it to the note lists in
-marble_sound_notes.json (no ROM or register data), which build() reads.
+"""Marble Madness sound (MARBLE.md "Sound"): the jingle and effects written by ear in sfx.py
+become songs of the C64 tune's own player (Marble_Madness.sid, format in MARBLE.md): jingles
+as songs that replace the music, effects as songs on slot 1 / SID voice 0 (+ 1) started by
+a 6502 stub over the music, a silent song for STOP. Timing: tempo 0x3840, duration index
+k = 2^(7-k) frames, every length a chain of events (frame exact).
 """
-import json
 import struct
-from pathlib import Path
 from types import MappingProxyType
 
 from romconv.core.errors import ConversionError
-
-_NOTES_FILE = "marble_sound_notes.json"
+from romconv.games.marble import sfx
 
 _LOAD = 0x2700
 _SONG_TABLE, _SONGS_MAX = 0x3dc0, 32
 _TEMPO = 0x3840
 _SLOT_START = 0x316b
-_NOTE = MappingProxyType({0: 0, 1: 1, 2: 2, 4: 3, 5: 4, 6: 5, 8: 6, 9: 7, 10: 8, 12: 9, 13: 10, 14: 11})
+# instrument: pulse width lo / hi, SR, AD, filter cutoff lo / hi, filter, waveform (0x3cdb)
+_INSTRUMENTS, _INSTRUMENT_SIZE = 0x397a, 8
+_SLOTS = 32
+# the only instruments the tune's songs select (0x81 events; a register trace agrees): the
+# other slots are free for the effects
+_MUSIC_INSTRUMENTS = frozenset({0, 5, 6, 11})
+_FX_TRACKS = 2  # an effect plays on voice 0, a second track takes voice 1 from the music
+_FX_PRIORITY = 0xC0
+# vibrato hook: the play routine's register copy (jsr $3c02 at 0x3e4b) is redirected to code
+# that copies, then offsets the SID frequency of the voices the effect owns (priority of the
+# voice's last note-on 0x3977 + v, register offset 0x3a86 + v, register shadow 0x38df)
+_PLAY_COPY, _COPY = 0x3E4B, 0x3C02
+_OWNER, _REG, _FREQ_LO, _FREQ_HI = 0x3977, 0x3A86, 0x38DF, 0x38E0
+# offset per frame in 1/256 of the frequency: 12 frames = 5 Hz, +-5 = +-0.34 semitone
+_LFO = (0, 3, 4, 5, 4, 3, 0, -3, -4, -5, -4, -3)
 
 _MUSIC = MappingProxyType({0x08: 1, 0x0A: 2, 0x0C: 3, 0x0E: 4, 0x14: 5, 0x18: 6})
 _STOP = (0x00, 0x61)
-# jingles: command -> (melody YM channels, sustain YM channels, melody / sustain instrument)
-JINGLES = MappingProxyType({0x3F: ((0, 1), (6, 5), 11, 6)})
-# effects: command -> instrument; noise (YM channel 7 noise or POKEY) uses 12
-EFFECTS = MappingProxyType({0x2F: 11, 0x30: 11, 0x31: 11, 0x32: 11, 0x33: 11, 0x37: 11, 0x38: 12, 0x39: 11,
-                            0x3C: 11, 0x3D: 11, 0x3E: 11, 0x42: 0, 0x45: 12, 0x53: 11, 0x5E: 12, 0x5F: 12})
 _IGNORE, _SONG, _EFFECT = 0, 1, 2
-
-
-def midi(kc, kf):
-    """YM2151 KC/KF to MIDI (KC 0x4a = A4 = 69)."""
-    n = _NOTE.get(kc & 15, _NOTE.get((kc & 15) - 1, 0))
-    return ((kc >> 4) & 7) * 12 + n + 13 + kf / 64
 
 
 def _chain(n):
@@ -50,17 +46,13 @@ def _chain(n):
     return out
 
 
-def fit(m, top):
-    n = round(m)
-    while n > top:
-        n -= 12
-    return max(0, n)
-
-
-def _track(notes, inst):
-    """notes [(start, length, midi)], monophonic: -> event bytes."""
-    ev, t = [0x81, inst], 0
-    for s, l, m in notes:
+def _track(notes):
+    """notes [(start, length, midi, instrument)], monophonic: -> event bytes."""
+    ev, t, cur = [], 0, None
+    for s, l, m, inst in notes:
+        if inst != cur:
+            ev += [0x81, inst]
+            cur = inst
         if s > t:
             for k in _chain(s - t):
                 ev += [0x80, k]
@@ -72,16 +64,27 @@ def _track(notes, inst):
     return ev + [0xFF, 0xFF]
 
 
-def mono(notes):
-    """cut each note one frame before the next one starts"""
-    out = []
-    for i, (s, l, m) in enumerate(notes):
-        nxt = notes[i + 1][0] if i + 1 < len(notes) else None
-        if nxt is not None:
-            l = min(l, nxt - s - 1)
-        if l > 0:
-            out.append((s, l, m))
-    return out
+def _word(addr):
+    return [addr & 0xFF, addr >> 8]
+
+
+def _asm(base, items):
+    """6502 bytes at base; "name:" defines a label, "name" is a branch to it (1 byte)"""
+    labels, pc = {}, base
+    for x in items:
+        if isinstance(x, str) and x.endswith(":"):
+            labels[x[:-1]] = pc
+        else:
+            pc += 1
+    out = bytearray()
+    for x in items:
+        if not isinstance(x, str):
+            out.append(x)
+        elif not x.endswith(":"):
+            rel = labels[x] - (base + len(out) + 1)
+            assert -128 <= rel < 128, x
+            out.append(rel & 0xFF)
+    return bytes(out)
 
 
 def _descriptor(ident, tracks, mask, priority):
@@ -126,6 +129,12 @@ class _Tune:
         self.put(base, bytes(desc + blob))
         return base, ptrs, lens
 
+    def instrument(self, slot, data):
+        """fill an instrument slot the music doesn't use"""
+        if slot in _MUSIC_INSTRUMENTS or not 0 <= slot < _SLOTS:
+            raise ConversionError(f"marble: C64 instrument {slot} is in use")
+        self.put(_INSTRUMENTS + _INSTRUMENT_SIZE * slot, data)
+
     def song(self, ident, tracks, mask=0x07, priority=0x80):
         if self.songs == _SONGS_MAX:
             raise ConversionError("marble: C64 song table full")
@@ -134,33 +143,80 @@ class _Tune:
         self.songs += 1
         return self.songs
 
-    def stub(self, fx):
-        """6502 effect entry, A = effect index: slot 1 = one track on voice 0, priority 0xc0,
-        after the virtual voices of slot 0, then 0x316b(y = 1). fx: [(track, length)]."""
+    def vibrato(self):
+        """install the vibrato hook (see _PLAY_COPY); -> address of its state: on flag, phase"""
+        if self.pay[_PLAY_COPY - _LOAD:_PLAY_COPY - _LOAD + 3] != bytes([0x20, *_word(_COPY)]):
+            raise ConversionError("marble: Marble_Madness.sid play routine differs")
+        state = self.end()
+        on, phase, lfo, count, lo, hi = (state + k for k in range(6))
+        table = state + 6
+        code = _asm(table + len(_LFO), [
+            0x20, *_word(_COPY),                            # jsr copy        registers to SID
+            0xAD, *_word(on), 0xF0, "done",                 # lda on; beq done
+            0xAC, *_word(phase), 0xC8, 0xC0, len(_LFO), 0x90, 2, 0xA0, 0,  # phase + 1 mod 12
+            0x8C, *_word(phase), 0xB9, *_word(table), 0x8D, *_word(lfo), 0xF0, "done",
+            0xA2, 0,                                        # ldx #0          voice
+            "loop:", 0xBD, *_word(_OWNER), 0xC9, _FX_PRIORITY, 0xD0, "next",  # effect's?
+            0xBC, *_word(_REG),                             # ldy reg,x       register offset
+            0xA9, 0, 0x8D, *_word(lo), 0x8D, *_word(hi),    # offset = |lfo| * freq hi
+            0xAD, *_word(lfo), 0x10, "pos", 0x49, 0xFF, 0x18, 0x69, 1,
+            "pos:", 0x8D, *_word(count),
+            "add:", 0xAD, *_word(lo), 0x18, 0x79, *_word(_FREQ_HI), 0x8D, *_word(lo),
+            0x90, 3, 0xEE, *_word(hi), 0xCE, *_word(count), 0xD0, "add",
+            0xAD, *_word(lfo), 0x10, "set",                 # lfo < 0: offset = -offset
+            0x38, 0xA9, 0, 0xED, *_word(lo), 0x8D, *_word(lo),
+            0xA9, 0, 0xED, *_word(hi), 0x8D, *_word(hi),
+            "set:", 0xB9, *_word(_FREQ_LO), 0x18, 0x6D, *_word(lo), 0x99, 0x00, 0xD4,  # shadow
+            0xB9, *_word(_FREQ_HI), 0x6D, *_word(hi), 0x99, 0x01, 0xD4,                # + offset
+            "next:", 0xE8, 0xE0, 3, 0xD0, "loop",
+            "done:", 0x60,
+        ])
+        self.put(state, bytes(6) + bytes(v & 0xFF for v in _LFO) + code)
+        self.put(_PLAY_COPY + 1, bytes(_word(table + len(_LFO))))
+        return state
+
+    def stub(self, fx, vibrato, state):
+        """6502 effect entry, A = effect index: slot 1 = the effect's tracks, priority 0xc0,
+        after the virtual voices of slot 0, then 0x316b(y = 1). fx: [[(track, length)] * 1..2];
+        one track plays on voice 0, two on voices 0 and 1 (voice 1 taken from the music).
+        vibrato: per effect 0 / 1, written to the hook's on flag (state, phase at state + 1)."""
+        assert all(1 <= len(t) <= _FX_TRACKS for t in fx) and len(fx) < 32
+        counts, masks, vibs = self.end(), self.end() + len(fx), self.end() + 2 * len(fx)
+        self.put(counts, bytes(len(t) for t in fx) + bytes((1 << len(t)) - 1 for t in fx)
+                 + bytes(vibrato))
         table = self.end()
-        self.put(table, b"".join(struct.pack("<HH", p, n) for p, n in fx))
+        for t in fx:
+            t = t + [(0, 0)] * (_FX_TRACKS - len(t))
+            self.put(self.end(), b"".join(struct.pack("<H", p) for p, _ in t)
+                     + b"".join(struct.pack("<H", n) for _, n in t))
         s = self.end()
-        lo, hi = table & 0xFF, table >> 8
-        code = bytes([
-            0x0A, 0x0A, 0xAA,              # asl; asl; tax       x = 4 * index
-            0xAD, 0x34, 0x27,              # lda $2734           slot 0 first voice
-            0x18, 0x6D, 0x2C, 0x27,        # clc; adc $272c      + slot 0 tracks = v
-            0x8D, 0x35, 0x27,              # sta $2735           slot 1 first voice
-            0xA8, 0xC8, 0x8C, 0x27, 0x27,  # tay; iny; sty $2727 voices in use = v + 1
-            0x0A, 0xA8,                    # asl; tay            y = 2v
-            0xBD, lo, hi, 0x99, 0x68, 0x27,                    # lda table,x; sta $2768,y
-            0xBD, (table + 1) & 0xFF, (table + 1) >> 8, 0x99, 0x69, 0x27,
-            0xBD, (table + 2) & 0xFF, (table + 2) >> 8, 0x99, 0x78, 0x27,
-            0xBD, (table + 3) & 0xFF, (table + 3) >> 8, 0x99, 0x79, 0x27,
+        code = bytearray([
+            0xAA,                                          # tax                 x = index
+            0xBD, vibs & 0xFF, vibs >> 8, 0x8D, state & 0xFF, state >> 8,  # vibrato on / off
+            0xA9, 0x00, 0x8D, (state + 1) & 0xFF, (state + 1) >> 8,         # phase 0
+            0xBD, counts & 0xFF, counts >> 8, 0x8D, 0x2D, 0x27,  # lda counts,x; sta $272d tracks
+            0xBD, masks & 0xFF, masks >> 8, 0x8D, 0x3B, 0x27,    # lda masks,x; sta $273b voices
+            0x8A, 0x0A, 0x0A, 0x0A, 0xAA,                  # txa; asl x3; tax    x = 8 * index
+            0xAD, 0x34, 0x27,                              # lda $2734       slot 0 first voice
+            0x18, 0x6D, 0x2C, 0x27,                        # clc; adc $272c  + slot 0 tracks = v
+            0x8D, 0x35, 0x27,                              # sta $2735       slot 1 first voice
+            0x18, 0x6D, 0x2D, 0x27, 0x8D, 0x27, 0x27,      # clc; adc $272d; sta $2727  in use
+            0xAD, 0x35, 0x27, 0x0A, 0xA8,                  # lda $2735; asl; tay y = 2v
+        ])
+        # track pointers to 0x2768 + 2v, lengths to 0x2778 + 2v
+        dests = [0x2768, 0x2769, 0x276A, 0x276B, 0x2778, 0x2779, 0x277A, 0x277B]
+        for k, dest in enumerate(dests):
+            src = table + k
+            code += bytes([0xBD, src & 0xFF, src >> 8, 0x99, dest & 0xFF, dest >> 8])
+        code += bytes([
             0xA9, _TEMPO & 0xFF, 0x8D, 0x32, 0x27,              # slot 1 tempo
             0xA9, _TEMPO >> 8, 0x8D, 0x33, 0x27,
             0xA9, 0x7F, 0x8D, 0x2F, 0x27,                      # volume
-            0xA9, 0x01, 0x8D, 0x2D, 0x27, 0x8D, 0x3B, 0x27,    # 1 track, voice mask voice 0
-            0xA9, 0xC0, 0x8D, 0x3D, 0x27,                      # priority over the music
+            0xA9, _FX_PRIORITY, 0x8D, 0x3D, 0x27,              # priority over the music
             0xA9, 0x02, 0x8D, 0x28, 0x27,                      # two slots
             0xA0, 0x01, 0x4C, _SLOT_START & 0xFF, _SLOT_START >> 8,  # ldy #1; jmp $316b
         ])
-        self.put(s, code)
+        self.put(s, bytes(code))
         return s
 
     def file(self):
@@ -172,15 +228,12 @@ class _Tune:
         return bytes(hdr) + struct.pack("<H", _LOAD) + bytes(self.pay)
 
 
-def load_notes():
-    with open(Path(__file__).with_name(_NOTES_FILE), encoding="utf-8") as f:
-        return json.load(f)
-
-
-def build(sid_bytes, notes, log):
-    """notes: load_notes() -> (file bytes, command table [(kind, arg)] * 128, silent song,
+def build(sid_bytes):
+    """-> (file bytes, command table [(kind, arg)] * 128, silent song,
     stub address, alias page, ram size, effect index by command, song by command)"""
     tune = _Tune(sid_bytes)
+    for slot, (wave, ad, sr, pw) in sfx.INSTRUMENTS.items():
+        tune.instrument(slot, bytes([pw & 0xFF, pw >> 8, sr, ad, 0, 0, 0, wave]))
     table = [(_IGNORE, 0)] * 128
     for c, s in _MUSIC.items():
         table[c] = (_SONG, s)
@@ -188,29 +241,23 @@ def build(sid_bytes, notes, log):
     for c in _STOP:
         table[c] = (_SONG, silent)
     songs = {}
-    for c, (mel, sus, im, isus) in JINGLES.items():
-        mel_notes, *sus_notes = notes["jingles"]["%02x" % c]
-        songs[c] = tune.song(b"JI%02X" % c, [_track(mel_notes, im)] + [_track(n, isus) for n in sus_notes])
+    for c, tracks in sfx.JINGLES.items():
+        songs[c] = tune.song(b"JI%02X" % c, [_track(ns) for ns in tracks])
         table[c] = (_SONG, songs[c])
     fx, index = [], {}
-    for c, inst in EFFECTS.items():
-        ns = notes["effects"]["%02x" % c]
-        if not ns:
-            log.info(f"marble sound: 0x{c:02x} has no output, ignored")
-            continue
-        _, ptrs, lens = tune.piece(b"FX%02X" % c, [_track(ns, inst)], 0x01, 0xC0)
+    for c, tracks in sfx.EFFECTS.items():
+        _, ptrs, lens = tune.piece(b"FX%02X" % c, [_track(ns) for ns in tracks],
+                                   (1 << len(tracks)) - 1, _FX_PRIORITY)
         index[c] = len(fx)
         table[c] = (_EFFECT, len(fx))
-        fx.append((ptrs[0], lens[0]))
-    stub = tune.stub(fx)
+        fx.append(list(zip(ptrs, lens)))
+    stub = tune.stub(fx, [int(c in sfx.VIBRATO) for c in sfx.EFFECTS], tune.vibrato())
     alias = (tune.end() + 0xFF) & ~0xFF
     ram = alias + 0x400 - _LOAD
     return tune.file(), table, silent, stub, alias, ram, index, songs
 
 
 def selfcheck():
-    assert abs(midi(0x4A, 0) - 69) < 1e-9 and abs(midi(0x4E, 0) - 72) < 1e-9
     assert _chain(5) == [5, 7] and _chain(128) == [0] and _chain(255) == list(range(8))
-    assert fit(107, 95) == 95 and fit(108, 95) == 84
-    assert _track([(2, 3, 60)], 11) == [0x81, 11, 0x80, 6, 60, 5 | 0, 0xFF, 0xFF]
-    assert mono([(0, 10, 60), (5, 3, 62)]) == [(0, 4, 60), (5, 3, 62)]
+    assert _track([(2, 3, 60, 11)]) == [0x81, 11, 0x80, 6, 60, 5 | 0, 0xFF, 0xFF]
+    sfx.check()

@@ -26,11 +26,6 @@ def test_every_level_has_a_name_and_bank():
     assert len(md.NAMES) == len(md.BANK) == md.LEVELS
 
 
-def test_sound_notes_are_package_data():
-    notes = msid.load_notes()
-    assert set(notes) == {"jingles", "effects"} and notes["effects"]
-
-
 def test_sid_selfcheck():
     msid.selfcheck()
 
