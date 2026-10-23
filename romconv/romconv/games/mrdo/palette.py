@@ -1,29 +1,58 @@
 from collections.abc import Sequence
 
-from romconv.core.context import Context
-from romconv.games.mrdo.palette_data import MASTER_PALETTE_RGB888
-from romconv.gfx.color import rgb565_be, rgb565_swapped
+import numpy as np
 
+from romconv.core.context import Context
+from romconv.gfx.color import rgb565_swapped
+
+_PALETTE_ROMS = ("u02--2.bin", "t02--3.bin")
 _LOOKUP_ROM = "f10--1.bin"
 _LOOKUP_SIZE = 32
 _PENS = 4
 _TRANSPARENT = 0x0000
 
 
-def _master_palette() -> list[int]:
-    return [rgb565_swapped(r, g, b) for r, g, b in MASTER_PALETTE_RGB888]
+def _weights() -> list[int]:
+    """MAME mrdo_state::palette_init(): 0..255 level of the 4 diode-coupled
+    resistors (75, 100 ohm on U2, 120, 150 on T2) into 220 ohm, in float."""
+    f = np.float32
+    weight = [0] * 16
+    pot = [f(0)] * 16
+    for i in range(15, -1, -1):
+        par = f(0)
+        for bit, ohm in enumerate((150, 120, 100, 75)):
+            if i >> bit & 1:
+                par += f(1) / f(ohm)
+        if par:
+            pot[i] = f(220) / (f(220) + f(1) / par) - f(0.7)
+        weight[i] = max(0, int(f(255) * pot[i] / pot[15]))
+    return weight
+
+
+def _master_rgb(u2: bytes, t2: bytes) -> list[tuple[int, int, int]]:
+    """256 (r, g, b): T2 gives bits 0-1, U2 bits 2-3 of each channel's weight index."""
+    weight = _weights()
+    rgb = []
+    for i in range(256):
+        a1 = (i >> 3 & 0x1c) + (i & 3)
+        a2 = (i & 0x1c) + (i & 3)
+        rgb.append(tuple(weight[(t2[a1] >> s & 3) + ((u2[a2] >> s & 3) << 2)] for s in (0, 2, 4)))
+    return rgb
+
+
+def _master_palette(ctx: Context) -> list[int]:
+    return [rgb565_swapped(*c) for c in _master_rgb(*(ctx.rom(n) for n in _PALETTE_ROMS))]
 
 
 def convert_palette(ctx: Context) -> None:
+    rgb = _master_rgb(*(ctx.rom(n) for n in _PALETTE_ROMS))
     with ctx.header("mrdo_palette.h") as f:
-        f.write("// Master Palette di Mr. Do! convertita in formato RGB565 LITTLE ENDIAN.\n")
+        f.write("// Mr. Do! master palette, RGB565 byte-swapped (MAME mrdo palette_init).\n")
         f.write("#pragma once\n#include <stdint.h>\n\n")
-        f.write("// Palette completa da 256 colori (formato Little Endian)\n")
         f.write("const uint16_t mrdo_master_palette[256] = {\n")
 
-        for i, ((r, g, b), le_color) in enumerate(zip(MASTER_PALETTE_RGB888, _master_palette())):
-            f.write(f"  0x{le_color:04X},")
-            f.write(f" // Indice {i:3d} | Original: ({r:4d}, {g:4d}, {b:4d}) | BE: 0x{rgb565_be(r, g, b):04X}\n")
+        for i, (r, g, b) in enumerate(rgb):
+            f.write(f"  0x{rgb565_swapped(r, g, b):04X}, // {i:3d}: ({r:3d}, {g:3d}, {b:3d})\n")
 
         f.write("};\n")
 
@@ -41,7 +70,7 @@ def _sprite_group(master_palette: Sequence[int], lookup_prom: Sequence[int], pal
 
 
 def convert_sprite_colormap(ctx: Context) -> None:
-    master_palette = _master_palette()
+    master_palette = _master_palette(ctx)
     lookup_prom = ctx.rom(_LOOKUP_ROM)[:_LOOKUP_SIZE]
 
     with ctx.header("mrdo_sprite_colormap.h") as f:

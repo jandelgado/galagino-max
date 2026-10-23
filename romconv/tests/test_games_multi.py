@@ -10,7 +10,6 @@ from romconv.games import bombjack, commando, dkong3, dkongjr, gng, invaders, mr
 from romconv.games.bombjack import tiles as bombjack_tiles
 from romconv.games.dkong3 import cmap as dkong3_cmap
 from romconv.games.mrdo import palette as mrdo_palette
-from romconv.games.mrdo.palette_data import MASTER_PALETTE_RGB888
 from romconv.games.pengo import cpu as pengo_cpu
 from romconv.games.starforce import cpu as starforce_cpu
 from romconv.games.starforce import tiles as starforce_tiles
@@ -82,20 +81,21 @@ def test_dkong3_palette_tiles_inverted_sprites_not():
         dkong3_cmap._master_palette(bytearray(4), zeros)
 
 
-def test_mrdo_palette_header_clamps_and_lists_every_color(paths, log):
-    ctx = _ctx(mrdo.JOB, paths, log)
-    mrdo_palette.convert_palette(ctx)
-    lines = (paths.machines / "mrdo" / "mrdo_palette.h").read_text().splitlines()
-    colors = [line for line in lines if line.startswith("  0x")]
-    assert len(colors) == len(MASTER_PALETTE_RGB888) == 256
-    # (-16, 180, 0) clamps the red channel to 0
-    line = next(c for c in colors if "Indice   8 " in c)
-    assert "Original: ( -16,  180,    0) | BE: 0x05A0" in line
+def test_mrdo_weights_match_mame():
+    # weights of MAME palette_init; 1, 2 and 4 go negative before the clamp
+    assert mrdo_palette._weights() == [0, 0, 0, 88, 0, 112, 133, 192, 60, 150, 166, 212, 180, 221, 229, 255]
+
+
+def test_mrdo_master_rgb_indexes_t2_low_u2_high():
+    u2, t2 = bytearray(32), bytearray(32)
+    t2[0], u2[0] = 0x03, 0x0c
+    assert mrdo_palette._master_rgb(u2, t2)[0] == (88, 180, 0)
+    assert mrdo_palette._master_rgb(u2, t2)[1] == (0, 0, 0)
 
 
 def test_mrdo_sprite_pen_zero_is_transparent():
     prom = bytes(range(32))
-    group = mrdo_palette._sprite_group(mrdo_palette._master_palette(), prom, 3)
+    group = mrdo_palette._sprite_group([0x1234] * 256, prom, 3)
     assert group[0] == 0 and len(group) == 4
 
 
