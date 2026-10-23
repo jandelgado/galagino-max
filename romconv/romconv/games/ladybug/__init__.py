@@ -1,7 +1,4 @@
-"""Lady Bug ROM converter: ladybug.zip -> galagino headers, with the per-position delta patch of
-rom_patch.table (next to this file) on the program ROM."""
-from pathlib import Path
-
+"""Lady Bug ROM converter: ladybug.zip -> galagino headers."""
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
@@ -9,9 +6,6 @@ from romconv.emit.write import module_path
 from romconv.gfx.color import rgb565_swapped
 from romconv.gfx.gfxutil import column_words, mame_decode, pack_pens, step
 from romconv.gfx.resnet import combine, resistor_weights
-from romconv.gfx.patchtable import apply_patch_values, read_patch_table
-
-_HERE = Path(__file__).parent
 
 # Costanti specifiche di Lady Bug
 _TILE_COUNT = 512
@@ -124,7 +118,7 @@ def _write_colormap_header(ctx):
 
 
 def _convert(ctx: Context) -> None:
-    ctx.log.info("Lady Bug ROM Converter - CON PATCH (delta)")
+    ctx.log.info("Lady Bug ROM Converter")
 
     ctx.log.info("Caricamento file ROM...")
     cpu_data = bytearray()
@@ -146,19 +140,7 @@ def _convert(ctx: Context) -> None:
     tile_final = _decode_tiles(ctx.rom("l9.f7") + ctx.rom("l0.h7"))
     sprite_final = _decode_sprites(ctx.rom("l8.l7") + ctx.rom("l7.m7"))
 
-    cpu_list = list(cpu_data)
-    ctx.log.info(f" CPU data: {len(cpu_list)} bytes")
-
-    # === PASSO 2: Applica le patch ===
-    ctx.log.info("FASE 2: Applicazione patch...")
-
-    # CPU patch (8 bit)
-    cpu_final = bytearray(apply_patch_values(cpu_list, read_patch_table(_HERE / "rom_patch.table"), 0xFF))
-
-    # === PASSO 3: Scrivi i file finali ===
-    ctx.log.info("FASE 3: Scrittura file finali...")
-
-    _write_cpu_rom_header(ctx, cpu_final)
+    _write_cpu_rom_header(ctx, cpu_data)
     _write_tilemap_header(ctx, tile_final)
     ctx.log.info(" Scritto ladybug_tilemap.h")
     _write_spritemap_header(ctx, sprite_final)

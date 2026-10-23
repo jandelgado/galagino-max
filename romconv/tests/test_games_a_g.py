@@ -13,7 +13,6 @@ from romconv.games import (alibaba, arkanoid, asteroids, atetris, berzerk, bnj, 
 from romconv.games.bublbobl import sound_map
 from romconv.gfx import gfxutil
 from romconv.gfx.color import prom_level_4bit, prom_rgb_332, rgb565_swapped
-from romconv.gfx.patchtable import apply_patch_values, read_patch_table
 from romconv.hw import atari, snk6502
 
 JOBS = (game_1943.JOB, alibaba.JOB, arkanoid.JOB, asteroids.JOB, atetris.JOB, berzerk.JOB, bnj.JOB, btime.JOB,
@@ -75,23 +74,6 @@ def test_prom_rgb_332_weights():
     assert prom_rgb_332(0) == (0, 0, 0)
     assert prom_rgb_332(0xff) == (0xff, 0xff, 0x47 + 0x97)
     assert prom_rgb_332(0x04)[0] == 0x97 and prom_rgb_332(0x40)[2] == 0x47
-
-
-def test_patch_table_roundtrip(tmp_path):
-    table = tmp_path / "x.table"
-    table.write_text("0x0001\n\n0x0000\n0xFFFF\n")
-    assert read_patch_table(table) == [1, 0, 0xFFFF]
-    assert apply_patch_values([1, 2, 3, 4], [1, 0, 0xFFFF], 0xFFFF) == [2, 2, 2, 4]
-    assert apply_patch_values([5], [1, 1], 0xFF) == [6]
-
-
-def test_patch_table_errors(tmp_path):
-    with pytest.raises(ConversionError, match="missing.table"):
-        read_patch_table(tmp_path / "missing.table")
-    bad = tmp_path / "bad.table"
-    bad.write_text("zz\n")
-    with pytest.raises(ConversionError, match="bad.table"):
-        read_patch_table(bad)
 
 
 def test_gyruss_gfx_decoders():

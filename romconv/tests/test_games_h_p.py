@@ -7,7 +7,6 @@ from romconv.games import (hero, ladybug, llander, mario, megazone, mhavoc, miki
                            mpatrol, mspacman, nibbler, pbaction, phoenix, pleiads, pooyan)
 from romconv.games.mario.palette import rgb_palette
 from romconv.gfx.color import rgb565_swapped
-from romconv.gfx.patchtable import read_patch_table
 from romconv.hw import snk6502
 
 JOBS = (hero.JOB, ladybug.JOB, llander.JOB, mario.JOB, megazone.JOB, mhavoc.JOB, mikie.JOB, millipede.JOB,
@@ -66,7 +65,6 @@ def test_hero_palettes():
 
 
 def test_ladybug_gfx_decoders():
-    assert len(read_patch_table(ladybug._HERE / "rom_patch.table")) > 0
     data = bytearray(0x2000)
     data[0], data[0x1000] = 0x01, 0x01  # x 0 y 0 in both planes -> pen 3
     words = ladybug._decode_tiles(data)
