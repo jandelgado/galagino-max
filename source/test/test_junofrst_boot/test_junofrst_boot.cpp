@@ -38,12 +38,16 @@ static sprite_S sprites[128];
 static unsigned char memory[RAMSIZE];
 static junofrst *machine;
 static uint32_t frame;
-static uint32_t latchWrites, i8039Ints;
+static uint32_t latchWrites, i8039Ints, latchReads, sndEdges;
+static uint8_t sndLast;
 
 extern "C" {
 unsigned char OpZ80_INL(unsigned short a) { return machine->opZ80(a); }
 unsigned char OpPrefixZ80_INL(unsigned short a) { return machine->opZ80(a); }
-unsigned char RdZ80(unsigned short a) { return machine->rdZ80(a); }
+unsigned char RdZ80(unsigned short a) {
+  latchReads += a == 0x3000;
+  return machine->rdZ80(a);
+}
 void WrZ80(unsigned short a, unsigned char v) {
   latchWrites += a == 0x5000;
   i8039Ints += a == 0x6000;
@@ -61,7 +65,13 @@ void i8048_xdm_write(i8048_state_S *, unsigned char, unsigned char) {}
 }
 unsigned char m6809_read(m6809_state *s, uint16_t a) { return machine->m6809_read(s, a); }
 unsigned char m6809_read_opcode(m6809_state *s, uint16_t a) { return machine->m6809_read_opcode(s, a); }
-void m6809_write(m6809_state *s, uint16_t a, uint8_t v) { machine->m6809_write(s, a, v); }
+void m6809_write(m6809_state *s, uint16_t a, uint8_t v) {
+  if (a == 0x8040) {
+    sndEdges += !sndLast && v == 1;
+    sndLast = v;
+  }
+  machine->m6809_write(s, a, v);
+}
 
 static uint32_t dacChanges;   // DAC ring samples unlike the one before
 static uint8_t dacPrev;
@@ -78,8 +88,22 @@ static void boot(void) {
   machine->start();
 }
 
+// credit counter in work RAM (MAME junofrst: $8823 0 -> 1 on a coin, 0 after start)
+static const uint16_t CREDITS = 0x8823 - 0x8100;
+static const uint32_t COIN_FRAME = 1000, START_FRAME = 1200;
+
 static void runTo(uint32_t end) {
   while (frame < end) {
+    keys = 0;
+    if (frame >= COIN_FRAME && frame < COIN_FRAME + 5) {
+      keys = BUTTON_COIN;
+    }
+    if (frame >= START_FRAME && frame < START_FRAME + 5) {
+      keys = BUTTON_START;
+    }
+    if (frame > START_FRAME + 100 && frame % 20 < 4) {
+      keys = BUTTON_FIRE;
+    }
     machine->run_frame();
     frame++;
     I8039Dac &dac = machine->dac;
@@ -89,6 +113,7 @@ static void runTo(uint32_t end) {
     }
     dac.rd = dac.wr;   // drain as renderAudio() would
   }
+  keys = 0;
 }
 
 // ---- blitter, on a scratch machine with a test blitter ROM ----
@@ -205,6 +230,29 @@ static void test_boots_to_attract(void) {
   TEST_ASSERT_GREATER_THAN_UINT32(1000, drawn);
 }
 
+static void test_coin_and_start(void) {
+  boot();
+  runTo(COIN_FRAME - 10);
+  TEST_ASSERT_EQUAL_UINT8(0, memory[JUNOFRST_WORKRAM + CREDITS]);
+  runTo(COIN_FRAME + 100);
+  TEST_ASSERT_EQUAL_UINT8(1, memory[JUNOFRST_WORKRAM + CREDITS]);
+  runTo(START_FRAME + 500);
+  TEST_ASSERT_EQUAL_UINT8(0, memory[JUNOFRST_WORKRAM + CREDITS]);
+}
+
+// in play: sound commands reach the Z80, the i8039 moves the DAC
+static void test_sound_runs(void) {
+  boot();
+  runTo(START_FRAME + 1500);
+  printf("IRQ edges %u, latch reads %u, latch2 writes %u, i8039 INTs %u, DAC changes %u\n",
+         sndEdges, latchReads, latchWrites, i8039Ints, dacChanges);
+  TEST_ASSERT_GREATER_THAN_UINT32(0, sndEdges);
+  TEST_ASSERT_GREATER_OR_EQUAL_UINT32(sndEdges, latchReads);
+  TEST_ASSERT_GREATER_THAN_UINT32(0, latchWrites);
+  TEST_ASSERT_GREATER_THAN_UINT32(0, i8039Ints);
+  TEST_ASSERT_GREATER_THAN_UINT32(1000, dacChanges);
+}
+
 static void putPixel(FILE *f, uint16_t v) {
   v = (uint16_t)((v << 8) | (v >> 8));
   const uint8_t rgb[3] = {(uint8_t)((v >> 8) & 0xf8), (uint8_t)((v >> 3) & 0xfc),
@@ -246,6 +294,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_bank_opcode_decrypt);
   RUN_TEST(test_bank_out_of_range);
   RUN_TEST(test_boots_to_attract);
+  RUN_TEST(test_coin_and_start);
+  RUN_TEST(test_sound_runs);
   RUN_TEST(test_render_frame);
 #endif
   return UNITY_END();

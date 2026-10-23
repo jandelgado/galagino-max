@@ -222,19 +222,62 @@ unsigned char junofrst::opZ80(unsigned short Addr) {
 }
 
 unsigned char junofrst::rdZ80(unsigned short Addr) {
+  if (Addr < 0x1000) {
+    return sound_rom[Addr];
+  }
+  if ((Addr & 0xfc00) == 0x2000) {
+    return snd_ram[Addr & 0x3ff];
+  }
+  if (Addr == 0x3000) {
+    return sound_latch;
+  }
+  if (Addr == 0x4001) {
+    return ay_addr == AY_PORT_A ? ayPortA() : soundregs[ay_addr];
+  }
   return 0xff;
 }
 
 void junofrst::wrZ80(unsigned short Addr, unsigned char Value) {
+  if ((Addr & 0xfc00) == 0x2000) {
+    snd_ram[Addr & 0x3ff] = Value;
+    return;
+  }
+  switch (Addr) {
+    case 0x4000:
+      ay_addr = Value & 0x0f;
+      return;
+    case 0x4002:
+      soundregs[ay_addr] = Value;   // port B: RC filter caps, ignored
+      return;
+    case 0x5000:
+      sound_latch2 = Value;
+      return;
+    case 0x6000:
+      dac.irq(true);   // ASSERT_LINE until P2 b7 = 0
+      return;
+  }
 }
 
+// MAME portA_r: Z80 clock / 1024 (cycle counter at half rate), b4-7, plus
+// the i8039 status in b0-2
 uint8_t junofrst::ayPortA(void) {
-  return 0xff;
+  return (uint8_t)((((snd_cycles / 512) & 0x0f) << 4) | i8039_status);
 }
 
 // ---- i8039: P1 = DAC, P2 b7 INT clear / b4-6 status, any MOVX = latch2 ----
 
 void junofrst::wrI8048_port(struct i8048_state_S *state, unsigned char port, unsigned char val) {
+  if (port == 1) {
+    dac.port1(val);
+    return;
+  }
+  if (port != 2) {
+    return;
+  }
+  if (!(val & I8039_INT_ENABLE)) {
+    dac.irq(false);
+  }
+  i8039_status = (val & 0x70) >> 4;
 }
 
 unsigned char junofrst::rdI8048_port(struct i8048_state_S *state, unsigned char port) {
@@ -252,7 +295,8 @@ unsigned char junofrst::rdI8048_rom(struct i8048_state_S *state, unsigned short 
 // ---- Frame ----
 
 // vblank: latch the palette, IRQ to the main CPU every 2nd frame (MAME
-// _30hz_irq), then 256 lines of both CPUs
+// _30hz_irq), then 256 lines of both CPUs; the i8039 runs along in
+// slices of 16 lines
 void junofrst::run_frame(void) {
   vblank.publish([this](VideoState &v) {
     memcpy(v.palette, &memory[JUNOFRST_PALETTE], sizeof(v.palette));
@@ -268,6 +312,20 @@ void junofrst::run_frame(void) {
     while (main_debt > 0) {
       const int c = m6809_step(&main_cpu, 4);
       main_debt -= c > 0 ? c : 1;
+    }
+
+    // HOLD_LINE: held until the Z80 takes it
+    if (snd_irq && (cpu[0].IFF & IFF_1)) {
+      IntZ80(&cpu[0], INT_RST38);
+      snd_irq = 0;
+    }
+    for (int i = 0; i < Z80_STEPS_LINE; i++) {
+      StepZ80(&cpu[0]);
+    }
+    snd_cycles += Z80_CYCLES_LINE;
+
+    if ((line % I8039_SLICE) == I8039_SLICE - 1) {
+      dac.run(I8039_HZ / 60 / (LINES / I8039_SLICE));
     }
   }
 }
