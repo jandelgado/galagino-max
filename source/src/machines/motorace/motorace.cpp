@@ -4,9 +4,9 @@
 // MotoRace USA (Irem 1983, Traverse USA / Zippy Race hardware)
 // CPU: Z80 @ 3.072MHz main + M6803 @ 894KHz sound + 2x AY-3-8910
 // Native raster 240x256 (x 8-247), shown ROT270: 256x240 landscape, road
-// scrolling down. The panel shows screen x 16-255 (left road shoulder
-// cropped, HUD kept), lines centred. Tile 8x8 3bpp, sprite 16x16, 64x32
-// tilemap, native horizontal scroll.
+// scrolling down. The panel is 16 px narrower: the playfield view pans
+// with the player, the HUD stays, lines centred. Tile 8x8 3bpp, sprite
+// 16x16, 64x32 tilemap, native horizontal scroll.
 // ============================================================================
 #include "motorace.h"
 #include "../../emulation/input.h"
@@ -204,8 +204,10 @@ void motorace::run_frame(void) {
   for (int i = 0; i < INST_PER_FRAME; i++) {
     StepZ80(&cpu[0]); StepZ80(&cpu[0]);
     StepZ80(&cpu[0]); StepZ80(&cpu[0]);
-    if (i == INST_PER_FRAME - 1)
+    if (i == INST_PER_FRAME - 1) {
+      publish_video();
       IntZ80(&cpu[0], INT_IRQ);
+    }
   }
 
   // M6803 batch: ~14900 cycles per frame (894 KHz / 60 fps)
@@ -232,12 +234,45 @@ void motorace::run_frame(void) {
   if (!game_started && ++boot_frames >= 120) game_started = 1;
 }
 
-// ── Sprite list in panel coordinates (ROT270: panel x = native y - 16,
+// First tilemap column of the window a tilemap row shows
+int motorace::window_col(int row, int scroll) {
+  return row < SCROLL_ROWS ? (scroll >> 3) & (MAP_COLS - 1) : 0;
+}
+
+void motorace::publish_video(void) {
+  vblank.publish([this](VideoState &v) {
+    v.scroll = scroll_x_low + (scroll_x_high << 8);
+    for (int row = 0; row < MAP_ROWS; row++) {
+      unsigned char *dst = v.tiles[row];
+      int first = window_col(row, v.scroll);
+      for (int c = 0; c < WINDOW_COLS; c++) {
+        int tile_index = row * MAP_COLS + ((first + c) & (MAP_COLS - 1));
+        dst[2 * c]     = memory[MR_MEM_VRAM + 2 * tile_index];
+        dst[2 * c + 1] = memory[MR_MEM_VRAM + 2 * tile_index + 1];
+      }
+    }
+    memcpy(v.sprites, &memory[MR_MEM_SPRITES], sizeof(v.sprites));
+    v.player = memory[MR_MEM_WORKRAM + PLAYER_X];
+  });
+}
+
+// ── Sprite list in panel coordinates (ROT270: panel x = native y - pan,
 // panel y = 256 - native x) ──
 void motorace::prepare_frame(void) {
+  vblank.read(video);
+
+  // keep the player in the middle of the view, as far as the playfield goes
+  pan = video.player - VIEW_W / 2;
+  if (pan < 0) {
+    pan = 0;
+  }
+  if (pan > MAX_PAN) {
+    pan = MAX_PAN;
+  }
+
   active_sprites = 0;
   for (int offs = 0x1FF; offs >= 0; offs -= 4) {
-    unsigned char *spr_base = &memory[MR_MEM_SPRITES + offs - 3];
+    const unsigned char *spr_base = &video.sprites[offs - 3];
 
     unsigned char sy_raw = spr_base[0];
     unsigned char attr   = spr_base[1];
@@ -254,12 +289,12 @@ void motorace::prepare_frame(void) {
     struct sprite_S spr;
     spr.code  = code;
     spr.color = attr & 0x0F;
-    spr.x = native_y - CROP_X;
+    spr.x = native_y - pan;
     spr.y = TOP_LINE + VIS_X_MAX - SPRITE_SIZE + 1 - native_x;
     spr.flags = ((attr & 0x40) ? FLIP_ROWS : 0) | ((attr & 0x80) ? FLIP_COLS : 0);
 
     // sprites never cover the HUD (native y 192-255)
-    if (spr.x <= -SPRITE_SIZE || spr.x >= SPRITE_CLIP_X) {
+    if (spr.x <= -SPRITE_SIZE || spr.x >= VIEW_W) {
       continue;
     }
     sprite[active_sprites++] = spr;
@@ -277,19 +312,26 @@ void motorace::prepare_frame(void) {
 // of sprites, marked in front[].
 // ============================================================================
 void motorace::draw_tiles(short strip) {
-  int scroll = scroll_x_low + (scroll_x_high << 8);
   memset(front, 0, sizeof(front));
 
   for (int k = 0; k < 8; k++) {
     unsigned short *line = frame_buffer + k * FB_W;
     int native_x = VIS_X_MAX - (strip * 8 + k);
 
-    for (int col = CROP_X / 8; col < MAP_ROWS; col++) {
-      int x0 = col * 8 - CROP_X;
-      int map_x = (native_x + (col < SCROLL_ROWS ? scroll : 0)) & (MAP_W - 1);
-      int tile_index = col * MAP_COLS + (map_x >> 3);
-      unsigned char code_lo = memory[MR_MEM_VRAM + 2 * tile_index];
-      unsigned char attr    = memory[MR_MEM_VRAM + 2 * tile_index + 1];
+    for (int col = 0; col < MAP_ROWS; col++) {
+      bool hud = col >= SCROLL_ROWS;
+      int x0 = col * 8 - (hud ? PLAYFIELD_W - VIEW_W : pan);
+      int c_min = (!hud && x0 < 0) ? -x0 : 0;
+      int c_max = (!hud && x0 + 8 > VIEW_W) ? VIEW_W - x0 : 8;
+      if (c_min >= c_max) {
+        continue;
+      }
+
+      int map_x = (native_x + (hud ? 0 : video.scroll)) & (MAP_W - 1);
+      int w = ((map_x >> 3) - window_col(col, video.scroll)) & (MAP_COLS - 1);
+      const unsigned char *tile = &video.tiles[col][2 * w];
+      unsigned char code_lo = tile[0];
+      unsigned char attr    = tile[1];
 
       int code = code_lo + ((attr & 0xC0) << 2);
       // TILE_FLIPXY: 0x20 flips native x, 0x10 native y
@@ -299,7 +341,7 @@ void motorace::draw_tiles(short strip) {
       const unsigned short *colors = motorace_char_cmap[attr & 0x0F];
       uint32_t row = motorace_tilemap[code][r];
 
-      for (int c = 0; c < 8; c++) {
+      for (int c = c_min; c < c_max; c++) {
         int sc = flip_cols ? 7 - c : c;
         unsigned char px = (row >> ((7 - sc) * 4)) & 7;
         line[x0 + c] = colors[px];
@@ -340,7 +382,7 @@ void motorace::draw_sprite(short strip, unsigned char s) {
 
     for (int c = 0; c < SPRITE_SIZE; c++) {
       int x = spr_x + c;
-      if (x < 0 || x >= SPRITE_CLIP_X || (front[x] & (1 << k))) {
+      if (x < 0 || x >= VIEW_W || (front[x] & (1 << k))) {
         continue;
       }
       int sc = flip_cols ? (SPRITE_SIZE - 1 - c) : c;

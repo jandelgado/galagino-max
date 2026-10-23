@@ -3,10 +3,12 @@
 #include <string.h>
 #include <unity.h>
 
-// Renders MAME motorace frames from their video RAM, sprite RAM and scroll
-// and compares every panel line with MAME's snapshot (ROT270, cropped to
-// x 16-255). ROM headers come from romconv (./convert.sh motorace); without
+// Renders MAME motorace frames from their video RAM, sprite RAM, scroll and
+// player position and compares every panel line with MAME's snapshot
+// (ROT270, playfield view panned to the player, see video_fixture.py). ROM
+// headers come from romconv (./convert.sh motorace); without
 // them the test is skipped. MOTORACE_PPM=<dir> writes failing frames.
+// The vblank latch is private: this test opens it up.
 #define ENABLE_MOTORACE
 #if __has_include("../../src/machines/motorace/motorace_rom.h")
 #define HAVE_ROM 1
@@ -15,7 +17,9 @@
 #include "../../src/cpus/z80/Z80.c"
 #include "../../src/cpus/m6803/m6803.c"
 #include "../../src/emulation/ay8910.cpp"
+#define private public
 #include "../../src/machines/motorace/motorace.cpp"
+#undef private
 #include "mame_frames.h"
 #endif
 
@@ -62,7 +66,8 @@ static void boot(void) {
   machine->reset();
 }
 
-// main CPU writes as the game did, then the render as main.cpp drives it
+// main CPU writes as the game did, the vblank latch, then the render as
+// main.cpp drives it
 static void render(const MameFrame &m) {
   for (int i = 0; i < 0x1000; i++) {
     machine->wrZ80(0x8000 + i, m.vram[i]);
@@ -72,7 +77,9 @@ static void render(const MameFrame &m) {
   }
   machine->wrZ80(0x9000, m.scroll & 0xff);
   machine->wrZ80(0xa000, m.scroll >> 8);
+  machine->wrZ80(0xe303, m.player);
 
+  machine->publish_video();
   machine->prepare_frame();
   for (int row = 0; row < HEIGHT / 8; row++) {
     memset(frame_buffer, 0, sizeof(frame_buffer));
