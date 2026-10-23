@@ -20,9 +20,23 @@ public:
   static const int RING = 1024;
   static const int EMPTY = 0x7fff;           // sample(): ring empty
 
-  // rom4k: 6502 0x7000-0x7fff; sc01a: Votrax ROM (512); table: Votrax
-  // coefficient tables (VotraxSc01::TABLE_BYTES, 4 byte aligned)
-  void attach(const uint8_t *rom4k, const uint8_t *sc01a, uint8_t *table);
+  // rom: 6502 ROM mapped at romBase up to 0x7fff; sc01a: Votrax ROM (512),
+  // nullptr = no Votrax (no 2000/3000 devices, NMI from PB7 only); table:
+  // Votrax coefficient tables (VotraxSc01::TABLE_BYTES, 4 byte aligned).
+  // idlePc: command wait loop (see skipIdle), 0 = no idle skip; it ends
+  // when RAM idleFlag is set, idleZero1/2 must be 0, idlePass cycles/pass.
+  // dacGain: DAC out = (dac - 0x80) * dacGain / 5
+  struct Config {
+    const uint8_t *rom;
+    uint16_t romBase;
+    const uint8_t *sc01a;
+    uint8_t *table;
+    uint16_t idlePc;
+    uint8_t idleFlag, idleZero1, idleZero2;
+    uint32_t idlePass;
+    int32_t dacGain;
+  };
+  void attach(const Config &c);
   void reset();
   void command(uint8_t cmd);
   void run(uint32_t cycles);
@@ -48,6 +62,7 @@ private:
 
   void step();
   uint32_t skipIdle();
+  bool speechRequest() const;
   void updateNmi();
   void output(uint32_t cycles);
   int16_t level() const;
@@ -62,6 +77,8 @@ private:
   VotraxSc01 speech;
   Hold speechOut;
   const uint8_t *rom = nullptr;
+  Config cfg = {};
+  bool hasSpeech = false;
   uint32_t now = 0;           // 6502 cycles since reset (RIOT time base)
   int32_t budget = 0;         // 6502 cycles owed
   uint8_t pa = 0xff;          // RIOT port A inputs (command lines)

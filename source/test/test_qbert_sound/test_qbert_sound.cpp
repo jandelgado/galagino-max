@@ -17,7 +17,7 @@
 #include "../../src/cpus/m6502/m6502.c"
 #include "../../src/emulation/votrax.cpp"
 #define private public
-#include "../../src/machines/qbert/gottlieb_sound.cpp"
+#include "../../src/machines/gottlieb/gottlieb_sound.cpp"
 #undef private
 #include "../../src/machines/qbert/qbert_rom.h"
 #include "mame_sound.h"
@@ -53,7 +53,18 @@ static void test_writes_match_mame(void) {
   Arena::init();
   Asset<unsigned char, COMPRESSED> rom(qbert_sound_rom_blob);
   Asset<unsigned char, COMPRESSED> sc01(qbert_sc01_blob);
-  board.attach(rom.data(), sc01.data(), table);
+  GottliebSound::Config sc = {};
+  sc.rom = rom.data();
+  sc.romBase = 0x7000;
+  sc.sc01a = sc01.data();
+  sc.table = table;
+  sc.idlePc = 0x7035;
+  sc.idleFlag = 0x21;
+  sc.idleZero1 = 0x20;
+  sc.idleZero2 = 0x23;
+  sc.idlePass = 29;
+  sc.dacGain = 4;
+  board.attach(sc);
   board.reset();
   board.trace = record;
   board.cpu.fetch = countFetch;

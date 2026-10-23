@@ -2,7 +2,7 @@
 #include <string.h>
 #include <unity.h>
 
-// Q*bert renderer (qbert_video.h) against MAME snapshots: every panel line
+// Q*bert renderer (gottlieb_video.h) against MAME snapshots: every panel line
 // of 35 frames (title, play, background over sprites) must match the
 // snapshot line CRC. Gfx from romconv (./convert.sh qbert); without the
 // headers the test is skipped.
@@ -11,7 +11,7 @@
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
 #include "../../src/machines/qbert/qbert_gfx.h"
-#include "../../src/machines/qbert/qbert_video.h"
+#include "../../src/machines/gottlieb/gottlieb_video.h"
 #include "mame_frames.h"
 #endif
 
@@ -19,7 +19,14 @@ void setUp(void) {}
 void tearDown(void) {}
 
 #ifdef HAVE_ROM
-using namespace qbert_video;
+using namespace gottlieb_video;
+
+struct VideoState {
+  uint8_t vram[0x400];
+  uint8_t spr[0x100];
+  uint8_t pal[0x20];
+  uint8_t ctrl;
+};
 
 static uint32_t crc32(const uint8_t *p, size_t n) {
   uint32_t c = ~0u;
@@ -55,7 +62,7 @@ static void test_render_matches_mame(void) {
 
     int frameBad = 0;
     for (int row = TOP / 8; row < (TOP + NATIVE_W) / 8; row++) {
-      renderStrip(row, v, pens, tiles.data(), spr.data(), list, n, fb);
+      renderStrip(row, v.vram, v.ctrl, pens, tiles.data(), 0xff, spr.data(), list, n, fb);
       for (int k = 0; k < 8; k++) {
         const int line = row * 8 + k - TOP;
         frameBad += crc32((const uint8_t *)(fb + k * WIDTH), WIDTH * 2) != m.line_crc[line];

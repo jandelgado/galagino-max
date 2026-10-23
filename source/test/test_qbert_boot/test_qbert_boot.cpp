@@ -15,7 +15,7 @@
 #include "../../src/emulation/arena.cpp"
 #include "../../src/cpus/m6502/m6502.c"
 #include "../../src/emulation/votrax.cpp"
-#include "../../src/machines/qbert/gottlieb_sound.cpp"
+#include "../../src/machines/gottlieb/gottlieb_sound.cpp"
 #include "../../src/cpus/i8086/i8086.cpp"
 #define private public
 #define protected public

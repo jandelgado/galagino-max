@@ -4,9 +4,9 @@
 #include "../machineBase.h"
 #include "../../emulation/seqlock.h"
 #include "../../emulation/dc_block.h"
-#include "gottlieb_sound.h"
+#include "../gottlieb/gottlieb_sound.h"
 #include "../../cpus/i8086/i8086.h"
-#include "qbert_video.h"
+#include "../gottlieb/gottlieb_video.h"
 #include "qbert_dipswitches.h"
 #include "qbert_logo.h"
 
@@ -29,6 +29,14 @@
 #define QBERT_PALETTE  0x3500   // 5000-501f, 16 x (gb, r)
 #define QBERT_MEM_END  0x3520
 static_assert(QBERT_MEM_END <= RAMSIZE, "qbert memory layout exceeds RAMSIZE");
+
+// render input latched at vblank
+struct QbertVideoState {
+  uint8_t vram[0x400];   // 3800-3bff tile codes
+  uint8_t spr[0x100];    // 3000-30ff: y, x, code ^ 0xff, unused
+  uint8_t pal[0x20];     // 5000-501f: (g << 4 | b, r) per pen
+  uint8_t ctrl;          // 0x5803 latch
+};
 
 class qbert : public machineBase {
 protected:
@@ -108,10 +116,10 @@ private:
   const uint32_t (*tiles)[8] = nullptr;
   const uint32_t (*sprites)[32] = nullptr;
   const uint8_t *levels = nullptr;
-  Seqlock<qbert_video::VideoState> *vblank = nullptr;   // Arena
-  qbert_video::VideoState *video = nullptr;             // Arena, render copy
-  uint16_t pens[qbert_video::PENS] = {};
-  qbert_video::Sprite spriteList[qbert_video::SPRITES];
+  Seqlock<QbertVideoState> *vblank = nullptr;   // Arena
+  QbertVideoState *video = nullptr;             // Arena, render copy
+  uint16_t pens[gottlieb_video::PENS] = {};
+  gottlieb_video::Sprite spriteList[gottlieb_video::SPRITES];
   int spriteCount = 0;
 
   // sound board: commands queued by the main CPU, run after it each frame
