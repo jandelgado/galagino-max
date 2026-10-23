@@ -66,33 +66,29 @@ def walk(rom, roots, patch=None):
     return code, anims, tags
 
 
-def object_bytes(rom, race):
-    """Program ROM bytes the object slots of one race read: spawn list, scripts, animation
-    lists, terrain blocks. Playfield tile blocks (never read by the sim, patched by the
-    remake from `patches`) and MO frames (format 0x1a8d2, Phase 4) are not included."""
-    ents, roots = scripts_of(rom, race)
+def object_parts(rom, race):
+    """Program ROM bytes the object slots of one race read, as (script bytes, animation list
+    bytes, terrain code blocks of mode 1/2 entries). Playfield tile blocks (never read by the
+    sim, patched by the remake from `patches`) and MO frames (format 0x1a8d2, Phase 4) are not
+    included."""
+    _, roots = scripts_of(rom, race)
     code, anims, tags = walk(rom, roots)
-    out = set(code)
-    a = rom.l(0x1dec0 + 4 * race)
-    out.update(range(a, a + 6 * len(ents) + 1))
-    if any(sc == 0 for _, _, sc in ents): out.update(range(0x1ded8, 0x1ded8 + 64))
+    lists, dyn = set(), set()
     for lst, stride, tag, mode in anims:
         n = 0
         while rom.l(lst + n * stride) != 0xffffffff and n < 500: n += 1
-        out.update(range(lst, lst + n * stride + 4))
+        lists.update(range(lst, lst + n * stride + 4))
         if stride != 8: continue
         for k in range(n):
             d = rom.l(lst + k * stride + 4)
-            if d: out.update(range(d, d + 4 + 2 * rom.w(d + 2)))
-    if race == 2: out.update(range(0x24c7a, 0x24e28))    # wave tables 0x1d06a
-    return out
+            if d: dyn.update(range(d, d + 4 + 2 * rom.w(d + 2)))
+    return set(code), lists, dyn
 
 
-def object_tables(rom):
-    """Tables all races share: spawn list pointers, slot address table (0x12d6e), the three
-    global animation lists tag 3 steps (0x40044a/e/52, wrap targets 0x211fe, 0x2121e,
-    0x2126e, 0x212b2; 0x13068 also reads the long before the pointer)."""
-    out = set(range(0x1dec0, 0x1dec0 + 24)) | set(range(0x1f016, 0x1f016 + 100))
+def global_anim_bytes(rom):
+    """The three global animation lists of tag 3 (0x40044a/e/52, wrap targets 0x211fe,
+    0x2121e, 0x2126e, 0x212b2) with the long before each (0x13068 reads it)."""
+    out = set()
     for a in (0x211fe, 0x2121e, 0x2126e, 0x212b2):
         e = a
         while rom.l(e) != 0xffffffff: e += 4
@@ -100,13 +96,12 @@ def object_tables(rom):
     return out
 
 
-def occlusion_bytes(rom):
-    """Program ROM bytes 0x264aa reads (edges come from the converter edge lists): shape and mask tables, the
-    vertex tables of 0x177f8, the explicit occluder lists (0x1ea2a)."""
-    out = set(range(0x1eaba, 0x1eaba + 16))
-    out.update(range(0x1ead2, 0x1ead2 + 34)); out.update(range(0x1eaf4, 0x1eaf4 + 34))
-    out.update(range(0x24176, 0x24176 + 8 + 32))
-    out.update(range(0x1ea2a, 0x1ea2a + 144))
+def occluder_bytes(rom):
+    """Explicit occluder lists of 0x264aa (0x1ea2a): per column 0-35 a table of 6 word offsets
+    (one per race, 0 = none) to records of 5 words (diagonal limit, depth, control, y, entry
+    code) up to a limit word of -1. Lists overlap by whole words (a list may start inside the
+    record of another), so the remake keeps them word addressed."""
+    out = set()
     for c in range(36):
         tab = rom.l(0x1ea2a + 4 * c)
         out.update(range(tab, tab + 12))

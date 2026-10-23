@@ -55,10 +55,9 @@ void startRace(Mem &m, uint8_t race);
 void tick(Mem &m, int8_t c6, int8_t c7);
 
 // attract demo (MARBLE.md "Demo race")
-static const uint32_t WAYPOINTS = 0x1d364;      // long per demo race: first record
 static const uint32_t WAYPOINT = 0x400446;      // long: cursor, record (x, y, speed, banner)
 static const uint32_t WAYPOINTS_END = 0x40075a;  // word: 1 once the cursor reached the end
-inline void demoStart(Mem &m, uint8_t race) { m.wl(WAYPOINT, m.roml(WAYPOINTS + 4 * race)); }
+inline void demoStart(Mem &m, uint8_t race) { m.wl(WAYPOINT, demoWaypoints(race)); }
 inline bool demoEnded(const Mem &m) { return m.rw(WAYPOINTS_END) == 1; }
 
 // position, 16.16 pixels; z high word = height

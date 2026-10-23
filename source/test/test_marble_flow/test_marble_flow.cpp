@@ -309,7 +309,7 @@ static const char *diff(const Mem &m, const MarbleBonusTick &t) {
   if (m.sw(PLAYER + SX) != t.sx) { return "sx"; }
   if (m.sw(PLAYER + SY) != t.sy) { return "sy"; }
   if (m.rl(PLAYER + ANIM) != t.anim) { return "anim"; }
-  if (m.rb(PLAYER + SHARDS_ON) && m.roml(m.rl(PLAYER + SHARDS)) != t.shard_hdr) { return "shards"; }
+  if (m.rb(PLAYER + SHARDS_ON) && marble_physics::animEntry(m.rl(PLAYER + SHARDS)) != t.shard_hdr) { return "shards"; }
   if (memcmp(ram + (PLAYER + MASKS - marble_physics::RAM_BASE), t.mask, MASK_BYTES)) {
     return "mask";
   }

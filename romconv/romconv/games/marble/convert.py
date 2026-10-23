@@ -5,11 +5,11 @@ level fits fixed Arena buffers (MAX_TILES x 64 + MAX_ROWS x 36 x 2 bytes). Map w
 bits 0-9 local tile, 10-11 colour set, 15 hflip. Also writes the host test fixture.
 
 Phase 2 (marble physics, MARBLE.md "Remake data"): terrain per race, the program ROM
-blocks the physics reads, marble motion object tiles and palette.
+tables the physics reads (progrom.py), marble motion object tiles and palette.
 
-Phase 3 (level objects and occlusion): more program ROM blocks (slot scripts, animation
-lists, terrain blocks, occlusion and edge bitmap tables), practice gate playfield patches
-(tiles added to the practice tile set), occlusion mask tiles.
+Phase 3 (level objects and occlusion): more program ROM tables (slot scripts, animation
+lists, terrain blocks, occlusion tables; edge bitmaps become edge lists), practice gate
+playfield patches (tiles added to the practice tile set), occlusion mask tiles.
 
 Phase 4a (level object sprites) and 4b-0 (player death sprites, shared by every race; their
 tiles open the sprite tile buffer, the race set's follow).
@@ -21,8 +21,8 @@ import io
 import struct
 import zlib
 from contextlib import contextmanager
-from dataclasses import dataclass, field
 from functools import partial
+from dataclasses import dataclass, field
 
 from romconv.core.context import Context
 from romconv.core.errors import ConversionError
@@ -191,6 +191,7 @@ def _frame_crc(rows, tiles, mapw, pal, sx, sy):
 _FLASH_BUDGET = 50 * 1024
 _PHASE3_BUDGET = 25 * 1024
 _PAIR_BYTES = 54   # two diagonals, 44 x 10 bit fields MSB first, last 8 bits not stored
+_DESC_TOP, _DESC_RANGE, _DESC_CELL = 0x10, 0x12, 0x14   # descriptor words: camera top, range, start cell
 _MO_CODES = range(0x01, 0x2e)  # particle half 0x01-0x02, marble body 0x03-0x06, 0x07, dots 0x0d-0x2d
 
 
@@ -322,9 +323,9 @@ def _c_words(w, indent="  "):
                       for k in range(0, len(w), 16))
 
 
-def _table_add(run, data):
-    """Appends data to marble_tables, returns its 2-aligned byte offset."""
-    if len(run.tables) & 1:
+def _table_add(run, data, align=2):
+    """Appends data to marble_tables, returns its byte offset (align: 1, 2 or 4)."""
+    while len(run.tables) % align:
         run.tables.append(0)
     at = len(run.tables)
     run.tables.extend(data)
@@ -346,9 +347,9 @@ def _words(w):
 
 def _emit_physics(run, f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, size4b4, size4b5,
                  size4b6):
-    """Phase 2 data into marble_rom.h. Returns {item: flash bytes}; the prog blocks added by
-    Phase 3 go to size3, by Phase 4a to size4, by Phase 4b-0 to size4b, by 4b-1 to size4b1,
-    by 4b-2 to size4b2, by 4b-3 to size4b3, by 4b-4a to size4b4, by 4b-4b to size4b5, by 4b-5
+    """Phase 2 data into marble_rom.h. Returns {item: flash bytes}; the program ROM tables of
+    Phase 3 go to size3, of Phase 4a to size4, of Phase 4b-0 to size4b, of 4b-1 to size4b1,
+    of 4b-2 to size4b2, of 4b-3 to size4b3, of 4b-4a to size4b4, of 4b-4b to size4b5, of 4b-5
     to size4b6."""
     size = {}
     terrains = [ms.Terrain(run.sim, n) for n in range(md.LEVELS)]
@@ -366,7 +367,7 @@ def _emit_physics(run, f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, 
     print("struct MarbleTerrainInfo {\n  FlashAsset<unsigned char, COMPRESSED> packed; "
           "uint16_t pairs;\n"
           "  uint16_t codes_at, ncodes;\n  uint16_t records_at;\n"
-          "  uint16_t maxd;\n  uint16_t nrecords; uint32_t desc;\n"
+          "  uint16_t maxd;\n  uint16_t nrecords;\n  int16_t top, range; uint16_t cell;\n"
           "  uint16_t edges_at; uint8_t nedges;\n"
           "  const uint16_t *codes() const { return marble_table<uint16_t>(codes_at); }\n"
           "  const uint8_t *records() const { return marble_table<uint8_t>(records_at); }\n"
@@ -424,36 +425,23 @@ def _emit_physics(run, f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, 
         t = terrains[n]
         print(f"  {{ marble_terrain_{n}_blob, {len(index) // _PAIR_BYTES}, "
               f"{codes_at[tuple(codes)]}, {len(codes)}, {records_at[n]}, "
-              f"{t.maxd}, {len(records)}, 0x{t.desc:05x}, "
+              f"{t.maxd}, {len(records)}, {ms.s16(run.sim.w(t.desc + _DESC_TOP))}, "
+              f"{ms.s16(run.sim.w(t.desc + _DESC_RANGE))}, {run.sim.w(t.desc + _DESC_CELL)}, "
               f"{edges_at[n]}, {len(offs[n])} }},", file=f)
     print("};", file=f)
     size["terrain info"] = 6 * 32  # 32 bit pointers, padded
 
-    phases = pr.blocks(run.sim.prog, pr.phase_bytes(run, terrains))
-    blocks = phases[-1]
     race_sweeps(run, ms.Mem, terrains)
-    print("// Program ROM bytes the physics, level objects and occlusion read (68010 address,",
+    print("// Program ROM tables (romconv/romconv/games/marble/progrom.py): marble_<name>[i], i",
           file=f)
-    print("// sorted). Records and terrain come from marble_terrain; any other ROM address is a",
+    print("// checked against the table size; marble_<name>_of[race] the entries of a race's list;",
           file=f)
-    print("// porting error. Block k is at off in marble_prog (all blocks joined).", file=f)
-    print("struct MarbleProgBlock { uint32_t addr; uint16_t len; uint16_t off; };", file=f)
-    joined = b"".join(data for _, data in blocks)
-    if len(joined) > 0xffff:
-        raise ConversionError("marble: prog blocks too long for 16 bit offsets")
-    emit_compressed(f, "marble_prog", "unsigned char", "", len(joined), list(joined), plan=False)
-    print(f"static const MarbleProgBlock marble_prog_blocks[{len(blocks)}] = {{", file=f)
-    off = 0
-    for a, data in blocks:
-        print(f"  {{ 0x{a:05x}, {len(data)}, {off} }},", file=f)
-        off += len(data)
-    print(f"}};\nstatic const uint8_t MARBLE_PROG_BLOCKS = {len(blocks)};", file=f)
-    flash = lambda bl: len(lzma_compress(b"".join(d for _, d in bl))) + 8 * len(bl)
-    prev = 0
-    for s, bl in zip((size, size3, size4, size4b, size4b1, size4b2, size4b3, size4b4, size4b5,
-                      size4b6), phases):
-        s["prog blocks"] = flash(bl) - prev
-        prev = flash(bl)
+    print("// marble_<kind> spans for the data the work RAM addresses (marble_mem.h accessors).",
+          file=f)
+    tables = pr.emit(f, run.sim, pr.defs(run, terrains), partial(_table_add, run))
+    for s, t in zip((size, size3, size4, size4b, size4b1, size4b2, size4b3, size4b4, size4b5,
+                     size4b6), tables):
+        s["prog tables"] = t
 
     tiles, pal = _mo_sprites(rom)
     first = [0xFF] * _MO_CODES.stop
@@ -475,12 +463,11 @@ def _emit_physics(run, f, rom, size3, size4, size4b, size4b1, size4b2, size4b3, 
     for n, (index, codes, records, _, bases) in enumerate(races):
         run.ctx.log.info(f"terrain {n} {md.NAMES[n]}: {terrains[n].maxd} diagonals, index {len(index)} B, "
               f"{len(codes)} codes, records {len(records)} B, bases {2 * len(bases)} B")
-    run.ctx.log.info(f"prog blocks: {len(blocks)}, " + ", ".join(f"{a:05x}+{len(d)}" for a, d in blocks))
     return size
 
 
 def _emit_objects(run, f, rom, levels, size3):
-    """Phase 3 data besides the prog blocks: playfield patches of the level objects and the
+    """Phase 3 data besides the program ROM tables: playfield patches of the level objects and the
     occlusion mask tiles. Sizes into size3."""
     patches = od.patches(run.sim)
     print("\n// ---- Phase 3: level objects and occlusion (MARBLE.md \"Remake data\")", file=f)
@@ -1080,7 +1067,8 @@ def convert(ctx):
         raise ConversionError("MAX_ROWS / MAX_TILES changed, update marble_level.h and this file")
     with ctx.header("marble_rom.h") as f:
         print(f"// Generated by {module_path(__file__)}; do not edit.", file=f)
-        print("#ifndef MARBLE_ROM_H\n#define MARBLE_ROM_H\n#include <stdint.h>", file=f)
+        print("#ifndef MARBLE_ROM_H\n#define MARBLE_ROM_H\n#include <stdint.h>\n"
+              "#include \"marble_mem.h\"", file=f)
         print("// Tables read through name() or a struct accessor live in marble_tables: one LZMA",
               file=f)
         print("// blob that marble_physics::loadRom() unpacks to the Arena, at 2-aligned offsets.",
@@ -1088,6 +1076,19 @@ def convert(ctx):
         print("extern const uint8_t *marble_tables;", file=f)
         print("template <typename T> static inline const T *marble_table(uint16_t at) {\n"
               "  return (const T *)(marble_tables + at);\n}", file=f)
+        print("// Program ROM tables (progrom.py): marble_<name>[i], i < N or marble_physics::fail",
+              file=f)
+        print("template <typename T, uint16_t N> struct MarbleTable {\n  uint16_t at;\n"
+              "  const char *what;\n  const T &operator[](uint16_t i) const {\n"
+              "    if (i >= N) { marble_physics::fail(what, i); }\n"
+              "    return marble_table<T>(at)[i];\n  }\n};", file=f)
+        print("struct MarbleRange { uint16_t first, n; };  // entries of one race's list", file=f)
+        print("// Program ROM bytes by 68010 address, sorted spans of one kind (marble_mem.h accessors)",
+              file=f)
+        print("struct MarbleSpan { uint32_t addr; uint16_t len, off; };", file=f)
+        print("struct MarbleSpans {\n  const MarbleSpan *spans;\n  uint8_t n;\n  const char *what;\n"
+              "  const uint8_t *at(uint32_t a, uint8_t len) const;  // len bytes at a, or fail\n};",
+              file=f)
         print("struct MarbleLevelInfo { uint16_t rows; uint16_t tiles; };", file=f)
         print(f"static const uint8_t MARBLE_TITLE_LEVEL = {md.LEVELS};  // the title playfield",
               file=f)

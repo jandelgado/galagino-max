@@ -100,11 +100,11 @@ static uint32_t playerHdr(const Mem &m) {
   const uint8_t st = marble_physics::state(m);
   const bool drawn = st == marble_physics::DIZZY || st == marble_physics::BROKEN ||
                      st == marble_physics::EATEN || st == ST_DISSOLVE;
-  return m.rb(PLAYER + VISIBLE) && drawn ? m.roml(m.rl(PLAYER + ANIM)) : 0;
+  return m.rb(PLAYER + VISIBLE) && drawn ? marble_physics::animEntry(m.rl(PLAYER + ANIM)) : 0;
 }
 
 static uint32_t shardHdr(const Mem &m, uint32_t a, bool shown) {
-  return shown && m.rb(a + SHARDS_ON) ? m.roml(m.rl(a + SHARDS)) : 0;
+  return shown && m.rb(a + SHARDS_ON) ? marble_physics::animEntry(m.rl(a + SHARDS)) : 0;
 }
 
 static bool steelieShown(const Mem &m, uint8_t i) {
@@ -115,7 +115,7 @@ static bool steelieShown(const Mem &m, uint8_t i) {
 static uint32_t steelieHdr(const Mem &m, uint8_t i) {
   if (!steelieShown(m, i)) { return 0; }
   const uint32_t a = steelie(i);
-  return m.rb(a + SLOT) == SHATTERING ? m.roml(m.rl(a + ANIM)) : STEELIE_FRAME;
+  return m.rb(a + SLOT) == SHATTERING ? marble_physics::animEntry(m.rl(a + ANIM)) : STEELIE_FRAME;
 }
 
 static const char *playerDiff(const Mem &m, const MarbleSlinkyTick &t) {
@@ -158,7 +158,7 @@ static const char *steelieDiff(const Mem &m, uint8_t i, const MarbleSlinkySteeli
 // slinky frame drawn: rl(cursor) while live and listed, else 0
 static uint32_t slinkyHdr(const Mem &m, uint8_t i) {
   const uint32_t a = slinky(i);
-  return m.rb(a + SLOT) && listed(m, TYPE_SLINKY, i) ? m.roml(m.rl(a + L_CURSOR)) : 0;
+  return m.rb(a + SLOT) && listed(m, TYPE_SLINKY, i) ? marble_physics::animEntry(m.rl(a + L_CURSOR)) : 0;
 }
 
 static const char *slinkyDiff(const Mem &m, uint8_t i, const MarbleSlinkyObj &s) {
@@ -295,7 +295,7 @@ static void test_slinky_objects(void) {
     const MarbleSlinkySegment &seg = marble_slinkies_segments[sg];
     loadRam(seg);
     Mem m(ram, seg.race);
-    const int16_t descTop = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+    const int16_t descTop = m.desc().top;
 
     for (uint16_t k = 0; k < seg.nticks; k++) {
       const MarbleSlinkyTick &t = seg.ticks[k];
@@ -368,8 +368,8 @@ static void test_race_sweep(void) {
   for (uint8_t race = 0; race < RACES; race++) {
     beginRace(race);
     Mem m(ram, race);
-    const int16_t top = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
-    const int16_t range = (int16_t)m.romw(m.desc() + marble_physics::DESC_RANGE);
+    const int16_t top = m.desc().top;
+    const int16_t range = m.desc().range;
     const int16_t n = range / SWEEP_STEP + 1;
     uint8_t spawns = 0, removals = 0, most = 0;
     uint32_t tick = 0;
@@ -412,8 +412,8 @@ static void test_race_sweep(void) {
 
 // camera stepped down the race from its top until a slinky lives; its index, -1 if none
 static int8_t firstSlinky(Mem &m, int16_t &cam, uint32_t &tick) {
-  const int16_t top = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
-  const int16_t range = (int16_t)m.romw(m.desc() + marble_physics::DESC_RANGE);
+  const int16_t top = m.desc().top;
+  const int16_t range = m.desc().range;
   for (cam = top; cam <= top + range; cam += SWEEP_STEP) {
     mainTick(m, 0, 0, (uint32_t)(int32_t)cam, ++tick);
     for (uint8_t i = 0; i < marble_enemies::NSLINKIES; i++) {

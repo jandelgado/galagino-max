@@ -11,6 +11,7 @@
 namespace marble_drawlist {
 
 using marble_physics::Mem;
+using marble_physics::animEntry;
 using marble_physics::s8;
 using marble_physics::s16;
 using namespace marble_video;
@@ -22,10 +23,7 @@ static const uint32_t ENTRIES = 0x4001dc, ENTRY_SIZE = 14, ENTRY_N = 31;
 static const uint32_t NO_SORT = 0x4003e2;  // nonzero: boxes only, no sort passes
 static const uint8_t END = 0xff;
 
-static const uint32_t ROM_END = 0x30000;
-static const uint32_t PLAYERS = 0x1eff6, ENEMIES = 0x1effe, ENEMIES4 = 0x1f006;
-static const uint32_t SLOTS = 0x1f016, ENEMIES_E = 0x1f07a, ENEMIES7 = 0x1f096, ENEMIES_F = 0x1f0ba;
-static const uint32_t TAG3_PAL = 0x1df18;     // tag 3 frame -> palette variant
+static const uint8_t STEELIE0 = 2;  // marble_obj_targets: players 0-1, steelies 2-3
 static const uint8_t TAG3_FRAMES = 14;        // 7 frames of list 0x21192 follow the 7 of 0x21156
 static const uint32_t TAG3_LIST2 = 0x21192;
 static const uint32_t STRIP_LIST = 0x2227a;   // tag 6 list with wave strip entries
@@ -46,16 +44,6 @@ enum Set : uint8_t { SET_FLAG = 3, SET_WAVE = 5, SET_LIFT = 6, SET_GLOBAL = 7, S
 enum : uint8_t { S_PX = 0x0c, S_PY = 0x10, S_PZ = 0x14, S_IDX = 0x19, S_TAG = 0x1f,
                  S_ANIM = 0x3e, S_FRAME = 0x42, S_ANIM2 = 0x46, S_SCREEN = 0x4e };
 
-// ROM (< 0x30000) or work RAM, as the 68010 sees it; elsewhere 0
-uint8_t rdb(const Mem &m, uint32_t a) {
-  if (a < ROM_END) { return m.romb(a); }
-  if (a - marble_physics::RAM_BASE < marble_physics::RAM_SIZE) { return m.rb(a); }
-  return 0;
-}
-
-uint16_t rdw(const Mem &m, uint32_t a) { return rdb(m, a) << 8 | rdb(m, a + 1); }
-uint32_t rdl(const Mem &m, uint32_t a) { return (uint32_t)rdw(m, a) << 16 | rdw(m, a + 2); }
-
 inline uint32_t entry(uint8_t k) { return ENTRIES + ENTRY_SIZE * k; }
 
 struct Box { int16_t v[6]; };  // x, y, z min, x, y, z max
@@ -70,22 +58,23 @@ Box objBox(const Mem &m, uint32_t a, int8_t dx, int8_t dy, int8_t dz, int8_t sx,
 
 struct Rect { int8_t dx, dy, sx, sy; };
 
-// frame header bytes 4-7 of the box record p (0xffffffff reads ROM 3-6)
-Rect rect(const Mem &m, uint32_t p) {
-  return {s8(rdb(m, p + 4)), s8(rdb(m, p + 5)), s8(rdb(m, p + 6)), s8(rdb(m, p + 7))};
+// frame header bytes 4-7 of the box record p (0xffffffff: zeros)
+Rect rect(uint32_t p) {
+  const uint8_t *b = marble_physics::frameBox(p);
+  return {s8(b[0]), s8(b[1]), s8(b[2]), s8(b[3])};
 }
 
 // 0x1b12a: box of an entry per type
 Box box_1b12a(const Mem &m, uint8_t type, uint8_t idx) {
   switch (type) {
     case T_FREE: return {{0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff}};
-    case T_PLAYER: return objBox(m, m.roml(PLAYERS + 4 * idx), -3, -3, 1, 6, 6, 6);
-    case T_ENEMY: return objBox(m, m.roml(ENEMIES + 4 * idx), -3, -3, 1, 6, 6, 6);
+    case T_PLAYER: return objBox(m, marble_obj_targets[idx], -3, -3, 1, 6, 6, 6);
+    case T_ENEMY: return objBox(m, marble_obj_targets[STEELIE0 + idx], -3, -3, 1, 6, 6, 6);
     case T_ENEMY4:
     case T_ENEMY_E: {
-      const uint32_t a2 = m.roml((type == T_ENEMY4 ? ENEMIES4 : ENEMIES_E) + 4 * idx);
-      const uint32_t p = rdl(m, rdl(m, a2 + (type == T_ENEMY4 ? 0x58 : 0x3a)));
-      const Rect r = p == NONE32 ? Rect{-4, -4, 8, 8} : rect(m, p);
+      const uint32_t a2 = type == T_ENEMY4 ? marble_obj_slinkies[idx] : marble_obj_acids[idx];
+      const uint32_t p = animEntry(m.rl(a2 + (type == T_ENEMY4 ? 0x58 : 0x3a)));
+      const Rect r = p == NONE32 ? Rect{-4, -4, 8, 8} : rect(p);
       return type == T_ENEMY4 ? objBox(m, a2, r.dx, r.dy, 0, r.sx, r.sy, 0x10)
                               : objBox(m, a2, r.dx, r.dy, -8, r.sx, r.sy, 0);
     }
@@ -104,13 +93,13 @@ Box box_1b12a(const Mem &m, uint8_t type, uint8_t idx) {
     case T_ENEMY7:
     case 8:
     case T_ENEMY9: {
-      const uint32_t a1 = m.roml(ENEMIES7 + 4 * idx);
-      const Rect r = rect(m, rdl(m, rdl(m, a1 + 0x1c)));
+      const uint32_t a1 = marble_obj_minis[idx];
+      const Rect r = rect(animEntry(m.rl(a1 + 0x1c)));
       const bool two = m.rb(a1 + 0x1a) == 2;
       return objBox(m, a1, r.dx, r.dy, two ? -8 : 0, r.sx, r.sy, two ? 0 : 6);
     }
     case T_ENEMY_F: {
-      const uint32_t a1 = m.roml(ENEMIES_F + 4 * idx);
+      const uint32_t a1 = marble_obj_birds[idx];
       if (m.rb(a1 + 0x1a) == 2) { return objBox(m, a1, 0, 0, 0, 0, 0, 0); }
       return objBox(m, a1, -4, -4, 0, 8, 8, 4);
     }
@@ -118,22 +107,23 @@ Box box_1b12a(const Mem &m, uint8_t type, uint8_t idx) {
   }
 
   // level object slot, tag = type
-  const uint32_t a1 = m.roml(SLOTS + 4 * idx);
+  const uint32_t a1 = marble_slot_addr[idx];
   if (type < T_TAG3 || type > T_SLOT_LAST) { return objBox(m, a1, 0, 0, 0, 0, 0, 0); }
 
-  const uint32_t p = rdl(m, rdl(m, a1 + S_ANIM));
+  const uint32_t p = animEntry(m.rl(a1 + S_ANIM));
   if (type == T_TAG6) {
-    return objBox(m, a1, 0, s8(rdb(m, p + 4)), 0, 0x20, s8(rdb(m, p + 6)), 0x28);
+    const uint8_t *b = marble_physics::frameBox(p);
+    return objBox(m, a1, 0, s8(b[0]), 0, 0x20, s8(b[2]), 0x28);
   }
 
   if (type == 11 || type == 12 || type == 13) {
     if (p == NONE32) { return objBox(m, a1, 0, 0, -8, 8, 8, 0); }
-    const Rect r = rect(m, p);
+    const Rect r = rect(p);
     return type == 12 ? objBox(m, a1, r.dx, r.dy, 0, r.sx, r.sy, 0x10)
                       : objBox(m, a1, r.dx, r.dy, -8, r.sx, r.sy, 0x18);
   }
 
-  const Rect r = rect(m, p);
+  const Rect r = rect(p);
   if (type == T_TAG3) { return objBox(m, a1, r.dx, r.dy, -16, r.sx, r.sy, 0x10); }
   if (type == T_TAG5) { return objBox(m, a1, r.dx, r.dy, 0, r.sx, r.sy, 0x18); }
   return objBox(m, a1, r.dx, r.dy, -8, r.sx, r.sy, 0);  // 10
@@ -205,7 +195,7 @@ void one(const Mem &m, Out &o, uint32_t hdr, uint8_t set, int16_t x, int16_t y) 
   if (hdr != NONE32) { o.add(m.spriteFrame(hdr), set, x, y); }
 }
 
-inline uint32_t hdrOf(const Mem &m, uint32_t p) { return rdl(m, rdl(m, p)); }
+inline uint32_t hdrOf(const Mem &m, uint32_t p) { return animEntry(m.rl(p)); }
 
 // slot objects of 0x27a16 / 0x27dd0 / 0x27ed4 (tags 3, 5, 6); lift = palette variant if drawn
 void slotObjs(const Mem &m, Out &o, uint8_t type, uint8_t idx, int32_t top, int16_t margin,
@@ -216,7 +206,7 @@ void slotObjs(const Mem &m, Out &o, uint8_t type, uint8_t idx, int32_t top, int1
   static const int16_t SCREEN_H = 240;
   static const uint16_t X_BIAS = 0x18, Y_BIAS = 0x10;
 
-  const uint32_t a = m.roml(SLOTS + 4 * idx);
+  const uint32_t a = marble_slot_addr[idx];
   const uint16_t sxw = m.rw(a + S_SCREEN) + (type == T_TAG5 ? X_BIAS - 1 : X_BIAS);
   const uint16_t syw = m.rw(a + S_SCREEN + 2);
   const int16_t x = s16(sxw) - X_BIAS;
@@ -237,7 +227,7 @@ void slotObjs(const Mem &m, Out &o, uint8_t type, uint8_t idx, int32_t top, int1
     // 32 bit: += 7 does not wrap at 16 bits (0xffff + 7 is no frame)
     uint32_t i = ((int32_t)(m.rl(a + S_FRAME) - m.rl(a + S_ANIM2)) >> 3) & 0xffff;
     if (m.rl(a + S_ANIM2) == TAG3_LIST2) { i += 7; }
-    if (own != NONE32 && i < TAG3_FRAMES) { lift = m.romb(TAG3_PAL + i); }
+    if (own != NONE32 && i < TAG3_FRAMES) { lift = marble_tag3_pal[i]; }
     return;
   }
 
@@ -257,7 +247,7 @@ void slotObjs(const Mem &m, Out &o, uint8_t type, uint8_t idx, int32_t top, int1
 
   if (cy <= LO - margin || cy >= HI_TAG6 + margin) { return; }
   const uint32_t p42 = m.rl(a + S_FRAME), p46 = m.rl(a + S_ANIM2);
-  const uint32_t hdr = rdl(m, p42);
+  const uint32_t hdr = animEntry(p42);
   one(m, o, hdr, hdr >= FLAG_SET7 ? SET_GLOBAL : SET_WAVE, x, y);
   if (p46 != STRIP_LIST) { return; }
 
@@ -346,7 +336,7 @@ void player(const Mem &m, Out &o, int32_t top) {
 void steelie(const Mem &m, Out &o, uint8_t idx, int32_t top) {
   static const uint32_t FRAME = 0x21f36;
   static const uint8_t SHATTERING = 2, SET_STEELIE = 5;
-  const uint32_t a = m.roml(ENEMIES + 4 * idx);
+  const uint32_t a = marble_obj_targets[STEELIE0 + idx];
   if (!m.rb(a + P_VISIBLE)) { return; }
 
   const int16_t sx = m.sw(a + P_SX), sy = m.sw(a + P_SY);
@@ -378,7 +368,7 @@ void steelie(const Mem &m, Out &o, uint8_t idx, int32_t top) {
 void slinky(const Mem &m, Out &o, uint8_t idx, int32_t top, int16_t margin) {
   static const int16_t LO = -0x20, HI = 0x100, Y_BIAS = 0x10;
   static const uint8_t SCREEN = 0x28, MASKS = 0x2c, CURSOR = 0x58;
-  const uint32_t a = m.roml(ENEMIES4 + 4 * idx);
+  const uint32_t a = marble_obj_slinkies[idx];
   const int16_t sx = m.sw(a + SCREEN), sy = m.sw(a + SCREEN + 2);
   const int16_t cy = s16((uint16_t)(sy + Y_BIAS));
   if (cy <= LO - margin || cy >= HI + margin) { return; }
@@ -401,7 +391,7 @@ void slinky(const Mem &m, Out &o, uint8_t idx, int32_t top, int16_t margin) {
 void acid(const Mem &m, Out &o, uint8_t idx, int32_t top, int16_t margin) {
   static const int16_t LO = -0x30, HI = 0x120, Y_BIAS = 0x10;
   static const uint8_t SCREEN = 0x28, CURSOR = 0x3a;
-  const uint32_t a = m.roml(ENEMIES_E + 4 * idx);
+  const uint32_t a = marble_obj_acids[idx];
   const int16_t sx = m.sw(a + SCREEN), sy = m.sw(a + SCREEN + 2);
   const int16_t cy = s16((uint16_t)(sy + Y_BIAS));
   if (cy <= LO - margin || cy >= HI + margin) { return; }
@@ -416,7 +406,7 @@ void acid(const Mem &m, Out &o, uint8_t idx, int32_t top, int16_t margin) {
 void mini(const Mem &m, Out &o, uint8_t type, uint8_t idx, int32_t top, int16_t margin) {
   static const int16_t LO = -0x10, HI = 0x100, Y_BIAS = 0x10;
   static const uint8_t CURSOR = 0x1c, SCREEN = 0x20;
-  const uint32_t a = m.roml(ENEMIES7 + 4 * idx);
+  const uint32_t a = marble_obj_minis[idx];
   const int16_t sx = m.sw(a + SCREEN), sy = m.sw(a + SCREEN + 2);
   const int16_t cy = s16((uint16_t)(sy + Y_BIAS));
   if (cy <= LO - margin || cy >= HI + margin) { return; }
@@ -432,7 +422,7 @@ void mini(const Mem &m, Out &o, uint8_t type, uint8_t idx, int32_t top, int16_t 
 void bird(const Mem &m, Out &o, uint8_t idx, int32_t top, int16_t margin) {
   static const int16_t LO = -0x10, HI = 0x100, Y_BIAS = 0x10;
   static const uint8_t CURSOR = 0x1c, SCREEN = 0x20, MASKS = 0x26, NMASKS = 3;
-  const uint32_t a = m.roml(ENEMIES_F + 4 * idx);
+  const uint32_t a = marble_obj_birds[idx];
   const int16_t sx = m.sw(a + SCREEN), sy = m.sw(a + SCREEN + 2);
   const int16_t cy = s16((uint16_t)(sy + Y_BIAS));
   if (cy <= LO - margin || cy >= HI + margin) { return; }
@@ -533,7 +523,7 @@ void sort(Mem &m) {
 
 uint8_t build(const Mem &m, int16_t cam, int16_t cullMargin, VideoState &v) {
   static const uint8_t NOT_SEEN = 0xff;
-  const int32_t top = (int32_t)cam - (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+  const int32_t top = (int32_t)cam - m.desc().top;
   Out o = {v, 0, 0};
   v.lift = LIFT_NONE;
   v.marbleAt = NOT_SEEN;

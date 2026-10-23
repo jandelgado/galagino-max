@@ -799,21 +799,26 @@ Terrain, `marble_terrain[race]` (`MarbleTerrainInfo`):
 | silly | 238 | 6426 | shared | 192 | 476 |
 | ultimate | 200 | 5400 | shared | 44 | 400 |
 
-Program ROM, `marble_prog_blocks[MARBLE_PROG_BLOCKS]` (`MarbleProgBlock {addr, len, off}`,
-block bytes at `off` in `marble_prog`, all blocks joined in one LZMA blob that
-`marble_physics::loadRom()` unpacks to the Arena once per machine; flash 7.8 KB instead of
-20.3 KB),
-sorted): whole tables, walked to their terminators (`convert.prog_tables()`, one set per
-phase; this phase: 0x24b3a vertex steps, 0x1ed62 drop, 0x23d40 edge push, 0x2398c teeter,
-0x1eef8 friction, 0x1eb16 zone line pointers + lists 0x239b8-0x23c03, 0x1eb2e/0x1eb34 goal
-velocity, 0x1ef1a checkpoint pointers + lists 0x1f1d8-0x1fbcf (respawn), 0x1f1ca camera,
-0x2be00 and the 6 descriptors (0x2e bytes), 0x1d370 intermediate dynamic codes, first
-dynamic code frames 0x1699c, 0x1b908, 0x24e4e). No byte comes from a recorded run: the
-pytest `test_prog_tables_cover_every_read` (`romconv/tests/marble_runs.py`, marker `slow`,
-~35 s) replays every MAME fixture, race start and race sweep of every phase on the model with
-a recording ROM and fails on a read outside the tables, or a slapstic read (0x80000+)
-outside the race's terrain records (served by `records`). A port's ROM accessor should fail
-on an address outside the blocks.
+Program ROM data (`romconv/romconv/games/marble/progrom.py`, one list of definitions per
+phase, emitted into `marble_tables` / `marble_rom.h`): tables by index as
+`MarbleTable<T, N> marble_<name>` (`marble_friction[i]`, i < N checked, `fail()` beyond; per
+race lists as entries plus `marble_<name>_of[race] {first, n}`: zone lines, checkpoints,
+bonus zones, spawn tables), the camera parameters as a `MarbleCamera` constant, and for the
+data the work RAM points to by 68010 address (animation cursors, frame headers, scripts,
+terrain code blocks, occluder records, paths, piston timer tables) one sorted span list per
+kind (`MarbleSpans marble_<kind>`, raw big-endian bytes, exactly the bytes the definition
+walks) behind the `marble_mem.h` accessors `animEntry`, `frameBox`, `framePos`,
+`scriptWord/Long`, `dynWord`, `occluderWord`, `pathByte`, `pistonTimer`. The work RAM keeps
+the 68010 addresses (the MAME fixtures compare it). This phase: 0x24b3a vertex steps, 0x1ed62
+drop, 0x23d40 edge push, 0x2398c teeter, 0x1eef8 friction, 0x1eb16 zone lines, 0x1eb2e/0x1eb34
+goal velocity, 0x1ef1a checkpoints, 0x1f1ca camera, 0x1d370 intermediate dynamic codes, the
+first dynamic code frames 0x1699c, 0x1b908, 0x24e4e (`dynWord`), 0x1d364 demo waypoints,
+0x242aa banner chains; the descriptors are `MarbleTerrainInfo` fields (`top, range, cell`,
+`maxd`, records, edges). No byte comes from a recorded run: the pytest
+`test_phase_bytes_cover_every_read` (`romconv/tests/marble_runs.py`, marker `slow`, ~35 s)
+replays every MAME fixture, race start and race sweep of every phase on the model with a
+recording ROM and fails on a read outside the definitions, or a slapstic read (0x80000+)
+outside the race's terrain records (served by `records`).
 
 Race start (`start_259b4`, validated for all 6 races: `marble_sim.py start TRACE RACE`
 equals the run from the first race snapshot): cell from descriptor `+0x14 + 2 * player`,
@@ -876,7 +881,7 @@ Same converter run; flash 16222 B (was 22777 B before the edge lists; budget 25 
 4144 B, program ROM blocks 8014 B (added to the Phase 2 blocks, which stay 4237 B), practice gate
 patches 912 B, mask tiles 3152 B. The converter prints these and the saving, fails above 25 KB.
 
-Program ROM blocks (`marble_prog_blocks`, now 35 blocks), whole tables (the pytest above
+Program ROM tables of this phase (`progrom.py` `_objects`), whole tables (the pytest above
 replays `objects_init` + 200 idle ticks of every race, practice gate included, the Phase 2
 fixture and the object fixture on a recording ROM), so a port never meets a gap:
 
@@ -2359,14 +2364,15 @@ probability table and frees it before returning.
 | level maps `marble_maps[n]` | 7 | 55368 | 13188 | level change | video | `store.map` |
 | terrain `marble_terrain[r].packed` | 6 | 35438 | 11971 | race change | emulation | `terrainBuf` |
 | sprite sets `marble_sprite_tiles[s]` | 3 | 29408 | 7128 | set change | video | `store.sprites` |
-| program ROM `marble_prog_blob` | 1 | 20291 | 7838 | once, ctor | main | `prog` |
 | SID tune `marble_sid_blob` | 1 | 14332 | 5532 | once, `start()` | main | SID file |
 | death tiles `marble_death_tiles_blob` | 1 | 16800 | 4377 | first level | video | `store.sprites` |
 | logo `marble_logo_blob` | 1 | 10784 | 1381 | menu | main | logo pool |
 
-Terrain and program ROM were plain flash arrays until 2026-10-13 (35.6 KB more flash). Still
-plain, read in place: terrain codes, records and edge lists, sprite columns and frames,
-palettes, MO tiles, mask tiles, HUD glyphs, patches.
+Terrain and program ROM were plain flash arrays until 2026-10-13 (35.6 KB more flash); the
+program ROM blocks (`marble_prog`, 20 KB Arena) became typed tables in `marble_tables` on
+2026-10-21. `marble_tables` is PLAIN flash on remote builds and an Arena block on local ones
+(the planner decides): terrain codes, records and edge lists, sprite columns and frames,
+palettes, MO tiles, mask tiles, HUD glyphs, patches, the program ROM tables and spans.
 
 Arena (`Arena::CAPACITY` 182000 B, two 91000 B blocks, first fit):
 
@@ -2376,17 +2382,17 @@ Arena (`Arena::CAPACITY` 182000 B, two 91000 B blocks, first fit):
  marble_maps[n]     -- video -->  store.map      10440   ┐ block A, must be
  marble_tiles[n]    -- video -->  store.pixels   57344   ┘ together
  death + sprite[s]  -- video -->  store.sprites  39904     block B
- marble_prog        -- ctor  -->  prog           20291     block A
  marble_terrain[r]  -- emu   -->  terrainBuf      6902     block B (one race)
  marble_sid         -- start -->  SID file       14332     block B
                                   SID RAM        15360     block B
-                                  total 164573 / 182000 (A 88075, B 76498)
+                                  total 144282 / 182000 (A 67784, B 76498), plus
+                                  marble_tables where the planner puts it
 ```
 
 Allocation order matters (first fit): the constructor reserves the level buffers first, so map
-and tiles share block A, then `marble_physics::loadRom()`. The ROM is unpacked in the
-constructor, not in `start()`, because `reset()` runs before `start()` and already builds a
-`Mem`. `start()` adds the SID buffers.
+and tiles share block A, then `marble_physics::loadRom()` (`marble_tables` on local builds,
+the terrain buffer). It runs in the constructor, not in `start()`, because `reset()` runs
+before `start()` and already builds a `Mem`. `start()` adds the SID buffers.
 
 ```cpp
 marble::marble() {
@@ -2397,8 +2403,9 @@ marble::marble() {
 
 Physics data (`marble_mem.cpp`) lives in file statics, filled per machine instance:
 
-- `prog`: all program ROM blocks joined (`marble_prog`). `MarbleProgBlock {addr, len, off}`:
-  block bytes at `prog + off`. `Mem::romb` binary-searches the blocks, any other address fails.
+- `marble_tables`: the table blob (flash or Arena); program ROM tables by index and the
+  spans behind the address keyed accessors (`MarbleSpans::at` binary-searches a kind's spans,
+  any other address fails with the kind's name).
 - `terrainBuf`: one race, `MARBLE_TERRAIN_MAX` (6902) bytes, the largest race (silly):
   `[bases: maxd words, little endian][index: pairs * 54 bytes]`.
 - `loadedRace`: race in `terrainBuf`, `NO_RACE` after `loadRom()`.
@@ -2423,7 +2430,9 @@ void Mem::setRace(uint8_t race) {
 Accessors:
 
 - work RAM 0x400000-0x401fff, big endian: `rb/rw/rl`, signed `sb/sw/sl`, `wb/ww/wl`.
-- program ROM: `romb/romw/roml` from `prog`.
+- program ROM: `marble_<name>[i]` tables (marble_rom.h) and the free functions `animEntry`,
+  `frameBox`, `framePos`, `scriptWord/Long`, `dynWord`, `occluderWord`, `pathByte`,
+  `pistonTimer`, `demoWaypoints` (marble_mem.h) for data the work RAM points to.
 - terrain: `maxd`, `base(d)`, `vertexCode(d, f)` (from `terrainBuf`), `record(code, q)`,
   `desc`, `edgeFrom(col, d)` (flash).
 - sprites: `spriteFrame(hdr)`, `stripFrame(i)`.

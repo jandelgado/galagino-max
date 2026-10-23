@@ -10,6 +10,8 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
+#include "marble_rom.h"
+
 // 1:1 port of dev/marble/marble_sim.py (function names and order as there). Integer
 // semantics of the 68010: word results wrap at 16 bits, long results at 32 bits (done in
 // uint32_t), >> on signed values is asr, int64_t where the model's values exceed 32 bits.
@@ -79,27 +81,15 @@ static const uint32_t ZONE_SOUNDS = 0x40076a;                // zone hook sound 
 static const uint32_t MODE3_TIMER = 0x400768;                // word: aerial sound countdown
 static const uint32_t STEELIES = 0x4009a4, SLINKIES = 0x401302;
 
-// program ROM tables
-static const uint32_t DYN_INTERMEDIATE = 0x1d370;  // 66 dynamic codes (0x11ac2)
+// program ROM tables (marble_rom.h) and code block addresses (dynWord)
 // first animation frame of the dynamic codes (0x13628): word slot, word count, words
 static const uint32_t DYN_PRACTICE = 0x1699c, DYN_BEGINNER = 0x1b908, DYN_ULTIMATE = 0x24e4e;
-static const uint32_t ZONE_LISTS = 0x1eb16;        // zone line list per race
-static const uint32_t GOAL_VX = 0x1eb2e, GOAL_VY = 0x1eb34;
-static const uint32_t CHECKPOINTS = 0x1ef1a;       // list per race: cx, cy, zone, pad; 0xff end
-static const uint32_t DROP = 0x1ed62;              // two level code height steps
-static const uint32_t FRICTION = 0x1eef8;
-static const uint32_t TEETER_LIFT = 0x2398c;   // z lift by distance to the edge
-static const uint32_t PUSH = 0x23d40;
-static const uint32_t STEPS = 0x24b3a;             // vertex walk of 0x1caba
+static const uint8_t STEPS_ODD = 9;                // marble_steps word of the odd diagonals (0x1caba)
 // animation lists of +0x5a (long frame headers, LIST_END), shatter overlay +0x62
 static const uint32_t ANIM_DIZZY = 0x20faa, ANIM_DIZZY_LOOP = 0x20fb6, ANIM_DIZZY_END = 0x20fd2;
 static const uint32_t ANIM_SHATTER = 0x20fde, ANIM_SHARDS = 0x215f6;
 static const uint32_t ANIM_DISSOLVE = 0x21062;     // state 9 (acid)
 static const uint32_t ANIM_BONUS = 0x216aa;        // state 8 +0xcc
-static const uint32_t BONUS_LIMIT = 0x24a94;       // per race: event when the rng byte is below
-static const uint32_t BONUS_ZONES = 0x24aae;       // per race: zone list (0xff end)
-static const uint32_t SINE = 0x1eda2;              // 0x4000 = 1, quarter turn QUARTER entries
-static const uint32_t STAR_STEPS = 0x1ef32;        // 8 x (s8 dx, s8 dy)
 
 static const uint32_t LIST_END = 0xffffffff;
 static const uint32_t SHATTER_BYTES = 0x80;        // 32 entries
@@ -129,7 +119,6 @@ static const uint16_t PLAYER_SIZE = 0xe2, STEELIE_SIZE = 0x7c, SLINKY_SIZE = 0x6
 static const uint8_t STEELIE_N = 2, SLINKY_N = 4;
 static const uint8_t HIT_PLAYER = 1, HIT_STEELIE = 2, HIT_SLINKY = 4;
 static const int16_t SCORE_STEP = 0xa0, SCORE_POINTS = 10;  // distance score 0x26214
-static const uint32_t SCORES = 0x23cd4, SCORE_TEXTS = 0x23cf6;  // 0x285b0: words, longs
 static const uint8_t SCORE_SHOWN = 0x68, SCORE_FLAG = 0x69, SCORE_TEXT_ON = 0x70;  // +0x68..
 static const uint8_t SCORE_TEXT = 0xd4, SCORE_WAIT = 0xd8;
 static const uint8_t PULSE_FLASH = 0x71;  // timer flash counter (marble_flow)
@@ -204,7 +193,7 @@ void codeHeights(const Mem &m, uint16_t code, uint16_t base, uint16_t h[4]) {
   // two levels, bits 12-15 pick the high one
   if (code >= 0x1000) {
     const uint16_t v0 = (code & 0x7f) - 0x40 + base;
-    const uint16_t coef = m.romw(DROP + ((s16(code) >> 6) & 0x3e));
+    const uint16_t coef = marble_drop[(s16(code) >> 7) & 0x1f];
     const uint16_t alt = coef == 0x1000 ? 0 : (uint16_t)(s16(v0) - s16(coef));
     for (uint8_t q = 0; q < 4; q++) { h[q] = (code & (1 << (12 + q))) ? v0 : alt; }
     return;
@@ -230,7 +219,7 @@ void terrain_1caba(Mem &m) {
   const uint16_t tx = m.rw(CELL_X);
   uint16_t d4 = m.rw(CELL_Y) + 1 + tx - 0x15;
   uint16_t d6 = 0x15 - tx + (s16(d4) >> 1);
-  uint32_t a6 = STEPS + ((d4 & 1) ? 0x12 : 0);
+  uint8_t a6 = (d4 & 1) ? STEPS_ODD : 0;
 
   for (uint8_t i = 0; i < 4; i++) {
     const int16_t d = s16(d4);
@@ -242,8 +231,8 @@ void terrain_1caba(Mem &m) {
     for (uint8_t k = 0; k < 4; k++) { m.ww(a5 + 2 * k, h[k]); }
     a5 += 8;
 
-    const uint16_t st1 = m.romw(a6), st2 = m.romw(a6 + 2), st3 = m.romw(a6 + 4);
-    a6 += 6;
+    const uint16_t st1 = marble_steps[a6], st2 = marble_steps[a6 + 1], st3 = marble_steps[a6 + 2];
+    a6 += 3;
     d6 += st1;
     d4 += st2;
     a5 += s16(st3);
@@ -542,7 +531,7 @@ void edge_160f6(Mem &m, uint32_t a2, int32_t h) {
     }
 
     // 0x165ec `cmpa.w d2,a1; ble`: the smallest magnitude wins (Marble Love: the largest)
-    const int8_t mag = s8(m.romb(TEETER_LIFT + ti));
+    const int8_t mag = marble_teeter[ti];
     if (best == -1 || mag < best) {
       best = mag;
       bestv = cur;
@@ -564,10 +553,10 @@ void edgepush_1706c(Mem &m, uint32_t a1) {
   uint32_t d5 = m.rl(a1 + VX), d6 = m.rl(a1 + VY);
   const int8_t d3 = s8(m.rb(FRAC_X + 1)), d2 = s8(7 - m.rb(FRAC_Y + 1));
   const int8_t d1 = s8(7 - m.rb(FRAC_X + 1)), d4 = s8(m.rb(FRAC_Y + 1));
-  const int16_t mM4 = s16(m.romw(PUSH + 2 * d3));
-  const int16_t mM2 = s16(-s16(m.romw(PUSH + 2 * d2)));
-  const int16_t a4w = s16(-s16(m.romw(PUSH + 2 * d1)));
-  const int16_t a0w = s16(m.romw(PUSH + 2 * d4));
+  const int16_t mM4 = marble_push[d3];
+  const int16_t mM2 = s16(-marble_push[d2]);
+  const int16_t a4w = s16(-marble_push[d1]);
+  const int16_t a0w = marble_push[d4];
   auto fl = [&m](uint32_t a) { const uint8_t f = m.rb(a); return f != 0 && f < 3; };
 
   if (fl(EDGE_PX) && d3 < 4 && m.sw(WALL_PX) > 0) { d5 += mM4; }
@@ -597,7 +586,7 @@ void friction_25e7c(Mem &m, uint32_t a, Friction mode) {
   const int32_t x = m.sl(a + VX), y = m.sl(a + VY);
   uint32_t d3 = speedNorm(x, y);
   const uint8_t i4 = (d3 >> 15) & 0xf, i2 = (d3 >> 12) & 7;
-  const int16_t t0 = s16(m.romw(FRICTION + 2 * i4)), t1 = s16(m.romw(FRICTION + 2 * i4 + 2));
+  const int16_t t0 = marble_friction[i4], t1 = marble_friction[i4 + 1];
   const int16_t dd = s16(t1 - t0);
   int32_t d2l = ((dd * i2) >> 3) + t0;
   if (d3 < 0x100) { d3 = 0x100; }
@@ -725,15 +714,16 @@ void zoneHook_13966(Mem &m, uint32_t a2) {
 // slots (0x13892); a changed zone runs the zone hook 0x13966
 void zones_1365c(Mem &m, uint32_t a2) {
   const uint16_t race = m.rw(RACE);
-  uint32_t a0 = m.roml(ZONE_LISTS + 4 * race);
+  uint16_t i = marble_zone_lines_of[race].first;
   const int16_t ncx = m.sw(CELL_X), ncy = m.sw(CELL_Y);
   const int16_t ocx = m.sw(OLD_CX), ocy = m.sw(OLD_CY);
   if (ncx == ocx && ncy == ocy) { return; }
 
   const uint8_t d2 = m.rb(a2 + ZONE);
-  for (;; a0 += 6) {
+  for (;; i++) {
     // line entry: x, y, end, zone a, zone b; x < 0: line y = |y| from x = |x| to end
-    const int8_t b0 = s8(m.romb(a0)), b1 = s8(m.romb(a0 + 1)), end = s8(m.romb(a0 + 2));
+    const uint8_t *e = marble_zone_lines[i];
+    const int8_t b0 = s8(e[0]), b1 = s8(e[1]), end = s8(e[2]);
     const bool horiz = b0 < 0;
     const int16_t X = b0 < 0 ? -b0 : b0, Y = b1 < 0 ? -b1 : b1;
     const bool hit = horiz ? (Y == ncy || Y == ocy) : (X == ncx || X == ocx);
@@ -748,7 +738,7 @@ void zones_1365c(Mem &m, uint32_t a2) {
       }
       if (onOld && !onNew) {
         const bool sideA = horiz ? ncy <= Y : !(ncx > X);
-        m.wb(a2 + ZONE, m.romb(a0 + (sideA ? 3 : 4)));
+        m.wb(a2 + ZONE, e[sideA ? 3 : 4]);
         if (m.rb(a2 + ZONE) == 0xff) {
           // 0x137a4: the first player at the goal scores race * 2 + 3 (palette flash not
           // ported); the race timer stops, +0x6d keeps its frame count
@@ -764,8 +754,8 @@ void zones_1365c(Mem &m, uint32_t a2) {
             m.wl(a2 + VX, 0);
             m.wl(a2 + VY, 0);
           } else {
-            m.wl(a2 + VX, (uint32_t)(int32_t)s8(m.romb(GOAL_VX + race)) << 16);
-            m.wl(a2 + VY, (uint32_t)(int32_t)s8(m.romb(GOAL_VY + race)) << 16);
+            m.wl(a2 + VX, (uint32_t)(int32_t)marble_goal_vx[race] << 16);
+            m.wl(a2 + VY, (uint32_t)(int32_t)marble_goal_vy[race] << 16);
           }
         } else if (m.rb(a2 + ZONE) == ZONE_SLOTS && race == RACE_AERIAL) {
           marble_objects::zone4_13892(m);
@@ -774,7 +764,7 @@ void zones_1365c(Mem &m, uint32_t a2) {
         return;
       }
     }
-    if (m.romb(a0 + 3) == 0xff && m.romb(a0 + 4) == 0xff) { return; }
+    if (e[3] == 0xff && e[4] == 0xff) { return; }
   }
 }
 
@@ -890,7 +880,7 @@ void physics_121b8(Mem &m, uint32_t a2) {
 // SCORE_POINTS (0x28608: +0xbc, flag 0x40039c)
 void distance_26214(Mem &m, uint32_t a2, uint32_t speed) {
   const uint8_t i4 = (speed >> 15) & 0xf, i2 = (speed >> 12) & 7;
-  const int16_t t0 = s16(m.romw(FRICTION + 2 * i4)), t1 = s16(m.romw(FRICTION + 2 * i4 + 2));
+  const int16_t t0 = marble_friction[i4], t1 = marble_friction[i4 + 1];
   const int32_t d1 = ((s16(t1 - t0) * i2 >> 3) + t0) >> 9;
   m.ww(a2 + DISTANCE, (uint16_t)(m.rw(a2 + DISTANCE) + d1));
   if (m.sw(a2 + DISTANCE) <= SCORE_STEP) { return; }
@@ -913,7 +903,6 @@ void speedcap_26196(Mem &m, uint32_t a2) {
 }
 
 // attract demo (MARBLE.md "Demo race"): waypoint lists, banners
-static const uint32_t BANNERS = 0x242aa;        // long per banner: alpha string chain
 static const uint16_t BANNER_FRAMES = 0x5a;     // BIOS 0x12a: frames shown
 static const int32_t WAYPOINT_BIAS = 0x40000;   // record cell to its centre, 16.16
 static const uint16_t WAYPOINT_NEAR = 0x20;     // |delta| >> 12 below: passed
@@ -924,7 +913,7 @@ static const int32_t FALL_STEP = -0x6000, FALL_MAX = -0x50000;  // airborne vz
 // 0x12a (BIOS, state-machine-schedule.ts scheduleStateMachine1): message slot 0 shows banner
 // b's chain for BANNER_FRAMES frames; marble_flow erases it
 void banner_12a(Mem &m, uint8_t b) {
-  m.wl(MSG_CHAIN, m.roml(BANNERS + 4 * b));
+  m.wl(MSG_CHAIN, marble_banner_chains[b]);
   m.wb(MSG_STATE, 1);
   m.ww(MSG_FRAMES, BANNER_FRAMES);
   m.ww(MSG_COUNT, 0);
@@ -944,18 +933,18 @@ void waypoint_1815a(Mem &m, uint32_t a2) {
   uint16_t d4, d6;
   for (;;) {
     uint32_t a3 = m.rl(WAYPOINT);
-    if (!m.romb(a3)) { return; }
+    if (!pathByte(a3, 0)) { return; }
 
-    d2 = s32((int64_t)(s8(m.romb(a3)) * (1 << 19)) - m.sl(a2 + PX) + WAYPOINT_BIAS);
-    d3 = s32((int64_t)(s8(m.romb(a3 + 1)) * (1 << 19)) - m.sl(a2 + PY) + WAYPOINT_BIAS);
-    d5 = s8(m.romb(a3 + 2)) * (1 << 16);
+    d2 = s32((int64_t)(s8(pathByte(a3, 0)) * (1 << 19)) - m.sl(a2 + PX) + WAYPOINT_BIAS);
+    d3 = s32((int64_t)(s8(pathByte(a3, 1)) * (1 << 19)) - m.sl(a2 + PY) + WAYPOINT_BIAS);
+    d5 = s8(pathByte(a3, 2)) * (1 << 16);
     d4 = (uint16_t)(abs64(d2) >> 12);
     d6 = (uint16_t)(abs64(d3) >> 12);
     if (d4 >= WAYPOINT_NEAR || d6 >= WAYPOINT_NEAR) { break; }
 
-    if (s8(m.romb(a3 + 3)) >= 0) { banner_12a(m, m.romb(a3 + 3)); }
+    if (s8(pathByte(a3, 3)) >= 0) { banner_12a(m, pathByte(a3, 3)); }
     a3 += 4;
-    if (!m.romb(a3)) {
+    if (!pathByte(a3, 0)) {
       m.ww(WAYPOINTS_END, 1);
       m.wb(a2 + TIMER_TICKS, 0xff);  // timer stopped
     }
@@ -1039,7 +1028,7 @@ void ground_253bc(Mem &m, uint32_t a) {
 void dyn_init(Mem &m, uint8_t race) {
   if (race == RACE_INTERMEDIATE) {
     for (uint8_t k = 0; k < DYN_INTERMEDIATE_N; k++) {
-      m.ww(DYN + 2 * k, m.romw(DYN_INTERMEDIATE + 2 * k));
+      m.ww(DYN + 2 * k, marble_dyn_intermediate[k]);
     }
     return;
   }
@@ -1051,8 +1040,8 @@ void dyn_init(Mem &m, uint8_t race) {
     case RACE_ULTIMATE: a = DYN_ULTIMATE; break;
     default: return;
   }
-  const uint16_t slot = m.romw(a), n = m.romw(a + 2);
-  for (uint16_t k = 0; k < n; k++) { m.ww(DYN + 2 * (slot + k), m.romw(a + 4 + 2 * k)); }
+  const uint16_t slot = dynWord(a, 0), n = dynWord(a, 1);
+  for (uint16_t k = 0; k < n; k++) { m.ww(DYN + 2 * (slot + k), dynWord(a, 2 + k)); }
 }
 
 // 0x259b4: race start of player 1, physics fields only (sprite setup skipped)
@@ -1061,7 +1050,7 @@ void start_259b4(Mem &m, uint8_t race, uint32_t a2) {
   dyn_init(m, race);
 
   // start cell: high byte x, low byte y; position = cell * 8 + 4
-  const uint16_t cell = m.romw(m.desc() + DESC_CELL);
+  const uint16_t cell = m.desc().cell;
   m.wl(a2 + PX, ((uint32_t)(cell >> 8) << 19) + 0x40000);
   m.wl(a2 + PY, ((uint32_t)(cell & 0xff) << 19) + 0x40000);
   m.ww(CELL_Y, 0xffff);
@@ -1110,35 +1099,36 @@ uint8_t blocked_17cb8(Mem &m, uint32_t a2, int16_t x, int16_t y, uint16_t r) {
   return 0;
 }
 
-// checkpoint entry a3: spawn pixel (cell * 8 + 4)
-inline int16_t spawnX(const Mem &m, uint32_t a3) { return (int16_t)(m.romb(a3) * 8 + 4); }
-inline int16_t spawnY(const Mem &m, uint32_t a3) { return (int16_t)(m.romb(a3 + 1) * 8 + 4); }
+// checkpoint entry (cx, cy, zone, pad): spawn pixel (cell * 8 + 4)
+inline int16_t spawnX(const uint8_t *e) { return (int16_t)(e[0] * 8 + 4); }
+inline int16_t spawnY(const uint8_t *e) { return (int16_t)(e[1] * 8 + 4); }
 
-// checkpoint entry a3 -> spawn pixel and zone
-void spawnAt(Mem &m, uint32_t a3) {
-  m.wl(SPAWN_X, (uint32_t)spawnX(m, a3));
-  m.wl(SPAWN_Y, (uint32_t)spawnY(m, a3));
-  m.wb(SPAWN_ZONE, m.romb(a3 + 2));
+// checkpoint entry -> spawn pixel and zone
+void spawnAt(Mem &m, const uint8_t *e) {
+  m.wl(SPAWN_X, (uint32_t)spawnX(e));
+  m.wl(SPAWN_Y, (uint32_t)spawnY(e));
+  m.wb(SPAWN_ZONE, e[2]);
 }
 
 // 0x2637a: nearest free checkpoint of the ground zone (+0x1d) to the last ground cell
 void nearest_2637a(Mem &m, uint32_t a2) {
   const uint16_t zone = (uint16_t)(int16_t)m.sb(a2 + GROUND_ZONE);  // ext.w
   uint32_t best = SPAWN_RANGE;
-  for (uint32_t a3 = m.roml(CHECKPOINTS + 4 * m.rw(RACE)); m.romb(a3) != 0xff; a3 += 4) {
-    if (m.romb(a3 + 2) != zone) { continue; }
+  for (uint16_t i = marble_checkpoints_of[m.rw(RACE)].first; marble_checkpoints[i][0] != 0xff; i++) {
+    const uint8_t *e = marble_checkpoints[i];
+    if (e[2] != zone) { continue; }
 
     // octagonal distance of the cell deltas, words << 4
-    const int16_t ex = s16(m.rw(a2 + GROUND_CX) - m.romb(a3));
-    const int16_t ey = s16(m.rw(a2 + GROUND_CY) - m.romb(a3 + 1));
+    const int16_t ex = s16(m.rw(a2 + GROUND_CX) - e[0]);
+    const int16_t ey = s16(m.rw(a2 + GROUND_CY) - e[1]);
     const uint16_t dx = (uint16_t)((ex < 0 ? -ex : ex) << 4);
     const uint16_t dy = (uint16_t)((ey < 0 ? -ey : ey) << 4);
     const uint32_t d = dx > dy ? (uint32_t)(dy >> 3) * 3 + dx : (uint32_t)(dx >> 3) * 3 + dy;
 
-    if (blocked_17cb8(m, a2, spawnX(m, a3), spawnY(m, a3), SPAWN_FREE)) { continue; }
+    if (blocked_17cb8(m, a2, spawnX(e), spawnY(e), SPAWN_FREE)) { continue; }
     if (d >= best) { continue; }
     best = d;
-    spawnAt(m, a3);
+    spawnAt(m, e);
   }
 }
 
@@ -1151,17 +1141,16 @@ void spawnPoint_262b2(Mem &m, uint32_t a2) {
   nearest_2637a(m, a2);
   if (m.rb(SPAWN_ZONE) != NO_ZONE) { return; }
 
-  const uint32_t first = m.roml(CHECKPOINTS + 4 * m.rw(RACE));
-  uint32_t a3 = first;
-  while (m.romb(a3) != 0xff) { a3 += 4; }
+  const MarbleRange &list = marble_checkpoints_of[m.rw(RACE)];
   int16_t zone = m.sb(a2 + GROUND_ZONE);
   if (zone) { zone--; }
 
   // backwards from the end marker (its zone 0xff never matches, 0x17cb8 still runs)
-  for (; a3 != first - 4; a3 -= 4) {
-    if (blocked_17cb8(m, a2, spawnX(m, a3), spawnY(m, a3), SPAWN_FREE)) { continue; }
-    if (m.romb(a3 + 2) == (uint16_t)zone) {
-      spawnAt(m, a3);
+  for (uint16_t k = list.n; k-- > 0;) {
+    const uint8_t *e = marble_checkpoints[list.first + k];
+    if (blocked_17cb8(m, a2, spawnX(e), spawnY(e), SPAWN_FREE)) { continue; }
+    if (e[2] == (uint16_t)zone) {
+      spawnAt(m, e);
       return;
     }
   }
@@ -1270,7 +1259,7 @@ void anim_25fc2(Mem &m, uint32_t a2) {
     m.wb(a2 + SHARD_TICK, 0);
     m.wb(a2 + SHARDS_ON, 1);
   }
-  if (m.roml(m.rl(a2 + ANIM)) != LIST_END) { return; }
+  if (animEntry(m.rl(a2 + ANIM)) != LIST_END) { return; }
 
   if (st == DIZZY || st == EATEN) {
     m.wb(a2 + ANIM_5F, 0);
@@ -1303,8 +1292,8 @@ void anim_25fc2(Mem &m, uint32_t a2) {
 }
 
 // (cos, sin) words of angle a (0 .. FULL_TURN - 1), 0x4000 = 1
-void sinePair(const Mem &m, int16_t a, int16_t &cs, int16_t &sn) {
-  auto t = [&m](int16_t i) { return s16(m.romw(SINE + 2 * i)); };
+void sinePair(int16_t a, int16_t &cs, int16_t &sn) {
+  auto t = [](int16_t i) { return marble_sine[i]; };
   if (a <= QUARTER) {
     cs = t(a);
     sn = t(QUARTER - a);
@@ -1356,11 +1345,11 @@ bool orbit_13ade(Mem &m, uint32_t a2) {
   uint8_t n = 0;
   for (uint8_t k = 0; k < STAR_N; k++) {
     int16_t cs, sn;
-    sinePair(m, s16(d3), cs, sn);
+    sinePair(s16(d3), cs, sn);
     const int16_t a1 = s16((uint32_t)((rad * cs) >> 12));
     const int32_t d0 = (rad * sn) >> 12;
-    const int16_t x = s16((uint32_t)(s8(m.romb(STAR_STEPS + 2 * k)) + s16((uint32_t)(d0 + sx - a1))));
-    const int16_t y = s16((uint32_t)(s8(m.romb(STAR_STEPS + 2 * k + 1)) +
+    const int16_t x = s16((uint32_t)(marble_star_steps[2 * k] + s16((uint32_t)(d0 + sx - a1))));
+    const int16_t y = s16((uint32_t)(marble_star_steps[2 * k + 1] +
                                      s16((uint32_t)(d1 + sy - ((s16((uint32_t)d0) + a1) >> 1)))));
     if (x > STAR_MIN && x < STAR_X_MAX && y > STAR_MIN && y < STAR_Y_MAX) {
       const uint32_t e = n < STAR_SLOTS ? a2 + STARS + 6 * n : a2 + MASKS + 6 * (n - STAR_SLOTS);
@@ -1547,14 +1536,13 @@ void carried_25876(Mem &m, uint32_t a2) {
 // mouth and on into the gate (slot +0x4e, offset by the gate kind), moving one star step per
 // 2 ticks; first 4 to +0xa4, next 4 to +0x38. +0x57 counts down; true when it reaches 0.
 bool suck_13d38(Mem &m, uint32_t a2) {
-  static const uint32_t SLOT_LIST = 0x1f016;  // slot addresses by number (+0x58)
   static const uint8_t G_TAG = 0x1f, G_SCREEN = 0x4e, GATE_D = 0x0d;
   static const int16_t D_X = -5, B_X = 3, G_Y = 5, MOUTH_X = 0x1c, MOUTH_Y = -0xe;
   static const int16_t STEPS_IN = 8, MOUTH_STEP = 4;  // star step: out of sight, at the mouth
   const int16_t d2 = (int16_t)(0x20 - m.sb(a2 + DAMAGE));
   m.wb(a2 + DAMAGE, m.rb(a2 + DAMAGE) - 1);
 
-  const uint32_t g = m.roml(SLOT_LIST + 4 * m.sb(a2 + SURFACE));
+  const uint32_t g = marble_slot_addr[(uint16_t)m.sb(a2 + SURFACE)];  // slot number (+0x58)
   const bool d = m.rb(g + G_TAG) == GATE_D;
   const int16_t gx = (int16_t)(m.sw(g + G_SCREEN) + (d ? D_X : B_X));
   const int16_t gy = (int16_t)(m.sw(g + G_SCREEN + 2) + G_Y);
@@ -1583,8 +1571,8 @@ bool suck_13d38(Mem &m, uint32_t a2) {
     const uint32_t e = n < STAR_SLOTS ? a2 + STARS + 6 * n : a2 + MASKS + 6 * (n - STAR_SLOTS);
     n++;
     m.ww(e, STAR_CODE + k);
-    m.ww(e + 2, (uint16_t)(s8(m.romb(STAR_STEPS + 2 * k)) + x));
-    m.ww(e + 4, (uint16_t)(s8(m.romb(STAR_STEPS + 2 * k + 1)) + y));
+    m.ww(e + 2, (uint16_t)(marble_star_steps[2 * k] + x));
+    m.ww(e + 4, (uint16_t)(marble_star_steps[2 * k + 1] + y));
   }
   m.wb(a2 + VISIBLE, 1);
   return m.rb(a2 + DAMAGE) == 0;
@@ -1649,11 +1637,12 @@ void object_253ec(Mem &m, uint32_t a2) {
 // s left in a zone of the race's list: time bonus pending (+0xcb of players in play), disarmed
 void bonusEvent_1bbaa(Mem &m) {
   const uint16_t race = m.rw(RACE);
-  if (!m.rb(TIMEOUT_ARMED) || m.romb(BONUS_LIMIT + race) <= m.rb(TIMEOUT_RND)) { return; }
-  const uint32_t zones = m.roml(BONUS_ZONES + 4 * race);
+  if (!m.rb(TIMEOUT_ARMED) || marble_bonus_limit[race] <= m.rb(TIMEOUT_RND)) { return; }
   const uint32_t a2 = PLAYER;
   bool listed = false;
-  for (uint32_t z = zones; m.romb(z) != 0xff; z++) { listed |= m.rb(a2 + ZONE) == m.romb(z); }
+  for (uint16_t i = marble_bonus_zones_of[race].first; marble_bonus_zones[i][0] != 0xff; i++) {
+    listed |= m.rb(a2 + ZONE) == marble_bonus_zones[i][0];
+  }
 
   const int16_t s = m.sw(a2 + TIMER);
   if (!listed || m.rb(a2 + SLOT) != 1 || m.rb(a2 + STATE) != ROLL || s <= 2 || s >= 7) { return; }
@@ -1731,10 +1720,10 @@ int32_t floorZ(Mem &m, uint32_t obj) {
 // 0x285b0 (helper-285b0.ts): points 0x23cd4[k] via 0x28608 (+0xbc, flag 0x40039c), score
 // text 0x23cf6[k] shown (+0xd4, +0x68/+0x69/+0x70/+0xd8)
 void score(Mem &m, uint32_t player, uint8_t k) {
-  m.wl(player + SCORE, m.rl(player + SCORE) + (uint32_t)(int32_t)s16(m.romw(SCORES + 2 * k)));
+  m.wl(player + SCORE, m.rl(player + SCORE) + (uint32_t)(int32_t)marble_scores[k]);
   const uint8_t bit = m.rb(player + PLAYER_NO) & 0x3f;
   if (bit < 8) { m.wb(SCORED, m.rb(SCORED) | (uint8_t)(1u << bit)); }
-  m.wl(player + SCORE_TEXT, m.roml(SCORE_TEXTS + 4 * k));
+  m.wl(player + SCORE_TEXT, marble_score_texts[k]);
   m.wb(player + SCORE_TEXT_ON, 0);
   m.wb(player + SCORE_SHOWN, 0);
   m.wb(player + SCORE_FLAG, 0xff);

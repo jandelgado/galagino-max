@@ -90,11 +90,11 @@ static uint32_t playerHdr(const Mem &m) {
   const uint8_t st = marble_physics::state(m);
   const bool drawn = st == marble_physics::DIZZY || st == marble_physics::BROKEN ||
                      st == marble_physics::EATEN || st == marble_physics::DISSOLVING;
-  return m.rb(PLAYER + VISIBLE) && drawn ? m.roml(m.rl(PLAYER + ANIM)) : 0;
+  return m.rb(PLAYER + VISIBLE) && drawn ? marble_physics::animEntry(m.rl(PLAYER + ANIM)) : 0;
 }
 
 static uint32_t shardHdr(const Mem &m) {
-  return m.rb(PLAYER + VISIBLE) && m.rb(PLAYER + SHARDS_ON) ? m.roml(m.rl(PLAYER + SHARDS)) : 0;
+  return m.rb(PLAYER + VISIBLE) && m.rb(PLAYER + SHARDS_ON) ? marble_physics::animEntry(m.rl(PLAYER + SHARDS)) : 0;
 }
 
 static const char *playerDiff(const Mem &m, const MarblePistonTick &t) {
@@ -121,7 +121,7 @@ static const char *playerDiff(const Mem &m, const MarblePistonTick &t) {
 
 // piston frame drawn: rl(anim cursor) while listed, else 0
 static uint32_t pistonHdr(const Mem &m, uint8_t i) {
-  return listedCount(m, TYPE_PISTON, i) ? m.roml(m.rl(piston(i) + T_ANIM)) : 0;
+  return listedCount(m, TYPE_PISTON, i) ? marble_physics::animEntry(m.rl(piston(i) + T_ANIM)) : 0;
 }
 
 static const char *pistonDiff(const Mem &m, uint8_t i, const MarblePistonObj &s) {
@@ -211,7 +211,7 @@ static uint8_t pistonMos(const Mem &m, const marble_video::VideoState &v, uint8_
   const int16_t ox = m.sw(a + T_SCREEN);
   const int16_t oy = (int16_t)(top + ARCADE_H - m.sw(a + T_SCREEN + 2));
   const MarbleSpriteSet &ds = marble_physics::deathSet();
-  const uint8_t frame = marble_physics::deathFrame(m.roml(m.rl(a + T_ANIM)));
+  const uint8_t frame = marble_physics::deathFrame(marble_physics::animEntry(m.rl(a + T_ANIM)));
   for (uint8_t j = 0; j < v.n; j++) {
     const Obj &o = v.objs[j];
     if (o.x != ox || o.y != oy || o.set != (SET_DEATH | SET_PISTON) || o.frame != frame) {
@@ -238,7 +238,7 @@ static void test_piston_objects(void) {
     const MarblePistonSegment &seg = marble_piston_segments[sg];
     loadRam(seg);
     Mem m(ram, seg.race);
-    const int16_t descTop = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+    const int16_t descTop = m.desc().top;
 
     for (uint16_t k = 0; k < seg.nticks; k++) {
       const MarblePistonTick &t = seg.ticks[k];
@@ -308,8 +308,8 @@ static void test_race_sweep(void) {
   for (uint8_t race = 0; race < RACES; race++) {
     beginRace(race);
     Mem m(ram, race);
-    const int16_t top = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
-    const int16_t range = (int16_t)m.romw(m.desc() + marble_physics::DESC_RANGE);
+    const int16_t top = m.desc().top;
+    const int16_t range = m.desc().range;
     const int16_t n = range / SWEEP_STEP + 1;
     uint32_t tick = 0;
     for (uint8_t pass = 0; pass < 3; pass++) {
@@ -343,8 +343,8 @@ static void test_armed_sweep(void) {
   Mem m(ram, RACE_AERIAL);
   m.wb(PLAYER + ZONE, ARM_ZONE);
   marble_enemies::arm_186ac(m);
-  const int16_t top = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
-  const int16_t range = (int16_t)m.romw(m.desc() + marble_physics::DESC_RANGE);
+  const int16_t top = m.desc().top;
+  const int16_t range = m.desc().range;
   const int16_t n = range / SWEEP_STEP + 1;
   uint32_t tick = 0;
   uint8_t most = 0, mostUp = 0;
@@ -386,12 +386,12 @@ static void test_arm_scratch(void) {
   for (uint8_t i = 0; i < NPISTONS; i++) {
     const uint32_t a = piston(i);
     TEST_ASSERT_EQUAL_UINT8(i, m.rb(a));
-    TEST_ASSERT_EQUAL_UINT8(m.romb(0x24406 + i), m.rb(a + T_CX));
-    TEST_ASSERT_EQUAL_UINT8(m.romb(0x2442a + i), m.rb(a + T_CY));
-    TEST_ASSERT_EQUAL_HEX16(m.romw(0x2444e + 2 * i), m.rw(a + T_TOP));
+    TEST_ASSERT_EQUAL_UINT8(marble_piston_cells_x[i], m.rb(a + T_CX));
+    TEST_ASSERT_EQUAL_UINT8(marble_piston_cells_y[i], m.rb(a + T_CY));
+    TEST_ASSERT_EQUAL_HEX16(marble_piston_tops[i], m.rw(a + T_TOP));
   }
   bool variant = false;
-  for (uint8_t v = 0; v < 4; v++) { variant |= m.rl(TIMERS) == m.roml(0x243f6 + 4 * v); }
+  for (uint8_t v = 0; v < 4; v++) { variant |= m.rl(TIMERS) == marble_piston_variant_reload[v]; }
   TEST_ASSERT_TRUE(variant);
 
   const uint32_t last = piston(NPISTONS - 1);

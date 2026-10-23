@@ -12,6 +12,8 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
+#include "marble_rom.h"
+
 // 1:1 port of dev/marble/marble_enemy.py (function names as there; Marble Love sub-158f6.ts,
 // helper-182ba.ts, helper-1bc88.ts, scroll-sub-15a12.ts, state-sub-15bd0.ts). Integer
 // semantics follow the model: int64_t where its Python values exceed 32 bits.
@@ -19,6 +21,8 @@
 namespace marble_enemies {
 
 using marble_physics::Mem;
+using marble_physics::pathByte;
+using marble_physics::be32;
 
 namespace {
 
@@ -55,12 +59,8 @@ static const uint32_t POS_X = 0x400690, POS_Y = 0x400692, POS_Z = 0x400694;  // 
 static const uint16_t PLAYER_SIZE = 0xe2;
 
 // program ROM
-static const uint32_t SPAWN_TABLE = 0x22706;  // per race: 8 byte entries, 0xff end
 static const uint32_t SPAWN_HI16 = 0x2276e;   // beginner start entry: hi - 16
-static const uint32_t OBJ_PTRS = 0x1eff6;     // P1, P2, steelie 0, steelie 1
-static const uint32_t PAIR_LIST = 0x24ac6;    // 0x1bc88 partners, same 4
-static const uint32_t REPEL = 0x24ad6;        // s8 push per |v high word|
-static const uint8_t SPAWN_ENTRY = 8, NODE_SIZE = 6, LINKS = 4;
+static const uint8_t NODE_SIZE = 6, LINKS = 4;
 static const uint8_t END = 0xff;
 
 static const uint16_t ANGRY_TICKS = 0x96, NEVER_HIT = 0xffff;
@@ -97,14 +97,14 @@ uint16_t octant(int64_t dx, int64_t dy) {
 }
 
 // node byte k (0: cell x, 1: cell y, 2-5: links) of node n
-int8_t node(const Mem &m, uint32_t n, uint8_t k) { return s8(m.romb(n + k)); }
+int8_t node(const Mem &, uint32_t n, uint8_t k) { return s8(pathByte(n, k)); }
 
 // 0x15d10: +0x6e = node of list +0x72 nearest to the steelie cell
 void nearest_15d10(Mem &m, uint32_t a2) {
   const int16_t rx = s16((uint32_t)(m.sl(a2 + PX) >> 19)), ry = s16((uint32_t)(m.sl(a2 + PY) >> 19));
   uint32_t p = m.rl(a2 + NODES), bp = m.rl(a2 + NODE);
   uint16_t best = NODE_FAR;
-  for (; m.romb(p) != END && m.romb(p + 1) != END; p += NODE_SIZE) {
+  for (; pathByte(p, 0) != END && pathByte(p, 1) != END; p += NODE_SIZE) {
     const uint16_t dx = (uint16_t)(abs64(s16(rx - node(m, p, 0))) << 4);
     const uint16_t dy = (uint16_t)(abs64(s16(ry - node(m, p, 1))) << 4);
     const uint16_t d = (uint16_t)(dx <= dy ? (dx >> 3) * 3 + dy : (dy >> 3) * 3 + dx);
@@ -130,7 +130,7 @@ void advance_160ae(Mem &m, uint32_t a2, uint8_t k) {
 
 // 0x15c46: link (0-3) whose node is nearest to the target object
 uint8_t best_15c46(const Mem &m, uint32_t a2) {
-  const uint32_t t = m.roml(OBJ_PTRS + 4 * m.sw(a2 + TARGET));
+  const uint32_t t = marble_obj_targets[(uint16_t)m.sw(a2 + TARGET)];
   const uint32_t cur = m.rl(a2 + NODE), base = m.rl(a2 + NODES);
   uint8_t bi = 0;
   uint32_t bd = 0x7fffffff;
@@ -221,7 +221,7 @@ void node_15db6(Mem &m, uint32_t a2) {
 void ai_182ba(Mem &m, uint32_t a2) {
   node_15db6(m, a2);
   if (m.rb(a2 + AIR) != 2) {
-    const uint32_t a0 = m.roml(OBJ_PTRS + 4 * m.sw(a2 + TARGET));
+    const uint32_t a0 = marble_obj_targets[(uint16_t)m.sw(a2 + TARGET)];
     int64_t d2, d3;
     const int8_t st = s8(m.rb(a0 + MODE));
     if (m.rb(a2 + MODE) == CHASE && m.rb(a0 + SLOT) == LIVE &&
@@ -266,13 +266,13 @@ void ai_182ba(Mem &m, uint32_t a2) {
 
 // 0x15a12 init of a free steelie from spawn entry e: first node of its list, patrol, in the
 // draw list
-void init_15a12(Mem &m, uint32_t a2, uint32_t e) {
-  const uint32_t nodes = m.roml(e + 2);
+void init_15a12(Mem &m, uint32_t a2, const uint8_t *e) {
+  const uint32_t nodes = be32(e + 2);
   m.wl(a2 + NODE, nodes);
   m.wl(a2 + NODES, nodes);
-  m.wb(a2 + ZONE, m.romb(e + 6));
-  m.ww(a2 + BAND_LO, (uint16_t)(int16_t)s8(m.romb(e)));
-  m.ww(a2 + BAND_HI, (uint16_t)(int16_t)s8(m.romb(e + 1)));
+  m.wb(a2 + ZONE, e[6]);
+  m.ww(a2 + BAND_LO, (uint16_t)(int16_t)s8(e[0]));
+  m.ww(a2 + BAND_HI, (uint16_t)(int16_t)s8(e[1]));
   if (nodes == SPAWN_HI16) { m.ww(a2 + BAND_HI, m.rw(a2 + BAND_HI) - 0x10); }
   m.wl(a2 + PX, (uint32_t)(node(m, nodes, 0) * CELL + HALF_CELL));
   m.wl(a2 + PY, (uint32_t)(node(m, nodes, 1) * CELL + HALF_CELL));
@@ -298,7 +298,7 @@ void init_15a12(Mem &m, uint32_t a2, uint32_t e) {
 // marble against steelie, away from the other object
 int32_t push(const Mem &m, uint32_t obj, uint8_t o, uint32_t a2, uint32_t a3, uint8_t by,
              bool mixed) {
-  int32_t v = (int32_t)s8(m.romb(REPEL + (abs64(m.sw(obj + o)) & 0xff))) * 0x1000;
+  int32_t v = (int32_t)marble_repel[(uint16_t)(abs64(m.sw(obj + o)) & 0xff)] * 0x1000;
   if (mixed) { v *= 4; }
   return m.sl(a2 + by) > m.sl(a3 + by) ? -v : v;
 }
@@ -343,20 +343,21 @@ void init(Mem &m) {
 // none free ends the scan); then remove steelies whose band range is left.
 void cameraBands(Mem &m, int16_t oldBand, int16_t newBand) {
   const int8_t a = s8((uint32_t)oldBand), b = s8((uint32_t)newBand);
-  for (uint32_t e = m.roml(SPAWN_TABLE + 4 * m.rw(RACE)); m.romb(e) != END; e += SPAWN_ENTRY) {
+  for (uint16_t i = marble_steelie_spawns_of[m.rw(RACE)].first; marble_steelie_spawns[i][0] != END; i++) {
+    const uint8_t *e = marble_steelie_spawns[i];
     uint32_t free = 0;
     bool taken = false;
-    for (uint8_t i = 0; i < NSTEELIES; i++) {
-      const uint32_t s = steelie(i);
+    for (uint8_t k = 0; k < NSTEELIES; k++) {
+      const uint32_t s = steelie(k);
       if (!m.rb(s + SLOT)) {
         free = s;
-      } else if (m.rl(s + NODES) == m.roml(e + 2)) {
+      } else if (m.rl(s + NODES) == be32(e + 2)) {
         taken = true;
       }
     }
     if (!free) { break; }
 
-    const int8_t lo = s8(m.romb(e)), hi = s8(m.romb(e + 1));
+    const int8_t lo = s8(e[0]), hi = s8(e[1]);
     if (!taken && (b == lo || b == hi) && !(lo <= a && a <= hi)) { init_15a12(m, free, e); }
   }
 
@@ -393,7 +394,7 @@ bool pair_1bc88(Mem &m, uint32_t a2) {
   const int16_t sx = m.sw(POS_X), sy = m.sw(POS_Y), sz = m.sw(POS_Z);
   bool hit = false;
   for (uint8_t i = 0; i < n; i++) {
-    const uint32_t a3 = m.roml(PAIR_LIST + 4 * i);
+    const uint32_t a3 = marble_pair_list[i];
     if (a3 == a2 || m.rb(a3 + SLOT) != LIVE) { continue; }
     const int16_t dx = s16(sx - m.rw(a3 + PX)), dy = s16(sy - m.rw(a3 + PY));
     if (dx < -PAIR_XY || dx > PAIR_XY || dy < -PAIR_XY || dy > PAIR_XY) { continue; }

@@ -11,6 +11,21 @@
 
 const uint8_t *marble_tables = nullptr;  // loadRom(): marble_tables_blob in the Arena
 
+const uint8_t *MarbleSpans::at(uint32_t a, uint8_t len) const {
+  // spans are sorted by address and do not overlap: last span starting at or below a
+  uint8_t lo = 0, hi = n;
+  while (lo < hi) {
+    const uint8_t mid = (lo + hi) / 2;
+    if (spans[mid].addr <= a) { lo = mid + 1; } else { hi = mid; }
+  }
+  if (lo) {
+    const MarbleSpan &s = spans[lo - 1];
+    if (a - s.addr + len <= s.len) { return marble_tables + s.off + (a - s.addr); }
+  }
+  marble_physics::fail(what, a);
+}
+
+
 namespace marble_physics {
 
 static const uint8_t RACES = 6;
@@ -19,7 +34,6 @@ static const uint8_t PAIR_BYTES = 54;  // 44 fields of 10 bits per diagonal pair
 static const uint8_t FIELDS = 44;      // field 43 (column 21, odd diagonal) not stored
 
 // Arena buffers of loadRom(): physics reads them every tick, flash keeps them LZMA packed
-static uint8_t *prog = nullptr;         // marble_prog: all program ROM blocks
 static uint8_t *terrainBuf = nullptr;   // bases of loadedRace (maxd words), then its index
 static uint8_t loadedRace = NO_RACE;
 
@@ -36,16 +50,12 @@ static const uint8_t *loadTables(const FlashAsset<unsigned char, PLAIN> &b) {
 
 static const uint8_t *loadTables(const FlashAsset<unsigned char, COMPRESSED> &b) {
   const Asset<unsigned char, COMPRESSED> t(b);
-  uint8_t *tables = Arena::alloc(t.size(), alignof(uint16_t), b.block);
+  uint8_t *tables = Arena::alloc(t.size(), alignof(uint32_t), b.block);
   t.decodeInto(tables);
   return tables;
 }
 
 void loadRom() {
-  const Asset<unsigned char, COMPRESSED> p(marble_prog_blob);
-  prog = Arena::alloc<uint8_t>(p.size());
-  p.decodeInto(prog);
-
   marble_tables = loadTables(marble_tables_blob);
 
   terrainBuf = Arena::alloc(MARBLE_TERRAIN_MAX, alignof(uint16_t));
@@ -70,23 +80,32 @@ void Mem::checkRace() const {
   if (race != loadedRace) { fail("terrain of unloaded race", race); }
 }
 
-uint8_t Mem::romb(uint32_t a) const {
-  // blocks are sorted by address and do not overlap: last block starting at or below a
-  uint8_t lo = 0, hi = MARBLE_PROG_BLOCKS;
-  while (lo < hi) {
-    const uint8_t mid = (lo + hi) / 2;
-    if (marble_prog_blocks[mid].addr <= a) { lo = mid + 1; } else { hi = mid; }
-  }
-  if (lo) {
-    const MarbleProgBlock &b = marble_prog_blocks[lo - 1];
-    if (a - b.addr < b.len) { return prog[b.off + a - b.addr]; }
-  }
-  fail("ROM", a);
+uint32_t animEntry(uint32_t p) { return be32(marble_anim.at(p, 4)); }
+
+uint16_t scriptWord(uint32_t pc) { return be16(marble_script.at(pc, 2)); }
+
+uint32_t scriptLong(uint32_t pc) { return be32(marble_script.at(pc, 4)); }
+
+uint16_t dynWord(uint32_t p, uint16_t k) { return be16(marble_dyn.at(p + 2 * k, 2)); }
+
+uint16_t occluderWord(uint32_t a) { return be16(marble_occluder.at(a, 2)); }
+
+uint8_t pathByte(uint32_t p, uint8_t k) { return *marble_path.at(p + k, 1); }
+
+uint32_t demoWaypoints(uint8_t race) { return marble_demo_waypoints[race]; }
+
+uint16_t pistonTimer(uint32_t p, uint8_t k) { return be16(marble_timer.at(p + 2 * k, 2)); }
+
+const uint8_t *frameBox(uint32_t hdr) {
+  static const uint8_t NONE[4] = {0, 0, 0, 0};
+  return hdr == 0xffffffff ? NONE : marble_frame.at(hdr + 4, 4);
 }
+
+const uint8_t *framePos(uint32_t hdr) { return marble_frame.at(hdr, 4); }
 
 uint16_t Mem::maxd() const { return terrain->maxd; }
 
-uint32_t Mem::desc() const { return terrain->desc; }
+const MarbleTerrainInfo &Mem::desc() const { return *terrain; }
 
 int16_t Mem::edgeFrom(uint8_t col, uint8_t d) const {
   const uint16_t ult = rw(ULT_COL);

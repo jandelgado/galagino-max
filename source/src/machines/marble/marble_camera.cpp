@@ -4,6 +4,7 @@
 #ifdef GAME_MARBLE
 
 #include "marble_physics.h"
+#include "marble_rom.h"
 #include "marble_video.h"
 
 namespace marble_camera {
@@ -13,8 +14,6 @@ using marble_physics::FRAMES;
 using marble_physics::RACE;
 using marble_physics::CAMERA;
 using marble_physics::CAMERA_L;
-using marble_physics::DESC_TOP;
-using marble_physics::DESC_RANGE;
 using marble_physics::s16;
 
 namespace {
@@ -27,10 +26,6 @@ static const uint32_t SCROLLING = 0x400008;
 static const uint32_t SPEED = 0x40000a;      // px per call
 static const uint32_t GHOST_SY = 0x40000c;   // sy that keeps a scroll going without a player
 
-// constants 0x1f1ca: speeds (bytes), sy thresholds and margins (words)
-static const uint32_t SLOW = 0x1f1ca, MID = 0x1f1cc, FAST = 0x1f1ce;
-static const uint32_t LOW = 0x1f1d0, HIGH = 0x1f1d2, NEAR = 0x1f1d4, FAR = 0x1f1d6;
-
 // player object fields (MARBLE.md "Marble physics")
 static const uint8_t SLOT = 0x18, STATE = 0x1a, SY = 0x20, AIR = 0x36, VZ = 0x08;
 static const uint8_t AIRBORNE = 2;
@@ -41,8 +36,6 @@ static const int16_t STOP_MARGIN = 0x10;
 
 // X pan: view x window and step thresholds (same shape as the Y rule)
 static const int16_t PAN_LO = 64, PAN_HI = 176, PAN_MID = 16, PAN_FAR = 48;
-
-inline int16_t rom(const Mem &m, uint32_t a) { return (int16_t)m.romw(a); }
 
 // lowest sy of the players that steer the camera (silly: highest); only player 1 here
 int16_t playerSy(const Mem &m, int16_t none, bool silly) {
@@ -63,12 +56,13 @@ int16_t ghostSy(Mem &m) {
   const uint8_t speed = m.rb(SPEED);
   const bool fwd = m.rb(DIR) == FWD;
   int32_t v;
-  if (speed == m.romb(FAST)) {
-    v = fwd ? (int32_t)rom(m, LOW) - rom(m, FAR) : (int32_t)rom(m, HIGH) + rom(m, FAR);
-  } else if (speed == m.romb(MID)) {
-    v = fwd ? (int32_t)rom(m, LOW) - rom(m, NEAR) : (int32_t)rom(m, HIGH) + rom(m, NEAR);
+  const MarbleCamera &c = marble_camera_params;
+  if (speed == c.fast) {
+    v = fwd ? (int32_t)c.low - c.far : (int32_t)c.high + c.far;
+  } else if (speed == c.mid) {
+    v = fwd ? (int32_t)c.low - c.near : (int32_t)c.high + c.near;
   } else {
-    v = fwd ? rom(m, LOW) : rom(m, HIGH);
+    v = fwd ? c.low : c.high;
   }
   m.ww(GHOST_SY, (uint16_t)v);
   return m.sw(GHOST_SY);
@@ -76,12 +70,12 @@ int16_t ghostSy(Mem &m) {
 
 }  // namespace
 
-int16_t top(const Mem &m) { return s16(m.rw(CAMERA) - m.romw(m.desc() + DESC_TOP)); }
+int16_t top(const Mem &m) { return s16(m.rw(CAMERA) - m.desc().top); }
 
-int16_t range(const Mem &m) { return rom(m, m.desc() + DESC_RANGE); }
+int16_t range(const Mem &m) { return m.desc().range; }
 
 void start(Mem &m, uint8_t race) {
-  int32_t cam = rom(m, m.desc() + DESC_TOP);
+  int32_t cam = m.desc().top;
   if (race == RACE_SILLY) { cam += range(m); }
   m.wl(CAMERA_L, (uint32_t)cam);
 
@@ -109,8 +103,9 @@ void tick(Mem &m) {
     d3 = ghostSy(m);
   }
 
-  const int16_t low = rom(m, LOW), high = rom(m, HIGH), near = rom(m, NEAR), far = rom(m, FAR);
-  const int16_t camTop = rom(m, m.desc() + DESC_TOP);
+  const MarbleCamera &c = marble_camera_params;
+  const int16_t low = c.low, high = c.high, near = c.near, far = c.far;
+  const int16_t camTop = m.desc().top;
   const uint8_t dir = m.rb(DIR);
   const bool scrolling = m.rb(SCROLLING);
   int16_t pf = m.sw(PF_SCROLL), cam = m.sw(CAMERA);
@@ -119,11 +114,11 @@ void tick(Mem &m) {
   if ((d3 < low && d3 != none) || (scrolling && dir == FWD)) {
     // forward: speed by how far sy is below the low threshold
     if (d3 < low - far) {
-      m.wb(SPEED, m.romb(FAST));
+      m.wb(SPEED, c.fast);
     } else if (d3 < low - near) {
-      m.wb(SPEED, m.romb(MID));
+      m.wb(SPEED, c.mid);
     } else if (d3 > low) {
-      m.wb(SPEED, m.romb(SLOW));
+      m.wb(SPEED, c.slow);
     }
     const int8_t step = m.sb(SPEED);
     pf += step;
@@ -140,11 +135,11 @@ void tick(Mem &m) {
   } else if ((d3 > high && d3 != none) || (scrolling && dir == BACK)) {
     // back: speed by how far sy is above the high threshold
     if (d3 > far + high) {
-      m.wb(SPEED, m.romb(FAST));
+      m.wb(SPEED, c.fast);
     } else if (d3 > near + high) {
-      m.wb(SPEED, m.romb(MID));
+      m.wb(SPEED, c.mid);
     } else if (d3 < high) {
-      m.wb(SPEED, m.romb(SLOW));
+      m.wb(SPEED, c.slow);
     }
     const int8_t step = m.sb(SPEED);
     pf -= step;

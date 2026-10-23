@@ -87,11 +87,11 @@ static uint32_t playerHdr(const Mem &m) {
   const uint8_t st = marble_physics::state(m);
   const bool drawn = st == marble_physics::DIZZY || st == marble_physics::BROKEN ||
                      st == marble_physics::EATEN || st == marble_physics::DISSOLVING;
-  return m.rb(PLAYER + VISIBLE) && drawn ? m.roml(m.rl(PLAYER + ANIM)) : 0;
+  return m.rb(PLAYER + VISIBLE) && drawn ? marble_physics::animEntry(m.rl(PLAYER + ANIM)) : 0;
 }
 
 static uint32_t shardHdr(const Mem &m) {
-  return m.rb(PLAYER + VISIBLE) && m.rb(PLAYER + SHARDS_ON) ? m.roml(m.rl(PLAYER + SHARDS)) : 0;
+  return m.rb(PLAYER + VISIBLE) && m.rb(PLAYER + SHARDS_ON) ? marble_physics::animEntry(m.rl(PLAYER + SHARDS)) : 0;
 }
 
 static const char *playerDiff(const Mem &m, const MarbleBirdTick &t) {
@@ -114,7 +114,7 @@ static const char *playerDiff(const Mem &m, const MarbleBirdTick &t) {
 // bird frame drawn: rl(anim cursor) while live and listed, else 0
 static uint32_t birdHdr(const Mem &m, uint8_t i) {
   const uint32_t a = bird(i);
-  return m.rb(a + SLOT) && listedCount(m, TYPE_BIRD, i) ? m.roml(m.rl(a + B_ANIM)) : 0;
+  return m.rb(a + SLOT) && listedCount(m, TYPE_BIRD, i) ? marble_physics::animEntry(m.rl(a + B_ANIM)) : 0;
 }
 
 static const char *birdDiff(const Mem &m, uint8_t i, const MarbleBirdObj &s) {
@@ -206,7 +206,7 @@ static bool twin(const Mem &m, uint8_t i, uint8_t j) {
   const uint32_t a = bird(i), b = bird(j);
   return m.rb(b + SLOT) && listedCount(m, TYPE_BIRD, j) &&
          m.rl(b + B_SCREEN) == m.rl(a + B_SCREEN) &&
-         m.roml(m.rl(b + B_ANIM)) == m.roml(m.rl(a + B_ANIM));
+         marble_physics::animEntry(m.rl(b + B_ANIM)) == marble_physics::animEntry(m.rl(a + B_ANIM));
 }
 
 // MOs of bird i in v: its object (frame rl(+0x1c)) at the origin (+0x20, top + ARCADE_H -
@@ -219,7 +219,7 @@ static uint8_t birdMos(const Mem &m, const marble_video::VideoState &v, uint8_t 
   const int16_t ox = m.sw(a + B_SCREEN);
   const int16_t oy = (int16_t)(top + ARCADE_H - m.sw(a + B_SCREEN + 2));
   const MarbleSpriteSet &ds = marble_physics::deathSet();
-  const uint8_t frame = marble_physics::deathFrame(m.roml(m.rl(a + B_ANIM)));
+  const uint8_t frame = marble_physics::deathFrame(marble_physics::animEntry(m.rl(a + B_ANIM)));
   uint8_t skip = 0;
   for (uint8_t j = 0; j < i; j++) { skip += twin(m, i, j); }
   uint8_t k = 0;
@@ -282,7 +282,7 @@ static void test_bird_objects(void) {
     const MarbleBirdSegment &seg = marble_bird_segments[sg];
     loadRam(seg);
     Mem m(ram, seg.race);
-    const int16_t descTop = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
+    const int16_t descTop = m.desc().top;
 
     for (uint16_t k = 0; k < seg.nticks; k++) {
       const MarbleBirdTick &t = seg.ticks[k];
@@ -368,8 +368,8 @@ static void test_race_sweep(void) {
   for (uint8_t race = 0; race < RACES; race++) {
     beginRace(race);
     Mem m(ram, race);
-    const int16_t top = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
-    const int16_t range = (int16_t)m.romw(m.desc() + marble_physics::DESC_RANGE);
+    const int16_t top = m.desc().top;
+    const int16_t range = m.desc().range;
     const int16_t n = range / SWEEP_STEP + 1;
     uint8_t spawns = 0, removals = 0, most = 0;
     uint32_t tick = 0;
@@ -407,8 +407,8 @@ static void test_race_sweep(void) {
 
 // camera stepped up the silly race from its bottom until a bird lives
 static bool firstBird(Mem &m, int16_t &cam, uint32_t &tick) {
-  const int16_t top = (int16_t)m.romw(m.desc() + marble_physics::DESC_TOP);
-  const int16_t range = (int16_t)m.romw(m.desc() + marble_physics::DESC_RANGE);
+  const int16_t top = m.desc().top;
+  const int16_t range = m.desc().range;
   for (cam = top + range; cam >= top; cam -= SWEEP_STEP) {
     mainTick(m, 0, 0, (uint32_t)(int32_t)cam, ++tick);
     for (uint8_t i = 0; i < marble_enemies::NBIRDS; i++) {

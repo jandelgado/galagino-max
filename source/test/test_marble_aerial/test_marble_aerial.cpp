@@ -54,11 +54,11 @@ static uint32_t frameHdr(const Mem &m) {
   const uint8_t st = marble_physics::state(m);
   const bool drawn = st == marble_physics::DIZZY || st == marble_physics::BROKEN ||
                      st == ST_EATEN || st == ST_DISSOLVE;
-  return m.rb(PLAYER + VISIBLE) && drawn ? m.roml(m.rl(PLAYER + ANIM)) : 0;
+  return m.rb(PLAYER + VISIBLE) && drawn ? marble_physics::animEntry(m.rl(PLAYER + ANIM)) : 0;
 }
 
 static uint32_t shardHdr(const Mem &m) {
-  return m.rb(PLAYER + VISIBLE) && m.rb(PLAYER + SHARDS_ON) ? m.roml(m.rl(PLAYER + SHARDS)) : 0;
+  return m.rb(PLAYER + VISIBLE) && m.rb(PLAYER + SHARDS_ON) ? marble_physics::animEntry(m.rl(PLAYER + SHARDS)) : 0;
 }
 
 // first field of tick t that differs, nullptr if none
