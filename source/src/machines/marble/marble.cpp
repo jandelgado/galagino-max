@@ -62,7 +62,7 @@ static void stick(uint32_t keys, int8_t &c6, int8_t &c7) {
 
 // Arena: the level buffers first, in ARENA_EXTRA order (marble.h). The
 // ROM here, not in start(): reset() runs first and already builds a Mem.
-marble::marble() {
+marble::marble() : snd_rom(marble_snd_rom_blob) {
   store.init();
   marble_physics::loadRom();
 }
@@ -70,6 +70,7 @@ marble::marble() {
 void marble::reset() {
   machineBase::reset();
   marble_sound::reset(sound);
+  board.reset(snd_rom.data());
   prev_keys = ~0u;  // the menu's START/FIRE is still held: no title START until released
   patchRec = 0;
   view.patch = video.patch = marble_level::NO_PATCH;
@@ -216,7 +217,7 @@ void marble::run_frame(void) {
   const marble_flow::Step step = marble_flow::frame(flow, m, start);
   if (step == marble_flow::START_RACE) {
     loadRace();
-    marble_sound::step(sound);
+    soundFrame();
     return;
   }
 
@@ -230,27 +231,32 @@ void marble::run_frame(void) {
     }
   }
   publish();
-  marble_sound::step(sound);
+  soundFrame();
 }
 
-// audio core: song requests start a C64 song (0: silence), effect requests run the stub
+// the frame's commands to the C64 tune and the sound board, then the board's 6502
+void marble::soundFrame() {
+  uint8_t cmds[marble_sound::QUEUE];
+  const uint8_t n = marble_sound::step(sound, cmds);
+  for (uint8_t i = 0; i < n; i++) { board.command(cmds[i]); }
+  board.runFrame();
+}
+
+// audio core: song requests start a C64 song (0: silence); the sound board's effects over it
 void marble::renderAudio(int16_t *out, int n) {
-  const uint16_t music = sound.music, effect = sound.effect;
+  const uint16_t music = sound.music;
   if (tune_ok && music != music_seen) {
     music_seen = music;
     sid_on = (music & 0xff) != 0;
     if (sid_on) { player.start(music & 0xff); }
   }
-  if (tune_ok && sid_on && effect != effect_seen) {
-    effect_seen = effect;
-    player.jsr(MARBLE_SID_FX_STUB, effect & 0xff);
-  }
-  if (!sid_on) {
-    effect_seen = effect;  // no effect replays when a song starts later
+  if (sid_on) {
+    player.render(out, n);
+  } else {
     memset(out, 0, n * sizeof(*out));
-    return;
   }
-  player.render(out, n);
+  board.render(out, n);
+  audioClampAll(out, n, AUDIO_MAX);
 }
 
 void marble::prepare_frame(void) {

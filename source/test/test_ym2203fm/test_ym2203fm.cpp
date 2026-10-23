@@ -217,6 +217,71 @@ void test_ring_overflow(void) {
   TEST_ASSERT_EQUAL_UINT16(300 - (Ym2203Fm::RING_SIZE - 1), ym.dropped());
 }
 
+// a mark splits the queue: the writes behind it wait for the next render() call
+void test_mark_splits_writes(void) {
+  ym.reset();
+  loadSine(ym, true);
+  ym.writeData(KEY_REG, KEY_OP1_CH1);
+  ym.writeMark();
+  ym.writeData(0x40, 0x7f);  // operator 1 silent
+  ym.writeMark();
+
+  memset(out, 0, sizeof(out));
+  ym.render(out, 64, 24000);
+  TEST_ASSERT_GREATER_THAN_INT32(1000, peak(out, 64));
+  ym.render(out + 64, 64, 24000);
+  TEST_ASSERT_LESS_THAN_INT32(100, peak(out + 64 + 8, 56));
+}
+
+// 21 marks queued: the first render() catches up to 12 (two frames) behind, then one mark
+// per call; the write before mark 21 lands in call 13
+void test_mark_backlog_catches_up(void) {
+  ym.reset();
+  loadSine(ym, true);
+  ym.writeData(KEY_REG, KEY_OP1_CH1);
+  for (int i = 0; i < 20; i++) {
+    ym.writeMark();
+  }
+  ym.writeData(0x40, 0x7f);
+  ym.writeMark();
+
+  memset(out, 0, sizeof(out));
+  for (int call = 0; call < 12; call++) {
+    ym.render(out + 64 * call, 64, 24000);
+  }
+  TEST_ASSERT_GREATER_THAN_INT32(1000, peak(out + 64 * 11, 64));
+  ym.render(out + 64 * 12, 64, 24000);
+  TEST_ASSERT_LESS_THAN_INT32(100, peak(out + 64 * 12 + 8, 56));
+}
+
+// average: each output sample is the mean of the native samples it covers
+void test_render_average(void) {
+  static Ym2203Fm a(1500000, true), b(1500000, false);
+  a.reset();
+  b.reset();
+  a.applyAddress(0x2f);  // 62500 Hz, 2.6 ticks per 24 kHz sample
+  b.applyAddress(0x2f);
+  loadSine(a, false);
+  loadSine(b, false);
+  a.applyWrite(KEY_REG, KEY_OP1_CH1);
+  b.applyWrite(KEY_REG, KEY_OP1_CH1);
+
+  memset(out, 0, sizeof(out));
+  a.render(out, 256, 24000);
+  const uint32_t step = (uint32_t)(((uint64_t)62500 << 16) / 24000);
+  uint32_t frac = 0;
+  for (int i = 0; i < 256; i++) {
+    frac += step;
+    const uint32_t ticks = frac >> 16;
+    frac &= 0xffff;
+    int32_t sum = 0;
+    for (uint32_t t = 0; t < ticks; t++) {
+      sum += b.clock();
+    }
+    TEST_ASSERT_EQUAL_INT32(sum / (int32_t)ticks, out[i]);
+  }
+}
+
 int main(int argc, char **argv) {
   UNITY_BEGIN();
   RUN_TEST(test_prescale_rate);
@@ -228,5 +293,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_keyon_alone_does_not_retrigger);
   RUN_TEST(test_ring_overflow);
   RUN_TEST(test_render_24k_trace);
+  RUN_TEST(test_mark_splits_writes);
+  RUN_TEST(test_mark_backlog_catches_up);
+  RUN_TEST(test_render_average);
   return UNITY_END();
 }

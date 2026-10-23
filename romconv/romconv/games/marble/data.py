@@ -91,6 +91,7 @@ def load(read: Callable[[str, str, str], bytes]) -> Rom:
     r.mo_planes = [_inv(_f("136033." + n)) for n in ("149", "151", "153")]
     r.prom1 = _f("136033.118")
     r.prom2 = _f("136033.119")
+    r.sound = _f("136033.421") + _f("136033.422")  # sound program, 6502 $8000-$ffff
     r.alpha = bytes(read(_ALPHA_ROM, _ALPHA_SHA1, _ALPHA_ZIP))
     return r
 

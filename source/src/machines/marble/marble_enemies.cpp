@@ -446,6 +446,8 @@ bool pair_1bc88(Mem &m, uint32_t a2) {
     if (!pb) {
       remove_15bd0(m, a3, SCORE, KEEP);
       m.wb(a3 + SLOT, SHATTERING);
+    } else {
+      marble_sound::pair(m);
     }
     marble_physics::enterState(m, a3, marble_physics::BROKEN);
   }

@@ -373,13 +373,14 @@ void pushed_1527c(Mem &m, uint32_t a2) {
   anim_15460(m, a2);
 }
 
-// 0x153ea, states 5/6: snapped to the cell centre; ATE sends the prey lost (sound 0x15884);
-// then BACK to the nearest waypoint
+// 0x153ea, states 5/6: snapped to the cell centre; ATE sends the prey lost (sound 0x15884:
+// stops its dizzy sound); then BACK to the nearest waypoint
 void done_153ea(Mem &m, uint32_t a2) {
   m.wl(a2 + PX, (m.rl(a2 + PX) & CELL_MASK) + HALF_CELL);
   m.wl(a2 + PY, (m.rl(a2 + PY) & CELL_MASK) + HALF_CELL);
   if (m.rb(a2 + STATE) == ATE) {
     const uint32_t o = prey(m, a2);
+    marble_sound::pair(m);
     m.wb(o + P_DAMAGE, LOST_SPARKLE);
     marble_physics::enterState(m, o, marble_physics::LOST);
   }
