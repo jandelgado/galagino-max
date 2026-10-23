@@ -60,6 +60,16 @@ inline int listSprites(const uint8_t *spr, Sprite *out) {
   return n;
 }
 
+// Krull char RAM byte write (4000-4fff) into tile column words: tile = offset >> 5,
+// row y = (offset >> 2) & 7, pixels x = 2 * (offset & 3) (high nibble) and x + 1 (low)
+inline void charWrite(uint32_t (*tiles)[8], uint16_t offset, uint8_t v) {
+  const uint32_t tile = offset >> 5, y = (offset >> 2) & 7, x = 2 * (offset & 3);
+  const uint32_t shift = 4 * y;
+  uint32_t *t = tiles[tile];
+  t[x] = (t[x] & ~(0xfu << shift)) | (uint32_t)(v >> 4) << shift;
+  t[x + 1] = (t[x + 1] & ~(0xfu << shift)) | (uint32_t)(v & 0x0f) << shift;
+}
+
 // tile pens of native column x; transparent: skip pen 0
 // vram: 3800-3bff tile codes; tile index = code & codeMask
 inline void drawTiles(int x, const uint8_t *vram, const uint16_t *pens, const uint32_t (*tiles)[8],
