@@ -294,6 +294,12 @@
     #include "machines/tapper/tapper_bundle.h"
   #endif
 #endif
+#ifdef GAME_DOCASTLE
+  #include "machines/docastle/docastle.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/docastle/docastle_bundle.h"
+  #endif
+#endif
 #ifdef GAME_MEGAZONE
   #include "machines/megazone/megazone.h"
   #ifdef ASSETS_REMOTE
@@ -1565,6 +1571,13 @@ constexpr machineInfo machines[] = {
     tapper::menuLeds,
 #endif
     MCH_TAPPER, &tapper_arena_plan BUNDLE_REF(tapper_bundle_ref) },
+#endif
+#ifdef GAME_DOCASTLE
+  { createMachine<docastle>, docastle::logo,
+#ifdef LED_PIN
+    docastle::menuLeds,
+#endif
+    MCH_DOCASTLE, &docastle_arena_plan BUNDLE_REF(docastle_bundle_ref) },
 #endif
 #ifdef GAME_MARIO
   { createMachine<mario>, mario::logo,
