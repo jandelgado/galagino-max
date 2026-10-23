@@ -8,7 +8,7 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
-// 1:1 port of tools/marble_acid.py (function names as there; Marble Love
+// 1:1 port of dev/marble/marble_acid.py (function names as there; Marble Love
 // string-range-dispatch-17346.ts, string-step-1725a.ts, entity-waypoint-step-1d1ec.ts,
 // sub-1d242.ts, sprite-coords.ts 0x1778e, string-viewport-hit-175c8.ts,
 // string-target-step-176d2.ts). Integer semantics follow the model.

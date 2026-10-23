@@ -555,7 +555,7 @@ void pbaction::blit_sprite(short row, unsigned char s_idx) {
   const unsigned short *colors = &pbaction_palette[s->color << 3];
 
   // 32x32 sprite k is 16x16 sprites 128+4k+j: j = 2 | 0 over 3 | 1
-  // (first index half 0 | 1), see pbaction_rom_convert.py check_sprites32
+  // (first index half 0 | 1), see romconv/romconv/games/pbaction.py check_sprites32
   const uint32_t (*gfx)[16][2] = pbaction_sprites16.data();
   gfx += s->is_32x32 ? 128 + (s->code << 2) : s->code;
 

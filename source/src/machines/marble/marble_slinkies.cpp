@@ -8,7 +8,7 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
-// 1:1 port of tools/marble_slinky.py (function names as there; Marble Love state-sub-14c46.ts,
+// 1:1 port of dev/marble/marble_slinky.py (function names as there; Marble Love state-sub-14c46.ts,
 // sub-14966.ts, helper-15148.ts, state-dispatch-15460.ts, state-sub-15670.ts,
 // nearest-neighbor.ts, sprite-coords-jsr-150d0.ts, script-slot-bbox-test-14e92.ts; the lunge
 // 0x14a28 from the disassembly). Integer semantics follow the model.

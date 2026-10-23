@@ -8,7 +8,7 @@
 static const unsigned char plainData[] = {9, 8, 7, 6};
 static constexpr FlashAsset<unsigned char, PLAIN> plainBlob = {plainData, 4};
 
-// asset_emit.lzma_compress(bytes([1, 2, 3, 4]))
+// romconv/romconv/emit/lzma.py lzma_compress(bytes([1, 2, 3, 4]))
 static const unsigned char packed[] = {0xB4, 0x00, 0x00, 0x80, 0x9D, 0x61, 0xE5, 0x1A,
                                        0x5F, 0xFF, 0xFF, 0xF6, 0xEB, 0xC0, 0x00};
 static constexpr FlashAsset<unsigned char, COMPRESSED> packedBlob = {packed, sizeof(packed), 4, ARENA_B};

@@ -1,0 +1,177 @@
+"""Ghosts'n Goblins (Capcom, 1985; MAME capcom/gng.cpp), with the C64 tune of Mark Cooksey as music.
+
+ROT0 game shown upright: gfx stay unrotated. Layouts from MAME gng.cpp (charlayout, tilelayout,
+spritelayout). Formats match commando: chars unsigned short[8] (pixel x at bits 2x), tiles and
+sprites uint32_t[32] (row y = words 2y, 2y+1, pixel x in nibble x).
+
+  gng_rom      CPU $4000-$FFFF (mm_c_04 + mm_c_03), PLAIN
+  gng_bank     banked $4000-$5FFF pages 0-3 (mm_c_05), PLAIN
+  gng_sound    sound Z80 ROM up to SOUND_SIZE, Arena
+  gng_chars    1024 fg chars, PLAIN
+  gng_tiles    unique bg tiles, Arena (100 KB, compresses 2.5x)
+  gng_tile_map bg tile code -> gng_tiles index, Arena
+  gng_spritesN sprite codes 256 N .. 256 N + 255, Arena (codes 768+ blank);
+               bank 2 PLAIN
+PLAIN assets compress worst (ROMs ~50%) or are the cheapest to leave out:
+the Arena then holds the bg tiles, which save most.
+"""
+from collections.abc import Callable, Sequence
+from types import MappingProxyType
+
+from romconv.core.context import Context
+from romconv.core.errors import ConversionError
+from romconv.core.header import HeaderWriter
+from romconv.core.job import Job
+from romconv.emit.asset import emit_compressed, emit_plain
+from romconv.emit.write import banner
+from romconv.gfx.gfxutil import mame_decode
+from romconv.misc.userfile import read_user_file
+
+_SHA1 = MappingProxyType({
+    "mm_c_04": "6863fee3c97c76ba314ccbada7efacb6783e7d32",
+    "mm_c_03": "d29e12082c4d5c06a9910b3500ef66242cdec905",
+    "mm_c_05": "064871918547a56be330c6994d4db2c9932e14db",
+    "gg2.bin": "7ef9ec5c2072e21c787a6bbf700033f50c759c1d",
+    "gg1.bin": "0a1518e19a2e0a4cc3dde4b9568202ea911b5ece",
+    "gg11.bin": "f9d77eee5e2738b7e83ba02fcc55dd480391479f",
+    "gg10.bin": "8434c994cc55d2586641f3b90b6b15fd65dfb67c",
+    "gg9.bin": "bbb1fba0eb19471f66d29526fa8423ccb047bd63",
+    "gg8.bin": "1c42fa02cb27b35d10c3f7f036005e747f9f6b79",
+    "gg7.bin": "1947f159189b3a53f1251d8653b6e7c65c91fc3c",
+    "gg6.bin": "944da1ce29a18bf0fc8deff78bceacba0bf23a07",
+    "gg17.bin": "42d367f57bb2fdf60a0445ac1533da99cfeaa617",
+    "gg16.bin": "9e06012bcd82f98fad43de666ef9a75979d940ab",
+    "gg15.bin": "e3a1421d465b87148ffa94f5673b2307f0246afe",
+    "gg14.bin": "207a7407288182a4f3eddaea634c6a6452131182",
+    "gg13.bin": "cb641c25bb04b970b2cbeca41adb792bbe142fb5",
+    "gg12.bin": "3f129ca6d695548b659955fe538584bd9ac2ff17",
+})
+
+_SOUND_SIZE = 0x5700  # gg2.bin is 0xff from $56C9 on
+_SPRITE_BANKS = 3     # codes 768-1023 come from the erased (0xff) region
+_ARENA_SPRITE_BANKS = (0, 1)  # bank 2 PLAIN, see above
+_SID_FILE = "Ghosts_n_Goblins.sid"
+_SID_SHA1 = "2ee5606a190208b4ea424bd7152c28148af62d51"
+
+
+def _rom(ctx: Context, name: str) -> bytearray:
+    return ctx.rom(name, _SHA1[name])
+
+
+def _pack_4bpp(tile: Sequence[Sequence[int]]) -> list[int]:
+    """uint32_t[32]: row y -> pixels 0-7, 8-15, pixel x in nibble x & 7."""
+    words = []
+    for row in tile:
+        for half in (row[0:8], row[8:16]):
+            words.append(sum(p << (4 * i) for i, p in enumerate(half)))
+    return words
+
+
+def _pack_2bpp(char: Sequence[Sequence[int]]) -> list[int]:
+    return [sum(p << (2 * x) for x, p in enumerate(row)) for row in char]
+
+
+def _hex_rows(rows: Sequence[Sequence[int]]) -> str:
+    return ",\n".join(" { " + ",".join("0x%x" % v for v in r) + " }" for r in rows)
+
+
+def _byte_body(data: Sequence[int]) -> str:
+    return ",\n".join(",".join("0x%02x" % b for b in data[i:i + 16]) for i in range(0, len(data), 16))
+
+
+def _write(ctx: Context, name: str, emit: Callable[[HeaderWriter], None]) -> None:
+    with ctx.header(name) as f:
+        f.write(banner(__file__))
+        emit(f)
+
+
+def _convert_cpu(ctx: Context) -> None:
+    fixed = _rom(ctx, "mm_c_04") + _rom(ctx, "mm_c_03")
+    _write(ctx, "gng_rom.h", lambda f: emit_plain(f, "gng_rom", "unsigned char", "", len(fixed), _byte_body(fixed)))
+    bank = _rom(ctx, "mm_c_05")
+    _write(ctx, "gng_bank.h", lambda f: emit_plain(f, "gng_bank", "unsigned char", "", len(bank), _byte_body(bank)))
+
+    sound = _rom(ctx, "gg2.bin")
+    if any(b != 0xff for b in sound[_SOUND_SIZE:]):
+        raise ConversionError("gng: gg2.bin has data above SOUND_SIZE")
+    sound = sound[:_SOUND_SIZE]
+    _write(ctx, "gng_sound.h",
+           lambda f: emit_compressed(f, "gng_sound", "unsigned char", "", len(sound), sound))
+
+
+def _convert_chars(ctx: Context) -> None:
+    data = _rom(ctx, "gg1.bin")
+    chars = mame_decode(data, 8, 8, [4, 0], [0, 1, 2, 3, 8, 9, 10, 11],
+                        [16 * y for y in range(8)], 128, 1024)
+    flat = [v for c in chars for v in _pack_2bpp(c)]
+    rows = [flat[i:i + 8] for i in range(0, len(flat), 8)]
+    _write(ctx, "gng_chars.h",
+           lambda f: emit_plain(f, "gng_chars", "unsigned short", "[8]", len(chars), _hex_rows(rows)))
+
+
+def _convert_tiles(ctx: Context) -> None:
+    data = b"".join(_rom(ctx, n) for n in ("gg11.bin", "gg10.bin", "gg9.bin", "gg8.bin", "gg7.bin", "gg6.bin"))
+    third = len(data) // 3 * 8
+    tiles = mame_decode(data, 16, 16, [2 * third, third, 0],
+                        list(range(8)) + list(range(128, 136)), [8 * y for y in range(16)], 256, 1024)
+
+    # duplicates share one entry: 1024 codes -> unique tiles
+    unique, index, tile_map = [], {}, []
+    for t in tiles:
+        words = tuple(_pack_4bpp(t))
+        if words not in index:
+            index[words] = len(unique)
+            unique.append(words)
+        tile_map.append(index[words])
+
+    def emit(f: HeaderWriter) -> None:
+        emit_compressed(f, "gng_tiles", "uint32_t", "[32]", len(unique), [v for t in unique for v in t])
+        emit_compressed(f, "gng_tile_map", "unsigned short", "", len(tile_map), tile_map)
+
+    _write(ctx, "gng_tiles.h", emit)
+    ctx.log.info(f"bg tiles: {len(unique)} unique of {len(tiles)}, {128 * len(unique)} bytes")
+
+
+def _convert_sprites(ctx: Context) -> None:
+    blank = b"\xff" * 0x4000
+    region = (_rom(ctx, "gg17.bin") + _rom(ctx, "gg16.bin") + _rom(ctx, "gg15.bin") + blank +
+              _rom(ctx, "gg14.bin") + _rom(ctx, "gg13.bin") + _rom(ctx, "gg12.bin") + blank)
+    half = len(region) // 2 * 8
+    xoffs = [0, 1, 2, 3, 8, 9, 10, 11, 256, 257, 258, 259, 264, 265, 266, 267]
+    sprites = mame_decode(region, 16, 16, [half + 4, half, 4, 0], xoffs,
+                          [16 * y for y in range(16)], 512, 256 * _SPRITE_BANKS)
+
+    def emit(f: HeaderWriter) -> None:
+        for b in range(_SPRITE_BANKS):
+            flat = [v for s in sprites[256 * b:256 * (b + 1)] for v in _pack_4bpp(s)]
+            if b in _ARENA_SPRITE_BANKS:
+                emit_compressed(f, f"gng_sprites{b}", "uint32_t", "[32]", 256, flat)
+                continue
+
+            rows = [flat[i:i + 32] for i in range(0, len(flat), 32)]
+            emit_plain(f, f"gng_sprites{b}", "uint32_t", "[32]", 256, _hex_rows(rows))
+
+    _write(ctx, "gng_sprites.h", emit)
+
+
+def _convert_sid(ctx: Context) -> None:
+    """The Mark Cooksey tune, user supplied like the ROMs (HVSC MUSICIANS/C/Cooksey_Mark/)."""
+    data = read_user_file(ctx, _SID_FILE, _SID_SHA1, "HVSC Cooksey_Mark/Ghosts_n_Goblins.sid")
+
+    with ctx.header("gng_sid.h") as out:
+        out.write(banner(__file__))
+        out.write("// C64 Ghosts'n Goblins PSID (Mark Cooksey, 1986 Elite), whole file\n")
+        # plain: SidPlayer copies the payload into its RAM window anyway
+        emit_plain(out, "gng_sid", "unsigned char", "", len(data), _byte_body(data))
+    ctx.log.info(f"gng_sid.h: {len(data)} bytes")
+
+
+def _convert(ctx: Context) -> None:
+    _convert_cpu(ctx)
+    _convert_tiles(ctx)
+    _convert_sprites(ctx)
+    _convert_chars(ctx)
+    _convert_sid(ctx)
+
+
+JOB = Job(name="gng", convert=_convert, machine="gng", zips=("gng.zip",), plan=True)

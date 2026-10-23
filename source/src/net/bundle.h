@@ -15,7 +15,7 @@ struct BundleRef {
 
 // The mounted cache entry, memory-mapped from the assets partition. Asset
 // looks its id up here once, in its ctor. Layout:
-// romconv/internal/pyconv/bundle.py.
+// romconv/romconv/remote/bundle.py.
 class Bundle {
 public:
   // entry flags: RAW read in place (Asset<PLAIN>), PACKED unpacked into

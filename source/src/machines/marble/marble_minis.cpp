@@ -7,7 +7,7 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
-// 1:1 port of tools/marble_mini.py (function names as there; Marble Love
+// 1:1 port of dev/marble/marble_mini.py (function names as there; Marble Love
 // array-9-init-and-dispatch-18ffa.ts, array-9-clear-and-dispatch.ts, refresh-helper-1912c.ts,
 // object-type-dispatch-194ba.ts, state-sub-1960e.ts, sub-19692.ts, state-sub-198bc.ts,
 // sub-19976.ts, sub-1937c.ts, helper-1924e.ts; 0x1973c and 0x1953e from the disassembly).

@@ -1,0 +1,158 @@
+"""Convert the MAME mpatrol ROM set into galagino headers (MAME irem/m52.cpp, m52_v.cpp)."""
+from romconv.core.context import Context
+from romconv.core.job import Job
+from romconv.emit.write import banner, write_array, write_bytes
+from romconv.gfx.bits import BIT
+from romconv.gfx.color import rgb565_swapped
+from romconv.gfx.gfxutil import mame_decode, step
+from romconv.gfx.resnet import combine, resistor_weights
+from romconv.gfx.rom import rom_bytes, rom_bytes_all
+from romconv.plan.budget import log_sizes
+
+
+# MAME ROM_START( mpatrol )
+_MAIN = (
+    ("mpa-1.3m", "8c03726d6e049c3edbc277440184e31679f78258"),
+    ("mpa-2.3l", "dfb2efb57378a20af6f20569f4360cde95596f93"),
+    ("mpa-3.3k", "112c3c9678db8a8540a8df3708020c87fd10c91b"),
+    ("mpa-4.3j", "727961b0dafa4a96b580d51013336db2a18aff1e"),
+)
+_SOUND = ("mp-s1.1a", "4998c68a9e9a8002251fa8f07aa1082444a9dc80")
+_TX = (("mpe-5.3e", "b03d0d56150d3e9da4a4c871338097b4f450b649"),
+      ("mpe-4.3f", "fecb3059fb09897a096add9452b50aec55c07545"))
+_SP = (("mpb-2.3m", "93c682e13e74bce29ced3a87bffb29569c114c3b"),
+      ("mpb-1.3n", "1393ef92ae1ad58a4b62ca1660c0793d30a8b5e2"))
+_BG = (("mpe-1.3l", "8bb7c9acaf6833fb6c0575b015991b873a305a84"),   # mountains
+      ("mpe-2.3k", "14c6c76e1d0db2c0745e5d6d33ea6945fac8e9ee"),   # hills
+      ("mpe-3.3h", "8a090cb8d483a3d67c7360058e3fdd70e151cd62"))   # city
+_TX_PAL = ("mpc-4.2a", "dfc52958f2520e1ce4446dd4c84c91413bbacf76")
+_BG_PAL = ("mpc-3.1m", "2d1c12dab5915da2ccd466e39436c88be434d634")
+_SPR_PAL = ("mpc-1.1f", "8c41a8cce4f3384c392a9f7a223a50d7be0e14a5")
+_SPR_CLUT = ("mpc-2.2h", "bc0662fac82ffe65f02092d912b2c2b0c7a8ac2b")
+
+# m52_v.cpp init_palette: pens per background image (indices into bg_pal)
+_BG_PENS = ((0, 4, 8, 12), (0, 1, 2, 3), (0, 17, 18, 19))
+
+
+def _palettes(tx_pal, bg_pal, spr_pal):
+    res3, res2 = [1000, 470, 220], [470, 220]
+    (wr, wg, wb), scale = resistor_weights(0, 255, -1.0, [(res3, 0, 0), (res3, 0, 0), (res2, 0, 0)])
+
+    def txbg(v):
+        return (combine(wr, BIT(v, 0), BIT(v, 1), BIT(v, 2)),
+                combine(wg, BIT(v, 3), BIT(v, 4), BIT(v, 5)),
+                combine(wb, BIT(v, 6), BIT(v, 7)))
+
+    (sr, sg, sb), _ = resistor_weights(0, 255, scale, [(res2, 470, 0), (res3, 470, 0), (res3, 470, 0)])
+
+    def spr(v):
+        return (combine(sr, BIT(v, 6), BIT(v, 7)),
+                combine(sg, BIT(v, 3), BIT(v, 4), BIT(v, 5)),
+                combine(sb, BIT(v, 0), BIT(v, 1), BIT(v, 2)))
+
+    return [txbg(v) for v in tx_pal], [txbg(v) for v in bg_pal], [spr(v) for v in spr_pal]
+
+
+def _decode_chars(tx):
+    tiles = mame_decode(tx, 8, 8, [0, 0x1000 * 8], step(0, 1, 8), step(0, 8, 8), 64, 512)
+    flat = []
+    for t in tiles:
+        for row in t:
+            v = 0
+            for px in row:
+                v = (v << 2) | px
+            flat.append(v)
+    return flat
+
+
+def _decode_sprites(sp):
+    xoffs = step(0, 1, 8) + step(16 * 8, 1, 8)
+    sprites = mame_decode(sp, 16, 16, [0x2000 * 8, 0, 0x1000 * 8], xoffs, step(0, 8, 16), 256, 128)
+    flat = []
+    for s in sprites:
+        for row in s:
+            v = 0
+            for px in row:
+                assert px < 4, "sprite plane 2 must be empty"
+                v = (v << 2) | px
+            flat.append(v)
+    return flat
+
+
+def _decode_bg(rom):
+    region = rom + b"\xff" * 0x1000
+    xoffs = []
+    for k in range(64):
+        xoffs += step(8 * k, 1, 4)
+    yoffs = step(0, 0x200, 32) + step(0x4000, 0x200, 32) + step(0x8000, 0x200, 32) + step(0xc000, 0x200, 32)
+    img = mame_decode(region, 256, 128, [4, 0], xoffs, yoffs, 0, 1)[0]
+    # Rows 64..127 come from the 0xff fill: solid pen 3 (render relies on it).
+    assert all(px == 3 for row in img[64:] for px in row)
+    out = []
+    for row in img[:64]:
+        for x in range(0, 256, 4):
+            out.append((row[x] << 6) | (row[x + 1] << 4) | (row[x + 2] << 2) | row[x + 3])
+    return out
+
+
+def _c565(rgb):
+    return rgb565_swapped(*rgb)
+
+
+def _write_cmap(ctx, tx_rgb, bg_rgb, spr_rgb, clut):
+    with ctx.header("mpatrol_cmap.h") as f:
+        f.write(banner(__file__))
+        f.write("// Moon Patrol color maps, RGB565 byte-swapped for the SPI display.\n\n")
+        f.write("// Characters: 128 colors x 4 pens (tx_pal direct)\n")
+        f.write("const unsigned short mpatrol_tx_cmap[128][4] PROGMEM = {\n")
+        for c in range(128):
+            f.write("  { " + ", ".join(f"0x{_c565(tx_rgb[c * 4 + p]):04x}" for p in range(4)) + " },\n")
+        f.write("};\n\n")
+        f.write("// Sprites: 16 colors x 4 pens (clut[color * 8 + pen] -> spr_pal)\n")
+        f.write("const unsigned short mpatrol_spr_cmap[16][4] PROGMEM = {\n")
+        transp = []
+        for c in range(16):
+            idx = [clut[c * 8 + p] & 0x1f for p in range(4)]
+            transp.append(sum(1 << p for p in range(4) if idx[p] == 0))
+            f.write("  { " + ", ".join(f"0x{_c565(spr_rgb[i]):04x}" for i in idx) + " },\n")
+        f.write("};\n\n")
+        f.write("// Sprites: bit p set = pen p transparent (clut entry 0)\n")
+        f.write("const unsigned char mpatrol_spr_transp[16] PROGMEM = { "
+                + ", ".join(f"0x{t:02x}" for t in transp) + " };\n\n")
+        f.write("// Backgrounds: mountains, hills, city x 4 pens\n")
+        f.write("const unsigned short mpatrol_bg_cmap[3][4] PROGMEM = {\n")
+        for pens in _BG_PENS:
+            f.write("  { " + ", ".join(f"0x{_c565(bg_rgb[i]):04x}" for i in pens) + " },\n")
+        f.write("};\n")
+    ctx.log.info("  wrote mpatrol_cmap.h")
+
+
+def _convert(ctx: Context) -> None:
+    rom = rom_bytes_all(ctx, _MAIN)
+    snd = rom_bytes(ctx, _SOUND)
+    tx = rom_bytes_all(ctx, _TX)
+    sp = rom_bytes_all(ctx, _SP) + b"\x00" * 0x1000
+    bgs = [_decode_bg(rom_bytes(ctx, e)) for e in _BG]
+    tx_pal, bg_pal = rom_bytes(ctx, _TX_PAL), rom_bytes(ctx, _BG_PAL)
+    spr_pal, clut = rom_bytes(ctx, _SPR_PAL), rom_bytes(ctx, _SPR_CLUT)
+
+    chars = _decode_chars(tx)
+    sprites = _decode_sprites(sp)
+
+    write_bytes(ctx, "mpatrol_rom.h", "mpatrol_rom", rom, "Z80 ROM 0x0000-0x3fff", __file__)
+    write_bytes(ctx, "mpatrol_snd_rom.h", "mpatrol_snd_rom", snd, "M6803 ROM, sound CPU 0x7000-0x7fff",
+                __file__)
+    write_array(ctx, "mpatrol_tilemap.h", "mpatrol_tilemap", "unsigned short", "[8]", 512, chars,
+                "512 chars 8x8 2 bpp, row = 8 pens, pixel 0 in bits 15-14", __file__)
+    write_array(ctx, "mpatrol_spritemap.h", "mpatrol_spritemap", "uint32_t", "[16]", 128, sprites,
+                "128 sprites 16x16 2 bpp, row = 16 pens, pixel 0 in bits 31-30", __file__)
+    write_array(ctx, "mpatrol_bg.h", "mpatrol_bg", "unsigned char", "[4096]", 3, [b for img in bgs for b in img],
+                "mountains, hills, city: 256x64 2 bpp, 4 px per byte, pixel 0 in bits 7-6", __file__)
+
+    tx_rgb, bg_rgb, spr_rgb = _palettes(tx_pal, bg_pal, spr_pal)
+    _write_cmap(ctx, tx_rgb, bg_rgb, spr_rgb, clut)
+    log_sizes(ctx, {"rom": len(rom), "snd": len(snd), "tilemap": len(chars) * 2,
+                    "spritemap": len(sprites) * 4, "bg": 3 * 4096})
+
+
+JOB = Job(name="mpatrol", convert=_convert, machine="mpatrol", zips=("mpatrol.zip",))

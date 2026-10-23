@@ -8,7 +8,7 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
-// 1:1 port of tools/marble_piston.py (function names as there; Marble Love state-sub-186ac.ts,
+// 1:1 port of dev/marble/marble_piston.py (function names as there; Marble Love state-sub-186ac.ts,
 // read-abs-long-1844a.ts, state-sub-1881c.ts, sprite-coords.ts 0x18972, sprite-derive.ts
 // 0x1bb28; the 0x1881c result and launch sign from the disassembly).
 //

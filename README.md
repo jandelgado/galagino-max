@@ -99,7 +99,7 @@ Like in the original from Till Harbaum's Galaga emulator, download these files:
     * [Bombjack](https://www.google.com/search?q=bombjack.zip+arcade+rom)
     * [Mr. Do!](https://www.google.com/search?q=mrdo.zip+arcade+rom)
     * [Bagman](https://www.google.com/search?q="bagmanm2.zip"+download) (Important: filename with "m2")
-    * [Pengo](https://www.google.com/search?q=pengo2u.zip+arcade+rom) (Important: filename with "2u")
+    * [Pengo](https://www.google.com/search?q=pengo.zip+arcade+rom)
     * [Gyruss](https://www.google.com/search?q=gyruss.zip+arcade+rom)
     * [Lady Bug](https://www.google.com/search?q=ladybug.zip+arcade+rom)
     * [Donkey Kong Jr. (Japan)](https://www.google.com/search?q=dkongjrj.zip+arcade+rom) (Important: filename with "jrj")

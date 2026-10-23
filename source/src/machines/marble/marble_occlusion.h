@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "marble_mem.h"
 
-// Marble occlusion masks (MARBLE.md "Occlusion"), a 1:1 port of tools/marble_sim.py
+// Marble occlusion masks (MARBLE.md "Occlusion"), a 1:1 port of dev/marble/marble_sim.py
 // enter_1281c / occlusion_264aa / vertex_height_177f8.
 //
 //   enter(m, obj)   0x1281c: +0x1c = on screen, then the masks of a visible object

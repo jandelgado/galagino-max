@@ -1,0 +1,57 @@
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass(frozen=True)
+class Paths:
+    """Repo-derived locations; nothing depends on the working directory."""
+
+    repo: Path
+
+    @property
+    def romconv(self) -> Path:
+        return self.repo / "romconv"
+
+    @property
+    def samples(self) -> Path:
+        return self.repo / "samples"
+
+    @property
+    def logos(self) -> Path:
+        return self.repo / "logos"
+
+    @property
+    def romszip(self) -> Path:
+        return self.repo / "romszip"
+
+    @property
+    def src(self) -> Path:
+        return self.repo / "source" / "src"
+
+    @property
+    def machines(self) -> Path:
+        return self.src / "machines"
+
+    @property
+    def server(self) -> Path:
+        return self.repo / "galagino-server" / "data"
+
+    @property
+    def build(self) -> Path:
+        return self.romconv / "build"
+
+    @property
+    def assets(self) -> Path:
+        return self.build / "assets"
+
+    @property
+    def test(self) -> Path:
+        return self.repo / "source" / "test"
+
+    @property
+    def tmp(self) -> Path:
+        return self.build / "tmp"
+
+
+def default() -> Paths:
+    return Paths(Path(__file__).resolve().parents[3])

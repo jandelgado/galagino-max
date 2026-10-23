@@ -10,7 +10,7 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
-// 1:1 port of tools/marble_sim.py (function names and order as there). Integer
+// 1:1 port of dev/marble/marble_sim.py (function names and order as there). Integer
 // semantics of the 68010: word results wrap at 16 bits, long results at 32 bits (done in
 // uint32_t), >> on signed values is asr, int64_t where the model's values exceed 32 bits.
 

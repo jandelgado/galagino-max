@@ -435,7 +435,7 @@ void zaxxon::blit_bg_row(uint8_t row) {
     uint16_t *dst = ptr + j;
 
     // bg tiles are pre-rotated 90deg for the portrait framebuffer, same as
-    // fg/sprite tiles (rot_galagino in gfxutil.py): undo it with
+    // fg/sprite tiles (rot_galagino in romconv/romconv/gfx/gfxutil.py): undo it with
     // transposed+mirrored indices instead of the raw sub-tile offsets.
     uint16_t cell = cell_base[j] + tile_col;
     const uint8_t *src = &bgtiles[code[cell]][sub_bg_x][y];

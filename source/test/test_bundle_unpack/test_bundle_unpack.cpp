@@ -3,7 +3,7 @@
 #include <unity.h>
 
 // BundleUnpacker (src/net/bundle_unpack.cpp): wire bundle in, cache entry
-// out. fixture.h: romconv/internal/pyconv/make_unpack_fixture.py.
+// out. fixture.h: romconv/romconv/misc/unpack_fixture.py.
 #include "../test_asset_remote/lzma.c"
 #include "../../src/net/bundle_unpack.cpp"
 #include "fixture.h"

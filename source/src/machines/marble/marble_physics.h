@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "marble_mem.h"
 
-// Player marble update, a 1:1 port of the 68010 code (romconv/internal/marble/tools/
+// Player marble update, a 1:1 port of the 68010 code (romconv/dev/marble/
 // marble_sim.py, MARBLE.md "Marble physics"). State lives in the work RAM image of Mem,
 // at the original addresses, so the port stays bit exact with MAME traces.
 //

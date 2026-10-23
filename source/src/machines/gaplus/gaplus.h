@@ -11,7 +11,7 @@
 // a 3 set con velocita' indipendenti.
 //
 // Riferimenti MAME: namco/gaplus.cpp, gaplus_v.cpp, gaplus_m.cpp, namcoio.cpp.
-// Grafica pre-ruotata ROT90 dal converter (romconv/gaplus/gaplus_rom_convert.py).
+// Grafica pre-ruotata ROT90 dal converter (romconv/romconv/games/namco/gaplus.py).
 //
 // ATTENZIONE romset IBRIDO (vedi memoria project_gaplus.md): main+sub code
 // = "galaga3", gfx1/color sprite = variante "gaplus" (gp2-*): differenza

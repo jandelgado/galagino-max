@@ -2,3 +2,4 @@ roms/
 __pycache__/
 *_preview.png
 .venv/
+/build/

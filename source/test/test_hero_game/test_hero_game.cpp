@@ -55,7 +55,7 @@ static const uint8_t *nextRecord(const uint8_t *d, uint8_t *rec) {
   return d;
 }
 
-// every modelled RAM byte, every frame of the MAME traces (tools/trace_fixture.py)
+// every modelled RAM byte, every frame of the MAME traces (romconv/dev/hero/trace_fixture.py)
 static void test_traces_match_mame(void) {
   for (const HeroTrace &t : hero_traces) {
     static Game g;

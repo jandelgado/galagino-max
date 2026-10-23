@@ -9,7 +9,7 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
-// 1:1 port of tools/marble_bird.py (function names as there; Marble Love
+// 1:1 port of dev/marble/marble_bird.py (function names as there; Marble Love
 // scroll-range-144e4.ts mode 4, state-sub-19baa.ts, state-sub-19a40.ts,
 // marble-cell-dispatch-19e42.ts, bbox-hit-test-19d94.ts). Integer semantics follow the model.
 //

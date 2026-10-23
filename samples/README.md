@@ -7,18 +7,10 @@ samples.
 
 This directory contains samples for Donkey Kong.
 
-These have to be converted into C source code using the
-[romconv.py](../romconv/romconv.py) tool.
+The `dkong` conversion job (`romconv/convert.sh dkong`) turns them into
+IMA-ADPCM C headers (`source/src/machines/dkong/dkong_sample_*.h`) with
+[sample.py](../romconv/romconv/gfx/sample.py).
 
 Donkey Kong does most audio via its MB8884/I8048 audio CPU. But three
 sounds are generated via discrete logic including three variants of
 the walk sound. These are still regenerated using samples.
-
-
-```
-../romconv/romconv.py dkong_sample_walk0 ./dkong_walk0.s8 ../galagino/dkong_sample_walk0.h
-../romconv/romconv.py dkong_sample_walk1 ./dkong_walk1.s8 ../galagino/dkong_sample_walk1.h
-../romconv/romconv.py dkong_sample_walk2 ./dkong_walk2.s8 ../galagino/dkong_sample_walk2.h
-../romconv/romconv.py dkong_sample_jump ./dkong_jump.s8 ../galagino/dkong_sample_jump.h
-../romconv/romconv.py dkong_sample_stomp ./dkong_stomp.s8 ../galagino/dkong_sample_stomp.h
-```

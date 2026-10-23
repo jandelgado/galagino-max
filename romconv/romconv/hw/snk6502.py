@@ -1,0 +1,99 @@
+"""Helpers of the SNK 6502 system converters (Fantasy, Nibbler, Vanguard): CRC32 checked ROM files,
+headers and sample conversion."""
+import io
+import wave
+import zipfile
+import zlib
+from collections.abc import Mapping, Sequence
+
+import numpy as np
+
+from romconv.core.context import Context
+from romconv.core.errors import ConversionError
+from romconv.emit.asset import emit_compressed
+from romconv.emit.write import banner
+from romconv.gfx.adpcm import ima_encode
+
+
+def load(ctx: Context, manifest: Mapping[str, tuple[int, int]], name: str) -> bytes:
+    """A ROM file of the job's zip, checked against (size, CRC32) of the manifest."""
+    data = bytes(ctx.rom(name))
+    size, expected_crc = manifest[name]
+    crc = zlib.crc32(data) & 0xffffffff
+    if len(data) != size:
+        raise ConversionError(f"{name}: expected {size:#x} bytes, got {len(data):#x}")
+    if crc != expected_crc:
+        raise ConversionError(f"{name}: CRC32 {crc:08X}, expected {expected_crc:08X}")
+    return data
+
+
+def write_header(ctx: Context, game: str, filename: str, symbol: str, data: bytes, description: str,
+                 compress: bool = True) -> None:
+    """A byte array header: an LZMA asset, or a plain C array of 16 bytes per row."""
+    with ctx.header(filename) as out:
+        out.write(banner(__file__))
+        out.write(f"// {description}\n")
+        if compress:
+            emit_compressed(out, symbol, "unsigned char", "", len(data), list(data))
+        else:
+            out.write(f"const unsigned char {symbol}[] = {{\n")
+            for offset in range(0, len(data), 16):
+                out.write("  " + ",".join(f"0x{x:02x}" for x in data[offset:offset + 16]) + ",\n")
+            out.write("};\n")
+    ctx.log.info(f"  wrote {filename}: {len(data):#x} bytes")
+
+
+def read_sample(archive: zipfile.ZipFile, name: str, target_rate: int, pack: str) -> np.ndarray:
+    """A WAV member of the sample pack (8 or 16 bit PCM), mono, resampled to target_rate, signed 8 bit."""
+    try:
+        raw = archive.read(name)
+    except KeyError:
+        raise ConversionError(f"missing {name} in {pack}") from None
+    with wave.open(io.BytesIO(raw), "rb") as wav:
+        channels, width, rate, frames = (wav.getnchannels(), wav.getsampwidth(),
+                                         wav.getframerate(), wav.getnframes())
+        pcm = wav.readframes(frames)
+    if width == 1:
+        values = np.frombuffer(pcm, dtype=np.uint8).astype(np.float32) - 128.0
+    elif width == 2:
+        values = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 256.0
+    else:
+        raise ConversionError(f"{name}: only 8-bit or 16-bit PCM WAV is supported")
+    if channels > 1:
+        values = values.reshape(-1, channels).mean(axis=1)
+    count = max(1, round(len(values) * target_rate / rate))
+    converted = np.interp(np.arange(count, dtype=np.float32) * rate / target_rate,
+                          np.arange(len(values)), values)
+    return np.clip(np.rint(converted), -128, 127).astype(np.int8)
+
+
+def encode_samples(ctx: Context, pack: str, title: str, names: Sequence[str],
+                   rates: Sequence[int]) -> tuple[bytes, list[int], list[int]]:
+    """The WAVs of samples/<pack> as mono IMA-ADPCM at their rates: (all streams, stream offsets,
+    decoded sample counts)."""
+    path = ctx.paths.samples / pack
+    if not path.is_file():
+        raise ConversionError(f"missing {title} sample pack: {path}")
+    with zipfile.ZipFile(path) as archive:
+        pcm_samples = [read_sample(archive, name, rate, pack) for name, rate in zip(names, rates)]
+    samples = [ima_encode(pcm) for pcm in pcm_samples]
+    offsets, lengths, position = [], [], 0
+    for sample, pcm in zip(samples, pcm_samples):
+        offsets.append(position)
+        lengths.append(len(pcm))
+        position += len(sample)
+    return b"".join(samples), offsets, lengths
+
+
+def write_sample_pack(ctx: Context, game: str, comment: str, data: bytes, offsets: Sequence[int],
+                      lengths: Sequence[int], extra: str = "") -> None:
+    """<game>_samples.h: sample count, offsets, lengths, `extra` C text, then the ADPCM streams."""
+    with ctx.header(f"{game}_samples.h") as out:
+        out.write(banner(__file__))
+        out.write(f"// {comment}\n")
+        out.write(f"#define {game.upper()}_SAMPLE_COUNT {len(offsets)}\n")
+        out.write(f"const uint32_t {game}_sample_offsets[] = {{\n  " + ",".join(str(x) for x in offsets) + "\n};\n")
+        out.write(f"const uint32_t {game}_sample_lengths[] = {{\n  " + ",".join(str(x) for x in lengths) + "\n};\n")
+        out.write(extra)
+        emit_compressed(out, f"{game}_samples", "unsigned char", "", len(data), list(data))
+    ctx.log.info(f"  wrote {game}_samples.h: {len(data):#x} ADPCM bytes")

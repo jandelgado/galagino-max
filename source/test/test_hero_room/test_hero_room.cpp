@@ -38,7 +38,7 @@ static void test_level_sizes(void) {
   TEST_ASSERT_EQUAL(256, total);
 }
 
-// every band of every room against MAME (fixture from tools/roomcheck.py)
+// every band of every room against MAME (fixture from romconv/dev/hero/roomcheck.py)
 static void test_rooms_match_mame(void) {
   int room = 0;
   for (int l = 0; l < hero_data::LEVELS; l++) {

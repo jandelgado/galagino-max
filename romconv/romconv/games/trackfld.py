@@ -1,0 +1,109 @@
+"""Convert the MAME trackfld ROM set into galagino headers (MAME konami/trackfld.cpp)."""
+from romconv.core.context import Context
+from romconv.core.job import Job
+from romconv.emit.write import write_array, write_asset, write_bytes, write_color_tables
+from romconv.gfx.bits import BIT
+from romconv.gfx.color import rgb565_swapped
+from romconv.gfx.gfxutil import mame_decode, pack_nibbles, pack_sprite_rows, step
+from romconv.gfx.resnet import combine, resistor_weights
+from romconv.gfx.rom import rom_bytes, rom_bytes_all
+from romconv.plan import layout
+from romconv.plan.budget import log_sizes
+
+
+# MAME ROM_START( trackfld ), SHA1s from mame -listxml trackfld
+_MAIN = (
+    ("a01_e01.bin", "f7ddae2c5412a2849efd7f9629e92a5b0328e7cb"),
+    ("a02_e02.bin", "31301031a525f893c31461f634350f01a9492ef4"),
+    ("a03_k03.bin", "380ab2162153a61910a6fe5b6d091ca9451ad4fd"),
+    ("a04_e04.bin", "6c42cc76302485954a31520bdd08469fa948c72f"),
+    ("a05_e05.bin", "50e65d9b0ea37d2afb2dfdf1f3e1378e3290bc81"),
+)
+_SOUND = ("c2_d13.bin", "ea9135acd7ad162c19c5cdde356e69792d61b675")
+_SPRITES = (
+    ("c11_d06.bin", "1da9ea20e7af0b49c62fb39834a7ec686491af04"),
+    ("c12_d07.bin", "33d73b18903e3e6bfb30f1a06db4b8105d4040d8"),
+    ("c13_d08.bin", "4448b6242790783d37acf50704d597af5878c2ab"),
+    ("c14_d09.bin", "884a12a8f63600da4f23b29be6dbaacef37add20"),
+)
+_TILES = (
+    ("h16_e12.bin", "dfff92c0f59dd3d8d3d6256944bfd48792cef6a9"),
+    ("h15_e11.bin", "0f41cde82bb60c3f1591ee14dc3cff4642bbddc1"),
+    ("h14_e10.bin", "5ba25900e653ce4edcf35f1fbce758a327a715ce"),
+)
+_PAL = ("361b16.f1", "4d6a851f4886778307f75771645078b97ad55f5f")
+_SPR_CLUT = ("361b17.b16", "894b5cedf01ba9225a0d6215291857e455b84903")
+_TILE_CLUT = ("361b18.e15", "6740a62cf7b6938a4f936a2fed429704612060a5")
+_VLM = ("c9_d15.bin", "caee3d8546eb7a75ce2a578c6a1a630246aec6b8")
+
+
+def _decode_tiles(rom):
+    # gfx_8x8x4_packed_msb, 32 bytes per char
+    count = len(rom) * 8 // 256
+    tiles = mame_decode(rom, 8, 8, step(0, 1, 4), step(0, 4, 8), step(0, 32, 8), 256, count)
+    return count, [pack_nibbles(row) for t in tiles for row in t]
+
+
+def _decode_sprites(rom):
+    # spritelayout: planes {half+4, half+0, 4, 0}, 4 columns of 4 px, 64 bytes per sprite
+    half = len(rom) * 4
+    count = half // 512
+    planes = [half + 4, half, 4, 0]
+    xoffs = [64 * c + i for c in range(4) for i in range(4)]
+    yoffs = step(0, 8, 8) + step(256, 8, 8)
+    sprites = mame_decode(rom, 16, 16, planes, xoffs, yoffs, 512, count)
+    return count, pack_sprite_rows(sprites)
+
+
+def _palette(prom):
+    # compute_resistor_weights(0, 255, -1, 3, {1000, 470, 220}, 1000, 0 (r, g), 2, {470, 220}, 1000, 0)
+    (rw, gw, bw), _ = resistor_weights(0, 255, -1.0, [([1000, 470, 220], 1000, 0),
+                                                      ([1000, 470, 220], 1000, 0),
+                                                      ([470, 220], 1000, 0)])
+
+    out = []
+    for v in prom:
+        r = combine(rw, BIT(v, 0), BIT(v, 1), BIT(v, 2))
+        g = combine(gw, BIT(v, 3), BIT(v, 4), BIT(v, 5))
+        b = combine(bw, BIT(v, 6), BIT(v, 7))
+        out.append(rgb565_swapped(r, g, b))
+    return out
+
+
+def _write_cmap(ctx, pal, tile_clut, spr_clut):
+    def emit(f):
+        f.write("// Track & Field color maps, RGB565 byte-swapped for the SPI display.\n\n")
+        f.write("// Characters: 16 colors x 16 pens, lookup 361b18 -> palette 0x10 | nibble\n")
+        write_color_tables(f, "trackfld_tile", pal, tile_clut, 0x10, "")
+        f.write("// Sprites: 16 colors x 16 pens, lookup 361b17 -> palette nibble\n")
+        write_color_tables(f, "trackfld_spr", pal, spr_clut, 0x00, "")
+
+    write_asset(ctx, "trackfld_cmap.h", None, emit, __file__)
+
+
+def _convert(ctx: Context) -> None:
+    arena_capacity = sum(layout.read_layouts(layout.header_path(ctx.paths))["local"])
+    main_rom = rom_bytes_all(ctx, _MAIN)
+    sound_rom = rom_bytes(ctx, _SOUND)
+    vlm = rom_bytes(ctx, _VLM)
+    tile_count, tiles = _decode_tiles(rom_bytes_all(ctx, _TILES))
+    sprite_count, sprites = _decode_sprites(rom_bytes_all(ctx, _SPRITES))
+
+    write_bytes(ctx, "trackfld_rom_main.h", "trackfld_rom_main", main_rom,
+                "KONAMI-1 6809 ROM 0x6000-0xffff (encrypted opcodes)", __file__)
+    write_bytes(ctx, "trackfld_rom_sound.h", "trackfld_rom_sound", sound_rom, "Z80 ROM 0x0000-0x1fff",
+                __file__)
+    write_bytes(ctx, "trackfld_vlm.h", "trackfld_vlm", vlm, "VLM5030 speech ROM", __file__)
+    write_array(ctx, "trackfld_tilemap.h", "trackfld_tilemap", "uint32_t", "[8]", tile_count, tiles,
+                f"{tile_count} chars 8x8 4 bpp, row = 8 pens, pixel 0 in bits 31-28", __file__)
+    write_array(ctx, "trackfld_spritemap.h", "trackfld_spritemap", "uint32_t", "[16][2]", sprite_count, sprites,
+                f"{sprite_count} sprites 16x16 4 bpp, [row][0] pixels 0-7, [row][1] pixels 8-15, "
+                "first in bits 31-28", __file__)
+    _write_cmap(ctx, _palette(rom_bytes(ctx, _PAL)), rom_bytes(ctx, _TILE_CLUT), rom_bytes(ctx, _SPR_CLUT))
+
+    ctx.log.info(f"  tiles {tile_count}, sprites {sprite_count}")
+    log_sizes(ctx, {"main": len(main_rom), "sound": len(sound_rom), "vlm": len(vlm),
+                    "tilemap": len(tiles) * 4, "spritemap": len(sprites) * 4}, arena_capacity)
+
+
+JOB = Job(name="trackfld", convert=_convert, machine="trackfld", zips=("trackfld.zip",))

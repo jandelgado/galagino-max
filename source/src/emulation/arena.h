@@ -17,7 +17,7 @@ struct ArenaPlan {
 };
 
 // Key over a machine's ARENA_EXTRA and ARENA_EXTRA_ANY_ORDER, the inputs
-// romconv solved its Arena plan for (arena_plan.py extras_key()). The
+// romconv solved its Arena plan for (romconv/romconv/plan/arena.py extras_key()). The
 // machine compares it with <game>_arena_extras_key: a stale plan fails the
 // build instead of aborting at boot.
 constexpr uint32_t arenaExtrasKey(const uint32_t *extras, uint32_t count, bool anyOrder,
@@ -40,7 +40,7 @@ public:
     // menu now needs 43136 B (4 indexed logos) plus the drum table, in A.
     // ROM_SLACK: extra space bombjack, 1942 and starforce/baluba needed to
     // bin-pack their assets, found by search over real asset sizes. Today
-    // romconv plans their split and blocks per layout (arena_plan.py).
+    // romconv plans their split and blocks per layout (romconv/romconv/plan/arena.py).
     static constexpr uint32_t GAME_BLOCK_MIN = 86016;
     static constexpr uint32_t ROM_SLACK = 4984; // headroom for bombjack/1942 asset shapes
     // Sizes live in arena_layout.h, shared with romconv.

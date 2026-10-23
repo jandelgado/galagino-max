@@ -8,7 +8,7 @@
 // tilemap 36x60 con scroll + 2x2 fixed columns, 64 sprites 16x16 4bpp.
 //
 // MAME: namco/mappy.cpp, mappy_v.cpp, namcoio.cpp, sound/namco.cpp.
-// Rotated gfx ROT90 (romconv/mappy/mappy_rom_convert.py)
+// Rotated gfx ROT90 (romconv/romconv/games/namco/mappy.py)
 // galagino X axis (224) == MAME y axis
 // galagino Y axis (288) == MAME x axis (36 columns)
 // ============================================================================

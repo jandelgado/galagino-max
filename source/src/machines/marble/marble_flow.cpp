@@ -7,7 +7,7 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
-// Port of tools/marble_flow.py (Marble Love TS: game-tick-timers.ts, timer-cascade.ts,
+// Port of dev/marble/marble_flow.py (Marble Love TS: game-tick-timers.ts, timer-cascade.ts,
 // main-loop-init-1101e.ts, player-slot-iter-118d2.ts, state-sub-18a88.ts). Frame counts of
 // the blocking main loop parts come from MAME frame traces (+-1 frame).
 

@@ -1,143 +1,48 @@
 #!/usr/bin/env -S uv run
+"""convert.py [-j N] [name ...]: run the conversion jobs (all if no name is given)."""
+import os
 import sys
 
-from internal.pyconv.convutil import info, run
+from romconv.core import runner
+from romconv.core.errors import ConversionError
 
-GAMES = [
-    "logos",
-    "z80",
-    "1942",
-    "alibaba",
-    "amidar",
-    "anteater",
-    "asteroids",
-    "bagman",
-    "bnj",
-    "bombjack",
-    "centipede",
-    "millipede",
-    "btime",
-    "circusc",
-    "commando",
-    "crush",
-    "digdug",
-    "digdug2",
-    "dkong",
-    "dkong3",
-    "dkongjr",
-    "eyes",
-    "frogger",
-    "galaga",
-    "galaxian",
-    "gaplus",
-    "gyruss",
-    "invaders",
-    "ladybug",
-    "lizwiz",
-    "llander",
-    "m6502",
-    "mappy",
-    "mario",
-    "mooncresta",
-    "motorace",
-    "mrdo",
-    "mrtnt",
-    "mspacman",
-    "nibbler",
-    "pacman",
-    "pbaction",
-    "pengo",
-    "phoenix",
-    "pooyan",
-    "roadfighter",
-    "rocnrope",
-    "scramble",
-    "scregg",
-    "starforce",
-    "baluba",
-    "supercobra",
-    "theglob",
-    "timeplt",
-    "todruaga",
-    "tp84",
-    "turtles",
-    "tutankhm",
-    "vanvan",
-    "vanguard",
-    "fantasy",
-    "xevious",
-    "zaxxon",
-    "thepit",
-    "bublbobl",
-    "atetris",
-    "ccastles",
-    "bzone",
-    "tempest",
-    "spacduel",
-    "gravitar",
-    "bwidow",
-    "berzerk",
-    "starwars",
-    "missile",
-    "mpatrol",
-    "starjack",
-    "regulus",
-    "upndown",
-    "raflesia",
-    "swat",
-    "cbdash",
-    "phozon",
-    "gberet",
-    "hero",
-    "gng",
-    "marble",
-    "defender",
-    "robotron",
-    "joust",
-    "sinistar",
-    "1943",
-    "gorf",
-    "solomon",
-    "flicky",
-    "pitfall2",
-    "mrviking",
-    "imsorry",
-    "wboy",
-    "fourdwarrio",
-    "hvymetal",
-    "sxevious",
-    "mikie",
-    "vulgus",
-    "cavenger",
-    "gardia",
-    "pleiads",
-    "arkanoid",
-    "yiear",
-    "trackfld",
-    "tron",
-    "dotron",
-    "tapper",
-    "shollow",
-    "motos",
-    "jungleh",
-    "megazone",
-    "elevator",
-    "mhavoc",
-    "choplift",
-    "tokisens",
-]
+USAGE = "usage: convert.py [-j N] [name ...]"
 
-games = GAMES if len(sys.argv[1:]) == 0 else sys.argv[1:]
-info(f"--------- Convert {'all' if games is GAMES else ' '.join(games)} ---------")
-run("internal/pokey_poly.py")
-run("internal/pyconv/make_unpack_fixture.py")
 
-for game in games:
-    run(f"internal/pyconv/conv_{game}.py")
+def parse_args(args):
+    """([-j N | -jN] [name ...]) -> (jobs, names); ConversionError on bad usage."""
+    jobs, names = os.cpu_count() or 1, []
+    it = iter(args)
+    for arg in it:
+        if arg == "-j":
+            value = next(it, "")
+        elif arg.startswith("-j"):
+            value = arg[2:]
+        elif arg.startswith("-"):
+            raise ConversionError(f"bad option {arg!r}\n{USAGE}")
+        else:
+            names.append(arg)
+            continue
+        if not value.isdigit() or int(value) < 1:
+            raise ConversionError(f"-j needs a positive number, got {value!r}\n{USAGE}")
+        jobs = int(value)
+    return jobs, names
 
-# mode 3 (ASSETS_REMOTE): gating macros, then one bundle per catalog game
-info("--------- Catalog and remote bundles ---------")
-run("internal/pyconv/catalog.py")
-run("internal/pyconv/bundles.py")
 
-info("--- Success ---")
+def main(args):
+    try:
+        jobs, names = parse_args(args)
+        print(f"--------- Convert {' '.join(names) or 'all'} ---------", flush=True)
+        code = runner.run(names, jobs=jobs)
+    except ConversionError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+    if code == 0:
+        print("--- Success ---")
+    else:
+        print("--- Failed ---", file=sys.stderr)
+    return code
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

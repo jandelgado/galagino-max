@@ -1,0 +1,171 @@
+"""Convert a Sega System 1 ROM set into galagino headers (MAME sega/system1.cpp).
+
+All games are planned (arena plan); the palette RAM table shared by every game is written once by
+the system1_palette job."""
+from collections.abc import Sequence
+from functools import partial
+
+from romconv.core.context import Context
+from romconv.core.job import Job
+from romconv.emit.asset import emit_compressed, emit_plain
+from romconv.emit.write import banner
+from romconv.games.system1.crypt import decrypt_main
+from romconv.games.system1.sets import SETS, SetSpec, load_roms
+from romconv.gfx.bits import BIT
+from romconv.gfx.color import prom_level_4bit, rgb565_swapped
+from romconv.gfx.resnet import combine, resistor_weights
+
+_MIX_NO_COLLIDE = 0x04
+_BANK_BASE = 0x8000  # "banked": main ROM image past 0x8000 is 16 KB banks at 8000-bfff
+_PALETTE_JOB = "system1_palette"
+
+
+# charlayout: 3 planes RGN_FRAC(n,3), plane 0 = MSB, byte bit 7 = left pixel.
+# Emitted column-major: word per native pixel column, native row 0 in bits 23..21.
+# ROT0 games (transpose) render along native lines: word per native pixel row,
+# native column 0 in bits 23..21.
+def _decode_tiles(rom: bytes, transpose: bool = False) -> tuple[list[int], int]:
+    plane = len(rom) // 3
+    count = plane // 8
+    assert count & (count - 1) == 0, "tile count must be a power of two (code mask)"
+    out = []
+    for c in range(count):
+        for outer in range(8):
+            w = 0
+            for inner in range(8):
+                row, col = (outer, inner) if transpose else (inner, outer)
+                px = 0
+                for p in range(3):
+                    px = (px << 1) | BIT(rom[p * plane + c * 8 + row], 7 - col)
+                w = (w << 3) | px
+            out.append(w)
+    return out, count
+
+
+# Unique tiles in first-use order plus code -> unique index map (Arena budget)
+def _dedupe_tiles(words: Sequence[int]) -> tuple[list[int], int, list[int]]:
+    index = {}
+    unique = []
+    tile_map = []
+    for c in range(len(words) // 8):
+        key = tuple(words[c * 8:c * 8 + 8])
+        if key not in index:
+            index[key] = len(index)
+            unique.extend(key)
+        tile_map.append(index[key])
+    return unique, len(index), tile_map
+
+
+def _palette565() -> list[int]:
+    rg, b = [995, 495, 250], [495, 250]
+    (wr, wg, wb), _ = resistor_weights(0, 255, -1.0, [(rg, 0, 0), (rg, 0, 0), (b, 0, 0)])
+    return [rgb565_swapped(combine(wr, BIT(i, 0), BIT(i, 1), BIT(i, 2)),
+                           combine(wg, BIT(i, 3), BIT(i, 4), BIT(i, 5)),
+                           combine(wb, BIT(i, 6), BIT(i, 7))) for i in range(256)]
+
+
+# MAME system1_palette() with color PROMs (R, G, B, 4 bits each)
+def _prom_palette565(prom: bytes) -> list[int]:
+    return [rgb565_swapped(prom_level_4bit(prom[i]), prom_level_4bit(prom[256 + i]),
+                           prom_level_4bit(prom[512 + i])) for i in range(256)]
+
+
+def _write_palette(f, name: str, comment: str, vals: Sequence[int]) -> None:
+    f.write(banner(__file__))
+    f.write(f"// {comment}\n")
+    f.write(f"static const unsigned short {name}[256] = {{\n")
+    for i in range(0, 256, 8):
+        f.write("  " + ", ".join(f"0x{v:04X}" for v in vals[i:i + 8]) + ",\n")
+    f.write("};\n")
+
+
+def _plain_body(dims: str, values: Sequence[int]) -> str:
+    if not dims:
+        return ",\n".join(", ".join(f"0x{v:02x}" for v in values[i:i + 16])
+                          for i in range(0, len(values), 16))
+    n = int(dims[1:-1])
+    return ",\n".join("{" + ", ".join(f"0x{v:08x}" for v in values[i:i + n]) + "}"
+                      for i in range(0, len(values), n))
+
+
+# planned: "plain" is only the tie-break hint of the arena plan, which picks mode and block per layout
+def _emit(ctx: Context, game: str, asset: str, ctype: str, dims: str, count: int, values: Sequence[int],
+          plain: bool) -> None:
+    with ctx.header(f"{game}_{asset}.h") as f:
+        if plain:
+            emit_plain(f, f"{game}_{asset}", ctype, dims, count, _plain_body(dims, values))
+        else:
+            emit_compressed(f, f"{game}_{asset}", ctype, dims, count, values)
+
+
+def _zip_of(game: str, spec: SetSpec) -> str:
+    return spec.zip or f"{game}.zip"
+
+
+# assets of one game: (name, C type, dims, count, values)
+def _assets(ctx: Context, game: str, spec: SetSpec) -> list[tuple[str, str, str, int, Sequence[int]]]:
+    zip = _zip_of(game, spec)
+    main_rom, opcodes = decrypt_main(ctx, spec, load_roms(ctx, spec.main, zip), zip)
+    banks = None
+    bank_opcodes = None
+    if spec.banked:
+        main_rom, banks = main_rom[:_BANK_BASE], main_rom[_BANK_BASE:]
+    # MC-8123 decrypts the banks too: their opcodes follow the data bank
+    if banks and opcodes and len(opcodes) > _BANK_BASE:
+        opcodes, bank_opcodes = opcodes[:_BANK_BASE], opcodes[_BANK_BASE:]
+    sound = load_roms(ctx, spec.sound, zip)
+    tiles, tile_count = _decode_tiles(load_roms(ctx, spec.tiles, zip), spec.rot0)
+    tiles, unique_count, tile_map = _dedupe_tiles(tiles)
+    sprites = load_roms(ctx, spec.sprites, zip)
+    lookup = load_roms(ctx, spec.lookup, zip)
+    assert len(sprites) % 0x8000 == 0, "sprite ROM is banked in 0x8000 units"
+    # the mixer only collides under opaque sprite pixels (collision engine relies on it)
+    assert all(lookup[i] & _MIX_NO_COLLIDE for i in range(1, 128, 2))
+
+    assets = [
+        ("main_rom", "unsigned char", "", len(main_rom), main_rom),
+        ("sound_rom", "unsigned char", "", len(sound), sound),
+        ("tiles", "uint32_t", "[8]", unique_count, tiles),
+        ("tile_map", "unsigned short", "", tile_count, tile_map),
+        ("sprites", "unsigned char", "", len(sprites), sprites),
+        ("lookup_prom", "unsigned char", "", len(lookup), lookup),
+    ]
+    if opcodes:
+        assets.append(("opcodes", "unsigned char", "", len(opcodes), opcodes))
+    if banks:
+        assets.append(("banks", "unsigned char", "", len(banks), banks))
+    if bank_opcodes:
+        assets.append(("bank_opcodes", "unsigned char", "", len(bank_opcodes), bank_opcodes))
+    return assets
+
+
+def _convert(ctx: Context, game: str) -> None:
+    spec = SETS[game]
+    for name, ctype, dims, count, values in _assets(ctx, game, spec):
+        _emit(ctx, game, name, ctype, dims, count, values, name in spec.plain)
+    if spec.color:
+        vals = _prom_palette565(load_roms(ctx, spec.color, _zip_of(game, spec)))
+        with ctx.header(f"{game}_palette.h") as f:
+            _write_palette(f, f"{game}_palette", "Palette RAM byte -> RGB565 byte-swapped, from the color PROMs.",
+                           vals)
+
+
+def _convert_palette(ctx: Context) -> None:
+    with ctx.header("system1_palette.h") as f:
+        _write_palette(f, "system1_palette", "System 1 palette RAM byte (BBGGGRRR) -> RGB565 byte-swapped.",
+                       _palette565())
+
+
+def _job(game: str) -> Job:
+    spec = SETS[game]
+    zips = {_zip_of(game, spec): None}  # the game's zip, then the zips of three-part refs (pitfall2)
+    for refs in (spec.main, spec.sound, spec.tiles, spec.sprites, spec.lookup, spec.color, spec.key):
+        zips.update((r[0], None) for r in refs if len(r) == 3)
+    return Job(name=game, convert=partial(_convert, game=game), machine=game, zips=tuple(zips), plan=True,
+               deps=(_PALETTE_JOB,))
+
+
+# the palette RAM table is the same for every game: one owner job
+_PALETTE = Job(name=_PALETTE_JOB, convert=_convert_palette, machine="system1")
+
+JOBS = (_PALETTE, *(_job(game) for game in SETS))

@@ -2,7 +2,7 @@
 #define ARENA_LAYOUT_H
 
 // Arena block sizes per layout (arena.h). Read by romconv
-// (pyconv/arena_layout.py): plain integer literals only.
+// (romconv/romconv/plan/layout.py): plain integer literals only.
 // ASSETS_REMOTE builds link WiFi (~23 KB static DRAM out of the boot heap),
 // so their block A is smaller.
 #define ARENA_A_LOCAL 91000

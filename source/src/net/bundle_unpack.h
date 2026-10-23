@@ -6,7 +6,7 @@
 
 // Turns a downloaded (wire) bundle into the cache entry the device maps,
 // streaming: bytes in as recv() delivers them, entry bytes out in order.
-// Layout: romconv/internal/pyconv/bundle.py.
+// Layout: romconv/romconv/remote/bundle.py.
 //
 //   wire entry               cache entry
 //   LZMA (64 KB dict)  -->   RAW, decoded through dict, read in place

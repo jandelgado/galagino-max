@@ -1,6 +1,6 @@
 #include <unity.h>
 
-// catalog.h (romconv catalog.py) in a mode 3 build with only mspacman built
+// catalog.h (romconv/romconv/remote/catalog.py) in a mode 3 build with only mspacman built
 // in: pacman's assets stay in the app, gng is compiled in but remote.
 #define ASSETS_REMOTE
 #define ENABLE_MSPACMAN

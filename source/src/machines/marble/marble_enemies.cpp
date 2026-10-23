@@ -12,7 +12,7 @@
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
-// 1:1 port of tools/marble_enemy.py (function names as there; Marble Love sub-158f6.ts,
+// 1:1 port of dev/marble/marble_enemy.py (function names as there; Marble Love sub-158f6.ts,
 // helper-182ba.ts, helper-1bc88.ts, scroll-sub-15a12.ts, state-sub-15bd0.ts). Integer
 // semantics follow the model: int64_t where its Python values exceed 32 bits.
 

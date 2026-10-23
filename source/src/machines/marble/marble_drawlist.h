@@ -5,7 +5,7 @@
 #include "marble_mem.h"
 #include "marble_video.h"
 
-// MO draw list (MARBLE.md "Level object sprites"): a 1:1 port of the list upkeep of tools/
+// MO draw list (MARBLE.md "Level object sprites"): a 1:1 port of the list upkeep of dev/marble/
 // marble_mo.py (DrawList, boxes_and_sort, publish). The arcade list lives in the work RAM
 // image: list bytes 0x4003bc (0xff end, 31 max), entry k at 0x4001dc + 14 k {type, index,
 // box x, y, z min, x, y, z max}. Back to front order, later is drawn on top.

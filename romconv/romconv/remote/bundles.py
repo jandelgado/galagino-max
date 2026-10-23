@@ -1,0 +1,126 @@
+# Remote bundles of the catalog games (mode 3, ASSETS_REMOTE): reads the
+# sidecars the game jobs persist in romconv/build/assets/<dir>/, writes the
+# wire bundle to galagino-server/data/g/<hash> and <game>_bundle.h with its
+# BundleRef. Reports the ratio cost of the 64 KB dictionary of PLAIN assets.
+#
+# Builds the catalog games that were requested; a full run requests them all.
+import json
+import re
+from pathlib import Path
+
+from romconv.core.context import Context
+from romconv.core.errors import ConversionError
+from romconv.core.job import Job
+from romconv.core.paths import Paths
+from romconv.emit.asset import PLAIN_DICT_BYTES
+from romconv.emit.lzma import lzma_decompress
+from romconv.emit.text import c_symbol
+from romconv.emit.write import banner
+from romconv.remote.bundle import BundleWriter, bundle_hash, write_bundle
+from romconv.remote.catalog import NO_BLOBS, bundle_dirs, job_name, read_games
+
+
+def _remote_plain(machines: Path, dirname: str) -> dict[str, bool]:
+    """<name> -> remote layout PLAIN flag from <dir>_arena_plan.h."""
+    path = machines / dirname / f"{dirname}_arena_plan.h"
+    if not path.exists():
+        return {}
+    text = path.read_text(encoding="utf-8")
+    m = re.search(r"#ifdef ASSETS_REMOTE\n(.*?)#else", text, re.S)
+    if not m:
+        raise ValueError(f"{path}: no ASSETS_REMOTE block")
+    return {n: v == "1" for n, v in re.findall(r"#define (\w+)_PLAIN ([01])", m.group(1))}
+
+
+def _assets(game: str, paths: Paths) -> list[tuple[str, bytes, bytes, str, int]]:
+    """(name, raw, stored, mode, full-dictionary bytes) of the game's dirs."""
+    out = []
+    for d in bundle_dirs(game):
+        src = paths.assets / d
+        if not src.is_dir():
+            if game in NO_BLOBS:
+                continue
+            raise ValueError(f"no sidecars of dir {d} in {src} (convert it first)")
+        plan = _remote_plain(paths.machines, d)
+        for meta_file in sorted(src.glob("*.json"), key=lambda p: p.name):
+            name = meta_file.stem
+            mode = json.loads(meta_file.read_bytes())["mode"]
+            if mode == "PLANNED":
+                if name not in plan:
+                    raise ValueError(f"{name}: planned, but not in {d}_arena_plan.h")
+                mode = "PLAIN" if plan[name] else "COMPRESSED"
+            raw = (src / f"{name}.raw").read_bytes()
+            full = (src / f"{name}.lz").read_bytes()
+            stored = full if mode == "COMPRESSED" else (src / f"{name}.lz64").read_bytes()
+            if mode == "PLAIN" and lzma_decompress(stored, PLAIN_DICT_BYTES) != raw:
+                raise ValueError(f"{name}: 64 KB dictionary stream does not decode")
+            out.append((name, raw, stored, mode, len(full)))
+    return out
+
+
+def _header(game: str, hex_name: str, digest: bytes, wire: int, entry: int) -> str:
+    sym = c_symbol(game)
+    hash_c = ", ".join("0x%02x" % b for b in digest)
+    return "\n".join([
+        banner(__file__).rstrip("\n"),
+        '#include "../../net/bundle.h"',
+        # nothing to download while every dir is in the app (amidar built in
+        # keeps turtles' and scramble's assets, so turtles needs no bundle)
+        "#if " + " || ".join(f"!defined(BUILTIN_{d.upper()})" for d in bundle_dirs(game)),
+        f"// GET /g/{hex_name}",
+        f'static constexpr BundleRef {sym}_bundle = {{ {{ {hash_c} }}, {wire}u, {entry}u, "{game.upper()}" }};',
+        f"#define {sym}_bundle_ref (&{sym}_bundle)",
+        "#else",
+        f"#define {sym}_bundle_ref nullptr",
+        "#endif",
+        ""])
+
+
+def make_bundle(ctx: Context, game: str) -> dict[str, int | str] | None:
+    """Write the bundle and <game>_bundle.h, return report numbers."""
+    items = _assets(game, ctx.paths)
+    if not items:
+        # tables only (hero): nothing to download
+        with ctx.header(f"{game}_bundle.h", machine=game, plan=False, remote=False) as f:
+            f.write(banner(__file__) +
+                    f"// no asset blobs: always built in\n#define {c_symbol(game)}_bundle_ref nullptr\n")
+        return None
+
+    w = BundleWriter()
+    plain_raw = plain64 = plain_full = 0
+    for name, raw, stored, mode, full in items:
+        w.add(name, raw, stored, mode)
+        if mode == "PLAIN":
+            plain_raw, plain64, plain_full = plain_raw + len(raw), plain64 + len(stored), plain_full + full
+
+    wire = w.build()
+    entry = len(w.entry())
+    hex_name = write_bundle(wire, ctx.paths.server)
+    with ctx.header(f"{game}_bundle.h", machine=game, plan=False, remote=False) as f:
+        f.write(_header(game, hex_name, bundle_hash(wire), len(wire), entry))
+    return {"hex": hex_name, "wire": len(wire), "entry": entry,
+            "plain_raw": plain_raw, "plain64": plain64, "plain_full": plain_full}
+
+
+def _convert(ctx: Context) -> None:
+    requested = set(ctx.requested)
+    games = [g for g, in_catalog in read_games(ctx.paths).items() if in_catalog and job_name(g) in requested]
+    total = {"wire": 0, "entry": 0, "plain_raw": 0, "plain64": 0, "plain_full": 0}
+    for game in games:
+        try:
+            r = make_bundle(ctx, game)
+        except ValueError as e:
+            raise ConversionError(f"{game}: {e}") from e
+        if not r:
+            ctx.log.info(f"  {game:12} no asset blobs, always built in")
+            continue
+        for k in total:
+            total[k] += r[k]
+        ctx.log.info(f"  {game:12} wire {r['wire']:7} entry {r['entry']:7}  PLAIN raw {r['plain_raw']:7}"
+                     f" 64K-dict {r['plain64']:7} full-dict {r['plain_full']:7}  g/{r['hex']}")
+    loss = total["plain64"] - total["plain_full"]
+    ctx.log.info(f"  total wire {total['wire']} entry {total['entry']}; PLAIN raw {total['plain_raw']},"
+                 f" 64 KB dictionary {total['plain64']} vs full {total['plain_full']} (+{loss} bytes)")
+
+
+JOB = Job(name="bundles", convert=_convert, deps=("catalog",), phase=2)

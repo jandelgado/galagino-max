@@ -7,7 +7,7 @@
 #include "marble_flow.h"
 #include "marble_hiscore.h"
 
-// HUD (MARBLE.md "HUD"; model tools/marble_hud.py): the arcade alpha layer texts in a 30 x 36
+// HUD (MARBLE.md "HUD"; model dev/marble/marble_hud.py): the arcade alpha layer texts in a 30 x 36
 // cell grid over the 240 x 288 view. The emulation core derives the Hud of each frame from the
 // work RAM image and the flow sequencer (update, published in VideoState); the video core
 // rebuilds the grid when it changes (prepare_frame) and blends one grid row over each

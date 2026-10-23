@@ -6,7 +6,7 @@
 #include "../../src/machines/mario/mario_video.h"
 
 // Renders a MAME frame (tile RAM, sprite list, registers dumped by
-// romconv/internal/mario/mame_ref.lua) through the machine class and
+// romconv/dev/mario/mame_ref.lua) through the machine class and
 // compares every native line with MAME's snapshot. ROM headers come from
 // romconv (./convert.sh mario); without them the render test is skipped.
 #if __has_include("../../src/machines/mario/mario_rom_main.h")

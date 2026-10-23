@@ -8,3 +8,11 @@ dependencies = [
   "pillow==12.3.0",
   "patch-ng==1.19.1",
 ]
+
+[dependency-groups]
+dev = ["pytest==8.3.5"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["slow: runs real conversions"]

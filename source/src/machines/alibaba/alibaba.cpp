@@ -268,7 +268,7 @@ const uint32_t *alibaba::spriteRom(unsigned char code) {
 
 // Grafica "mystery" (lampada/orologio premio): 16x24 (ruotata 90 deg dalla
 // sorgente ROM 24x16, stesso motivo hardware di tile/sprite -- vedi commento
-// in alibaba_rom_convert.py/rotate_cw), 2 toni (pen 0/3 soli, vedi commento
+// in romconv/romconv/games/alibaba.py/rotate_cw), 2 toni (pen 0/3 soli, vedi commento
 // in alibaba_clockmap.h).
 //
 // Posizione/colore/logica presi dalla VERA routine MAME
@@ -282,7 +282,7 @@ const uint32_t *alibaba::spriteRom(unsigned char code) {
 // Coordinate MAME in landscape (x=colonna orizzontale 0-287, y=riga verticale
 // 0-223, schermo raw 288x224 -- screen.set_raw in pacman.cpp). Trasformate in
 // portrait con la STESSA rotazione oraria gia' verificata su HW per i tile
-// (vedi rotate_cw in alibaba_rom_convert.py): portrait_x=223-mame_y,
+// (vedi rotate_cw in romconv/romconv/games/alibaba.py): portrait_x=223-mame_y,
 // portrait_y=mame_x. Risultato (in celle da 8px, verificato a mano):
 //   riga portrait = 120/8 = 15 (fissa per entrambe le meta')
 //   meta' "inactive" (tile fisso 0x1f): colonna 96/8 = 12

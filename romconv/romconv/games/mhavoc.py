@@ -1,0 +1,45 @@
+# Major Havoc (Atari 1983), MAME atari/mhavoc.cpp, set mhavoc (rev 3).
+# Alpha ROM: fixed 8000-ffff, then the 4 pages of 8 KiB the CPU maps at
+# 2000-3fff. Vector ROM 136025.210: CPU 5000-5fff and 6000-6fff (mirrored at
+# 7000), the AVG sees its first 4 KiB at 1000-1fff. AVG ROM: 4 pages of
+# 8 KiB at AVG 2000-3fff, AVG only. Dropped: the AVG state PROM
+# 136002-125.6c (the display list is decoded at a high level).
+from romconv.core.context import Context
+from romconv.core.job import Job
+from romconv.emit.write import write_bytes
+from romconv.plan.budget import log_sizes
+
+# dvgMachine::MAX_LINES vec2d::Line (16 B) x 2 (decode + video) + PackedLine
+# (8 B) GO list + StripRasterizer next/active + 36 strip heads, start()
+_MAX_LINES = 1024
+
+
+def _write(ctx, name, data, description):
+    return write_bytes(ctx, f"{name}.h", name, data, description, __file__)
+
+
+def _convert(ctx: Context) -> None:
+    def rom(name, sha1):
+        return ctx.rom(name, sha1)
+
+    alpha = (rom("136025.216", "bbd75e01c45220e1c87bd1e013cf2c2fb9f376b2") +
+             rom("136025.217", "27823c1b546c073b37ff11a8cb25312ea71673c2") +
+             rom("136025.215", "c3cdc76054be2f904b1fb6f28c3c027eba5c3a70") +
+             rom("136025.318", "05ad81e7a1982b9d8fddb48502546f48b5dc21b7"))
+    vrom = rom("136025.210", "d9adad80c266d36429444f483cac4ebcf1fec7b8")
+    avgrom = (rom("136025.106", "cc1adca32f70af30c4590e9fd6b056b051ccdb38") +
+              rom("136025.107", "be4055727a2d4536e37ec20150deffdb5af5b01f"))
+    gamma = rom("136025.108", "7744368a1d520f986d1c4246113a7e24fcdd6d04")
+    assert (len(alpha), len(vrom), len(avgrom), len(gamma)) == (0x10000, 0x2000, 0x8000, 0x4000)
+
+    sizes = {
+        "alpha": _write(ctx, "mhavoc_rom", alpha, "Alpha M6502: 8000-ffff at 0, ROM pages 0-3 (2000-3fff) at 0x8000."),
+        "vrom": _write(ctx, "mhavoc_vrom", vrom, "Vector ROM, CPU 5000-6fff (AVG 1000-1fff = first 4 KiB)."),
+        "avgrom": _write(ctx, "mhavoc_avgrom", avgrom, "AVG ROM pages 0-3, AVG 2000-3fff."),
+        "gamma": _write(ctx, "mhavoc_gamma", gamma, "Gamma M6502 8000-bfff, mirrored at c000-ffff."),
+    }
+    sizes["lines"] = _MAX_LINES * (16 + 16 + 8 + 2 * 2) + 36 * 2 + 8
+    log_sizes(ctx, sizes)
+
+
+JOB = Job(name="mhavoc", convert=_convert, machine="mhavoc", zips=("mhavoc.zip",))

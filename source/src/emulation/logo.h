@@ -5,7 +5,7 @@
 #include "asset.h"
 
 // Menu logo, 224x96 pixels with a 16 color palette, LZMA packed in flash.
-// Packed layout (romconv/internal/logoconv.py):
+// Packed layout (romconv/romconv/gfx/logo.py):
 //   16 x uint16_t  palette, byte swapped RGB565 as the display expects
 //   10752 bytes    pixels, 2 per byte, high nibble first
 // Lives in flash, decodes on demand into a menu cache slot that keeps this
