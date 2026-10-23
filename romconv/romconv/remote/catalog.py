@@ -36,6 +36,7 @@ BASES = MappingProxyType({
     "baluba": ("starforce",),
     "bnj": ("burgertime",),
     "dkongjr": ("dkong",),
+    "mrgoemon": ("gberet",),
     "sxevious": ("xevious",),
     "szaxxon": ("zaxxon",),
 })

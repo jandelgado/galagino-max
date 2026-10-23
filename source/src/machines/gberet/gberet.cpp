@@ -11,7 +11,7 @@
 #include "../../emulation/input.h"
 
 #include "../../catalog.h"
-#ifdef GAME_GBERET
+#if defined(GAME_GBERET) || defined(GAME_MRGOEMON)
 
 #include "gberet_rom.h"
 #include "gberet_tilemap.h"
@@ -29,13 +29,23 @@ static const uint8_t SPR_HI    = 0x04;  // attr b6, code bit 8
 static const int STEPS_PER_TICK = INST_PER_FRAME * 4 / TICKS_PER_FRAME;
 
 gberet::gberet()
-  : gberet_rom(gberet_rom_blob),
-    gberet_tilemap(gberet_tilemap_blob),
-    gberet_spritemap(gberet_spritemap_blob) {
+  : gberet(Assets{gberet_rom_blob, gberet_tilemap_blob, gberet_spritemap_blob,
+                  gberet_tile_cmap, gberet_tile_transp, gberet_spr_cmap, gberet_spr_transp,
+                  GBERET_DSW2}) { }
+
+gberet::gberet(const Assets &a)
+  : rom_asset(a.rom),
+    tilemap_asset(a.tilemap),
+    spritemap_asset(a.spritemap),
+    tile_cmap(a.tile_cmap),
+    tile_transp(a.tile_transp),
+    spr_cmap(a.spr_cmap),
+    spr_transp(a.spr_transp),
+    dsw2(a.dsw2) {
   // order matters: ROM + tiles share one Arena block, sprites take the other
-  rom_ptr = gberet_rom.data();
-  tiles = gberet_tilemap.data();
-  sprites = gberet_spritemap.data();
+  rom_ptr = rom_asset.data();
+  tiles = tilemap_asset.data();
+  sprites = spritemap_asset.data();
 }
 
 void gberet::reset() {
@@ -58,7 +68,7 @@ unsigned char gberet::rdZ80(unsigned short Addr) {
   if (Addr < 0xe040) { return memory[GB_MEM_SCROLL + (Addr - 0xe000)]; }
   switch (Addr) {
     case 0xf200:
-      return GBERET_DSW2 | (input->demoSoundsOff() ? GBERET_DSW2_DEMO_SOUND_OFF : 0);
+      return dsw2 | (input->demoSoundsOff() ? GBERET_DSW2_DEMO_SOUND_OFF : 0);
     case 0xf400: return GBERET_DSW3;
     case 0xf600: return GBERET_DSW1;
     case 0xf602: {  // P1, KONAMI8_MONO_B12_UNK
@@ -182,8 +192,8 @@ void gberet::render_line(unsigned short *dst, int line) {
     const int idx = tx >> 3;
     const uint8_t attr = cram[idx];
     const uint32_t bits = tiles[vram[idx] | ((attr & 0x40) << 2)][(attr & 0x20) ? 7 - ty : ty];
-    const unsigned short *cmap = gberet_tile_cmap[attr & 0x0f];
-    const uint16_t transp = gberet_tile_transp[attr & 0x0f];
+    const unsigned short *cmap = tile_cmap[attr & 0x0f];
+    const uint16_t transp = tile_transp[attr & 0x0f];
     const bool over = !(attr & 0x80);
     for (int k = 0; k < n; k++) {
       const int px = (attr & 0x10) ? 7 - (px0 + k) : px0 + k;
@@ -201,9 +211,9 @@ void gberet::render_line(unsigned short *dst, int line) {
     if (r < 0 || r > 15) { continue; }
     if (s.flags & SPR_FLIPY) { r = 15 - r; }
     const uint32_t *bits = sprites[s.code | ((s.flags & SPR_HI) << 6)][r];
-    const uint16_t transp = gberet_spr_transp[s.color];
+    const uint16_t transp = spr_transp[s.color];
     if (!(bits[0] | bits[1]) && (transp & 1)) { continue; }
-    const unsigned short *cmap = gberet_spr_cmap[s.color];
+    const unsigned short *cmap = spr_cmap[s.color];
     const bool flipx = s.flags & SPR_FLIPX;
     for (int c = 0; c < 16; c++) {
       const int px = s.x + c;
@@ -251,4 +261,4 @@ void gberet::gameLeds(CRGB *leds) {
 }
 #endif
 
-#endif // GAME_GBERET
+#endif // GAME_GBERET || GAME_MRGOEMON

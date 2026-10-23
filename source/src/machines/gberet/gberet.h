@@ -3,9 +3,10 @@
 
 #include "../machineBase.h"
 #include "../../emulation/sn76489.h"
+#include "../../emulation/any_asset.h"
 
 #include "../../catalog.h"
-#ifdef GAME_GBERET
+#if defined(GAME_GBERET) || defined(GAME_MRGOEMON)
 
 #include "gberet_logo.h"
 #include "gberet_dipswitches.h"
@@ -23,11 +24,27 @@ static_assert(GB_MEM_END <= RAMSIZE, "gberet RAM does not fit");
 
 class gberet : public machineBase
 {
+public:
+  // Assets of one game on this board (gberet, mrgoemon)
+  struct Assets {
+    AssetRef<unsigned char> rom;
+    AssetRef<uint32_t[8]> tilemap;
+    AssetRef<uint32_t[16][2]> spritemap;
+    const unsigned short (*tile_cmap)[16];
+    const unsigned short *tile_transp;
+    const unsigned short (*spr_cmap)[16];
+    const unsigned short *spr_transp;
+    uint8_t dsw2;
+  };
+
 protected:
-  // ROM assets, unpacked into the Arena on first data()
-  Asset<unsigned char, COMPRESSED> gberet_rom;
-  Asset<uint32_t[8], COMPRESSED> gberet_tilemap;
-  Asset<uint32_t[16][2], COMPRESSED> gberet_spritemap;
+  explicit gberet(const Assets &a);
+
+private:
+  AnyAsset<unsigned char> rom_asset;
+  AnyAsset<uint32_t[8]> tilemap_asset;
+  AnyAsset<uint32_t[16][2]> spritemap_asset;
+
 public:
   gberet();
 
@@ -71,18 +88,23 @@ private:
   bool irq_line = false;    // held until e044 clears b1/b2
   uint8_t sprite_bank = 0;  // e043
   uint8_t sn_latch = 0;     // f200
-#ifdef LED_PIN
-  uint8_t led_frame = 0;
-#endif
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
-  const unsigned char *rom_ptr = nullptr;
   const uint32_t (*tiles)[8] = nullptr;
   const uint32_t (*sprites)[16][2] = nullptr;
 
 protected:
+#ifdef LED_PIN
+  uint8_t led_frame = 0;  // gameLeds() blink counter
+#endif
+  const unsigned char *rom_ptr = nullptr;
+  const unsigned short (*tile_cmap)[16];
+  const unsigned short *tile_transp;
+  const unsigned short (*spr_cmap)[16];
+  const unsigned short *spr_transp;
+  uint8_t dsw2;
   Sn76489 sn[1] = {Sn76489(Sn76489::INC_1536KHZ, Sn76489::HOLD_SHORT_NOTES)};
 };
 
-#endif // GAME_GBERET
+#endif // GAME_GBERET || GAME_MRGOEMON
 #endif // GBERET_H
