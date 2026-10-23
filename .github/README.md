@@ -248,11 +248,12 @@ evicted first. Menu entries not cached yet show a NET marker.
 | Mega Zone (megazone.zip)      | ![Mega Zone marquee](/logos/megazone.png) | ![Mega Zone screenshot](/images/megazone.png) | FIRE=fire |
 | Choplifter (choplift.zip)     | ![Choplifter marquee](/logos/choplift.png) | ![Choplifter screenshot](/images/choplift.png) | Set chopliftu (unprotected), Sega System 2. FIRE=shoot, START=turn (controller B=turn) |
 | Toki no Senshi (Chrono Soldier) (tokisens.zip)      | ![Tokisens marquee](/logos/tokisens.png) | ![Tokisens screenshot](/images/tokisens.png) | FIRE=fire |
-| Tapper (tapper.zip)           | ![Tapper marquee](/logos/tapper.png) | ![Tapper screenshot](/images/Tapper.png) | Set "Tapper (Budweiser, set 1)", files tappg0.bin etc. Also needs midssio.zip. FIRE=fire |
+| Tapper (tapper.zip)           | ![Tapper marquee](/logos/tapper.png) | ![Tapper screenshot](/images/tapper.png) | Set "Tapper (Budweiser, set 1)", files tappg0.bin etc. Also needs midssio.zip. FIRE=fire |
 | Mario Bros. (mario.zip)       | ![Mario Bros. marquee](/logos/mario.png) | ![Mario Bros. screenshot](/images/mario.png) | 256 columns shown in a 240 column window that pans after player 1 (`MARIO_SCROLL`, alternatives `MARIO_SCALE`, `MARIO_CROP` in config.h). FIRE or UP=jump |
 | Mr. Do's Castle (docastle.zip) | ![Mr. Do's Castle marquee](/logos/docastle.png) | ![Mr. Do's Castle screenshot](/images/docastle.png) | FIRE=hammer |
 | Super Zaxxon (szaxxon.zip)    | ![Super Zaxxon marquee](/logos/szaxxon.png) | ![Super Zaxxon screenshot](/images/szaxxon.png) | Same audio as Zaxxon, needs zaxxon-audio.zip. FIRE=fire |
 | Contra (contra.zip)           | ![Contra marquee](/logos/contra.png) | ![Contra screenshot](/images/contra.png) | Music and effects from the C64 port: needs Gryzor.sid (HVSC MUSICIANS/B/Brooke_Jason) in romszip/. FIRE=fire, START=jump (controller B=jump) |
 | Mr. Goemon (mrgoemon.zip)     | ![Mr. Goemon marquee](/logos/mrgoemon.png) | ![Mr. Goemon screenshot](/images/mrgoemon.png) | Needs gberet.zip. FIRE=pipe, START=throw (controller B/L1/R1=throw) |
+| Jail Break (jailbrek.zip)     | ![Jail Break marquee](/logos/jailbrek.png) | ![Jail Break screenshot](/images/jailbrek.png) | FIRE=shoot, START=weapon select (controller B/L1/R1=weapon select), 8 columns cropped left and right |
 
 ### ...
