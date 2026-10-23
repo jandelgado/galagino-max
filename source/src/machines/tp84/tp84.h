@@ -51,7 +51,7 @@ protected:
 
 public:
   tp84();
-  signed char machineType() override { return MCH_TP84; }
+  uint8_t machineType() override { return MCH_TP84; }
   void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   void reset() override;
   void start() override;

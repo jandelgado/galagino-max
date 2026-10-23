@@ -64,7 +64,7 @@ public:
     void start() override;
     void reset() override;
 
-    signed char machineType() override { return MCH_GYRUSS; }
+    uint8_t machineType() override { return MCH_GYRUSS; }
     // 5 AY + i8039 drum DAC from the ring run_frame fills (on/off and
     // volume: GYRUSS_ENABLE_DRUMS, GYRUSS_DRUMS_VOLUME), DC tracked out
     // (~40 Hz high-pass against the 8039 idle offset). Never step the 8039

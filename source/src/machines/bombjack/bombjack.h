@@ -30,7 +30,7 @@ public:
   bombjack();
 
   void reset() override;
-  signed char machineType() override { return MCH_BOMBJACK; }
+  uint8_t machineType() override { return MCH_BOMBJACK; }
   void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   signed char useVideoHalfRate() override { return 1; }
 

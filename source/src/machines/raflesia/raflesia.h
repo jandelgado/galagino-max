@@ -10,7 +10,7 @@ class raflesia : public system1 {
 public:
   raflesia();
 
-  signed char machineType() override { return MCH_RAFLESIA; }
+  uint8_t machineType() override { return MCH_RAFLESIA; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

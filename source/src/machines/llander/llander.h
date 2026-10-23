@@ -21,7 +21,7 @@ protected:
   Asset<unsigned char, COMPRESSED> llander_vrom;
 public:
   llander();
-  signed char machineType() override { return MCH_LLANDER; }
+  uint8_t machineType() override { return MCH_LLANDER; }
   void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
   void reset() override;
   static const Logo &logo() { return llander_logo; }

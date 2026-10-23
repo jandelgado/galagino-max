@@ -10,7 +10,7 @@ class regulus : public system1 {
 public:
   regulus();
 
-  signed char machineType() override { return MCH_REGULUS; }
+  uint8_t machineType() override { return MCH_REGULUS; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

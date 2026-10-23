@@ -10,7 +10,7 @@ class mrviking : public system1 {
 public:
   mrviking();
 
-  signed char machineType() override { return MCH_MRVIKING; }
+  uint8_t machineType() override { return MCH_MRVIKING; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

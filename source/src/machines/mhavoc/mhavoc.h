@@ -28,7 +28,7 @@ protected:
   Asset<unsigned char, COMPRESSED> mhavoc_vrom;
 public:
   mhavoc();
-  signed char machineType() override { return MCH_MHAVOC; }
+  uint8_t machineType() override { return MCH_MHAVOC; }
   void reset() override;
   void run_frame() override;
   // MAME mixes each POKEY at 0.25, Black Widow's two at 0.5: half their sum

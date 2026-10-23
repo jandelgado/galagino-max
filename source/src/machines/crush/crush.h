@@ -16,7 +16,7 @@ protected:
 public:
   crush();
 
-  signed char machineType() override { return MCH_CRUSH; }
+  uint8_t machineType() override { return MCH_CRUSH; }
   void start(void) override;
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;

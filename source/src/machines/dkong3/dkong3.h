@@ -64,7 +64,7 @@ public:
     void start() override;
     void renderAudio(int16_t *out, int n) override;
 
-    signed char machineType() override { return MCH_DKONG3; }
+    uint8_t machineType() override { return MCH_DKONG3; }
     unsigned char rdZ80(unsigned short Addr) override;
     void wrZ80(unsigned short Addr, unsigned char Value) override;
     unsigned char opZ80(unsigned short Addr) override;

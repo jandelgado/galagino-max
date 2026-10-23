@@ -10,7 +10,7 @@ class fourdwarrio : public system1 {
 public:
   fourdwarrio();
 
-  signed char machineType() override { return MCH_FOURDWARRIO; }
+  uint8_t machineType() override { return MCH_FOURDWARRIO; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

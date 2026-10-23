@@ -29,7 +29,7 @@ private:
 
 public:
   robotron();
-  signed char machineType() override { return MCH_ROBOTRON; }
+  uint8_t machineType() override { return MCH_ROBOTRON; }
   static const Logo &logo() { return robotron_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

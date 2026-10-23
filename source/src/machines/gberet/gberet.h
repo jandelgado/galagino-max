@@ -48,7 +48,7 @@ private:
 public:
   gberet();
 
-  signed char machineType() override { return MCH_GBERET; }
+  uint8_t machineType() override { return MCH_GBERET; }
   void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   // Native ROT0 240x224, shown 1:1 on the portrait panel.
   const int renderWidth()  override { return gberet_hw::OUT_WIDTH; }

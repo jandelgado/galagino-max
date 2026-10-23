@@ -37,7 +37,7 @@ protected:
 public:
   jailbrek();
 
-  signed char machineType() override { return MCH_JAILBREK; }
+  uint8_t machineType() override { return MCH_JAILBREK; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

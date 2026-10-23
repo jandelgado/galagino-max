@@ -10,7 +10,7 @@ class wboy : public system1 {
 public:
   wboy();
 
-  signed char machineType() override { return MCH_WBOY; }
+  uint8_t machineType() override { return MCH_WBOY; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

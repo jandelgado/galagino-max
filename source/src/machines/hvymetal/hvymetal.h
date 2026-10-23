@@ -11,7 +11,7 @@ public:
   hvymetal();
 
   void reset() override;
-  signed char machineType() override { return MCH_HVYMETAL; }
+  uint8_t machineType() override { return MCH_HVYMETAL; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

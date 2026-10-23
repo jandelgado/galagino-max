@@ -58,7 +58,7 @@ public:
 
   void reset() override;
   void start(void) override;
-  signed char machineType() override { return MCH_PBACTION; }
+  uint8_t machineType() override { return MCH_PBACTION; }
   void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   signed char useVideoHalfRate() override { return 1; }
 

@@ -44,7 +44,7 @@ protected:
 public:
   turtles();
 
-  signed char machineType() override { return MCH_TURTLES; }
+  uint8_t machineType() override { return MCH_TURTLES; }
   void start() override;
 
   unsigned char opZ80(unsigned short Addr) override;

@@ -38,7 +38,7 @@ protected:
 
 public:
   junofrst();
-  signed char machineType() override { return MCH_JUNOFRST; }
+  uint8_t machineType() override { return MCH_JUNOFRST; }
   void renderAudio(int16_t *out, int n) override;
   void reset() override;
   void start() override;

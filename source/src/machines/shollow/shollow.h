@@ -10,7 +10,7 @@ class shollow : public tron {
 public:
   shollow();
 
-  signed char machineType() override { return MCH_SHOLLOW; }
+  uint8_t machineType() override { return MCH_SHOLLOW; }
   static const Logo &logo(void);
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

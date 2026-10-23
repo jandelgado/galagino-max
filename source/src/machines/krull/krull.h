@@ -39,7 +39,7 @@ protected:
 
 public:
   krull();
-  signed char machineType() override { return MCH_KRULL; }
+  uint8_t machineType() override { return MCH_KRULL; }
   void reset() override;
   void run_frame(void) override;
   void prepare_frame(void) override;

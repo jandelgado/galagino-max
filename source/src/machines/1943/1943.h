@@ -35,7 +35,7 @@ protected:
 
 public:
   _1943();
-  signed char machineType() override { return MCH_1943; }
+  uint8_t machineType() override { return MCH_1943; }
   void renderAudio(int16_t *out, int n) override;
   void reset() override;
   unsigned char opZ80(unsigned short Addr) override;

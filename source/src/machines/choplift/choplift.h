@@ -11,7 +11,7 @@ public:
   choplift();
 
   void reset() override;
-  signed char machineType() override { return MCH_CHOPLIFT; }
+  uint8_t machineType() override { return MCH_CHOPLIFT; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

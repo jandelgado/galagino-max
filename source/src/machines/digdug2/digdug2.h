@@ -70,7 +70,7 @@ protected:
 public:
     digdug2();
 
-    signed char machineType() override { return MCH_DIGDUG2; }
+    uint8_t machineType() override { return MCH_DIGDUG2; }
     signed char useVideoHalfRate() override { return 1; }
 
     void reset() override;

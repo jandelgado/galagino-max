@@ -29,7 +29,7 @@ private:
 
 public:
   defender();
-  signed char machineType() override { return MCH_DEFENDER; }
+  uint8_t machineType() override { return MCH_DEFENDER; }
   static const Logo &logo() { return defender_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

@@ -18,7 +18,7 @@ protected:
 public:
 	dkongjr();
 
-	signed char machineType() override { return MCH_DKONGJR; }
+	uint8_t machineType() override { return MCH_DKONGJR; }
 	void reset() override;
 	void start(void) override;
 	unsigned char rdZ80(unsigned short Addr) override;

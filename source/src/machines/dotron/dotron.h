@@ -37,7 +37,7 @@ protected:
 public:
   dotron();
 
-  signed char machineType() override { return MCH_DOTRON; }
+  uint8_t machineType() override { return MCH_DOTRON; }
   const int renderWidth() override { return OUT_WIDTH; }
   const int renderBuffer() override { return OUT_WIDTH * 2 * 8; }
 

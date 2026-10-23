@@ -37,7 +37,7 @@ protected:
 public:
   tapper();
 
-  signed char machineType() override { return MCH_TAPPER; }
+  uint8_t machineType() override { return MCH_TAPPER; }
   const int renderWidth() override { return OUT_WIDTH; }
   const int renderBuffer() override { return OUT_WIDTH * 2 * 8; }
 

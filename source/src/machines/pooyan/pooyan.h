@@ -51,7 +51,7 @@ protected:
 public:
 	pooyan();
 
-	signed char machineType() override { return MCH_POOYAN; }
+	uint8_t machineType() override { return MCH_POOYAN; }
 	void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
 	void start(void) override;
 

@@ -46,7 +46,7 @@ public:
 
   void reset() override;
   void start(void) override;
-  signed char machineType() override { return MCH_VANVAN; }
+  uint8_t machineType() override { return MCH_VANVAN; }
   void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   signed char videoFlipY() override { return 1; }
 

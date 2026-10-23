@@ -57,7 +57,7 @@ public:
   static const int WIDTH = 240;
 
   elevator();
-  signed char machineType() override { return MCH_ELEVATOR; }
+  uint8_t machineType() override { return MCH_ELEVATOR; }
   const int renderWidth() override { return WIDTH; }
   const int renderBuffer() override { return WIDTH * 2 * 8; }
   void renderAudio(int16_t *out, int n) override;

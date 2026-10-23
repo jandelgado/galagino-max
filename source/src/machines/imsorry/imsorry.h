@@ -10,7 +10,7 @@ class imsorry : public system1 {
 public:
   imsorry();
 
-  signed char machineType() override { return MCH_IMSORRY; }
+  uint8_t machineType() override { return MCH_IMSORRY; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

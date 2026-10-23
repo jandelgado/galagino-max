@@ -29,7 +29,7 @@ private:
 public:
   sinistar();
   void reset() override;
-  signed char machineType() override { return MCH_SINISTAR; }
+  uint8_t machineType() override { return MCH_SINISTAR; }
   static const Logo &logo() { return sinistar_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

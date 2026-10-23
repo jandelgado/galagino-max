@@ -25,7 +25,7 @@ protected:
   Asset<unsigned char, COMPRESSED> ccastles_proms;
 public:
   ccastles();
-  signed char machineType() override { return MCH_CCASTLES; }
+  uint8_t machineType() override { return MCH_CCASTLES; }
   void renderAudio(int16_t *out, int n) override {
     Pokey::renderBank(pokey, soundregs, out, n);
     audioClampAll(out, n, AUDIO_MAX);

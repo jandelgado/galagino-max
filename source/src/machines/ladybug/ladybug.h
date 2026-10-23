@@ -49,7 +49,7 @@ public:
 
   void reset() override;
   void start(void) override;
-  signed char machineType() override { return MCH_LADYBUG; }
+  uint8_t machineType() override { return MCH_LADYBUG; }
   void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   signed char videoFlipX() override { return 1; }
   signed char videoFlipY() override { return 1; }

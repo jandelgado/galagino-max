@@ -215,7 +215,7 @@ public:
       game_started = 0;
     }
 
-    virtual signed char machineType() { return MCH_MENU; } 
+    virtual uint8_t machineType() { return MCH_MENU; } 
     virtual signed char videoFlipY() { return 0; } 
     virtual signed char videoFlipX() { return 0; }
     virtual signed char useVideoHalfRate() { return 0; } 
@@ -294,7 +294,7 @@ struct machineInfo {
 #ifdef LED_PIN
   void (*menuLeds)(CRGB *leds);
 #endif
-  signed char type;
+  uint8_t type;
   // reserved Arena bytes per block (romconv plan), nullptr: none
   const ArenaPlan *arena;
 #ifdef ASSETS_REMOTE

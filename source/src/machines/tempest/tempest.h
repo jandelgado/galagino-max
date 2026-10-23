@@ -29,7 +29,7 @@ protected:
   Asset<unsigned char, COMPRESSED> tempest_vrom;
 public:
   tempest();
-  signed char machineType() override { return MCH_TEMPEST; }
+  uint8_t machineType() override { return MCH_TEMPEST; }
   void renderAudio(int16_t *out, int n) override {
     Pokey::renderBank(pokey, soundregs, out, n);
     audioClampAll(out, n, AUDIO_MAX);

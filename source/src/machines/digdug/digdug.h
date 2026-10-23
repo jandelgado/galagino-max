@@ -43,7 +43,7 @@ public:
 
 	void reset() override;
 	void start(void) override;
-	signed char machineType() override { return MCH_DIGDUG; }
+	uint8_t machineType() override { return MCH_DIGDUG; }
 
 	unsigned char rdZ80(unsigned short Addr) override;
 	void wrZ80(unsigned short Addr, unsigned char Value) override;

@@ -22,7 +22,7 @@ protected:
 
 public:
   pleiads();
-  signed char machineType() override { return MCH_PLEIADS; }
+  uint8_t machineType() override { return MCH_PLEIADS; }
   void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
   void reset() override;
   void start() override;

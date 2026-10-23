@@ -9,7 +9,7 @@ class sxevious : public xevious {
 public:
   sxevious();
 
-  signed char machineType() override { return MCH_SXEVIOUS; }
+  uint8_t machineType() override { return MCH_SXEVIOUS; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

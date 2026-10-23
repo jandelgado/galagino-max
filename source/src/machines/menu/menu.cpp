@@ -515,7 +515,7 @@ void Menu::gameLeds(CRGB *leds) {
 }
 #endif
 
-const char *mchName(signed char machineType) {
+const char *mchName(uint8_t machineType) {
 
   switch (machineType) {
     case MCH_MENU:          return "Menu";

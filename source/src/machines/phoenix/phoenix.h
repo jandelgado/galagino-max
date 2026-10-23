@@ -50,7 +50,7 @@ public:
   void reset() override;
   void start(void) override;
 
-  signed char machineType()      override { return MCH_PHOENIX; }
+  uint8_t machineType()      override { return MCH_PHOENIX; }
   // silent until the game starts
   void renderAudio(int16_t *out, int n) override {
     if (!game_started) {

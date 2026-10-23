@@ -54,7 +54,7 @@ public:
       : system1(Roms{F_MAIN, F_SOUND, F_TILES, F_TILE_MAP, F_SPRITES, F_LOOKUP, nullptr, F_BANKS, fakePalette},
                 Config{system1_video::VISAREA_FULL, true, board, ROT0,
                        {8, 8, system1_video::NO_PLAYER, 0, 8}, bank}) {}
-  signed char machineType() override { return MCH_MENU; }
+  uint8_t machineType() override { return MCH_MENU; }
 
 protected:
   fake(Board board, Vram vram)

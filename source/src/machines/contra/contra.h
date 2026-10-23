@@ -47,7 +47,7 @@ protected:
 
 public:
   contra();
-  signed char machineType() override { return MCH_CONTRA; }
+  uint8_t machineType() override { return MCH_CONTRA; }
   void reset() override;
   void renderAudio(int16_t *out, int n) override;
 

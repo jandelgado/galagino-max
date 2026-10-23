@@ -55,7 +55,7 @@ public:
 
     spaceinvaders();
 
-    signed char machineType() override { return MCH_SPACEINVADERS; }
+    uint8_t machineType() override { return MCH_SPACEINVADERS; }
     void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
     void start(void) override;
     unsigned char rdZ80(unsigned short Addr) override;

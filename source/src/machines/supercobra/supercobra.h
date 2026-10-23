@@ -55,7 +55,7 @@ public:
   // RAM pointers need `memory`, which init() sets after the ctor
   void init(Input *input, unsigned short *framebuffer, sprite_S *spritebuffer, unsigned char *memorybuffer) override;
 
-  signed char machineType() override { return MCH_SUPERCOBRA; }
+  uint8_t machineType() override { return MCH_SUPERCOBRA; }
 
   void start(void) override;
   unsigned char opZ80(unsigned short Addr) override;

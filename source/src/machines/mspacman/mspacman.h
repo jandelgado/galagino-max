@@ -28,7 +28,7 @@ protected:
 public:
   mspacman();
 
-  signed char machineType() override { return MCH_MSPACMAN; }
+  uint8_t machineType() override { return MCH_MSPACMAN; }
   void reset() override;
   void start(void) override;
   unsigned char rdZ80(unsigned short Addr) override;

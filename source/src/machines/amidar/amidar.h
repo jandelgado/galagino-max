@@ -28,7 +28,7 @@ protected:
 public:
   amidar();
 
-  signed char machineType() override { return MCH_AMIDAR; }
+  uint8_t machineType() override { return MCH_AMIDAR; }
 
   void start(void) override;
   unsigned char opZ80(unsigned short Addr) override;

@@ -83,7 +83,7 @@ protected:
 public:
   xevious();
 
-  signed char machineType() override { return MCH_XEVIOUS; }
+  uint8_t machineType() override { return MCH_XEVIOUS; }
 
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
