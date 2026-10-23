@@ -34,6 +34,7 @@ protected:
   Asset<unsigned char, COMPRESSED> junofrst_snd;
   Asset<unsigned char, COMPRESSED> junofrst_i8039;
   Asset<unsigned char, COMPRESSED> junofrst_blit;
+  Asset<unsigned short, COMPRESSED> junofrst_pens;   // RGB565 per palette byte
 
 public:
   junofrst();
@@ -101,6 +102,7 @@ private:
 
   const uint8_t *main_rom = nullptr, *bank_rom = nullptr, *sound_rom = nullptr;
   const uint8_t *i8039_rom = nullptr, *blit_rom = nullptr;
+  const uint16_t *pen_rgb = nullptr;
 
   static const uint8_t AY_INC = 9;   // 1.789772 MHz / 8 / 24 kHz
   static const uint8_t AY_GAIN = 6;

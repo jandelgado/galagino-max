@@ -7,6 +7,7 @@
 #include "junofrst_snd.h"
 #include "junofrst_i8039.h"
 #include "junofrst_blit.h"
+#include "junofrst_pens.h"
 
 static constexpr uint16_t MAIN_ROM_BASE = 0xa000;
 
@@ -41,13 +42,14 @@ static constexpr uint8_t I8039_INT_ENABLE = 0x80;   // P2 b7 = 0 clears INT
 junofrst::junofrst()
   : junofrst_rom(junofrst_rom_blob), junofrst_bank(junofrst_bank_blob),
     junofrst_snd(junofrst_snd_blob), junofrst_i8039(junofrst_i8039_blob),
-    junofrst_blit(junofrst_blit_blob) {
+    junofrst_blit(junofrst_blit_blob), junofrst_pens(junofrst_pens_blob) {
   // m6809_reset() reads the reset vector through main_rom
   main_rom = junofrst_rom.data();
   bank_rom = junofrst_bank.data();
   sound_rom = junofrst_snd.data();
   i8039_rom = junofrst_i8039.data();
   blit_rom = junofrst_blit.data();
+  pen_rgb = junofrst_pens.data();
 }
 
 void junofrst::reset() {
@@ -339,21 +341,10 @@ void junofrst::renderAudio(int16_t *out, int n) {
 
 // ---- Video ----
 
-// palette byte BBGGGRRR to RGB565, byte swapped for SPI (tutankhm)
-static uint16_t penColor(uint8_t val) {
-  static const uint8_t pal3bit[8] = {0x00, 0x24, 0x49, 0x6D, 0x92, 0xB6, 0xDB, 0xFF};
-  static const uint8_t pal2bit[4] = {0x00, 0x55, 0xAA, 0xFF};
-  const uint16_t r = pal3bit[val & 7] >> 3;
-  const uint16_t g = pal3bit[(val >> 3) & 7] >> 2;
-  const uint16_t b = pal2bit[(val >> 6) & 3] >> 3;
-  const uint16_t rgb = (r << 11) | (g << 5) | b;
-  return (uint16_t)((rgb >> 8) | (rgb << 8));
-}
-
 void junofrst::prepare_frame(void) {
   vblank.read(video);
   for (int i = 0; i < 16; i++) {
-    pens[i] = penColor(video.palette[i]);
+    pens[i] = pen_rgb[video.palette[i]];
   }
 }
 

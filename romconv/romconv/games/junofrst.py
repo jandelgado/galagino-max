@@ -3,11 +3,30 @@
 # Main KONAMI-1: fixed ROM a000-ffff, 12 banks of 4 KB at 9000-9fff (code
 # and data, encrypted like the fixed ROM), blitter ROM read only by the
 # blitter (nibble addressed). Sound: Z80 ROM + i8039 DAC program.
+# Pens: RGB565 (byte swapped) of every palette RAM byte BBGGGRRR, MAME
+# tutankhm_state::raw_to_rgb_func resistor weights.
 from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
 from romconv.emit.write import write_asset
+from romconv.gfx.color import rgb565_swapped
+from romconv.gfx.resnet import combine, resistor_weights
 from romconv.plan.budget import log_sizes
+
+_RGB_MAXIMUM = 224   # MAME: headroom for stars and shells on the galaxian board
+
+
+def _pens() -> list[int]:
+    (rw, gw, bw), _ = resistor_weights(0, _RGB_MAXIMUM, -1.0, [([1000, 470, 220], 470, 0),
+                                                               ([1000, 470, 220], 470, 0),
+                                                               ([470, 220], 470, 0)])
+    pens = []
+    for c in range(256):
+        r = combine(rw, c & 1, (c >> 1) & 1, (c >> 2) & 1)
+        g = combine(gw, (c >> 3) & 1, (c >> 4) & 1, (c >> 5) & 1)
+        b = combine(bw, (c >> 6) & 1, (c >> 7) & 1)
+        pens.append(rgb565_swapped(r, g, b))
+    return pens
 
 
 def _convert(ctx: Context) -> None:
@@ -35,7 +54,13 @@ def _convert(ctx: Context) -> None:
         write_asset(ctx, name + ".h", None,
                     lambda f, name=name, data=data: emit_compressed(f, name, "unsigned char", "",
                                                                     len(data), list(data)))
-    log_sizes(ctx, {name: len(data) for name, data in assets}, 201500)
+    pens = _pens()
+    write_asset(ctx, "junofrst_pens.h", None,
+                lambda f: emit_compressed(f, "junofrst_pens", "unsigned short", "", len(pens), pens))
+
+    sizes = {name: len(data) for name, data in assets}
+    sizes["junofrst_pens"] = 2 * len(pens)
+    log_sizes(ctx, sizes, 201500)
 
 
 JOB = Job(name="junofrst", convert=_convert, machine="junofrst", zips=("junofrst.zip",))
