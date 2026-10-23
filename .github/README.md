@@ -250,5 +250,6 @@ evicted first. Menu entries not cached yet show a NET marker.
 | Toki no Senshi (Chrono Soldier) (tokisens.zip)      | ![Tokisens marquee](/logos/tokisens.png) | ![Tokisens screenshot](/images/tokisens.png) | FIRE=fire |
 | Tapper (tapper.zip)           | ![Tapper marquee](/logos/tapper.png) | ![Tapper screenshot](/images/Tapper.png) | Set "Tapper (Budweiser, set 1)", files tappg0.bin etc. Also needs midssio.zip. FIRE=fire |
 | Mario Bros. (mario.zip)       | ![Mario Bros. marquee](/logos/mario.png) | ![Mario Bros. screenshot](/images/mario.png) | 256 columns shown in a 240 column window that pans after player 1 (`MARIO_SCROLL`, alternatives `MARIO_SCALE`, `MARIO_CROP` in config.h). FIRE or UP=jump |
+| Mr. Do's Castle (docastle.zip) | ![Mr. Do's Castle marquee](/logos/docastle.png) | ![Mr. Do's Castle screenshot](/images/docastle.png) | FIRE=hammer |
 
 ### ...
