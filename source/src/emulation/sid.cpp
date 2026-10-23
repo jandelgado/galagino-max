@@ -26,7 +26,6 @@ static const int32_t FILT_MUL = 58;       // (21.5332031 << 16) / 24000
 static const int32_t REZ_BASE = 78643;    // 1.2 in 16.16
 static const int32_t REZ_STEP = 2621;     // 0.04 in 16.16
 static const int32_t ENV_MAX = 0xffffff;
-static const int32_t ENV_FLOOR = 0x40000; // a real SID never fully silences a voice
 static const uint32_t NOISE_SEED = 0x7fffff;
 
 // output: 3 voices x +-511 x volume 15 = +-23000, x 85 >> 12 = +-480
@@ -195,9 +194,10 @@ void Sid::render(int16_t *out, int n) {
           }
           break;
         case RELEASE:
+          // down to 0: TinySID's floor kept released voices audible
           o.env -= release[v];
-          if (o.env < ENV_FLOOR) {
-            o.env = ENV_FLOOR;
+          if (o.env < 0) {
+            o.env = 0;
           }
           break;
       }
