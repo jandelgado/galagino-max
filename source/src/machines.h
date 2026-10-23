@@ -725,6 +725,12 @@
     #include "machines/sxevious/sxevious_bundle.h"
   #endif
 #endif
+#ifdef GAME_SZAXXON
+  #include "machines/szaxxon/szaxxon.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/szaxxon/szaxxon_bundle.h"
+  #endif
+#endif
 #ifdef GAME_PLEIADS
   #include "machines/pleiads/pleiads.h"
   #ifdef ASSETS_REMOTE
@@ -1375,6 +1381,13 @@ constexpr machineInfo machines[] = {
     sxevious::menuLeds,
 #endif
     MCH_SXEVIOUS, nullptr BUNDLE_REF(sxevious_bundle_ref) },
+#endif
+#ifdef GAME_SZAXXON
+  { createMachine<szaxxon>, szaxxon::logo,
+#ifdef LED_PIN
+    szaxxon::menuLeds,
+#endif
+    MCH_SZAXXON, &szaxxon_arena_plan BUNDLE_REF(szaxxon_bundle_ref) },
 #endif
 #ifdef GAME_PLEIADS
   { createMachine<pleiads>, pleiads::logo,

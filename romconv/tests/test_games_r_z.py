@@ -1,5 +1,7 @@
+import hashlib
 import io
 import wave
+import zipfile
 
 import numpy as np
 import pytest
@@ -7,15 +9,16 @@ import pytest
 from romconv import registry
 from romconv.core.context import Context
 from romconv.core.errors import ConversionError
+from romconv.core.paths import default
 from romconv.games import (roadfighter, rocnrope, scregg, solomon, spacduel, starwars, tempest, thepit, timeplt,
                            tp84, trackfld, tutankhm, vanguard, vulgus, yiear, zaxxon)
 from romconv.emit.write import write_bytes
 from romconv.gfx.color import prom_rgb_332_resnet, rgb565_swapped
-from romconv.hw import btime, snk6502
+from romconv.hw import btime, segacrpt, snk6502
 
 JOBS = (roadfighter.JOB, rocnrope.JOB, scregg.JOB, solomon.JOB, spacduel.JOB, starwars.JOB, tempest.JOB,
         thepit.JOB, timeplt.JOB, tp84.JOB, trackfld.JOB, tutankhm.JOB, vanguard.JOB, vulgus.JOB, yiear.JOB,
-        zaxxon.JOB)
+        *zaxxon.JOBS)
 
 
 def _ctx(job, paths, log):
@@ -24,10 +27,11 @@ def _ctx(job, paths, log):
 
 def test_job_shapes():
     jobs = {j.name: j for j in JOBS}
-    assert len(jobs) == 16
-    assert {n for n, j in jobs.items() if j.plan} == {"scregg", "zaxxon"}
+    assert len(jobs) == 17
+    assert {n for n, j in jobs.items() if j.plan} == {"scregg", "zaxxon", "szaxxon"}
     assert jobs["roadfighter"].zips == ("roadf2.zip",)
     assert jobs["zaxxon"].zips == ("zaxxon.zip", "zaxxon-audio.zip")
+    assert jobs["szaxxon"].zips == ("szaxxon.zip",)
     assert all(j.machine == j.name for j in jobs.values())
 
 
@@ -203,3 +207,15 @@ def test_snk6502_read_sample_resamples_and_rejects_8bit_garbage(tmp_path):
     with zipfile.ZipFile(path) as z:
         out = snk6502.read_sample(z, "a.wav", 6000, "s.zip")
     assert len(out) == 600 and out.dtype == np.int8
+
+
+def test_szaxxon_decrypt_matches_mame():
+    """Data and opcode images equal MAME's 315-5013 output (program and opcodes space, 0000-4fff)."""
+    zip_path = default().romszip / "szaxxon.zip"
+    if not zip_path.is_file():
+        pytest.skip("romszip/szaxxon.zip missing")
+    with zipfile.ZipFile(zip_path) as z:
+        rom = b"".join(z.read(n) for n in ("1804e.u27", "1803e.u28", "1802e.u29"))
+    data, ops = segacrpt.decrypt(rom, segacrpt.TABLE_315_5013)
+    assert hashlib.sha1(data).hexdigest() == "879e5748b05d7241f2b4cbbcd9ff8d7a445ad9db"
+    assert hashlib.sha1(ops).hexdigest() == "4326b37e30f54e59938404e44b2f4a53a35d0a07"

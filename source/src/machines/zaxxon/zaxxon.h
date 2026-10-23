@@ -26,6 +26,18 @@
 //   fff0-fffb irq enable / fg+bg color bank / bg scroll (11-bit) / bg enable
 // ============================================================
 
+// Blobs a zaxxon board set binds (szaxxon passes its own, same types).
+struct ZaxxonAssets {
+  const decltype(zaxxon_bgtiles_blob) &bgtiles;
+  const decltype(zaxxon_chartiles_blob) &chartiles;
+  const decltype(zaxxon_palette_blob) &palette;
+  const decltype(zaxxon_fgcolor_codes_blob) &fgcolor_codes;
+  const decltype(zaxxon_rom_main_blob) &rom_main;
+  const decltype(zaxxon_spritetiles_blob) &spritetiles;
+  const decltype(zaxxon_tilemap_code_blob) &tilemap_code;
+  const decltype(zaxxon_tilemap_color_blob) &tilemap_color;
+};
+
 class zaxxon : public machineBase
 {
 protected:
@@ -55,6 +67,7 @@ public:
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
   unsigned char opZ80(unsigned short Addr) override;
+  unsigned char opPrefixZ80(unsigned short Addr) override { return opZ80(Addr); }
 
   void start(void) override;
   void run_frame(void) override;
@@ -68,6 +81,9 @@ public:
 #endif
 
 protected:
+  // rom_ops: decrypted opcode image, nullptr = opcodes from rom_main
+  zaxxon(const ZaxxonAssets &assets, uint8_t dip_a, const uint8_t *rom_ops);
+
   void blit_tile(short row, char col) override;
   void blit_sprite(short row, unsigned char s) override;
 
@@ -106,6 +122,8 @@ private:
 
   // set in ctor: opZ80/rdZ80 skip Asset::data()'s unpack check
   const uint8_t *rom_main_ptr = nullptr;
+  const uint8_t *rom_ops_ptr = nullptr;
+  const uint8_t dip_a;  // DSW02
   uint8_t *work_ram;
   uint8_t *video_ram;
   uint8_t *sprite_ram;
