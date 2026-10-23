@@ -366,12 +366,26 @@ void junofrst::render_row(short row) {
 }
 
 #ifdef LED_PIN
+// colors of the logo: deep blue edge, light blue, cyan center
+static const CRGB JUNOFRST_LED_DEEP(0x000094), JUNOFRST_LED_BLUE(0x005cd8),
+    JUNOFRST_LED_CYAN(0x00aadd);
+
 void junofrst::menuLeds(CRGB *leds) {
-  defaultMenuLeds(leds);
+  static const CRGB menu_leds[NUM_LEDS] = {
+      JUNOFRST_LED_DEEP, JUNOFRST_LED_BLUE, JUNOFRST_LED_CYAN, JUNOFRST_LED_CYAN,
+      JUNOFRST_LED_CYAN, JUNOFRST_LED_BLUE, JUNOFRST_LED_DEEP};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 
+// cyan while warp is held
 void junofrst::gameLeds(CRGB *leds) {
-  menuLeds(leds);
+  if (!(input->buttons_get() & WARP_KEY)) {
+    menuLeds(leds);
+    return;
+  }
+  for (int i = 0; i < NUM_LEDS; i++) {
+    leds[i] = JUNOFRST_LED_CYAN;
+  }
 }
 #endif
 
