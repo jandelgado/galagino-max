@@ -21,14 +21,16 @@ public:
 
   // Linear address space as the core sees it: address = (16 * seg + off) & addressMask.
   // ram/rom windows are served inline, everything else through read/write.
-  // Code must run from the rom window; rom covers romBase .. addressMask.
+  // Code runs from codeBase up; rom covers codeBase .. addressMask. Data reads are
+  // inline only from romBase up, codeBase .. romBase - 1 goes through read.
   struct Bus {
     void *          context;
     Read8           read;
     Write8          write;        // also gets writes into the rom window
     uint8_t *       ram;          // linear 0 .. ramSize - 1
     uint32_t        ramSize;
-    const uint8_t * rom;          // linear romBase .. addressMask
+    const uint8_t * rom;          // linear codeBase .. addressMask
+    uint32_t        codeBase;
     uint32_t        romBase;
     uint32_t        addressMask;  // 0xfffff for a full 8088, 0xffff on Gottlieb boards
   };

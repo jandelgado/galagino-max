@@ -45,7 +45,7 @@ void qbert::reset() {
   machineBase::reset();
   ram = memory;
   memset(ram, 0xff, 0x1000);   // battery RAM 0000-0fff, MAME NVRAM default all 1
-  const i8086::Bus bus = {this, busRead, busWrite, ram, QBERT_RAM_END, rom, ROM_BASE, 0xffff};
+  const i8086::Bus bus = {this, busRead, busWrite, ram, QBERT_RAM_END, rom, ROM_BASE, ROM_BASE, 0xffff};
   i8086::setBus(bus);
   i8086::reset();
   booted = false;

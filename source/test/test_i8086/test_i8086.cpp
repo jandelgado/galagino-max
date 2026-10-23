@@ -37,7 +37,7 @@ static uint16_t word(uint16_t a) { return (uint16_t)(mem[a] | mem[a + 1] << 8); 
 void setUp(void) {
   memset(mem, 0, sizeof(mem));
   accessCount = 0;
-  const i8086::Bus bus = {nullptr, busRead, busWrite, mem, RAM_SIZE, mem + CODE, CODE, 0xffff};
+  const i8086::Bus bus = {nullptr, busRead, busWrite, mem, RAM_SIZE, mem + CODE, CODE, CODE, 0xffff};
   i8086::setBus(bus);
   i8086::reset();
   mem[0x0008] = NMI_HANDLER & 0xff;   // int 2 vector 0000:8100
@@ -81,6 +81,21 @@ static void test_reset_runs_from_fff0(void) {
   i8086::step();
   TEST_ASSERT_EQUAL_HEX16(0, i8086::CS());
   TEST_ASSERT_EQUAL_HEX16(0x8100, i8086::IP());
+}
+
+static void test_code_window(void) {
+  static uint8_t image[0x10000 - 0x1000];   // code window 0x1000 .. 0xffff
+  const uint8_t code[] = {0xa0, 0x00, 0x38};   // mov al,[3800h]
+  memcpy(image, code, sizeof(code));
+  mem[0x3800] = 0x5a;                          // only the read callback sees it
+  const i8086::Bus bus = {nullptr, busRead, busWrite, mem, 0x1000, image, 0x1000, 0x6000, 0xffff};
+  i8086::setBus(bus);
+  i8086::setCS(0);
+  i8086::setDS(0);
+  i8086::setIP(0x1000);
+  i8086::step();
+  TEST_ASSERT_EQUAL_HEX8(0x5a, i8086::AL());
+  TEST_ASSERT_FALSE(i8086::fault());
 }
 
 static void test_register_operands_skip_bus(void) {
@@ -208,6 +223,7 @@ static void test_unsupported_opcode_faults(void) {
 int main(int argc, char **argv) {
   UNITY_BEGIN();
   RUN_TEST(test_reset_runs_from_fff0);
+  RUN_TEST(test_code_window);
   RUN_TEST(test_register_operands_skip_bus);
   RUN_TEST(test_bus_windows);
   RUN_TEST(test_word_across_ram_end);

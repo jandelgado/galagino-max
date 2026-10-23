@@ -636,7 +636,7 @@ uint8_t i8086::RMEM8(int addr)
     return s_bus.ram[a];
   }
   if (a >= s_bus.romBase) {
-    return s_bus.rom[a - s_bus.romBase];
+    return s_bus.rom[a - s_bus.codeBase];
   }
   return s_bus.read(s_bus.context, a);
 }
@@ -882,13 +882,13 @@ void i8086::step()
     if (rep_override_en)
       --rep_override_en;
 
-    // code runs from the ROM window only
+    // code runs from the code window only
     const uint32_t pc = (16 * regs16[REG_CS] + reg_ip) & s_bus.addressMask;
-    if (pc < s_bus.romBase) {
+    if (pc < s_bus.codeBase) {
       s_fault = true;
       return;
     }
-    uint8_t const * opcode_stream = s_bus.rom + (pc - s_bus.romBase);
+    uint8_t const * opcode_stream = s_bus.rom + (pc - s_bus.codeBase);
 
 
     // quick and dirty processing of simple and common instructions
