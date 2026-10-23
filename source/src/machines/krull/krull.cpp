@@ -41,6 +41,14 @@ krull::krull()
   GottliebSound::Config sc = {};
   sc.rom = krull_sound_rom.data();
   sc.romBase = 0x6000;
+  // command wait loop, 84 % of the 6502's instructions in attract (29 cycles/pass):
+  //   f13b CLI / LDA $8202 / AND #$40 / BNE f146
+  //   f146 SEI / LDA $21 / BNE f153 / LDA #0 / STA $20 / STA $23 / BEQ f13b
+  sc.idlePc = 0xf13b;
+  sc.idleFlag = 0x21;
+  sc.idleZero1 = 0x20;
+  sc.idleZero2 = 0x23;
+  sc.idlePass = 29;
   sc.dacGain = 19;
   sound.attach(sc);
 }
