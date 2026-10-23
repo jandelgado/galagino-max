@@ -34,7 +34,6 @@ static unsigned int keys;
 unsigned int Input::buttons_get(void) { return keys; }
 bool Input::demoSoundsOff(void) { return false; }
 extern "C" void ResetZ80(Z80 *) {}
-void Reset6502(M6502 *) {}
 
 static mhavoc *machine;
 static uint32_t frame;

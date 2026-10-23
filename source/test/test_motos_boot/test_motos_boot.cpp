@@ -23,7 +23,6 @@ void tearDown(void) {}
 static unsigned int keys;
 unsigned int Input::buttons_get(void) { return keys; }
 extern "C" void ResetZ80(Z80 *) {}
-void Reset6502(M6502 *) {}
 
 static Input input;
 static unsigned short frame_buffer[224 * 8];

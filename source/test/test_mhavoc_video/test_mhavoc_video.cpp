@@ -37,7 +37,6 @@ void tearDown(void) {}
 unsigned int Input::buttons_get(void) { return 0; }
 bool Input::demoSoundsOff(void) { return false; }
 extern "C" void ResetZ80(Z80 *) {}
-void Reset6502(M6502 *) {}
 
 static const int W = 240, H = 288, TOP = 40, ROWS = 208;
 static Input input;

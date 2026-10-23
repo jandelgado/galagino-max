@@ -34,7 +34,6 @@ static yiear *machine;
 unsigned int Input::buttons_get(void) { return 0; }
 bool Input::demoSoundsOff(void) { return false; }
 extern "C" void ResetZ80(Z80 *) {}
-void Reset6502(M6502 *) {}
 unsigned char m6809_read(m6809_state *s, uint16_t a) { return machine->m6809_read(s, a); }
 unsigned char m6809_read_opcode(m6809_state *s, uint16_t a) { return machine->m6809_read_opcode(s, a); }
 void m6809_write(m6809_state *s, uint16_t a, uint8_t v) { machine->m6809_write(s, a, v); }

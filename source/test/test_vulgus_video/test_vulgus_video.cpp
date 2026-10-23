@@ -45,7 +45,6 @@ void OutZ80(unsigned short p, unsigned char v) {}
 void PatchZ80(Z80 *) {}
 word LoopZ80(Z80 *) { return INT_NONE; }
 }
-void Reset6502(M6502 *) {}
 
 static uint32_t crc32(const uint8_t *p, size_t n) {
   uint32_t crc = ~0u;

@@ -36,7 +36,6 @@ unsigned int Input::buttons_get(void) {
 bool Input::demoSoundsOff(void) { return false; }
 
 extern "C" void ResetZ80(Z80 *) {}
-void Reset6502(M6502 *) {}
 
 static Input input;
 static unsigned short frame_buffer[224 * 8];

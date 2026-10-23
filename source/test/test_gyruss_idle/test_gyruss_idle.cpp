@@ -33,7 +33,6 @@ static sprite_S sprites[128];
 static unsigned char memory[RAMSIZE];
 unsigned int Input::buttons_get(void) { return 0; }
 bool Input::demoSoundsOff(void) { return false; }
-void Reset6502(M6502 *) {}
 
 // main CPU wait loop entry (gyruss.cpp MAIN_IDLE_PC)
 static const uint16_t IDLE_PC = 0x05F4;

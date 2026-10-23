@@ -49,7 +49,6 @@ void OutZ80(unsigned short, unsigned char) {}
 void PatchZ80(Z80 *) {}
 word LoopZ80(Z80 *) { return INT_NONE; }
 }
-void Reset6502(M6502 *) {}
 
 static void boot(void) {
   if (machine) {

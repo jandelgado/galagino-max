@@ -96,7 +96,6 @@ void OutZ80(unsigned short p, unsigned char v) { machine->outZ80(p, v); }
 void PatchZ80(Z80 *) {}
 word LoopZ80(Z80 *) { return INT_NONE; }
 }
-void Reset6502(M6502 *) {}
 
 static Input input;
 static unsigned short frame_buffer[OUT_WIDTH * 8];

@@ -21,7 +21,6 @@ unsigned int Input::buttons_get(void) { return keys; }
 uint8_t hud_glyph_line(char, uint8_t) { return 0; }
 // machineBase::reset(), never called
 extern "C" void ResetZ80(Z80 *) {}
-void Reset6502(M6502 *) {}
 
 static const FlashAsset<uint8_t, COMPRESSED> blob = { };
 static const Logo logos[COUNT] = { {blob}, {blob}, {blob}, {blob}, {blob},
