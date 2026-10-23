@@ -5,7 +5,7 @@ from romconv.core.job import Job
 from romconv.cpu import m6502, z80
 from romconv.games import (alibaba, anteater, arkanoid, asteroids, atetris, bagman, berzerk, bnj, bombjack,
                            btime, bublbobl, bwidow, bzone, cavenger, cbdash, ccastles, centipede, circusc,
-                           commando, crush, digdug, dkong, dkong3, dkongjr, docastle, elevator, eyes, fantasy,
+                           commando, contra, crush, digdug, dkong, dkong3, dkongjr, docastle, elevator, eyes, fantasy,
                            frogger, galaga, galaxian, game_1942, game_1943, gberet, gng, gorf, gravitar,
                            gyruss, hero, invaders, ladybug, lizwiz, llander, marble, mario, mcr, megazone,
                            mhavoc, mikie, millipede, missile, motorace, mpatrol, mrdo, mrtnt, mspacman,
@@ -42,6 +42,7 @@ ALL: tuple[Job, ...] = (
     vanvan.JOB,
     bombjack.JOB,
     commando.JOB,
+    contra.JOB,
     dkong3.JOB,
     dkongjr.JOB,
     gng.JOB,

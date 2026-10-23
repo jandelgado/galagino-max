@@ -620,6 +620,7 @@ const char *mchName(signed char machineType) {
     case MCH_HVYMETAL:     return "Heavy Metal";
     case MCH_SXEVIOUS:     return "Super Xevious";
     case MCH_SZAXXON:      return "Super Zaxxon";
+    case MCH_CONTRA:       return "Contra";
     case MCH_PLEIADS:      return "Pleiads";
     case MCH_GARDIA:       return "Gardia";
     case MCH_CAVENGER:     return "Cosmic Avenger";

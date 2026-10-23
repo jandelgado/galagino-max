@@ -731,6 +731,12 @@
     #include "machines/szaxxon/szaxxon_bundle.h"
   #endif
 #endif
+#ifdef GAME_CONTRA
+  #include "machines/contra/contra.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/contra/contra_bundle.h"
+  #endif
+#endif
 #ifdef GAME_PLEIADS
   #include "machines/pleiads/pleiads.h"
   #ifdef ASSETS_REMOTE
@@ -1388,6 +1394,13 @@ constexpr machineInfo machines[] = {
     szaxxon::menuLeds,
 #endif
     MCH_SZAXXON, &szaxxon_arena_plan BUNDLE_REF(szaxxon_bundle_ref) },
+#endif
+#ifdef GAME_CONTRA
+  { createMachine<contra>, contra::logo,
+#ifdef LED_PIN
+    contra::menuLeds,
+#endif
+    MCH_CONTRA, nullptr BUNDLE_REF(contra_bundle_ref) },
 #endif
 #ifdef GAME_PLEIADS
   { createMachine<pleiads>, pleiads::logo,
