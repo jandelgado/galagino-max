@@ -69,6 +69,7 @@ private:
   static const uint32_t VRAM_SIZE = 0x8000;
   static const uint8_t BANKS = 12;   // 4 KB each; selects 12-15 read open bus
   static const uint16_t BLIT_SIZE = 0x6000;
+  static const int32_t I8039_HZ = 8000000 / 15;   // i8039 machine cycles per second
 
   // Render input latched at vblank (seqlock.h): the palette. The bitmap
   // is drawn by the CPU and the blitter and stays live (as tutankhm).
@@ -82,7 +83,7 @@ private:
   uint8_t ayPortA(void);
 
   m6809_state main_cpu;
-  I8039Dac dac{8000000 / 15, 2};   // (P1 - 128) * 2 next to the AY
+  I8039Dac dac{I8039_HZ, 2};       // (P1 - 128) * 2 next to the AY
   Seqlock<VideoState> vblank;
   VideoState video = {};
   uint16_t pens[16];               // RGB565 of video.palette

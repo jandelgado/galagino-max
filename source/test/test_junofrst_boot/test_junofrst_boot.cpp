@@ -189,6 +189,14 @@ static void test_blit_src_past_rom(void) {
   restore();
 }
 
+// game_started paces the emulation task to the display from the first
+// frame; free-running boot frames would fill the DAC ring ahead of I2S
+static void test_paced_from_start(void) {
+  boot();
+  TEST_ASSERT_TRUE(machine->game_started);
+  TEST_ASSERT_EQUAL_UINT16(0, machine->dac.queued());
+}
+
 // ---- banked ROM ----
 
 static void test_bank_opcode_decrypt(void) {
@@ -287,6 +295,7 @@ static void test_render_frame(void) {
 int main(int argc, char **argv) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
+  RUN_TEST(test_paced_from_start);
   RUN_TEST(test_blit_copy);
   RUN_TEST(test_blit_clear);
   RUN_TEST(test_blit_wraps);

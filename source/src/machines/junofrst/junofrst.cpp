@@ -16,7 +16,6 @@ static constexpr int LINES = 256;
 static constexpr int32_t MAIN_CYCLES_FRAME = 1500000 / 60;
 static constexpr int Z80_STEPS_LINE = 10;      // ~117 cycles
 static constexpr int Z80_CYCLES_LINE = 117;
-static constexpr int32_t I8039_HZ = 8000000 / 15;
 static constexpr int I8039_SLICE = 16;         // lines per i8039 run
 
 // inputs, active low (MAME KONAMI8_SYSTEM_10 / KONAMI8_MONO_B213)
@@ -82,6 +81,9 @@ void junofrst::start() {
     videoram = Arena::alloc(VRAM_SIZE);
     memset(videoram, 0, VRAM_SIZE);
   }
+  // paced from the first frame: a free-running boot would fill the DAC
+  // ring ahead of I2S (as megazone)
+  game_started = 1;
 }
 
 // ---- Main KONAMI-1 ----
@@ -182,9 +184,6 @@ void junofrst::latchWrite(uint8_t bit, uint8_t state) {
   irq_enable = state;
   if (!state) {
     main_cpu.irq_pending = 0;   // CLEAR_LINE
-  }
-  if (state) {
-    game_started = 1;   // boot done, attract mode starts
   }
 }
 
