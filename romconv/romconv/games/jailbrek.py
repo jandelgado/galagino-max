@@ -1,5 +1,4 @@
 """Convert the MAME jailbrek ROM set into galagino headers (MAME konami/jailbrek.cpp)."""
-from types import MappingProxyType
 
 from romconv.core.context import Context
 from romconv.core.errors import ConversionError

@@ -18,8 +18,16 @@ public:
   // emulation core: the CPU's port writes
   void writeAddress(uint8_t addr);
   void writeData(uint8_t value);
-  // chip reset: address latch and SSG registers cleared
+  // chip reset: address latch, SSG registers and timers cleared
   void reset(void);
+
+  // emulation core: timers. b0 timer A flag, b1 timer B flag, b7 busy
+  // (32 * prescaler cycles after a data write, only when tick() runs).
+  uint8_t readStatus() const { return busy_left ? status | STATUS_BUSY : status; }
+  // advance timers and busy by chip clock cycles
+  void tick(uint32_t chip_cycles);
+  // cycles until timer B expires, UINT32_MAX when stopped
+  uint32_t cyclesToTimerB() const { return b_run ? b_left : UINT32_MAX; }
 
   // audio core: the SSG part, at Ay8910 scale
   void renderSsg(int16_t *out, int n);
@@ -39,6 +47,26 @@ private:
   uint8_t addr = 0;
   uint8_t ssg_regs[Ay8910::REG_COUNT] = {};
   Ay8910 ssg;
+
+  // timers, plain members (emulation core only)
+  uint16_t a_val = 0;   // 10 bit
+  uint8_t b_val = 0;
+  uint8_t pre = 6;      // prescaler 6, 3 or 2
+  uint8_t mode = 0;     // reg 27
+  uint8_t status = 0;
+  bool a_run = false;
+  bool b_run = false;
+  uint32_t a_left = 0;
+  uint32_t b_left = 0;
+  uint32_t busy_left = 0;
+  uint32_t clocks = 0;  // chip cycles, phase of the free-running B divider
+
+  static const uint8_t STATUS_BUSY = 0x80;
+
+  // chip cycles, ymfm: 12 operators * pre * (1024 - NA) / 16 * (256 - NB)
+  uint32_t periodA() const { return 12u * pre * (1024u - a_val); }
+  uint32_t periodB() const { return 192u * pre * (256u - b_val); }
+  void writeMode(uint8_t value);
 };
 
 #endif

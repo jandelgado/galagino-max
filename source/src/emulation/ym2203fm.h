@@ -16,8 +16,10 @@
 //                                      sample per out_rate tick
 class Ym2203Fm {
 public:
-  static const uint32_t CLOCK = 1500000; // 1943, commando, gng
   static const uint16_t RING_SIZE = 256;
+
+  // chip clock in Hz (1943, commando, gng: 1.5 MHz)
+  explicit Ym2203Fm(uint32_t clock = 1500000) : clock_hz(clock) {}
 
   // both cores stopped
   void reset();
@@ -65,6 +67,7 @@ private:
     Op op[OPS];
   };
 
+  uint32_t clock_hz;
   uint8_t regs[256];
   Channel ch[CHANNELS];
   uint32_t env_counter;

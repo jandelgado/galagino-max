@@ -468,6 +468,12 @@
     #include "machines/jailbrek/jailbrek_bundle.h"
   #endif
 #endif
+#ifdef GAME_SCOTRSHT
+  #include "machines/scotrsht/scotrsht.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/scotrsht/scotrsht_bundle.h"
+  #endif
+#endif
 #ifdef GAME_HERO
   #include "machines/hero/hero.h"
   #ifdef ASSETS_REMOTE
@@ -1497,6 +1503,13 @@ constexpr machineInfo machines[] = {
     jailbrek::menuLeds,
 #endif
     MCH_JAILBREK, &jailbrek_arena_plan BUNDLE_REF(jailbrek_bundle_ref) },
+#endif
+#ifdef GAME_SCOTRSHT
+  { createMachine<scotrsht>, scotrsht::logo,
+#ifdef LED_PIN
+    scotrsht::menuLeds,
+#endif
+    MCH_SCOTRSHT, &scotrsht_arena_plan BUNDLE_REF(scotrsht_bundle_ref) },
 #endif
 #ifdef GAME_HERO
   { createMachine<hero>, hero::logo,

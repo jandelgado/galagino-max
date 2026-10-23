@@ -241,7 +241,6 @@ void gberet::render_row(short row) {
 // logo colors (quantized logos/gberet.png): olive, orange, dark olive, red
 static const CRGB GBERET_LED_A(0x5a572b), GBERET_LED_B(0x886126),
                   GBERET_LED_C(0x4e4b26), GBERET_LED_RED(0x9e2b1e);
-static const uint8_t KNIFE_BLINK = 4; // frames per blink phase
 
 void gberet::menuLeds(CRGB *leds) {
   static const CRGB menu_leds[NUM_LEDS] = {
@@ -252,12 +251,7 @@ void gberet::menuLeds(CRGB *leds) {
 
 // blink red while the knife (FIRE) is held, else the menu colors
 void gberet::gameLeds(CRGB *leds) {
-  if (!(input->buttons_get() & BUTTON_FIRE)) {
-    menuLeds(leds);
-    return;
-  }
-  led_frame++;
-  fill_solid(leds, NUM_LEDS, (led_frame & KNIFE_BLINK) ? GBERET_LED_RED : CRGB::Black);
+  fireBlinkLeds(leds, input, led_frame, GBERET_LED_RED, menuLeds);
 }
 #endif
 
