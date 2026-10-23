@@ -93,6 +93,24 @@ static void test_release_fades_to_silence(void) {
   TEST_ASSERT_EQUAL(0, peak(buf, RATE / 10));
 }
 
+// the real chip slows decay and release at low levels (exponential counter): a quarter into a
+// 750 ms release the level is below half, and the voice is silent at the end
+static void test_release_is_exponential(void) {
+  setFreq(440);
+  sid.write(SR, 0xf9);
+  sid.write(MODE_VOL, 0x0f);
+  sid.write(CTRL, TRI_GATE);
+  sid.render(buf, RATE / 10);
+  const int full = peak(buf, RATE / 10);
+  sid.write(CTRL, TRI_ONLY);
+  sid.render(buf, RATE * 3 / 16);     // 187 ms
+  sid.render(buf, RATE / 50);
+  TEST_ASSERT_LESS_THAN(full / 2, peak(buf, RATE / 50));
+  sid.render(buf, RATE * 6 / 10);     // to 800 ms
+  sid.render(buf, RATE / 50);
+  TEST_ASSERT_EQUAL(0, peak(buf, RATE / 50));
+}
+
 static void test_lowpass_attenuates(void) {
   setFreq(3000); // SID tops out at 3.9 kHz (16 bit register)
   sid.write(SR, 0xf0);
@@ -128,6 +146,7 @@ int main(int, char **) {
   RUN_TEST(test_ntsc_pitch);
   RUN_TEST(test_single_voice_level);
   RUN_TEST(test_release_fades_to_silence);
+  RUN_TEST(test_release_is_exponential);
   RUN_TEST(test_lowpass_attenuates);
   RUN_TEST(test_output_clamped);
   return UNITY_END();

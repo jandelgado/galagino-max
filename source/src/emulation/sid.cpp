@@ -47,6 +47,26 @@ static const uint8_t REG_FC_LO = 0x15, REG_FC_HI = 0x16, REG_RES_FILT = 0x17, RE
 
 static inline uint32_t bit(uint32_t v, uint8_t b) { return (v >> b) & 1; }
 
+// Decay / release step at env: the real chip slows down below the 8 bit levels 93, 54, 26,
+// 14 and 6 (exponential counter, periods 1, 2, 4, 8, 16, 30). The step is 3x the linear
+// one at the top, so a full fade keeps the time of the rate tables (756 vs 255 counts).
+static inline int32_t fadeStep(int32_t step, int32_t env) {
+  const int32_t level = env >> 16;
+  int shift = 5;
+  if (level >= 93) {
+    shift = 0;
+  } else if (level >= 54) {
+    shift = 1;
+  } else if (level >= 26) {
+    shift = 2;
+  } else if (level >= 14) {
+    shift = 3;
+  } else if (level >= 6) {
+    shift = 4;
+  }
+  return (step * 3) >> shift;
+}
+
 // 16.16 multiply, both operands pre-shifted to keep 32 bits
 static inline int32_t fmul(int32_t a, int32_t b) { return (a >> 8) * (b >> 8); }
 
@@ -181,7 +201,7 @@ void Sid::render(int16_t *out, int n) {
           }
           break;
         case DECAY:
-          o.env -= decay[v];
+          o.env -= fadeStep(decay[v], o.env);
           if (o.env <= sustain[v]) {
             o.env = sustain[v];
             o.envphase = SUSTAIN;
@@ -195,7 +215,7 @@ void Sid::render(int16_t *out, int n) {
           break;
         case RELEASE:
           // down to 0: TinySID's floor kept released voices audible
-          o.env -= release[v];
+          o.env -= fadeStep(release[v], o.env);
           if (o.env < 0) {
             o.env = 0;
           }
