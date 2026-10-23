@@ -3,9 +3,10 @@
 //
 // MotoRace USA (Irem 1983, Traverse USA / Zippy Race hardware)
 // CPU: Z80 @ 3.072MHz main + M6803 @ 894KHz sound + 2x AY-3-8910
-// MAME tags this ROT270, but the visible raster is 240x256, already
-// portrait. No rotation needed: frame_buffer column == screen x.
-// Tile 8x8 3bpp, sprite 16x16, 64x32 tilemap, horizontal scroll.
+// Native raster 240x256 (x 8-247), shown ROT270: 256x240 landscape, road
+// scrolling down. The panel shows screen x 16-255 (left road shoulder
+// cropped, HUD kept), lines centred. Tile 8x8 3bpp, sprite 16x16, 64x32
+// tilemap, native horizontal scroll.
 // ============================================================================
 #include "motorace.h"
 #include "../../emulation/input.h"
@@ -27,8 +28,6 @@ motorace::motorace()
   rom_ptr = motorace_rom.data();
   snd_rom_ptr = motorace_snd_rom.data();
 }
-
-#define FB_W 240
 
 // ── Z80 instruction fetch ──
 
@@ -228,7 +227,8 @@ void motorace::run_frame(void) {
   }
 }
 
-// ── Sprite preparation (identico al sorgente, scrive in sprite[]) ──
+// ── Sprite list in panel coordinates (ROT270: panel x = native y - 16,
+// panel y = 256 - native x) ──
 void motorace::prepare_frame(void) {
   active_sprites = 0;
   for (int offs = 0x1FF; offs >= 0; offs -= 4) {
@@ -239,127 +239,128 @@ void motorace::prepare_frame(void) {
     unsigned char code   = spr_base[2];
     unsigned char sx_raw = spr_base[3];
 
-    if (sy_raw == 0 && sx_raw == 0) continue;
+    if (sy_raw == 0 && sx_raw == 0) {
+      continue;
+    }
+
+    int native_x = ((sx_raw + 8) & 0xFF) - 8;
+    int native_y = 240 - sy_raw;
 
     struct sprite_S spr;
     spr.code  = code;
     spr.color = attr & 0x0F;
-    bool flipx = (attr & 0x40) != 0;
-    bool flipy = (attr & 0x80) != 0;
+    spr.x = native_y - CROP_X;
+    spr.y = TOP_LINE + VIS_X_MAX - SPRITE_SIZE + 1 - native_x;
+    spr.flags = ((attr & 0x40) ? FLIP_ROWS : 0) | ((attr & 0x80) ? FLIP_COLS : 0);
 
-    int sx = ((sx_raw + 8) & 0xFF) - 8;
-    int sy = 240 - sy_raw;
-    if (sy > 191) continue;  // sprites never cover the HUD
-
-    spr.x = sx;
-    spr.y = sy;
-    spr.flags = (flipy ? 1 : 0) | (flipx ? 2 : 0);
-
-    if ((spr.y > -16) && (spr.y < 256) &&
-        (spr.x > -16) && (spr.x < 240)) {
-      sprite[active_sprites++] = spr;
+    // sprites never cover the HUD (native y 192-255)
+    if (spr.x <= -SPRITE_SIZE || spr.x >= SPRITE_CLIP_X) {
+      continue;
     }
-    if (active_sprites >= 124) break;
+    sprite[active_sprites++] = spr;
+    if (active_sprites >= 124) {
+      break;
+    }
   }
 }
 
 // ============================================================================
-// strip_r equals the tile row (0..31).
-// Scroll applies to tile rows 0-23 only; rows 24-31 are the fixed HUD.
+// Panel line = one native column (ROT270): native x = 247 - screen line,
+// tilemap row = screen tile column. Tilemap rows 0-23 scroll, rows 24-31 are
+// the fixed HUD. Tiles are stored rotated (romconv): row r of a stored tile
+// is native column 7 - r. Colour 15 tiles (tunnels) keep pens 6, 7 in front
+// of sprites, marked in front[].
 // ============================================================================
-void motorace::blit_scroll_strip_t(short strip_r) {
+void motorace::draw_tiles(short strip) {
   int scroll = scroll_x_low + (scroll_x_high << 8);
-  int tile_row = strip_r;
-  bool scroll_active = (tile_row < 24);
+  memset(front, 0, sizeof(front));
 
-  for (int sr = 0; sr < 8; sr++) {
-    unsigned short *fb_dst = frame_buffer + sr * FB_W;
+  for (int k = 0; k < 8; k++) {
+    unsigned short *line = frame_buffer + k * FB_W;
+    int native_x = VIS_X_MAX - (strip * 8 + k);
 
-    for (int fb_x = 0; fb_x < FB_W; fb_x++) {
-      int lx_scrolled = scroll_active ? (fb_x + scroll) : fb_x;
+    for (int col = CROP_X / 8; col < MAP_ROWS; col++) {
+      int x0 = col * 8 - CROP_X;
+      int map_x = (native_x + (col < SCROLL_ROWS ? scroll : 0)) & (MAP_W - 1);
+      int tile_index = col * MAP_COLS + (map_x >> 3);
+      unsigned char code_lo = memory[MR_MEM_VRAM + 2 * tile_index];
+      unsigned char attr    = memory[MR_MEM_VRAM + 2 * tile_index + 1];
 
-      int tile_col = (lx_scrolled >> 3) & 63;
-      int tile_index = tile_row * 64 + tile_col;
+      int code = code_lo + ((attr & 0xC0) << 2);
+      // TILE_FLIPXY: 0x20 flips native x, 0x10 native y
+      int r = (attr & 0x20) ? (map_x & 7) : 7 - (map_x & 7);
+      bool flip_cols = attr & 0x10;
+      bool tunnel = (attr & 0x0F) == TUNNEL_COLOR;
+      const unsigned short *colors = motorace_char_cmap[attr & 0x0F];
+      uint32_t row = motorace_tilemap[code][r];
 
-      unsigned char tile_code_lo = memory[MR_MEM_VRAM + 2 * tile_index];
-      unsigned char tile_attr    = memory[MR_MEM_VRAM + 2 * tile_index + 1];
-
-      int tile_code = tile_code_lo + ((tile_attr & 0xC0) << 2);
-      int palette = tile_attr & 0x0F;
-      int flip_x = (tile_attr >> 5) & 1;
-      int flip_y = (tile_attr >> 4) & 1;
-
-      int rom_row = flip_y ? (7 - sr) : sr;
-      // pack_tile_row stores pixel i at nibble (7-i).
-      int pixel_col = 7 - (lx_scrolled & 7);
-      if (flip_x) pixel_col = 7 - pixel_col;
-
-      unsigned long tile_row_data = motorace_tilemap[tile_code][rom_row];
-      unsigned char pixel = (tile_row_data >> (pixel_col * 4)) & 7;
-
-      fb_dst[fb_x] = motorace_char_cmap[palette][pixel];
-    }
-  }
-}
-
-// ============================================================================
-// ROM holds only unflipped sprites to save Arena; flips are applied here.
-// pack_sprite_row stores pixel i of each 8px half at nibble (7-i).
-// ============================================================================
-void motorace::blit_sprite_t(short strip_r, unsigned char s) {
-  int spr_x = sprite[s].x;
-  int spr_y = sprite[s].y;
-  bool flipx = sprite[s].flags & 2;
-  bool flipy = sprite[s].flags & 1;
-
-  int strip_y_lo = strip_r * 8;
-  int strip_y_hi = strip_y_lo + 7;
-
-  int r_min = strip_y_lo - spr_y;
-  int r_max = strip_y_hi - spr_y;
-  if (r_min < 0)  r_min = 0;
-  if (r_max > 15) r_max = 15;
-  if (r_min > r_max) return;
-
-  const uint32_t *spr_data = motorace_spritemap[sprite[s].code];
-  const unsigned short *colors = motorace_spr_cmap[sprite[s].color];
-
-  for (int r = r_min; r <= r_max; r++) {
-    int sr = spr_y + r - strip_y_lo;  // 0..7
-    int src_r = flipy ? (15 - r) : r;
-
-    unsigned long row_lo = spr_data[src_r * 2];
-    unsigned long row_hi = spr_data[src_r * 2 + 1];
-
-    unsigned short *fb_dst = frame_buffer + sr * FB_W;
-
-    for (int c = 0; c < 16; c++) {
-      int fb_x = spr_x + c;
-      if (fb_x < 0 || fb_x >= FB_W) continue;
-
-      int rc = flipx ? (15 - c) : c;
-      unsigned char px = (rc < 8)
-                       ? ((row_lo >> ((7 - rc) * 4)) & 7)
-                       : ((row_hi >> ((15 - rc) * 4)) & 7);
-
-      if (px) {
-        fb_dst[fb_x] = colors[px];
+      for (int c = 0; c < 8; c++) {
+        int sc = flip_cols ? 7 - c : c;
+        unsigned char px = (row >> ((7 - sc) * 4)) & 7;
+        line[x0 + c] = colors[px];
+        if (tunnel && px >= TUNNEL_PEN) {
+          front[x0 + c] |= 1 << k;
+        }
       }
     }
   }
 }
 
-void motorace::render_row(short strip_r) {
-  if (strip_r < 0 || strip_r >= 32) return;
+// Sprites are stored rotated too: row r is native column 15 - r.
+void motorace::draw_sprite(short strip, unsigned char s) {
+  int spr_x = sprite[s].x;
+  int spr_y = sprite[s].y;
+  bool flip_rows = sprite[s].flags & FLIP_ROWS;
+  bool flip_cols = sprite[s].flags & FLIP_COLS;
 
-  blit_scroll_strip_t(strip_r);
+  int strip_y = (strip + TOP_LINE / 8) * 8;
+  int r_min = strip_y - spr_y;
+  int r_max = strip_y + 7 - spr_y;
+  if (r_min < 0) {
+    r_min = 0;
+  }
+  if (r_max > SPRITE_SIZE - 1) {
+    r_max = SPRITE_SIZE - 1;
+  }
 
-  int strip_y_lo = strip_r * 8;
-  int strip_y_hi = strip_y_lo + 7;
+  const uint32_t *data = motorace_spritemap[sprite[s].code];
+  const unsigned short *colors = motorace_spr_cmap[sprite[s].color];
+
+  for (int r = r_min; r <= r_max; r++) {
+    int k = spr_y + r - strip_y;
+    int src_r = flip_rows ? (SPRITE_SIZE - 1 - r) : r;
+    uint32_t lo = data[src_r * 2];
+    uint32_t hi = data[src_r * 2 + 1];
+    unsigned short *dst = frame_buffer + k * FB_W;
+
+    for (int c = 0; c < SPRITE_SIZE; c++) {
+      int x = spr_x + c;
+      if (x < 0 || x >= SPRITE_CLIP_X || (front[x] & (1 << k))) {
+        continue;
+      }
+      int sc = flip_cols ? (SPRITE_SIZE - 1 - c) : c;
+      unsigned char px = (sc < 8) ? ((lo >> ((7 - sc) * 4)) & 7) : ((hi >> ((15 - sc) * 4)) & 7);
+      if (px) {
+        dst[x] = colors[px];
+      }
+    }
+  }
+}
+
+// 240 screen lines centred on the 288 line panel, strips 3-32
+void motorace::render_row(short row) {
+  short strip = row - TOP_LINE / 8;
+  if (strip < 0 || strip >= SCREEN_LINES / 8) {
+    return;
+  }
+
+  draw_tiles(strip);
+
+  int strip_y = row * 8;
   for (unsigned char s = 0; s < active_sprites; s++) {
     int spr_y = sprite[s].y;
-    if (((spr_y + 15) >= strip_y_lo) && (spr_y <= strip_y_hi)) {
-      blit_sprite_t(strip_r, s);
+    if (spr_y + SPRITE_SIZE - 1 >= strip_y && spr_y <= strip_y + 7) {
+      draw_sprite(strip, s);
     }
   }
 }

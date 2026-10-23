@@ -97,13 +97,19 @@ def test_motorace_bitswap_and_decrypt():
     assert motorace._bitswap16(1, 0, *range(1, 16)) == 0x8000
     out = motorace._decrypt_motorace(bytes(range(256)) * 32)
     assert len(out) == 0x2000 and sorted(out) != list(out)
-    assert motorace._pack_tile_row([1, 2, 3, 4, 5, 6, 7, 0]) == 0x12345670
-    assert motorace._pack_sprite_row(list(range(8)) * 2) == (0x01234567, 0x01234567)
+    assert motorace._pack_row([1, 2, 3, 4, 5, 6, 7, 0]) == 0x12345670
+
+
+def test_motorace_gfx_orientation():
+    # pixel 0 = bit 7, plane 2 = pen bit 2
+    assert motorace._plane_pixels(b"\x80", b"\x00", b"\x01", 0) == [1, 0, 0, 0, 0, 0, 0, 4]
+    # ROT270: native top row becomes the left column, native x 0 the bottom row
+    assert motorace._rot270([[1, 2], [3, 4]]) == [[2, 4], [1, 3]]
 
 
 def test_motorace_prom_colors():
-    assert motorace._prom_to_rgb(0) == (0, 0, 0)
-    assert motorace._prom_to_rgb(0xff) == (0xff, 0xff, 0xff)
+    assert motorace._prom_rgb(0) == (0, 0, 0)
+    assert motorace._prom_rgb(0xff) == (0xff, 0xff, 0xff)
 
 
 def test_mpatrol_decoding_helpers():
