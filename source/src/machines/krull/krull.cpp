@@ -200,6 +200,7 @@ void krull::run_frame(void) {
 void krull::runSound(void) {
   const uint64_t ticks = (uint64_t)GottliebSound::SOUND_HZ * FRAME_PIXELS + soundPhase;
   soundPhase = (uint32_t)(ticks % PIXEL_HZ);
+  soundCmdSeen = cmdCount != 0;
   sound.runFrame(cmdQueue, cmdCount, (uint32_t)(ticks / PIXEL_HZ));
   cmdCount = 0;
 }
@@ -218,14 +219,23 @@ void krull::renderAudio(int16_t *out, int n) {
 // ---- LEDs ----
 
 #ifdef LED_PIN
-// logo colors
-static const CRGB KRULL_LED_GOLD(0xffb000), KRULL_LED_RED(0xc02000);
+// logo colors: red text, orange-red glaive
+static const CRGB KRULL_LED_DARK(0x8c1b13), KRULL_LED_RED(0xd42a20), KRULL_LED_BRIGHT(0xe03f20);
 
 void krull::menuLeds(CRGB *leds) {
   static const CRGB menu_leds[NUM_LEDS] = {
-      KRULL_LED_RED, KRULL_LED_GOLD, KRULL_LED_GOLD, KRULL_LED_GOLD,
-      KRULL_LED_GOLD, KRULL_LED_GOLD, KRULL_LED_RED};
+      KRULL_LED_DARK, KRULL_LED_RED, KRULL_LED_BRIGHT, KRULL_LED_BRIGHT,
+      KRULL_LED_BRIGHT, KRULL_LED_RED, KRULL_LED_DARK};
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
+}
+
+// bright while a sound command was sent in the last frame
+void krull::gameLeds(CRGB *leds) {
+  if (soundCmdSeen) {
+    fill_solid(leds, NUM_LEDS, KRULL_LED_BRIGHT);
+    return;
+  }
+  menuLeds(leds);
 }
 #endif
 

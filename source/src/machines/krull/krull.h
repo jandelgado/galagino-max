@@ -50,6 +50,7 @@ public:
   static const Logo &logo(void) { return krull_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
+  void gameLeds(CRGB *leds) override;
 #endif
 
 private:
@@ -135,6 +136,7 @@ private:
   uint32_t soundPhase = 0;         // frame length remainder, see runSound()
   DcBlock dc;
   int16_t lastSample = 0;
+  bool soundCmdSeen = false;       // sound command queued this frame, for LEDs
   uint8_t outputLatch = 0;         // 0x5803: b0 bg priority, b1/b2 flip
 };
 
