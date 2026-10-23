@@ -253,5 +253,6 @@ evicted first. Menu entries not cached yet show a NET marker.
 | Mr. Do's Castle (docastle.zip) | ![Mr. Do's Castle marquee](/logos/docastle.png) | ![Mr. Do's Castle screenshot](/images/docastle.png) | FIRE=hammer |
 | Super Zaxxon (szaxxon.zip)    | ![Super Zaxxon marquee](/logos/szaxxon.png) | ![Super Zaxxon screenshot](/images/szaxxon.png) | Same audio as Zaxxon, needs zaxxon-audio.zip. FIRE=fire |
 | Contra (contra.zip)           | ![Contra marquee](/logos/contra.png) | ![Contra screenshot](/images/contra.png) | Music and effects from the C64 port: needs Gryzor.sid (HVSC MUSICIANS/B/Brooke_Jason) in romszip/. FIRE=fire, START=jump (controller B=jump) |
+| Mr. Goemon (mrgoemon.zip)     | ![Mr. Goemon marquee](/logos/mrgoemon.png) | ![Mr. Goemon screenshot](/images/mrgoemon.png) | Needs gberet.zip. FIRE=pipe, START=throw (controller B/L1/R1=throw) |
 
 ### ...
