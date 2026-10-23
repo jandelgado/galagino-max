@@ -29,6 +29,7 @@
 #undef private
 #undef protected
 #include "mame_ram.h"
+#include "../test_tylz_video/mame_frames.h"
 #endif
 
 void setUp(void) {}
@@ -253,6 +254,60 @@ static void test_empty_sockets(void) {
   delete m;
 }
 
+// render input the game writes (video RAM, sprites, palette, 0x5803) equals
+// MAME's at the video fixture frames (frame_done = before the next vblank
+// NMI: the host latches the same moment in run_frame()); frame k of MAME is
+// host run_frame() k + the frame offset found on the first fixture frame
+static void test_video_input_matches_mame(void) {
+  static const int SEARCH = 8;      // host frames tried around the align frame
+  static const int ALIGN = 1;       // fixture frame 220: title palette fading, one value per frame
+  static const int COIN_FRAME = 600;   // video_fixture.lua inserts a coin here
+  tylz *m = boot();
+  static GottliebVideoInput v;
+  const int frames = sizeof(MAME_FRAMES) / sizeof(MAME_FRAMES[0]);
+
+  // align: host run_frame() count whose latch equals MAME's ALIGN frame
+  const MameFrame &a = MAME_FRAMES[ALIGN];
+  int hostFrame = 1, offset = -SEARCH - 1;
+  for (; hostFrame < a.frame - SEARCH; hostFrame++) {
+    m->run_frame();
+  }
+  for (int k = -SEARCH; k <= SEARCH; k++, hostFrame++) {
+    m->latchVideo(v);
+    if (!memcmp(v.vram, a.vram, sizeof(v.vram)) && !memcmp(v.spr, a.spr, sizeof(v.spr)) &&
+        !memcmp(v.pal, a.pal, sizeof(v.pal))) {
+      offset = k;
+      break;
+    }
+    m->run_frame();
+  }
+  printf("video input: offset %d\n", offset);
+  TEST_ASSERT_TRUE_MESSAGE(offset >= -SEARCH, "first fixture frame never matches");
+
+  int bad = 0;
+  for (int i = ALIGN + 1; i < frames && MAME_FRAMES[i].frame < COIN_FRAME; i++) {
+    const MameFrame &f = MAME_FRAMES[i];
+    for (; hostFrame < f.frame + offset; hostFrame++) {
+      m->run_frame();
+    }
+    m->latchVideo(v);
+    const bool vramOk = !memcmp(v.vram, f.vram, sizeof(v.vram));
+    const bool sprOk = !memcmp(v.spr, f.spr, sizeof(v.spr));
+    const bool palOk = !memcmp(v.pal, f.pal, sizeof(v.pal));
+    if (vramOk && sprOk && palOk && v.ctrl == f.ctrl) {
+      continue;
+    }
+    printf("frame %d: vram %d spr %d pal %d ctrl %02x/%02x\n", f.frame, vramOk, sprOk, palOk, v.ctrl, f.ctrl);
+    for (int p = 0; p < 0x20 && !palOk; p++) {
+      printf("%02x/%02x ", v.pal[p], f.pal[p]);
+    }
+    printf("\n");
+    bad++;
+  }
+  TEST_ASSERT_EQUAL_INT(0, bad);
+  delete m;
+}
+
 // code outside the ROM (corrupt stack): count a trap and reset the board
 static void test_trap_resets(void) {
   tylz *m = boot();
@@ -282,6 +337,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_budget_cut_resumes);
   RUN_TEST(test_empty_sockets);
   RUN_TEST(test_trap_resets);
+  RUN_TEST(test_video_input_matches_mame);
   RUN_TEST(test_attract_lockstep);
   RUN_TEST(test_game1_lockstep);
 #endif
