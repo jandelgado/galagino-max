@@ -39,7 +39,7 @@ static void test_clip_right(void) {
 
 // stick alone moves, FIRE also fires that way; START reaches IN4 b5
 static void test_inputs(void) {
-  RobotronSticks sticks;
+  TwinStick sticks;
   uint16_t s = sticks.update(BOARD_KEY_UP | BOARD_KEY_LEFT);
   TEST_ASSERT_EQUAL_HEX8(0xff & ~(BW_UP | BW_LEFT), bwidow_in3(s));
   TEST_ASSERT_EQUAL_HEX8(0xff, bwidow_in4(s, 0));

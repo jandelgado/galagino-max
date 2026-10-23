@@ -41,7 +41,7 @@ struct Board {
 };
 
 static Board board;
-static RobotronSticks sticks;
+static TwinStick sticks;
 static m6502_t cpu;
 static uint32_t next_irq;
 static avg::State avg_state;
@@ -117,7 +117,7 @@ static void boot(void) {
   }
   static Asset<unsigned char, COMPRESSED> rom(bwidow_rom_blob), vrom(bwidow_vrom_blob);
   memset(&board, 0, sizeof(board));
-  sticks = RobotronSticks();
+  sticks = TwinStick();
   board.rom = rom.data();
   board.vrom = vrom.data();
   avg_state.reset(240 << 16, 220 << 16);

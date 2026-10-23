@@ -1,5 +1,5 @@
-#ifndef WILLIAMS_KEYS_H
-#define WILLIAMS_KEYS_H
+#ifndef BOARD_KEYS_H
+#define BOARD_KEYS_H
 
 // galagino button bits (same values as emulation/input.h, which needs Arduino.h)
 static const unsigned int BOARD_KEY_LEFT = 0x01, BOARD_KEY_RIGHT = 0x02, BOARD_KEY_UP = 0x04;

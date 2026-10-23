@@ -41,7 +41,7 @@ private:
 
   const unsigned char *rom = nullptr;
   uint8_t misc = 0xff; // 0x8800 write: lamps active low
-  RobotronSticks sticks;
+  TwinStick sticks;
   uint16_t stick_state = 0; // last sticks.update(), read by IN3, IN4
 };
 

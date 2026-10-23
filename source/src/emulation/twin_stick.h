@@ -1,16 +1,16 @@
-#ifndef ROBOTRON_STICKS_H
-#define ROBOTRON_STICKS_H
+#ifndef TWIN_STICK_H
+#define TWIN_STICK_H
 
 #include <stdint.h>
-#include "williams_keys.h"
+#include "board_keys.h"
 
-// Robotron's twin sticks on one stick + FIRE (strafe lock): a FIRE press
+// Twin sticks on one stick + FIRE (strafe lock): a FIRE press
 // aims where the stick points (or the last move if centered); while held,
 // that aim stays and the stick only moves. Controller X/B/A/Y aim
 // up/right/down/left directly.
-class RobotronSticks {
+class TwinStick {
 public:
-  // IN0 b0-3 move, b6/b7 fire up/down; IN1 b0/b1 fire left/right (<< 8)
+  // TwinStick's own bit values; each machine maps them to its ports
   static const uint16_t MOVE_UP = 0x01, MOVE_DOWN = 0x02, MOVE_LEFT = 0x04, MOVE_RIGHT = 0x08;
   static const uint16_t FIRE_UP = 0x40, FIRE_DOWN = 0x80, FIRE_LEFT = 0x100, FIRE_RIGHT = 0x200;
 
