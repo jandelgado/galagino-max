@@ -761,6 +761,12 @@
     #include "machines/qbert/qbert_bundle.h"
   #endif
 #endif
+#ifdef GAME_KRULL
+  #include "machines/krull/krull.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/krull/krull_bundle.h"
+  #endif
+#endif
 #ifdef GAME_PLEIADS
   #include "machines/pleiads/pleiads.h"
   #ifdef ASSETS_REMOTE
@@ -1432,6 +1438,13 @@ constexpr machineInfo machines[] = {
     qbert::menuLeds,
 #endif
     MCH_QBERT, nullptr BUNDLE_REF(qbert_bundle_ref) },
+#endif
+#ifdef GAME_KRULL
+  { createMachine<krull>, krull::logo,
+#ifdef LED_PIN
+    krull::menuLeds,
+#endif
+    MCH_KRULL, nullptr BUNDLE_REF(krull_bundle_ref) },
 #endif
 #ifdef GAME_PLEIADS
   { createMachine<pleiads>, pleiads::logo,
