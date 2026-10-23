@@ -88,6 +88,7 @@ private:
   unsigned char scroll_x_low;
   unsigned char scroll_x_high;
   unsigned char flipscreen;
+  uint16_t boot_frames;
   unsigned char sound_cmd;
 
   // M6803 sound CPU state

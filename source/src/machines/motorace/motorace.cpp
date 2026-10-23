@@ -125,6 +125,7 @@ void motorace::reset() {
   scroll_x_low = 0;
   scroll_x_high = 0;
   flipscreen = 0;
+  boot_frames = 0;
   sound_cmd = 0;
   snd_port1 = 0;
   snd_port2 = 0;
@@ -225,6 +226,10 @@ void motorace::run_frame(void) {
         snd_cpu.timer_counter >= snd_cpu.timer_output_compare)
       snd_cpu.tcsr |= 0x40;
   }
+
+  // Attract mode never writes the game-start bit: stop the boot fast-forward
+  // after the self test, else attract runs unthrottled.
+  if (!game_started && ++boot_frames >= 120) game_started = 1;
 }
 
 // ── Sprite list in panel coordinates (ROT270: panel x = native y - 16,
