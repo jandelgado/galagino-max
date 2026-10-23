@@ -1,10 +1,10 @@
-#ifndef STARWARS_RIOT_H
-#define STARWARS_RIOT_H
+#ifndef RIOT6532_H
+#define RIOT6532_H
 
 #include <stdint.h>
 #include <string.h>
 
-// MOS 6532 RIOT of the Star Wars sound board (MAME machine/mos6530.cpp):
+// MOS 6532 RIOT (MAME machine/mos6530.cpp), sound boards of Star Wars and Q*bert:
 // 128 bytes RAM, ports, interval timer and PA7 edge detect, both raising
 // the sound CPU IRQ. Time is the sound CPU cycle count, same clock.
 class Riot6532 {

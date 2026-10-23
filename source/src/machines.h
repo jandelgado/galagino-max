@@ -755,6 +755,12 @@
     #include "machines/contra/contra_bundle.h"
   #endif
 #endif
+#ifdef GAME_QBERT
+  #include "machines/qbert/qbert.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/qbert/qbert_bundle.h"
+  #endif
+#endif
 #ifdef GAME_PLEIADS
   #include "machines/pleiads/pleiads.h"
   #ifdef ASSETS_REMOTE
@@ -1419,6 +1425,13 @@ constexpr machineInfo machines[] = {
     contra::menuLeds,
 #endif
     MCH_CONTRA, nullptr BUNDLE_REF(contra_bundle_ref) },
+#endif
+#ifdef GAME_QBERT
+  { createMachine<qbert>, qbert::logo,
+#ifdef LED_PIN
+    qbert::menuLeds,
+#endif
+    MCH_QBERT, nullptr BUNDLE_REF(qbert_bundle_ref) },
 #endif
 #ifdef GAME_PLEIADS
   { createMachine<pleiads>, pleiads::logo,

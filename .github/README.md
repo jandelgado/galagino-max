@@ -256,5 +256,6 @@ evicted first. Menu entries not cached yet show a NET marker.
 | Mr. Goemon (mrgoemon.zip)     | ![Mr. Goemon marquee](/logos/mrgoemon.png) | ![Mr. Goemon screenshot](/images/mrgoemon.png) | Needs gberet.zip. FIRE=pipe, START=throw (controller B/L1/R1=throw) |
 | Jail Break (jailbrek.zip)     | ![Jail Break marquee](/logos/jailbrek.png) | ![Jail Break screenshot](/images/jailbrek.png) | FIRE=shoot, START=weapon select (controller B/L1/R1=weapon select), 8 columns cropped left and right |
 | Scooter Shooter (scotrsht.zip) | ![Scooter Shooter marquee](/logos/scotrsht.png) | ![Scooter Shooter screenshot](/images/scotrsht.png) | FIRE=shoot |
+| Q\*bert (qbert.zip)           | ![Q*bert marquee](/logos/qbert.png) | ![Q*bert screenshot](/images/qbert.png) | US set 1. Also needs votrsc01.zip (speech). 16 MB boards only (the translated 8088 program takes 74 KB). Stick turned 45 degrees: UP=up-right, RIGHT=down-right, DOWN=down-left, LEFT=up-left; diagonals map directly |
 
 ### ...

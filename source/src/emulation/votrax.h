@@ -61,6 +61,13 @@ public:
   // 1: 782 kHz), bit 7 inflection (0: 2, 1: 0)
   void write(uint8_t data);
 
+  // phone (0-63) and inflection (0-3) as the chip pins see them
+  void writePhone(uint8_t phone, uint8_t inflection);
+
+  // main clock in Hz (Gottlieb: driven by a DAC, changes continuously);
+  // the noise shaper is rebuilt for clocks other than CLOCK_LO / CLOCK_HI
+  void setClock(uint32_t hz);
+
   // request line (MAME ar): low from write() until the phone is done
   bool request() const { return ar; }
 
@@ -76,7 +83,11 @@ public:
 
   // advance by one scanline; pushes int16 samples (FULL_SCALE = 1.0) at
   // sampleHz() into ring, 2.67 per line
-  template <class Ring> void line(Ring &ring);
+  template <class Ring> void line(Ring &ring) { advance(1, LINE_HZ, ring); }
+
+  // advance by ticks of a tickHz clock (ticks * clock must fit 32 bits);
+  // samples into sink.push(int16_t) as line()
+  template <class Sink> void advance(uint32_t ticks, uint32_t tickHz, Sink &sink);
 
   // test access
   const VotraxCoef &f1Coef(uint32_t i) const { return f1[i]; }
@@ -113,15 +124,16 @@ private:
   VotraxCoef f4;
   votrax_real fxA, fxB;  // y = fxA * x - fxB * y1
   NoiseCoef fnSet[2];    // per clock select
+  NoiseCoef fnVar;       // any other clock (setClock)
+  uint32_t fnVarHz = 0;
   const NoiseCoef *fn = nullptr;
 
   // time
   uint32_t clockHz = CLOCK_LO;
-  uint32_t clkAcc = 0;       // main clocks owed, in LINE_HZ units
+  uint32_t clkAcc = 0;       // main clocks owed, in tick units
   uint32_t sampleAcc = 0;    // main clocks since the last sample
   uint32_t timerLeft = 0;    // main clocks
   uint8_t timerParam = T_NONE;
-  bool clockHi = false;
   bool ar = true;
   bool idle = true;
   uint16_t quiet = 0;
@@ -172,10 +184,10 @@ private:
   votrax_real nY1, nY2;  // noise shaper output history
 };
 
-template <class Ring> void VotraxSc01::line(Ring &ring) {
-  clkAcc += clockHz;
-  uint32_t n = clkAcc / LINE_HZ;
-  clkAcc -= n * LINE_HZ;
+template <class Sink> void VotraxSc01::advance(uint32_t ticks, uint32_t tickHz, Sink &ring) {
+  clkAcc += ticks * clockHz;
+  uint32_t n = clkAcc / tickHz;
+  clkAcc -= n * tickHz;
   if (idle && timerParam == T_NONE) {
     return;
   }

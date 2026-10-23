@@ -12,7 +12,7 @@
 #include "starwars_logo.h"
 #include "starwars_dipswitches.h"
 #include "starwars_math.h"
-#include "starwars_riot.h"
+#include "../../emulation/riot6532.h"
 #include "starwars_yoke.h"
 
 // Atari Star Wars, MAME starwars (set 1), atari/starwars.cpp.
