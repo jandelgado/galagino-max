@@ -71,11 +71,22 @@ uint8_t tylz::readIn4(unsigned int keys) {
 // ---- LEDs ----
 
 #ifdef LED_PIN
+// logo colors: orange letters, red and blue shadows
+static const CRGB TYLZ_LED_ORANGE(0xef9910), TYLZ_LED_RED(0xff0000), TYLZ_LED_BLUE(0x0000ce);
+
 void tylz::menuLeds(CRGB *leds) {
-  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  static const CRGB menu_leds[NUM_LEDS] = {
+      TYLZ_LED_BLUE, TYLZ_LED_RED, TYLZ_LED_ORANGE, TYLZ_LED_ORANGE,
+      TYLZ_LED_ORANGE, TYLZ_LED_RED, TYLZ_LED_BLUE};
+  memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 
+// red while a sound command was sent in the last frame
 void tylz::gameLeds(CRGB *leds) {
+  if (soundCmdSeen) {
+    fill_solid(leds, NUM_LEDS, TYLZ_LED_RED);
+    return;
+  }
   menuLeds(leds);
 }
 #endif
