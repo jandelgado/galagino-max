@@ -19,6 +19,7 @@
 #define private public
 #define protected public
 #include "../../src/machines/megazone/megazone.cpp"
+#include "../../src/emulation/i8039_dac.cpp"
 #undef private
 #undef protected
 #endif
@@ -94,11 +95,12 @@ static void runTo(uint32_t end) {
     }
     machine->run_frame();
     frame++;
-    for (uint16_t i = machine->dac_rd; i != machine->dac_wr; i = (i + 1) & (megazone::DAC_RING - 1)) {
-      dacChanges += machine->dac_ring[i] != dacPrev;
-      dacPrev = machine->dac_ring[i];
+    I8039Dac &dac = machine->dac;
+    for (uint16_t i = dac.rd; i != dac.wr; i = (i + 1) & (I8039Dac::RING - 1)) {
+      dacChanges += dac.ring[i] != dacPrev;
+      dacPrev = dac.ring[i];
     }
-    machine->dac_rd = machine->dac_wr;   // drain as renderAudio() would
+    dac.rd = dac.wr;   // drain as renderAudio() would
   }
   keys = 0;
 }

@@ -3,7 +3,7 @@
 
 #include "../machineBase.h"
 #include "../../emulation/ay8910.h"
-#include "../../emulation/dc_block.h"
+#include "../../emulation/i8039_dac.h"
 #include "../../emulation/seqlock.h"
 #include "../../cpus/m6809/m6809.h"
 #include "megazone_dipswitches.h"
@@ -75,7 +75,6 @@ public:
 private:
   static const int PANEL_COLS = 6;      // native X 0..47
   static const int SPRITE_BYTES = 0x400;
-  static const uint16_t DAC_RING = 1024;
 
   // Render input latched at vblank (seqlock.h): playfield, the 6 panel
   // columns, sprites, scroll
@@ -90,13 +89,12 @@ private:
   uint8_t soundRead(uint16_t addr);
   uint8_t ayPortA(void);
   void publishVideo(void);
-  void runI8039(int32_t cycles);
   void drawTileColumn(const uint8_t *vram, const uint8_t *cram, uint8_t stride, uint8_t tx,
                       uint8_t nx, uint8_t sy, uint16_t *dst);
   void drawSprite(short row, const uint8_t *s);
 
   m6809_state main_cpu;
-  struct i8048_state_S i8039;
+  I8039Dac dac{7159090 / 15, 2};   // (P1 - 128) * 2 next to the AY
   Seqlock<VideoState> vblank;
   VideoState video = {};
 
@@ -106,13 +104,6 @@ private:
   uint8_t ay_addr = 0;
   uint8_t i8039_status = 0;   // P2 b4-6 -> AY port A b0-2
   uint32_t snd_cycles = 0;    // Z80 cycles, for the AY port A timer
-  int32_t i8039_debt = 0;     // i8039 cycles owed to the DAC sampling
-
-  // DAC: P1 sampled at 24 kHz in run_frame(), popped in renderAudio()
-  volatile uint8_t dac_ring[DAC_RING];
-  volatile uint16_t dac_wr = 0, dac_rd = 0;
-  uint8_t dac_val = 0x80, dac_last = 0x80;
-  DcTrack dac_dc;
 
   const uint8_t *main_rom = nullptr, *sound_rom = nullptr, *i8039_rom = nullptr;
   const uint32_t (*chars)[8] = nullptr;

@@ -23,27 +23,6 @@ static constexpr int MAIN_CYCLES_LINE = 100;
 static constexpr int Z80_STEPS_LINE = 17;      // ~200 cycles (mikie calibration)
 static constexpr int Z80_CYCLES_LINE = 200;
 static constexpr int32_t I8039_HZ = 7159090 / 15;
-static constexpr int SAMPLE_RATE = 24000;
-
-// MAME mcs48.cpp burn_cycles() per opcode
-static const uint8_t I8039_CYCLES[256] = {
-    1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 2,
-    1, 1, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 2, 1, 2, 1, 2, 1, 1, 2, 2, 1, 2, 2, 2, 2,
-    1, 1, 1, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    2, 2, 1, 2, 2, 1, 2, 1, 2, 2, 2, 1, 2, 2, 2, 2,
-    2, 2, 2, 2, 2, 1, 2, 1, 2, 2, 2, 1, 2, 2, 2, 2,
-    1, 1, 1, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    2, 2, 2, 2, 2, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2,
-    1, 1, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 2, 2, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2,
-    1, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-};
 
 // sound CPU inputs, active low
 static constexpr uint8_t IN0_COIN1 = 0x01, IN0_START1 = 0x08;
@@ -51,7 +30,6 @@ static constexpr uint8_t IN1_LEFT = 0x01, IN1_RIGHT = 0x02, IN1_UP = 0x04, IN1_D
 static constexpr uint8_t IN1_FIRE = 0x10;
 static constexpr uint8_t AY_PORT_A = 14;
 static constexpr uint8_t I8039_INT_ENABLE = 0x80;   // P2 b7 = 0 clears INT
-static constexpr int DAC_GAIN = 2;                  // (P1 - 128) * 2 next to the AY
 
 megazone::megazone()
   : megazone_rom_main(megazone_rom_main_blob), megazone_rom_sound(megazone_rom_sound_blob),
@@ -87,9 +65,6 @@ void megazone::reset() {
   sound_latch = ay_addr = 0;
   i8039_status = 0;
   snd_cycles = 0;
-  i8039_debt = 0;
-  dac_wr = dac_rd = 0;
-  dac_val = dac_last = 0x80;
   visible_count = 0;
 
   m6809_reset(&main_cpu);
@@ -98,9 +73,7 @@ void megazone::reset() {
   main_cpu.rom_size = 0x10000 - MAIN_ROM_BASE;
   main_cpu.konami1 = 1;
 
-  i8048_reset(&i8039);
-  i8039.rom_direct = i8039_rom;
-  i8039.rom_mask = 0x0fff;
+  dac.reset(i8039_rom);
 }
 
 void megazone::start() {
@@ -199,7 +172,7 @@ void megazone::wrZ80(unsigned short Addr, unsigned char Value) {
     return;
   }
   if (Addr == 0x2000) {
-    i8039.notINT = false;   // ASSERT_LINE until P2 b7 = 0
+    dac.irq(true);   // ASSERT_LINE until P2 b7 = 0
     return;
   }
   if (Addr == 0x4000) {
@@ -237,12 +210,12 @@ void megazone::outZ80(unsigned short Port, unsigned char Value) {
 
 void megazone::wrI8048_port(struct i8048_state_S *state, unsigned char port, unsigned char val) {
   if (port == 1) {
-    dac_val = val;
+    dac.port1(val);
     return;
   }
   if (port == 2) {
     if (!(val & I8039_INT_ENABLE)) {
-      i8039.notINT = true;
+      dac.irq(false);
     }
     i8039_status = (val & 0x70) >> 4;
   }
@@ -258,26 +231,6 @@ unsigned char megazone::rdI8048_xdm(struct i8048_state_S *state, unsigned char a
 
 unsigned char megazone::rdI8048_rom(struct i8048_state_S *state, unsigned short addr) {
   return i8039_rom[addr & 0x0fff];
-}
-
-// i8039 for this many cycles, the DAC sampled every 1 / 24 kHz in between
-void megazone::runI8039(int32_t cycles) {
-  i8039_debt += cycles * SAMPLE_RATE;
-  while (i8039_debt > 0) {
-    int32_t used = 0;
-    while (used * SAMPLE_RATE < I8039_HZ) {
-      const uint8_t op = i8039_rom[i8039.PC & 0x0fff];
-      i8048_step(&i8039);
-      used += I8039_CYCLES[op];
-    }
-    i8039_debt -= used * SAMPLE_RATE;
-
-    const uint16_t next = (dac_wr + 1) & (DAC_RING - 1);
-    if (next != dac_rd) {   // full: drop
-      dac_ring[dac_wr] = dac_val;
-      dac_wr = next;
-    }
-  }
 }
 
 // ---- Frame ----
@@ -309,7 +262,7 @@ void megazone::run_frame(void) {
     snd_cycles += Z80_CYCLES_LINE;
 
     if ((line & 15) == 15) {
-      runI8039(I8039_HZ / 60 / (LINES / 16));
+      dac.run(I8039_HZ / 60 / (LINES / 16));
     }
   }
 }
@@ -333,13 +286,7 @@ void megazone::publishVideo(void) {
 
 void megazone::renderAudio(int16_t *out, int n) {
   Ay8910::renderBank(ay, soundregs, out, n);
-  for (int i = 0; i < n; i++) {
-    if (dac_rd != dac_wr) {
-      dac_last = dac_ring[dac_rd];
-      dac_rd = (dac_rd + 1) & (DAC_RING - 1);
-    }
-    out[i] = audioClamp(out[i] + dac_dc.filter(((int)dac_last - 0x80) * DAC_GAIN), AUDIO_MAX);
-  }
+  dac.render(out, n);
 }
 
 // ---- Video ----
