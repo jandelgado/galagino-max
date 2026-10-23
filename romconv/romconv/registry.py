@@ -2,7 +2,7 @@ from collections.abc import Sequence
 
 from romconv.core.errors import ConversionError
 from romconv.core.job import Job
-from romconv.cpu import m6502, z80
+from romconv.cpu import z80
 from romconv.games import (alibaba, anteater, arkanoid, asteroids, atetris, bagman, berzerk, bnj, bombjack,
                            btime, bublbobl, bwidow, bzone, cavenger, cbdash, ccastles, centipede, circusc,
                            commando, contra, crush, digdug, dkong, dkong3, dkongjr, docastle, elevator, eyes, fantasy,
@@ -23,7 +23,6 @@ ALL: tuple[Job, ...] = (
     pokey_poly.JOB,
     unpack_fixture.JOB,
     z80.JOB,
-    m6502.JOB,
     logo.LOGOS_JOB,
     namco54.JOB,
     game_1942.JOB,

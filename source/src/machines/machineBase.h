@@ -12,7 +12,6 @@
 #endif
 #include "../cpus/z80/Z80.h"
 #include "../cpus/i8048/i8048.h"
-#include "../cpus/mos6502/M6502.h"
 #include "../emulation/input.h"
 #include "../emulation/asset.h"
 #include "../emulation/logo.h"
@@ -208,10 +207,6 @@ public:
         irq_enable[current_cpu] = 0;
       }
 
-      for(current_cpu = 0; current_cpu < sizeof(cpu6502) / sizeof(M6502); current_cpu++) {
-        Reset6502(&cpu6502[current_cpu]);
-      }
-
       memset(memory, 0, RAMSIZE);
       memset(soundregs, 0, sizeof(soundregs)); 
 
@@ -246,9 +241,6 @@ public:
     virtual void m6809_write(m6809_state *s, uint16_t addr, uint8_t val) { }
     virtual unsigned char m6809_read_opcode(m6809_state *s, uint16_t addr) { return 0x00; }
 
-    virtual void wr6502(unsigned short Addr, unsigned char Value) {}
-    virtual char rd6502(unsigned short Addr)                      { return 0x00; }
-    virtual char op6502(unsigned short Addr)                      { return 0x00; }
 
     virtual void run_frame(void) { };
     virtual void prepare_frame(void) { };
@@ -288,8 +280,6 @@ protected:
     sprite_S *sprite;
     unsigned short *frame_buffer;
     unsigned char *memory;
-
-    M6502 cpu6502[2];
 };
 
 // Per-title data for the menu. No instance exists until create().

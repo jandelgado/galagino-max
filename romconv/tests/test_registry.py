@@ -36,7 +36,7 @@ def test_partial_run_always_includes_utility_jobs_and_catalog():
     names = [j.name for j in registry.resolve(["galaga"])]
     assert {"pokey_poly", "unpack_fixture", "catalog", "bundles", "namco54", "galaga"} <= set(names)
     # every build includes the CPU cores and the menu logos
-    assert {"z80", "m6502", "logos"} <= set(names)
+    assert {"z80", "logos"} <= set(names)
     assert "pacman" not in names
     # a bundles-only partial run too
     assert {"pokey_poly", "unpack_fixture"} <= {j.name for j in registry.resolve(["bundles"])}
