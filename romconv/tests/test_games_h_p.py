@@ -74,6 +74,14 @@ def test_ladybug_gfx_decoders():
     assert len(ladybug._decode_sprites(bytes(0x2000))) == 128 * 16
 
 
+def test_ladybug_colormaps():
+    # inverted PROM outputs: 0xff is black, 0x00 white
+    assert ladybug._rgb_palette(bytes([0xFF, 0x00])) == [0x0000, 0xFFFF]
+    chars, sprites = ladybug._colormaps(bytes(32), bytes(32))
+    assert len(chars) == len(sprites) == 8
+    assert all(pens == [0, 0xFFFF, 0xFFFF, 0xFFFF] for pens in chars + sprites)
+
+
 def test_mario_data_files():
     # inverted PROM: 0xff is black; MAME's palette for 00 is near white
     pal = rgb_palette(bytes(range(256)))

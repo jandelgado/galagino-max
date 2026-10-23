@@ -6,7 +6,9 @@ from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
 from romconv.emit.write import module_path
+from romconv.gfx.color import rgb565_swapped
 from romconv.gfx.gfxutil import column_words, mame_decode, pack_pens, step
+from romconv.gfx.resnet import combine, resistor_weights
 from romconv.gfx.patchtable import apply_patch_values, read_patch_table
 
 _HERE = Path(__file__).parent
@@ -76,28 +78,33 @@ def _write_spritemap_header(ctx, sprites):
         emit_compressed(f, "ladybug_sprites", "uint32_t", "[16]", _SPRITE_COUNT, sprites)
 
 
-def _write_colormap_header(ctx):
-    char_palette = (
-        (0x0000, 0x7fad, 0x7ffd, 0xea57),
-        (0x0000, 0x00f8, 0xe007, 0xe0ff),
-        (0x0000, 0xffaf, 0xffff, 0x75ad),
-        (0x0000, 0xffff, 0x75ad, 0x6afd),
-        (0x0000, 0xe007, 0xf5af, 0x6005),
-        (0x0000, 0xea57, 0x7f05, 0x7ffd),
-        (0x0000, 0xffff, 0xe0ff, 0x7ffd),
-        (0x0000, 0x0000, 0x80fa, 0x7ffd),
-    )
+def _rgb_palette(prom):
+    """32 colors of the palette PROM (MAME ladybug_palette): inverted outputs,
+    470/220 ohm per gun; red bits 0/5, green 2/6, blue 4/7."""
+    (rw, gw, bw), _ = resistor_weights(0, 255, -1.0, [([470, 220], 470, 0)] * 3)
+    colors = []
+    for v in prom:
+        v = ~v & 0xFF
+        colors.append(rgb565_swapped(combine(rw, v & 1, (v >> 5) & 1), combine(gw, (v >> 2) & 1, (v >> 6) & 1),
+                                     combine(bw, (v >> 4) & 1, (v >> 7) & 1)))
+    return colors
 
-    sprite_palette = (
-        (0x0000, 0x00f8, 0xe007, 0xe0ff),
-        (0x0000, 0x9faa, 0xe007, 0xffff),
-        (0x0000, 0x15f8, 0xe007, 0xffff),
-        (0x0000, 0x60fd, 0xe0ff, 0xffff),
-        (0x0000, 0xe007, 0xf5af, 0xffff),
-        (0x0000, 0x60fd, 0xe0ff, 0xffff),
-        (0x0000, 0x60fd, 0xf5af, 0xe0ff),
-        (0x0000, 0x60fd, 0xe0ff, 0xffff),
-    )
+
+def _colormaps(palette_prom, sprite_prom):
+    """Char and sprite colormaps, 8 groups x 4 pens; pen 0 is transparent (0)."""
+    rgb = _rgb_palette(palette_prom)
+    # chars: pen i maps to color ((i << 3) & 0x18) | ((i >> 2) & 7)
+    chars = [[rgb[((i << 3) & 0x18) | ((i >> 2) & 7)] for i in range(g * 4, g * 4 + 4)] for g in range(8)]
+    # sprites: lookup PROM low nibble, bit order reversed (MAME bitswap<4>(..., 0, 1, 2, 3))
+    rev4 = [int(f"{n:04b}"[::-1], 2) for n in range(16)]
+    sprites = [[rgb[rev4[sprite_prom[i] & 0x0F]] for i in range(g * 4, g * 4 + 4)] for g in range(8)]
+    for pens in chars + sprites:
+        pens[0] = 0
+    return chars, sprites
+
+
+def _write_colormap_header(ctx):
+    char_palette, sprite_palette = _colormaps(ctx.rom("10-2.k1"), ctx.rom("10-1.f4"))
 
     with ctx.header("ladybug_cmap.h") as f:
         f.write("// Lady Bug color maps - RGB565\n")
