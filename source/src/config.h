@@ -33,6 +33,13 @@
 
 //#define STARWARS_INVERT_Y   // Star Wars: invert stick Y axis
 
+// Mario Bros.: fit 256 native columns, define one
+#if !defined(MARIO_SCROLL) && !defined(MARIO_SCALE) && !defined(MARIO_CROP)
+#define MARIO_SCROLL        // 240 columns, window pans after player 1
+//#define MARIO_SCALE       // 240 columns, every 16th column dropped
+//#define MARIO_CROP        // 240 columns, 8 columns dropped left and right
+#endif
+
 // Bubble Bobble: fit 256 native columns, define one
 #if !defined(BUBLBOBL_SCALE) && !defined(BUBLBOBL_CROP) && !defined(BUBLBOBL_SCALE_BORDER)
 #define BUBLBOBL_SCALE      // 224 columns, every 8th column dropped

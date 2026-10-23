@@ -85,6 +85,7 @@ void i8048_reset(struct i8048_state_S *state) {
 static inline void tick(struct i8048_state_S *state) {
   // "executes" another cycle, and performs some periodic
   // stuff (e.g. counting after a STRT T)
+  state->cycles++;
   if (state->timerRunning) {
     state->cyclesUntilCount--;
     if(!(state->cyclesUntilCount & 31)) {
