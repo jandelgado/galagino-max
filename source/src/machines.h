@@ -767,6 +767,12 @@
     #include "machines/krull/krull_bundle.h"
   #endif
 #endif
+#ifdef GAME_TYLZ
+  #include "machines/tylz/tylz.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/tylz/tylz_bundle.h"
+  #endif
+#endif
 #ifdef GAME_JUNOFRST
   #include "machines/junofrst/junofrst.h"
   #ifdef ASSETS_REMOTE
@@ -1451,6 +1457,13 @@ constexpr machineInfo machines[] = {
     krull::menuLeds,
 #endif
     MCH_KRULL, nullptr BUNDLE_REF(krull_bundle_ref) },
+#endif
+#ifdef GAME_TYLZ
+  { createMachine<tylz>, tylz::logo,
+#ifdef LED_PIN
+    tylz::menuLeds,
+#endif
+    MCH_TYLZ, nullptr BUNDLE_REF(tylz_bundle_ref) },
 #endif
 #ifdef GAME_JUNOFRST
   { createMachine<junofrst>, junofrst::logo,

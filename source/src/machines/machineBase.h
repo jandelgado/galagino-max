@@ -177,6 +177,7 @@ enum {
   MCH_QBERT,
   MCH_KRULL,
   MCH_JUNOFRST,
+  MCH_TYLZ,
   MCH_SELFTEST
 };
 
