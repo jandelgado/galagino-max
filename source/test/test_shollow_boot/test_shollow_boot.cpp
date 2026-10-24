@@ -59,7 +59,6 @@ void OutZ80(unsigned short p, unsigned char v) {
 void PatchZ80(Z80 *) {}
 word LoopZ80(Z80 *) { return INT_NONE; }
 }
-void Reset6502(M6502 *) {} // machineBase::reset(), no 6502 here
 
 static Input input;
 static unsigned short frame_buffer[240 * 8];

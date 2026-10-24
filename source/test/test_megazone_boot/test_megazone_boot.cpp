@@ -58,7 +58,6 @@ unsigned char i8048_rom_read(i8048_state_S *s, unsigned short a) { return machin
 unsigned char i8048_xdm_read(i8048_state_S *s, unsigned char a) { return machine->rdI8048_xdm(s, a); }
 void i8048_xdm_write(i8048_state_S *, unsigned char, unsigned char) {}
 }
-void Reset6502(M6502 *) {}
 unsigned char m6809_read(m6809_state *s, uint16_t a) { return machine->m6809_read(s, a); }
 unsigned char m6809_read_opcode(m6809_state *s, uint16_t a) { return machine->m6809_read_opcode(s, a); }
 void m6809_write(m6809_state *s, uint16_t a, uint8_t v) { machine->m6809_write(s, a, v); }

@@ -6,6 +6,7 @@
 #include "../../src/cpus/mb88xx/mb88xx.cpp"
 #include "../../src/emulation/namco54.cpp"
 #include "../../src/emulation/lzma/LzmaDec.c"
+#include "../../src/emulation/arena.cpp"
 #include "../../src/machines/namco54/namco54_rom.h"
 
 // Needs machines/namco54/namco54_rom.h (romconv galaga or xevious).
@@ -156,6 +157,7 @@ static void test_held_chip_drops_bytes(void) {
 }
 
 int main(int argc, char **argv) {
+  Arena::init(); // LZMA decode scratch
   UNITY_BEGIN();
   RUN_TEST(test_idle_is_silent);
   RUN_TEST(test_galaga_explosion);

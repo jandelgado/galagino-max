@@ -38,7 +38,6 @@ void tearDown(void) {}
 #ifdef HAVE_ROM
 unsigned int Input::buttons_get(void) { return 0; }
 bool Input::demoSoundsOff(void) { return false; }
-void Reset6502(M6502 *) {}
 
 static scotrsht *machine;
 static uint32_t idle_fetches;   // sound opcode fetches at 021d (poll loop start)

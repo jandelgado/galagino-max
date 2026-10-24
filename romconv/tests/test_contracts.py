@@ -329,7 +329,7 @@ def test_validate_rejects_duplicates_and_bad_phases():
 LEGACY_NAMES = frozenset("""
     logos z80 1942 alibaba amidar anteater asteroids bagman bnj bombjack centipede millipede btime circusc
     commando crush digdug digdug2 dkong dkong3 dkongjr eyes frogger galaga galaxian gaplus gyruss invaders
-    ladybug lizwiz llander m6502 mappy mario mooncresta motorace mrdo mrtnt mspacman nibbler pacman pbaction
+    ladybug lizwiz llander mappy mario mooncresta motorace mrdo mrtnt mspacman nibbler pacman pbaction
     pengo phoenix pooyan roadfighter rocnrope scramble scregg starforce baluba supercobra theglob timeplt
     todruaga tp84 turtles tutankhm vanvan vanguard fantasy xevious zaxxon szaxxon thepit bublbobl atetris ccastles
     bzone tempest spacduel gravitar bwidow berzerk starwars missile mpatrol starjack regulus upndown raflesia
@@ -344,5 +344,5 @@ NEW_NAMES = frozenset({"namco54", "system1_palette", "williams_palette", "pokey_
 
 
 def test_cli_names_unchanged():
-    assert len(LEGACY_NAMES) == 122
+    assert len(LEGACY_NAMES) == 121
     assert {job.name for job in registry.ALL} == LEGACY_NAMES | NEW_NAMES

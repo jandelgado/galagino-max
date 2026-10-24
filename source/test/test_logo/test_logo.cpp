@@ -1,6 +1,7 @@
 #include <string.h>
 #include <unity.h>
 
+#include "../../src/emulation/arena.cpp"
 #include "../../src/emulation/logo.cpp"
 // exact (6 colors), plain 16 colors, gradient-heavy
 #include "../../src/machines/baluba/baluba_logo.h"
@@ -55,6 +56,7 @@ static void test_pacman(void) { check(pacman_logo, pacman_logo_blob); }
 static void test_roadfighter(void) { check(roadfighter_logo, roadfighter_logo_blob); }
 
 int main(int argc, char **argv) {
+  Arena::init(); // LZMA decode scratch
   UNITY_BEGIN();
   RUN_TEST(test_baluba);
   RUN_TEST(test_pacman);

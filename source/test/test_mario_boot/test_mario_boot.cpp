@@ -42,7 +42,6 @@ void OutZ80(unsigned short p, unsigned char v) { machine->outZ80(p, v); }
 void PatchZ80(Z80 *) {}
 word LoopZ80(Z80 *) { return INT_NONE; }
 }
-void Reset6502(M6502 *) {}
 void i8048_port_write(i8048_state_S *s, unsigned char p, unsigned char v) { machine->wrI8048_port(s, p, v); }
 unsigned char i8048_port_read(i8048_state_S *s, unsigned char p) { return machine->rdI8048_port(s, p); }
 unsigned char i8048_rom_read(i8048_state_S *s, unsigned short a) { return machine->rdI8048_rom(s, a); }

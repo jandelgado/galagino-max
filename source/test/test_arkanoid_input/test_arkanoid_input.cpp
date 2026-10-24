@@ -43,7 +43,6 @@ void OutZ80(unsigned short p, unsigned char v) {}
 void PatchZ80(Z80 *) {}
 word LoopZ80(Z80 *) { return INT_NONE; }
 }
-void Reset6502(M6502 *) {}
 
 static void frames(int n, unsigned int k) {
   keys = k;

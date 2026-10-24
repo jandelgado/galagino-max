@@ -28,7 +28,6 @@ void tearDown(void) {}
 #ifdef HAVE_ROM
 unsigned int Input::buttons_get(void) { return 0; }
 bool Input::demoSoundsOff(void) { return false; }
-void Reset6502(M6502 *) {}
 
 static jailbrek *machine;
 static uint32_t nmis, irqs;  // vector fetches, as the MAME read tap counts them

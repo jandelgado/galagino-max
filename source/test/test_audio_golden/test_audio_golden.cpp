@@ -30,7 +30,6 @@
 // machineBase::reset() is in the vtable; the harness never resets CPUs
 extern "C" {
 void ResetZ80(Z80 *) {}
-void Reset6502(M6502 *) {}
 }
 
 static const int FRAMES = 300;
