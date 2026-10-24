@@ -37,41 +37,65 @@ void Ay8910::render(const uint8_t *regs, int16_t *out, int n) {
       cnt[NOISE] += inc;
       if (cnt[NOISE] > period[NOISE]) {
         cnt[NOISE] -= period[NOISE];
-        noise_rng ^= (((noise_rng & 1) ^ ((noise_rng >> 3) & 1)) << 17);
-        noise_rng >>= 1;
+        // the shift register advances every second period, like a tone toggles
+        noise_half = !noise_half;
+        if (!noise_half) {
+          noise_rng ^= (((noise_rng & 1) ^ ((noise_rng >> 3) & 1)) << 17);
+          noise_rng >>= 1;
+        }
       }
     }
 
     for (int c = 0; c < TONES; c++) {
-      if (!((period[c] || envelope[c]) && volume[c] && enable[c])) {
-        continue;
-      }
-      // bit 4 of the volume register selects the envelope
-      const int level = (volume[c] & 0x10) ? (env_step ^ env_attack) : (volume[c] & 0x0f);
-      // a tone above Nyquist averages to its level (MAME resamples it), so
-      // the envelope alone shapes the wave (Juno First: period 0, shape 14)
-      const bool audible = period[c] >= inc;
-      if (level > 0) {
-        int16_t bit = 1;
-        if ((enable[c] & 1) && audible) {
-          bit &= (toggle[c] > 0) ? 1 : 0;
+      int32_t sample = 0;
+
+      // noise only: the tone period does not matter
+      const bool active = period[c] || envelope[c] || enable[c] == NOISE_ONLY;
+      if (active && volume[c] && enable[c]) {
+        // bit 4 of the volume register selects the envelope
+        const int level = (volume[c] & 0x10) ? (env_step ^ env_attack) : (volume[c] & 0x0f);
+        // a tone above Nyquist averages to its level (MAME resamples it), so
+        // the envelope alone shapes the wave (Juno First: period 0, shape 14)
+        const bool toneAudible = period[c] >= inc;
+        if (level > 0) {
+          int16_t bit = 1;
+          if ((enable[c] & 1) && toneAudible) {
+            bit &= (toggle[c] > 0) ? 1 : 0;
+          }
+          if (enable[c] & 2) {
+            bit &= (noise_rng & 1) ? 1 : 0;
+          }
+          if (bit == 0) {
+            bit = -1;
+          }
+          sample = chanGain[c] * bit * level;
         }
-        if (enable[c] & 2) {
-          bit &= (noise_rng & 1) ? 1 : 0;
+        cnt[c] += inc;
+        if (cnt[c] > period[c]) {
+          cnt[c] -= period[c];
+          toggle[c] = -toggle[c];
         }
-        if (bit == 0) {
-          bit = -1;
-        }
-        value += chanGain[c] * bit * level;
       }
-      cnt[c] += inc;
-      if (cnt[c] > period[c]) {
-        cnt[c] -= period[c];
-        toggle[c] = -toggle[c];
+
+      if (lowpassAlpha[c]) {
+        lowpassState[c] += (((sample << LOWPASS_SHIFT) - lowpassState[c]) * lowpassAlpha[c]) >> ALPHA_SHIFT;
+        sample = (lowpassState[c] * LOWPASS_MAKEUP) >> (LOWPASS_SHIFT + MAKEUP_SHIFT);
       }
+      value += sample;
     }
     out[i] = value;
   }
+}
+
+void Ay8910::setLowpass(int ch, uint16_t hz) {
+  if (hz == 0) {
+    lowpassAlpha[ch] = 0;
+    lowpassState[ch] = 0;
+    return;
+  }
+  // one-pole RC, backward Euler: alpha = x / (1 + x), x = 2 pi fc / fs
+  const float x = 6.2831853f * hz / SAMPLE_HZ;
+  lowpassAlpha[ch] = (int32_t)((1 << ALPHA_SHIFT) * x / (1.0f + x));
 }
 
 // MAME: one step per 2 x period ticks of clock / 8 (AY8910 m_step = 2),
