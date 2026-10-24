@@ -38,6 +38,7 @@ public:
 private:
   static const int TONES = 3;
   static const int NOISE = 3;  // index of the noise generator in cnt/period
+  static const int ENV_MAX = 15;
 
   void stepEnvelope(void);
 
@@ -53,9 +54,12 @@ private:
   int period[TONES + 1] = {0, 0, 0, 0};
   uint32_t noise_rng = 1;
   int env_period = 0;
-  uint8_t env_shape = 0;
+  uint8_t env_shape = 0xff;   // none yet: the first render sets it
   int env_counter = 0;
-  int env_step = 0;
+  int env_step = 0;           // ENV_MAX down to 0; level = step ^ attack
+  int env_attack = 0;         // 0 (decay) or ENV_MAX (attack)
+  int env_hold = 0;
+  int env_alternate = 0;
   int env_holding = 0;
 };
 

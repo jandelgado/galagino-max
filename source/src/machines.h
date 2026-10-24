@@ -767,6 +767,12 @@
     #include "machines/krull/krull_bundle.h"
   #endif
 #endif
+#ifdef GAME_JUNOFRST
+  #include "machines/junofrst/junofrst.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/junofrst/junofrst_bundle.h"
+  #endif
+#endif
 #ifdef GAME_PLEIADS
   #include "machines/pleiads/pleiads.h"
   #ifdef ASSETS_REMOTE
@@ -1445,6 +1451,13 @@ constexpr machineInfo machines[] = {
     krull::menuLeds,
 #endif
     MCH_KRULL, nullptr BUNDLE_REF(krull_bundle_ref) },
+#endif
+#ifdef GAME_JUNOFRST
+  { createMachine<junofrst>, junofrst::logo,
+#ifdef LED_PIN
+    junofrst::menuLeds,
+#endif
+    MCH_JUNOFRST, nullptr BUNDLE_REF(junofrst_bundle_ref) },
 #endif
 #ifdef GAME_PLEIADS
   { createMachine<pleiads>, pleiads::logo,

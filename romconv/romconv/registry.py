@@ -7,8 +7,8 @@ from romconv.games import (alibaba, anteater, arkanoid, asteroids, atetris, bagm
                            btime, bublbobl, bwidow, bzone, cavenger, cbdash, ccastles, centipede, circusc,
                            commando, contra, crush, digdug, dkong, dkong3, dkongjr, docastle, elevator, eyes, fantasy,
                            frogger, galaga, galaxian, game_1942, game_1943, gberet, gng, gorf, gravitar,
-                           gyruss, hero, invaders, jailbrek, krull, ladybug, lizwiz, llander, marble, mario, mcr, megazone,
-                           mhavoc, mikie, millipede, missile, motorace, mpatrol, mrdo, mrgoemon, mrtnt, mspacman,
+                           gyruss, hero, invaders, jailbrek, junofrst, krull, ladybug, lizwiz, llander, marble, mario, mcr,
+                           megazone, mhavoc, mikie, millipede, missile, motorace, mpatrol, mrdo, mrgoemon, mrtnt, mspacman,
                            nibbler, pacman, pbaction, pengo, phoenix, pleiads, pooyan, qbert, roadfighter, rocnrope,
                            scotrsht, scregg, solomon, spacduel, starforce, starwars, tempest, theglob, thepit, timeplt,
                            tp84, trackfld, tutankhm, vanguard, vanvan, vulgus, williams, yiear, zaxxon)
@@ -86,6 +86,7 @@ ALL: tuple[Job, ...] = (
     ladybug.JOB,
     llander.JOB,
     mario.JOB,
+    junofrst.JOB,
     megazone.JOB,
     mhavoc.JOB,
     mikie.JOB,

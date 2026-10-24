@@ -18,6 +18,7 @@
 #define private public
 #define protected public
 #include "../../src/machines/megazone/megazone.cpp"
+#include "../../src/emulation/i8039_dac.cpp"
 #undef private
 #undef protected
 #include "mame_frames.h"
