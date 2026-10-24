@@ -10,7 +10,7 @@ class flicky : public system1 {
 public:
   flicky();
 
-  signed char machineType() override { return MCH_FLICKY; }
+  uint8_t machineType() override { return MCH_FLICKY; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

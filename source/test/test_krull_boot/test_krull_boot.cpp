@@ -21,6 +21,7 @@
 #include "../../src/cpus/i8086/i8086.cpp"
 #define private public
 #define protected public
+#include "../../src/machines/gottlieb/gottlieb_machine.cpp"
 #include "../../src/machines/krull/krull.cpp"
 #undef private
 #undef protected

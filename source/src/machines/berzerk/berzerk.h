@@ -23,7 +23,7 @@ class berzerk : public machineBase
 public:
   berzerk();
 
-  signed char machineType() override { return MCH_BERZERK; }
+  uint8_t machineType() override { return MCH_BERZERK; }
   const int renderWidth() override { return berzerk_video::OUT_WIDTH; }
   const int renderBuffer() override { return berzerk_video::OUT_WIDTH * 2 * 8; }
   void reset() override;

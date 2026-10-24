@@ -10,7 +10,7 @@ class pitfall2 : public system1 {
 public:
   pitfall2();
 
-  signed char machineType() override { return MCH_PITFALL2; }
+  uint8_t machineType() override { return MCH_PITFALL2; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

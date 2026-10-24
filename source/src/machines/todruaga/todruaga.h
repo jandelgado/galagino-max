@@ -55,7 +55,7 @@ protected:
 public:
     todruaga();
 
-    signed char machineType() override { return MCH_TODRUAGA; }
+    uint8_t machineType() override { return MCH_TODRUAGA; }
     signed char useVideoHalfRate() override { return 1; }
 
     void reset() override;

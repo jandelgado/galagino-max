@@ -16,7 +16,7 @@ protected:
   Asset<unsigned char, COMPRESSED> fantasy_sound_rom;
 public:
   fantasy();
-  signed char machineType() override { return MCH_FANTASY; }
+  uint8_t machineType() override { return MCH_FANTASY; }
   void start() override;
   void reset() override;
   void run_frame() override;

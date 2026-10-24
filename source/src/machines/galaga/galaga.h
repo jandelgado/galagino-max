@@ -35,7 +35,7 @@ public:
       galaga_sprites(galaga_sprites_blob),
       galaga_tilemap(galaga_tilemap_blob) { }
 
-  signed char machineType() override { return MCH_GALAGA; }
+  uint8_t machineType() override { return MCH_GALAGA; }
 
   void start(void) override;
   unsigned char rdZ80(unsigned short Addr) override;

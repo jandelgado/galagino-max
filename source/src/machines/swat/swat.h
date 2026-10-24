@@ -10,7 +10,7 @@ class swat : public system1 {
 public:
   swat();
 
-  signed char machineType() override { return MCH_SWAT; }
+  uint8_t machineType() override { return MCH_SWAT; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

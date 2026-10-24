@@ -20,7 +20,7 @@ protected:
   Asset<unsigned char, COMPRESSED> gravitar_vrom;
 public:
   gravitar();
-  signed char machineType() override { return MCH_GRAVITAR; }
+  uint8_t machineType() override { return MCH_GRAVITAR; }
   void reset() override;
   static const Logo &logo() { return gravitar_logo; }
 #ifdef LED_PIN

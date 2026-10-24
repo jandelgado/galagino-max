@@ -42,7 +42,7 @@ class mario : public machineBase
 public:
   mario();
 
-  signed char machineType() override { return MCH_MARIO; }
+  uint8_t machineType() override { return MCH_MARIO; }
   void reset() override;
 
   unsigned char opZ80(unsigned short Addr) override;

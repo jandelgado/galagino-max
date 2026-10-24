@@ -19,7 +19,7 @@ public:
   void init(Input *input, unsigned short *framebuffer, sprite_S *spritebuffer, unsigned char *memorybuffer) override;
    void reset() override;
 
-  signed char machineType() override { return MCH_THEGLOB; } 
+  uint8_t machineType() override { return MCH_THEGLOB; } 
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
   void outZ80(unsigned short Port, unsigned char Value) override;

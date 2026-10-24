@@ -65,7 +65,7 @@ protected:
 public:
   circusc();
 
-  signed char machineType() override { return MCH_CIRCUSC; }
+  uint8_t machineType() override { return MCH_CIRCUSC; }
   // two SN76489A plus the 8-bit effects DAC, DC tracked out
   void renderAudio(int16_t *out, int n) override {
     Sn76489::renderBank(sn, out, n);

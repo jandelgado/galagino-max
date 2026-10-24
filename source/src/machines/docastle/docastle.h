@@ -35,7 +35,7 @@ protected:
 public:
   docastle();
 
-  signed char machineType() override { return MCH_DOCASTLE; }
+  uint8_t machineType() override { return MCH_DOCASTLE; }
 
   unsigned char opZ80(unsigned short Addr) override;
   unsigned char rdZ80(unsigned short Addr) override;

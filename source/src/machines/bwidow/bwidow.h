@@ -21,7 +21,7 @@ protected:
   Asset<unsigned char, COMPRESSED> bwidow_vrom;
 public:
   bwidow();
-  signed char machineType() override { return MCH_BWIDOW; }
+  uint8_t machineType() override { return MCH_BWIDOW; }
   void reset() override;
   static const Logo &logo() { return bwidow_logo; }
 #ifdef LED_PIN

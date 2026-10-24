@@ -66,7 +66,7 @@ protected:
 public:
   bnj();
 
-  signed char machineType() override { return MCH_BNJ; }
+  uint8_t machineType() override { return MCH_BNJ; }
   void start() override;
   void reset() override;
 

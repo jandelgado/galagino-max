@@ -32,7 +32,7 @@ protected:
 public:
   yiear();
 
-  signed char machineType() override { return MCH_YIEAR; }
+  uint8_t machineType() override { return MCH_YIEAR; }
   void renderAudio(int16_t *out, int n) override;
   const int renderWidth() override { return OUT_WIDTH; }
   const int renderBuffer() override { return OUT_WIDTH * 2 * 8; }

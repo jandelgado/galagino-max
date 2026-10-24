@@ -21,7 +21,7 @@ protected:
   Asset<unsigned char, COMPRESSED> spacduel_vrom;
 public:
   spacduel();
-  signed char machineType() override { return MCH_SPACDUEL; }
+  uint8_t machineType() override { return MCH_SPACDUEL; }
   void reset() override;
   static const Logo &logo() { return spacduel_logo; }
 #ifdef LED_PIN

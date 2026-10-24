@@ -42,7 +42,7 @@ class thepit : public machineBase
 public:
   thepit();
 
-  signed char machineType() override { return MCH_THEPIT; }
+  uint8_t machineType() override { return MCH_THEPIT; }
   void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   void reset() override;
   void start() override;

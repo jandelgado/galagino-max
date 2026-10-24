@@ -43,7 +43,7 @@ protected:
 
 public:
   megazone();
-  signed char machineType() override { return MCH_MEGAZONE; }
+  uint8_t machineType() override { return MCH_MEGAZONE; }
   void renderAudio(int16_t *out, int n) override;
   void reset() override;
   void start() override;

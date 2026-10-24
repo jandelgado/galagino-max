@@ -10,7 +10,7 @@ class upndown : public system1 {
 public:
   upndown();
 
-  signed char machineType() override { return MCH_UPNDOWN; }
+  uint8_t machineType() override { return MCH_UPNDOWN; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

@@ -32,7 +32,7 @@ public:
   static const int WIDTH = 240;
 
   cavenger();
-  signed char machineType() override { return MCH_CAVENGER; }
+  uint8_t machineType() override { return MCH_CAVENGER; }
   void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   const int renderWidth() override { return WIDTH; }
   const int renderBuffer() override { return WIDTH * 2 * 8; }

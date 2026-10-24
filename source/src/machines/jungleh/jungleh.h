@@ -11,7 +11,7 @@ class jungleh : public elevator {
 public:
   jungleh();
 
-  signed char machineType() override { return MCH_JUNGLEH; }
+  uint8_t machineType() override { return MCH_JUNGLEH; }
   static const Logo &logo(void);
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

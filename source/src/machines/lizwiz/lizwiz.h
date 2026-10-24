@@ -16,7 +16,7 @@ protected:
 public:
   lizwiz();
 
-  signed char machineType() override { return MCH_LIZWIZ; }
+  uint8_t machineType() override { return MCH_LIZWIZ; }
   void start(void) override;
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;

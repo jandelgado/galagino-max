@@ -26,7 +26,7 @@ protected:
   Asset<unsigned char, COMPRESSED> bzone_vrom;
 public:
   bzone();
-  signed char machineType() override { return MCH_BZONE; }
+  uint8_t machineType() override { return MCH_BZONE; }
   void renderAudio(int16_t *out, int n) override;
   void reset() override;
   static const Logo &logo() { return bzone_logo; }

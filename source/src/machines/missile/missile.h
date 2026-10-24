@@ -23,7 +23,7 @@ protected:
   Asset<unsigned char, COMPRESSED> missile_rom;
 public:
   missile();
-  signed char machineType() override { return MCH_MISSILE; }
+  uint8_t machineType() override { return MCH_MISSILE; }
   void renderAudio(int16_t *out, int n) override {
     Pokey::renderBank(pokey, soundregs, out, n);
     audioClampAll(out, n, AUDIO_MAX);

@@ -69,7 +69,7 @@ public:
   void reset() override;
   void start(void) override;
 
-  signed char machineType()      override { return MCH_ROADFIGHTER; }
+  uint8_t machineType()      override { return MCH_ROADFIGHTER; }
   // SN76489A plus the 8-bit R2R DAC (engine/crash), latched per sample
   void renderAudio(int16_t *out, int n) override {
     Sn76489::renderBank(sn, out, n);

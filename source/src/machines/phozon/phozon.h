@@ -56,7 +56,7 @@ protected:
 public:
   phozon();
 
-  signed char machineType() override { return MCH_PHOZON; }
+  uint8_t machineType() override { return MCH_PHOZON; }
   signed char useVideoHalfRate() override { return 1; }
 
   void reset() override;

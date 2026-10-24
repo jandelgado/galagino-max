@@ -28,7 +28,7 @@ private:
 
 public:
   joust();
-  signed char machineType() override { return MCH_JOUST; }
+  uint8_t machineType() override { return MCH_JOUST; }
   static const Logo &logo() { return joust_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

@@ -39,7 +39,7 @@ protected:
 public:
   scotrsht();
 
-  signed char machineType() override { return MCH_SCOTRSHT; }
+  uint8_t machineType() override { return MCH_SCOTRSHT; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

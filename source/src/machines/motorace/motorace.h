@@ -30,7 +30,7 @@ protected:
 public:
   motorace();
 
-  signed char machineType()    override { return MCH_MOTORACE; }
+  uint8_t machineType()    override { return MCH_MOTORACE; }
   void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   // flipY toggles both MY and MX (video.cpp); flipX undoes MX.
   signed char videoFlipY()     override { return 1; }

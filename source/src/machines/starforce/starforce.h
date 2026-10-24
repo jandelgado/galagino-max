@@ -26,7 +26,7 @@ class starforce : public machineBase
 public:
 	starforce();
 
-	signed char machineType() override { return MCH_STARFORCE; }
+	uint8_t machineType() override { return MCH_STARFORCE; }
 	void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
 	signed char useVideoHalfRate() override { return 1; }
 

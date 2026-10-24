@@ -15,7 +15,7 @@ protected:
   Asset<unsigned char, COMPRESSED> nibbler_sound_rom;
 public:
   nibbler();
-  signed char machineType() override { return MCH_NIBBLER; }
+  uint8_t machineType() override { return MCH_NIBBLER; }
   void start() override;
   void reset() override;
   void run_frame() override;

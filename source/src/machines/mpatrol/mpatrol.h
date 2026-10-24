@@ -37,7 +37,7 @@ protected:
 public:
   mpatrol();
 
-  signed char machineType() override { return MCH_MPATROL; }
+  uint8_t machineType() override { return MCH_MPATROL; }
   void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   // Native ROT0 240x252, shown 1:1 on the portrait panel.
   const int renderWidth()  override { return mpatrol_video::OUT_WIDTH; }

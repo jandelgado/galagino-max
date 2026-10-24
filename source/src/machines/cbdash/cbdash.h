@@ -23,7 +23,7 @@ class cbdash : public machineBase {
 public:
   cbdash();
 
-  signed char machineType() override { return MCH_CBDASH; }
+  uint8_t machineType() override { return MCH_CBDASH; }
   void renderAudio(int16_t *out, int n) override;
   const int renderWidth() override { return 240; }
   const int renderBuffer() override { return 240 * 2 * 8; }

@@ -45,7 +45,7 @@ protected:
 
 public:
   starwars();
-  signed char machineType() override { return MCH_STARWARS; }
+  uint8_t machineType() override { return MCH_STARWARS; }
   void renderAudio(int16_t *out, int n) override;
   void start() override;
   void reset() override;

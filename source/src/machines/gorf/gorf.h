@@ -32,7 +32,7 @@ class gorf : public machineBase
 public:
   gorf();
 
-  signed char machineType() override { return MCH_GORF; }
+  uint8_t machineType() override { return MCH_GORF; }
   const int renderWidth() override { return gorf_video::OUT_W; }
   const int renderBuffer() override { return gorf_video::OUT_W * 2 * 8; }
   void reset() override;

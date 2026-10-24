@@ -40,7 +40,7 @@ public:
       : system1(Roms{F_MAIN, F_SOUND, F_TILES, F_TILE_MAP, F_SPRITES, F_LOOKUP, nullptr, F_BANKS, fakePalette},
                 Config{system1_video::VISAREA_FULL, false, BOARD_PIO, ROT0,
                        {8, 8, system1_video::NO_PLAYER, 0, 0}, bank, buttons}) {}
-  signed char machineType() override { return MCH_MENU; }
+  uint8_t machineType() override { return MCH_MENU; }
 
 protected:
   uint8_t dswA() override { return 0xff; }

@@ -35,7 +35,7 @@ protected:
 
 public:
   gng();
-  signed char machineType() override { return MCH_GNG; }
+  uint8_t machineType() override { return MCH_GNG; }
   void renderAudio(int16_t *out, int n) override;
   const int renderWidth() override { return WIDTH; }
   const int renderBuffer() override { return WIDTH * 2 * 8; }

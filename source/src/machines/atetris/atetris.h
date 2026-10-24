@@ -25,7 +25,7 @@ protected:
   Asset<uint32_t[8], COMPRESSED> atetris_tiles;
 public:
   atetris();
-  signed char machineType() override { return MCH_ATETRIS; }
+  uint8_t machineType() override { return MCH_ATETRIS; }
   void renderAudio(int16_t *out, int n) override {
     Pokey::renderBank(pokey, soundregs, out, n);
     audioClampAll(out, n, AUDIO_MAX);

@@ -39,7 +39,7 @@ public:
   static const uint8_t SPIN_MIN = 4, SPIN_MAX = 10, SPIN_ACCEL = 1;
 
   arkanoid();
-  signed char machineType() override { return MCH_ARKANOID; }
+  uint8_t machineType() override { return MCH_ARKANOID; }
   void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   const int renderWidth() override { return WIDTH; }
   const int renderBuffer() override { return WIDTH * 2 * 8; }

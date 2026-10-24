@@ -11,7 +11,7 @@ class motos : public digdug2 {
 public:
   motos();
 
-  signed char machineType() override { return MCH_MOTOS; }
+  uint8_t machineType() override { return MCH_MOTOS; }
   static const Logo &logo(void);
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

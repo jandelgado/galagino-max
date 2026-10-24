@@ -39,7 +39,7 @@ protected:
 
 public:
   commando();
-  signed char machineType() override { return MCH_COMMANDO; }
+  uint8_t machineType() override { return MCH_COMMANDO; }
   void renderAudio(int16_t *out, int n) override;
   void reset() override;
   unsigned char opZ80(unsigned short Addr) override;

@@ -46,7 +46,7 @@ public:
   solomon();
 
   void reset() override;
-  signed char machineType() override { return MCH_SOLOMON; }
+  uint8_t machineType() override { return MCH_SOLOMON; }
   void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   const int renderWidth() override { return solomon_video::OUT_WIDTH; }
   const int renderBuffer() override { return solomon_video::OUT_WIDTH * 2 * 8; }

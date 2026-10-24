@@ -63,7 +63,7 @@ protected:
 public:
     gaplus();
 
-    signed char machineType() override { return MCH_GAPLUS; }
+    uint8_t machineType() override { return MCH_GAPLUS; }
     signed char useVideoHalfRate() override { return 1; }
 
     void reset() override;

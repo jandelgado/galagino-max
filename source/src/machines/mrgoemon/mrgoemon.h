@@ -9,7 +9,7 @@ class mrgoemon : public gberet {
 public:
   mrgoemon();
 
-  signed char machineType() override { return MCH_MRGOEMON; }
+  uint8_t machineType() override { return MCH_MRGOEMON; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

@@ -49,7 +49,7 @@ protected:
 public:
     mappy();
 
-    signed char machineType() override { return MCH_MAPPY; }
+    uint8_t machineType() override { return MCH_MAPPY; }
     signed char useVideoHalfRate() override { return 1; }
 
     void reset() override;

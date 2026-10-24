@@ -54,7 +54,7 @@ protected:
 public:
   zaxxon();
 
-  signed char machineType() override { return MCH_ZAXXON; }
+  uint8_t machineType() override { return MCH_ZAXXON; }
 
   // Hardware is native landscape 256x224 (MAME ROT90), panel is portrait.
   // render_row()/blit_tile() rotate the fg tilemap 90 deg into the portrait

@@ -49,7 +49,7 @@ protected:
 public:
   tron();
 
-  signed char machineType() override { return MCH_TRON; }
+  uint8_t machineType() override { return MCH_TRON; }
   const int renderWidth() override { return OUT_WIDTH; }
   const int renderBuffer() override { return OUT_WIDTH * 2 * 8; }
 

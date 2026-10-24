@@ -39,7 +39,7 @@ protected:
 public:
 	alibaba();
 
-	signed char machineType() override { return MCH_ALIBABA; }
+	uint8_t machineType() override { return MCH_ALIBABA; }
 
 	void start(void) override;
 	unsigned char rdZ80(unsigned short Addr) override;

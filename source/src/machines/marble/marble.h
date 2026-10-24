@@ -31,7 +31,7 @@ public:
   static constexpr uint32_t ARENA_EXTRA[] = { 10440, 57344, 39904, 6902, 13098, 14080 };
 
   marble();
-  signed char machineType() override { return MCH_MARBLE; }
+  uint8_t machineType() override { return MCH_MARBLE; }
   const int renderWidth()  override { return marble_video::OUT_W; }
   const int renderBuffer() override { return marble_video::OUT_W * 2 * 8; }
 

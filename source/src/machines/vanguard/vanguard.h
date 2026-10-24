@@ -17,7 +17,7 @@ protected:
   Asset<unsigned char, COMPRESSED> vanguard_sound_rom;
 public:
   vanguard();
-  signed char machineType() override { return MCH_VANGUARD; }
+  uint8_t machineType() override { return MCH_VANGUARD; }
   void start() override;
   void reset() override;
   void run_frame() override;

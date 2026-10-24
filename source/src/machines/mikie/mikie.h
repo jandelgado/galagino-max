@@ -39,7 +39,7 @@ protected:
 
 public:
   mikie();
-  signed char machineType() override { return MCH_MIKIE; }
+  uint8_t machineType() override { return MCH_MIKIE; }
   void renderAudio(int16_t *out, int n) override { Sn76489::renderBank(sn, out, n); }
   void reset() override;
   void start() override;

@@ -10,7 +10,7 @@ class baluba : public starforce
 public:
   baluba();
 
-  signed char machineType() override { return MCH_BALUBA; }
+  uint8_t machineType() override { return MCH_BALUBA; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN

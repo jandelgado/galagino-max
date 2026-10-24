@@ -25,7 +25,7 @@ protected:
   Asset<unsigned char, COMPRESSED> asteroids_vrom;
 public:
   asteroids();
-  signed char machineType() override { return MCH_ASTEROIDS; }
+  uint8_t machineType() override { return MCH_ASTEROIDS; }
   void renderAudio(int16_t *out, int n) override { sound.render(soundregs, out, n); }
   void reset() override;
   static const Logo &logo() { return asteroids_logo; }

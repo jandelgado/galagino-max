@@ -19,7 +19,7 @@ protected:
   Asset<unsigned char, COMPRESSED> millipede_rom;
 public:
   millipede();
-  signed char machineType() override { return MCH_MILLIPEDE; }
+  uint8_t machineType() override { return MCH_MILLIPEDE; }
   void renderAudio(int16_t *out, int n) override {
     Pokey::renderBank(pokey, soundregs, out, n);
     audioClampAll(out, n, AUDIO_MAX);

@@ -22,7 +22,7 @@ protected:
 public:
 	pengo();
 
-	signed char machineType() override { return MCH_PENGO; }
+	uint8_t machineType() override { return MCH_PENGO; }
 	void start(void) override;
 	unsigned char rdZ80(unsigned short Addr) override;
 	void wrZ80(unsigned short Addr, unsigned char Value) override;

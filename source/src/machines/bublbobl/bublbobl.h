@@ -43,7 +43,7 @@ class bublbobl : public machineBase
 public:
   bublbobl();
 
-  signed char machineType() override { return MCH_BUBLBOBL; }
+  uint8_t machineType() override { return MCH_BUBLBOBL; }
   void reset() override;
 
   unsigned char opZ80(unsigned short Addr) override;

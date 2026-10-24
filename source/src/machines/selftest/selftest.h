@@ -25,7 +25,7 @@ public:
   void prepare_frame() override;
   void render_row(short row) override;
   void renderAudio(int16_t *out, int n) override;
-  signed char machineType() override { return MCH_SELFTEST; }
+  uint8_t machineType() override { return MCH_SELFTEST; }
 #ifdef LED_PIN
   void gameLeds(CRGB *leds) override;
 #endif

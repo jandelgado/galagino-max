@@ -19,6 +19,7 @@
 #include "../../src/cpus/i8086/i8086.cpp"
 #define private public
 #define protected public
+#include "../../src/machines/gottlieb/gottlieb_machine.cpp"
 #include "../../src/machines/qbert/qbert.cpp"
 #undef private
 #undef protected
@@ -152,7 +153,7 @@ static void lockstep(const char *name, const uint16_t *mameSp, const uint32_t *m
 }
 
 // stick switches are screen diagonals: cardinals turned 45 degrees
-// clockwise, diagonals direct (qbert.cpp readStick)
+// clockwise, diagonals direct (qbert.cpp readIn4)
 static void test_stick_mapping(void) {
   qbert *m = boot();
   struct Case {

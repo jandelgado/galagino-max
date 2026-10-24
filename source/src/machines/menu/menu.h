@@ -82,5 +82,5 @@ private:
 #endif
 };
 
-const char *mchName(signed char machineType);
+const char *mchName(uint8_t machineType);
 #endif

@@ -18,7 +18,7 @@ protected:
   Asset<unsigned char, COMPRESSED> centipede_rom;
 public:
   centipede();
-  signed char machineType() override { return MCH_CENTIPEDE; }
+  uint8_t machineType() override { return MCH_CENTIPEDE; }
   void renderAudio(int16_t *out, int n) override {
     Pokey::renderBank(pokey, soundregs, out, n);
     audioClampAll(out, n, AUDIO_MAX);

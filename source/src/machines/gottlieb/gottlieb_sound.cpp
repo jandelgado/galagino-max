@@ -1,5 +1,5 @@
 #include "../../catalog.h"
-#if defined(GAME_QBERT) || defined(GAME_KRULL)
+#if defined(GAME_QBERT) || defined(GAME_KRULL) || defined(GAME_TYLZ)
 
 #include "gottlieb_sound.h"
 #include <string.h>

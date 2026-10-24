@@ -57,7 +57,7 @@ public:
   // RAM pointers need `memory`, which init() sets after the ctor
   void init(Input *input, unsigned short *framebuffer, sprite_S *spritebuffer, unsigned char *memorybuffer) override;
 
-  signed char machineType() override { return MCH_SCRAMBLE; }
+  uint8_t machineType() override { return MCH_SCRAMBLE; }
   void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
   void start() override;
 
