@@ -2,13 +2,13 @@
 
 Arcade emulator for the ESP32 with a 240x320 SPI display. Fork of Galagino, now with **125+ games**.
 
-Using compression, galagino**max** can **squeeze up to 101 games in the classic ESP-WROOM-32's 4 MB 
-of flash**. You can also run all 125+ games, with some **ROMs downloaded to the ESP32 on demand**. No need to upgrade to the S3!
+Using compression, galagino**max** can **squeeze up to 101 games into the classic ESP-WROOM-32's 4 MB 
+of flash**. You can also **have all 125+ games in flash, with some ROMs downloaded to the ESP32 on demand**. No need to upgrade to the S3!
 
 * **New platforms and games:**
-  * Atari vector DVG/AVG vector machines: Asteroids, Star Wars, Battle Zone, Lunar Lander, Tempest, Space Duel, Gravitar,
+  * Atari DVG/AVG vector machines: Asteroids, Star Wars, Battle Zone, Lunar Lander, Tempest, Space Duel, Gravitar,
      Major Havoc, Black Widow
-  * Atari raster: Centipede, Missile Command, Tetris, Millipede, Crystal Castles
+  * More Atari classics: Centipede, Missile Command, Tetris, Millipede, Crystal Castles
   * Sega System 1 and 2: Pitfall II, Flicky, Wonder Boy, Mister Viking, Up'n Down, Star Jacker,
     Choplifter
   * Williams: Defender, Robotron, Joust, Sinistar
@@ -17,17 +17,17 @@ of flash**. You can also run all 125+ games, with some **ROMs downloaded to the 
   * Data East DECO Cassette: Boulder Dash
   * Bally Astrocade: Gorf
   * **more highlights:** Contra, Zaxxon, Bubble Bobble, 1943, Ghosts'n Goblins, Commando, Mario Bros., Moon Patrol, Arkanoid, Green Beret, Track & Field, Yie Ar Kung-Fu.
-* **Bonus: native ports.** Marble Madness and H.E.R.O. (Atari 2600) run as C++ rewrites with
-  graphics and levels from the original ROM. No 68010 or 6502 needed.
+* **Bonus: native ports** of Marble Madness (arcade) and H.E.R.O. (Atari 2600) run as C++ rewrites with
+  graphics and levels from the original ROM.
 * **New CPUs:** Intel 8088 (Q*bert), Fujitsu MB88xx (Namco 54xx sound MCU).
 * **New sound hardware:** POKEY, TMS5220, S14001A, Votrax SC-01, VLM5030, YM2203 FM, Astrocade,
   Exidy 6840, HC-55516 CVSD. C64 SID music for games whose arcade sound is not emulated.
 * **Smoother video:** smoother scrolling and less sprite wobble. Wide playfields pan with the
   player (Mario Bros., Marble Madness, Solomon's Key, Motoracer USA).
 * **Performance optimizations** so heavy games reach 60 Hz.
-* Boot "self-test", FPS display, rotating cylinder menu.
-* **Fast, portable ROM conversion.** One command on Linux, macOS or Windows. Converts games in
-  parallel. No manual Python setup (uses [uv](https://docs.astral.sh/uv/)).
+* Bootup "self-test", FPS display, rotating cylinder menu added.
+* **Fast, portable ROM conversion.** Converts games in parallel and uses 
+  [uv](https://docs.astral.sh/uv/) to ease the setup.
 
 ![Cabinet](images/galagino_cabinet.jpg)
 
@@ -94,7 +94,7 @@ Builds and sources:
 
 Needs [PlatformIO](https://platformio.org/) and [uv](https://docs.astral.sh/uv/).
 
-1. Put the ROM zips into [romszip/](romszip/) (see [ROMs](#roms)).
+1. Put the ROM zips and optional SID files into [romszip/](romszip/) (see [ROMs](#roms)).
 2. Convert them: `romconv/convert.sh` (`romconv/convert.bat` on Windows). Pass game names to
    convert only those. See [romconv/README.md](romconv/README.md).
 3. Build and flash from `source/`:
@@ -105,7 +105,7 @@ Needs [PlatformIO](https://platformio.org/) and [uv](https://docs.astral.sh/uv/)
    make build ENV=fnk0103f-local  # build only
    ```
 
-   Or `pio run -e <env> -t upload`.
+   Or `pio run -e <env> -t upload` or call `PlatformIO` bypassing `make`.
 
 A game is built in with a `-D ENABLE_<GAME>` flag. `source/platformio.ini` groups the flags in
 lists, and each mode picks lists (`[mode_*]`):
@@ -129,8 +129,13 @@ Keep personal settings out of `config.h`. Put them in `source/src/config_local.h
 git-ignored and included first by `config.h`. Precedence: `platformio.ini` build flags, then
 `config_local.h`, then `config.h` defaults.
 
+Example `config_local.h`:
+
 ```c
 #define MASTER_ATTRACT_GAME_TIMEOUT  60000 * 2
+#define DEBUG_TIMING_FPS_HUD      // show emulation FPS at the bottom of the screen
+#define GALAGINO_WIFI_SSID   "my-ssid"
+#define GALAGINO_WIFI_PASS   "my-password"
 #define LED_PIN           16
 #define SND_RIGHT_CHANNEL         // audio on GPIO 25 instead of 26
 
@@ -183,7 +188,7 @@ Set in `config_local.h` (`#define X`) or `platformio.ini` (`-D X`).
 
 ## ROMs
 
-### BYOROMs
+### BYOROMs (Bring your own ROMs)
 
 No ROMs and no copyrighted data are included in this repository. Bring your own ROM files.
 Use dumps from machines you own. Zip names must match the names in the [game list](#games).
@@ -192,9 +197,13 @@ Some games need a parent or BIOS zip, or a C64 `.sid` file from the
 
 ### Downloading ROMs on the ESP32
 
-A 4 MB ESP32 has no room for every game. The `remote` modes build in a small set of games. Every
-other game downloads its ROM data over HTTP when you start it. It stays in a 1 MB flash cache,
-oldest download evicted first. Menu entries not cached yet show a little `NET` marker in the lower right are of the games logo.
+galagino**max** support downloading of ROMs via WIFI on doman. This allows to build an image
+with fewer games built-in, and have others (the big ones) downloaded one demand via WIFI from your 
+private server. Downloaded data stays in a 1 MB flash cache, until evicted (oldest first). Menu 
+entries not cached yet show a little `NET` marker in the lower right are of the games logo. That 
+way, a 4 MB ESP32 **can host all 125+ games at once**. Use the `remote` envs in `platformio.ini` 
+to build images with that feature enabled.
+
 
 1. Set WiFi and server in `config_local.h`:
 
@@ -267,7 +276,7 @@ oldest download evicted first. Menu entries not cached yet show a little `NET` m
 | Xevious (xevious.zip)          | ![Xevious marquee](/logos/xevious.png)      | ![Xevious screenshot](/images/xevious.png)      |       |
 | Bump 'n' Jump (bnj.zip)        | ![Bump 'n' Jump marquee](/logos/bnj.png)          | ![Bump 'n' Jump screenshot](/images/bnj.png)          |       |
 | Mappy (mappy.zip)              | ![Mappy marquee](/logos/mappy.png)        | ![Mappy screenshot](/images/mappy.png)        |       |
-| Gaplus (gaplus.zip)            | ![Gaplus marquee](/logos/gaplus.png)       | ![Gaplus screenshot](/images/gaplus.png)       |       |
+| Gaplus (gaplus.zip)            | ![Gaplus marquee](/logos/gaplus.png)       | ![Gaplus screenshot](/images/gaplus.png)       | Audio samples: gaplus-samples.zip (MAME samples, see romszip/README.md) |
 | Alibaba (alibaba.zip)          | ![Alibaba marquee](/logos/alibaba.png)      | ![Alibaba screenshot](/images/alibaba.png)      |       |
 | Amidar (amidar.zip)            | ![Amidar marquee](/logos/amidar.png)       | ![Amidar screenshot](/images/amidar.png)       |       |
 | Turtles (turtles.zip)          | ![Turtles marquee](/logos/turtles.png)      | ![Turtles screenshot](/images/turtles.png)      |       |
@@ -276,17 +285,17 @@ oldest download evicted first. Menu entries not cached yet show a little `NET` m
 | Tower of Druaga (todruaga.zip) | ![Tower of Druaga marquee](/logos/todruaga.png)     | ![Tower of Druaga screenshot](/images/todruaga.png)     |       |
 | Van Van Car (vanvan.zip)       | ![Van Van Car marquee](/logos/vanvan.png)       | ![Van Van Car screenshot](/images/vanvan.png)       |       |
 | Pinball Action (pbaction.zip)  | ![Pinball Action marquee](/logos/pbaction.png)     | ![Pinball Action screenshot](/images/pbaction.png)     |       |
-| Fantasy Island (fantasyu.zip)  | ![Fantasy Island marquee](/logos/fantasy.png)      | ![Fantasy Island screenshot](/images/fantasy.png)      |       |
+| Fantasy Island (fantasyu.zip)  | ![Fantasy Island marquee](/logos/fantasy.png)      | ![Fantasy Island screenshot](/images/fantasy.png)      | Audio samples: fantasy-samples.zip (HBMAME samples, see romszip/README.md) |
 | Nibbler (nibblerp.zip)         | ![Nibbler marquee](/logos/nibbler.png)      | ![Nibbler screenshot](/images/nibbler.png)      |       |
-| Vanguard (vanguard.zip)        | ![Vanguard marquee](/logos/vanguard.png)     | ![Vanguard screenshot](/images/vanguard.png)     |       |
+| Vanguard (vanguard.zip)        | ![Vanguard marquee](/logos/vanguard.png)     | ![Vanguard screenshot](/images/vanguard.png)     | Audio samples: vanguard-samples.zip (HBMAME samples, see romszip/README.md) |
 | Scrambled Egg (scregg.zip)     | ![Scrambled Egg marquee](/logos/scregg.png)       | ![Scrambled Egg screenshot](/images/scregg.png)       | Broken             |
-| Road Fighter (roadf2.zip)      | ![Road Fighter marquee](/logos/roadfighter.png)  | ![Road Fighter screenshot](/images/roadfighter.png)  |  |                
+| Road Fighter (roadf2.zip)      | ![Road Fighter marquee](/logos/roadfighter.png)  | ![Road Fighter screenshot](/images/roadfighter.png) |  |
 | Motorace USA (motorace.zip)    | ![Motorace USA marquee](/logos/motorace.png)     | ![Motorace USA screenshot](/images/motorace.png)     | Playfield cropped and scrolls horizontally, HUD stays fixed |
-| Zaxxon (zaxxon.zip)            | ![Zaxxon marquee](/logos/zaxxon.png)       | ![Zaxxon creenshot](/images/zaxxon.webp)  | US Rev D. Audio samples: zaxxon-audio.zip |
+| Zaxxon (zaxxon.zip)            | ![Zaxxon marquee](/logos/zaxxon.png)       | ![Zaxxon screenshot](/images/zaxxon.webp)  | US Rev D. Audio samples: zaxxon-audio.zip |
 | Centipede (centiped.zip)            | ![Centipede marquee](/logos/centipede.png)       | ![Centipede screenshot](/images/centipede.png) |  |
 | Millipede (milliped.zip)            | ![Millipede marquee](/logos/milliped.png)        | ![Millipede screenshot](/images/millipede.png) |  |
-| Asteroids (asteroid.zip)       | ![Asteroids marquee](/logos/asteroids.png)    | ![Asteroids screenshot](/images/asteroids.png) | Vector display rasterized |
-| Baluba-louk no Densetsu (baluba.zip) | ![Baluba-louk no Densetsu marquee](/logos/baluba.png) |                          | Star Force board |
+| Asteroids (asteroid.zip)       | ![Asteroids marquee](/logos/asteroids.png)    | ![Asteroids screenshot](/images/asteroids.png) |  |
+| Baluba-louk no Densetsu (baluba.zip) | ![Baluba-louk no Densetsu marquee](/logos/baluba.png) | ![Baluba screenshot](/images/baluba.png)                         | Star Force board |
 | Commando (commando.zip)        | ![Commando marquee](/logos/commando.png) | ![Commando screenshot](/images/commando.webp) | L1-Fire START+R1=Grenade. C64 SID music: romszip/Commando.sid (HVSC) |
 | Lunar Lander (llander.zip)     | ![Lunar Lander marquee](/logos/llander.png) | ![Lunar Lander screenshot](/images/llander.png) | Rev 2. Up/down=thrust lever, FIRE=select mission/abort |
 | The Pit (thepit.zip)           | ![The Pit marquee](/logos/thepit.png) | ![The Pit screenshot](/images/thepit.png) |  |
@@ -309,7 +318,7 @@ oldest download evicted first. Menu entries not cached yet show a little `NET` m
 | Phozon (phozon.zip)           | ![Phozon marquee](/logos/phozon.png) | ![Phozon screenshot](/images/phozon.png) |  |
 | Green Beret (gberet.zip)      | ![Green Beret marquee](/logos/gberet.png) | ![Green Beret screenshot](/images/gberet.png) | FIRE=knife, START=special weapon |
 | H.E.R.O. (H.E.R.O..zip)       | ![H.E.R.O. marquee](/logos/hero.png) | ![H.E.R.O. screenshot](/images/hero.png) | Atari 2600 native remake: game logic rewritten in C++, levels and graphics from the Activision cartridge ROM (romszip/H.E.R.O..zip or H.E.R.O.-pal.bin). No 6502/TIA emulation. UP=fly, DOWN=dynamite, FIRE=laser |
-| Ghosts'n Goblins (gng.zip)    | ![Ghosts'n Goblins marquee](/logos/gng.png) | ![Ghosts'n Goblins screenshot](/images/gng.png) | FIRE=lance, START=jump. C64 SID music: romszip/Ghosts_n_Goblins.sid (HVSC) |
+| Ghosts'n Goblins (gng.zip)    | ![Ghosts'n Goblins marquee](/logos/gng.png) | ![Ghosts'n Goblins screenshot](/images/gng.webp) | FIRE=lance, START=jump. C64 SID music: romszip/Ghosts_n_Goblins.sid (HVSC) |
 | Time Pilot '84 (tp84.zip)     | ![Time Pilot '84 marquee](/logos/tp84.png) | ![Time Pilot '84 screenshot](/images/tp84.png) | FIRE=fire, START=missile |
 | Defender (defender.zip)       | ![Defender marquee](/logos/defender.png) | ![Defender screenshot](/images/defender.png) | Up/down=altitude, left/right=thrust (reverses first), FIRE=fire, START=smart bomb, START+left/right=hyperspace. 292 columns merged into 239 |
 | Robotron: 2084 (robotron.zip) | ![Robotron: 2084 marquee](/logos/robotron.png) | ![Robotron: 2084 screenshot](/images/robotron.png) | Twin sticks on one stick: FIRE aims where the stick points and locks the aim while held. Controller X/B/A/Y fire up/right/down/left |
@@ -317,7 +326,7 @@ oldest download evicted first. Menu entries not cached yet show a little `NET` m
 | Rafflesia (raflesia.zip)      | ![Rafflesia marquee](/logos/raflesia.png) | ![Rafflesia screenshot](/images/raflesia.png) | Sega System 1. FIRE=fire |
 | SWAT (swat.zip)               | ![SWAT marquee](/logos/swat.png) | ![SWAT screenshot](/images/swat.png) | Sega System 1. FIRE=fire, START=bomb |
 | Black Widow (bwidow.zip)      | ![Black Widow marquee](/logos/bwidow.png) | ![Black Widow screenshot](/images/bwidow.png) | Twin sticks on one stick: FIRE aims where the stick points and locks the aim while held. Controller X/B/A/Y fire up/right/down/left |
-| 1943 (1943.zip)               | ![1943 marquee](/logos/1943.png) | ![1943 screenshot](/images/1943.png) | Bootleg set 1943b (no MCU) from the merged 1943.zip. FIRE=fire, START=special attack |
+| 1943 (1943.zip)               | ![1943 marquee](/logos/1943.png) | ![1943 screenshot](/images/1943.webp) | Bootleg set 1943b (no MCU) from the merged 1943.zip. FIRE=fire, START=special attack |
 | Dig Dug II (digdug2.zip)      | ![Dig Dug II marquee](/logos/digdug2.png) | ![Dig Dug II screenshot](/images/digdug2.png) | FIRE=pump, START=jackhammer |
 | Gorf (gorf.zip)               | ![Gorf marquee](/logos/gorf.png) | ![Gorf screenshot](/images/gorf.png) | Votrax SC-01 speech, needs votrsc01.zip. 320 rows merged into 288. FIRE=fire |
 | Solomon's Key (solomon.zip)   | ![Solomon's Key marquee](/logos/solomon.png) | ![Solomon's Key screenshot](/images/solomon.png) | FIRE=magic, START=fireball. 8 px cropped per side; build flag SOLOMON_SCALE drops every 16th column, SOLOMON_SCROLL moves the view with the player |
@@ -352,11 +361,11 @@ oldest download evicted first. Menu entries not cached yet show a little `NET` m
 | Mario Bros. (mario.zip)       | ![Mario Bros. marquee](/logos/mario.png) | ![Mario Bros. screenshot](/images/mario.png) | 256 columns shown in a 240 column window that pans after player 1 (`MARIO_SCROLL`, alternatives `MARIO_SCALE`, `MARIO_CROP` in config.h). FIRE or UP=jump |
 | Mr. Do's Castle (docastle.zip) | ![Mr. Do's Castle marquee](/logos/docastle.png) | ![Mr. Do's Castle screenshot](/images/docastle.png) | FIRE=hammer |
 | Super Zaxxon (szaxxon.zip)    | ![Super Zaxxon marquee](/logos/szaxxon.png) | ![Super Zaxxon screenshot](/images/szaxxon.png) | Same audio as Zaxxon, needs zaxxon-audio.zip. FIRE=fire |
-| Contra (contra.zip)           | ![Contra marquee](/logos/contra.png) | ![Contra screenshot](/images/contra.png) | Music and effects from the C64 port: needs Gryzor.sid (HVSC MUSICIANS/B/Brooke_Jason) in romszip/. FIRE=fire, START=jump (controller B=jump) |
+| Contra (contra.zip)           | ![Contra marquee](/logos/contra.png) | ![Contra screenshot](/images/contra.webp) | Music and effects from the C64 port: needs Gryzor.sid (HVSC MUSICIANS/B/Brooke_Jason) in romszip/. FIRE=fire, START=jump (controller B=jump) |
 | Mr. Goemon (mrgoemon.zip)     | ![Mr. Goemon marquee](/logos/mrgoemon.png) | ![Mr. Goemon screenshot](/images/mrgoemon.png) | Needs gberet.zip. FIRE=pipe, START=throw (controller B/L1/R1=throw) |
 | Jail Break (jailbrek.zip)     | ![Jail Break marquee](/logos/jailbrek.png) | ![Jail Break screenshot](/images/jailbrek.png) | FIRE=shoot, START=weapon select (controller B/L1/R1=weapon select), 8 columns cropped left and right |
 | Scooter Shooter (scotrsht.zip) | ![Scooter Shooter marquee](/logos/scotrsht.png) | ![Scooter Shooter screenshot](/images/scotrsht.png) | FIRE=shoot |
-| Q\*bert (qbert.zip)           | ![Q*bert marquee](/logos/qbert.png) | ![Q*bert screenshot](/images/qbert.png) | US set 1. Also needs votrsc01.zip (speech). Stick turned 45 degrees: UP=up-right, RIGHT=down-right, DOWN=down-left, LEFT=up-left; diagonals map directly |
+| Q\*bert (qbert.zip)           | ![Q*bert marquee](/logos/qbert.png) | ![Q*bert screenshot](/images/qbert.png) | US set 1. Also needs votrax-qbert.zip (speech). Stick turned 45 degrees: UP=up-right, RIGHT=down-right, DOWN=down-left, LEFT=up-left; diagonals map directly |
 | Krull (krull.zip)             | ![Krull marquee](/logos/krull.png) | ![Krull screenshot](/images/krull.png) | Twin sticks on one stick: stick=move, FIRE=throw the glaive where the stick points, held=direction locked (controller X/B/A/Y throw up/right/down/left) |
 | Juno First (junofrst.zip)     | ![Juno First marquee](/logos/junofrst.png) | ![Juno First screenshot](/images/junofrst.png) | FIRE=fire, START=warp |
-| Tylz (tylz.zip)               | ![Tylz marquee](/logos/tylz.png) | ![Tylz screenshot](/images/tylz.png) | Prototype. Also needs votrax-qbert.zip (speech). FIRE=fire |
+| Tylz (tylz.zip)               | ![Tylz marquee](/logos/tylz.png) | ![Tylz screenshot](/images/tylz.png) | Also needs votrax-qbert.zip (speech). FIRE=fire |
