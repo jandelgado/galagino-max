@@ -133,9 +133,9 @@ unsigned int Input::buttons_get(void) {
   }
 
   if (!singleMachine) {
-    bool buttonExtraRisingEdge = (input_states && BUTTON_EXTRA) && !(input_states_last && BUTTON_EXTRA); 
-    bool buttonUpRisingEdge = (input_states && BUTTON_UP) && !(input_states_last && BUTTON_UP); 
-    bool buttonDownRisingEdge = (input_states && BUTTON_DOWN) && !(input_states_last && BUTTON_DOWN); 
+    bool buttonExtraRisingEdge = (input_states & BUTTON_EXTRA) && !(input_states_last & BUTTON_EXTRA); 
+    bool buttonUpRisingEdge = (input_states & BUTTON_UP) && !(input_states_last & BUTTON_UP); 
+    bool buttonDownRisingEdge = (input_states & BUTTON_DOWN) && !(input_states_last & BUTTON_DOWN); 
 
     // joystick up/down (menu) or extra disables attract mode
     if (buttonUpRisingEdge | buttonDownRisingEdge | buttonExtraRisingEdge ) {
