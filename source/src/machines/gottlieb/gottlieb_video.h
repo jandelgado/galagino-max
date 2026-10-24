@@ -1,11 +1,11 @@
-#ifndef QBERT_VIDEO_H
-#define QBERT_VIDEO_H
+#ifndef GOTTLIEB_VIDEO_H
+#define GOTTLIEB_VIDEO_H
 
 #include <stdint.h>
 #include <string.h>
 
-// Q*bert video (MAME gottlieb.cpp screen_update / draw_sprites), host
-// tested: one 32 x 32 tilemap of ROM tiles (30 rows visible), 64 sprites of
+// Gottlieb rev. 1 video, Q*bert and Krull (MAME gottlieb.cpp screen_update / draw_sprites), host
+// tested: one 32 x 32 tilemap, tiles from ROM (Q*bert) or char RAM (Krull), 64 sprites of
 // 16 x 16, 16 pens from palette RAM. Bit 0 of the 0x5803 latch puts the
 // background over the sprites (Q*bert dropping behind the pyramid).
 //
@@ -13,7 +13,7 @@
 //   panel column = native y, panel line = 271 - native x
 // so a panel line is one native x column: one tile word (8 pens) per tile
 // row, one or two sprite words per sprite.
-namespace qbert_video {
+namespace gottlieb_video {
 
 constexpr int WIDTH = 240;          // panel columns = native y 0..239
 constexpr int TOP = 16;             // first panel line (native x 255)
@@ -27,13 +27,6 @@ constexpr int SPRITE_CLIP_X = 8;    // draw_sprites: native x 0..7 never shows s
 constexpr int SPRITE_DX = 4, SPRITE_DY = 13;
 constexpr uint8_t CTRL_BG_OVER_SPRITES = 0x01;
 
-struct VideoState {
-  uint8_t vram[0x400];   // 3800-3bff tile codes
-  uint8_t spr[0x100];    // 3000-30ff: y, x, code ^ 0xff, unused
-  uint8_t pal[0x20];     // 5000-501f: (g << 4 | b, r) per pen
-  uint8_t ctrl;          // 0x5803 latch
-};
-
 struct Sprite {
   int16_t x, y;   // native position of the top left pixel
   uint8_t code;
@@ -45,7 +38,7 @@ inline uint16_t pen565(uint8_t r, uint8_t g, uint8_t b) {
   return (uint16_t)(v << 8 | v >> 8);
 }
 
-// levels: qbert_levels, 4-bit gun value -> 0..255 (resistor network)
+// levels: the machine's 4-bit gun value -> 0..255 table (resistor network)
 inline void buildPens(const uint8_t *pal, const uint8_t *levels, uint16_t *pens) {
   for (int i = 0; i < PENS; i++) {
     const uint8_t gb = pal[2 * i], r = pal[2 * i + 1];
@@ -67,12 +60,23 @@ inline int listSprites(const uint8_t *spr, Sprite *out) {
   return n;
 }
 
+// Krull char RAM byte write (4000-4fff) into tile column words: tile = offset >> 5,
+// row y = (offset >> 2) & 7, pixels x = 2 * (offset & 3) (high nibble) and x + 1 (low)
+inline void charWrite(uint32_t (*tiles)[8], uint16_t offset, uint8_t v) {
+  const uint32_t tile = offset >> 5, y = (offset >> 2) & 7, x = 2 * (offset & 3);
+  const uint32_t shift = 4 * y;
+  uint32_t *t = tiles[tile];
+  t[x] = (t[x] & ~(0xfu << shift)) | (uint32_t)(v >> 4) << shift;
+  t[x + 1] = (t[x + 1] & ~(0xfu << shift)) | (uint32_t)(v & 0x0f) << shift;
+}
+
 // tile pens of native column x; transparent: skip pen 0
-inline void drawTiles(int x, const VideoState &v, const uint16_t *pens, const uint32_t (*tiles)[8],
-                      bool transparent, uint16_t *line) {
-  const uint8_t *codes = v.vram + (x >> 3);
+// vram: 3800-3bff tile codes; tile index = code & codeMask
+inline void drawTiles(int x, const uint8_t *vram, const uint16_t *pens, const uint32_t (*tiles)[8],
+                      uint8_t codeMask, bool transparent, uint16_t *line) {
+  const uint8_t *codes = vram + (x >> 3);
   for (int ty = 0; ty < TILE_ROWS; ty++) {
-    uint32_t w = tiles[codes[ty * MAP_W]][x & 7];
+    uint32_t w = tiles[codes[ty * MAP_W] & codeMask][x & 7];
     uint16_t *dst = line + ty * 8;
     for (int k = 0; k < 8; k++, w >>= 4) {
       const uint8_t pen = w & 0x0f;
@@ -106,10 +110,11 @@ inline void drawSprites(int x, const uint16_t *pens, const uint32_t (*sprites)[3
   }
 }
 
-// strip `row` (8 panel lines) into fb (WIDTH x 8)
-inline void renderStrip(int row, const VideoState &v, const uint16_t *pens, const uint32_t (*tiles)[8],
-                        const uint32_t (*sprites)[32], const Sprite *list, int n, uint16_t *fb) {
-  const bool bgOver = v.ctrl & CTRL_BG_OVER_SPRITES;
+// strip `row` (8 panel lines) into fb (WIDTH x 8); ctrl: 0x5803 latch
+inline void renderStrip(int row, const uint8_t *vram, uint8_t ctrl, const uint16_t *pens,
+                        const uint32_t (*tiles)[8], uint8_t codeMask, const uint32_t (*sprites)[32],
+                        const Sprite *list, int n, uint16_t *fb) {
+  const bool bgOver = ctrl & CTRL_BG_OVER_SPRITES;
   for (int k = 0; k < 8; k++) {
     uint16_t *line = fb + k * WIDTH;
     const int x = TOP + NATIVE_W - 1 - (row * 8 + k);
@@ -123,15 +128,15 @@ inline void renderStrip(int row, const VideoState &v, const uint16_t *pens, cons
         line[c] = pens[0];
       }
     } else {
-      drawTiles(x, v, pens, tiles, false, line);
+      drawTiles(x, vram, pens, tiles, codeMask, false, line);
     }
     drawSprites(x, pens, sprites, list, n, line);
     if (bgOver) {
-      drawTiles(x, v, pens, tiles, true, line);
+      drawTiles(x, vram, pens, tiles, codeMask, true, line);
     }
   }
 }
 
-}  // namespace qbert_video
+}  // namespace gottlieb_video
 
 #endif

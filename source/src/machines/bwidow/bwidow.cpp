@@ -50,7 +50,7 @@ bwidow::bwidow()
 void bwidow::reset() {
   bwidowMachine::reset();
   misc = 0xff;
-  sticks = RobotronSticks();
+  sticks = TwinStick();
   stick_state = 0;
 }
 

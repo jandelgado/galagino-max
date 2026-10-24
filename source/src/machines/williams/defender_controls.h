@@ -2,7 +2,7 @@
 #define DEFENDER_CONTROLS_H
 
 #include <stdint.h>
-#include "williams_keys.h"
+#include "../../emulation/board_keys.h"
 
 // Defender's 5 buttons + 2-way stick on stick + FIRE + one action key.
 // Called once per frame; returns IN0 | IN1 << 8 (active high).

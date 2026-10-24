@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include "../../cpus/m6809/m6809.h"
-#include "williams_keys.h"
+#include "../../emulation/board_keys.h"
 #include "pia6821.h"
 #include "williams_sound.h"
 #include "williams_video.h"

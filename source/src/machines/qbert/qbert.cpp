@@ -36,16 +36,27 @@ qbert::qbert()
   tiles = qbert_tiles.data();
   sprites = qbert_sprites.data();
   levels = qbert_levels.data();
-  vblank = Arena::create<Seqlock<qbert_video::VideoState>>();
-  video = Arena::create<qbert_video::VideoState>();
-  sound.attach(qbert_sound_rom.data(), qbert_sc01.data(), Arena::alloc(VotraxSc01::TABLE_BYTES, 4));
+  vblank = Arena::create<Seqlock<QbertVideoState>>();
+  video = Arena::create<QbertVideoState>();
+  GottliebSound::Config sc = {};
+  sc.rom = qbert_sound_rom.data();
+  sc.romBase = 0x7000;
+  sc.sc01a = qbert_sc01.data();
+  sc.table = Arena::alloc(VotraxSc01::TABLE_BYTES, 4);
+  sc.idlePc = 0x7035;
+  sc.idleFlag = 0x21;
+  sc.idleZero1 = 0x20;
+  sc.idleZero2 = 0x23;
+  sc.idlePass = 29;
+  sc.dacGain = 4;
+  sound.attach(sc);
 }
 
 void qbert::reset() {
   machineBase::reset();
   ram = memory;
   memset(ram, 0xff, 0x1000);   // battery RAM 0000-0fff, MAME NVRAM default all 1
-  const i8086::Bus bus = {this, busRead, busWrite, ram, QBERT_RAM_END, rom, ROM_BASE, 0xffff};
+  const i8086::Bus bus = {this, busRead, busWrite, ram, QBERT_RAM_END, rom, ROM_BASE, ROM_BASE, 0xffff};
   i8086::setBus(bus);
   i8086::reset();
   booted = false;
@@ -238,7 +249,7 @@ void qbert::gameLeds(CRGB *leds) {
 // at the vblank NMI, before its handler copies the next sprite list and
 // palette in: what the board shows for the frame that just ended
 void qbert::publishVideo(void) {
-  vblank->publish([this](qbert_video::VideoState &v) {
+  vblank->publish([this](QbertVideoState &v) {
     memcpy(v.vram, &ram[QBERT_VRAM], sizeof(v.vram));
     memcpy(v.spr, &ram[QBERT_SPRITES], sizeof(v.spr));
     memcpy(v.pal, &ram[QBERT_PALETTE], sizeof(v.pal));
@@ -248,12 +259,13 @@ void qbert::publishVideo(void) {
 
 void qbert::prepare_frame(void) {
   vblank->read(*video);
-  qbert_video::buildPens(video->pal, levels, pens);
-  spriteCount = qbert_video::listSprites(video->spr, spriteList);
+  gottlieb_video::buildPens(video->pal, levels, pens);
+  spriteCount = gottlieb_video::listSprites(video->spr, spriteList);
 }
 
 void qbert::render_row(short row) {
-  qbert_video::renderStrip(row, *video, pens, tiles, sprites, spriteList, spriteCount, frame_buffer);
+  gottlieb_video::renderStrip(row, video->vram, video->ctrl, pens, tiles, 0xff, sprites, spriteList, spriteCount,
+                              frame_buffer);
 }
 
 #endif

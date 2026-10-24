@@ -2,7 +2,7 @@
 #define ROBOTRON_BOARD_H
 
 #include "b1_board.h"
-#include "robotron_sticks.h"
+#include "../../emulation/twin_stick.h"
 
 // Robotron: 2084, twin sticks mapped to one stick + FIRE (strafe lock)
 class RobotronBoard : public B1Board {
@@ -33,7 +33,7 @@ private:
     return cfg;
   }
 
-  RobotronSticks sticks;
+  TwinStick sticks;
   uint16_t inputs = 0;
 };
 
