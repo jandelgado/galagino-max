@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
 #include <unity.h>
 
 #if __has_include("../../src/machines/tutankhm/tutankhm_rom.h")
@@ -21,8 +20,7 @@ void setUp(void) {}
 void tearDown(void) {}
 
 #ifdef HAVE_ROM
-static unsigned int keys;
-unsigned int Input::buttons_get(void) { return keys; }
+unsigned int Input::buttons_get(void) { return 0; }
 bool Input::demoSoundsOff(void) { return false; }
 
 static tutankhm *machine;
@@ -30,70 +28,68 @@ static Input input;
 static unsigned short frame_buffer[240 * 8];
 static sprite_S sprites[128];
 static unsigned char memory[RAMSIZE];
-static int frame;
-static int aywr[2400];
 
 extern "C" {
 unsigned char OpZ80_INL(unsigned short a) { return machine->opZ80(a); }
 unsigned char OpPrefixZ80_INL(unsigned short a) { return machine->opZ80(a); }
 unsigned char RdZ80(unsigned short a) { return machine->rdZ80(a); }
-void WrZ80(unsigned short a, unsigned char v);
+void WrZ80(unsigned short a, unsigned char v) { machine->wrZ80(a, v); }
 unsigned char InZ80(unsigned short p) { return 0xff; }
 void OutZ80(unsigned short p, unsigned char v) {}
 void PatchZ80(Z80 *) {}
 word LoopZ80(Z80 *) { return INT_NONE; }
 }
 void Reset6502(M6502 *) {}
-extern "C" void WrZ80(unsigned short a, unsigned char v) {
-  if ((a & 0xF000) == 0x4000 || (a & 0xF000) == 0x6000) {
-    aywr[frame]++;
-    const int c = (a & 0xF000) == 0x6000;
-    if (getenv("VERBOSE")) printf("w f%d ay%d r%d=%d\n", frame, c, machine->ay_addr[c], v);
-  }
-  machine->wrZ80(a, v);
-}
 unsigned char m6809_read(m6809_state *s, uint16_t a) { return machine->m6809_read(s, a); }
 unsigned char m6809_read_opcode(m6809_state *s, uint16_t a) { return machine->m6809_read_opcode(s, a); }
+void m6809_write(m6809_state *s, uint16_t a, uint8_t v) { machine->m6809_write(s, a, v); }
 
-void m6809_write(m6809_state *s, uint16_t a, uint8_t v) {
-  if ((a & 0xFF00) == 0x8700 || (a & 0xFF00) == 0x8600) {
-    if (frame < 0) printf("f%d %s %d\n", frame, (a & 0xFF00) == 0x8700 ? "latch" : "trig", v);
-  }
-  machine->m6809_write(s, a, v);
-}
+static const uint16_t SOUND_LATCH = 0x8700;
+static const uint16_t SOUND_TRIGGER = 0x8600;
+static const int CHUNKS_PER_FRAME = 6;
+static const int AY1_VOLUME_A = 8;
 
-static void test_trace(void) {
-  const char *c = getenv("CMD");
-  const int cmd = c ? atoi(c) : 77;
+// Counts how often AY1 volume A changes between the register states the
+// audio side renders. Sound 74 (Appear) drives that volume about once per
+// millisecond as a software waveform (MAME: ~1300 writes in 0.8 s); one
+// register snapshot per audio chunk sees at most 6 changes per frame.
+static int volume_changes(int cmd, int frames) {
   Arena::init();
   machine = new tutankhm();
   machine->init(&input, frame_buffer, sprites, memory);
   machine->reset();
   machine->start();
-  int total = 0;
-  for (frame = 0; frame < 170; frame++) {
-    if (frame == 20) {
-      printf("c f%d cmd %d\n", frame, cmd);
-      machine->m6809_write(&machine->main_cpu, 0x8700, cmd);
-      machine->m6809_write(&machine->main_cpu, 0x8600, 0);
-      machine->m6809_write(&machine->main_cpu, 0x8600, 1);
-    }
-    if (frame == 21) {
-      machine->m6809_write(&machine->main_cpu, 0x8600, 0);
+
+  int changes = 0;
+  int last = 0;
+  int16_t out[AUDIO_CHUNK];
+  for (int f = 0; f < frames; f++) {
+    if (f == 20) {
+      machine->m6809_write(&machine->main_cpu, SOUND_LATCH, cmd);
+      machine->m6809_write(&machine->main_cpu, SOUND_TRIGGER, 0);
+      machine->m6809_write(&machine->main_cpu, SOUND_TRIGGER, 1);
     }
     machine->run_frame();
-    if (frame >= 20) {
-      total += aywr[frame];
+    for (int c = 0; c < CHUNKS_PER_FRAME; c++) {
+      machine->aylog.play(out, AUDIO_CHUNK, [&](const uint8_t *regs, int16_t *, int) {
+        changes += regs[AY1_VOLUME_A] != last;
+        last = regs[AY1_VOLUME_A];
+      });
     }
   }
-  printf("total %d sp %04x pc %04x\n", total, machine->cpu[0].SP.W, machine->cpu[0].PC.W);
+  delete machine;
+  return changes;
+}
+
+static void test_appear_volume_waveform(void) {
+  TEST_ASSERT_GREATER_THAN(400, volume_changes(74, 70));
 }
 #endif
 
 int main(void) {
   UNITY_BEGIN();
 #ifdef HAVE_ROM
-  RUN_TEST(test_trace);
+  RUN_TEST(test_appear_volume_waveform);
 #endif
   return UNITY_END();
 }
