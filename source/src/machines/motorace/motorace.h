@@ -3,6 +3,7 @@
 
 #include "../machineBase.h"
 #include "../../emulation/ay8910.h"
+#include "../../emulation/seqlock.h"
 
 #include "../../catalog.h"
 #ifdef GAME_MOTORACE
@@ -32,13 +33,9 @@ public:
 
   uint8_t machineType()    override { return MCH_MOTORACE; }
   void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
-  // flipY toggles both MY and MX (video.cpp); flipX undoes MX.
-  signed char videoFlipY()     override { return 1; }
-  signed char videoFlipX()     override { return 1; }
   signed char useVideoHalfRate() override { return 0; }
   //bool hasOpaqueBG()           override { return true;  } // BG scroll opaco (no memset richiesto)
 
-  // Native raster is portrait 240x256.
   const int renderWidth()  override { return 240; }
   const int renderBuffer() override { return 240 * 2 * 8; }
 
@@ -67,12 +64,56 @@ protected:
   void blit_sprite(short row, unsigned char s)   override { }
 
 private:
-  void blit_scroll_strip_t(short strip_r);
-  void blit_sprite_t(short strip_r, unsigned char s);
+  void draw_tiles(short strip);
+  void draw_sprite(short strip, unsigned char s);
+  void publish_video(void);
+  static int window_col(int row, int scroll);
+
+  static const int FB_W = 240;
+  static const int SCREEN_LINES = 240;
+  static const int TOP_LINE = 24;         // (288 - 240) / 2
+  static const int VIS_X_MAX = 247;       // native x of screen line 0
+  static const int MAP_COLS = 64;
+  static const int MAP_ROWS = 32;
+  static const int MAP_W = MAP_COLS * 8;
+  static const int SCROLL_ROWS = 24;      // tilemap rows 24-31: fixed HUD
+  static const int TUNNEL_COLOR = 0x0F;
+  static const int TUNNEL_PEN = 6;        // tunnel pens 6, 7 cover sprites
+  static const int SPRITE_SIZE = 16;
+  // Panel: 176 of the 192 playfield columns (screen x 0-191, tilemap rows
+  // 0-23), panned to follow the player, then the HUD (screen x 192-255).
+  static const int PLAYFIELD_W = SCROLL_ROWS * 8;
+  static const int HUD_W = MAP_ROWS * 8 - PLAYFIELD_W;
+  static const int VIEW_W = FB_W - HUD_W;
+  static const int MAX_PAN = PLAYFIELD_W - VIEW_W;
+  static const int PLAYER_X = 0x303;      // work RAM: player screen x
+  static const unsigned char FLIP_ROWS = 1;
+  static const unsigned char FLIP_COLS = 2;
+
+  static const int WINDOW_COLS = 32;      // 240 visible native x span 32 tiles
+  static const int SPRITE_RAM = 0x200;
+
+  // per strip column: bit k set = line k shows a tunnel pen over sprites
+  unsigned char front[FB_W];
+  int pan = 0;                            // first playfield column shown
+
+  // Render input latched at vblank: run_frame() and render run on two
+  // cores, live RAM mixes two emulated frames (sprites vs scroll). Tiles:
+  // the 32 tilemap columns the scroll shows (window starts at tile
+  // scroll / 8, 0 for the HUD rows).
+  struct VideoState {
+    unsigned char tiles[MAP_ROWS][WINDOW_COLS * 2];
+    unsigned char sprites[SPRITE_RAM];
+    uint16_t scroll;
+    unsigned char player;
+  };
+  Seqlock<VideoState> vblank;
+  VideoState video = {};
 
   unsigned char scroll_x_low;
   unsigned char scroll_x_high;
   unsigned char flipscreen;
+  uint16_t boot_frames;
   unsigned char sound_cmd;
 
   // M6803 sound CPU state

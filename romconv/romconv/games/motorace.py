@@ -44,89 +44,47 @@ def _decrypt_motorace(data):
     return bytes(rom)
 
 
+def _plane_pixels(p0, p1, p2, offset):
+    """8 pixels of one byte per plane, MAME gfx order: pixel 0 = bit 7, p2 = pen bit 2."""
+    return [((p0[offset] >> (7 - x)) & 1) | (((p1[offset] >> (7 - x)) & 1) << 1)
+            | (((p2[offset] >> (7 - x)) & 1) << 2) for x in range(8)]
+
+
 def _decode_tile_3bpp(p0, p1, p2, tile_idx):
-    """Decode one 8x8 tile from 3 planar ROMs. Returns 8 rows of 8 pixels (0-7).
-    Uses LSB-first bit order (bit 0 = pixel 0) matching MAME's charlayout
-    xoffsets {0,1,2,3,4,5,6,7} for travrusa."""
-    base = tile_idx * 8
-    rows = []
-    for row in range(8):
-        b0 = p0[base + row]
-        b1 = p1[base + row]
-        b2 = p2[base + row]
-        pixels = []
-        for bit in range(8):  # LSB first: pixel 0 = bit 0 (per MAME xoffsets)
-            px = ((b0 >> bit) & 1) | (((b1 >> bit) & 1) << 1) | (((b2 >> bit) & 1) << 2)
-            pixels.append(px)
-        rows.append(pixels)
-    return rows
+    """One 8x8 tile (gfx_8x8x3_planar), native orientation: 8 rows of 8 pens."""
+    return [_plane_pixels(p0, p1, p2, tile_idx * 8 + y) for y in range(8)]
 
 
-def _pack_tile_row(pixels_8):
-    """Pack 8 pixels (3bpp each) into uint32_t (32 bits).
-    px0 at MSB (shift 28), px7 at LSB (shift 0) — reversed nibble order
-    so the renderer can scan pixel_col from high to low for ROT270."""
+def _decode_sprite_3bpp(p0, p1, p2, spr_idx):
+    """One 16x16 sprite (MAME spritelayout: left 8 columns in bytes 0-15, right 8 in 16-31),
+    native orientation: 16 rows of 16 pens."""
+    base = spr_idx * 32
+    return [_plane_pixels(p0, p1, p2, base + y) + _plane_pixels(p0, p1, p2, base + 16 + y)
+            for y in range(16)]
+
+
+def _rot270(rows):
+    """Native pixels to screen orientation (MAME ROT270): screen row r, column c is native
+    x = n - 1 - r, y = c."""
+    n = len(rows)
+    return [[rows[c][n - 1 - r] for c in range(n)] for r in range(n)]
+
+
+def _pack_row(pixels):
+    """Pack 8 pens into a uint32_t, pixel 0 at the top nibble."""
     val = 0
-    for i, px in enumerate(pixels_8):
+    for i, px in enumerate(pixels):
         val |= (px & 7) << ((7 - i) * 4)
     return val
 
 
-def _decode_sprite_3bpp(p0, p1, p2, spr_idx):
-    """Decode one 16x16 sprite from 3 planar ROMs.
-    MAME layout: xoffsets = {0,1,2,3,4,5,6,7, 16*8+0,...16*8+7}
-                 yoffsets = {0*8,1*8,...,15*8}
-    So: top-left 8 cols from bytes 0-15, top-right 8 cols from bytes 16-31.
-    Left half: LSB-first (nibble-reversed vs tiles) for correct sprite rendering.
-    Right half: LSB-first with same plane order as left half (b0→bit0).
-    """
-    base = spr_idx * 32
-    rows = []
-    for row in range(16):
-        pixels = []
-        # Left half (columns 0-7): bytes at base + row
-        b0 = p0[base + row]
-        b1 = p1[base + row]
-        b2 = p2[base + row]
-        for bit in range(8):  # LSB first for sprites
-            px = ((b0 >> bit) & 1) | (((b1 >> bit) & 1) << 1) | (((b2 >> bit) & 1) << 2)
-            pixels.append(px)
-        # Right half (columns 8-15): bytes at base + 16 + row
-        b0 = p0[base + 16 + row]
-        b1 = p1[base + 16 + row]
-        b2 = p2[base + 16 + row]
-        for bit in range(8):  # LSB first, same plane order as left half
-            px = ((b0 >> bit) & 1) | (((b1 >> bit) & 1) << 1) | (((b2 >> bit) & 1) << 2)
-            pixels.append(px)
-        rows.append(pixels)
-    return rows  # 16 rows x 16 pixels
-
-
-def _pack_sprite_row(pixels_16):
-    """Pack 16 pixels (3bpp each) into two uint32_ts (4 bits per pixel).
-    First 8 pixels in word0, next 8 in word1.
-    Reversed nibble order: px0 at MSB (shift 28), px7 at LSB (shift 0)
-    so the renderer can scan columns correctly for ROT270."""
-    w0 = 0
-    w1 = 0
-    for i in range(8):
-        w0 |= (pixels_16[i] & 7) << ((7 - i) * 4)
-    for i in range(8):
-        w1 |= (pixels_16[8 + i] & 7) << ((7 - i) * 4)
-    return (w0, w1)
-
-
-def _prom_to_rgb(byte_val):
-    """Convert travrusa color PROM byte to RGB, matching MAME travrusa_palette exactly.
-    Red: 2 bits (7,6) with 2-resistor network (470, 220 ohm).
-    Green/Blue: 3 bits each with 3-resistor network (1K, 470, 220 ohm)."""
-    # Red: bits 7,6 (2 resistors: 470, 220 ohm) — per MAME travrusa_palette
+def _prom_rgb(byte_val):
+    """Colour PROM byte to RGB, characters and sprites alike (MAME 0.289 snapshots: sprite red
+    bits 7, 6 = 255)."""
     r = 0x52 * ((byte_val >> 6) & 1) + 0xAD * ((byte_val >> 7) & 1)
-    # Green: bits 5,4,3 (3 resistors: 1K, 470, 220)
     g = 0x21 * ((byte_val >> 3) & 1) + 0x47 * ((byte_val >> 4) & 1) + 0x97 * ((byte_val >> 5) & 1)
-    # Blue: bits 2,1,0 (3 resistors: 1K, 470, 220)
     b = 0x21 * ((byte_val >> 0) & 1) + 0x47 * ((byte_val >> 1) & 1) + 0x97 * ((byte_val >> 2) & 1)
-    return min(r, 255), min(g, 255), min(b, 255)
+    return r, g, b
 
 
 def _convert(ctx: Context) -> None:
@@ -165,13 +123,11 @@ def _convert(ctx: Context) -> None:
     num_tiles = len(tile_plane0) // 8  # 1024 tiles
     ctx.log.info(f"  Tiles: {num_tiles}")
 
-    # Convert all tiles WITHOUT rotation (landscape orientation)
-    # The renderer will handle ROT270 mapping using NOT(counters) like the VHDL hardware
+    # Stored in screen orientation (ROT270), see motorace::draw_tiles
     tiles_packed = []
     for t in range(num_tiles):
-        landscape = _decode_tile_3bpp(tile_plane0, tile_plane1, tile_plane2, t)
-        packed = [_pack_tile_row(landscape[r]) for r in range(8)]
-        tiles_packed.append(packed)
+        rows = _rot270(_decode_tile_3bpp(tile_plane0, tile_plane1, tile_plane2, t))
+        tiles_packed.append([_pack_row(row) for row in rows])
 
     # ══════════════════════════════════════════════════════════════════
     # 4. SPRITE GFX — mr4.3n, mr5.3m, mr6.3k (3 planes, 8KB each)
@@ -188,15 +144,15 @@ def _convert(ctx: Context) -> None:
     ctx.log.info(f"  Sprites: {num_sprites}")
 
     # Store only the canonical (unflipped) orientation -- flip_x/flip_y are
-    # mirrored at render time (motorace::blit_sprite_t), same convention as
+    # mirrored at render time (motorace::draw_sprite), same convention as
     # every other machine in this codebase (e.g. 1942's tile_row_words).
     # Baking all 4 flip combinations here would quadruple the decompressed
     # footprint past Arena's budget (see asset.h / arena.h).
+    # Rotated like the tiles (ROT270).
     sprites_packed = []  # [sprite_idx] = list of 16 (w0,w1) tuples
     for s in range(num_sprites):
-        landscape = _decode_sprite_3bpp(spr_plane0, spr_plane1, spr_plane2, s)
-        packed = [_pack_sprite_row(landscape[r]) for r in range(16)]
-        sprites_packed.append(packed)
+        rows = _rot270(_decode_sprite_3bpp(spr_plane0, spr_plane1, spr_plane2, s))
+        sprites_packed.append([(_pack_row(row[:8]), _pack_row(row[8:])) for row in rows])
 
     # ══════════════════════════════════════════════════════════════════
     # 5. COLOR PROMS
@@ -210,13 +166,13 @@ def _convert(ctx: Context) -> None:
     # Each PROM byte maps directly to a color
     char_colors_rgb = []
     for i in range(128):
-        r, g, b = _prom_to_rgb(char_prom[i])
+        r, g, b = _prom_rgb(char_prom[i])
         char_colors_rgb.append(rgb565_swapped(r, g, b))
 
     # Sprite base colors: 16 entries from sprite PROM (at offset 0x200 in combined PROMs)
     spr_base_rgb = []
     for i in range(16):
-        r, g, b = _prom_to_rgb(spr_prom[i])
+        r, g, b = _prom_rgb(spr_prom[i])
         spr_base_rgb.append(rgb565_swapped(r, g, b))
 
     # Character colormap: 16 palettes x 8 colors
@@ -276,7 +232,7 @@ def _convert(ctx: Context) -> None:
     # ── motorace_tilemap.h ──
     ctx.log.info("Writing motorace_tilemap.h...")
     with ctx.header("motorace_tilemap.h") as f:
-        f.write("// MotoRace USA - Tilemap: 1024 tiles, 8x8, 3bpp, pixel-order fixed\n")
+        f.write("// MotoRace USA - Tilemap: 1024 tiles, 8x8, 3bpp, rotated ROT270\n")
         f.write("// 4 bits per pixel packed in uint32_t (8 pixels per row)\n")
         f.write(f"// Auto-generated by {module_path(__file__)}\n\n")
         flat = [tiles_packed[t][r] for t in range(num_tiles) for r in range(8)]
@@ -285,8 +241,8 @@ def _convert(ctx: Context) -> None:
     # ── motorace_spritemap.h ──
     ctx.log.info("Writing motorace_spritemap.h...")
     with ctx.header("motorace_spritemap.h") as f:
-        f.write("// MotoRace USA - Spritemap: 256 sprites, 16x16, 3bpp, canonical orientation\n")
-        f.write("// (flip_x/flip_y mirrored at render time, see motorace::blit_sprite_t)\n")
+        f.write("// MotoRace USA - Spritemap: 256 sprites, 16x16, 3bpp, rotated ROT270\n")
+        f.write("// (flip_x/flip_y mirrored at render time, see motorace::draw_sprite)\n")
         f.write("// Two uint32_ts per row (8+8 pixels), 4 bits per pixel\n")
         f.write(f"// Auto-generated by {module_path(__file__)}\n\n")
         flat = []
