@@ -10,6 +10,14 @@
 #include "1943_dipswitches.h"
 #include "../../emulation/spriteflip.h"
 
+// action key: START with a COIN pin or the galagino controller, else EXTRA
+// (without a COIN pin BUTTON_START only follows a virtual coin, 600 ms late)
+#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+static const unsigned int ACTION_KEY = BUTTON_START;
+#else
+static const unsigned int ACTION_KEY = BUTTON_EXTRA;
+#endif
+
 // main Z80 6 MHz: twice commando's 3 MHz budget per quarter frame
 static const uint16_t MAIN_STEPS = 2 * INST_PER_FRAME;
 static const uint16_t ROM_END = 0x8000;
@@ -165,7 +173,7 @@ unsigned char _1943::rdInput(unsigned short Addr) {
       if (keys & (BUTTON_FIRE | BUTTON_L1)) {
         v &= ~0x10;
       }
-      if (keys & (BUTTON_START | BUTTON_R1)) {
+      if (keys & (ACTION_KEY | BUTTON_R1)) {
         v &= ~0x20;
       }
       return v;

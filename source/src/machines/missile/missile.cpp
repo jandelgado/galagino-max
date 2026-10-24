@@ -40,8 +40,11 @@ static const uint8_t MADSEL_OPCODE_MASK = 0x1f, MADSEL_OPCODE = 0x01; // (zp,X)
 // held, max 6. Must stay < 8, the game reads a 4-bit signed delta.
 static const uint8_t TRACK_RAMP = 8, TRACK_MAX = 6;
 static const uint8_t TRACK_MASK = 0x0f;
-// FIRE picks the base by cursor pixel x: thirds of the screen
+// FIRE picks the base by cursor pixel x: thirds of the screen. An empty base
+// (ammo 0, RAM 0xa0-0xa2 found with MAME) hands over to the nearest base with
+// ammo, by distance to the base's x.
 static const uint8_t ZONE_LEFT_END = 86, ZONE_CENTER_END = 171;
+static const uint8_t BASE_X[3] = {21, 128, 235};
 
 missile::missile() : missile_rom(missile_rom_blob) {
   memset(&m_cpu, 0, sizeof(m_cpu));
@@ -92,7 +95,7 @@ uint8_t missile::in0() const {
   return v;
 }
 
-// FIRE: base whose third holds the cursor. Controller L1/A/R1: left/center/right.
+// FIRE: base whose third holds the cursor, else the nearest with ammo. Controller L1/A/R1: left/center/right.
 uint8_t missile::in1() const {
   const unsigned int k = input->buttons_get();
   uint8_t v = (uint8_t)~(IN1_DIR | IN1_VBLANK);
@@ -101,8 +104,20 @@ uint8_t missile::in1() const {
   }
 
   if (k & BUTTON_FIRE) {
+    static const uint8_t FIRE_BASE[3] = {IN1_FIRE_LEFT, IN1_FIRE_CENTER, IN1_FIRE_RIGHT};
     const uint8_t x = memory[CURSOR_X];
-    v &= ~(x < ZONE_LEFT_END ? IN1_FIRE_LEFT : x < ZONE_CENTER_END ? IN1_FIRE_CENTER : IN1_FIRE_RIGHT);
+    uint8_t base = x < ZONE_LEFT_END ? 0 : x < ZONE_CENTER_END ? 1 : 2;
+    if (memory[AMMO + base] == 0) {
+      uint8_t best = 255;
+      for (uint8_t i = 0; i < 3; i++) {
+        const uint8_t d = x > BASE_X[i] ? x - BASE_X[i] : BASE_X[i] - x;
+        if (memory[AMMO + i] != 0 && d < best) {
+          best = d;
+          base = i;
+        }
+      }
+    }
+    v &= ~FIRE_BASE[base];
   }
   if (k & BUTTON_L1) {
     v &= ~IN1_FIRE_LEFT;

@@ -68,6 +68,7 @@ private:
   static const uint8_t MADSEL_ACCESSES = 4;  // operand, pointer lo, pointer hi, data
   // cursor pixel x in work RAM (found with MAME: equals the drawn cursor x)
   static const uint16_t CURSOR_X = 0x00a5;
+  static const uint16_t AMMO = 0x00a0;  // left, center, right base
 
   m6502_t m_cpu;
   const unsigned char *rom = nullptr;

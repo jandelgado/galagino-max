@@ -7,6 +7,14 @@
 #include "cavenger_sprites.h"
 #include "cavenger_palette.h"
 
+// action key: START with a COIN pin or the galagino controller, else EXTRA
+// (without a COIN pin BUTTON_START only follows a virtual coin, 600 ms late)
+#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+static const unsigned int ACTION_KEY = BUTTON_START;
+#else
+static const unsigned int ACTION_KEY = BUTTON_EXTRA;
+#endif
+
 static constexpr int VIS_LEFT = 8;          // first visible native X
 static constexpr int VIS_TOP = 32;          // first visible native Y
 static constexpr int FIRST_ROW = 6;         // strip of native Y 32: (288 - 192) / 2 / 8
@@ -75,7 +83,7 @@ uint8_t cavenger::read_input(uint16_t addr) {
     case 0x9002: return CAVENGER_DSW0;
     case 0x9003: return CAVENGER_DSW1;
     case 0xE000:
-      if (keys & (BUTTON_START | BUTTON_B | BUTTON_R1)) { v &= ~0x01; }  // bomb
+      if (keys & (ACTION_KEY | BUTTON_B | BUTTON_R1)) { v &= ~0x01; }  // bomb
       return v;
   }
   return 0xFF;
