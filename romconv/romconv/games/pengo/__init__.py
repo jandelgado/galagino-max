@@ -14,5 +14,6 @@ def _convert(ctx: Context) -> None:
     convert_colormap(ctx)
 
 
-# MAME pengo.zip, the unencrypted "pengo" set; its clone sets live in subdirectories.
+# MAME pengo.zip, the unencrypted sets: "pengoj" (Japan, Popcorn) preferred over "pengo" (World);
+# clone sets live in subdirectories.
 JOB = Job(name="pengo", convert=_convert, machine="pengo", zips=("pengo.zip",), deps=("pacman",))
