@@ -627,10 +627,10 @@ static const TubeHole TUBE_HOLES[] = {
 enum ExitZ { KEEP_OLD_Z, SET_OLD_Z };  // OLD_Z: the 0x22 funnel only
 enum ExitTag { KEEP_TAG, SET_TAG };    // 0x12 keeps the surface its hole cells set
 
-// teleport: marble at (x, y) on its cell floor, surface = the slot tag, TUBE (sounds 0x15884
-// and 0x35 / 0x36)
+// teleport: marble at (x, y) on its cell floor, surface = the slot tag, TUBE; sounds 0x15884
+// and the tube's (0x35, the 0x22 funnel 0x36)
 void tubeExit(Mem &m, uint32_t a2, uint32_t s, uint16_t x, uint16_t y, ExitZ oz = SET_OLD_Z,
-              ExitTag tag = SET_TAG) {
+              ExitTag tag = SET_TAG, uint8_t sound = marble_sound::SND_TUBE) {
   m.wl(a2 + P_PX, (uint32_t)x << 16);
   m.wl(a2 + P_PY, (uint32_t)y << 16);
   const uint32_t z = (uint32_t)marble_physics::floorZ(m, a2);
@@ -638,6 +638,8 @@ void tubeExit(Mem &m, uint32_t a2, uint32_t s, uint16_t x, uint16_t y, ExitZ oz 
   if (oz == SET_OLD_Z) { m.wl(OLD_Z, z); }
   if (tag == SET_TAG) { m.wb(a2 + P_SURFACE, m.rb(s + TAG)); }
   m.wb(a2 + P_STATE, marble_physics::TUBE);
+  marble_sound::pair(m);
+  marble_sound::send(m, sound);
 }
 
 // exit y (or x) a, b if a is taken by another object near (x, y)
@@ -665,7 +667,7 @@ void funnel_22(Mem &m, uint32_t a2, uint32_t s, int16_t d1, int16_t d2, uint16_t
     const bool first = marble_rng::rng(m, 2) != 0;
     const uint16_t a = first ? EXIT_X0 : EXIT_X1, b = first ? EXIT_X1 : EXIT_X0;
     const bool taken = marble_physics::blocked(m, a2, (int16_t)a, (int16_t)EXIT_Y, EXIT_FREE);
-    tubeExit(m, a2, s, taken ? b : a, EXIT_Y);
+    tubeExit(m, a2, s, taken ? b : a, EXIT_Y, SET_OLD_Z, SET_TAG, marble_sound::SND_FUNNEL);
     return;
   }
   if (z == FUNNEL_FLOOR) { m.wl(a2 + P_PZ, m.rl(a2 + P_PZ) + LIFT_Z); }
@@ -701,7 +703,9 @@ int8_t shapeHit(Mem &m, uint32_t a2, int16_t nx, int16_t ny, int16_t nz, int32_t
 
   const int32_t fall = s32(m.rl(a2 + P_PZ) - m.rl(a2 + P_GROUND_Z));
   if (m.rb(a2 + P_AIR) == AIRBORNE && (fall < 0 ? -(int64_t)fall : fall) > FALL_LOSS) {
-    if (marble_physics::isPlayer(a2)) {  // sound 0x46
+    marble_sound::pair(m);
+    marble_sound::send(m, marble_sound::SND_DROP);
+    if (marble_physics::isPlayer(a2)) {
       m.wb(a2 + P_DAMAGE, FELL);
       marble_physics::enterState(m, a2, marble_physics::LOST);
     } else {
@@ -806,7 +810,8 @@ void tubeHoleU(Mem &m, uint32_t a2, uint32_t s, int16_t d1, int16_t d2, uint16_t
   static const uint16_t BOTTOM = 0x3fe0, X = 0xf0, Y0 = 0x100, Y1 = 0x140;
   if (d1 < 0 || d1 > 1 || d2 < 0 || d2 > 1 || z >= BOTTOM) { return; }
 
-  m.wb(a2 + P_AIR, 0);  // sound 0x46
+  m.wb(a2 + P_AIR, 0);
+  marble_sound::send(m, marble_sound::SND_DROP);
   m.wb(a2 + P_SURFACE_T, EXIT_TICKS);
   const bool first = marble_rng::rng(m, 2) != 0;
   const uint16_t a = first ? Y0 : Y1, b = first ? Y1 : Y0;
@@ -891,7 +896,8 @@ void catapult(Mem &m, uint32_t a2, uint32_t s, int16_t d6, int16_t a0) {
   m.wl(a2 + P_VZ, THROW_VZ);
   m.wl(a2 + P_VX, (uint32_t)((int32_t)marble_rng::rng(m, THROW_VX) - (THROW_VX >> 1)));
   m.wl(a2 + P_VY, (uint32_t)(THROW_VY0 - (int32_t)marble_rng::rng(m, THROW_VY)));
-  m.wb(a2 + P_AIR, AIRBORNE);  // sound 0x15884
+  m.wb(a2 + P_AIR, AIRBORNE);
+  marble_sound::pair(m);
   m.wb(a2 + P_STATE, marble_physics::TUBE);
   m.wb(a2 + P_SURFACE, m.rb(s + TAG));
   m.wb(a2 + P_SURFACE_T, THROW_TICKS);

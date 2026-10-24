@@ -2267,8 +2267,9 @@ uv run python -m dev.marble.marble_demo check $T/a0 $T/p0
 Phase 5. Arcade: a 6502 at 1.79 MHz
 runs the sound program (32 KB, 136033.421/422) and drives a YM2151 (music and almost all
 effects) and a POKEY (a few effects). The 68010 sends one command byte per event through the
-latch 0xfe0001 (0x158ac, nothing while the word 0x4003b8 is set). The remake emulates none of
-this: music, jingles and effects are songs of the C64 tune's own player.
+latch 0xfe0001 (0x158ac, nothing while the word 0x4003b8 is set). The remake runs that sound
+program for the effects (`marble_soundboard`); the music and the time out jingle are songs of
+the C64 tune's own player.
 
 Commands (MAME, `dev/marble/mame_sound.lua`; practice race, music stopped with 0x00 before each):
 
@@ -2311,44 +2312,71 @@ Sandcastle); disassembled here:
   volume 0x272e + s, tracks 0x272c + s, first virtual voice 0x2734 + s, voice mask 0x273a + s,
   priority 0x273c + s; virtual voice v: track pointer 0x2768 + 2v, length 0x2778 + 2v.
 - Instruments 0x397a, 8 bytes: pulse width, SR, AD, filter cutoff, filter control, waveform;
-  0-14 used (12, 13 noise), 15-31 free. Note-on (0x3c91) takes a free voice of the mask or
+  0-14 filled (12, 13 noise), but the songs only select 0, 5, 6 and 11 (0x81 events,
+  register trace); 15-31 empty. Note-on (0x3c91) takes a free voice of the mask or
   steals one of lower priority. SID register shadow 0x38df-0x38f7, copied to 0xd400 every
   frame.
 - RAM outside the payload: 0x0750/0x0751 (frame counter), reads of 0x0aab/0x0ac7.
 
 Capture (`dev/marble/mame_sound.lua`, MODE=capture): per command a file `cmd_XX.txt` with
 `init ym|pokey <reg> <val>` (registers before the command), `ym|pokey <t> <reg> <val>` (t in
-60 Hz frames since the command) and `game <t> <cmd> 0` (the game's own command, the
-converter cuts there); MODE=log logs the main CPU's commands and 0x400390 changes, NOCOIN=1
+60 Hz frames since the command) and `game <t> <cmd> 0` (the game's own command);
+MODE=log logs the main CPU's commands and 0x400390 changes, NOCOIN=1
 when `mame_trace.lua` runs alongside (wrapper `dofile`s both).
 
 ```sh
 # effects WIN=150, jingle candidates WIN=600; 24 / 4 commands per run (the practice race
 # times out after about 3980 frames)
 MODE=capture OUT=$D/out CMDS=1f,20,... WIN=150 FRAMES=5200 ... -autoboot_script $R/romconv/dev/marble/mame_sound.lua
-(cd $D/out && python3 -m zipfile -c $D/marble_sound.zip cmd_*.txt)
-# reduce to note lists, the converter's only sound input besides the HVSC tune
-uv run python -m dev.marble.marble_sid_extract --extract $D/marble_sound.zip
 # goal: practice crossing y 63
 MODE=log NOCOIN=1 OUT=$D/g0 MARBLE_LEVEL=0 MARBLE_PLACE=900:604:492:-36 \
   MARBLE_PLACE_V=900:0:131072 MARBLE_RACE_UNTIL=1000 ... -autoboot_script $D/both.lua
 ```
 
-The capture holds the arcade's register writes and is not distributed;
-`marble_sound_notes.json` (next to romconv/romconv/games/marble/sid.py) keeps only the extracted notes.
+Nothing captured is tracked: the jingle in `romconv/romconv/games/marble/sfx.py` is written by
+ear from MAME recordings (2026-10-23; no public description of Atari's RPM-2 sound driver format
+exists, Marble Love runs the sound ROM).
 
-Remake: `romconv/romconv/games/marble/sid.py` builds the jingles and effects as songs of
-the C64 player (appended to the payload, song table entries, a silent song, a 6502 stub that
-starts an effect on slot 1 / voice 0 over the music); `marble_sound.{h,cpp}` maps commands to
-song and effect requests; `marble::renderSid` plays them on SidPlayer. The logic sends the
-arcade bytes at the ported sites (jump, bounce, fall, dizzy, break, shards, lost, steelie hit,
-slinky catch, bird, acid, piston launch, time bonus, gate table), the flow at a race load (0x00
-and the race music, no intro delay), time out (0x09, 0x3f) and game over (0x61). Converted:
-16 effects (`EFFECTS` in romconv/romconv/games/marble/sid.py) and the 0x3f jingle; the race end pieces 0x17/0x18,
-0x10, 0x16, 0x1a-0x1e, the aerial gate tones 0x47-0x52 and 0x5d/0x60 are ignored. Flash: 6860 B
-(build 2026-10-13, compressed SID file 5532 B). Host test `test_marble_sound` (songs without
-strays, effect over the music keeps voices 1-2, command mapping; SOUND_WAV_DIR=dir writes
-listening WAVs), `test_marble_flow` (race music, time out jingle, break sound).
+Remake (2026-10-23):
+
+```text
+ emulation core                                    audio core (renderAudio)
+ logic: marble_sound::send(m, cmd)                 SidPlayer: race music, 0x3f jingle,
+ step(): songs -> sound.music ------------------->   silent song (0x00, 0x61)
+         others (effects, 0x3a, 0x00) -> board     + board.render(): FM up to the next mark,
+ MarbleSoundBoard::runFrame():                       POKEY from the live registers
+   m6502 + sound ROM, 6 slices of 4978 cycles       clamp to +-511
+   YM2151 timers -> IRQ, command latch -> NMI
+   $1801 writes -> MarbleOpm -> Ym2203Fm ring
+   slice end -> writeMark()
+```
+
+- `marble_soundboard.{h,cpp}`: the sound board (memory map from MAME atarisy1 and Marble Love
+  `sound-mmu.ts`). 4 KB RAM, the ROM (`marble_snd_rom`, 32 KB plain flash), YM2151 timers A/B
+  with status and IRQ (period A 64 x (1024 - NA), B 1024 x (256 - NB) chip clocks), the command
+  latch (NMI, $1820 bit 3 while unread), POKEY registers for `Pokey` (1.79 MHz). The write
+  sequence for 0x2f and 0x37 matches a MAME log write for write (py65 prototype, timing within
+  0.1 frame).
+- `marble_opm.{h,cpp}`: YM2151 channels 5-7 (all effects use only these) on a YM2203 at
+  4.027 MHz (`Ym2203Fm`, 55.9 kHz like the YM2151, averaging render). Key code / fraction to
+  F-number and block (semitone table, linear in between), DT2 to the nearest MUL, LFO pitch
+  (triangle, PMS in cents) as F-number writes once per frame, RL as carrier TL (one side -6 dB,
+  none silent). Dropped: channels 0-4 (music), LFO amplitude, noise (unused by the effects).
+- Levels from MAME (race music RMS 1800; effects peak 1900-4200 YM2151, 1400-2200 POKEY):
+  FM >> 6, POKEY x 3/4 against the C64 music.
+- 0x39 (dizzy) loops until 0x3a. The arcade sends 0x3a, 0x3b (0x15884, `marble_sound::pair`;
+  0x3b only when 0x400394 != 2) at every ported 0x15884 site: dizzy and eaten end, broken while
+  dizzy, lost (embedded, fell, shape fall), tubes and catapult, steelie breaking a player, goal
+  line, race end, time out. The tube sounds 0x35 / 0x36, 0x46, the landing 0x5d (POKEY) and the
+  time out 0x44 / 0x0f / 0x11 / 0x15 / 0x17 are sent at their sites too. Not sent: 0x10 after a
+  landing in race 3 (a music piece), the aerial gate tones 0x47-0x52, 0x60.
+- Cost (device, azdelivery-local, 2026-10-23): 60 Hz, Cpu 10.5 ms per frame with the board,
+  Video 13.9 ms. Flash: sound commands 256 B, SID 4986 B, sound program 32768 B; Arkanoid moved
+  from `games.local` to `games.rest` to fit azdelivery-local (99.7 %).
+- Host tests: `test_marble_sound` (board boot, every sent effect sounds, dizzy until 0x3a,
+  stop, YM2151 A4 = 440 Hz through MarbleOpm, command routing, 0x15884; SOUND_WAV_DIR=dir writes
+  `fx_XX.wav` per command and `song_N.wav`), `test_ym2203fm` (marks, averaging),
+  `test_marble_flow` (race music, time out jingle, break sound to the board).
 
 ## Flash compression and Arena
 
@@ -2364,7 +2392,7 @@ probability table and frees it before returning.
 | level maps `marble_maps[n]` | 7 | 55368 | 13188 | level change | video | `store.map` |
 | terrain `marble_terrain[r].packed` | 6 | 35438 | 11971 | race change | emulation | `terrainBuf` |
 | sprite sets `marble_sprite_tiles[s]` | 3 | 29408 | 7128 | set change | video | `store.sprites` |
-| SID tune `marble_sid_blob` | 1 | 14332 | 5532 | once, `start()` | main | SID file |
+| SID tune `marble_sid_blob` | 1 | 13098 | 4986 | once, `start()` | main | SID file |
 | death tiles `marble_death_tiles_blob` | 1 | 16800 | 4377 | first level | video | `store.sprites` |
 | logo `marble_logo_blob` | 1 | 10784 | 1381 | menu | main | logo pool |
 
@@ -2383,9 +2411,9 @@ Arena (`Arena::CAPACITY` 182000 B, two 91000 B blocks, first fit):
  marble_tiles[n]    -- video -->  store.pixels   57344   ┘ together
  death + sprite[s]  -- video -->  store.sprites  39904     block B
  marble_terrain[r]  -- emu   -->  terrainBuf      6902     block B (one race)
- marble_sid         -- start -->  SID file       14332     block B
-                                  SID RAM        15360     block B
-                                  total 144282 / 182000 (A 67784, B 76498), plus
+ marble_sid         -- start -->  SID file       13098     block B
+                                  SID RAM        14080     block B
+                                  total 141768 / 182000 (A 67784, B 73984), plus
                                   marble_tables where the planner puts it
 ```
 

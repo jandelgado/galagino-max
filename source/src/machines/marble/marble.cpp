@@ -34,9 +34,6 @@ using marble_physics::PLAYER;
 // FIRE held while steering: turbo, as the C64, Amiga and NES ports. Speed cap stays the arcade's.
 #define MARBLE_STICK_TURBO_K 18
 
-// the extended PSID file (romconv/romconv/games/marble/sid.py). Only decodeInto() is used: data() would cache an
-// Arena pointer in this static, stale after the Arena reset of the next machine switch
-static const Asset<unsigned char, COMPRESSED> sid_file(marble_sid_blob);
 // C64 0x0700-0x0aff (player frame counter and reads) live in tune RAM at MARBLE_SID_ALIAS
 static const uint16_t SID_ALIAS_FROM = 0x0700, SID_ALIAS_SIZE = 0x400;
 
@@ -62,7 +59,7 @@ static void stick(uint32_t keys, int8_t &c6, int8_t &c7) {
 
 // Arena: the level buffers first, in ARENA_EXTRA order (marble.h). The
 // ROM here, not in start(): reset() runs first and already builds a Mem.
-marble::marble() {
+marble::marble() : snd_rom(marble_snd_rom_blob) {
   store.init();
   marble_physics::loadRom();
 }
@@ -70,6 +67,7 @@ marble::marble() {
 void marble::reset() {
   machineBase::reset();
   marble_sound::reset(sound);
+  board.reset(snd_rom.data());
   prev_keys = ~0u;  // the menu's START/FIRE is still held: no title START until released
   patchRec = 0;
   view.patch = video.patch = marble_level::NO_PATCH;
@@ -89,6 +87,9 @@ void marble::start() {
   if (!tune_loaded) {
     tune_loaded = true;
     uint8_t *file = Arena::alloc<uint8_t>(MARBLE_SID_SIZE);  // tune.payload points into it
+    // the extended PSID file (romconv/romconv/games/marble/sid.py); local: a remote blob
+    // resolves in the ctor, only after the bundle is mounted
+    const Asset<unsigned char, COMPRESSED> sid_file(marble_sid_blob);
     sid_file.decodeInto(file);
     tune_ok = psidParse(file, MARBLE_SID_SIZE, &tune) &&
               player.load(tune, Arena::alloc<uint8_t>(MARBLE_SID_RAM), MARBLE_SID_RAM);
@@ -216,7 +217,7 @@ void marble::run_frame(void) {
   const marble_flow::Step step = marble_flow::frame(flow, m, start);
   if (step == marble_flow::START_RACE) {
     loadRace();
-    marble_sound::step(sound);
+    soundFrame();
     return;
   }
 
@@ -230,27 +231,32 @@ void marble::run_frame(void) {
     }
   }
   publish();
-  marble_sound::step(sound);
+  soundFrame();
 }
 
-// audio core: song requests start a C64 song (0: silence), effect requests run the stub
+// the frame's commands to the C64 tune and the sound board, then the board's 6502
+void marble::soundFrame() {
+  uint8_t cmds[marble_sound::QUEUE];
+  const uint8_t n = marble_sound::step(sound, cmds);
+  for (uint8_t i = 0; i < n; i++) { board.command(cmds[i]); }
+  board.runFrame();
+}
+
+// audio core: song requests start a C64 song (0: silence); the sound board's effects over it
 void marble::renderAudio(int16_t *out, int n) {
-  const uint16_t music = sound.music, effect = sound.effect;
+  const uint16_t music = sound.music;
   if (tune_ok && music != music_seen) {
     music_seen = music;
     sid_on = (music & 0xff) != 0;
     if (sid_on) { player.start(music & 0xff); }
   }
-  if (tune_ok && sid_on && effect != effect_seen) {
-    effect_seen = effect;
-    player.jsr(MARBLE_SID_FX_STUB, effect & 0xff);
-  }
-  if (!sid_on) {
-    effect_seen = effect;  // no effect replays when a song starts later
+  if (sid_on) {
+    player.render(out, n);
+  } else {
     memset(out, 0, n * sizeof(*out));
-    return;
   }
-  player.render(out, n);
+  board.render(out, n);
+  audioClampAll(out, n, AUDIO_MAX);
 }
 
 void marble::prepare_frame(void) {

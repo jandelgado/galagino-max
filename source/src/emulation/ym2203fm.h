@@ -13,13 +13,21 @@
 //   emulation core (sound CPU)        audio core
 //   writeAddress/writeData --> ring --> render(): apply writes, then
 //   bursts per sound IRQ               FM ticks at fmRate(), one output
-//                                      sample per out_rate tick
+//   writeMark() after each slice       sample per out_rate tick
+//
+// Without marks render() applies every queued write. With marks it applies
+// the writes up to the next mark only: one mark per render() call keeps
+// the sound CPU's timing inside a frame (marble: 6 slices, 6 calls).
 class Ym2203Fm {
 public:
   static const uint16_t RING_SIZE = 256;
 
-  // chip clock in Hz (1943, commando, gng: 1.5 MHz)
-  explicit Ym2203Fm(uint32_t clock = 1500000) : clock_hz(clock) {}
+  // chip clock in Hz (1943, commando, gng: 1.5 MHz). average: each output
+  // sample is the mean of the FM ticks it covers, for fmRate() above the
+  // output rate (no aliasing, feedback at the native rate; one mix() per
+  // tick instead of per sample)
+  explicit Ym2203Fm(uint32_t clock = 1500000, bool average = false)
+    : clock_hz(clock), average_(average) {}
 
   // both cores stopped
   void reset();
@@ -28,6 +36,8 @@ public:
   // addresses ($2D-$2F) and FM registers ($10+) are queued.
   void writeAddress(uint8_t addr);
   void writeData(uint8_t reg, uint8_t value);
+  // emulation core: the writes so far belong to the next render() call
+  void writeMark();
   uint16_t dropped() const { return dropped_; } // queue overflows
 
   // audio core: adds n samples at out_rate onto out
@@ -68,6 +78,7 @@ private:
   };
 
   uint32_t clock_hz;
+  bool average_;
   uint8_t regs[256];
   Channel ch[CHANNELS];
   uint32_t env_counter;
@@ -77,10 +88,13 @@ private:
   uint16_t prepare_count;
 
   // single producer, single consumer; one slot stays empty. Entry:
-  // reg << 8 | value; reg < $10 encodes an address write of reg + $20.
+  // reg << 8 | value; reg < $10 encodes an address write of reg + $20,
+  // MARK (reg 1, never an address write) a writeMark().
   uint16_t ring[RING_SIZE];
   std::atomic<uint16_t> head; // producer
   std::atomic<uint16_t> tail; // consumer
+  std::atomic<uint16_t> marks_in;  // producer: marks pushed
+  uint16_t marks_out;              // consumer: marks applied
   uint16_t dropped_;
   uint32_t tick_frac; // 16.16 FM ticks owed to the output
   int16_t last;       // FM sample held between ticks

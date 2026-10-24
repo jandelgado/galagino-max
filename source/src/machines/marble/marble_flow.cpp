@@ -24,7 +24,7 @@ using marble_physics::MSG_STATE;
 
 // player fields
 enum : uint8_t {
-  SLOT = 0x18, PLAYER_NO = 0x19, STATE = 0x1a,
+  SLOT = 0x18, PLAYER_NO = 0x19, STATE = 0x1a, AIR = 0x36, SURFACE = 0x58,
   TIMER = 0x6a, TENTHS = 0x6c, TICKS = 0x6e, FLASH = 0x71,  // race timer 0x6a-0x6e
   FADE = 0x70, SCORE = 0xbc, DEATHS = 0xd2, SKIP = 0xd8,
 };
@@ -62,6 +62,11 @@ static const uint16_t FINAL_END = 272;          // last step to game over (0x5a 
 // race music commands (MAME: 0x62, then this one about 60 frames into the intro)
 static const uint8_t RACE_MUSIC[6] = {0x08, 0x0a, 0x0c, 0x0e, 0x14, 0x18};
 static const uint16_t TIME_OUT_FRAMES = 182;    // 0x16a20 summary
+// 0x16a20 sounds: no player left in play in race 3 / 4; a timed out player airborne, on surface
+// 0x10
+static const uint8_t SND_OUT_3[] = {0x0f, 0x11}, SND_OUT_4[] = {0x17, 0x15};
+static const uint8_t RACE_AERIAL = 3, RACE_SILLY = 4, AIRBORNE = 2, SURFACE_10 = 0x10;
+static const uint8_t SND_RACE_END_3 = 0x11;     // 0x1101e case 4, race 3 finished
 
 // attract (MARBLE.md "Attract"): game over to the title, title segment
 static const uint16_t GAME_OVER_ATTRACT = 7;    // 0x400390 = 2 to 1
@@ -147,6 +152,8 @@ Step raceEnd(Flow &f, Mem &m) {
   const uint8_t race = f.race;
   const uint16_t bonus = NEXT_INDEX + BONUS_WAIT + (race < LAST_RACE ? LOAD[race] : 0);
   if (f.frame == NEXT_INDEX) {
+    marble_sound::pair(m);  // reads the race index before the + 1
+    if (race == RACE_AERIAL) { marble_sound::send(m, SND_RACE_END_3); }
     m.ww(marble_physics::RACE, race + 1);
     m.wb(PLAYER + SKIP, 0);  // 0x118d2: score fade on, timer flash off
     m.wb(PLAYER + FLASH, OFF);
@@ -305,6 +312,21 @@ bool timer(Mem &m) {
   return true;
 }
 
+// 0x16a20 phases 1-2: the one player is out of play (+0x18 = 2)
+static void timeOutSounds(Mem &m) {
+  const uint16_t race = m.rw(marble_physics::RACE);
+  if (race == RACE_AERIAL) {
+    for (uint8_t c : SND_OUT_3) { marble_sound::send(m, c); }
+  }
+  if (race == RACE_SILLY) {
+    for (uint8_t c : SND_OUT_4) { marble_sound::send(m, c); }
+  }
+
+  marble_sound::pair(m);
+  if (m.rb(PLAYER + AIR) == AIRBORNE) { marble_sound::send(m, marble_sound::SND_DROP); }
+  if (m.rb(PLAYER + SURFACE) == SURFACE_10) { marble_sound::send(m, marble_sound::SND_TIME_OUT_10); }
+}
+
 Step frame(Flow &f, Mem &m, bool start) {
   if (f.fresh && f.intro == NO_INTRO) { return START_RACE; }  // new game: load practice
 
@@ -326,6 +348,7 @@ Step frame(Flow &f, Mem &m, bool start) {
     case RACE_END: return f.intro == NO_INTRO ? raceEnd(f, m) : WAIT;
     case FINAL: finalStep(f, m); return WAIT;
     case TIME_OUT:
+      if (f.frame == 1) { timeOutSounds(m); }
       if (f.frame == TIME_OUT_FRAMES) { gameOver(m); }
       return WAIT;
     case GAME_OVER:

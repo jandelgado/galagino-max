@@ -660,7 +660,8 @@ void land_25c74(Mem &m, uint32_t a2, int16_t fall) {
 
   const int8_t s56 = m.sb(a2 + DIZZY_CNT), s57 = m.sb(a2 + DAMAGE);
   if (s56 + ((s57 - s56) >> 1) > BREAK_LIMIT) {
-    if (prev == DIZZY || prev == EATEN) {  // broken while dizzy (sound 0x15884)
+    if (prev == DIZZY || prev == EATEN) {  // broken while dizzy
+      marble_sound::pair(m);
       m.wb(a2 + ANIM_5F, 0);
       m.wb(a2 + DIZZY_CNT, 1);
       m.wb(a2 + ANIM_60, ANIM_RATE);
@@ -748,6 +749,7 @@ void zones_1365c(Mem &m, uint32_t a2) {
           }
           m.wb(a2 + TIMER_KEPT, m.rb(a2 + TIMER_TICKS));
           m.wb(a2 + TIMER_TICKS, 0xff);
+          marble_sound::pair(m);
           m.wb(a2 + STATE, GOAL);
           m.wb(a2 + DAMAGE, 0x1e);
           if (race == RACE_PRACTICE && (d2 == 3 || d2 == 4)) {
@@ -787,6 +789,8 @@ void physics_121b8(Mem &m, uint32_t a2) {
       marble_enemies::remove_15bd0(m, a2, marble_enemies::SCORE, marble_enemies::CLEAR);
       return;
     }
+    marble_sound::pair(m);
+    marble_sound::send(m, marble_sound::SND_DROP);
     m.wb(a2 + DAMAGE, EMBEDDED);
     enter_25bae(m, a2, LOST);
     return;
@@ -852,12 +856,16 @@ void physics_121b8(Mem &m, uint32_t a2) {
       } else {
         marble_enemies::land_25c74(m, a2, s16((int32_t)fall));
       }
+      marble_sound::send(m, marble_sound::SND_DROP);
+      marble_sound::send(m, marble_sound::SND_LANDING);
     } else if (s32((int64_t)m.sl(a2 + GROUND_Z) - m.sl(a2 + PZ)) > 0x800000) {
       if (!pl) {  // fell more than 128 px: a steelie is freed and scored
         marble_enemies::remove_15bd0(m, a2, marble_enemies::SCORE, marble_enemies::CLEAR);
         return;
       }
-      m.wb(a2 + DAMAGE, FELL);  // fell more than 128 px: lost (sounds 0x15884, 0x46)
+      marble_sound::pair(m);  // fell more than 128 px: lost
+      marble_sound::send(m, marble_sound::SND_DROP);
+      m.wb(a2 + DAMAGE, FELL);
       enter_25bae(m, a2, LOST);
       return;
     }
@@ -1274,7 +1282,8 @@ void anim_25fc2(Mem &m, uint32_t a2) {
     m.wb(a2 + DIZZY_CNT, 1);
     return;
   }
-  if (st == BROKEN && m.rb(a2 + DIZZY_CNT) == 1) {  // sound 0x15884
+  if (st == BROKEN && m.rb(a2 + DIZZY_CNT) == 1) {
+    marble_sound::pair(m);
     enter_25bae(m, a2, BROKEN);
     return;
   }
@@ -1365,7 +1374,8 @@ bool orbit_13ade(Mem &m, uint32_t a2) {
   return m.rb(a2 + DAMAGE) == 0;
 }
 
-// 0x2574c tail: dizzy countdown, back to ROLL at 0 (sound 0x15884; dots 0x1c014 not ported)
+// 0x2574c tail: dizzy countdown, back to ROLL at 0 (sound 0x15884 stops the dizzy sound; dots
+// 0x1c014 not ported)
 void countdown_2574c(Mem &m, uint32_t a2) {
   if (m.rb(a2 + STATE) != DIZZY) { return; }
   if (m.rb(a2 + DAMAGE)) { m.wb(a2 + DAMAGE, m.rb(a2 + DAMAGE) - 1); }
@@ -1375,6 +1385,7 @@ void countdown_2574c(Mem &m, uint32_t a2) {
   }
   m.wb(a2 + DIZZY_CNT, m.rb(a2 + DIZZY_CNT) - 1);
   if (m.rb(a2 + DIZZY_CNT)) { return; }
+  marble_sound::pair(m);
   m.wb(a2 + STATE, ROLL);
   m.wl(a2 + ANIM, 0);
 }
@@ -1479,6 +1490,7 @@ void eaten_257ba(Mem &m, uint32_t a2) {
 
   if (m.rb(a2 + DIZZY_CNT)) { m.wb(a2 + DIZZY_CNT, m.rb(a2 + DIZZY_CNT) - 1); }
   if (m.rb(a2 + DIZZY_CNT)) { return; }
+  marble_sound::pair(m);
   m.wb(a2 + STATE, ROLL);
   m.wl(a2 + ANIM, 0);
 }

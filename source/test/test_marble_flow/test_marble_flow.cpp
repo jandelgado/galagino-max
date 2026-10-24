@@ -611,18 +611,18 @@ static void test_race_music(void) {
   TEST_ASSERT_EQUAL(MARBLE_SONG_3F, flowSound.music & 0xff);
 }
 
-// the logic's sound sites reach the effect requests: a breaking marble sends 0x38
+// the logic's sound sites reach the sound board: a breaking marble sends 0x38
 static void test_break_sound(void) {
   Flow f = {};
   marble_sound::reset(flowSound);
   loadRace(f);
   marble_sound::step(flowSound);
-  const uint16_t before = flowSound.effect;
   Mem m(ram, 0);
   marble_physics::enterState(m, PLAYER, marble_physics::BROKEN);
-  marble_sound::step(flowSound);
-  TEST_ASSERT_EQUAL((before >> 8) + 1, flowSound.effect >> 8);
-  TEST_ASSERT_EQUAL(marble_sound_cmds[marble_sound::SND_BREAK].arg, flowSound.effect & 0xff);
+  uint8_t cmds[marble_sound::QUEUE];
+  const uint8_t n = marble_sound::step(flowSound, cmds);
+  TEST_ASSERT_EQUAL(1, n);
+  TEST_ASSERT_EQUAL_HEX8(marble_sound::SND_BREAK, cmds[0]);
 }
 
 // --- attract demo race (MARBLE.md "Demo race") ------------------------------------------

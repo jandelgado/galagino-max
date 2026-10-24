@@ -16,6 +16,7 @@
 #include "marble_hud.h"
 #include "marble_sound.h"
 #include "../../emulation/sidplayer.h"
+#include "marble_soundboard.h"
 
 // Marble Madness (Atari 1984). Not emulated: graphics, levels and music come from the
 // ROM, the game is reimplemented (MARBLE.md). One player game: race timer, six races, time
@@ -27,7 +28,7 @@ public:
   // Arena::alloc besides planned assets (only marble_tables), read by romconv
   // (romconv/romconv/plan/arena.py): ctor: level map, tiles, sprite tiles, terrain;
   // start(): SID file, SID RAM. Checked in marble.cpp.
-  static constexpr uint32_t ARENA_EXTRA[] = { 10440, 57344, 39904, 6902, 14332, 15360 };
+  static constexpr uint32_t ARENA_EXTRA[] = { 10440, 57344, 39904, 6902, 13098, 14080 };
 
   marble();
   signed char machineType() override { return MCH_MARBLE; }
@@ -52,6 +53,7 @@ private:
   void titleView();
   void publishTail(marble_physics::Mem &m);
   void buildObjs(marble_physics::Mem &m);
+  void soundFrame();
 
   Seqlock<marble_video::VideoState> vblank;
   marble_video::VideoState view = {};   // emulation core
@@ -73,12 +75,15 @@ private:
   uint32_t patchRec = 0;   // lastPatch record that view.patch was mapped from
   bool odd = false;        // frame without a logic tick
 
-  // sound: commands on the emulation core, the C64 tune on the audio core
+  // sound: commands and the sound board's 6502 on the emulation core, the C64 tune and the
+  // board's chips on the audio core
   marble_sound::Sound sound = {};
+  Asset<unsigned char, PLAIN> snd_rom;  // the sound program, flash
+  MarbleSoundBoard board;
   SidPlayer player;
   PsidInfo tune = {};
   bool tune_loaded = false, tune_ok = false;  // start(): unpacked once
-  uint16_t music_seen = 0, effect_seen = 0;   // audio core
+  uint16_t music_seen = 0;                    // audio core
   bool sid_on = false;                        // audio core
 };
 

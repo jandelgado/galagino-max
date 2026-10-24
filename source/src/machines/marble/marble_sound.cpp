@@ -25,19 +25,26 @@ void send(const marble_physics::Mem &m, uint8_t cmd) {
   queue[count++] = cmd;
 }
 
+void pair(const marble_physics::Mem &m) {
+  send(m, SND_PAIR_A);
+  if (m.rw(GAME_MODE) != MODE_SINGLE) { send(m, SND_PAIR_B); }
+}
+
 uint8_t queued() { return count; }
 
-void step(Sound &s) {
+uint8_t step(Sound &s, uint8_t *board) {
+  uint8_t n = 0;
   for (uint8_t i = 0; i < count; i++) {
     if (queue[i] & 0x80) { continue; }
     const MarbleSoundCmd &c = marble_sound_cmds[queue[i]];
-    if (c.kind == MARBLE_SND_SONG && c.arg != s.song) {  // a running piece keeps playing
+    if (c.kind != MARBLE_SND_BOARD && c.arg != s.song) {  // a running piece keeps playing
       s.song = c.arg;
       s.music = request(s.music, c.arg);
     }
-    if (c.kind == MARBLE_SND_EFFECT) { s.effect = request(s.effect, c.arg); }
+    if (c.kind != MARBLE_SND_SONG && board) { board[n++] = queue[i]; }
   }
   count = 0;
+  return n;
 }
 
 }  // namespace marble_sound

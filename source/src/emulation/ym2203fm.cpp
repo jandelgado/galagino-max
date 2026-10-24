@@ -13,6 +13,8 @@ static const uint8_t REG_KEY = 0x28;
 static const uint8_t REG_MODE = 0x27;
 static const uint8_t KEY_CHANNEL_NONE = 3;
 static const uint8_t KEYON_NORMAL = 1; // keyon_live bit 0
+static const uint16_t MARK = 0x0100;    // ring entry of writeMark()
+static const uint16_t MARK_LAG = 12;    // marks queued beyond this: catch up
 
 // abs_sin_attenuation: 4.8 log attenuation of 1/4 sine, from the die
 static const uint16_t SIN_TABLE[256] = {
@@ -170,6 +172,8 @@ void Ym2203Fm::reset() {
   head.store(0, std::memory_order_relaxed);
   tail.store(0, std::memory_order_relaxed);
   dropped_ = 0;
+  marks_in.store(0, std::memory_order_relaxed);
+  marks_out = 0;
   tick_frac = 0;
   last = 0;
 }
@@ -197,14 +201,33 @@ void Ym2203Fm::writeData(uint8_t reg, uint8_t value) {
   }
 }
 
-// Applies the queued writes. Key writes of one batch were milliseconds
-// apart on the sound CPU but land between two FM ticks here; prepare()
-// in between keeps a key off + key on pair from collapsing into "on".
+void Ym2203Fm::writeMark() {
+  const uint16_t dropped_before = dropped_;
+  push(MARK);
+  if (dropped_ == dropped_before) {
+    marks_in.store(marks_in.load(std::memory_order_relaxed) + 1, std::memory_order_release);
+  }
+}
+
+// Applies the queued writes, up to and including the next mark unless the
+// marks fell behind by more than MARK_LAG. Key writes of one batch were
+// milliseconds apart on the sound CPU but land between two FM ticks here;
+// prepare() in between keeps a key off + key on pair from collapsing into
+// "on".
 void Ym2203Fm::drain() {
   uint16_t t = tail.load(std::memory_order_relaxed);
   const uint16_t h = head.load(std::memory_order_acquire);
+  const uint16_t marks = marks_in.load(std::memory_order_acquire);
   bool key_pending = false;
   for (; t != h; t = (t + 1) % RING_SIZE) {
+    if (ring[t] == MARK) {
+      marks_out++;
+      if ((uint16_t)(marks - marks_out) <= MARK_LAG) {
+        t = (t + 1) % RING_SIZE;
+        break;
+      }
+      continue;
+    }
     const uint8_t reg = ring[t] >> 8;
     if (reg < 0x10) {
       applyAddress(reg + 0x20);
@@ -221,8 +244,9 @@ void Ym2203Fm::drain() {
   tail.store(t, std::memory_order_release);
 }
 
-// FM ticks run at fmRate(); the output takes the latest tick's sample.
-// At out_rate == fmRate() this is exactly clock() per sample.
+// FM ticks run at fmRate(); the output takes the latest tick's sample, or
+// the mean of the sample's ticks (average_). At out_rate == fmRate() this
+// is exactly clock() per sample.
 void Ym2203Fm::render(int32_t *out, int n, uint32_t out_rate) {
   drain();
   const uint32_t step = (uint32_t)(((uint64_t)fmRate() << 16) / out_rate);
@@ -230,7 +254,13 @@ void Ym2203Fm::render(int32_t *out, int n, uint32_t out_rate) {
     tick_frac += step;
     const uint32_t ticks = tick_frac >> 16;
     tick_frac &= 0xffff;
-    if (ticks) {
+    if (ticks && average_) {
+      int32_t sum = 0;
+      for (uint32_t t = 0; t < ticks; t++) {
+        sum += clock();
+      }
+      last = (int16_t)(sum / (int32_t)ticks);
+    } else if (ticks) {
       advance(ticks);
       last = mix();
     }
