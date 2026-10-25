@@ -3,13 +3,13 @@
 
 #include <stdint.h>
 
-// Place hot functions in IRAM on ESP32 to avoid flash cache misses
+// Hot functions in IRAM to avoid flash cache misses
 // M6502_NO_IRAM: WiFi builds need the IRAM
-#if (defined(ESP32) || defined(ESP_PLATFORM)) && !defined(M6502_NO_IRAM)
-#  include "esp_attr.h"
-#  define M6502_IRAM IRAM_ATTR
-#else
+#include "../../hal/hal_attr.h"
+#ifdef M6502_NO_IRAM
 #  define M6502_IRAM
+#else
+#  define M6502_IRAM HAL_FAST_CODE
 #endif
 
 #define M6502_FC 0x01

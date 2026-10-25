@@ -1,4 +1,18 @@
-#include "video.h"
+#include "video_spi_tft.h"
+#include <Arduino.h>
+#include <esp_heap_caps.h>
+#include <stdio.h>
+#include <string.h>
+#include "../hal.h"
+
+namespace hal {
+
+// max time between full rate frames giving the idle task CPU time
+static const uint32_t IDLE_YIELD_MS = 1000;
+// full rate frame period, 60.0 Hz
+static const uint32_t FRAME_US = 16667;
+// further behind the frame deadline than this: restart pacing
+static const int32_t MAX_LATE_US = 50000;
 
 static spi_device_interface_config_t if_cfg {
   .command_bits = 0,
@@ -138,11 +152,9 @@ static const uint8_t init_cmd[] = {
 };
 
 
-Video::Video() {
-  pinMode(TFT_CS, OUTPUT);
-  digitalWrite(TFT_CS, HIGH); // Deselect
-  pinMode(TFT_DC, OUTPUT);
-  digitalWrite(TFT_DC, HIGH); // Data mode
+SpiTftVideo::SpiTftVideo() {
+  hal::pinOutput(TFT_CS, true); // Deselect
+  hal::pinOutput(TFT_DC, true); // Data mode
 
   // 40Mhz is max possible rate with esp32
   // 40Mhz = 2.5MPix/s. A frame has 64512 pixels
@@ -151,32 +163,26 @@ Video::Video() {
   // Using correct pins ESP32 does 80MHz on SPI2_HOST and SPI3_HOST
   // Using correct pins ESP32-S3 does 80MHz on SPI2_HOST
 
-#ifdef TFT_SPI_HOST
-  spi_bus_initialize(TFT_SPI_HOST, &bus_cfg, SPI_DMA_CH_AUTO);
-  spi_bus_add_device(TFT_SPI_HOST, &if_cfg, &handle);
-#elif def VSPI_HOST
-  spi_bus_initialize(VSPI_HOST, &bus_cfg, SPI_DMA_CH_AUTO);
-  spi_bus_add_device(VSPI_HOST, &if_cfg, &handle);
-#else
-  spi_bus_initialize(SPI1_HOST, &bus_cfg, SPI_DMA_CH_AUTO);
-  spi_bus_add_device(SPI1_HOST, &if_cfg, &handle);
-#endif
+  // TFT_SPI_PORT counts SPI peripherals (2 = SPI2, 3 = SPI3); the IDF host
+  // enum starts at SPI1_HOST = 0 (flash).
+  const spi_host_device_t host = (spi_host_device_t)(TFT_SPI_PORT - 1);
+  spi_bus_initialize(host, &bus_cfg, SPI_DMA_CH_AUTO);
+  spi_bus_add_device(host, &if_cfg, &handle);
 
   // trigger hardware reset
   if (TFT_RST >= 0)
   {
-    pinMode(TFT_RST, OUTPUT);
-    digitalWrite(TFT_RST, LOW);
-    delay(100);
-    digitalWrite(TFT_RST, HIGH);
-    delay(200);
+    hal::pinOutput(TFT_RST, false);
+    hal::sleepMs(100);
+    hal::pinWrite(TFT_RST, true);
+    hal::sleepMs(200);
   } else {
     sendCommand(0x01, NULL, 0);
-    delay(150);
+    hal::sleepMs(150);
   }
 }
 
-void Video::begin(void) {
+void SpiTftVideo::begin(void) {
   // background buffers which are kept untouched during DMA transfer;
   // allocated here, after main's larger permanent buffers
   for(int i = 0; i < DMA_BUFFERS; i++)
@@ -190,11 +196,11 @@ void Video::begin(void) {
       sendCommand(cmd, (uint8_t*)addr, num);
       addr += num;
     } else
-      delay(num);
+      hal::sleepMs(num);
   }
 
   // write 320x240 16 bit words to zero (black)
-  digitalWrite(TFT_CS, LOW);
+  hal::pinWrite(TFT_CS, false);
   setAddrWindow(0, 0, 240, 320);
 
   memset(dma_buffer[0], 0, 240*4*2);   // 4 lines per transfer, bytes must be less than 224*8*2
@@ -210,15 +216,14 @@ void Video::begin(void) {
 
   // enable backlight if pin is specified
 #ifdef TFT_BL
-  pinMode(TFT_BL, OUTPUT);
-  digitalWrite(TFT_BL, TFT_BL_LEVEL);
+  hal::pinOutput(TFT_BL, TFT_BL_LEVEL);
 #endif
 
   madctl_last = MADCTL_DEFAULT;
   printf("madctl = 0x%02x\n", madctl_last);
 }
 
-void Video::flip(char flipY, char flipX) {
+void SpiTftVideo::flip(char flipY, char flipX) {
   uint8_t madctl = MADCTL_DEFAULT;
 
   if (flipY) madctl ^= 0xc0; // flip the MY bit
@@ -238,12 +243,12 @@ void Video::flip(char flipY, char flipX) {
   madctl_last = madctl;
 }
 
-void Video::flipReset(char flipY, char flipX) {
+void SpiTftVideo::flipReset(char flipY, char flipX) {
   flip(0, 0);
 }
 
 // results come back in queue order: the oldest is dma_next's
-void Video::write(uint16_t *colors, uint32_t len) {
+void SpiTftVideo::submit(const uint16_t *colors, uint32_t len) {
   if(dma_pending == DMA_BUFFERS) {
     spi_device_get_trans_result(handle, &r_trans, portMAX_DELAY);
     dma_pending--;
@@ -261,12 +266,12 @@ void Video::write(uint16_t *colors, uint32_t len) {
 }
 
 // all queued strips sent, before commands or blocking transfers
-void Video::dmaWait() {
+void SpiTftVideo::dmaWait() {
   for(; dma_pending; dma_pending--)
     spi_device_get_trans_result(handle, &r_trans, portMAX_DELAY);
 }
 
-void Video::setViewport(uint16_t width) {
+void SpiTftVideo::setViewport(uint16_t width) {
   if(width != 240) width = 224;
   if(width == viewport_width) return;
 
@@ -290,21 +295,21 @@ void Video::setViewport(uint16_t width) {
   viewport_width = width;
 }
 
-void Video::sendCommand(uint8_t commandByte, uint8_t *dataBytes, uint8_t numDataBytes) {
-  digitalWrite(TFT_CS, LOW);
+void SpiTftVideo::sendCommand(uint8_t commandByte, uint8_t *dataBytes, uint8_t numDataBytes) {
+  hal::pinWrite(TFT_CS, false);
   writeCommand(commandByte);
   for(int i=0;i<numDataBytes;i++)
     write8(dataBytes[i]);
-  digitalWrite(TFT_CS, HIGH);
+  hal::pinWrite(TFT_CS, true);
 }
 
-void Video::writeCommand(uint8_t cmd) {
-  digitalWrite(TFT_DC, LOW);
+void SpiTftVideo::writeCommand(uint8_t cmd) {
+  hal::pinWrite(TFT_DC, false);
   write8(cmd);
-  digitalWrite(TFT_DC, HIGH);
+  hal::pinWrite(TFT_DC, true);
 }
 
-void Video::setAddrWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+void SpiTftVideo::setAddrWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
   writeCommand(0x2A); // Column address set, same command for ili9341 and st7789
   write16(x);
   write16(x + w - 1);
@@ -317,7 +322,7 @@ void Video::setAddrWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
 }
 
 // command bytes: only with no strip in flight (dmaWait)
-void Video::write16(uint16_t data) {
+void SpiTftVideo::write16(uint16_t data) {
   transaction[0].flags = SPI_TRANS_USE_TXDATA;
   transaction[0].length = 16; // Length in bits
   transaction[0].rxlength = 0;
@@ -326,10 +331,59 @@ void Video::write16(uint16_t data) {
   spi_device_transmit(handle, &transaction[0]);
 }
 
-void Video::write8(uint8_t data) {
+void SpiTftVideo::write8(uint8_t data) {
   transaction[0].flags = SPI_TRANS_USE_TXDATA;
   transaction[0].length = 8; // Length in bits
   transaction[0].rxlength = 0;
   transaction[0].tx_data[0] = data;
   spi_device_transmit(handle, &transaction[0]);
 }
+
+void SpiTftVideo::setHalfRate(bool half) {
+#ifdef VIDEO_HALF_RATE
+  half_rate = true;
+#else
+  half_rate = half;
+#endif
+}
+
+uint8_t SpiTftVideo::screenParts() const {
+  return half_rate ? 2 : 1;
+}
+
+void SpiTftVideo::endFrame(uint8_t part, uint32_t frameStartUs) {
+  if (!half_rate) {
+    // Deadline pacing at 60.0 Hz: delays alternate 16/17/17 ms. A fixed 16 ms
+    // pad ran at 62.5 Hz, games 4% fast, and beat against the 60 Hz panel: a
+    // skipped frame (scroll jerk) about every second.
+    next_us += FRAME_US;
+    const int32_t wait_us = (int32_t)(next_us - hal::micros());
+    if(wait_us > 0) {
+      hal::sleepMs((wait_us + 999) / 1000);
+      last_yield_ms = hal::millis();
+    }
+    else {
+      // far behind (stall, machine start): restart, no catch-up burst
+      if(wait_us < -MAX_LATE_US) {
+        next_us = hal::micros();
+      }
+
+      // Idle task needs CPU time within the task watchdog timeout. Not every
+      // frame: a 1 tick delay pushes a late frame further behind.
+      if(hal::millis() - last_yield_ms > IDLE_YIELD_MS) {
+        hal::sleepMs(1);
+        last_yield_ms = hal::millis();
+      }
+    }
+  }
+  else {
+    // the screen is updated every second frame: one screen at 60 Hz is 16.6ms
+    unsigned long t1 = (hal::micros() - frameStartUs) / 1000;  // time in milliseconds
+    if(t1 < (part ? 33 : 16))
+      hal::sleepMs((part ? 33 : 16) - t1);
+    else if(part)
+      hal::sleepMs(1);    // at least 1 ms delay to prevent watchdog timeout
+  }
+}
+
+} // namespace hal

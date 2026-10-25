@@ -80,12 +80,12 @@ uint8_t scregg::main_read(m6502_t *cpu, uint16_t addr) {
     bool coin_now = (keys & BUTTON_COIN) != 0;
     if (coin_now && !s->coin_latched) {
       s->coin_latched = true;
-      s->coin_pulse_until = millis() + 50;
+      s->coin_pulse_until = hal::millis() + 50;
     } else if (!coin_now) {
       s->coin_latched = false;
       s->coin_pulse_until = 0;
     }
-    if (s->coin_latched && (long)(millis() - s->coin_pulse_until) < 0)
+    if (s->coin_latched && (long)(hal::millis() - s->coin_pulse_until) < 0)
       value &= ~0x40;
     return value;
   }

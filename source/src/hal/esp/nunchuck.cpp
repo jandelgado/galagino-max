@@ -1,7 +1,19 @@
 #include "nunchuck.h"
 
 #ifdef NUNCHUCK_INPUT
+#include <Arduino.h>
+#include <Wire.h>
+#include <NintendoExtensionCtrl.h>
+
+struct Nunchuck::Impl {
+  Nunchuk nchuk;
+};
+
 void Nunchuck::setup() {
+  if (!impl) {
+    impl = new Impl();
+  }
+  Nunchuk &nchuk = impl->nchuk;
   Wire.begin(NUNCHUCK_SDA, NUNCHUCK_SCL);
   if (!nchuk.connect()) {
     printf("Nunchuk on bus #1 not detected!");
@@ -22,17 +34,18 @@ void Nunchuck::disable() {
 
 // real I2C read, not a cached state
 bool Nunchuck::connected() {
-  return nchuk.update();
+  return impl && impl->nchuk.update();
 }
 
 unsigned int Nunchuck::getInput() {
   // update every 100ms only
   unsigned long now = millis();
-  if(!enabled || now - timeout < 100)
+  if(!impl || !enabled || now - timeout < 100)
     return lastValue;
   else
     timeout = now;
 
+  Nunchuk &nchuk = impl->nchuk;
   bool success = nchuk.update();  // Get new data from the controller
 
   if (!success) {  // Ruh roh

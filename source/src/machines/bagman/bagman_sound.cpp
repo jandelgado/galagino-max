@@ -1,4 +1,3 @@
-#include "Arduino.h"  // PI
 #include <math.h>
 #include "bagman_sound.h"
 
@@ -14,10 +13,11 @@ static const float D6_E = 1174.56;
 static const float B5_F = 987.767;
 
 static const int32_t AMPLITUDE = 256;
+static const double kPi = 3.1415926535897932384626433832795;
 
 BagmanSound::BagmanSound() {
   for (int i = 0; i < WAVE_LEN; ++i) {
-    sinus[i] = int32_t(float(AMPLITUDE) * sin(2.0 * PI * (1.0 / WAVE_LEN) * i));
+    sinus[i] = int32_t(float(AMPLITUDE) * sin(2.0 * kPi * (1.0 / WAVE_LEN) * i));
   }
 }
 

@@ -1,4 +1,5 @@
 #include "scramble.h"
+#include <algorithm>
 #include "scramble_logo.h"
 #include "scramble_main_rom.h"
 #include "scramble_audio_rom.h"
@@ -212,16 +213,16 @@ void scramble::wrZ80(unsigned short Addr, unsigned char Value) {
             protectionResult ^= 0x80;
             break;
           case 0x9: // scramble
-            protectionResult = min(num1 + 1, 0xf) << 4;
+            protectionResult = std::min(num1 + 1, 0xf) << 4;
             break;
           case 0xb: // theend
-            protectionResult = max(num2 - num1, 0) << 4;
+            protectionResult = std::max(num2 - num1, 0) << 4;
             break;
           case 0xa: // theend
             protectionResult = 0x00;
             break;
           case 0xf: // scrambles
-            protectionResult = max(num1 - num2, 0) << 4;
+            protectionResult = std::max(num1 - num2, 0) << 4;
             break;
         }
         return;

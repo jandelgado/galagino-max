@@ -3,8 +3,7 @@
 #include "../config.h"
 
 #ifdef GALAGINO_CONTROLLER
-#include <Arduino.h>
-#include <Wire.h>
+#include "../hal/hal.h"
 
 // a total of 7 button is needed for most games
 #define BUTTON_LEFT  0x01

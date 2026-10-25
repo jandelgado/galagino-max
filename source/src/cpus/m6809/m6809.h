@@ -16,7 +16,7 @@
 #define M6809_H
 
 #include <stdint.h>
-#include "esp_attr.h"
+#include "../../hal/hal_attr.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -73,7 +73,7 @@ void m6809_reset(m6809_state *s);
 #ifdef M6809_NO_IRAM
 int m6809_step(m6809_state *s, char count);
 #else
-IRAM_ATTR int m6809_step(m6809_state *s, char count);
+HAL_FAST_CODE int m6809_step(m6809_state *s, char count);
 #endif
 
 /* Signal an IRQ (active while pending flag set) */

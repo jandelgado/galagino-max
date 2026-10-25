@@ -5,7 +5,7 @@
 #include "../machines/machineBase.h"
 
 #ifdef LED_PIN
-#include <FastLED.h>
+#include "../hal/led_color.h"
 
 class Led {
 public:

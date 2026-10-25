@@ -8,12 +8,7 @@
 
 #include <stdint.h>
 
-#if defined(ESP32) || defined(ESP_PLATFORM)
-#  include "esp_attr.h"
-#  define VEC2D_IRAM IRAM_ATTR
-#else
-#  define VEC2D_IRAM
-#endif
+#include "../hal/hal_attr.h"
 
 namespace vec2d {
 

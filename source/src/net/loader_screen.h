@@ -3,7 +3,8 @@
 
 #include <cstdint>
 
-class Video;
+#include "../hal/video.h"
+
 class Input;
 
 // Download screen of the game loader: green on black, terminal style. Runs
@@ -21,7 +22,7 @@ class Input;
 //   [##########          ]
 class LoaderScreen {
 public:
-  LoaderScreen(Video &video, uint16_t *frameBuffer, Input &input)
+  LoaderScreen(hal::Video &video, uint16_t *frameBuffer, Input &input)
       : video(video), frameBuffer(frameBuffer), input(input) { }
 
   void begin(const char *game);
@@ -39,7 +40,7 @@ private:
   void draw();
   void drawBar(uint8_t row, uint16_t y);
 
-  Video &video;
+  hal::Video &video;
   uint16_t *frameBuffer;
   Input &input;
   char title[LINE_CHARS + 1] = {};

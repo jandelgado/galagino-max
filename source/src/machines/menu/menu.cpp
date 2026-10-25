@@ -54,7 +54,7 @@ static inline unsigned short shade_RGB565(unsigned short in, uint8_t shade, uint
 
 Menu::Menu(const machineInfo *machines, int16_t machinesCount, int8_t shown, int8_t preselect)
   : machines(machines), machinesCount(machinesCount), menu_sel(preselect + 1) {
-  attract_start = millis();
+  attract_start = hal::millis();
 
   // buttons still held from the reset combo (e.g. nunchuck C+Z) must be
   // released before they count
@@ -105,7 +105,7 @@ void Menu::prepare_frame() {
 
   // navigation restarts the menu attract countdown
   if(pressed & (BUTTON_UP | BUTTON_DOWN | BUTTON_EXTRA)) {
-    attract_start = millis();
+    attract_start = hal::millis();
   }
 
   if(pressed & BUTTON_UP) { menu_sel--; }
@@ -129,7 +129,7 @@ void Menu::prepare_frame() {
   }
 
 #ifdef MASTER_ATTRACT_MENU_TIMEOUT
-  if(millis() - attract_start > MASTER_ATTRACT_MENU_TIMEOUT) {
+  if(hal::millis() - attract_start > MASTER_ATTRACT_MENU_TIMEOUT) {
 #if defined(ASSETS_REMOTE) && NO_DOWNLOADS_IN_ATTRACT
     // no downloads while idle: network traffic, cache churn, flash wear.
     // Highlight moves on to the next downloaded game, which starts once
@@ -269,7 +269,7 @@ void Menu::render_row(short row) {
   if(row == 0) {
     // elapsed can exceed the timeout for one frame at the deadline.
     // Signed math clamps to 0; unsigned would wrap.
-    long elapsed = (long)(millis() - attract_start);
+    long elapsed = (long)(hal::millis() - attract_start);
     long t_remaining = elapsed >= (long)MASTER_ATTRACT_MENU_TIMEOUT ? 0 : MASTER_ATTRACT_MENU_TIMEOUT - elapsed;
     int bar = (int)(224L * t_remaining / MASTER_ATTRACT_MENU_TIMEOUT);
     for(int x=0; x<bar && x<224; x++) {

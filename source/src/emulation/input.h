@@ -1,10 +1,11 @@
 #ifndef INPUT_H
 #define INPUT_H
 
-#include <Arduino.h>
+#include <functional>
+#include "../hal/hal.h"
 #include "../config.h"
 #ifdef NUNCHUCK_INPUT
-  #include "nunchuck.h"
+  #include "../hal/nunchuck.h"
 #endif
 #ifdef GALAGINO_CONTROLLER
 #include "i2c-controller.h"

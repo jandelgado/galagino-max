@@ -3,12 +3,7 @@
 
 #include <stdint.h>
 
-#if defined(ESP32) || defined(ESP_PLATFORM)
-#  include "esp_attr.h"
-#  define VOTRAX_IRAM IRAM_ATTR
-#else
-#  define VOTRAX_IRAM
-#endif
+#include "../hal/hal_attr.h"
 
 #ifndef VOTRAX_REAL
 #  define VOTRAX_REAL float
@@ -110,8 +105,8 @@ private:
   void filtersCommit(bool force);
   void chipUpdate();
   void goIdle();
-  VOTRAX_IRAM int16_t sample();
-  VOTRAX_IRAM votrax_real analogCalc();
+  HAL_FAST_CODE int16_t sample();
+  HAL_FAST_CODE votrax_real analogCalc();
   void fireTimer();
 
   const uint8_t *rom = nullptr;

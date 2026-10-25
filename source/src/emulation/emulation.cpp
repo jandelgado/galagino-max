@@ -1,17 +1,17 @@
-#include "Arduino.h"
-#include "esp_task_wdt.h"
+#include <stdio.h>
+#include "../hal/hal.h"
 #include "emulation.h"
 #include "input.h"
 #include "../machines/machineBase.h"
 
-// CONFIG_ESP_TASK_WDT_* build flags are ignored: the framework's sdkconfig is
-// precompiled. Arm the watchdog at runtime so a hung emulation task panics.
+// A hung emulation task panics after this many seconds without a frame.
 static const uint32_t EMULATION_WDT_TIMEOUT_S = 8;
 
 // including of "../machines/machineBase.h" in "emulation.h" not possible
 extern machineBase *currentMachine;
 extern Input input;
-TaskHandle_t emulationTaskHandle;
+static hal::TaskHandle emulationTaskHandle;
+static hal::Signal frameSignal;  // video core -> emulation core: next frame
 volatile static char doDeleteEmulationTask;
 
 #if defined(DEBUG_TIMING) || defined(DEBUG_TIMING_FPS_HUD)
@@ -29,17 +29,13 @@ volatile uint16_t emulation_fps;
 
 void emulation_start() {
 #ifdef EMULATION_MEASURE_FPS
-  timeTotal = millis();
+  timeTotal = hal::millis();
 #endif
   currentMachine->reset();
   currentMachine->start();
-  xTaskCreatePinnedToCore(emulation_task, "emulation task", 4096, NULL, 2, &emulationTaskHandle, ARDUINO_RUNNING_CORE == 0 ? 1 : 0);
-
-  // Framework default only warns. Re-init on every machine switch: the new
-  // task has a new handle.
-  esp_task_wdt_deinit();
-  esp_task_wdt_init(EMULATION_WDT_TIMEOUT_S, true);
-  esp_task_wdt_add(emulationTaskHandle);
+  frameSignal.clear();  // a frame signalled for the previous machine is stale
+  emulationTaskHandle = hal::taskSpawn(emulation_task, NULL, "emulation task", 4096, 2, hal::EMULATION_CORE);
+  hal::watchdogWatch(emulationTaskHandle, EMULATION_WDT_TIMEOUT_S);
 }
 
 void emulation_stop() {
@@ -49,8 +45,8 @@ void emulation_stop() {
   input.disable(); // disable input read from nunchuck
   doDeleteEmulationTask = 1;
   while (doDeleteEmulationTask) {
-    xTaskNotifyGive(emulationTaskHandle);
-    vTaskDelay(1);
+    frameSignal.give();
+    hal::sleepMs(1);
   }
 
   emulationTaskHandle = NULL;
@@ -63,34 +59,34 @@ void emulation_notifyGive() {
   if (!emulationTaskHandle)
     return;
 
-  xTaskNotifyGive(emulationTaskHandle);
+  frameSignal.give();
 }
 
 void emulation_videoRendered(void) {
 #ifdef EMULATION_MEASURE_FPS
-  videoSum += millis() - cpuStart;
+  videoSum += hal::millis() - cpuStart;
 #endif
 }
 
-IRAM_ATTR void emulation_task(void *p) {  
+HAL_FAST_CODE void emulation_task(void *p) {  
   currentMachine->start();
 
   for(;;) {
 #ifdef EMULATION_MEASURE_FPS
-    cpuStart = millis();
+    cpuStart = hal::millis();
 #endif
 
     currentMachine->run_frame();
-    esp_task_wdt_reset();
+    hal::watchdogFeed();
 
     if (doDeleteEmulationTask) {
       doDeleteEmulationTask = 0;
-      esp_task_wdt_delete(emulationTaskHandle);
-      vTaskDelete(emulationTaskHandle);
+      hal::watchdogUnwatch(emulationTaskHandle);
+      hal::taskExit();
     }
 
 #ifdef EMULATION_MEASURE_FPS
-    cpuSum += millis() - cpuStart;
+    cpuSum += hal::millis() - cpuStart;
 
     // The 60hz vblank rate is in turn 16.6 ms.
   if (counter % 10 == 0) {
@@ -115,9 +111,9 @@ IRAM_ATTR void emulation_task(void *p) {
   // this unless the game has actually started to speed up the boot process
   // a little bit.
   if(currentMachine->game_started)
-    ulTaskNotifyTake(1, portMAX_DELAY);
+    frameSignal.take(hal::WAIT_FOREVER);
   else
-    vTaskDelay(1); // give a millisecond delay to make the watchdog happy
+    hal::sleepMs(1); // give a millisecond delay to make the watchdog happy
   }
 }
 

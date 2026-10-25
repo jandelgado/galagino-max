@@ -1,19 +1,17 @@
 #ifndef _NUNCHUCK_H_
 #define _NUNCHUCK_H_
 
-#include "../config.h"
+// Nintendo Nunchuk through the Arduino NintendoExtensionCtrl library, which needs
+// Arduino Wire: Arduino-ESP32 builds only. Not on hal::I2c: the library owns
+// the bus.
+
+#include "../../config.h"
 
 #ifdef NUNCHUCK_INPUT
-#include <Wire.h>
 
-// ----------------------------
-// Additional Libraries - each one of these will need to be installed.
-// ----------------------------
-#include <NintendoExtensionCtrl.h>
-// This library is for interfacing with the Nunchuck
-
-// Can be installed from the library manager
+// The library behind it (nunchuck.cpp) needs to be installed:
 // https://github.com/dmadison/NintendoExtensionCtrl
+// Not included here: it pulls in Arduino.h, which must not follow Z80.h.
 
 // a total of 7 button is needed for most games
 #define BUTTON_LEFT  0x01
@@ -34,7 +32,8 @@ public:
   bool connected();
  
 private:
-  Nunchuk nchuk;
+  struct Impl;
+  Impl *impl = nullptr;
   bool enabled;
   unsigned long timeout;
   unsigned int lastValue;

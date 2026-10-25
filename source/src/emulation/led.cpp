@@ -1,9 +1,9 @@
 #include "led.h"
+#include "../hal/hal.h"
 
 #ifdef LED_PIN
 void Led::init() {
-  FastLED.addLeds<NEOPIXEL, LED_PIN>(leds, NUM_LEDS);
-  FastLED.setBrightness(LED_BRIGHTNESS);
+  hal::LedStrip::init(LED_PIN, NUM_LEDS);
 }
 
 void Led::update(machineBase *machine) {
@@ -36,6 +36,6 @@ void Led::show() {
     //printf("%03d%03d%03d;", leds[i].raw[0], leds[i].raw[1], leds[i].raw[2]);
   }
   //printf("\n");
-  FastLED.show();
+  hal::LedStrip::show(leds[0].raw, NUM_LEDS);  // leds is contiguous packed r,g,b
 }
 #endif

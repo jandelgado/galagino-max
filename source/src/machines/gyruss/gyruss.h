@@ -2,6 +2,7 @@
 #define GYRUSS_H
 
 #include "../machineBase.h"
+#include "../../hal/hal.h"
 #include "../../emulation/ay8910.h"
 #include "../../emulation/dc_block.h"
 #include "../../emulation/seqlock.h"
@@ -175,8 +176,7 @@ private:
     unsigned char drum_last;                    // ultimo campione consumato (fallback ring vuoto)
 
     // Audio dual-core
-    TaskHandle_t audio_task_handle = NULL;
-    char emu_core_id;
+    hal::TaskHandle audio_task_handle = NULL;
 
     // Video
     unsigned char flip_screen;

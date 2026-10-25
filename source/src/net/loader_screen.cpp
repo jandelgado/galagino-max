@@ -4,7 +4,7 @@
 #include <cstring>
 #include "../emulation/hud.h"
 #include "../emulation/input.h"
-#include "../emulation/video.h"
+#include "../hal/video.h"
 #include "loader_screen.h"
 
 static constexpr uint16_t WIDTH = 224;
@@ -96,7 +96,7 @@ void LoaderScreen::draw() {
     }
     hud_text(frameBuffer, WIDTH, row, HUD_FLIP_NONE, MARGIN, COUNT_Y, HUD_GREEN, count);
     drawBar(row, BAR_Y);
-    video.write(frameBuffer, WIDTH * ROW_LINES);
+    video.submit(frameBuffer, WIDTH * ROW_LINES);
   }
   lastDraw = millis();
 }

@@ -9,16 +9,16 @@
  * Published under GPLv3
  *
  */
-#include <Arduino.h>
-#include <Esp.h>
-#include <esp_flash.h>
-#include <rom/spi_flash.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "config.h"
+#include "hal/hal.h"
+#include "hal/entry.h"
 #include "machines.h"
 #include "machines/machineBase.h"
 #include "emulation/arena.h"
 #include "emulation/audio.h"
-#include "emulation/video.h"
+#include "hal/video.h"
 #include "emulation/input.h"
 #include "machines/menu/menu.h"
 #include "emulation/emulation.h"
@@ -72,7 +72,7 @@ unsigned short *frame_buffer;
 unsigned char *memory;
 
 Audio audio;  // not copy-initialized: holds atomics (ima_adpcm::Voice)
-Video video = Video();
+hal::Video video;
 Input input = Input();
 #ifdef LED_PIN
   Led led = Led();
@@ -85,24 +85,18 @@ void onVolumeUpDown(bool up, bool down);
 void onDoReset();
 bool doReset = false;
 
-// defined in Esp.cpp
-uint32_t ESP_getFlashChipId(void);
-
 #ifdef HEAP_PROBE
-#include <esp_heap_caps.h>
 // heap totals plus per region (DRAM blocks, see arena.h)
 static void heapProbeDump(const char *tag) {
-  printf("PROBE %s free=%u largest=%u minfree=%u\n", tag,
-         heap_caps_get_free_size(MALLOC_CAP_8BIT),
-         heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
-         heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
-  heap_caps_print_heap_info(MALLOC_CAP_8BIT);
+  const hal::MemInfo m = hal::memInfoData();
+  printf("PROBE %s free=%u largest=%u minfree=%u\n", tag, m.free, m.largest, m.minFree);
+  hal::memDump();
 }
 #endif
 
-void setup() {
+void galagino_setup(void) {
 #ifdef HEAP_PROBE
-  delay(500);  // serial monitor attaches after reset
+  hal::sleepMs(500);  // serial monitor attaches after reset
   heapProbeDump("before-arena");
 #endif
   // before anything fragments the heap
@@ -111,61 +105,12 @@ void setup() {
   heapProbeDump("after-arena");
 #endif
 
-  #if CONFIG_IDF_TARGET_ESP32S3
-  delay(2000); // USB delay
-  #endif
-
-  Serial.begin(115200);
-  delay(200); // let serial initialize
+  hal::consoleInit();
   printf("Galagino\n");
 
-  printf("ESP-IDF:     %s\n", ESP.getSdkVersion());
-  printf("Arduino:     %d.%d.%d\n", ESP_ARDUINO_VERSION_MAJOR, ESP_ARDUINO_VERSION_MINOR, ESP_ARDUINO_VERSION_PATCH);
-  printf("ESP Chip:    %s - %d\n", ESP.getChipModel(), ESP.getChipRevision());
-  printf("CPU Clock:   %d MHz\n", ESP.getCpuFreqMHz());
-  printf("Flash Size:  %d MiB\n", ESP.getFlashChipSize() / 1024 / 1024);
-  printf("Flash Speed: %d MHz\n", ESP.getFlashChipSpeed() / 1000 / 1000);
-  printf("Flash Mode:  %d - ", ESP.getFlashChipMode());
-  switch (ESP.getFlashChipMode()) {
-    case FM_QIO:       printf("FM_QIO - Quad IO\n"); break;
-    case FM_QOUT:      printf("FM_QOUT - Quad Out\n"); break;
-    case FM_DIO:       printf("FM_DIO - Dual IO\n"); break;
-    case FM_DOUT:      printf("FM_DOUT - Dual Out\n"); break;
-    case FM_FAST_READ: printf("FM_FAST_READ\n"); break;
-    case FM_SLOW_READ: printf("FM_SLOW_READ\n"); break;
-    default:           printf("FM_UNKNOWN\n"); break;
-  }
-  printf("Flash Manufacturer: 0x%02x\n", (g_rom_flashchip.device_id >> 16) & 0xff);
-  printf("Flash Type Code:    0x%02x\n", (g_rom_flashchip.device_id >> 8) & 0xff);
-  printf("Flash Size Code:    0x%02x\n", (g_rom_flashchip.device_id >> 0) & 0xff);
-  printf("Flash Id:           0x%08x\n", ESP_getFlashChipId());
+  hal::printPlatformInfo();
 
-#ifdef WORKAROUND_I2S_APLL_PROBLEM
-  printf("I2S APLL workaround active\n");
-#endif
-
-  printf("Free heap: %d\n", ESP.getFreeHeap());
-  printf("Main core: %d\n", xPortGetCoreID());
-  printf("Main priority: %d\n", uxTaskPriorityGet(NULL));
-
-
-  #ifdef CONFIG_IDF_TARGET_ESP32
-  printf("CONFIG_IDF_TARGET_ESP32:   defined\n");
-  #endif
-  #ifdef CONFIG_IDF_TARGET_ESP32S2
-  printf("CONFIG_IDF_TARGET_ESP32S2: defined\n");
-  #endif
-  #ifdef CONFIG_IDF_TARGET_ESP32S3
-  printf("CONFIG_IDF_TARGET_ESP32S3: defined\n");
-  #endif
-  printf("TFT_SPI_HOST:  %d\n", TFT_SPI_HOST);
-
-  switch (TFT_SPI_HOST) {
-    case SPI1_HOST: printf("TFT_SPI_HOST:  %s\n", "SPI1_HOST"); break;
-    case SPI2_HOST: printf("TFT_SPI_HOST:  %s\n", "SPI2_HOST"); break; // esp32 HSPI | esp32-s3 FSPI
-    case SPI3_HOST: printf("TFT_SPI_HOST:  %s\n", "SPI3_HOST"); break; // esp32 VSPI | esp32-s3 HSPI
-    default:        printf("TFT_SPI_HOST:  %s\n", "?");         break;
-  }
+  printf("TFT_SPI_PORT:  SPI%d\n", TFT_SPI_PORT);  // esp32 SPI2 HSPI | esp32-s3 FSPI, SPI3 VSPI | HSPI
   printf("TFT Controller: ");
   #ifdef TFT_ILI9341
   printf("ILI9341\n");
@@ -199,8 +144,7 @@ void setup() {
   #endif
 
   #ifdef AUDIO_ENABLE_PIN
-  pinMode(AUDIO_ENABLE_PIN, OUTPUT);   // ESP32-E Audio Enable
-  digitalWrite(AUDIO_ENABLE_PIN, LOW); // active low
+  hal::pinOutput(AUDIO_ENABLE_PIN, false); // ESP32-E Audio Enable, active low
   printf("AUDIO_ENABLE:     %s\n", "LOW");
   #endif
 
@@ -209,8 +153,9 @@ void setup() {
   if (!memory) {
     // DRAM statics grew (e.g. a new global): the heap block left after
     // the Arena is smaller than RAMSIZE
+    const hal::MemInfo m = hal::memInfo();
     printf("fatal: malloc(RAMSIZE=%d) failed, MaxAlloc=%d Free=%d\n", RAMSIZE,
-           ESP.getMaxAllocHeap(), ESP.getFreeHeap());
+           (int)m.largest, (int)m.free);
     abort();
   }
   frame_buffer = (unsigned short*)malloc(240 * 8 * 2);
@@ -227,10 +172,11 @@ void setup() {
 #endif
 
   video.begin();
-  printf("setup() Heap: Free=%d MaxAlloc=%d MinFree=%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
+  const hal::MemInfo heap = hal::memInfo();
+  printf("setup() Heap: Free=%d MaxAlloc=%d MinFree=%d\n", (int)heap.free, (int)heap.largest, (int)heap.minFree);
 }
 
-void loop(void) {
+void galagino_loop(void) {
   // run video in main task. This will send signals to the emulation task in the background to synchronize video
   updateAudioVideo();
 
@@ -238,13 +184,6 @@ void loop(void) {
   led.update(currentMachine);
 #endif
 }
-
-// max time between full rate frames giving the idle task CPU time
-static const uint32_t IDLE_YIELD_MS = 1000;
-// full rate frame period, 60.0 Hz
-static const uint32_t FRAME_US = 16667;
-// further behind the frame deadline than this: restart pacing
-static const int32_t MAX_LATE_US = 50000;
 
 // Replace the running machine (game, menu or self-test). The old one is deleted
 // first: the menu ctor resets Arena, which must not hold live assets.
@@ -285,7 +224,7 @@ static void switchTo(int8_t index) {
     Arena::reserve(machines[index].arena);
     currentMachine = machines[index].create();
 #ifdef MASTER_ATTRACT_GAME_TIMEOUT
-    attractGameStart = machinesCount > 1 ? millis() : 0;
+    attractGameStart = machinesCount > 1 ? hal::millis() : 0;
 #endif
   }
 
@@ -293,7 +232,8 @@ static void switchTo(int8_t index) {
   audio.start(currentMachine);
   video.flip(currentMachine->videoFlipY(), currentMachine->videoFlipX());
   emulation_start();
-  printf("switchTo(%d) Heap: Free=%d MaxAlloc=%d MinFree=%d\n", index, ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap());
+  const hal::MemInfo heap = hal::memInfo();
+  printf("switchTo(%d) Heap: Free=%d MaxAlloc=%d MinFree=%d\n", index, (int)heap.free, (int)heap.largest, (int)heap.minFree);
 }
 
 // HEAP_PROBE build: runs every machine PROBE_GAME_MS and reports Arena
@@ -307,13 +247,13 @@ static bool heapProbeStep() {
   // survive the abort and reboot of an Arena overflow: the sweep goes on
   // with the next game
   static const uint32_t PROBE_MAGIC = 0x50524f42;
-  RTC_NOINIT_ATTR static uint32_t probeMagic;
-  RTC_NOINIT_ATTR static int8_t probeIndex;
+  HAL_RETAINED static uint32_t probeMagic;
+  HAL_RETAINED static int8_t probeIndex;
   static uint32_t probeStart = 0;
 
   if (!currentMachine) {
     // index checked: RTC memory survives flashing a firmware with fewer games
-    if (probeMagic == PROBE_MAGIC && esp_reset_reason() == ESP_RST_PANIC &&
+    if (probeMagic == PROBE_MAGIC && hal::resetWasPanic() &&
         probeIndex >= 0 && probeIndex < machinesCount) {
       printf("PROBE game=%d type=%d FAIL\n", probeIndex, machines[probeIndex].type);
     }
@@ -323,16 +263,14 @@ static bool heapProbeStep() {
     probeMagic = PROBE_MAGIC;
   }
 
-  if (currentMachine && millis() - probeStart <= PROBE_GAME_MS) {
+  if (currentMachine && hal::millis() - probeStart <= PROBE_GAME_MS) {
     return false;
   }
 
   if (currentMachine) {
+    const hal::MemInfo m = hal::memInfoData();
     printf("PROBE game=%d type=%d arena=%u free=%u largest=%u minfree=%u\n", probeIndex,
-           machines[probeIndex].type, Arena::bytesUsed(),
-           heap_caps_get_free_size(MALLOC_CAP_8BIT),
-           heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
-           heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
+           machines[probeIndex].type, Arena::bytesUsed(), m.free, m.largest, m.minFree);
   }
   // a panic while leaving the game still counts for it
   switchTo(SHOW_MENU);  // menu dtor resets the Arena
@@ -343,7 +281,7 @@ static bool heapProbeStep() {
     probeIndex = 0;
   }
   switchTo(probeIndex);
-  probeStart = millis();
+  probeStart = hal::millis();
   return true;
 #else
   return false;
@@ -357,7 +295,7 @@ static bool attractGameTimeout() {
   if (menu || !attractGameStart) {
     return false;
   }
-  if (millis() - attractGameStart <= MASTER_ATTRACT_GAME_TIMEOUT) {
+  if (hal::millis() - attractGameStart <= MASTER_ATTRACT_GAME_TIMEOUT) {
     return false;
   }
 
@@ -370,8 +308,7 @@ static bool attractGameTimeout() {
 }
 
 void updateAudioVideo(void) {
-  static uint32_t last_yield_ms = 0;
-  uint32_t t0 = micros();
+  uint32_t t0 = hal::micros();
 
   const int8_t first = machinesCount == 1 ? 0 : SHOW_MENU;
   if (heapProbeStep()) {
@@ -399,84 +336,40 @@ void updateAudioVideo(void) {
 
   currentMachine->prepare_frame();
 
-  bool videoHalfRate = true;
-#ifndef VIDEO_HALF_RATE
-  videoHalfRate = currentMachine->useVideoHalfRate();
-#endif
+  video.setHalfRate(currentMachine->useVideoHalfRate());
   const int renderWidth = currentMachine->renderWidth();
   const int renderWrite = renderWidth << 3;
   video.setViewport(renderWidth);
 
-  if (!videoHalfRate) {
-    // render and transmit screen at once as the display running at 80Mhz can update at full 60 hz game frame
-    for(int c = 0; c < 36; c += 6) {
-      for (int i = 0; i < 6; i++) {
-        renderRow(c + i); video.write(frame_buffer, renderWrite);
-      }
+  // A screen is sent in screenParts() parts: one at full rate (the display can
+  // update at the 60 Hz game frame), two at half rate (the display updates
+  // every second game frame; the emulation still runs at 60 Hz, so it is
+  // notified after each part).
+  const uint8_t parts = video.screenParts();
+  const int stripsPerPart = 36 / parts;
+  // audio is refilled 6 times per screen update
+  // (half rate: 12 times per 30 Hz frame; audio registers are updated by CPU3
+  // two times per 30 Hz frame)
+  const int stripsPerAudio = 36 / 6 / parts;
 
-      // audio is updated 6 times per 60 Hz frame
+  for (uint8_t part = 0; part < parts; part++) {
+    for (int c = stripsPerPart * part; c < stripsPerPart * (part + 1); c += stripsPerAudio) {
+      for (int i = 0; i < stripsPerAudio; i++) {
+        renderRow(c + i); video.submit(frame_buffer, renderWrite);
+      }
       audio.transmit();
     }
 
     emulation_videoRendered();
 
-    // Deadline pacing at 60.0 Hz: delays alternate 16/17/17 ms. A fixed 16 ms
-    // pad ran at 62.5 Hz, games 4% fast, and beat against the 60 Hz panel: a
-    // skipped frame (scroll jerk) about every second.
-    static uint32_t next_us = 0;
-    next_us += FRAME_US;
-    const int32_t wait_us = (int32_t)(next_us - micros());
-    if(wait_us > 0) {
-      vTaskDelay((wait_us + 999) / 1000);
-      last_yield_ms = millis();
-    }
-    else {
-      // far behind (stall, machine start): restart, no catch-up burst
-      if(wait_us < -MAX_LATE_US) {
-        next_us = micros();
-      }
+    // returns when the next part may start: deadline pacing on a panel
+    video.endFrame(part, t0);
 
-      // Idle task needs CPU time within the task watchdog timeout. Not every
-      // frame: a 1 tick delay pushes a late frame further behind.
-      if(millis() - last_yield_ms > IDLE_YIELD_MS) {
-        vTaskDelay(1);
-        last_yield_ms = millis();
-      }
-    }
-
-    // physical refresh is 60Hz. So send vblank trigger once a frame
+    // physical refresh: tell the emulation a vblank passed
     emulation_notifyGive();
-  }
-  else {
-    // render and transmit screen in two halfs as the display running at 40Mhz can only update every second 60 hz game frame
-    for(int half = 0; half < 2; half++) {
-      for(int c = 18 * half; c < 18 * (half + 1); c += 3) {
-        renderRow(c + 0); video.write(frame_buffer, renderWrite);
-        renderRow(c + 1); video.write(frame_buffer, renderWrite);
-        renderRow(c + 2); video.write(frame_buffer, renderWrite);
-
-        // audio is refilled 6 times per screen update. The screen is updated
-        // every second frame. So audio is refilled 12 times per 30 Hz frame.
-        // Audio registers are updated by CPU3 two times per 30hz frame.
-        audio.transmit();
-      }
-
-      emulation_videoRendered();
-
-      // one screen at 60 Hz is 16.6ms
-      unsigned long t1 = (micros() - t0) / 1000;  // calculate time in milliseconds
-      if(t1 < (half ? 33 : 16))
-        vTaskDelay((half ? 33 : 16) - t1);
-      else if(half)
-        vTaskDelay(1);    // at least 1 ms delay to prevent watchdog timeout
-
-      // physical refresh is 30Hz. So send vblank trigger twice a frame to the emulation. This will make the game run with 60hz speed
-      emulation_notifyGive();
-    }
   }
 }
 
-// render one of 36 strips (8 lines, width supplied by the active machine)
 void renderRow(short row) {
   memset(frame_buffer, 0, currentMachine->renderBuffer());
   currentMachine->render_row(row);
