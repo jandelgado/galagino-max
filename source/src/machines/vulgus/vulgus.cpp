@@ -9,6 +9,14 @@
 #include "vulgus_sprites.h"
 #include "vulgus_palette.h"
 
+// action key: START with a COIN pin or the galagino controller, else EXTRA
+// (without a COIN pin BUTTON_START only follows a virtual coin, 600 ms late)
+#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+static const unsigned int ACTION_KEY = BUTTON_START;
+#else
+static const unsigned int ACTION_KEY = BUTTON_EXTRA;
+#endif
+
 static constexpr int VIS_TOP = 16;               // first visible native Y
 static constexpr int VIS_END = 240;              // one past last visible native Y
 static constexpr uint8_t CHAR_TRANSPARENT = 15;  // char lut entry 15 = color 47 (MAME groups)
@@ -66,7 +74,7 @@ uint8_t vulgus::read_io(uint16_t addr) {
       if (keys & BUTTON_DOWN)  { v &= ~0x04; }
       if (keys & BUTTON_UP)    { v &= ~0x08; }
       if (keys & (BUTTON_FIRE | BUTTON_A | BUTTON_L1))  { v &= ~0x10; }   // shot
-      if (keys & (BUTTON_START | BUTTON_B | BUTTON_R1)) { v &= ~0x20; }   // bomb
+      if (keys & (ACTION_KEY | BUTTON_B | BUTTON_R1)) { v &= ~0x20; }   // bomb
       return v;
     case 0xC003: return VULGUS_DSW1;
     case 0xC004: {

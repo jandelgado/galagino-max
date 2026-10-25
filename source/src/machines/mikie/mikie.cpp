@@ -8,6 +8,14 @@
 #include "mikie_sprites.h"
 #include "mikie_palette.h"
 
+// action key: START with a COIN pin or the galagino controller, else EXTRA
+// (without a COIN pin BUTTON_START only follows a virtual coin, 600 ms late)
+#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+static const unsigned int ACTION_KEY = BUTTON_START;
+#else
+static const unsigned int ACTION_KEY = BUTTON_EXTRA;
+#endif
+
 static constexpr uint16_t MAIN_ROM_BASE = 0x6000;
 static constexpr uint8_t TILE_PRIORITY = 0x10;   // colorram: tile drawn over sprites
 static constexpr int VIS_TOP = 16;               // first visible native Y
@@ -84,7 +92,7 @@ uint8_t mikie::read_io(uint16_t addr) {
       if (keys & BUTTON_UP)    { v &= ~0x04; }
       if (keys & BUTTON_DOWN)  { v &= ~0x08; }
       if (keys & (BUTTON_FIRE | BUTTON_A | BUTTON_L1))  { v &= ~0x10; }   // button 1
-      if (keys & (BUTTON_START | BUTTON_B | BUTTON_R1)) { v &= ~0x20; }   // button 2
+      if (keys & (ACTION_KEY | BUTTON_B | BUTTON_R1)) { v &= ~0x20; }   // button 2
       return v;
     case 0x2403: return MIKIE_DSW3;
     case 0x2500: return MIKIE_DSW1;

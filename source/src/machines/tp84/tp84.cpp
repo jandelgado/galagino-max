@@ -6,6 +6,14 @@
 #include "tp84_sprites.h"
 #include "tp84_palette.h"
 
+// action key: START with a COIN pin or the galagino controller, else EXTRA
+// (without a COIN pin BUTTON_START only follows a virtual coin, 600 ms late)
+#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+static const unsigned int ACTION_KEY = BUTTON_START;
+#else
+static const unsigned int ACTION_KEY = BUTTON_EXTRA;
+#endif
+
 tp84::tp84()
   : tp84_rom_main(tp84_rom_main_blob), tp84_rom_sub(tp84_rom_sub_blob),
     tp84_rom_audio(tp84_rom_audio_blob), tp84_tiles(tp84_tiles_blob),
@@ -89,7 +97,7 @@ uint8_t tp84::main_read_io(uint16_t addr) {
       if (keys & BUTTON_UP)    v &= ~0x04;
       if (keys & BUTTON_DOWN)  v &= ~0x08;
       if (keys & (BUTTON_FIRE | BUTTON_A | BUTTON_L1)) v &= ~0x10;   // shoot
-      if (keys & (BUTTON_START | BUTTON_B | BUTTON_R1)) v &= ~0x20;  // missile
+      if (keys & (ACTION_KEY | BUTTON_B | BUTTON_R1)) v &= ~0x20;  // missile
       return v;
     case 0x2860: return TP84_DSW1;
     case 0x3000: {

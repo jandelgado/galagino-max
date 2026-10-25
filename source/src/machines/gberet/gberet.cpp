@@ -18,6 +18,14 @@
 #include "gberet_spritemap.h"
 #include "gberet_cmap.h"
 
+// action key: START with a COIN pin or the galagino controller, else EXTRA
+// (without a COIN pin BUTTON_START only follows a virtual coin, 600 ms late)
+#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+static const unsigned int ACTION_KEY = BUTTON_START;
+#else
+static const unsigned int ACTION_KEY = BUTTON_EXTRA;
+#endif
+
 using namespace gberet_hw;
 
 // sprite_S::flags
@@ -79,8 +87,8 @@ unsigned char gberet::rdZ80(unsigned short Addr) {
       if (keys & BUTTON_UP)    { v &= ~0x04; }  // jump
       if (keys & BUTTON_DOWN)  { v &= ~0x08; }  // crouch
       if (keys & BUTTON_FIRE)  { v &= ~0x10; }  // BUTTON1 knife
-      // BUTTON2 special weapon: START (reports as EXTRA), or L1/R1 on the controller
-      if (keys & (BUTTON_EXTRA | BUTTON_L1 | BUTTON_R1)) { v &= ~0x20; }
+      // BUTTON2 special weapon: START (ACTION_KEY), or B/L1/R1 on the controller
+      if (keys & (ACTION_KEY | BUTTON_B | BUTTON_L1 | BUTTON_R1)) { v &= ~0x20; }
       return v;
     }
     case 0xf603: {  // SYSTEM, KONAMI8_SYSTEM_UNK

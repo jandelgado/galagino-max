@@ -12,6 +12,14 @@
 #include "../../emulation/arena.h"
 #include "../../emulation/spriteflip.h"
 
+// action key: START with a COIN pin or the galagino controller, else EXTRA
+// (without a COIN pin BUTTON_START only follows a virtual coin, 600 ms late)
+#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+static const unsigned int ACTION_KEY = BUTTON_START;
+#else
+static const unsigned int ACTION_KEY = BUTTON_EXTRA;
+#endif
+
 static const uint16_t ROM_END = 0xc000;
 static const uint16_t MAIN_STEPS = INST_PER_FRAME; // per quarter frame, 3 MHz main Z80
 
@@ -178,7 +186,7 @@ unsigned char commando::rdZ80(unsigned short Addr) {
       if (keys & (BUTTON_FIRE | BUTTON_L1)) {
         v &= ~0x10;
       }
-      if (keys & (BUTTON_START | BUTTON_R1)) {
+      if (keys & (ACTION_KEY | BUTTON_R1)) {
         v &= ~0x20;
       }
       return v;
