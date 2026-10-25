@@ -5,6 +5,8 @@
 #include <esp_idf_version.h>
 #include "../audio_config.h"
 
+#if ESP_IDF_VERSION_MAJOR < 6
+// Arduino-ESP32 (IDF 4.4): legacy I2S driver
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 4)
 // See https://github.com/espressif/arduino-esp32/issues/8467
 #define WORKAROUND_I2S_APLL_PROBLEM
@@ -17,10 +19,13 @@
 // Machines render 24 kHz only (dkong doubles its 11765 Hz DAC itself).
 #error "galagino audio needs ESP-IDF >= 4.4.4: fixed 24 kHz output"
 #endif
+#endif // ESP_IDF_VERSION_MAJOR < 6
 
 namespace hal {
 
-// I2S sink: built-in DAC, or ES8311 codec (ES8311_AUDIO). Samples are signed
+// Built-in DAC (HAL_AUDIO_ESP_DAC: legacy I2S driver on IDF 4.4,
+// dac_continuous on IDF 6) or I2S to the ES8311 codec (HAL_AUDIO_ES8311).
+// Selection: ../audio.h. Samples are signed
 // 16 bit mono after volume; the backend converts to its output format.
 class AudioOut {
 public:

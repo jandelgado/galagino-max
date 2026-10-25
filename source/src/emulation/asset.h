@@ -150,19 +150,14 @@ public:
 
 private:
     void unpack() const {
-#ifdef ARDUINO
       uint32_t t0 = hal::millis();
-#endif
       T *buf = (T *)Arena::alloc(count * sizeof(T), alignof(T), block);
       // read now: the other core may allocate during decodeInto()
       uint32_t usedAfterThisAlloc = Arena::bytesUsed();
 
       decodeInto(buf);
 
-      uint32_t ms = 0;
-#ifdef ARDUINO
-      ms = hal::millis() - t0;
-#endif
+      uint32_t ms = hal::millis() - t0;
       uint32_t decompressedBytes = count * sizeof(T);
       double ratio = 100.0 * (1.0 - (double)packedLen / (double)decompressedBytes);
       printf("Asset: unpacked %u bytes (packed %u, %.1f%% smaller) in %u ms. Arena used: %u/%u\n",

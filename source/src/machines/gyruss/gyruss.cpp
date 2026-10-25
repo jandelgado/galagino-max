@@ -99,6 +99,7 @@ static void taskWrapper(void *param) {
 
   while (gyr->audio_running) {
     gyr->run_audio_batch(100);
+    hal::yield();
   }
 
   gyr->audio_running = 1;

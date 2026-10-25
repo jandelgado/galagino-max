@@ -4,8 +4,10 @@ Every name below exists in each backend directory (`esp/`, `host/`, `rp2350/`) w
 signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend selection:
 `HAL_ESP`, `HAL_RP2350` or `HAL_HOST`, defined by the build. All names are in `namespace hal`.
 
-## Time (`time.h`, inline)
+## Time (`time.h`, inline on ESP and host)
 - `uint32_t millis()`, `uint32_t micros()`: wrap at 2^32, compare with unsigned differences.
+- RP2350: out of line in rp2350/time.cpp, a function call each. Pico SDK headers must stay
+  out of the HAL headers (their register macros collide with names in the machines).
 
 ## GPIO (`gpio.h`, inline)
 - `void pinOutput(int pin, bool level)`
@@ -41,6 +43,9 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
   static void writeBlocking(const int16_t*); static void flushSilence(); }`: signed 16 bit mono
   after volume. `init` ramps the output to idle level without a click; `write` takes one chunk if
   a buffer is free, else returns false (all or nothing); `flushSilence` fills every buffer.
+- Backend by define (selected in hal/audio.h, set by the board profile; build defines, not API):
+  HAL_AUDIO_ESP_DAC, HAL_AUDIO_ES8311 (I2S stream; Audio::init sets up the codec over I2c first),
+  HAL_AUDIO_NULL; HAL_AUDIO_DVI reserved for the DVI backend. Combinations: config_check.h.
 
 ## Video (`video.h`, not in `hal.h`)
 `hal::Video` is the backend class (`SpiTftVideo`, `NullVideo`, later a DVI backend). Strips are
@@ -72,6 +77,8 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
 
 ## Attributes (`hal_attr.h`)
 - `HAL_FAST_CODE`, `HAL_FAST_DATA`, `HAL_RETAINED` (survives a reset), `PROGMEM` (empty)
+- RP2350 and host: no retained RAM yet, the retained attribute is empty there, so such a variable
+  is zeroed at boot like any other.
 
 Host-only test hooks (not part of the contract): `host::setMicros(uint64_t)`, `host::advanceMicros(uint64_t)`,
 `host::setPinLevel(int, bool)`, `host::ledCount()`, `host::ledFrame()`, `host::setAudioCapacity(uint32_t)`,

@@ -1,5 +1,6 @@
 // FastLED backend. Without LED_PIN the strip is absent and both calls do
 // nothing. FastLED.h must not meet hal/led_color.h (both define CRGB).
+#ifdef ARDUINO
 #include "led.h"
 #include "../../config.h"
 
@@ -43,3 +44,4 @@ void LedStrip::show(const uint8_t *, uint32_t) {}
 } // namespace hal
 
 #endif
+#endif // ARDUINO

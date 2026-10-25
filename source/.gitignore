@@ -1,3 +1,5 @@
 .pio
 .vscode
 src/config_local.h
+/sdkconfig.idf*
+/dependencies.lock

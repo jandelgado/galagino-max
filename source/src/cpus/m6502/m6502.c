@@ -141,7 +141,7 @@ void m6502_reset(m6502_t *cpu) {
     cpu->irq = cpu->nmi = 0;
 }
 
-M6502_IRAM int m6502_step(m6502_t *cpu) {
+int m6502_step(m6502_t *cpu) {
     uint8_t  op, tmp8;
     uint16_t ea;
     int      cross;
@@ -376,7 +376,7 @@ M6502_IRAM int m6502_step(m6502_t *cpu) {
     }
 }
 
-M6502_IRAM void m6502_exec(m6502_t *cpu, int target) {
+void m6502_exec(m6502_t *cpu, int target) {
     int done = 0;
     while (done < target)
         done += m6502_step(cpu);

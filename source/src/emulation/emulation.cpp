@@ -29,7 +29,7 @@ volatile uint16_t emulation_fps;
 
 void emulation_start() {
 #ifdef EMULATION_MEASURE_FPS
-  timeTotal = hal::millis();
+  timeTotal = hal::micros();
 #endif
   currentMachine->reset();
   currentMachine->start();

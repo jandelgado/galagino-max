@@ -273,13 +273,9 @@ void marble::renderAudio(int16_t *out, int n) {
 void marble::prepare_frame(void) {
   vblank.read(video);
   if (video.level != loaded) {  // video core owns the level buffers
-#ifdef ARDUINO
     uint32_t t0 = hal::millis();
-#endif
     level = &store.load(video.level);
-#ifdef ARDUINO
     printf("marble: level %u loaded in %u ms\n", (unsigned)video.level, (unsigned)(hal::millis() - t0));
-#endif
     loaded = video.level;
     patched = marble_level::NO_PATCH;
   }

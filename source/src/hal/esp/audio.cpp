@@ -1,14 +1,13 @@
-#include "audio.h"
+// Arduino-ESP32 (IDF 4.4) sink on the legacy I2S driver: built-in DAC, or
+// I2S to the ES8311 codec (set up by Audio::init). IDF 6: audio_dac.cpp,
+// audio_i2s.cpp.
+#include "../audio.h"
+#if defined(ARDUINO) && (defined(HAL_AUDIO_ESP_DAC) || defined(HAL_AUDIO_ES8311))
 #include <Arduino.h>
-#include "i2c.h"
 #include <driver/i2s.h>
 #include <stdio.h>
 #include <string.h>
 #include "audio_encode.h"
-#include "../../config.h"
-#ifdef ES8311_AUDIO
-#include <es8311.h>
-#endif
 
 namespace hal {
 
@@ -50,7 +49,7 @@ void rampToSilence() {
   for (uint32_t chunk = 0; chunk < RAMP_CHUNKS; chunk++) {
     for (uint32_t i = 0; i < words; i++) {
       const uint32_t level = esp::SILENCE * (chunk * words + i) / steps;
-#ifdef ES8311_AUDIO
+#ifdef HAL_AUDIO_ES8311
       // signed codec: SILENCE is -32768, ramp 0 down to it
       dma[i] = (uint16_t)(0x10000 - level);
 #else
@@ -70,44 +69,7 @@ void AudioOut::init(const AudioConfig &cfg) {
   words = chunkSamples * WORDS_PER_SAMPLE;
   bufferCount = cfg.buffers;
 
-#ifdef ES8311_AUDIO
-  // the controller shares this bus: init is idempotent
-  bool done = I2c::init(0, ES8311_I2C_SDA, ES8311_I2C_SCL, ES8311_I2C_CLK);
-  printf("es8311: i2c_init=%d SDA=%d SCL=%d Clock=%d\n",
-    done, ES8311_I2C_SDA, ES8311_I2C_SCL, (int)I2c::clockHz(0));
-  if (!done) {
-    printf("es8311: i2c failed\n");
-    return;
-  }
-
-  // check we can talk to es8311
-  int8_t err = I2c::probe(0, ES8311_I2C_ADDR) ? 0 : 1;
-
-  printf("es8311: addr=0x%02x err=%d\n", ES8311_I2C_ADDR, err);
-
-  if (err != 0) {
-    printf("es8311: can't find es8311 in i2c bus at addr=0%02x err=%d\n", ES8311_I2C_ADDR, err);
-  }
-
-  es8311_handle_t es8311_h = es8311_create(0, ES8311_I2C_ADDR);
-  es8311_clock_config_t es8311_clock = {
-    .mclk_inverted = false,
-    .sclk_inverted = false,
-    .mclk_from_mclk_pin = true,
-    .mclk_frequency = (int)(cfg.rate * 256),
-    .sample_frequency = (int)cfg.rate
-  };
-
-  esp_err_t es_err;
-  es_err = es8311_init(es8311_h, &es8311_clock, ES8311_RESOLUTION_16, ES8311_RESOLUTION_16);
-  printf("es8311: es8311_init err=%d\n", es_err);
-
-  es_err = es8311_sample_frequency_config(es8311_h, cfg.rate * 256, cfg.rate);
-  printf("es8311: es8311_sample_frequency_config err=%d\n", es_err);
-
-  es_err = es8311_voice_volume_set(es8311_h, 80, NULL);
-  printf("es8311: es8311_voice_volume_set err=%d\n", es_err);
-
+#ifdef HAL_AUDIO_ES8311
   const i2s_pin_config_t pin_config = {
     .mck_io_num = ES8311_I2S_MCK,
     .bck_io_num = ES8311_I2S_BCK,
@@ -204,3 +166,4 @@ void AudioOut::flushSilence() {
 }
 
 } // namespace hal
+#endif // ARDUINO && (HAL_AUDIO_ESP_DAC || HAL_AUDIO_ES8311)

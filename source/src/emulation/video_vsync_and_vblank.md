@@ -173,7 +173,7 @@ Read device, in `Video::begin()` next to the write device:
 ```c++
 spi_device_interface_config_t read_cfg = if_cfg;
 read_cfg.clock_speed_hz = 1000000;   // panel reads are slow
-spi_bus_add_device(TFT_SPI_HOST, &read_cfg, &read_handle);
+spi_bus_add_device((spi_host_device_t)(TFT_SPI_PORT - 1), &read_cfg, &read_handle);
 ```
 
 Read: one dummy clock, then 10 bits of line, MSB first:

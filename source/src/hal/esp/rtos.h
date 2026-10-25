@@ -28,6 +28,9 @@ TaskHandle taskSpawn(void (*fn)(void *), void *arg, const char *name,
 // Deletes the calling task.
 inline void taskExit() { vTaskDelete(NULL); }
 
+// Lets a ready task of the same priority on this core run now.
+inline void yield() { taskYIELD(); }
+
 inline int coreId() { return xPortGetCoreID(); }
 
 // At least one tick for any non-zero request: a zero-tick delay would not

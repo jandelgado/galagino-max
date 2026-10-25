@@ -27,6 +27,23 @@ inline void encodeDiff(const int16_t *in, uint16_t *out, uint32_t n) {
   }
 }
 
+// ESP-IDF built-in DAC (dac_continuous): 8 bit, the driver widens byte k to
+// the high byte of DMA word k. Its I2S FIFO setup equals the old driver's, so
+// byte k is the high byte of the old word k: same pair swap (mono), same
+// channel order (SND_DIFF: even bytes GPIO26 positive, odd GPIO25 inverted).
+inline void encodeDac8Mono(const int16_t *in, uint8_t *out, uint32_t n) {
+  for (uint32_t i = 0; i < n; i++) {
+    out[i ^ 1] = (uint8_t)((uint16_t)(SILENCE + in[i]) >> 8);
+  }
+}
+
+inline void encodeDac8Diff(const int16_t *in, uint8_t *out, uint32_t n) {
+  for (uint32_t i = 0; i < n; i++) {
+    out[2 * i] = (uint8_t)((uint16_t)(SILENCE + in[i]) >> 8);
+    out[2 * i + 1] = (uint8_t)((uint16_t)(SILENCE - in[i]) >> 8);
+  }
+}
+
 } // namespace esp
 } // namespace hal
 

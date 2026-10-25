@@ -2,7 +2,7 @@
 
 // Audio (portable mixer) against the host sink: volume math, mute, the
 // all-or-nothing chunk write and silence while no machine is running.
-// Arduino.h in this directory is a host stub.
+// Runs on the host HAL backend (HAL_HOST).
 #include "../../src/emulation/audio.cpp"
 
 extern "C" {

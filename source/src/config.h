@@ -4,8 +4,69 @@
 // Optional, git-ignored per-board settings. Defines there or in
 // platformio.ini build_flags win over the defaults below. Define
 // USE_PIO_CONFIG there to supply your own pins.
-#if __has_include("config_local.h")
+// config_local.h may still say HIGH/LOW (Arduino names, same values and
+// spelling as Arduino.h): the ESP-IDF only build has no Arduino.h.
+#ifndef HIGH
+#define HIGH 0x1
+#endif
+#ifndef LOW
+#define LOW  0x0
+#endif
+// Board profile (src/boards/): the build selects one with BOARD_<NAME>. A
+// profile sets pins, video and controller; config_local.h then keeps its own
+// pin block out (USE_PIO_CONFIG). Without a profile: boards/cyd_manual.h if
+// CHEAP_YELLOW_DISPLAY_CONF is defined, else boards/galagino_default.h.
+#if defined(BOARD_PICO2)
+  #define HAL_BOARD_PROFILE "boards/pico2.h"
+#elif defined(BOARD_CYD2432S028R)
+  #define HAL_BOARD_PROFILE "boards/cyd2432s028r.h"
+#elif defined(BOARD_FNK0103F)
+  #define HAL_BOARD_PROFILE "boards/fnk0103f.h"
+#elif defined(BOARD_FNK0103B)
+  #define HAL_BOARD_PROFILE "boards/fnk0103b.h"
+#elif defined(BOARD_FNK0104)
+  #define HAL_BOARD_PROFILE "boards/fnk0104.h"
+#endif
+#ifdef HAL_BOARD_PROFILE
+  #define USE_PIO_CONFIG
+#endif
+
+#if __has_include("config_local.h") && !defined(BOARD_PICO2)
 #include "config_local.h"
+#endif
+
+// Backend axes already chosen by a build flag or config_local.h: the profile
+// keeps its hands off them.
+#if defined(HAL_VIDEO_SPI_TFT) || defined(HAL_VIDEO_NULL) || defined(HAL_VIDEO_DVI_HSTX)
+  #define HAL_VIDEO_CHOSEN
+#endif
+#if defined(HAL_AUDIO_ESP_DAC) || defined(HAL_AUDIO_ES8311) || defined(HAL_AUDIO_NULL) || \
+    defined(HAL_AUDIO_DVI)
+  #define HAL_AUDIO_CHOSEN
+#endif
+
+#if defined(HAL_BOARD_PROFILE)
+  #include HAL_BOARD_PROFILE
+#elif !defined(USE_PIO_CONFIG)
+  #ifdef CHEAP_YELLOW_DISPLAY_CONF
+    #include "boards/cyd_manual.h"
+  #else
+    #include "boards/galagino_default.h"
+  #endif
+#endif
+
+// renamed: TFT_SPI_PORT counts SPI peripherals (2 = SPI2, 3 = SPI3)
+#ifdef TFT_SPI_HOST
+  #error "TFT_SPI_HOST is now TFT_SPI_PORT: 2 for SPI2_HOST, 3 for SPI3_HOST"
+#endif
+
+// board mounted USB connector up: the panel is turned by 180 degrees
+#ifdef BOARD_USBUP
+  #ifdef TFT_VFLIP
+    #undef TFT_VFLIP
+  #else
+    #define TFT_VFLIP
+  #endif
 #endif
 
 // game config
@@ -85,73 +146,6 @@
 #define SND_LEFT_CHANNEL // Use GPIO 26 for audio
 #endif
 
-// esp32 model config
-//#define CHEAP_YELLOW_DISPLAY_CONF
-
-#ifndef USE_PIO_CONFIG
-#ifdef CHEAP_YELLOW_DISPLAY_CONF
-  #define TFT_CS          15
-  #define TFT_DC          2
-  #define TFT_RST         -1
-  #define TFT_BL          21   // don't set if backlight is hard wired
-  #define TFT_BL_LEVEL    1     // backlight on with low or high signal
-  //#define TFT_ILI9341 // define for ili9341, otherwise st7789
-  //#define TFT_VFLIP   // define for upside down
-
-  #define TFT_MISO 	      12
-  #define TFT_MOSI 	      13
-  #define TFT_SCLK 	      14
-  //#define TFT_MAC  	    0x20  // some CYD need this to rotate properly and have correct colors
-
-  // Pins used for buttons
-  #define BTN_START_PIN	  35
-  //#define BTN_COIN_PIN    21   // if this is not defined, then start will act as coin & start
-
-  #ifndef NUNCHUCK_INPUT
-    #define BTN_LEFT_PIN    23
-    #define BTN_RIGHT_PIN   22
-    #define BTN_DOWN_PIN    16
-    #define BTN_UP_PIN      17
-    #define BTN_FIRE_PIN    4
-  #else
-    // CN1 connector
-    #define NUNCHUCK_SDA  22
-    #define NUNCHUCK_SCL  27
-    #define NUNCHUCK_MOVE_THRESHOLD 30 // This is the dead-zone for where minor movements on the stick will not be considered valid movements
-  #endif
-#endif
-
-#ifndef CHEAP_YELLOW_DISPLAY_CONF
-  #define TFT_CS          5
-  #define TFT_DC          4
-  #define TFT_RST         22
-  #define TFT_BL          15      // don't set if backlight is hard wired
-  #define TFT_BL_LEVEL    0       // backlight on with low or high signal
-  #define TFT_ILI9341             // define for ili9341, otherwise st7789
-  //#define TFT_VFLIP               // define for upside down
-
-  #define TFT_MISO 	      19
-  #define TFT_MOSI 	      23
-  #define TFT_SCLK 	      18
-
-  // Pins used for buttons
-  //#define BTN_START_PIN   0
-  //#define BTN_COIN_PIN    21      // if this is not defined, then start will act as coin & start
-
-  #ifndef NUNCHUCK_INPUT
-    #define BTN_LEFT_PIN  33
-    #define BTN_RIGHT_PIN 14
-    #define BTN_DOWN_PIN  16
-    #define BTN_UP_PIN    21
-    #define BTN_FIRE_PIN  12
-  #else
-    #define NUNCHUCK_SDA  33
-    #define NUNCHUCK_SCL  32
-    #define NUNCHUCK_MOVE_THRESHOLD 30 // This is the dead-zone for where minor movements on the stick will not be considered valid movements
-  #endif
-#endif
-#endif
-
 #ifndef TFT_SPI_PORT
 
 #if CONFIG_IDF_TARGET_ESP32S3
@@ -169,5 +163,25 @@
 #endif
 
 #endif
+
+// Backends neither a build flag, config_local.h nor the profile chose:
+// the platform default (ESP: panel on SPI and built-in DAC, else null).
+#if !defined(HAL_VIDEO_SPI_TFT) && !defined(HAL_VIDEO_NULL) && !defined(HAL_VIDEO_DVI_HSTX)
+  #if defined(HAL_ESP)
+    #define HAL_VIDEO_SPI_TFT
+  #else
+    #define HAL_VIDEO_NULL
+  #endif
+#endif
+#if !defined(HAL_AUDIO_ESP_DAC) && !defined(HAL_AUDIO_ES8311) && !defined(HAL_AUDIO_NULL) && \
+    !defined(HAL_AUDIO_DVI)
+  #if defined(HAL_ESP)
+    #define HAL_AUDIO_ESP_DAC
+  #else
+    #define HAL_AUDIO_NULL
+  #endif
+#endif
+
+#include "hal/config_check.h"
 
 #endif // _CONFIG_H_

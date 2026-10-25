@@ -1,9 +1,24 @@
 #include "audio.h"
 #include <string.h>
 #include "../machines/machineBase.h"
+#include "../config.h"
+#ifdef HAL_AUDIO_ES8311
+#include <stdio.h>
+#include "../audio/codec_es8311.h"
+
+// codec output level, 0..100 (machines mix at full scale)
+static const uint8_t ES8311_VOLUME = 80;
+#endif
 
 void Audio::init() {
   memset(pending, 0, sizeof(pending));
+#ifdef HAL_AUDIO_ES8311
+  // codec registers before the I2S stream starts; the controller shares the bus
+  if (!hal::I2c::init(0, ES8311_I2C_SDA, ES8311_I2C_SCL, ES8311_I2C_CLK) ||
+      !Es8311::init(0, ES8311_I2C_ADDR, SAMPLE_RATE, ES8311_VOLUME)) {
+    printf("es8311: no codec at 0x%02x\n", ES8311_I2C_ADDR);
+  }
+#endif
   hal::AudioConfig cfg = {SAMPLE_RATE, AUDIO_CHUNK, DMA_BUF_COUNT};
   hal::AudioOut::init(cfg);
 }

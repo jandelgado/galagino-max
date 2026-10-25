@@ -21,6 +21,7 @@ inline TaskHandle taskSpawn(void (*)(void *), void *, const char *, uint32_t, ui
 }
 inline void taskExit() {}
 // Host tests run machine code as if on the emulation core.
+inline void yield() {}
 inline int coreId() { return EMULATION_CORE; }
 inline void sleepMs(uint32_t ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }
 

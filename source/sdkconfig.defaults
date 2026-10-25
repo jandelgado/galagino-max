@@ -1,0 +1,28 @@
+# ESP-IDF only build of galagino (PlatformIO envs idf-*). Everything not
+# listed keeps the IDF default.
+
+# CPU and flash, as the Arduino build
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+
+# 1 ms tick: sleepMs(1) and the pacing in Video::endFrame()
+CONFIG_FREERTOS_HZ=1000
+
+# The frame loop (main task) runs on core 0, with the stack Arduino's loop task has
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+CONFIG_ESP_MAIN_TASK_AFFINITY_CPU0=y
+
+# Task watchdog: hal::watchdogWatch() sets the timeout; idle tasks watched
+CONFIG_ESP_TASK_WDT_INIT=y
+CONFIG_ESP_TASK_WDT_PANIC=y
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=y
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=y
+
+# Speed over size, as the hot code of the Arduino build (-Os there, hot paths in IRAM)
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_SILENT=y
+
+# Less log, no Bluetooth, no WiFi
+CONFIG_LOG_DEFAULT_LEVEL_WARN=y
+CONFIG_BT_ENABLED=n

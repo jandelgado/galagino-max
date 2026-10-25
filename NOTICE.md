@@ -12,7 +12,7 @@ The galagino source code is GPLv3 ([LICENSE](LICENSE)). Not everything in this r
   | `cpus/i8048` (derived from [asig/kosmos-cp1](https://github.com/asig/kosmos-cp1)) | GPL-3.0 |
   | `cpus/i8086` (FabGL, 8086tiny) | MIT, [notice](source/src/cpus/i8086/LICENSE-8086tiny) |
   | Marble Madness logic ([Marble Love](https://github.com/magno73/marble-love)) | MIT, [notice](source/src/machines/marble/LICENSE-marble-love) |
-  | `lib/es8311` (Espressif) | Apache-2.0 |
+  | `audio/codec_es8311` register setup (Espressif es8311 driver) | Apache-2.0 |
   | `emulation/lzma` (LZMA SDK) | public domain |
   | `NintendoExtensionCtrl` (nunchuck, PlatformIO dependency) | LGPLv3 |
 

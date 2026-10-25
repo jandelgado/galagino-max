@@ -7,8 +7,10 @@
 extern "C" {
 #endif
 
+#ifndef __cplusplus
 #define false 0
 #define true (!false)
+#endif
 
 #ifndef boolean
   #define boolean char

@@ -1,5 +1,7 @@
 #include "video_spi_tft.h"
-#include <Arduino.h>
+#ifdef ARDUINO
+#include <Arduino.h>  // MISO, MOSI, SCK default pins
+#endif
 #include <esp_heap_caps.h>
 #include <stdio.h>
 #include <string.h>
@@ -9,16 +11,12 @@ namespace hal {
 
 // max time between full rate frames giving the idle task CPU time
 static const uint32_t IDLE_YIELD_MS = 1000;
-// full rate frame period, 60.0 Hz
-static const uint32_t FRAME_US = 16667;
-// further behind the frame deadline than this: restart pacing
-static const int32_t MAX_LATE_US = 50000;
 
 static spi_device_interface_config_t if_cfg {
   .command_bits = 0,
   .address_bits = 0,
   .dummy_bits = 0,
-  .mode = SPI_MODE0,
+  .mode = 0,  // SPI mode 0
   .duty_cycle_pos = 128,
   .cs_ena_pretrans = 0,
   .cs_ena_posttrans = 0,
@@ -33,6 +31,7 @@ static spi_device_interface_config_t if_cfg {
 
 #if !defined(TFT_MISO) || !defined(TFT_MOSI) || !defined(TFT_SCLK)
 // At least one of the SPI pins is not defined, so we'll set that to default ESP32 SPI pins
+#ifdef ARDUINO
 #ifndef TFT_MISO
 #define TFT_MISO MISO
 #endif
@@ -43,6 +42,20 @@ static spi_device_interface_config_t if_cfg {
 
 #ifndef TFT_SCLK
 #define TFT_SCLK SCK
+#endif
+#else
+// VSPI default pins of the ESP32
+#ifndef TFT_MISO
+#define TFT_MISO 19
+#endif
+
+#ifndef TFT_MOSI
+#define TFT_MOSI 23
+#endif
+
+#ifndef TFT_SCLK
+#define TFT_SCLK 18
+#endif
 #endif
 
 #endif
@@ -166,10 +179,21 @@ SpiTftVideo::SpiTftVideo() {
   // TFT_SPI_PORT counts SPI peripherals (2 = SPI2, 3 = SPI3); the IDF host
   // enum starts at SPI1_HOST = 0 (flash).
   const spi_host_device_t host = (spi_host_device_t)(TFT_SPI_PORT - 1);
-  spi_bus_initialize(host, &bus_cfg, SPI_DMA_CH_AUTO);
-  spi_bus_add_device(host, &if_cfg, &handle);
+  // unused pins are -1, not 0: GPIO 0 would be claimed (IDF 6 reports it)
+  bus_cfg.quadwp_io_num = -1;
+  bus_cfg.quadhd_io_num = -1;
+  esp_err_t err = spi_bus_initialize(host, &bus_cfg, SPI_DMA_CH_AUTO);
+  if (err == ESP_OK) {
+    err = spi_bus_add_device(host, &if_cfg, &handle);
+  }
+  if (err != ESP_OK) {
+    printf("video: SPI init failed (%d)\n", (int)err);
+  }
+}
 
-  // trigger hardware reset
+void SpiTftVideo::begin(void) {
+  // trigger hardware reset. Not in the constructor: that runs before the
+  // scheduler starts (static init), where sleeping is not possible.
   if (TFT_RST >= 0)
   {
     hal::pinOutput(TFT_RST, false);
@@ -180,9 +204,7 @@ SpiTftVideo::SpiTftVideo() {
     sendCommand(0x01, NULL, 0);
     hal::sleepMs(150);
   }
-}
 
-void SpiTftVideo::begin(void) {
   // background buffers which are kept untouched during DMA transfer;
   // allocated here, after main's larger permanent buffers
   for(int i = 0; i < DMA_BUFFERS; i++)
@@ -353,21 +375,12 @@ uint8_t SpiTftVideo::screenParts() const {
 
 void SpiTftVideo::endFrame(uint8_t part, uint32_t frameStartUs) {
   if (!half_rate) {
-    // Deadline pacing at 60.0 Hz: delays alternate 16/17/17 ms. A fixed 16 ms
-    // pad ran at 62.5 Hz, games 4% fast, and beat against the 60 Hz panel: a
-    // skipped frame (scroll jerk) about every second.
-    next_us += FRAME_US;
-    const int32_t wait_us = (int32_t)(next_us - hal::micros());
+    const int32_t wait_us = pacer.next(hal::micros());
     if(wait_us > 0) {
       hal::sleepMs((wait_us + 999) / 1000);
       last_yield_ms = hal::millis();
     }
     else {
-      // far behind (stall, machine start): restart, no catch-up burst
-      if(wait_us < -MAX_LATE_US) {
-        next_us = hal::micros();
-      }
-
       // Idle task needs CPU time within the task watchdog timeout. Not every
       // frame: a 1 tick delay pushes a late frame further behind.
       if(hal::millis() - last_yield_ms > IDLE_YIELD_MS) {

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <driver/spi_master.h>
 #include "../../config.h"
+#include "../frame_pacer.h"
 
 namespace hal {
 
@@ -53,7 +54,7 @@ private:
   uint16_t viewport_width = 224;
 
   bool half_rate = false;
-  uint32_t next_us = 0;        // full rate: deadline of the next frame
+  FramePacer pacer;            // full rate: 60 Hz deadlines
   uint32_t last_yield_ms = 0;  // full rate: last time the idle task got CPU
 };
 
