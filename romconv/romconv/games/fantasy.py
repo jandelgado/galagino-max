@@ -10,7 +10,7 @@ from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.hw.snk6502 import encode_samples, load, write_header, write_sample_pack
 
-_SAMPLE_ZIP = "fantasy_samples.zip"  # samples/
+_SAMPLE_ZIP = "fantasy-samples.zip"  # romszip/
 _SAMPLE_NAMES = tuple(f"ft_voi-{x:x}.wav" for x in range(12))
 
 _MANIFEST = MappingProxyType({

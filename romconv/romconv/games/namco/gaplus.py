@@ -4,7 +4,9 @@ The romset is a hybrid (code of "galaga3" GP3, gfx1 and the two sprite color PRO
 GP2): the converter uses whichever zip is present, gaplus.zip first. The hardware is the twin of
 galaga (same tile address, tile/attr split) and mappy/todruaga (same namcoio 56XX/58XX, WSG 15XX,
 ROT90 sprites), but sprite sizes are independent and there is a "duplicate" flag."""
+import io
 import wave
+import zipfile
 from types import MappingProxyType
 
 import numpy as np
@@ -21,6 +23,7 @@ from romconv.gfx.gfxutil import mame_decode, rot_galagino
 from romconv.hw.namco import nudge
 
 _GAPLUS_ZIP = "gaplus.zip"
+_SAMPLE_ZIP = "gaplus-samples.zip"  # romszip/
 _GALAGA3_ZIP = "galaga3.zip"
 
 _SHARED = MappingProxyType({
@@ -189,10 +192,12 @@ def _write_starfield(ctx: Context, stars, pal, spr_lut_lo, spr_lut_hi) -> None:
 
 
 def _write_sample_bang(ctx: Context) -> None:
-    path = ctx.paths.samples / "gaplus_bang.wav"
-    if not path.exists():
-        raise ConversionError("gaplus_bang.wav missing, gaplus_sample_bang.h not generated")
-    with wave.open(str(path), "rb") as w:
+    path = ctx.paths.romszip / _SAMPLE_ZIP
+    if not path.is_file():
+        raise ConversionError(f"{_SAMPLE_ZIP} missing, gaplus_sample_bang.h not generated")
+    with zipfile.ZipFile(path) as archive:
+        bang = archive.read("bang.wav")
+    with wave.open(io.BytesIO(bang), "rb") as w:
         nch, sw, fr, nframes = w.getnchannels(), w.getsampwidth(), w.getframerate(), w.getnframes()
         frames = w.readframes(nframes)
     dtype = {1: np.int8, 2: "<i2", 4: "<i4"}[sw]
@@ -210,7 +215,7 @@ def _write_sample_bang(ctx: Context) -> None:
     samples8 = np.clip(np.round(resampled * scale), -128, 127).astype(np.int8)
 
     with ctx.header("gaplus_sample_bang.h") as f:
-        print("// Explosion samples for \"bang\" (samples/gaplus_bang.wav),", file=f)
+        print("// Explosion samples for \"bang\" (romszip/gaplus-samples.zip bang.wav),", file=f)
         print("// resampled @24000 Hz signed 8bit, stored as 4-bit IMA-ADPCM", file=f)
         print("// (ima_adpcm::Voice). COMPRESSED: the Arena has room.", file=f)
         print(f"// {len(samples8)} samples ({len(samples8)/_SAMPLE_RATE:.3f}s a 24000 Hz)", file=f)

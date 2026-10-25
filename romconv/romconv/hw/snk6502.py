@@ -69,9 +69,9 @@ def read_sample(archive: zipfile.ZipFile, name: str, target_rate: int, pack: str
 
 def encode_samples(ctx: Context, pack: str, title: str, names: Sequence[str],
                    rates: Sequence[int]) -> tuple[bytes, list[int], list[int]]:
-    """The WAVs of samples/<pack> as mono IMA-ADPCM at their rates: (all streams, stream offsets,
+    """The WAVs of romszip/<pack> as mono IMA-ADPCM at their rates: (all streams, stream offsets,
     decoded sample counts)."""
-    path = ctx.paths.samples / pack
+    path = ctx.paths.romszip / pack
     if not path.is_file():
         raise ConversionError(f"missing {title} sample pack: {path}")
     with zipfile.ZipFile(path) as archive:

@@ -5,7 +5,10 @@ sounds. Emulating this hardware may be tricky and the flash memory
 size of the ESP32 allows to store some of these as digital sound
 samples.
 
-This directory contains samples for Donkey Kong.
+This directory contains samples for Donkey Kong (`dkong_*.s8`, from upstream
+harbaum/galagino), Space Invaders (`invaders_*.s8`, from upstream harbaum/galagino) and Bubble
+Bobble (`bublbobl_samples.zip`, recorded from MAME). Samples downloadable from
+progetto-SNAPS are in `romszip/` instead, see [romszip/README.md](../romszip/README.md).
 
 The `dkong` conversion job (`romconv/convert.sh dkong`) turns them into
 IMA-ADPCM C headers (`source/src/machines/dkong/dkong_sample_*.h`) with
