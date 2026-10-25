@@ -40,7 +40,6 @@ void OutZ80(unsigned short p, unsigned char v) { machine->outZ80(p, v); }
 void PatchZ80(Z80 *) {}
 word LoopZ80(Z80 *) { return INT_NONE; }
 }
-void Reset6502(M6502 *) {}
 
 static const uint16_t SOUND_LATCH = 0xa000;
 static const uint16_t SOUND_TRIGGER = 0xa001;
