@@ -11,6 +11,8 @@
 #include "../../src/machines/menu/menu.cpp"
 
 static const int COUNT = 10;
+// int8_t holds 127: the menu is 1-based
+static const int MANY = 128;
 
 static uint32_t now;
 uint32_t millis() { return now; }
@@ -41,11 +43,11 @@ static const Logo &(*const logoFns[COUNT])() = { logo<0>, logo<1>, logo<2>, logo
                                                  logo<5>, logo<6>, logo<7>, logo<8>, logo<9> };
 
 // uncached[i]: remote game i not downloaded yet
-static bool uncached[COUNT];
-static BundleRef refs[COUNT];
+static bool uncached[MANY];
+static BundleRef refs[MANY];
 bool Loader::available(const BundleRef *ref) { return !ref || !uncached[ref - refs]; }
 
-static machineInfo machines[COUNT];
+static machineInfo machines[MANY];
 static Input input;
 static unsigned short frame_buffer[240 * 8];
 static sprite_S sprites[128];
@@ -57,14 +59,14 @@ static int shown_idx;
 static int shown_first;  // first and last screen line
 static int shown_last;
 
-static void open(int8_t shown, int8_t preselect) {
-  for(int i = 0; i < COUNT; i++) {
+static void open(int8_t shown, int8_t preselect, int16_t count = COUNT) {
+  for(int i = 0; i < count; i++) {
     machines[i] = machineInfo();
-    machines[i].logo = logoFns[i];
+    machines[i].logo = logoFns[i % COUNT];
     machines[i].bundle = &refs[i];
   }
   delete menu;
-  menu = new Menu(machines, COUNT, shown, preselect);
+  menu = new Menu(machines, count, shown, preselect);
   menu->init(&input, frame_buffer, sprites, memory);
   keys = 0;
 }
@@ -152,6 +154,44 @@ static void test_fast_navigation_keeps_highlight_on_screen(void) {
   assertCentred(sel);
 }
 
+// first -> UP wraps to the last, DOWN wraps back
+static void test_wrap_both_ways(void) {
+  open(0, 0);
+  settle();
+  assertCentred(0);
+
+  keys = BUTTON_UP;
+  frame();
+  keys = 0;
+  settle();
+  assertCentred(COUNT - 1);
+
+  keys = BUTTON_DOWN;
+  frame();
+  keys = 0;
+  settle();
+  assertCentred(0);
+}
+
+// 128 machines: highlight 128 does not fit int8_t
+static void test_wrap_128_machines(void) {
+  open(0, 0, MANY);
+  frame();
+  keys = BUTTON_UP;
+  frame();
+  keys = BUTTON_FIRE;
+  frame();
+  TEST_ASSERT_EQUAL_INT(MANY - 1, menu->selected());
+
+  open(MANY - 1, MANY - 1, MANY);
+  frame();
+  keys = BUTTON_DOWN;
+  frame();
+  keys = BUTTON_FIRE;
+  frame();
+  TEST_ASSERT_EQUAL_INT(0, menu->selected());
+}
+
 // one logo: 8 screens
 static void test_scroll_one_logo(void) {
   open(1, 1);
@@ -212,6 +252,8 @@ static void test_attract_starts_cached_game_at_once(void) {
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_fast_navigation_keeps_highlight_on_screen);
+  RUN_TEST(test_wrap_both_ways);
+  RUN_TEST(test_wrap_128_machines);
   RUN_TEST(test_scroll_one_logo);
   RUN_TEST(test_preselect_skips_uncached);
   RUN_TEST(test_attract_scrolls_to_cached_game_first);

@@ -14,7 +14,7 @@ public:
   static const int8_t NONE = -1;
 
   // strip starts at shown, then scrolls to the highlighted preselect
-  Menu(const machineInfo *machines, int8_t machinesCount, int8_t shown, int8_t preselect);
+  Menu(const machineInfo *machines, int16_t machinesCount, int8_t shown, int8_t preselect);
   ~Menu() override;
 
   void start() override;
@@ -37,15 +37,15 @@ private:
   const uint8_t *logoBuffer(const Logo &logo);
   void enterMenu();
   void select();
-  int scrollTarget(int8_t sel);
+  int scrollTarget(int16_t sel);
   void scroll();
 #ifdef MENU_CYLINDER
   void render_row_cylinder(short row);
 #endif
 
   const machineInfo *machines;
-  int8_t machinesCount;
-  int8_t menu_sel;          // highlighted machine, 1-based
+  int16_t machinesCount;
+  int16_t menu_sel;         // highlighted machine, 1-based
   int8_t selection = NONE;
   unsigned int last_mask;
   uint32_t attract_start;   // menu attract: start menu_sel when idle
@@ -72,12 +72,12 @@ private:
 
 #ifdef ASSETS_REMOTE
   // remote games not cached yet: NET marker, menu attract may skip them
-  uint32_t net_only[4] = { };  // bit per machine, int8_t count <= 127
+  uint32_t net_only[4] = { };  // bit per machine, count <= 128
   bool netOnly(int idx) const { return net_only[idx >> 5] & (1u << (idx & 31)); }
   void netStrip(short logo_y, int idx);
   void netLine(unsigned short *line, int logo_line);
 #if NO_DOWNLOADS_IN_ATTRACT
-  int8_t nextAvailable(int8_t sel);
+  int16_t nextAvailable(int16_t sel);
 #endif
 #endif
 };

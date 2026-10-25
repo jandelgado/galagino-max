@@ -52,7 +52,7 @@ static inline unsigned short shade_RGB565(unsigned short in, uint8_t shade, uint
 
 #endif
 
-Menu::Menu(const machineInfo *machines, int8_t machinesCount, int8_t shown, int8_t preselect)
+Menu::Menu(const machineInfo *machines, int16_t machinesCount, int8_t shown, int8_t preselect)
   : machines(machines), machinesCount(machinesCount), menu_sel(preselect + 1) {
   attract_start = millis();
 
@@ -166,7 +166,7 @@ void Menu::scroll() {
 }
 
 // scroll_offset that puts machine sel (1-based) in the middle slot
-int Menu::scrollTarget(int8_t sel) {
+int Menu::scrollTarget(int16_t sel) {
   if(sel == 1) {
     return (machinesCount - 1) * 96;
   }
@@ -408,9 +408,9 @@ void Menu::netLine(unsigned short *line, int logo_line) {
 
 #if NO_DOWNLOADS_IN_ATTRACT
 // sel (1-based) or the next game that starts without network
-int8_t Menu::nextAvailable(int8_t sel) {
-  for(int8_t i = 0; i < machinesCount; i++) {
-    const int8_t idx = (sel - 1 + i) % machinesCount;
+int16_t Menu::nextAvailable(int16_t sel) {
+  for(int16_t i = 0; i < machinesCount; i++) {
+    const int16_t idx = (sel - 1 + i) % machinesCount;
     if(!netOnly(idx)) {
       return idx + 1;
     }
