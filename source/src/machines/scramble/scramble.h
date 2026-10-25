@@ -193,6 +193,7 @@ private:
 
   static_assert(CPU2_MEM_FREE <= RAMSIZE, "RAMSIZE is too low");
 
+protected:
   // Tiles, scroll/color attributes, sprites and bullets as of the main CPU's
   // vblank NMI, handed to the video core via Seqlock (see seqlock.h).
   // prepare_frame()/render read video.*, never live RAM. Tile RAM is
@@ -206,6 +207,8 @@ private:
   };
   Seqlock<VideoState> vblank;
   VideoState video = {};
+
+private:
 
   static constexpr int AY1_ADDR_PORT = 0x10;
   static constexpr int AY2_ADDR_PORT = 0x40;
