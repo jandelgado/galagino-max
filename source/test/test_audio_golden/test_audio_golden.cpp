@@ -8,12 +8,13 @@
 // Audio::transmit() hands to I2S. The hashes were recorded from the code
 // before the audio refactoring (2026-10-15); the refactored code must
 // reproduce them bit for bit. Needs the ROM headers romconv generates,
-// like the device build. Arduino.h, FastLED.h, esp_attr.h, pgmspace.h and
-// driver/i2s.h in this directory are host stubs.
+// like the device build. Arduino.h, FastLED.h, esp_attr.h and pgmspace.h in
+// this directory are host stubs.
 
 // pokey, discrete and the Atari sound boards build as deps_*.cpp (own
 // translation units: their file-static names collide)
 #include "../../src/emulation/audio.cpp"
+#include "../../src/hal/esp/audio_encode.h"
 #include "../../src/machines/zaxxon/zaxxon_sound.h"  // .cpp: deps_zaxxon_sound.cpp
 #include "../../src/emulation/ay8910.h"              // .cpp: deps_ay8910.cpp
 #include "../../src/emulation/ym2203.h"              // .cpp: deps_ym2203.cpp
@@ -65,30 +66,24 @@ static const uint32_t GOLDEN_VANGUARD = 0xca6798b9;
 static const uint32_t GOLDEN_FANTASY = 0x491cbd0b;
 static const uint32_t GOLDEN_ZAXXON = 0x12639c24;
 
-// --- I2S capture -----------------------------------------------------------
+// --- sink capture ----------------------------------------------------------
 
 static uint32_t hash;
-static int writes_left;
 static bool capturing;
 
-esp_err_t i2s_write(i2s_port_t, const void *src, size_t size, size_t *out, uint32_t ticks) {
-  // transmit() polls with ticks 0: accept one buffer per call, then "full"
-  if (ticks == 0 && writes_left-- <= 0) {
-    *out = 0;
-    return 0;
-  }
-  *out = size;
+// The host sink hands over signed samples; the ESP encoder turns them into
+// the DAC words the I2S driver used to receive, which is what the goldens hash.
+static void captureChunk(const int16_t *samples, uint32_t n) {
   if (!capturing) {
-    return 0;
+    return;
   }
-  const uint8_t *p = static_cast<const uint8_t *>(src);
-  for (size_t i = 0; i < size; i++) {
+  uint16_t words[AUDIO_CHUNK];
+  hal::esp::encodeMono(samples, words, n);
+  const uint8_t *p = reinterpret_cast<const uint8_t *>(words);
+  for (size_t i = 0; i < n * sizeof(uint16_t); i++) {
     hash = (hash ^ p[i]) * FNV_PRIME;
   }
-  return 0;
 }
-
-esp_err_t i2s_set_sample_rates(i2s_port_t, uint32_t) { return 0; }
 
 // --- deterministic script --------------------------------------------------
 
@@ -134,6 +129,7 @@ static void speechSaw(uint32_t &phase, int16_t *out, int n) {
 typedef void (*Poke)(machineBase *m, int frame);
 
 static uint32_t run(const char *name, machineBase *m, Poke poke, bool mute = false) {
+  hal::host::setAudioHook(captureChunk);
   Audio *audio = new Audio();
   audio->init();
   m->init(nullptr, nullptr, nullptr, nullptr);
@@ -146,7 +142,7 @@ static uint32_t run(const char *name, machineBase *m, Poke poke, bool mute = fal
       poke(m, f);
     }
     for (int c = 0; c < CHUNKS_PER_FRAME; c++) {
-      writes_left = 1;
+      hal::host::setAudioCapacity(1);  // transmit(): one buffer, then "full"
       capturing = true;
       audio->transmit();
       capturing = false;
