@@ -32,7 +32,7 @@
   #include "emulation/led.h"
 #endif
 
-signed char machinesCount = (signed char)countof(machines);
+int16_t machinesCount = countof(machines);
 
 machineBase *currentMachine;
 
