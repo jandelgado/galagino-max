@@ -59,7 +59,7 @@ checks the SHA1 of each ROM inside the zips, so other zip builds work.
 * Road Fighter: roadf2.zip (1207de1911ff0e61ccf527b050e6add7aad7f6c5)
 * Motorace USA: motorace.zip (486cd3b41bd6cd5980d8b7f99c982dc0f39b290b)
 * Zaxxon: zaxxon.zip (eed2fbc9baf6eff54038a0e789cfc01789e55423), zaxxon-audio.zip (799fbc97a6d01fed9bc57a406e1d9824ee573caf) - US Rev D; samples in zaxxon-audio.zip
-* Centipede: centiped.zip (7b00b0b523ec0f07b9b28be0c616ca7d7f9190db)
+* Centipede: centiped.zip (7b00b0b523ec0f07b9b28be0c616ca7d7f9190db) - Rev 3 (MAME centiped3)
 * Millipede: milliped.zip (4c9a07f4df373c25d560601dd743e0713df04d4a)
 * Asteroids: asteroid.zip (18beaef2089e5135c89c25ce702b4ec7c6284684)
 * Baluba-louk no Densetsu: baluba.zip (de9bfd1291768f84ebf3f7fdaecb345a615882fe), starforc.zip (d03ce89a6ea1ad4080359d9df5e6094a2d480580)
