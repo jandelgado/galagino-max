@@ -154,3 +154,11 @@ def test_gng_packing():
 def test_gng_known_hashes_are_sha1():
     assert all(len(h) == 40 and int(h, 16) >= 0 for h in gng._SHA1.values())
     assert hashlib.sha1(b"").hexdigest() not in gng._SHA1.values()
+
+
+def test_pengo_cpu_prefers_the_japanese_set(paths, log, make_zip):
+    jp = {name: b"x" for name, _ in pengo_cpu._JAPAN_ROMS}
+    make_zip("pengo.zip", jp)
+    ctx = _ctx(pengo.JOB, paths, log)
+    with pytest.raises(ConversionError, match="pengoj/epr-5120.ic8: SHA-1 mismatch"):
+        pengo_cpu.convert_cpu(ctx)
