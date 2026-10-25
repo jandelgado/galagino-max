@@ -6,6 +6,7 @@
 #include "../tileaddr.h"
 #include "../machineBase.h"
 #include "../../emulation/ay8910.h"
+#include "../../emulation/ay_log.h"
 #include "../../emulation/seqlock.h"
 
 // ============================================================
@@ -58,7 +59,12 @@ public:
   void init(Input *input, unsigned short *framebuffer, sprite_S *spritebuffer, unsigned char *memorybuffer) override;
 
   uint8_t machineType() override { return MCH_SCRAMBLE; }
-  void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
+  void renderAudio(int16_t *out, int n) override {
+    aylog.play(out, n, [this](const uint8_t *regs, int16_t *slice, int count) {
+      applyFilters(regs);
+      Ay8910::renderBank(ay, regs, slice, count);
+    });
+  }
   void start() override;
 
   unsigned char opZ80(unsigned short Addr) override;
@@ -88,6 +94,18 @@ protected:
   unsigned char snd_irq_state;
   unsigned char snd_irq_last = 0;
   unsigned long snd_icnt = 0;
+
+  // Filter board: the sound CPU writes 0x9000 + select, two bits per voice pick the
+  // capacitors of its RC low-pass. The select goes through the AY log as three extra
+  // registers behind the chips'.
+  static const int FILTER_LO = 2 * Ay8910::REG_COUNT;
+  static const int FILTER_HI = FILTER_LO + 1;
+  static const int FILTER_ON = FILTER_LO + 2;
+
+  // AY writes with their time in the frame, plus the filter select
+  AyLog<FILTER_ON + 1> aylog;
+
+  void filterWrite(unsigned short select);
 
   unsigned short protectionState = 0;
   unsigned char  protectionResult = 0;
@@ -198,6 +216,11 @@ private:
 
 
 private:
+  void applyFilters(const uint8_t *regs);
+
+  uint16_t filterSelect = 0;
+  uint8_t filterOn = 0;
+
   static const uint8_t AY_INC = 8;
   static const uint8_t AY_GAIN = 7;
   Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};

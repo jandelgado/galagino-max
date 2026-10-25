@@ -240,8 +240,38 @@ void scramble::wrZ80(unsigned short Addr, unsigned char Value) {
     }
     // this is memory mapped sound filters, not RAM
     if (Addr >= CPU2_FILTER_ADDR && Addr < CPU2_FILTER_ADDR + CPU2_FILTER_SIZE) {
+      filterWrite(Addr - CPU2_FILTER_ADDR);
       return;
     }
+  }
+}
+
+void scramble::filterWrite(unsigned short select) {
+  aylog.write(FILTER_LO, select & 0xff);
+  aylog.write(FILTER_HI, select >> 8);
+  aylog.write(FILTER_ON, 1);
+}
+
+// Cutoff of the RC filter per voice, from the capacitors switched in:
+// 0.22 uF alone 720 Hz, 0.047 uF alone 3.4 kHz, both 600 Hz, none unfiltered.
+void scramble::applyFilters(const uint8_t *regs) {
+  static const uint16_t CUTOFF_HZ[4] = {0, 720, 3400, 600};
+  static const int VOICES = 6;
+  static const int VOICES_PER_CHIP = 3;
+
+  if (!regs[FILTER_ON]) {
+    return;
+  }
+  const uint16_t select = regs[FILTER_LO] | (regs[FILTER_HI] << 8);
+  if (select == filterSelect && filterOn) {
+    return;
+  }
+  filterSelect = select;
+  filterOn = 1;
+
+  for (int v = 0; v < VOICES; v++) {
+    const int caps = ~(select >> (2 * v)) & 3;
+    ay[v / VOICES_PER_CHIP].setLowpass(v % VOICES_PER_CHIP, CUTOFF_HZ[caps]);
   }
 }
 
@@ -278,22 +308,28 @@ void scramble::outZ80(unsigned short Port, unsigned char Value) {
       ay_port = Value & 0x0f;
       return;
     case AY1_DATA_PORT:
-      if (ay_port < 14)
+      if (ay_port < 14) {
         soundregs[AY1_OFFSET + ay_port] = Value;
+        aylog.write(AY1_OFFSET + ay_port, Value);
+      }
       return;
     case AY2_ADDR_PORT:
       ay_port = Value & 0x0f;
       return;
     case AY2_DATA_PORT:
-      if (ay_port < 14)
+      if (ay_port < 14) {
         soundregs[AY2_OFFSET + ay_port] = Value;
+        aylog.write(AY2_OFFSET + ay_port, Value);
+      }
       return;
   }
 }
 
 void scramble::run_frame(void) {
   // Main Z80 @ 3.072 MHz; Sound Z80 @ 1.789 MHz + 2x AY-3-8910
+  aylog.beginFrame(INST_PER_FRAME);
   for(int i= 0; i < INST_PER_FRAME; i++) {
+    aylog.at(i);
     current_cpu=0; StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]);
     current_cpu=1; StepZ80(&cpu[1]); snd_icnt++; StepZ80(&cpu[1]); snd_icnt++;
 
@@ -304,6 +340,8 @@ void scramble::run_frame(void) {
       snd_irq_state = 0; //&= ~0x08;
     }
   }
+
+  aylog.endFrame();
 
   vblank.publish([this](VideoState &v) {
     memcpy(v.vram, video_ram, sizeof(v.vram));

@@ -232,6 +232,7 @@ void supercobra::wrZ80(unsigned short Addr, unsigned char Value) {
     }
     // this is memory mapped sound filters, not RAM
     if (Addr >= CPU2_FILTER_ADDR && Addr < CPU2_FILTER_ADDR + CPU2_FILTER_SIZE) {
+      filterWrite(Addr - CPU2_FILTER_ADDR);
       return;
     }
   }
@@ -263,31 +264,11 @@ unsigned char supercobra::inZ80(unsigned short Port) {
   return 0x00;
 }
 
-void supercobra::outZ80(unsigned short Port, unsigned char Value) {
-
-  switch (Port & 0xff) {
-    case AY1_ADDR_PORT:
-      ay_port = Value & 0x0f;
-      return;
-    case AY1_DATA_PORT:
-      if (ay_port < 14)
-        soundregs[AY1_OFFSET + ay_port] = Value;
-      return;
-    case AY2_ADDR_PORT:
-      ay_port = Value & 0x0f;
-      return;
-    case AY2_DATA_PORT:
-      if (ay_port < 14 && ay_port != 6)
-        soundregs[AY2_OFFSET + ay_port] = Value;
-      else if (ay_port == 6 && Value < 32) // Reduce ugly helicopter sound...
-        soundregs[0x10 + ay_port] = Value;
-      return;
-  }
-}
-
 void supercobra::run_frame(void) {
   // Main Z80 @ 3.072 MHz; Sound Z80 @ 1.789 MHz + 2x AY-3-8910
+  aylog.beginFrame(INST_PER_FRAME);
   for(int i= 0; i < INST_PER_FRAME; i++) {
+    aylog.at(i);
     current_cpu=0; StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]);
     current_cpu=1; StepZ80(&cpu[1]); snd_icnt++; StepZ80(&cpu[1]); snd_icnt++;
 
@@ -298,6 +279,8 @@ void supercobra::run_frame(void) {
       snd_irq_state = 0; //&= ~0x08;
     }
   }
+
+  aylog.endFrame();
 
   if(irq_enable[0]) {
     current_cpu = 0;
