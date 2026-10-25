@@ -21,6 +21,7 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
 - `TaskHandle taskSpawn(void (*fn)(void*), void *arg, const char *name, uint32_t stackBytes,
   uint32_t priority, int core)`: NULL on failure.
 - `void taskExit()`: deletes the calling task.
+- `void yield()`: lets a ready task of the same priority on this core run (busy tasks call it).
 - `int coreId()` (host: always `EMULATION_CORE`), `void sleepMs(uint32_t ms)`: sleep yields for any ms > 0.
 - `class Signal { void give(); bool take(uint32_t timeoutMs); void clear(); }`: latched
   event, several gives before a take count once. `WAIT_FOREVER` as timeout.

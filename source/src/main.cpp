@@ -110,6 +110,7 @@ void galagino_setup(void) {
 
   hal::printPlatformInfo();
 
+#ifdef HAL_VIDEO_SPI_TFT
   printf("TFT_SPI_PORT:  SPI%d\n", TFT_SPI_PORT);  // esp32 SPI2 HSPI | esp32-s3 FSPI, SPI3 VSPI | HSPI
   printf("TFT Controller: ");
   #ifdef TFT_ILI9341
@@ -139,6 +140,8 @@ void galagino_setup(void) {
   "OFF"
   #endif
   );
+#endif
+
   #ifdef AUDIO_ENABLE_PIN
   printf("AUDIO_ENABLE_PIN: %d\n", AUDIO_ENABLE_PIN);
   #endif

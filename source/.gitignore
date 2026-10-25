@@ -3,3 +3,5 @@
 src/config_local.h
 /sdkconfig.idf*
 /dependencies.lock
+__pycache__/
+/ports/rp2350/build/

@@ -1,9 +1,123 @@
 {
   "lockfile_version": "1",
   "packages": {
+    "gcc-arm-embedded@latest": {
+      "last_modified": "2026-10-24T03:22:33Z",
+      "resolved": "github:NixOS/nixpkgs/674a2028661e550a97400c1cc992b9cca9a668a1#gcc-arm-embedded",
+      "source": "devbox-search",
+      "version": "15.3.rel2",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/bbimw56yqyd5znjijvhalj4snjq6sqfh-gcc-arm-embedded-15.3.rel2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/bbimw56yqyd5znjijvhalj4snjq6sqfh-gcc-arm-embedded-15.3.rel2"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/cmgvr3n19xndhn77gyq4b0kl1a489sv6-gcc-arm-embedded-15.3.rel2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/cmgvr3n19xndhn77gyq4b0kl1a489sv6-gcc-arm-embedded-15.3.rel2"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/fi15ri3xl954l5hiq2qvqk68b8kpj4aa-gcc-arm-embedded-15.3.rel2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/fi15ri3xl954l5hiq2qvqk68b8kpj4aa-gcc-arm-embedded-15.3.rel2"
+        }
+      }
+    },
     "github:NixOS/nixpkgs/nixpkgs-unstable": {
       "last_modified": "2026-09-02T18:03:51Z",
       "resolved": "github:NixOS/nixpkgs/9387b3fcc0c23c86661636da63faabad4235a0a6?lastModified=1788372231&narHash=sha256-7aqErvrAEz%2F5OcPA5p3M%2BtVOqeYc4oJXkNIPXfCqxAw%3D"
+    },
+    "ninja@latest": {
+      "last_modified": "2026-10-24T03:22:33Z",
+      "resolved": "github:NixOS/nixpkgs/674a2028661e550a97400c1cc992b9cca9a668a1#ninja",
+      "source": "devbox-search",
+      "version": "1.13.2",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/ndfr0d2nizw172ppn99n505ikpsq9727-ninja-1.13.2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/ndfr0d2nizw172ppn99n505ikpsq9727-ninja-1.13.2"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/6iwk9hppg8q0fr54mg28klc1hgaizhaa-ninja-1.13.2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/6iwk9hppg8q0fr54mg28klc1hgaizhaa-ninja-1.13.2"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/nyjr5b3ib747yls4n9jq5ijr6wqg6wdc-ninja-1.13.2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/nyjr5b3ib747yls4n9jq5ijr6wqg6wdc-ninja-1.13.2"
+        }
+      }
+    },
+    "picotool@latest": {
+      "last_modified": "2026-10-24T03:22:33Z",
+      "resolved": "github:NixOS/nixpkgs/674a2028661e550a97400c1cc992b9cca9a668a1#picotool",
+      "source": "devbox-search",
+      "version": "2.3.1",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/gzvy786cihyk9swv0pj5a1lkwyqwhv84-picotool-2.3.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/gzvy786cihyk9swv0pj5a1lkwyqwhv84-picotool-2.3.1"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/h3x62d6g6f77gqaajbd2smc0ar7vz3yw-picotool-2.3.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/h3x62d6g6f77gqaajbd2smc0ar7vz3yw-picotool-2.3.1"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/nx565m70swg0dr2p49a64r645c8r897c-picotool-2.3.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/nx565m70swg0dr2p49a64r645c8r897c-picotool-2.3.1"
+        }
+      }
     },
     "python@3.13": {
       "last_modified": "2026-08-27T07:16:00Z",

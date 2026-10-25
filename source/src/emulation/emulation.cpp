@@ -19,7 +19,8 @@ volatile static char doDeleteEmulationTask;
 static uint32_t counter;
 static uint32_t timeTotal = 0;
 static uint32_t cpuStart;
-static uint32_t cpuSum = 0;
+static uint32_t cpuSum = 0;     // microseconds
+static uint32_t cpuMax = 0;
 static uint32_t videoSum = 0;
 #endif
 
@@ -64,7 +65,7 @@ void emulation_notifyGive() {
 
 void emulation_videoRendered(void) {
 #ifdef EMULATION_MEASURE_FPS
-  videoSum += hal::millis() - cpuStart;
+  videoSum += hal::micros() - cpuStart;
 #endif
 }
 
@@ -73,7 +74,7 @@ HAL_FAST_CODE void emulation_task(void *p) {
 
   for(;;) {
 #ifdef EMULATION_MEASURE_FPS
-    cpuStart = hal::millis();
+    cpuStart = hal::micros();
 #endif
 
     currentMachine->run_frame();
@@ -86,22 +87,26 @@ HAL_FAST_CODE void emulation_task(void *p) {
     }
 
 #ifdef EMULATION_MEASURE_FPS
-    cpuSum += hal::millis() - cpuStart;
+    const uint32_t cpuUs = hal::micros() - cpuStart;
+    cpuSum += cpuUs;
+    if (cpuUs > cpuMax) cpuMax = cpuUs;
 
     // The 60hz vblank rate is in turn 16.6 ms.
   if (counter % 10 == 0) {
     // good time total: 160...170ms
     uint32_t now = cpuStart;
-    uint32_t dt = now - timeTotal;
-    uint32_t hz = dt ? 10000 / dt : 0;
+    uint32_t dt = (now - timeTotal) / 1000;  // ms
+    uint32_t hz = now != timeTotal ? 10000000 / (now - timeTotal) : 0;
 #ifdef DEBUG_TIMING_FPS_HUD
     emulation_fps = hz;
 #endif
 #ifdef DEBUG_TIMING
-    printf("10-frames: %3u Hz | Total: %3u ms | Cpu: %3u ms | Video: %3u ms\n", hz, dt, cpuSum, videoSum);
+    printf("10-frames: %3u Hz | Total: %3u ms | Cpu: %3u ms | Max: %5u us | Video: %3u ms\n", hz, dt,
+           (cpuSum + 500) / 1000, cpuMax, (videoSum + 500) / 1000);
 #endif
     timeTotal = now;
     cpuSum = 0;
+    cpuMax = 0;
     videoSum = 0;
   }
   counter++;
