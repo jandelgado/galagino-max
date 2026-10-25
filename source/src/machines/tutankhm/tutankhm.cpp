@@ -15,6 +15,7 @@ tutankhm::tutankhm()
 
 void tutankhm::reset() {
   machineBase::reset();
+  aylog.reset();
   m6809_reset(&main_cpu);
 
   // instruction fetches straight from the fixed ROM, skipping the per-byte
@@ -176,17 +177,6 @@ void tutankhm::m6809_write(m6809_state *s, uint16_t addr, uint8_t val) {
 
   // Sound data latch 0x8700 (mirror 0x00FF)
   if ((addr & 0xFF00) == 0x8700) {
-    // Some sounds are multiple updated during one vblank. Not possible with gagaino. So, take other sounds...
-
-    if (val == 71) // Game Over
-      val = 3;
-    else if (val == 74) // Appear //2
-      val = 8;
-    else if (val == 77) // Die //13
-      val = 4;
-    else if (val == 76) // Flash //5
-      val = 2;
-
     soundlatch = val;
     return;
   }
@@ -261,11 +251,11 @@ void tutankhm::wrZ80(unsigned short Addr, unsigned char Value) {
     return;
   }
 
-  // AY#1 data write (0x4000). Some sound is multiple updated between 2 vblanks. Not possible with galagino...
+  // AY#1 data write (0x4000)
   if ((Addr & 0xF000) == 0x4000) {
     unsigned char reg = ay_addr[0] & 0x0F;
     ay_regs[0][reg] = Value;
-    if (reg < 14) soundregs[reg] = Value;
+    if (reg < 14) aylog.write(reg, Value);
     return;
   }
 
@@ -275,11 +265,11 @@ void tutankhm::wrZ80(unsigned short Addr, unsigned char Value) {
     return;
   }
 
-  // AY#2 data write (0x6000). Some sound is multiple updated between 2 vblanks. Not possible with galagino...
+  // AY#2 data write (0x6000)
   if ((Addr & 0xF000) == 0x6000) {
     unsigned char reg = ay_addr[1] & 0x0F;
     ay_regs[1][reg] = Value;
-    if (reg < 14) soundregs[16 + reg] = Value;
+    if (reg < 14) aylog.write(Ay8910::REG_COUNT + reg, Value);
     return;
   }
 
@@ -298,7 +288,10 @@ void tutankhm::wrZ80(unsigned short Addr, unsigned char Value) {
 void tutankhm::run_frame(void) {
   // Main CPU: M6809E @ 1.5 MHz = ~25000 cycles/frame at 60Hz
   // Sound CPU: Z80 @ 1.789 MHz
-  for (int i = 0; i < INST_PER_FRAME / 2; i++) {
+  static const int FRAME_STEPS = INST_PER_FRAME / 2;
+  aylog.beginFrame(FRAME_STEPS);
+  for (int i = 0; i < FRAME_STEPS; i++) {
+    aylog.at(i);
     m6809_step(&main_cpu, 8);
 
     StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]); StepZ80(&cpu[0]);
@@ -311,6 +304,8 @@ void tutankhm::run_frame(void) {
       snd_irq_pending = 0;
     }
   }
+
+  aylog.endFrame();
 
   vblank.publish([this](VideoState &v) { v.scroll = scroll_reg; });
 

@@ -3,6 +3,7 @@
 
 #include "../machineBase.h"
 #include "../../emulation/ay8910.h"
+#include "../../emulation/ay_log.h"
 #include "../../emulation/seqlock.h"
 #include "tutankhm_dipswitches.h"
 #include "tutankhm_logo.h"
@@ -36,7 +37,11 @@ public:
     void reset() override;
 
     uint8_t machineType() override { return MCH_TUTANKHM; }
-    void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
+    void renderAudio(int16_t *out, int n) override {
+      aylog.play(out, n, [this](const uint8_t *regs, int16_t *slice, int count) {
+        Ay8910::renderBank(ay, regs, slice, count);
+      });
+    }
 
     unsigned char rdZ80(unsigned short Addr) override;
     void wrZ80(unsigned short Addr, unsigned char Value) override;
@@ -104,6 +109,9 @@ private:
   static const uint8_t AY_INC = 7;
   static const uint8_t AY_GAIN = 7;
   Ay8910 ay[2] = {Ay8910(AY_INC, AY_GAIN), Ay8910(AY_INC, AY_GAIN)};
+
+  // AY writes with their time in the frame; 2 chips x 16 registers
+  AyLog<2 * Ay8910::REG_COUNT> aylog;
 };
 
 #endif
