@@ -15,7 +15,7 @@ from romconv.plan.arena import (extras_key, parse_machine_header, plan_assets, p
 from romconv.plan.layout import header_path, read_layouts
 
 W = [49152, 35040, 35040]  # Williams RAM + 2 scanout buffers
-REMOTE, LOCAL = (69000, 110500), (91000, 110500)
+REMOTE, LOCAL = (69000, 110500), (118784, 110500)
 LAYOUTS = {"local": LOCAL, "remote": REMOTE}
 
 
@@ -28,7 +28,7 @@ def _noop(ctx):
 
 def test_layouts_from_arena_layout_h():
     layouts = read_layouts(header_path(default()))
-    assert layouts["local"] == (91000, 110500) and layouts["remote"] == (69000, 110500)
+    assert layouts["local"] == (118784, 110500) and layouts["remote"] == (69000, 110500)
     assert layouts == {"local": LOCAL, "remote": REMOTE}
 
 
@@ -90,7 +90,7 @@ def test_plan_header():
     assert "#define x_PLAIN 1" in h and "#define x_BLOCK ARENA_ANY" in h
     assert "#define x_PLAIN 0" in h and "#define x_BLOCK ARENA_A" in h
     assert "Arena::BLOCK_A_SIZE == 69000 && Arena::BLOCK_B_SIZE == 110500" in h
-    assert "Arena::BLOCK_A_SIZE == 91000 && Arena::BLOCK_B_SIZE == 110500" in h
+    assert "Arena::BLOCK_A_SIZE == 118784 && Arena::BLOCK_B_SIZE == 110500" in h
     assert h.index("#ifdef ASSETS_REMOTE") < h.index("{ 0, 0 }") < h.index("#else") < h.index("{ 8, 0 }")
 
 
@@ -215,7 +215,7 @@ using g_tiles_asset = Asset<unsigned char[8][8], PLAIN>;
 using g_words_asset = Asset<uint32_t[2], COMPRESSED>;
 static constexpr ArenaPlan g_arena_plan = { 20480, 0 };
 #else
-static_assert(Arena::BLOCK_A_SIZE == 91000 && Arena::BLOCK_B_SIZE == 110500, "Arena layout changed: rerun romconv");
+static_assert(Arena::BLOCK_A_SIZE == 118784 && Arena::BLOCK_B_SIZE == 110500, "Arena layout changed: rerun romconv");
 #define g_cmap_PLAIN 1
 #define g_cmap_BLOCK ARENA_ANY
 using g_cmap_asset = Asset<unsigned short, PLAIN>;
