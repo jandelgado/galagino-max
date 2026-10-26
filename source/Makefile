@@ -26,7 +26,7 @@ DEVICE ?= 0
 DEVICE_PATH := $(DEVICE_BASE)$(DEVICE)
 
 ENV ?= $(DEFAULT_ENV)
-BIN = .pio/build/$(ENV)/GALAGINO_*_release.bin
+BIN = .pio/build/$(ENV)/GALAGINOMAX_*_release.bin
 
 # every device env of platformio.ini
 ENVS := $(filter-out native,$(shell sed -n 's/^\[env:\(.*\)\]/\1/p' platformio.ini))
