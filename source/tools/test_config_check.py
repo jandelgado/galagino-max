@@ -84,6 +84,14 @@ class Rules(unittest.TestCase):
         self._rejects(["HAL_RP2350", "HAL_VIDEO_DVI_HSTX", "HAL_AUDIO_NULL"],
                       "HAL_VIDEO_DVI_HSTX needs HAL_AUDIO_DVI")
 
+    def test_one_i2c_input(self):
+        self._rejects(["HAL_ESP", "NUNCHUCK_INPUT", "GALAGINO_CONTROLLER", "NUNCHUCK_SDA=1",
+                       "NUNCHUCK_SCL=2", "NUNCHUCK_MOVE_THRESHOLD=30"],
+                      "only one of NUNCHUCK_INPUT, GALAGINO_CONTROLLER")
+
+    def test_nunchuk_needs_pins(self):
+        self._rejects(["HAL_ESP", "NUNCHUCK_INPUT", "NUNCHUCK_SDA=1"], "NUNCHUCK_INPUT needs NUNCHUCK_")
+
     def test_dvi_audio_needs_dvi_video(self):
         self._rejects(["HAL_RP2350", "HAL_VIDEO_NULL", "HAL_AUDIO_DVI"], "HAL_AUDIO_DVI needs HAL_VIDEO_DVI_HSTX")
 
@@ -124,6 +132,21 @@ class Profiles(unittest.TestCase):
         r = _preprocess(_CONFIG, ["HAL_ESP", "USE_PIO_CONFIG"])
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("needs TFT_CS and TFT_DC", r.stderr)
+
+    def test_cyd_nunchuk_replaces_the_controller(self):
+        r = _macros(["HAL_ESP", "BOARD_CYD2432S028R", "NUNCHUCK_INPUT"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("GALAGINO_CONTROLLER ", r.stdout)
+        self.assertNotIn("#define GALAGINO_CONTROLLER\n", r.stdout)
+        self.assertIn("#define NUNCHUCK_SDA 22\n", r.stdout)
+        self.assertIn("#define NUNCHUCK_SCL 27\n", r.stdout)
+
+    def test_fnk0104_nunchuk_shares_the_codec_bus(self):
+        r = _macros(["HAL_ESP", "BOARD_FNK0104", "NUNCHUCK_INPUT"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("#define GALAGINO_CONTROLLER\n", r.stdout)
+        self.assertIn("#define NUNCHUCK_SDA 16\n", r.stdout)
+        self.assertIn("#define NUNCHUCK_SCL 15\n", r.stdout)
 
     def test_usbup_flips_the_panel(self):
         r = subprocess.run(["g++", "-dM", "-E", "-x", "c++", "-DHAL_ESP", "-DBOARD_FNK0103B",

@@ -1,9 +1,9 @@
 #ifdef ASSETS_REMOTE
-#include <Arduino.h>
 #include <cstdio>
 #include <cstring>
 #include "../emulation/hud.h"
 #include "../emulation/input.h"
+#include "../hal/hal.h"
 #include "../hal/video.h"
 #include "loader_screen.h"
 
@@ -40,7 +40,7 @@ void LoaderScreen::progress(uint32_t gotBytes, uint32_t totalBytes) {
   const bool edge = gotBytes == 0 || gotBytes == totalBytes || totalBytes != total;
   got = gotBytes;
   total = totalBytes;
-  if (!edge && millis() - lastDraw < PROGRESS_MS) {
+  if (!edge && hal::millis() - lastDraw < PROGRESS_MS) {
     return;
   }
   draw();
@@ -54,10 +54,10 @@ void LoaderScreen::fail(const char *text) {
 
   // release first: the button that started the game may still be down
   while (input.buttons_get()) {
-    vTaskDelay(20);
+    hal::sleepMs(20);
   }
   while (!input.buttons_get()) {
-    vTaskDelay(20);
+    hal::sleepMs(20);
   }
 }
 
@@ -98,6 +98,6 @@ void LoaderScreen::draw() {
     drawBar(row, BAR_Y);
     video.submit(frameBuffer, WIDTH * ROW_LINES);
   }
-  lastDraw = millis();
+  lastDraw = hal::millis();
 }
 #endif

@@ -26,7 +26,7 @@
 #include "machines/selftest/selftest.h"
 #ifdef ASSETS_REMOTE
   #include "net/loader.h"
-  #include "net/loader_screen.h"
+  #include "ui/loader_screen.h"
 #endif
 #ifdef LED_PIN
   #include "emulation/led.h"

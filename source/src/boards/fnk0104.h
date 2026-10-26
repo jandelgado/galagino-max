@@ -44,7 +44,19 @@
 #ifndef TFT_RST
 #define TFT_RST         -1
 #endif
-#ifndef GALAGINO_CONTROLLER
+// NUNCHUCK_INPUT (build flag or config_local.h) replaces the controller, on
+// the same I2C connector (shared with the codec)
+#ifdef NUNCHUCK_INPUT
+  #ifndef NUNCHUCK_SDA
+  #define NUNCHUCK_SDA 16
+  #endif
+  #ifndef NUNCHUCK_SCL
+  #define NUNCHUCK_SCL 15
+  #endif
+  #ifndef NUNCHUCK_MOVE_THRESHOLD
+  #define NUNCHUCK_MOVE_THRESHOLD 30 // stick dead zone
+  #endif
+#elif !defined(GALAGINO_CONTROLLER)
 #define GALAGINO_CONTROLLER
 #endif
 #ifndef GALAGINO_CONTROLLER_ADDR

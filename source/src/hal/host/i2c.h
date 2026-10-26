@@ -9,17 +9,18 @@ namespace host {
 
 // Fake bus: two ports, a device is an address that answers reads with fixed
 // bytes, or a register file (write [reg, value] stores, writeRead [reg]
-// returns it).
+// returns it). Writes are counted per device.
 struct I2cDevice {
   bool present;
   bool registers;
   uint8_t reply[16];
   uint8_t replyLen;
   uint32_t reads;
+  uint32_t writes;
   uint8_t regs[256];
 };
 
-// Register writes of register-file devices, in order: reg << 8 | value.
+// Two byte writes to present devices, in order: byte0 << 8 | byte1.
 inline uint16_t *_i2cLog() {
   static uint16_t log[256];
   return log;
@@ -58,6 +59,7 @@ inline void i2cAttachRegisters(int port, uint8_t addr) {
 }
 
 inline uint32_t i2cReads(int port, uint8_t addr) { return _i2cDevice(port, addr).reads; }
+inline uint32_t i2cWrites(int port, uint8_t addr) { return _i2cDevice(port, addr).writes; }
 inline const uint16_t *i2cWriteLog() { return _i2cLog(); }
 inline uint32_t i2cWriteLogLen() { return _i2cLogLen(); }
 
@@ -70,13 +72,17 @@ public:
   static bool probe(int port, uint8_t addr) { return host::_i2cDevice(port, addr).present; }
   static bool write(int port, uint8_t addr, const uint8_t *data, uint32_t len) {
     host::I2cDevice &d = host::_i2cDevice(port, addr);
+    if (!d.present) {
+      return false;
+    }
+    d.writes++;
+    if (len == 2 && host::_i2cLogLen() < 256) {
+      host::_i2cLog()[host::_i2cLogLen()++] = (uint16_t)(data[0] << 8 | data[1]);
+    }
     if (d.registers && len == 2) {
       d.regs[data[0]] = data[1];
-      if (host::_i2cLogLen() < 256) {
-        host::_i2cLog()[host::_i2cLogLen()++] = (uint16_t)(data[0] << 8 | data[1]);
-      }
     }
-    return d.present;
+    return true;
   }
   static uint32_t read(int port, uint8_t addr, uint8_t *data, uint32_t len) {
     host::I2cDevice &d = host::_i2cDevice(port, addr);

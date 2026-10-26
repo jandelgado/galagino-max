@@ -1,5 +1,5 @@
-// Shared by the CYD-style boards with a galagino controller on I2C: the stick
-// and buttons come from the controller, START stays on GPIO 35.
+// Shared by the CYD-style boards with a galagino controller (or a Nunchuk) on
+// I2C: the stick and buttons come from it, START stays on GPIO 35.
 #ifndef HAL_BOARD_CYD_CONTROLLER_H
 #define HAL_BOARD_CYD_CONTROLLER_H
 
@@ -33,7 +33,12 @@
 #ifndef TFT_RST
 #define TFT_RST         -1
 #endif
-#ifndef GALAGINO_CONTROLLER
+// NUNCHUCK_INPUT (build flag or config_local.h) replaces the controller
+#ifdef NUNCHUCK_INPUT
+  #ifndef NUNCHUCK_MOVE_THRESHOLD
+  #define NUNCHUCK_MOVE_THRESHOLD 30 // stick dead zone
+  #endif
+#elif !defined(GALAGINO_CONTROLLER)
 #define GALAGINO_CONTROLLER
 #endif
 #ifndef GALAGINO_CONTROLLER_ADDR

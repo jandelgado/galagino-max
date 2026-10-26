@@ -75,7 +75,7 @@ Supported boards (`source/platformio.ini`, `[board_*]`):
 | Freenove FNK0103B         | `fnk0103b`       | ST7789, 80 MHz SPI                                 |
 | Freenove FNK0104 (S3)     | `fnk0104`        | ESP32-S3, 16 MB flash, ES8311 DAC, all games built in |
 
-Env names are `<board>-<mode>[-usbup]`. Modes: `local` (built-in games), `max` (100+ games at once), `remote` (flash + WiFi download), `full` (16 MB, everything in flash). `usbup` flips the display for a board mounted with the USB connector up.
+Env names are `<board>-<mode>`. Modes: `local` (built-in games), `max` (100+ games at once), `remote` (flash + WiFi download), `full` (16 MB, everything in flash). Board mounted with the USB connector up: `BOARD_USBUP` in `config_local.h`.
 
 Builds and sources:
 

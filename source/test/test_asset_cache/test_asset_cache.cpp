@@ -2,55 +2,12 @@
 #include <vector>
 #include <unity.h>
 
-// AssetCache FIFO and commit logic (src/net/asset_cache.cpp) against a RAM
-// fake of NOR flash: erase sets 0xFF, a write may only hit erased bytes.
+// AssetCache FIFO and commit logic (src/net/asset_cache.cpp) against the
+// host hal::FlashRegion, a RAM fake of NOR flash.
 #include "../../src/net/asset_cache.cpp"
 
-static const uint32_t FAKE_SECTOR = 4096;
 static const uint32_t REGION_BYTES = 1024 * 1024;
 static const uint32_t KB = 1024;
-
-class FakeRegion : public FlashRegion {
-public:
-  explicit FakeRegion(uint32_t bytes) : mem(bytes, 0x00) { }
-
-  uint32_t size() const override { return mem.size(); }
-
-  bool erase(uint32_t offset, uint32_t length) override {
-    if (mapped) {
-      eraseWhileMapped = true;
-    }
-    if (offset % FAKE_SECTOR || length % FAKE_SECTOR || offset + length > mem.size()) {
-      return false;
-    }
-    memset(&mem[offset], 0xFF, length);
-    return true;
-  }
-
-  bool write(uint32_t offset, const uint8_t *data, uint32_t length) override {
-    if (offset + length > mem.size()) {
-      return false;
-    }
-    for (uint32_t i = 0; i < length; i++) {
-      if (mem[offset + i] != 0xFF) {
-        return false;  // NOR: not erased
-      }
-      mem[offset + i] = data[i];
-    }
-    return true;
-  }
-
-  const uint8_t *map() override {
-    mapped = true;
-    return mem.data();
-  }
-
-  void unmap() override { mapped = false; }
-
-  std::vector<uint8_t> mem;
-  bool mapped = false;
-  bool eraseWhileMapped = false;
-};
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -88,7 +45,7 @@ static void expectFound(AssetCache &cache, const BundleRef &r) {
 }
 
 static void test_find_after_commit(void) {
-  FakeRegion region(REGION_BYTES);
+  hal::FlashRegion region("assets", REGION_BYTES);
   AssetCache cache(region);
   const BundleRef a = ref(1, 10001);
   TEST_ASSERT_NULL(cache.find(a));
@@ -100,7 +57,7 @@ static void test_find_after_commit(void) {
 }
 
 static void test_survives_new_instance(void) {
-  FakeRegion region(REGION_BYTES);
+  hal::FlashRegion region("assets", REGION_BYTES);
   {
     AssetCache cache(region);
     store(cache, ref(1, 5000));
@@ -112,7 +69,7 @@ static void test_survives_new_instance(void) {
 }
 
 static void test_uncommitted_entry_invisible(void) {
-  FakeRegion region(REGION_BYTES);
+  hal::FlashRegion region("assets", REGION_BYTES);
   {
     AssetCache cache(region);
     store(cache, ref(1, 5000));
@@ -128,7 +85,7 @@ static void test_uncommitted_entry_invisible(void) {
 }
 
 static void test_append_overflow_rejected(void) {
-  FakeRegion region(REGION_BYTES);
+  hal::FlashRegion region("assets", REGION_BYTES);
   AssetCache cache(region);
   const std::vector<uint8_t> d = payload(101, 1);
   TEST_ASSERT_TRUE(cache.begin(ref(1, 100)));
@@ -136,7 +93,7 @@ static void test_append_overflow_rejected(void) {
 }
 
 static void test_fifo_wrap(void) {
-  FakeRegion region(REGION_BYTES);
+  hal::FlashRegion region("assets", REGION_BYTES);
   AssetCache cache(region);
   const BundleRef a = ref(1, 300 * KB), b = ref(2, 300 * KB), c = ref(3, 300 * KB);
   store(cache, a);
@@ -169,7 +126,7 @@ static void test_fifo_wrap(void) {
 
 // wrap, then slots that cut into old entries: each overlapped entry goes
 static void test_overlap_evicts_tag(void) {
-  FakeRegion region(REGION_BYTES);
+  hal::FlashRegion region("assets", REGION_BYTES);
   AssetCache cache(region);
   const BundleRef a = ref(1, 600 * KB), b = ref(2, 300 * KB);
   store(cache, a);  // 0..604 KB
@@ -195,14 +152,14 @@ static void test_overlap_evicts_tag(void) {
 }
 
 static void test_too_big(void) {
-  FakeRegion region(REGION_BYTES);
+  hal::FlashRegion region("assets", REGION_BYTES);
   AssetCache cache(region);
   TEST_ASSERT_FALSE(cache.begin(ref(1, REGION_BYTES)));
   TEST_ASSERT_TRUE(cache.begin(ref(1, REGION_BYTES - AssetCache::TAG_BYTES)));
 }
 
 static void test_erase_unmapped(void) {
-  FakeRegion region(REGION_BYTES);
+  hal::FlashRegion region("assets", REGION_BYTES);
   AssetCache cache(region);
   store(cache, ref(1, 600 * KB));
   store(cache, ref(2, 600 * KB));
@@ -235,7 +192,7 @@ static void logErase(void *ctx, uint32_t done, uint32_t total) {
 // loader screen bar: empty at the start, one step per 4 KB sector, so a
 // small slot (a few sectors) still moves the bar
 static void test_erase_progress(void) {
-  FakeRegion region(REGION_BYTES);
+  hal::FlashRegion region("assets", REGION_BYTES);
   AssetCache cache(region);
   EraseLog log;
   TEST_ASSERT_TRUE(cache.begin(ref(1, 28 * KB), logErase, &log));

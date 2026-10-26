@@ -73,6 +73,26 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
   uint8_t addr, const uint8_t*, uint32_t len); static uint32_t read(int port, uint8_t addr,
   uint8_t*, uint32_t len) /* bytes read */; static bool writeRead(...); }`
 
+## Flash region (`flash_region.h`, not in `hal.h`; ESP and host only)
+`class FlashRegion`, erased bytes read 0xFF, a write only clears bits. Host: RAM fake, extra
+size argument.
+- `explicit FlashRegion(const char *label)`, `uint32_t size() const` (0: no region)
+- `bool erase(uint32_t offset, uint32_t length)` (4 KB aligned)
+- `bool write(uint32_t offset, const uint8_t *data, uint32_t length)`
+- `const uint8_t *map()` (whole region, nullptr on failure), `void unmap()`
+
+## WiFi (`wifi.h`, not in `hal.h`; ESP and host only)
+`namespace Wifi`, station mode for the game loader. ESP: remote builds only (`-Wl,--wrap=free`).
+Host: never starts.
+- `HEAP_BYTES`: driver memory the caller passes to `begin()`.
+- `typedef bool (*Receive)(void *ctx, const uint8_t *data, uint32_t length)`: false stops.
+- `bool begin(const char *ssid, const char *pass, uint8_t *heap, uint32_t heapBytes)`: starts
+  connecting, returns at once. The heap belongs to the driver until `down()` returns.
+- `bool up(uint32_t timeoutMs)`: waits for an IP, at most `timeoutMs` after `begin()`.
+- `bool get(const char *url, uint8_t *buf, uint32_t bufBytes, Receive receive, void *ctx)`:
+  `http://a.b.c.d[:port]/path`, received bytes to `receive`. False: request not sent.
+- `void down()`: always after `begin()`; aborts if driver memory is left in the heap.
+
 ## Entry (`entry.h`, not a backend)
 - the application defines `galagino_setup()` and `galagino_loop()`; the entry backend calls them.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail if code outside src/hal/ (and src/net/) uses an SDK or Arduino API.
+"""Fail if code outside src/hal/ uses an SDK or Arduino API.
 
 Usage: check_hal_boundary.py [--root SRC_DIR] [--selftest]
 Prints file:line for each hit, exits 1 if there is any.
@@ -10,7 +10,7 @@ import re
 import sys
 import tempfile
 
-_EXEMPT_DIRS = ("hal", "net")
+_EXEMPT_DIRS = ("hal",)
 _EXTENSIONS = (".c", ".cpp", ".h", ".hpp")
 
 
@@ -88,13 +88,13 @@ def _selftest():
     with tempfile.TemporaryDirectory() as clean, tempfile.TemporaryDirectory() as dirty:
         _write(clean, "a.cpp", '#include "hal/hal.h"\nuint32_t t = hal::millis();\n// delay(5)\n/* digitalRead(1) */\n')
         _write(clean, "hal/esp/x.cpp", "#include <driver/gpio.h>\nvoid f() { delay(1); }\n")
-        _write(clean, "net/y.cpp", "#include <esp_wifi.h>\n")
         assert _scan(clean) == [], _scan(clean)
         _write(dirty, "a.cpp", "#include <Arduino.h>\n")
         _write(dirty, "m/b.h", "void IRAM_ATTR f() { pinMode(1, 2); }\n")
         _write(dirty, "c.c", "int x = millis();\n")
+        _write(dirty, "net/y.cpp", "#include <esp_wifi.h>\n")
         hits = _scan(dirty)
-        assert len(hits) == 3, hits
+        assert len(hits) == 4, hits
     print("selftest ok")
 
 

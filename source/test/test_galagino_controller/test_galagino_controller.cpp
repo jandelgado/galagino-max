@@ -6,7 +6,7 @@
 #define GALAGINO_CONTROLLER_ADDR 0x09
 #define GALAGINO_CONTROLLER_SDA 27
 #define GALAGINO_CONTROLLER_SCL 22
-#include "../../src/emulation/i2c-controller.cpp"
+#include "../../src/input/galagino_controller.cpp"
 
 static ControllerI2C pad;
 

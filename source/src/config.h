@@ -69,6 +69,12 @@
   #endif
 #endif
 
+// start volume: output = sample / AUDIO_VOLUME, 1 (loudest) .. 30;
+// EXTRA + up/down changes it at run time
+#ifndef AUDIO_VOLUME
+#define AUDIO_VOLUME 3
+#endif
+
 // game config
 #ifndef MASTER_ATTRACT_MENU_TIMEOUT
 #define MASTER_ATTRACT_MENU_TIMEOUT  20000      // start games while sitting idle in menu for 20 seconds, undefine to disable

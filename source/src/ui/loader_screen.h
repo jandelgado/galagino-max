@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "../hal/video.h"
+#include "../net/loader.h"
 
 class Input;
 
@@ -20,17 +21,17 @@ class Input;
 //   ...
 //   108656 OF 108656
 //   [##########          ]
-class LoaderScreen {
+class LoaderScreen : public LoaderEvents {
 public:
   LoaderScreen(hal::Video &video, uint16_t *frameBuffer, Input &input)
       : video(video), frameBuffer(frameBuffer), input(input) { }
 
-  void begin(const char *game);
-  void line(const char *text);
+  void begin(const char *game) override;
+  void line(const char *text) override;
   // redraws at most every PROGRESS_MS
-  void progress(uint32_t got, uint32_t total);
+  void progress(uint32_t got, uint32_t total) override;
   // error line, then waits until a button is pressed
-  void fail(const char *text);
+  void fail(const char *text) override;
 
 private:
   static constexpr uint8_t MAX_LINES = 12;

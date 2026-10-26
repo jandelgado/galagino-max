@@ -47,6 +47,15 @@
     !defined(ES8311_I2S_WS) || !defined(ES8311_I2S_DOUT))
 #error "config: HAL_AUDIO_ES8311 needs ES8311_I2C_SDA/SCL/ADDR/CLK and ES8311_I2S_MCK/BCK/WS/DOUT"
 #endif
+// Input backends on I2C: Input reads one of them
+#if defined(NUNCHUCK_INPUT) && defined(GALAGINO_CONTROLLER)
+#error "config: define only one of NUNCHUCK_INPUT, GALAGINO_CONTROLLER"
+#endif
+#if defined(NUNCHUCK_INPUT) && (!defined(NUNCHUCK_SDA) || !defined(NUNCHUCK_SCL) || \
+    !defined(NUNCHUCK_MOVE_THRESHOLD))
+#error "config: NUNCHUCK_INPUT needs NUNCHUCK_SDA, NUNCHUCK_SCL and NUNCHUCK_MOVE_THRESHOLD"
+#endif
+
 // HDMI audio rides in the DVI stream: one without the other is not a build
 #if defined(HAL_VIDEO_DVI_HSTX) && !defined(HAL_AUDIO_DVI)
 #error "config: HAL_VIDEO_DVI_HSTX needs HAL_AUDIO_DVI (DVI builds play sound over DVI only)"

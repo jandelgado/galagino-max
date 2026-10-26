@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Checks that every name of hal/CONTRACT.md is defined in each backend directory.
 
-Sections that are checked: Time, GPIO, Tasks and sync, Watchdog, LEDs, Audio, System, I2C.
+Sections that are checked: Time, GPIO, Tasks and sync, Watchdog, LEDs, Audio, System, I2C, and
+Flash region and WiFi (esp and host only, no RP2350 backend yet).
 A name counts as defined when its identifier occurs in a file of the backend directory.
 
   python3 tools/check_hal_contract.py [--hal DIR] [--backends esp,host,rp2350]
@@ -13,7 +14,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-_SECTIONS = ("Time", "GPIO", "Tasks and sync", "Watchdog", "LEDs", "Audio", "System", "I2C")
+_SECTIONS = ("Time", "GPIO", "Tasks and sync", "Watchdog", "LEDs", "Audio", "System", "I2C",
+             "Flash region", "WiFi")
+# sections not every backend implements yet
+_SECTION_BACKENDS = {"Flash region": ("esp", "host"), "WiFi": ("esp", "host")}
 _SKIP = {
     "hal", "uint8_t", "uint16_t", "uint32_t", "int16_t", "int", "bool", "void", "const", "char",
     "static", "class", "struct", "typedef", "NULL", "ms", "led_color", "CRGB", "fill_solid",
@@ -23,8 +27,9 @@ _IDENT = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
 
 
 def _api_names(contract_text):
-    """Subset that is an API symbol: followed by '(' , after class/struct, or ALL_CAPS."""
-    names = set()
+    """Subset that is an API symbol: followed by '(' , after class/struct, or ALL_CAPS.
+    Maps each name to its section."""
+    names = {}
     section = None
     for line in contract_text.splitlines():
         header = re.match(r"##\s+(.*?)(?:\s+\(|$)", line)
@@ -36,12 +41,12 @@ def _api_names(contract_text):
         for span in re.findall(r"`([^`]*)`", line):
             span = re.sub(r"/\*.*?\*/", "", span)
             for m in re.finditer(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(", span):
-                names.add(m.group(1))
+                names[m.group(1)] = section
             for m in re.finditer(r"\b(?:class|struct|typedef\s+\S+)\s+([A-Za-z_][A-Za-z0-9_]*)", span):
-                names.add(m.group(1))
+                names[m.group(1)] = section
             for m in re.finditer(r"\b([A-Z][A-Z0-9_]{3,})\b", span):
-                names.add(m.group(1))
-    return {n for n in names if n not in _SKIP and n not in ("static", "void")}
+                names[m.group(1)] = section
+    return {n: s for n, s in names.items() if n not in _SKIP and n not in ("static", "void")}
 
 
 def _missing(hal_dir, backends):
@@ -54,7 +59,8 @@ def _missing(hal_dir, backends):
             if f.suffix in (".h", ".cpp", ".c"):
                 text += f.read_text()
         idents = set(_IDENT.findall(text))
-        out[backend] = sorted(n for n in names if n not in idents)
+        out[backend] = sorted(n for n, section in names.items() if n not in idents
+                              and backend in _SECTION_BACKENDS.get(section, (backend,)))
     return out
 
 
@@ -70,6 +76,11 @@ def _selftest():
         (hal / "b" / "x.h").write_text("uint32_t millis();")
         got = _missing(hal, ["a", "b"])
         assert got == {"a": [], "b": ["pinRead"]}, got
+        (hal / "CONTRACT.md").write_text("## Flash region (`flash_region.h`)\n- `bool erase()`\n")
+        (hal / "esp").mkdir()
+        (hal / "rp2350").mkdir()
+        got = _missing(hal, ["esp", "rp2350"])
+        assert got == {"esp": ["erase"], "rp2350": []}, got
     print("selftest ok")
 
 

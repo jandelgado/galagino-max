@@ -1,5 +1,5 @@
 // WiFi for the game loader (ASSETS_REMOTE builds): up, one HTTP GET
-// streamed into an HttpBody, down. Only between game select and game ctor,
+// streamed to a receive callback, down. Only between game select and game ctor,
 // never during gameplay. Every fix below was measured on the device.
 //
 // Why
@@ -8,15 +8,22 @@
 //   Stock esp_wifi_init does not fit without shrinking Arena for good.
 //
 // Problems solved
-//   - Size: driver heap and task stack come from Arena, which is empty
-//     between game select and game ctor. System heap use while WiFi is on
+//   - Size: driver heap and task stack come from the caller's heap
+//     (begin()): the loader passes Arena, which is empty between game
+//     select and game ctor. System heap use while WiFi is on
 //     drops from ~9.6 KB to small queues/semaphores.
 //   - Fragmentation: driver blocks left in the system heap split its
 //     largest block. After ~20 sessions the task stack no longer fit:
 //     "wifi:create wifi task: failed to create task".
-//   - Leaks in IDF v4.4.7:
+//   - Leaks in IDF v4.4.7 (Arduino build only; IDF 6.1: none, 20 sessions
+//     measured):
 //     - key buffers, 2 x 184 B per session: freed here (keySlotsFree)
 //     - SAE H2E, 88 B per connect: avoided with hunt-and-peck
+//
+// IDF 6.1 (2026-10-26): menu heap ~53 KB free, largest block 32 KB after
+// the first session (64.8 KB / 43 KB before). Stock allocation might fit
+// now, but would bring back the fragmentation. Kept the Arena heap; to
+// drop it (and --wrap=free), soak 20+ sessions with LOADER_FORCE_DOWNLOAD.
 //
 // How
 //   Arena:  [ wifiHeap (multi_heap) ]   during WiFi only
@@ -28,7 +35,8 @@
 //                          IDF frees across components (driver frees
 //                          supplicant mallocs, plain free() of IPC msgs)
 //   teardown            -> deinit, wait until tasks gone, free key slots,
-//                          wifiHeap must be empty (else abort), Arena::reset
+//                          wifiHeap must be empty (else abort), caller
+//                          reuses the heap memory
 //
 // free() routing (-Wl,--wrap=free)
 //   The linker sends every reference to free, in all objects and
@@ -43,16 +51,18 @@
 //   are allocated all the time and teardown needs an empty wifiHeap.
 //   Never call ::free() inside the wrapper: it loops back into it.
 //   Needed because esp_wifi_ipc_internal and wifi_ipc_process free IPC
-//   messages (allocated via our osi hook) with plain free().
+//   messages (allocated via our osi hook) with plain free() (IDF 4.4.7).
+//   IDF 6.1: still ~2 Arena blocks per session reach plain free() (caller
+//   not traced; measured 2026-10-26 with wFree bypassing free()).
 //
-// Build flag (platformio.ini): -Wl,--wrap=free
+// Build flag (platformio.ini, mode_remote): -Wl,--wrap=free
 //   Missing flag fails the link: __real_free only exists with it.
 //   Not wrapped: realloc, heap_caps_free/realloc. No WiFi caller passes
 //   them an Arena pointer: the driver reallocs via osi hooks.
 //
 // Limits
 //   - WiFi only while Arena is empty: never during a game.
-//   - Pinned to IDF v4.4.7 blobs: key slot layout (g_ic+0x140, 25 slots),
+//   - keySlotsFree pinned to IDF v4.4.7 blobs (g_ic+0x140, 25 slots),
 //     osi table, task self-delete. Any IDF/Arduino core update: recheck.
 //   - Not routed, stays in the system heap: netif, tcpip task, event loop
 //     (~9.6 KB, once per boot), lwIP pbufs/sockets/timers, driver queues.
@@ -61,37 +71,35 @@
 //   - --wrap=free costs an address compare on every free, firmware wide.
 //   - Owner tracking (caller per block) only with WIFI_HEAP_DEBUG.
 #ifdef ASSETS_REMOTE
-#include <Arduino.h>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <esp_wifi.h>
 #include <esp_netif.h>
 #include <esp_wifi_default.h>
 #include <esp_event.h>
 #include <esp_heap_caps.h>
+#include <esp_idf_version.h>
 #include <esp_private/wifi_os_adapter.h>
 #include <multi_heap.h>
 #include <lwip/sockets.h>
 #include <lwip/netdb.h>
-#include "../config.h"
-#include "../emulation/arena.h"
-#include "http_body.h"
+#include "rtos.h"
+#include "time.h"
 #include "wifi.h"
 
-static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
+namespace hal {
+
 static constexpr uint32_t SETTLE_POLL_MS = 10;
 static constexpr uint32_t SETTLE_POLLS_MAX = 20;
 static constexpr uint16_t HTTP_DEFAULT_PORT = 80;
 static constexpr uint32_t RECV_TIMEOUT_S = 5;
 static constexpr uint32_t CONNECT_TCP_TIMEOUT_S = 5;
 
-// Size: driver peak ~33.5 KB + WiFi task stack + TCB, plus RX buffering
-// while flash writes slow the receiver (peak 47.2 KB measured at 48 KB).
-// Costs nothing: Arena is empty during load.
-static constexpr uint32_t WIFI_HEAP_BYTES = 65536;
-
 static wifi_osi_funcs_t osi;
 static multi_heap_handle_t wifiHeap = nullptr;
 static portMUX_TYPE wifiHeapMux = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t heapBytes = 0;
 static uint8_t *heapStart = nullptr;
 static uint8_t *heapEnd = nullptr;
 static volatile uint32_t fallbacks = 0;  // allocations the Arena heap could not serve
@@ -157,6 +165,7 @@ extern "C" IRAM_ATTR void __wrap_free(void *p) {
   __real_free(p);
 }
 
+#if ESP_IDF_VERSION_MAJOR < 5
 // ppInstallKey's key buffers (168 B + key) sit in g_ic key slots. Deinit
 // keeps them: cnx_sta_leave frees only some slots, a later install frees
 // only the slot it reuses. Leaks 2 x 184 B per session. Freed here after
@@ -172,6 +181,9 @@ static void keySlotsFree() {
     slots[i] = nullptr;
   }
 }
+#else
+static void keySlotsFree() { }
+#endif
 
 // Arena memory is internal DRAM: DMA-capable, like _malloc_internal's
 static IRAM_ATTR void *heapAlloc(size_t n, void *caller) {
@@ -325,17 +337,19 @@ static void heapLog(const char *step) {
   printf("wifi: %-10s Free=%u MaxAlloc=%u MinFree=%u Arena heap now=%u peak=%u fallbacks=%u\n", step,
          heap_caps_get_free_size(MALLOC_CAP_8BIT), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
          heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT), info.total_allocated_bytes,
-         wifiHeap ? WIFI_HEAP_BYTES - info.minimum_free_bytes : 0, fallbacks);
+         wifiHeap ? heapBytes - info.minimum_free_bytes : 0, fallbacks);
 }
 
-static void heapOpen() {
-  heapStart = Arena::alloc(WIFI_HEAP_BYTES, 4);
-  heapEnd = heapStart + WIFI_HEAP_BYTES;
-  wifiHeap = multi_heap_register(heapStart, WIFI_HEAP_BYTES);
+static void heapOpen(uint8_t *heap, uint32_t bytes) {
+  heapBytes = bytes;
+  heapStart = heap;
+  heapEnd = heapStart + bytes;
+  wifiHeap = multi_heap_register(heapStart, bytes);
   multi_heap_set_lock(wifiHeap, &wifiHeapMux);  // portMUX is recursive, as heap_caps uses it
 }
 
-// the game unpacks into this memory next: nothing may stay allocated
+// the caller reuses this memory next (the game unpacks into it): nothing
+// may stay allocated
 static void heapClose() {
   multi_heap_info_t info;
   multi_heap_get_info(wifiHeap, &info);
@@ -355,7 +369,6 @@ static void heapClose() {
   }
   wifiHeap = nullptr;
   heapStart = heapEnd = nullptr;
-  Arena::reset();
 }
 
 static volatile bool gotIp = false;
@@ -388,7 +401,7 @@ static void initOnce() {
 static void tasksSettle() {
   UBaseType_t n = uxTaskGetNumberOfTasks();
   for (uint32_t i = 0; i < SETTLE_POLLS_MAX; i++) {
-    delay(SETTLE_POLL_MS);
+    sleepMs(SETTLE_POLL_MS);
     const UBaseType_t now = uxTaskGetNumberOfTasks();
     if (now == n) {
       return;
@@ -401,7 +414,7 @@ static uint32_t connectStart = 0;
 static bool started = false;
 
 // init + start; connecting goes on in the WiFi task
-static bool wifiStart() {
+static bool wifiStart(const char *ssid, const char *pass) {
   osi = g_wifi_osi_funcs;
   osi._malloc = wMalloc32;
   osi._free = wFree;
@@ -435,10 +448,12 @@ static bool wifiStart() {
   }
 
   wifi_config_t sta = {};
-  strncpy((char *)sta.sta.ssid, GALAGINO_WIFI_SSID, sizeof(sta.sta.ssid));
-  strncpy((char *)sta.sta.password, GALAGINO_WIFI_PASS, sizeof(sta.sta.password));
+  strncpy((char *)sta.sta.ssid, ssid, sizeof(sta.sta.ssid));
+  strncpy((char *)sta.sta.password, pass, sizeof(sta.sta.password));
+#if ESP_IDF_VERSION_MAJOR < 5
   // IDF 4.4.7 SAE H2E (sswu) leaks 88 B per connect, fixed in 4.4.8 (509c4c2)
   sta.sta.sae_pwe_h2e = WPA3_SAE_PWE_HUNT_AND_PECK;
+#endif
   esp_wifi_set_storage(WIFI_STORAGE_RAM);
   esp_wifi_set_mode(WIFI_MODE_STA);
   esp_wifi_set_config(WIFI_IF_STA, &sta);
@@ -449,9 +464,9 @@ static bool wifiStart() {
   return true;
 }
 
-static bool wifiWait() {
-  while (!gotIp && millis() - connectStart < CONNECT_TIMEOUT_MS) {
-    delay(50);
+static bool wifiWait(uint32_t timeoutMs) {
+  while (!gotIp && millis() - connectStart < timeoutMs) {
+    sleepMs(50);
   }
   if (!gotIp) {
     printf("wifi: connect timeout\n");
@@ -487,7 +502,7 @@ static bool connectTimeout(int s, const sockaddr_in &addr) {
 }
 
 // url: http://a.b.c.d[:port]/path (no DNS)
-bool Wifi::get(const char *url, HttpBody &body) {
+bool Wifi::get(const char *url, uint8_t *buf, uint32_t bufBytes, Receive receive, void *ctx) {
   static const char PREFIX[] = "http://";
   if (strncmp(url, PREFIX, sizeof(PREFIX) - 1)) {
     printf("wifi: bad url %s\n", url);
@@ -531,32 +546,22 @@ bool Wifi::get(const char *url, HttpBody &body) {
   const int n = snprintf(req, sizeof(req), "GET %s HTTP/1.0\r\nHost: %s\r\n\r\n", path, host);
   send(s, req, n, 0);
 
-  // from Arena, outside the WiFi heap so the driver never competes for it;
-  // static DRAM is too tight (solomon low-water 2.9 KB). Freed by down().
-  const size_t BUF_BYTES = 4096;
-  uint8_t *buf = Arena::alloc(BUF_BYTES);
-  bool ok = true;
   int r;
-  // stop at the end of the body: a server may keep the connection open
-  while (ok && !body.complete() && (r = recv(s, buf, BUF_BYTES, 0)) > 0) {
-    ok = body.feed(buf, r);
+  while ((r = recv(s, buf, bufBytes, 0)) > 0 && receive(ctx, buf, r)) {
   }
   close(s);
-  return ok && body.complete();
+  return true;
 }
 
-bool Wifi::begin() {
+bool Wifi::begin(const char *ssid, const char *pass, uint8_t *heap, uint32_t heapBytes) {
   initOnce();
-  heapOpen();
-  started = wifiStart();
+  heapOpen(heap, heapBytes);
+  started = wifiStart(ssid, pass);
   return started;
 }
 
-bool Wifi::up() {
-  if (!started && !begin()) {
-    return false;
-  }
-  return wifiWait();
+bool Wifi::up(uint32_t timeoutMs) {
+  return started && wifiWait(timeoutMs);
 }
 
 void Wifi::down() {
@@ -569,4 +574,5 @@ void Wifi::down() {
   heapLog("down");
   heapClose();
 }
+} // namespace hal
 #endif

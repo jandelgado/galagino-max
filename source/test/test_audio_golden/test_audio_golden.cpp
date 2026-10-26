@@ -70,6 +70,7 @@ static const uint32_t GOLDEN_ZAXXON = 0x12639c24;
 
 static uint32_t hash;
 static bool capturing;
+static uint32_t dacMismatches;
 
 // The host sink hands over signed samples; the ESP encoder turns them into
 // the DAC words the I2S driver used to receive, which is what the goldens hash.
@@ -82,6 +83,16 @@ static void captureChunk(const int16_t *samples, uint32_t n) {
   const uint8_t *p = reinterpret_cast<const uint8_t *>(words);
   for (size_t i = 0; i < n * sizeof(uint16_t); i++) {
     hash = (hash ^ p[i]) * FNV_PRIME;
+  }
+
+  // IDF DAC bytes: the same samples as the hashed words, in sample order
+  // (the words carry the old driver's pair swap)
+  uint8_t dac[AUDIO_CHUNK];
+  hal::esp::encodeDac8Mono(samples, dac, n);
+  for (uint32_t k = 0; k < n; k++) {
+    if (dac[k] != words[k ^ 1] >> 8) {
+      dacMismatches++;
+    }
   }
 }
 
@@ -137,6 +148,7 @@ static uint32_t run(const char *name, machineBase *m, Poke poke, bool mute = fal
   audio->mute(mute ? 1 : 0);
   rng = SCRIPT_SEED;
   hash = FNV_OFFSET;
+  dacMismatches = 0;
   for (int f = 0; f < FRAMES; f++) {
     if (poke) {
       poke(m, f);
@@ -151,6 +163,7 @@ static uint32_t run(const char *name, machineBase *m, Poke poke, bool mute = fal
   audio->stop();
   delete audio;
   printf("golden %s 0x%08x\n", name, (unsigned)hash);
+  TEST_ASSERT_EQUAL_UINT32(0, dacMismatches);
   return hash;
 }
 

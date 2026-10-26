@@ -1,4 +1,4 @@
-#include "i2c-controller.h"
+#include "galagino_controller.h"
 #include <stdio.h>
 
 #ifdef GALAGINO_CONTROLLER

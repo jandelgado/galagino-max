@@ -15,5 +15,12 @@
 #ifndef GALAGINO_CONTROLLER_SCL
 #define GALAGINO_CONTROLLER_SCL 22
 #endif
+// Nunchuk wiring of the pre-board-profile CYD config
+#ifndef NUNCHUCK_SDA
+#define NUNCHUCK_SDA 22
+#endif
+#ifndef NUNCHUCK_SCL
+#define NUNCHUCK_SCL 27
+#endif
 
 #endif // HAL_BOARD_CYD2432S028R_H

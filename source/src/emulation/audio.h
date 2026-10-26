@@ -31,7 +31,7 @@ private:
   // next chunk for the sink, volume applied; silence while no machine runs
   int16_t pending[AUDIO_CHUNK];
 
-  short volumeSetting = 3;
+  short volumeSetting = AUDIO_VOLUME;
   bool volumeUpLast;
   bool volumeDownLast;
   int  muted = 0;

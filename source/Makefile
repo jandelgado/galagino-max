@@ -13,7 +13,7 @@
 help: phony
 	@sed -n 's/^## \{0,1\}//p' $(MAKEFILE_LIST)
 
-DEFAULT_ENV := fnk0104-full-usbup
+DEFAULT_ENV := fnk0104-full
 
 DEVICE_BASE := /dev/ttyACM
 ifneq (,$(wildcard /dev/ttyUSB*))
