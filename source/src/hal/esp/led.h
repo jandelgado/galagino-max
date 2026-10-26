@@ -7,7 +7,7 @@ namespace hal {
 
 // WS2812 strip. rgb is 3 bytes per LED (r, g, b) before brightness scaling;
 // the backend applies LED_BRIGHTNESS and the strip's color order.
-// Implemented by esp/led_fastled.cpp (Arduino build) or esp/led_strip.cpp.
+// Implemented by esp/led_strip.cpp (RMT).
 class LedStrip {
 public:
   static void init(int pin, uint32_t count);

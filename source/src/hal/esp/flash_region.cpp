@@ -1,9 +1,5 @@
 #include "flash_region.h"
-#include <esp_idf_version.h>
 #include <esp_partition.h>
-#if ESP_IDF_VERSION_MAJOR < 5
-#include <esp_spi_flash.h>
-#endif
 #include "rtos.h"
 
 namespace hal {
@@ -11,15 +7,9 @@ namespace hal {
 static constexpr esp_partition_subtype_t ASSETS_SUBTYPE = (esp_partition_subtype_t)0x40;
 static constexpr uint32_t ERASE_STEP = 64 * 1024;
 
-#if ESP_IDF_VERSION_MAJOR < 5
-typedef spi_flash_mmap_handle_t MmapHandle;
-static constexpr spi_flash_mmap_memory_t MMAP_DATA = SPI_FLASH_MMAP_DATA;
-static void munmap(MmapHandle handle) { spi_flash_munmap(handle); }
-#else
 typedef esp_partition_mmap_handle_t MmapHandle;
 static constexpr esp_partition_mmap_flag_t MMAP_DATA = ESP_PARTITION_MMAP_DATA;
 static void munmap(MmapHandle handle) { esp_partition_munmap(handle); }
-#endif
 static_assert(sizeof(MmapHandle) == sizeof(uint32_t), "handle stored as uint32_t");
 
 const void *FlashRegion::partition() const {

@@ -1,0 +1,2 @@
+# 16 MB flash boards (FNK0104), on top of sdkconfig.defaults
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y

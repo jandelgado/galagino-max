@@ -5,7 +5,7 @@
 // platformio.ini build_flags win over the defaults below. Define
 // USE_PIO_CONFIG there to supply your own pins.
 // config_local.h may still say HIGH/LOW (Arduino names, same values and
-// spelling as Arduino.h): the ESP-IDF only build has no Arduino.h.
+// spelling as Arduino.h): the build has no Arduino.h.
 #ifndef HIGH
 #define HIGH 0x1
 #endif

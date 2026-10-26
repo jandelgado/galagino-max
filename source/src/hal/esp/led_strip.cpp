@@ -1,6 +1,5 @@
-// WS2812 strip through the RMT peripheral, ESP-IDF only build. GRB color
+// WS2812 strip through the RMT peripheral. GRB color
 // order (FastLED NEOPIXEL), global brightness LED_BRIGHTNESS.
-#ifndef ARDUINO
 #include "led.h"
 #include "../../config.h"
 
@@ -78,4 +77,3 @@ void LedStrip::show(const uint8_t *, uint32_t) {}
 } // namespace hal
 
 #endif // LED_PIN
-#endif // !ARDUINO

@@ -1,9 +1,9 @@
-// I2S sink for the ESP-IDF only build (standard mode driver): the ES8311
-// codec, set up over I2C by Audio::init. Philips format, 16 bit signed mono in
-// the left slot, MCLK = 256 x rate, as the codec is configured. Untested on a
-// device (no IDF FNK0104 at hand); the Arduino build is the reference.
+// I2S sink (standard mode driver): the ES8311 codec, set up over I2C by
+// Audio::init. Philips format, 16 bit signed mono in the left slot, MCLK =
+// 256 x rate, as the codec is configured. Untested on a device (no FNK0104 at
+// hand); the old Arduino build (left-justified) was the reference.
 #include "../audio.h"
-#if !defined(ARDUINO) && defined(HAL_AUDIO_ES8311)
+#if defined(HAL_AUDIO_ES8311)
 #include <freertos/FreeRTOS.h>
 #include <driver/i2s_std.h>
 #include <string.h>
@@ -73,4 +73,4 @@ void AudioOut::flushSilence() {
 
 } // namespace hal
 
-#endif // !ARDUINO && HAL_AUDIO_ES8311
+#endif // HAL_AUDIO_ES8311

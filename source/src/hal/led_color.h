@@ -3,9 +3,7 @@
 
 // Portable CRGB: the subset of FastLED's CRGB the machines use, with the same
 // names, values and rounding, so machine LED code does not know which LED
-// backend is built. Defined in namespace hal and made visible as ::CRGB: a
-// second global CRGB next to FastLED's would be an ODR violation. Do not
-// include together with FastLED.h; only hal/esp/led_fastled.cpp includes that.
+// backend is built. Defined in namespace hal and made visible as ::CRGB.
 
 #include <stdint.h>
 

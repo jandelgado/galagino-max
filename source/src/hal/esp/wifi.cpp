@@ -15,10 +15,8 @@
 //   - Fragmentation: driver blocks left in the system heap split its
 //     largest block. After ~20 sessions the task stack no longer fit:
 //     "wifi:create wifi task: failed to create task".
-//   - Leaks in IDF v4.4.7 (Arduino build only; IDF 6.1: none, 20 sessions
-//     measured):
-//     - key buffers, 2 x 184 B per session: freed here (keySlotsFree)
-//     - SAE H2E, 88 B per connect: avoided with hunt-and-peck
+//   - Leaks: none on IDF 6.1 (20 sessions measured). IDF 4.4.7 (old
+//     Arduino build) leaked key buffers and SAE H2E memory per session.
 //
 // IDF 6.1 (2026-10-26): menu heap ~53 KB free, largest block 32 KB after
 // the first session (64.8 KB / 43 KB before). Stock allocation might fit
@@ -34,7 +32,7 @@
 //   free/realloc        -> --wrap at link time, routed by address:
 //                          IDF frees across components (driver frees
 //                          supplicant mallocs, plain free() of IPC msgs)
-//   teardown            -> deinit, wait until tasks gone, free key slots,
+//   teardown            -> deinit, wait until tasks gone,
 //                          wifiHeap must be empty (else abort), caller
 //                          reuses the heap memory
 //
@@ -62,8 +60,8 @@
 //
 // Limits
 //   - WiFi only while Arena is empty: never during a game.
-//   - keySlotsFree pinned to IDF v4.4.7 blobs (g_ic+0x140, 25 slots),
-//     osi table, task self-delete. Any IDF/Arduino core update: recheck.
+//   - Pinned to the IDF osi table and task self-delete. Any IDF update:
+//     recheck.
 //   - Not routed, stays in the system heap: netif, tcpip task, event loop
 //     (~9.6 KB, once per boot), lwIP pbufs/sockets/timers, driver queues.
 //   - Task wait counts all tasks: no other task may start or end while
@@ -79,7 +77,6 @@
 #include <esp_wifi_default.h>
 #include <esp_event.h>
 #include <esp_heap_caps.h>
-#include <esp_idf_version.h>
 #include <esp_private/wifi_os_adapter.h>
 #include <multi_heap.h>
 #include <lwip/sockets.h>
@@ -164,26 +161,6 @@ extern "C" IRAM_ATTR void __wrap_free(void *p) {
   }
   __real_free(p);
 }
-
-#if ESP_IDF_VERSION_MAJOR < 5
-// ppInstallKey's key buffers (168 B + key) sit in g_ic key slots. Deinit
-// keeps them: cnx_sta_leave frees only some slots, a later install frees
-// only the slot it reuses. Leaks 2 x 184 B per session. Freed here after
-// deinit. Layout from ieee80211_set_key, IDF v4.4.7 libnet80211.
-extern "C" uint8_t g_ic[];
-static constexpr uint32_t IC_KEY_SLOTS_OFFSET = 0x140;
-static constexpr uint32_t IC_KEY_SLOTS = 25;
-
-static void keySlotsFree() {
-  void **slots = (void **)(g_ic + IC_KEY_SLOTS_OFFSET);
-  for (uint32_t i = 0; i < IC_KEY_SLOTS; i++) {
-    free(slots[i]);
-    slots[i] = nullptr;
-  }
-}
-#else
-static void keySlotsFree() { }
-#endif
 
 // Arena memory is internal DRAM: DMA-capable, like _malloc_internal's
 static IRAM_ATTR void *heapAlloc(size_t n, void *caller) {
@@ -450,10 +427,6 @@ static bool wifiStart(const char *ssid, const char *pass) {
   wifi_config_t sta = {};
   strncpy((char *)sta.sta.ssid, ssid, sizeof(sta.sta.ssid));
   strncpy((char *)sta.sta.password, pass, sizeof(sta.sta.password));
-#if ESP_IDF_VERSION_MAJOR < 5
-  // IDF 4.4.7 SAE H2E (sswu) leaks 88 B per connect, fixed in 4.4.8 (509c4c2)
-  sta.sta.sae_pwe_h2e = WPA3_SAE_PWE_HUNT_AND_PECK;
-#endif
   esp_wifi_set_storage(WIFI_STORAGE_RAM);
   esp_wifi_set_mode(WIFI_MODE_STA);
   esp_wifi_set_config(WIFI_IF_STA, &sta);
@@ -570,7 +543,6 @@ void Wifi::down() {
   esp_wifi_stop();
   esp_wifi_deinit();
   taskMemFree();
-  keySlotsFree();
   heapLog("down");
   heapClose();
 }

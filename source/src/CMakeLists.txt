@@ -1,5 +1,4 @@
-# ESP-IDF only build (PlatformIO framework = espidf, envs idf-*). The Arduino
-# envs do not use this file. Everything under src/; the WiFi loader (src/net,
+# ESP-IDF build (PlatformIO framework = espidf). Everything under src/; the WiFi loader (src/net,
 # hal/esp/wifi.cpp) compiles to nothing without ASSETS_REMOTE.
 # C sources first: PlatformIO's espidf builder takes C/C++ compile groups in
 # order of the first source; a .cpp first hands C-only options
@@ -19,5 +18,5 @@ idf_component_register(
 # IDF builds every component with -fno-jump-tables (jump tables in flash would
 # break code that runs with the flash cache off). The CPU cores' opcode
 # switches then compile to compare chains and the emulation runs 25 to 40 %
-# slower: give this component jump tables back, as the Arduino build has.
+# slower: give this component jump tables back.
 target_compile_options(${COMPONENT_LIB} PRIVATE -fjump-tables -ftree-switch-conversion -flto=auto)

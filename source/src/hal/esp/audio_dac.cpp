@@ -1,8 +1,8 @@
-// Built-in DAC sink for the ESP-IDF only build: dac_continuous, asynchronous
+// Built-in DAC sink: dac_continuous, asynchronous
 // writing. The DAC replays its buffers in a ring; the driver reports each
 // buffer it finished, which is the "free buffer" the sink hands out.
 #include "../audio.h"
-#if !defined(ARDUINO) && defined(HAL_AUDIO_ESP_DAC)
+#if defined(HAL_AUDIO_ESP_DAC)
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <sdkconfig.h>
@@ -142,4 +142,4 @@ void AudioOut::flushSilence() {
 #else
 #error "HAL_AUDIO_ESP_DAC: this chip has no DAC; set HAL_AUDIO_NULL or a codec backend"
 #endif // SOC_DAC_SUPPORTED
-#endif // !ARDUINO && HAL_AUDIO_ESP_DAC
+#endif // HAL_AUDIO_ESP_DAC

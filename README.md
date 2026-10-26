@@ -74,6 +74,7 @@ Supported boards (`source/platformio.ini`, `[board_*]`):
 | Freenove FNK0103F         | `fnk0103f`       | ILI9341, 40 MHz SPI                                |
 | Freenove FNK0103B         | `fnk0103b`       | ST7789, 80 MHz SPI                                 |
 | Freenove FNK0104 (S3)     | `fnk0104`        | ESP32-S3, 16 MB flash, ES8311 DAC, all games built in |
+| Hand-wired CYD (JC2432W328C) | `cydmanual`   | ST7789, 80 MHz SPI, pins in `boards/cyd_manual.h`  |
 
 Env names are `<board>-<mode>`. Modes: `local` (built-in games), `max` (100+ games at once), `remote` (flash + WiFi download), `full` (16 MB, everything in flash). Board mounted with the USB connector up: `BOARD_USBUP` in `config_local.h`.
 
@@ -92,7 +93,9 @@ Builds and sources:
 
 ## Build and Configuration
 
-Needs [PlatformIO](https://platformio.org/) and [uv](https://docs.astral.sh/uv/).
+Needs [PlatformIO](https://platformio.org/) and [uv](https://docs.astral.sh/uv/). The firmware
+builds on ESP-IDF (PlatformIO `espidf` framework, no Arduino core); details in
+[source/BUILD.md](source/BUILD.md).
 
 1. Put the ROM zips and optional SID files into [romszip/](romszip/) (see [ROMs](#roms)).
 2. Convert them: `romconv/convert.sh` (`romconv/convert.bat` on Windows). Pass game names to
@@ -163,8 +166,9 @@ Set in `config_local.h` (`#define X`) or `platformio.ini` (`-D X`).
 | `LED_PIN`, `LED_BRIGHTNESS`           | off, 50          | WS2812 stripe, brightness 0..255                          |
 | `SND_RIGHT_CHANNEL`                   | off              | Audio on GPIO 25 instead of 26                            |
 | `SND_DIFF`                            | off              | Differential audio on GPIO 25 and 26                      |
-| `NUNCHUCK_INPUT`                      | off              | Nunchuck input, emulation gets slower                     |
+| `NUNCHUCK_INPUT`                      | off              | Nunchuk on I2C instead of the controller (board pins)     |
 | `GALAGINO_CONTROLLER`                 | per board        | I2C controller with extra buttons                         |
+| `AUDIO_VOLUME`                        | 3                | Start volume, 1 (loudest) .. 30; EXTRA + up/down changes it |
 | `HAL_AUDIO_ESP_DAC`, `HAL_AUDIO_ES8311` | per board      | Audio output: built-in DAC, ES8311 codec (ESP32-S3)       |
 | `MASTER_ATTRACT_MENU_TIMEOUT`         | 20000            | Idle time in menu before a game starts (ms)               |
 | `MASTER_ATTRACT_GAME_TIMEOUT`         | 300000           | Time until an attract game ends (ms)                      |

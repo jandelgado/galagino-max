@@ -2,6 +2,7 @@
 #define HAL_ESP_RTOS_H
 
 #include <stdint.h>
+#include <sdkconfig.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
@@ -10,11 +11,7 @@ namespace hal {
 
 // The video core runs the main task (display, audio refill); the emulation
 // task runs on the other one.
-#ifdef ARDUINO_RUNNING_CORE
-static const int VIDEO_CORE = ARDUINO_RUNNING_CORE;
-#else
-static const int VIDEO_CORE = 0;
-#endif
+static const int VIDEO_CORE = CONFIG_ESP_MAIN_TASK_AFFINITY;
 static const int EMULATION_CORE = 1 - VIDEO_CORE;
 
 static const uint32_t WAIT_FOREVER = 0xFFFFFFFFu;

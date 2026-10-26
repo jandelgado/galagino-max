@@ -72,14 +72,21 @@ static uint32_t hash;
 static bool capturing;
 static uint32_t dacMismatches;
 
-// The host sink hands over signed samples; the ESP encoder turns them into
-// the DAC words the I2S driver used to receive, which is what the goldens hash.
+// The host sink hands over signed samples; turned into the DAC words the old
+// I2S driver received, which is what the goldens hash.
+// Words of the old Arduino I2S driver: bias 0x8000, sample pairs swapped.
+static void oldWords(const int16_t *in, uint16_t *out, uint32_t n) {
+  for (uint32_t i = 0; i < n; i++) {
+    out[i ^ 1] = (uint16_t)(0x8000 + in[i]);
+  }
+}
+
 static void captureChunk(const int16_t *samples, uint32_t n) {
   if (!capturing) {
     return;
   }
   uint16_t words[AUDIO_CHUNK];
-  hal::esp::encodeMono(samples, words, n);
+  oldWords(samples, words, n);
   const uint8_t *p = reinterpret_cast<const uint8_t *>(words);
   for (size_t i = 0; i < n * sizeof(uint16_t); i++) {
     hash = (hash ^ p[i]) * FNV_PRIME;

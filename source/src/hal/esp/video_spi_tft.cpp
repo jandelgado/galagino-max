@@ -1,7 +1,4 @@
 #include "video_spi_tft.h"
-#ifdef ARDUINO
-#include <Arduino.h>  // MISO, MOSI, SCK default pins
-#endif
 #include <esp_heap_caps.h>
 #include <stdio.h>
 #include <string.h>
@@ -30,21 +27,7 @@ static spi_device_interface_config_t if_cfg {
 };
 
 #if !defined(TFT_MISO) || !defined(TFT_MOSI) || !defined(TFT_SCLK)
-// At least one of the SPI pins is not defined, so we'll set that to default ESP32 SPI pins
-#ifdef ARDUINO
-#ifndef TFT_MISO
-#define TFT_MISO MISO
-#endif
-
-#ifndef TFT_MOSI
-#define TFT_MOSI MOSI
-#endif
-
-#ifndef TFT_SCLK
-#define TFT_SCLK SCK
-#endif
-#else
-// VSPI default pins of the ESP32
+// pins not set by the board: VSPI defaults of the ESP32
 #ifndef TFT_MISO
 #define TFT_MISO 19
 #endif
@@ -55,7 +38,6 @@ static spi_device_interface_config_t if_cfg {
 
 #ifndef TFT_SCLK
 #define TFT_SCLK 18
-#endif
 #endif
 
 #endif
@@ -163,7 +145,6 @@ static const uint8_t init_cmd[] = {
   0x00                              // End of list
 #endif
 };
-
 
 SpiTftVideo::SpiTftVideo() {
   hal::pinOutput(TFT_CS, true); // Deselect
