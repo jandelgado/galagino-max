@@ -12,9 +12,13 @@
 # as first fit does); together they make the output deterministic for golden
 # diffs. Both solvers return the same sort_key().
 #
-# Not in the model: ARENA_EXTRA (first fit is not linear) and the LZMA
-# scratch gap. plan/arena.py checks them on the solution and re-solves with
-# a nogood for the rejected (A set, B set).
+# Below the reservations the machine's extras (ARENA_EXTRA, other
+# Arena::alloc calls) run first fit in declared order, A then B, or in every
+# order with ARENA_EXTRA_ANY_ORDER; after them one block must keep `scratch`
+# bytes for the LZMA probability table. Both are part of the problem: the
+# exhaustive solver checks them at every leaf, the MILP encodes first fit
+# with one binary per extra and order (big-M on "fits in A").
+import itertools
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
@@ -40,7 +44,9 @@ class Problem:
     layout: tuple[int, int]                 # (A, B) bytes, B may be 0
     flash: frozenset[str] = frozenset()     # ARENA_FLASH pins: PLAIN
     ram: frozenset[str] = frozenset()       # ARENA_RAM pins: A or B
-    nogoods: tuple[tuple[frozenset[str], frozenset[str]], ...] = ()  # rejected (A set, B set)
+    extras: tuple[int, ...] = ()            # ARENA_EXTRA bytes (r4), declared order
+    any_order: bool = False                 # ARENA_EXTRA_ANY_ORDER
+    scratch: int = 0                        # gap one block keeps after the extras
 
 
 @dataclass(frozen=True)
@@ -50,7 +56,7 @@ class Solution:
 
 
 class Infeasible(ValueError):
-    """No assignment satisfies the pins and capacities."""
+    """No assignment satisfies the pins, capacities, extras and scratch."""
 
 
 @runtime_checkable
@@ -67,6 +73,36 @@ def sort_key(problem: Problem, modes: dict[str, str]) -> tuple[int, int, tuple[i
     return flash, compressed, flags, in_b
 
 
+def _orders(problem: Problem) -> list[tuple[int, ...]]:
+    """The extras orders a split must survive: the declared one, or every one."""
+    if problem.any_order:
+        return sorted(set(itertools.permutations(problem.extras)))
+    return [tuple(problem.extras)]
+
+
+def _first_fit(extras, free_a, free_b):
+    """Bytes used per block by a first fit in run-time order, A then B, like
+    Arena::alloc; None if an extra fits nowhere."""
+    used_a = used_b = 0
+    for e in extras:
+        if used_a + e <= free_a:
+            used_a += e
+        elif used_b + e <= free_b:
+            used_b += e
+        else:
+            return None
+    return used_a, used_b
+
+
+def _extras_fit(problem: Problem, free_a: int, free_b: int) -> bool:
+    """Every order fits below the reservations and leaves the scratch gap in one block."""
+    for order in _orders(problem):
+        used = _first_fit(order, free_a, free_b)
+        if used is None or max(free_a - used[0], free_b - used[1]) < problem.scratch:
+            return False
+    return True
+
+
 def _reserve(problem: Problem, modes: dict[str, str]) -> tuple[int, int]:
     return (sum(r4(i.raw) for i in problem.items if modes[i.name] == "A"),
             sum(r4(i.raw) for i in problem.items if modes[i.name] == "B"))
@@ -79,13 +115,14 @@ class ExhaustiveSolver:
     def solve(self, problem: Problem) -> Solution:
         size_a, size_b = problem.layout
         items = sorted(problem.items, key=lambda i: (-r4(i.raw), i.name))
-        nogoods = set(problem.nogoods)
+        fits = {}  # free (a, b) -> extras_fit
         best: list = [None, None]  # key, modes
 
         def leaf(modes, sum_a, sum_b):
-            in_a = frozenset(n for n, m in modes.items() if m == "A")
-            in_b = frozenset(n for n, m in modes.items() if m == "B")
-            if (in_a, in_b) in nogoods:
+            free = (size_a - sum_a, size_b - sum_b)
+            if free not in fits:
+                fits[free] = _extras_fit(problem, *free)
+            if not fits[free]:
                 return
             key = sort_key(problem, modes)
             if best[0] is None or key < best[0]:
@@ -128,10 +165,13 @@ class HighsSolver:
     gap 0, integer objectives in the byte passes."""
 
     def solve(self, problem: Problem) -> Solution:
-        if not problem.items:
-            return Solution({}, (0, 0))
         size_a, size_b = problem.layout
         items = problem.items
+        if not items:
+            # nothing to place: only the extras and the scratch decide
+            if not _extras_fit(problem, size_a, size_b):
+                raise Infeasible(f"does not fit layout {size_a}+{size_b}")
+            return Solution({}, (0, 0))
         h = highspy.Highs()
         h.silent()
         for option, value in (("mip_rel_gap", 0.0), ("mip_abs_gap", 0.0), ("threads", 1), ("random_seed", 0)):
@@ -149,13 +189,11 @@ class HighsSolver:
                 h.addConstr(a[i] + b[i] <= 1)
             if size_b == 0:
                 h.changeColBounds(b[i].index, 0, 0)
-        h.addConstr(sum(r4(it.raw) * a[i] for i, it in enumerate(items)) <= size_a)
-        if size_b:
-            h.addConstr(sum(r4(it.raw) * b[i] for i, it in enumerate(items)) <= size_b)
-        for in_a, in_b in problem.nogoods:
-            # at least one item placed differently than in the rejected assignment
-            h.addConstr(sum((1 - a[i]) if it.name in in_a else a[i] for i, it in enumerate(items))
-                        + sum((1 - b[i]) if it.name in in_b else b[i] for i, it in enumerate(items)) >= 1)
+        free_a = size_a - sum(r4(it.raw) * a[i] for i, it in enumerate(items))
+        free_b = size_b - sum(r4(it.raw) * b[i] for i, it in enumerate(items))
+        h.addConstr(free_a >= 0)
+        h.addConstr(free_b >= 0)
+        self._extras(h, problem, free_a, free_b)
 
         def run(objective):
             h.minimize(objective)
@@ -185,3 +223,24 @@ class HighsSolver:
         for i, item in enumerate(items):
             modes[item.name] = "A" if round(h.val(a[i])) else "B" if round(h.val(b[i])) else "PLAIN"
         return Solution(modes, _reserve(problem, modes))
+
+    @staticmethod
+    def _extras(h, problem, free_a, free_b):
+        """First fit of the extras per order: x_k = 1 iff extra k still fits
+        in A (big-M), the rest must fit B; then one block keeps the scratch."""
+        size_a, size_b = problem.layout
+        big = size_a + size_b + sum(problem.extras) + 4
+        for order in _orders(problem):
+            x = [h.addBinary() for _ in order]
+            used_a = 0
+            for k, e in enumerate(order):
+                room = free_a - used_a - e  # >= 0: fits in A
+                h.addConstr(room >= -big * (1 - x[k]))
+                h.addConstr(room <= -4 + big * x[k])
+                used_a = used_a + e * x[k]
+            used_b = sum(e * (1 - x[k]) for k, e in enumerate(order))
+            h.addConstr(free_b - used_b >= 0)
+            # s = 1: the gap is in A
+            s = h.addBinary()
+            h.addConstr(free_a - used_a >= problem.scratch * s)
+            h.addConstr(free_b - used_b >= problem.scratch * (1 - s))

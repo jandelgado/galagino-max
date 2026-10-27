@@ -59,13 +59,38 @@ def test_b_zero_never_assigns_b(solver):
 
 
 @pytest.mark.parametrize("solver", SOLVERS)
-def test_nogood_excludes_that_assignment(solver):
-    p = _p([("a", 100, 10)], layout=(100, 100))
-    first = solver.solve(p)
-    block = next(iter(first.modes.values()))
-    bad = (frozenset({"a"}), frozenset()) if block == "A" else (frozenset(), frozenset({"a"}))
-    second = solver.solve(Problem(p.items, p.layout, nogoods=(bad,)))
-    assert second.modes["a"] not in ("PLAIN", block)
+def test_extras_first_fit_declared_order(solver):
+    # extras [100, 60] below the reservation: 100 goes to A, 60 follows into A
+    # only if room is left, else B; the split must leave that room
+    s = solver.solve(_p([("x", 100, 10)], layout=(200, 59), extras=(100, 60)))
+    assert s.modes == {"x": "PLAIN"}, s  # x in A would push the 60 to a B that is too small
+    s = solver.solve(_p([("x", 100, 10)], layout=(200, 60), extras=(100, 60)))
+    assert s.modes == {"x": "A"}, s  # 100 fills A, 60 lands in B
+    s = solver.solve(_p([("x", 100, 10)], layout=(260, 0), extras=(100, 60)))
+    assert s.modes == {"x": "A"}, s
+    with pytest.raises(Infeasible):
+        solver.solve(_p([], layout=(100, 60), extras=(60, 100)))
+
+
+@pytest.mark.parametrize("solver", SOLVERS)
+def test_extras_any_order(solver):
+    # [100, 60] fits declared, reversed 60 takes A and 100 strands
+    assert solver.solve(_p([], layout=(100, 60), extras=(100, 60))).reserve == (0, 0)
+    with pytest.raises(Infeasible):
+        solver.solve(_p([], layout=(100, 60), extras=(100, 60), any_order=True))
+
+
+@pytest.mark.parametrize("solver", SOLVERS)
+def test_scratch_gap_after_extras(solver):
+    # scratch 50: one block must keep 50 bytes after assets and extras
+    p = _p([("x", 100, 10), ("y", 100, 10)], layout=(100, 200), extras=(50,), scratch=50)
+    s = solver.solve(p)
+    assert sorted(s.modes.values()) == ["A", "B"], s   # extra in B, gap 50 in B (x/y symmetric)
+    p = _p([("x", 100, 10), ("y", 100, 10)], layout=(100, 199), extras=(50,), scratch=50)
+    s = solver.solve(p)
+    assert sorted(s.modes.values()) == ["A", "PLAIN"], s  # one asset gives way
+    with pytest.raises(Infeasible):
+        solver.solve(_p([("x", 100, 10)], layout=(100, 40), scratch=50, ram=frozenset({"x"})))
 
 
 @pytest.mark.parametrize("solver", SOLVERS)
@@ -98,7 +123,8 @@ def _random_problem(rnd, n):
         elif r < 0.2 and raw <= 60000:
             ram.add(items[-1].name)
     layout = (rnd.randrange(60000, 118785, 4), rnd.choice([0, rnd.randrange(30000, 110501, 4)]))
-    return Problem(tuple(items), layout, frozenset(flash), frozenset(ram))
+    extras = tuple(rnd.randrange(4, 50000, 4) for _ in range(rnd.randint(0, 3)))
+    return Problem(tuple(items), layout, frozenset(flash), frozenset(ram), extras, rnd.random() < 0.5, 5232)
 
 
 def test_highs_matches_exhaustive():
@@ -122,7 +148,7 @@ def test_67_items_under_one_second():
     items = [Item(f"a{i:02d}", rnd.randrange(2048, 65536), rnd.randrange(1024, 40000), 1) for i in range(27)]
     items += [Item(f"chunk{i:02d}", 65536, rnd.randrange(40000, 60000), 1) for i in range(40)]
     t0 = time.perf_counter()
-    HighsSolver().solve(Problem(tuple(items), (118784, 110500)))
+    HighsSolver().solve(Problem(tuple(items), (118784, 110500), extras=(10440, 57344, 39904), scratch=5232))
     assert time.perf_counter() - t0 < 1.0
 
 
