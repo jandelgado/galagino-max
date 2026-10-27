@@ -5,8 +5,11 @@ ESP-IDF 6.1 (PlatformIO `espidf` framework), no Arduino core, no FastLED. Every 
 
 Config: `sdkconfig.defaults` (240 MHz, QIO 80 MHz flash, 4 MB, 1000 Hz tick, `-Os`, log level
 warn, BT off), `sdkconfig.defaults.16mb` for 16 MB boards (`board_build.cmake_extra_args`),
-`CMakeLists.txt`, `src/CMakeLists.txt`. `sdkconfig.<env>` is generated and git-ignored: delete
-it after changing the defaults.
+`sdkconfig.defaults.<layout>` for an Arena layout that needs its own task stacks (appended by
+`extraScript.py` for the env's `custom_arena_layout`, e.g. `esp32_local`), `CMakeLists.txt`,
+`src/CMakeLists.txt`. `sdkconfig.<env>` is generated and git-ignored: delete it after changing
+any defaults file, or the old values stay (the hook stops the build when it disagrees with
+the layout file and names the file to delete).
 
 Arena layout: `[arena]` in `platformio.ini` lists the block sizes per layout (`name = A B`
 bytes), every env selects one with `custom_arena_layout`. `extraScript.py` turns it into
