@@ -30,9 +30,9 @@ static void test_omitted(void) {
 
 // unpacks into the blob's planned block, inside the reservation
 static void test_packed_blob_planned_block(void) {
-  const uint8_t *baseA = Arena::alloc(1);
-  const uint8_t *baseB = Arena::alloc(Arena::BLOCK_A_SIZE);
-  (void)baseA;
+  // A full, so the next allocation starts block B
+  Arena::alloc(Arena::BLOCK_A_SIZE);
+  const uint8_t *baseB = Arena::alloc(1);
   const ArenaPlan plan = {0, 8};
   Arena::reserve(&plan);
 

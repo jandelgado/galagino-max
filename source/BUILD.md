@@ -8,6 +8,13 @@ warn, BT off), `sdkconfig.defaults.16mb` for 16 MB boards (`board_build.cmake_ex
 `CMakeLists.txt`, `src/CMakeLists.txt`. `sdkconfig.<env>` is generated and git-ignored: delete
 it after changing the defaults.
 
+Arena layout: `[arena]` in `platformio.ini` lists the block sizes per layout (`name = A B`
+bytes), every env selects one with `custom_arena_layout`. `extraScript.py` turns it into
+`ARENA_LAYOUT_<NAME>`, `ARENA_A_SIZE` and `ARENA_B_SIZE` (`tools/pio_to_cmake.py --layout` for
+the RP2350 build). romconv plans every layout; a generated `*_arena_plan.h` or `*_bundle.h`
+without a block for the build's layout is an `#error`, stale sizes fail a `static_assert`:
+after editing a row, rerun romconv. Native tests build with `esp32_local`.
+
 | Subsystem | Implementation |
 | --- | --- |
 | entry | `app_main()` runs the frame loop on core 0 |

@@ -106,6 +106,9 @@ static void test_unmount(void) {
 #if __has_include("../../src/machines/1943/1943_bundle.h")
 #include "../test_asset_remote/lzma.c"
 #include "../../src/net/bundle_unpack.cpp"
+// the bundle header selects its BundleRef by Arena layout; the native env
+// builds with esp32_local, this test reads the esp32_remote bundle
+#define ARENA_LAYOUT_ESP32_REMOTE
 #include "../../src/machines/1943/1943_bundle.h"
 #include "../../src/machines/1943/1943_rom.h"
 #include "../../src/machines/1943/1943_sound.h"
