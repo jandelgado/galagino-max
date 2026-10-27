@@ -81,8 +81,8 @@ gng::gng()
     gng_bank(gng_bank_blob),
     gng_sound(gng_sound_blob),
     gng_sid(gng_sid_blob) {
-  // largest first, this order only: block B tiles + tune RAM, A sprites0
-  // + 1 + sound + tile map
+  // every planned asset unpacks here, into its reserved block (any order);
+  // only the tune RAM (ARENA_EXTRA) is first fit below the reservations
   tiles = gng_tiles.data();
   sprite_banks[0] = gng_sprites0.data();
   sprite_banks[1] = gng_sprites1.data();

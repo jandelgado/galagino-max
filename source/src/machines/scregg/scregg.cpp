@@ -35,6 +35,10 @@ void scregg::start() {
   m_cpu.fetch = nullptr;
   m_cpu.user = this;
   rom_ptr = scregg_rom.data();
+  // tiles unpack here, before the emulation task spawns (D7): the first
+  // draw used to unpack them on the video core mid-frame
+  scregg_chartiles.data();
+  scregg_spritetiles.data();
   m6502_reset(&m_cpu);
 }
 
