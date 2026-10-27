@@ -43,11 +43,11 @@ static const uint32_t SAMPLE_NIBBLES = 400;  // < 2 * (SAMPLE_BYTES - 2)
 
 // recorded 2026-10-15 from the pre-refactoring Audio; the four SN hashes
 // re-recorded when the SN script moved to port bytes (Sn76489::write)
-static const uint32_t GOLDEN_AY_FROGGER = 0x64680905;   // 2026-10-24: MAME envelope
-static const uint32_t GOLDEN_AY_BOMBJACK = 0x00cde6c1;  // 2026-10-24: MAME envelope
-static const uint32_t GOLDEN_AY_GYRUSS = 0xcf2728ab;    // 2026-10-24: MAME envelope
+static const uint32_t GOLDEN_AY_FROGGER = 0x25013ded;   // 2026-10-25: noise fix, low-pass (#170)
+static const uint32_t GOLDEN_AY_BOMBJACK = 0xaf83f23d;  // 2026-10-25: noise fix, low-pass (#170)
+static const uint32_t GOLDEN_AY_GYRUSS = 0xbe25ca38;    // 2026-10-25: noise fix, low-pass (#170)
 static const uint32_t GOLDEN_AY_MOTORACE = 0xc38ffd2d;  // 2026-10-24: MAME envelope
-static const uint32_t GOLDEN_AY_FM_1943 = 0x5fe3d897;   // 2026-10-24: MAME envelope
+static const uint32_t GOLDEN_AY_FM_1943 = 0xc0b885a1;   // 2026-10-25: noise fix, low-pass (#170)
 static const uint32_t GOLDEN_SN_MRDO = 0x9b140038;    // 2026-10-16: exact 4 MHz
 static const uint32_t GOLDEN_SN_TP84 = 0xc7c6d55f;    // 2026-10-16: exact 2 MHz
 static const uint32_t GOLDEN_SN_REGULUS = 0x422c64d8; // 2026-10-16: exact 2 + 4 MHz
