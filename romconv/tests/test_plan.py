@@ -1,5 +1,4 @@
 import random
-import shutil
 import time
 from pathlib import Path
 
@@ -224,11 +223,11 @@ def test_plan_assets_ignore_unplanned():
 
 
 def _plan_repo(tmp_path):
-    """tmp repo with the real platformio.ini and a machine header for game g."""
+    """tmp repo with a two-layout platformio.ini and a machine header for game g."""
     paths = Paths(tmp_path)
     ini = ini_path(paths)
     ini.parent.mkdir(parents=True)
-    shutil.copy(ini_path(default()), ini)
+    ini.write_text(f"[arena]\nesp32_local = {LOCAL[0]} {LOCAL[1]}\nesp32_remote = {REMOTE[0]} {REMOTE[1]}\n")
     machine = paths.machines / "g"
     machine.mkdir(parents=True)
     (machine / "g.h").write_text("class g {\n  static constexpr uint32_t ARENA_EXTRA[] = { 49152, 35040 };\n"
@@ -236,7 +235,7 @@ def _plan_repo(tmp_path):
     return paths
 
 
-# the same split in every layout of the real platformio.ini: g fits each
+# the same split in both layouts of the fixture ini: g fits each
 _G_BLOCK = """\
 #define g_cmap_PLAIN 1
 #define g_cmap_BLOCK ARENA_ANY
@@ -263,12 +262,6 @@ static_assert(Arena::BLOCK_A_SIZE == 118784 && Arena::BLOCK_B_SIZE == 110500, "A
 """ + _G_BLOCK + """\
 #elif defined(ARENA_LAYOUT_ESP32_REMOTE)
 static_assert(Arena::BLOCK_A_SIZE == 69000 && Arena::BLOCK_B_SIZE == 110500, "Arena layout changed: rerun romconv");
-""" + _G_BLOCK + """\
-#elif defined(ARENA_LAYOUT_ESP32S3_LOCAL)
-static_assert(Arena::BLOCK_A_SIZE == 118784 && Arena::BLOCK_B_SIZE == 110500, "Arena layout changed: rerun romconv");
-""" + _G_BLOCK + """\
-#elif defined(ARENA_LAYOUT_RP2350)
-static_assert(Arena::BLOCK_A_SIZE == 118784 && Arena::BLOCK_B_SIZE == 110500, "Arena layout changed: rerun romconv");
 """ + _G_BLOCK + """\
 #else
 #error "no Arena plan for this layout: add it to [arena] in platformio.ini and rerun romconv"

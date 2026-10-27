@@ -100,7 +100,6 @@ static void test_scratch_below_reservation(void) {
 static void test_block_sizes_from_layout(void) {
   TEST_ASSERT_EQUAL_UINT32(ARENA_A_SIZE, Arena::BLOCK_A_SIZE);
   TEST_ASSERT_EQUAL_UINT32(ARENA_B_SIZE, Arena::BLOCK_B_SIZE);
-  TEST_ASSERT_EQUAL_UINT32(118784, Arena::BLOCK_A_SIZE);
 }
 
 static void test_scratch_no_room(void) {
