@@ -7,12 +7,13 @@ from tools import pio_to_cmake as p
 
 CONFIG = json.dumps([
     ["platformio", [["default_envs", "x"]]],
+    ["arena", [["esp32_local", "118784 110500"], ["rp2350", "200000 0"]]],
     ["env:x", [["build_flags", [
         "-D HAL_ESP", "-D ARDUINO_RUNNING_CORE=0", "-D BUILD_ENV_NAME=$PIOENV",
         "-D CORE_DEBUG_LEVEL=0", "-D BOOT_SELFTEST", "-fopt-info", "-fverbose-asm",
         "-fdump-tree-switchconv", "-flto", "-D TFT_SPICLK=40000000",
         "-D ENABLE_PACMAN", "-D ENABLE_GALAGA", "-D ENABLE_DKONG",
-    ]]]],
+    ]], ["custom_arena_layout", "esp32_local"]]],
 ])
 
 
@@ -41,6 +42,21 @@ class ParseFlags(unittest.TestCase):
         flags = p._hal(p._parse_flags(CONFIG, "x"), "rp2350")
         self.assertIn("HAL_RP2350", flags)
         self.assertNotIn("HAL_ESP", flags)
+
+
+class LayoutDefines(unittest.TestCase):
+    # the same three defines extraScript.py emits for a PlatformIO build
+    def test_layout_defines_default(self):
+        self.assertEqual(p._layout_defines(CONFIG, "x", None),
+                         ["ARENA_LAYOUT_ESP32_LOCAL", "ARENA_A_SIZE=118784", "ARENA_B_SIZE=110500"])
+
+    def test_layout_override(self):
+        self.assertEqual(p._layout_defines(CONFIG, "x", "rp2350"),
+                         ["ARENA_LAYOUT_RP2350", "ARENA_A_SIZE=200000", "ARENA_B_SIZE=0"])
+
+    def test_unknown_layout(self):
+        with self.assertRaises(SystemExit):
+            p._layout_defines(CONFIG, "x", "nope")
 
 
 class Sources(unittest.TestCase):
