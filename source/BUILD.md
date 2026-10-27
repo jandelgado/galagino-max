@@ -13,7 +13,10 @@ bytes), every env selects one with `custom_arena_layout`. `extraScript.py` turns
 `ARENA_LAYOUT_<NAME>`, `ARENA_A_SIZE` and `ARENA_B_SIZE` (`tools/pio_to_cmake.py --layout` for
 the RP2350 build). romconv plans every layout; a generated `*_arena_plan.h` or `*_bundle.h`
 without a block for the build's layout is an `#error`, stale sizes fail a `static_assert`:
-after editing a row, rerun romconv. Native tests build with `esp32_local`.
+after editing a row, rerun romconv. Native tests build with `esp32_local`. A `_remote` layout
+in a local env (or the reverse) stops at the hook. `-D DEBUG_ARENA` (e.g. in
+`PLATFORMIO_BUILD_FLAGS`) prints `Asset: late unpack` when a COMPRESSED asset's first access
+comes after the emulation task spawned: machines take `data()` in the ctor or `start()`.
 
 | Subsystem | Implementation |
 | --- | --- |

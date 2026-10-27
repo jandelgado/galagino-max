@@ -145,16 +145,26 @@ romconv computes the split per layout:
   `<game>_arena_plan.h`: per layout the mode and Arena block of each asset,
   the `<name>_asset` type the machine declares its members with, and the
   bytes `Arena::reserve()` keeps for the planned assets.
-- The split with the fewest flash bytes wins (PLAIN raw bytes plus
-  COMPRESSED LZMA bytes); `emit_plain` and `emit_compressed` produce the
-  same planned asset. `ARENA_FLASH` / `ARENA_RAM` in the machine header pin
-  an asset, each entry with the reason in a comment.
+- `romconv/plan/solver.py` picks the split with the fewest flash bytes
+  (PLAIN raw bytes plus COMPRESSED LZMA bytes; ties: fewer COMPRESSED
+  bytes, then names, so the output is stable). `HighsSolver` (highspy MILP)
+  is the default, `ExhaustiveSolver` the oracle the tests compare it
+  with. The extras' first fit and the LZMA scratch gap one block must keep
+  (`SCRATCH_BYTES`) are part of the model. `emit_plain` and
+  `emit_compressed` produce the same planned asset; `ARENA_FLASH` /
+  `ARENA_RAM` in the machine header pin one, each entry with the reason in
+  a comment.
 - Changing a `[arena]` row, or a machine's `ARENA_EXTRA` /
   `ARENA_EXTRA_ANY_ORDER` (the machine asserts `<game>_arena_extras_key`),
   makes the build fail until the game is converted again.
 - `emit_*(..., plan=False)` keeps an asset out of the plan (e.g. ADPCM
   samples, whose count is not a byte count, or assets outside the game's
-  directory).
+  directory). A COMPRESSED one of those unpacks `ARENA_ANY` at run time:
+  its size belongs in `ARENA_EXTRA`.
+- A planned game calls `data()` of every COMPRESSED asset in its
+  constructor or `start()`, before the emulation task spawns; a firmware
+  built with `-D DEBUG_ARENA` prints `Asset: late unpack` for any first
+  access after that point.
 
 ## Remote bundles (mode 3, `ASSETS_REMOTE`)
 
