@@ -39,7 +39,7 @@ def _noop(ctx):
 def test_layouts_from_platformio_ini():
     layouts = read_layouts(ini_path(default()))
     assert list(layouts) == ["esp32_local", "esp32_remote", "esp32s3_local", "rp2350"]
-    assert layouts["esp32_local"] == LOCAL and layouts["esp32_remote"] == REMOTE
+    assert layouts["esp32_local"] == (126976, 110500) and layouts["esp32_remote"] == REMOTE
 
 
 @pytest.mark.parametrize("row", ["x = 1 2 3", "x = -1 2", "x = 0 2", "x = a b", "bad-name = 1 2"])
