@@ -42,6 +42,13 @@ def test_bad_layout_row_rejected(tmp_path, row):
     assert row.split(" = ")[0] in str(err.value)
 
 
+def test_inline_comment_allowed(tmp_path):
+    # PlatformIO strips "; ..." and "# ..." after a value; romconv must read the same row
+    p = tmp_path / "platformio.ini"
+    p.write_text("[arena]\nrp2350 = 118784 0 ; one pool\nx = 1 2 # two\n")
+    assert read_layouts(p) == {"rp2350": (118784, 0), "x": (1, 2)}
+
+
 def test_no_arena_section_rejected(tmp_path):
     p = tmp_path / "platformio.ini"
     p.write_text("[env]\nplatform = native\n")
@@ -55,8 +62,9 @@ def test_remote_layouts_and_define_name():
 
 
 def test_b_zero_layout_never_assigns_b():
-    m, r = solve([("a", 1000, 1), ("b", 2000, 1)], [], (118784, 0))
-    assert set(m.values()) <= {"A", "PLAIN"} and r[1] == 0
+    # one pool: A holds one asset, the other stays PLAIN, nothing lands in B
+    m, r = solve([("a", 2000, 1), ("b", 2000, 1)], [], (3000, 0))
+    assert sorted(m.values()) == ["A", "PLAIN"] and r == (2000, 0), (m, r)
 
 
 # test_arena_plan

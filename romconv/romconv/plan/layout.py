@@ -19,7 +19,8 @@ def ini_path(paths: Paths) -> Path:
 
 def read_layouts(path: Path) -> dict[str, tuple[int, int]]:
     """{name: (a, b)} in ini order; ValueError for a missing section or a bad row."""
-    config = configparser.ConfigParser(interpolation=None)
+    # same inline comment rule as PlatformIO's ProjectConfig
+    config = configparser.ConfigParser(interpolation=None, inline_comment_prefixes=("#", ";"))
     config.read(path, encoding="utf-8")
     if not config.has_section(_SECTION) or not config.items(_SECTION):
         raise ValueError(f"{path}: no [{_SECTION}] section")
