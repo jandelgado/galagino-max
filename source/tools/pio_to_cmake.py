@@ -11,12 +11,14 @@ Source of truth is `pio project config --json-output`.
 """
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 # Arduino / toolchain specific, no meaning outside the Arduino build
 _DROP = {"ARDUINO_RUNNING_CORE", "CORE_DEBUG_LEVEL"}
+_LAYOUT_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 _HAL_DEFINES = {"esp": "HAL_ESP", "rp2350": "HAL_RP2350", "host": "HAL_HOST"}
 _SRC_SUFFIXES = {".c", ".cpp"}
 
@@ -48,14 +50,29 @@ def _parse_flags(config_json, env):
     return flags
 
 
+def _row_sizes(name, row):
+    """(A, B) of an [arena] row. Same rules as extraScript.py (kept separate:
+    that hook runs under SCons with Import("env"), not importable here)."""
+    tokens = row.split()
+    if not _LAYOUT_NAME.match(name) or len(tokens) != 2 or not all(t.isdigit() for t in tokens):
+        sys.exit("pio_to_cmake: [arena] %s = %s: expected 'A B' bytes, A > 0, B >= 0" % (name, row))
+    a, b = (int(t) for t in tokens)
+    if a <= 0:
+        sys.exit("pio_to_cmake: [arena] %s = %s: A must be > 0" % (name, row))
+    return a, b
+
+
 def _layout_defines(config_json, env, name):
     """ARENA_LAYOUT_<NAME>, ARENA_A_SIZE, ARENA_B_SIZE of one [arena] row (extraScript.py)."""
     arena = _sections(config_json).get("arena", {})
-    name = name or _env_section(config_json, env).get("custom_arena_layout")
+    if not name:
+        name = _env_section(config_json, env).get("custom_arena_layout")
+        if not name:
+            sys.exit("pio_to_cmake: env '%s' has no custom_arena_layout" % env)
     if name not in arena:
         sys.exit("pio_to_cmake: layout '%s' not in [arena]: %s" % (name, ", ".join(arena)))
-    a, b = arena[name].split()
-    return ["ARENA_LAYOUT_" + name.upper(), "ARENA_A_SIZE=" + a, "ARENA_B_SIZE=" + b]
+    a, b = _row_sizes(name, arena[name])
+    return ["ARENA_LAYOUT_" + name.upper(), "ARENA_A_SIZE=%d" % a, "ARENA_B_SIZE=%d" % b]
 
 
 def _only(flags, games):

@@ -7,7 +7,9 @@ from tools import pio_to_cmake as p
 
 CONFIG = json.dumps([
     ["platformio", [["default_envs", "x"]]],
-    ["arena", [["esp32_local", "118784 110500"], ["rp2350", "200000 0"]]],
+    ["arena", [["esp32_local", "118784 110500"], ["rp2350", "200000 0"], ["bad3", "1 2 3"], ["zero", "0 2"],
+               ["lead", "0118784 110500"]]],
+    ["env:nolayout", [["build_flags", ["-D HAL_ESP"]]]],
     ["env:x", [["build_flags", [
         "-D HAL_ESP", "-D ARDUINO_RUNNING_CORE=0", "-D BUILD_ENV_NAME=$PIOENV",
         "-D CORE_DEBUG_LEVEL=0", "-D BOOT_SELFTEST", "-fopt-info", "-fverbose-asm",
@@ -57,6 +59,21 @@ class LayoutDefines(unittest.TestCase):
     def test_unknown_layout(self):
         with self.assertRaises(SystemExit):
             p._layout_defines(CONFIG, "x", "nope")
+
+    def test_bad_rows_rejected(self):
+        # same rules as extraScript.py: two decimal tokens, A > 0
+        for name in ("bad3", "zero"):
+            with self.assertRaises(SystemExit):
+                p._layout_defines(CONFIG, "x", name)
+
+    def test_leading_zero_normalized(self):
+        # "0118784" would be an octal C literal
+        self.assertIn("ARENA_A_SIZE=118784", p._layout_defines(CONFIG, "x", "lead"))
+
+    def test_env_without_layout(self):
+        with self.assertRaises(SystemExit) as cm:
+            p._layout_defines(CONFIG, "nolayout", None)
+        self.assertIn("has no custom_arena_layout", str(cm.exception))
 
 
 class Sources(unittest.TestCase):

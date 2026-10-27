@@ -21,6 +21,16 @@ def _arena_defines(env):
     if sizes is None or sizes[0] <= 0:
         sys.exit("extraScript: [arena] %s = %s: expected 'A B' bytes, A > 0, B >= 0" % (name, row))
 
+    # a _remote layout plans for the smaller boot heap of an ASSETS_REMOTE
+    # build and gets bundles; any other pairing builds something that
+    # cannot run or cannot download
+    flags = env.GetProjectOption("build_flags", [])
+    text = flags if isinstance(flags, str) else " ".join(flags)
+    remote = "ASSETS_REMOTE" in text
+    if name.endswith("_remote") != remote:
+        sys.exit("extraScript: layout '%s' is for %s builds but ASSETS_REMOTE is %s"
+                 % (name, "remote" if name.endswith("_remote") else "local", "set" if remote else "not set"))
+
     return ["ARENA_LAYOUT_" + name.upper(), ("ARENA_A_SIZE", sizes[0]), ("ARENA_B_SIZE", sizes[1])]
 
 
