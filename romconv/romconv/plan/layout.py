@@ -42,6 +42,17 @@ def remote_layouts(layouts: dict[str, tuple[int, int]]) -> list[str]:
     return [name for name in layouts if name.endswith(_REMOTE_SUFFIX)]
 
 
+def min_blocks(layouts: dict[str, tuple[int, int]]) -> tuple[int, int]:
+    """Smallest A and smallest B over every row: an unplanned game's hand split must fit each build."""
+    return min(a for a, _ in layouts.values()), min(b for _, b in layouts.values())
+
+
+def min_capacity(layouts: dict[str, tuple[int, int]], remote: bool) -> int:
+    """Smallest A + B over the rows a game builds for: every row for a catalog
+    (remote) game, the non-_remote rows otherwise."""
+    return min(a + b for name, (a, b) in layouts.items() if remote or not name.endswith(_REMOTE_SUFFIX))
+
+
 def define_name(layout: str) -> str:
     """The build define that selects this layout's block in generated headers."""
     return "ARENA_LAYOUT_" + layout.upper()

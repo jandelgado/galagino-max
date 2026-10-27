@@ -11,7 +11,7 @@ from romconv.core.manifest import Asset, Manifest
 from romconv.core.paths import Paths, default
 from romconv.plan.arena import (SCRATCH_BYTES, extras_key, parse_machine_header, plan_assets, plan_header, solve,
                                 write_arena_plan)
-from romconv.plan.layout import define_name, ini_path, read_layouts, remote_layouts
+from romconv.plan.layout import define_name, ini_path, min_blocks, min_capacity, read_layouts, remote_layouts
 from romconv.plan.solver import ExhaustiveSolver, HighsSolver
 
 W = [49152, 35040, 35040]  # Williams RAM + 2 scanout buffers
@@ -64,6 +64,14 @@ def test_no_arena_section_rejected(tmp_path):
     p.write_text("[env]\nplatform = native\n")
     with pytest.raises(ValueError):
         read_layouts(p)
+
+
+def test_min_blocks_and_capacity():
+    # hand checks of unplanned games: the smallest block / pool among the rows the game builds for
+    layouts = {"esp32_local": (118784, 110500), "esp32_remote": (69000, 110500), "rp2350": (100000, 90000)}
+    assert min_blocks(layouts) == (69000, 90000)
+    assert min_capacity(layouts, remote=True) == 179500
+    assert min_capacity(layouts, remote=False) == 190000
 
 
 def test_remote_layouts_and_define_name():

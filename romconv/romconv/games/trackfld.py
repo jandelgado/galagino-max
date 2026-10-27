@@ -7,7 +7,6 @@ from romconv.gfx.color import rgb565_swapped
 from romconv.gfx.gfxutil import mame_decode, pack_nibbles, pack_sprite_rows, step
 from romconv.gfx.resnet import combine, resistor_weights
 from romconv.gfx.rom import rom_bytes, rom_bytes_all
-from romconv.plan import layout
 from romconv.plan.budget import log_sizes
 
 
@@ -82,7 +81,6 @@ def _write_cmap(ctx, pal, tile_clut, spr_clut):
 
 
 def _convert(ctx: Context) -> None:
-    arena_capacity = sum(layout.read_layouts(layout.ini_path(ctx.paths))["esp32_local"])
     main_rom = rom_bytes_all(ctx, _MAIN)
     sound_rom = rom_bytes(ctx, _SOUND)
     vlm = rom_bytes(ctx, _VLM)
@@ -103,7 +101,7 @@ def _convert(ctx: Context) -> None:
 
     ctx.log.info(f"  tiles {tile_count}, sprites {sprite_count}")
     log_sizes(ctx, {"main": len(main_rom), "sound": len(sound_rom), "vlm": len(vlm),
-                    "tilemap": len(tiles) * 4, "spritemap": len(sprites) * 4}, arena_capacity)
+                    "tilemap": len(tiles) * 4, "spritemap": len(sprites) * 4})
 
 
 JOB = Job(name="trackfld", convert=_convert, machine="trackfld", zips=("trackfld.zip",))

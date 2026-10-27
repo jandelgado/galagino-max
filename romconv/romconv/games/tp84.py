@@ -12,12 +12,10 @@ from romconv.emit.write import write_asset
 from romconv.gfx.color import rgb565_swapped
 from romconv.gfx.gfxutil import mame_decode, pack_pairs, pack_pens, rot_galagino
 from romconv.gfx.resnet import combine, resistor_weights
-from romconv.plan import layout
 from romconv.plan.budget import log_sizes
 
 
 def _convert(ctx: Context) -> None:
-    arena_capacity = sum(layout.read_layouts(layout.ini_path(ctx.paths))["esp32_local"])
 
     def rom(name, sha1):
         return ctx.rom(name, sha1)
@@ -89,7 +87,7 @@ def _convert(ctx: Context) -> None:
 
     sizes = {"main": len(main), "sub": len(sub), "audio": len(audio),
              "tiles": 1024 * 16, "sprites": 256 * 128, "rgb": 512, "lut": 512}
-    log_sizes(ctx, sizes, arena_capacity)
+    log_sizes(ctx, sizes)
 
 
 JOB = Job(name="tp84", convert=_convert, machine="tp84", zips=("tp84.zip",))

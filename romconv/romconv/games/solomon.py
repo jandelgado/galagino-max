@@ -1,11 +1,13 @@
 """Convert the MAME solomon ROM set into galagino headers (MAME tecmo/solomon.cpp)."""
 from romconv.core.context import Context
+from romconv.core.errors import ConversionError
 from romconv.core.job import Job
 from romconv.emit.asset import emit_plain
 from romconv.emit.write import write_array, write_asset, write_bytes
 from romconv.gfx.gfxutil import mame_decode, pack_nibbles, step
 from romconv.gfx.rom import rom_bytes, rom_bytes_all
 from romconv.plan import layout
+from romconv.plan.arena import solve
 from romconv.plan.budget import log_sizes
 
 
@@ -61,7 +63,6 @@ def _sprites_body(sprites):
 
 
 def _convert(ctx: Context) -> None:
-    arena_block_a, arena_block_b = layout.read_layouts(layout.ini_path(ctx.paths))["esp32_local"]
     rom = _main_image(ctx)
     audio = rom_bytes(ctx, _AUDIO)
     fg = _decode_tiles(rom_bytes_all(ctx, _FG))
@@ -84,10 +85,15 @@ def _convert(ctx: Context) -> None:
     write_array(ctx, "solomon_bg_tiles.h", "solomon_bg_tiles", "uint32_t", "[8]", 2048, bg,
                 "2048 bg chars 8x8 4 bpp, pixel 0 in bits 31-28", __file__)
 
-    # unpack order in the ctor: bg -> A, fg -> B, audio -> A
+    # the ctor unpacks bg, fg, audio in that order, ARENA_ANY first fit: the
+    # three must land in every layout's blocks with the LZMA scratch gap left
     sizes = {"bg": len(bg) * 4, "fg": len(fg) * 4, "audio": len(audio)}
-    log_sizes(ctx, sizes, arena_block_a + arena_block_b)
-    assert sizes["bg"] + sizes["audio"] <= arena_block_a and sizes["fg"] <= arena_block_b
+    log_sizes(ctx, sizes)
+    for name, blocks in layout.read_layouts(layout.ini_path(ctx.paths)).items():
+        try:
+            solve([], list(sizes.values()), blocks)
+        except ValueError as e:
+            raise ConversionError(f"solomon {name}: tiles and audio {e}") from e
     ctx.log.info(f"  flash PLAIN: main {len(rom)}, sprites {len(sprites) * 128}")
 
 

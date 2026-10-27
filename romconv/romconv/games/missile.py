@@ -3,6 +3,7 @@ from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.write import write_bytes
 from romconv.gfx.rom import rom_bytes, rom_bytes_all
+from romconv.plan.budget import check_budget
 
 # (names, sha1), MAME ROM_START( missile ), CPU 0x5000-0x7fff
 _MAIN = (
@@ -22,7 +23,8 @@ def _convert(ctx: Context) -> None:
     data = rom + rom_bytes(ctx, _WPROM)
     write_bytes(ctx, "missile_rom.h", "missile_rom", data,
                 "M6502 ROM: 0x0000 = CPU 0x5000-0x7fff, 0x3000 = write PROM 035826-01 (32 bytes).", __file__)
-    ctx.log.info(f"  Arena budget: {len(data)} / 182000 bytes (rom {len(rom)}, prom 32); VRAM in memory[]")
+    ctx.log.info(f"  rom {len(rom)}, prom 32; VRAM in memory[]")
+    check_budget(ctx, len(data))
 
 
 JOB = Job(name="missile", convert=_convert, machine="missile", zips=("missile.zip",))
