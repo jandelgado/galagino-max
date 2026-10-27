@@ -3,9 +3,10 @@ import time
 
 import pytest
 
-from romconv.plan.solver import ExhaustiveSolver, Infeasible, Item, Problem, Solution, Solver, r4, sort_key
+from romconv.plan.solver import (ExhaustiveSolver, HighsSolver, Infeasible, Item, Problem, Solution, Solver, r4,
+                                 sort_key)
 
-SOLVERS = [ExhaustiveSolver()]
+SOLVERS = [ExhaustiveSolver(), HighsSolver()]
 
 
 def _p(items, layout=(118784, 110500), **kw):
@@ -83,6 +84,46 @@ def test_reserve_rounded_to_4(solver):
     assert s.reserve == (8, 0)
     with pytest.raises(Infeasible):
         solver.solve(_p([("x", 5, 1)], layout=(7, 0), ram=frozenset({"x"})))
+
+
+def _random_problem(rnd, n):
+    items, flash, ram = [], set(), set()
+    for i in range(n):
+        raw = rnd.choice([1024, 4096, 8192, 16384, 32768, 65536]) + rnd.randrange(4096)
+        packed = int(raw * rnd.uniform(0.3, 1.05))
+        items.append(Item(f"a{i:02d}", raw, packed, 1))
+        r = rnd.random()
+        if r < 0.1:
+            flash.add(items[-1].name)
+        elif r < 0.2 and raw <= 60000:
+            ram.add(items[-1].name)
+    layout = (rnd.randrange(60000, 118785, 4), rnd.choice([0, rnd.randrange(30000, 110501, 4)]))
+    return Problem(tuple(items), layout, frozenset(flash), frozenset(ram))
+
+
+def test_highs_matches_exhaustive():
+    # 200 random instances, same key (and so the same PLAIN set)
+    rnd = random.Random(1)
+    for _ in range(200):
+        p = _random_problem(rnd, rnd.randint(1, 12))
+        try:
+            ex = ExhaustiveSolver().solve(p)
+        except Infeasible:
+            with pytest.raises(Infeasible):
+                HighsSolver().solve(p)
+            continue
+        hs = HighsSolver().solve(p)
+        assert sort_key(p, hs.modes) == sort_key(p, ex.modes), p
+
+
+def test_67_items_under_one_second():
+    # 27 assets (marble) plus 40 chunks of a big ROM (step 3)
+    rnd = random.Random(2)
+    items = [Item(f"a{i:02d}", rnd.randrange(2048, 65536), rnd.randrange(1024, 40000), 1) for i in range(27)]
+    items += [Item(f"chunk{i:02d}", 65536, rnd.randrange(40000, 60000), 1) for i in range(40)]
+    t0 = time.perf_counter()
+    HighsSolver().solve(Problem(tuple(items), (118784, 110500)))
+    assert time.perf_counter() - t0 < 1.0
 
 
 def test_sort_key():

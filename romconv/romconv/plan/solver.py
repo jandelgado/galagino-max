@@ -18,6 +18,8 @@
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
+import highspy
+
 
 def r4(n: int) -> int:
     """Round up to 4: Arena::alloc granularity of the reservations."""
@@ -113,3 +115,73 @@ class ExhaustiveSolver:
         if best[1] is None:
             raise Infeasible(f"does not fit layout {size_a}+{size_b}")
         return Solution(best[1], _reserve(problem, best[1]))
+
+
+# PLAIN flags beyond this name rank share one weight: 2^-53 is the last
+# exact step below 1.0 in a double (ties that deep are left to the solver)
+_NAME_RANK_MAX = 52
+
+
+class HighsSolver:
+    """MILP via highspy (HiGHS): binaries a_i, b_i per item, one solve per
+    sort_key() term, each fixing the previous optimum. Exact: integrality
+    gap 0, integer objectives in the byte passes."""
+
+    def solve(self, problem: Problem) -> Solution:
+        if not problem.items:
+            return Solution({}, (0, 0))
+        size_a, size_b = problem.layout
+        items = problem.items
+        h = highspy.Highs()
+        h.silent()
+        for option, value in (("mip_rel_gap", 0.0), ("mip_abs_gap", 0.0), ("threads", 1), ("random_seed", 0)):
+            h.setOptionValue(option, value)
+
+        a = [h.addBinary() for _ in items]
+        b = [h.addBinary() for _ in items]
+        for i, item in enumerate(items):
+            if item.name in problem.flash:
+                h.changeColBounds(a[i].index, 0, 0)
+                h.changeColBounds(b[i].index, 0, 0)
+            elif item.name in problem.ram:
+                h.addConstr(a[i] + b[i] == 1)
+            else:
+                h.addConstr(a[i] + b[i] <= 1)
+            if size_b == 0:
+                h.changeColBounds(b[i].index, 0, 0)
+        h.addConstr(sum(r4(it.raw) * a[i] for i, it in enumerate(items)) <= size_a)
+        if size_b:
+            h.addConstr(sum(r4(it.raw) * b[i] for i, it in enumerate(items)) <= size_b)
+        for in_a, in_b in problem.nogoods:
+            # at least one item placed differently than in the rejected assignment
+            h.addConstr(sum((1 - a[i]) if it.name in in_a else a[i] for i, it in enumerate(items))
+                        + sum((1 - b[i]) if it.name in in_b else b[i] for i, it in enumerate(items)) >= 1)
+
+        def run(objective):
+            h.minimize(objective)
+            status = h.getModelStatus()
+            if status == highspy.HighsModelStatus.kInfeasible:
+                raise Infeasible(f"does not fit layout {size_a}+{size_b}")
+            if status != highspy.HighsModelStatus.kOptimal:
+                raise RuntimeError(f"HiGHS: {status}")
+            return h.getObjectiveValue()
+
+        flash = sum(it.raw for it in items) - sum((it.raw - it.packed) * (a[i] + b[i]) for i, it in enumerate(items))
+        h.addConstr(flash == round(run(flash)))
+        compressed = sum(it.raw * (a[i] + b[i]) for i, it in enumerate(items))
+        h.addConstr(compressed == round(run(compressed)))
+
+        rank = {name: r for r, name in enumerate(sorted(it.name for it in items))}
+        run(sum(2.0 ** -(min(rank[it.name], _NAME_RANK_MAX) + 1) * (1 - a[i] - b[i]) for i, it in enumerate(items)))
+        for i in range(len(items)):
+            if round(h.val(a[i]) + h.val(b[i])):
+                h.addConstr(a[i] + b[i] == 1)
+            else:
+                h.changeColBounds(a[i].index, 0, 0)
+                h.changeColBounds(b[i].index, 0, 0)
+        run(sum(r4(it.raw) * b[i] for i, it in enumerate(items)))
+
+        modes = {}
+        for i, item in enumerate(items):
+            modes[item.name] = "A" if round(h.val(a[i])) else "B" if round(h.val(b[i])) else "PLAIN"
+        return Solution(modes, _reserve(problem, modes))
