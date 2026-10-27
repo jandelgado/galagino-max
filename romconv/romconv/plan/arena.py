@@ -31,8 +31,9 @@ from romconv.plan.solver import HighsSolver, Infeasible, Item, Problem, Solver, 
 # heap that WiFi leaves small
 SCRATCH_BYTES = 5232
 
-# any_order: extras checked in every order up to this count
-_ANY_ORDER_MAX = 8
+# any_order: the MILP encodes every distinct order (4 extras: <= 24 orders,
+# ms; 5 distinct: 120 orders, ~2 s; 6: minutes), the Williams games have 4
+_ANY_ORDER_MAX = 4
 
 _DEFAULT_SOLVER = HighsSolver()
 

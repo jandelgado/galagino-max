@@ -204,6 +204,12 @@ def test_extras_order(solver):
         solve([], [100, 60], (100, 60 + SCRATCH_BYTES), any_order=True, solver=solver)
 
 
+def test_any_order_capped(solver):
+    # every order is encoded: five distinct extras are 120 orders, past the budget
+    with pytest.raises(ValueError, match="ARENA_EXTRA_ANY_ORDER"):
+        solve([], [8, 16, 24, 32, 40], (1000, 1000), any_order=True, solver=solver)
+
+
 def test_16_assets_solve_in_reasonable_time(solver):
     rnd = random.Random(1)
     assets = [_a(f"a{i}", rnd.choice([4096, 8192, 16384, 32768, 65536]) + rnd.randrange(0, 4096))

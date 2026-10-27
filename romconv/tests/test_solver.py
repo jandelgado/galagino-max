@@ -122,7 +122,7 @@ def _random_problem(rnd, n):
             flash.add(items[-1].name)
         elif r < 0.2 and raw <= 60000:
             ram.add(items[-1].name)
-    layout = (rnd.randrange(60000, 118785, 4), rnd.choice([0, rnd.randrange(30000, 110501, 4)]))
+    layout = (rnd.randrange(60000, 118785), rnd.choice([0, rnd.randrange(30000, 110501)]))  # not 4-aligned
     extras = tuple(rnd.randrange(4, 50000, 4) for _ in range(rnd.randint(0, 3)))
     return Problem(tuple(items), layout, frozenset(flash), frozenset(ram), extras, rnd.random() < 0.5, 5232)
 
@@ -157,3 +157,21 @@ def test_sort_key():
     assert sort_key(p, {"a": "A", "b": "PLAIN"}) == (140, 100, (0, 1), 0)
     assert sort_key(p, {"a": "B", "b": "PLAIN"}) == (140, 100, (0, 1), 100)
     assert r4(5) == 8 and r4(8) == 8
+
+
+@pytest.mark.parametrize("solver", SOLVERS)
+def test_unaligned_layout_matches_first_fit(solver):
+    # A not a multiple of 4: the extra (100) does not fit A = 99 and lands in B
+    s = solver.solve(_p([("f", 100, 10)], layout=(99, 200), extras=(100,), flash=frozenset({"f"})))
+    assert s.modes == {"f": "PLAIN"} and s.reserve == (0, 0)
+    s = solver.solve(_p([("x", 96, 10)], layout=(98, 200), extras=(100,)))
+    assert s.modes == {"x": "A"}
+
+
+def test_name_tie_break_beyond_rank_28():
+    # 30 equal items, 28 pinned to flash, room for one of a28/a29: name order says a28
+    items = tuple(Item(f"a{i:02d}", 100, 50, 1) for i in range(30))
+    p = Problem(items, (100, 0), flash=frozenset(i.name for i in items[:28]))
+    hs, ex = HighsSolver().solve(p), ExhaustiveSolver().solve(p)
+    assert hs.modes["a28"] == "A" and hs.modes["a29"] == "PLAIN"
+    assert sort_key(p, hs.modes) == sort_key(p, ex.modes)

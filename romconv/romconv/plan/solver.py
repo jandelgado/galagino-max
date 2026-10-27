@@ -154,9 +154,10 @@ class ExhaustiveSolver:
         return Solution(best[1], _reserve(problem, best[1]))
 
 
-# PLAIN flags beyond this name rank share one weight: 2^-53 is the last
-# exact step below 1.0 in a double (ties that deep are left to the solver)
-_NAME_RANK_MAX = 52
+# Name tie-break in groups: integer weights 2^(G-1-j) over G items keep every
+# objective delta >= 1, which HiGHS resolves (fractional weights below ~1e-8
+# were lost past rank 27); each group is fixed before the next
+_NAME_GROUP = 20
 
 
 class HighsSolver:
@@ -209,14 +210,16 @@ class HighsSolver:
         compressed = sum(it.raw * (a[i] + b[i]) for i, it in enumerate(items))
         h.addConstr(compressed == round(run(compressed)))
 
-        rank = {name: r for r, name in enumerate(sorted(it.name for it in items))}
-        run(sum(2.0 ** -(min(rank[it.name], _NAME_RANK_MAX) + 1) * (1 - a[i] - b[i]) for i, it in enumerate(items)))
-        for i in range(len(items)):
-            if round(h.val(a[i]) + h.val(b[i])):
-                h.addConstr(a[i] + b[i] == 1)
-            else:
-                h.changeColBounds(a[i].index, 0, 0)
-                h.changeColBounds(b[i].index, 0, 0)
+        by_name = sorted(range(len(items)), key=lambda i: items[i].name)
+        for start in range(0, len(items), _NAME_GROUP):
+            group = by_name[start:start + _NAME_GROUP]
+            run(sum(2 ** (_NAME_GROUP - 1 - j) * (1 - a[i] - b[i]) for j, i in enumerate(group)))
+            for i in group:
+                if round(h.val(a[i]) + h.val(b[i])):
+                    h.addConstr(a[i] + b[i] == 1)
+                else:
+                    h.changeColBounds(a[i].index, 0, 0)
+                    h.changeColBounds(b[i].index, 0, 0)
         run(sum(r4(it.raw) * b[i] for i, it in enumerate(items)))
 
         modes = {}
@@ -234,9 +237,9 @@ class HighsSolver:
             x = [h.addBinary() for _ in order]
             used_a = 0
             for k, e in enumerate(order):
-                room = free_a - used_a - e  # >= 0: fits in A
+                room = free_a - used_a - e  # >= 0: fits in A (integers: < 0 means <= -1)
                 h.addConstr(room >= -big * (1 - x[k]))
-                h.addConstr(room <= -4 + big * x[k])
+                h.addConstr(room <= -1 + big * x[k])
                 used_a = used_a + e * x[k]
             used_b = sum(e * (1 - x[k]) for k, e in enumerate(order))
             h.addConstr(free_b - used_b >= 0)
