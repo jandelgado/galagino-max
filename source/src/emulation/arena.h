@@ -56,6 +56,10 @@ public:
     // unaligned 16/32 bit access costs cycles in render loops.
     // ARENA_ANY: first fit below the reservations. ARENA_A/B: inside that
     // block's reservation, aborts if it does not fit.
+    // Every ARENA_ANY allocation of a planned game must be listed in its
+    // ARENA_EXTRA, also the unplanned COMPRESSED assets (emit_*(...,
+    // plan=False): bublbobl fx blobs, williams_rgb), which unpack ARENA_ANY
+    // at run time; romconv plans the reservations around that list.
     static uint8_t *alloc(uint32_t bytes, uint32_t align = 1, ArenaBlock block = ARENA_ANY);
 
     // count elements of T, aligned for T

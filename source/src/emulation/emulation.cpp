@@ -13,6 +13,7 @@ extern Input input;
 static hal::TaskHandle emulationTaskHandle;
 static hal::Signal frameSignal;  // video core -> emulation core: next frame
 volatile static char doDeleteEmulationTask;
+volatile static bool taskRunning;
 
 #if defined(DEBUG_TIMING) || defined(DEBUG_TIMING_FPS_HUD)
 #define EMULATION_MEASURE_FPS
@@ -36,13 +37,14 @@ void emulation_start() {
   currentMachine->start();
   frameSignal.clear();  // a frame signalled for the previous machine is stale
   emulationTaskHandle = hal::taskSpawn(emulation_task, NULL, "emulation task", 4096, 2, hal::EMULATION_CORE);
+  taskRunning = true;
   hal::watchdogWatch(emulationTaskHandle, EMULATION_WDT_TIMEOUT_S);
 }
 
 void emulation_stop() {
   if (!emulationTaskHandle)
     return;
-  
+
   input.disable(); // disable input read from nunchuck
   doDeleteEmulationTask = 1;
   while (doDeleteEmulationTask) {
@@ -50,6 +52,7 @@ void emulation_stop() {
     hal::sleepMs(1);
   }
 
+  taskRunning = false;
   emulationTaskHandle = NULL;
   currentMachine->reset();  // clear sound output
 
@@ -61,6 +64,10 @@ void emulation_notifyGive() {
     return;
 
   frameSignal.give();
+}
+
+bool emulation_taskRunning() {
+  return taskRunning;
 }
 
 void emulation_videoRendered(void) {

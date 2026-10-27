@@ -20,6 +20,10 @@ void emulation_stop(void);
 void emulation_videoRendered(void);
 void emulation_notifyGive(void);
 void emulation_task(void *p);
+// true while the emulation task exists: from the spawn in emulation_start()
+// until emulation_stop() saw it delete itself. Asset unpacks after that
+// point race the other core (DEBUG_ARENA warns, asset.h).
+bool emulation_taskRunning(void);
 
 #ifdef __cplusplus
 extern "C" void OutZ80(unsigned short Port, unsigned char Value);

@@ -11,6 +11,9 @@
 #include "../catalog.h"     // BUILTIN_<DIR> of the generated asset headers
 #include "../net/bundle.h"
 #endif
+#ifdef DEBUG_ARENA
+#include "emulation.h"      // emulation_taskRunning(): late unpack warning
+#endif
 
 enum AssetMode { PLAIN, COMPRESSED };
 
@@ -150,6 +153,14 @@ public:
 
 private:
     void unpack() const {
+#ifdef DEBUG_ARENA
+      // a first data() on the emulation core stalls a frame and can race the
+      // other core's unpack: call data() in the machine's ctor or start()
+      if (emulation_taskRunning()) {
+        printf("Asset: late unpack of %u bytes after the emulation task started: call data() in the ctor or start()\n",
+               (unsigned)(count * sizeof(T)));
+      }
+#endif
       uint32_t t0 = hal::millis();
       T *buf = (T *)Arena::alloc(count * sizeof(T), alignof(T), block);
       // read now: the other core may allocate during decodeInto()
