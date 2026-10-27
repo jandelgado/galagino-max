@@ -82,7 +82,7 @@ def _write_cmap(ctx, pal, tile_clut, spr_clut):
 
 
 def _convert(ctx: Context) -> None:
-    arena_capacity = sum(layout.read_layouts(layout.header_path(ctx.paths))["local"])
+    arena_capacity = sum(layout.read_layouts(layout.ini_path(ctx.paths))["esp32_local"])
     main_rom = rom_bytes_all(ctx, _MAIN)
     sound_rom = rom_bytes(ctx, _SOUND)
     vlm = rom_bytes(ctx, _VLM)

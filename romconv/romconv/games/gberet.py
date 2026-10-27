@@ -74,7 +74,7 @@ def convert_set(ctx: Context, prefix: str, title: str, files: dict, rom_comment:
     sizes = {"rom": len(rom), "tilemap": len(tiles) * 4, "spritemap": len(sprites) * 4}
     log_sizes(ctx, sizes)
     if check_arena:
-        arena_block = layout.read_layouts(layout.header_path(ctx.paths))["local"][0]
+        arena_block = layout.read_layouts(layout.ini_path(ctx.paths))["esp32_local"][0]
         assert sizes["rom"] + sizes["tilemap"] <= arena_block and sizes["spritemap"] <= arena_block
 
 

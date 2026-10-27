@@ -17,6 +17,8 @@ _tmp = tempfile.TemporaryDirectory()
 _SRC = Path(_tmp.name)
 _CHECK = _SRC / "hal" / "config_check.h"
 _CONFIG = _SRC / "config.h"
+# every build gets these from extraScript.py (custom_arena_layout)
+_ARENA = ["ARENA_A_SIZE=1", "ARENA_B_SIZE=1"]
 
 
 def setUpModule():
@@ -42,9 +44,14 @@ def _preprocess(header, defines):
 
 class Rules(unittest.TestCase):
     def _rejects(self, defines, message):
-        r = _preprocess(_CHECK, defines)
+        r = _preprocess(_CHECK, defines + _ARENA)
         self.assertNotEqual(r.returncode, 0, defines)
         self.assertIn(message, r.stderr)
+
+    def test_arena_layout_needed(self):
+        r = _preprocess(_CHECK, ["HAL_ESP"])
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("set custom_arena_layout", r.stderr)
 
     def test_one_platform(self):
         self._rejects(["HAL_ESP", "HAL_RP2350"], "only one of HAL_ESP")
@@ -103,7 +110,7 @@ class Profiles(unittest.TestCase):
                   "BOARD_PICO2": "HAL_RP2350"}
         for board, platform in boards.items():
             with self.subTest(board=board):
-                r = _preprocess(_CONFIG, [platform, board])
+                r = _preprocess(_CONFIG, [platform, board] + _ARENA)
                 self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_every_profile_file_parses(self):
@@ -114,13 +121,13 @@ class Profiles(unittest.TestCase):
                 self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_old_spi_host_name_is_rejected(self):
-        r = _preprocess(_CONFIG, ["HAL_ESP", "BOARD_FNK0103F", "TFT_SPI_HOST=SPI3_HOST"])
+        r = _preprocess(_CONFIG, ["HAL_ESP", "BOARD_FNK0103F", "TFT_SPI_HOST=SPI3_HOST"] + _ARENA)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("TFT_SPI_HOST is now TFT_SPI_PORT", r.stderr)
 
     def test_build_flag_overrides_profile(self):
         # a pin and a backend of the profile, replaced by build flags
-        r = _macros(["HAL_ESP", "BOARD_CYD2432S028R", "TFT_CS=7", "HAL_AUDIO_NULL"])
+        r = _macros(["HAL_ESP", "BOARD_CYD2432S028R", "TFT_CS=7", "HAL_AUDIO_NULL"] + _ARENA)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("#define TFT_CS 7\n", r.stdout)
         self.assertIn("#define HAL_AUDIO_NULL", r.stdout)
@@ -129,12 +136,12 @@ class Profiles(unittest.TestCase):
     def test_default_backend_is_checked(self):
         # no profile (pins from config_local.h): the platform default
         # HAL_VIDEO_SPI_TFT still needs its pins
-        r = _preprocess(_CONFIG, ["HAL_ESP", "USE_PIO_CONFIG"])
+        r = _preprocess(_CONFIG, ["HAL_ESP", "USE_PIO_CONFIG"] + _ARENA)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("needs TFT_CS and TFT_DC", r.stderr)
 
     def test_cyd_nunchuk_replaces_the_controller(self):
-        r = _macros(["HAL_ESP", "BOARD_CYD2432S028R", "NUNCHUCK_INPUT"])
+        r = _macros(["HAL_ESP", "BOARD_CYD2432S028R", "NUNCHUCK_INPUT"] + _ARENA)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("GALAGINO_CONTROLLER ", r.stdout)
         self.assertNotIn("#define GALAGINO_CONTROLLER\n", r.stdout)
@@ -142,15 +149,14 @@ class Profiles(unittest.TestCase):
         self.assertIn("#define NUNCHUCK_SCL 27\n", r.stdout)
 
     def test_fnk0104_nunchuk_shares_the_codec_bus(self):
-        r = _macros(["HAL_ESP", "BOARD_FNK0104", "NUNCHUCK_INPUT"])
+        r = _macros(["HAL_ESP", "BOARD_FNK0104", "NUNCHUCK_INPUT"] + _ARENA)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("#define GALAGINO_CONTROLLER\n", r.stdout)
         self.assertIn("#define NUNCHUCK_SDA 16\n", r.stdout)
         self.assertIn("#define NUNCHUCK_SCL 15\n", r.stdout)
 
     def test_usbup_flips_the_panel(self):
-        r = subprocess.run(["g++", "-dM", "-E", "-x", "c++", "-DHAL_ESP", "-DBOARD_FNK0103B",
-                            "-DBOARD_USBUP", str(_CONFIG)], capture_output=True, text=True)
+        r = _macros(["HAL_ESP", "BOARD_FNK0103B", "BOARD_USBUP"] + _ARENA)
         self.assertNotIn("#define TFT_VFLIP", r.stdout)
 
 

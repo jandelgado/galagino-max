@@ -61,7 +61,7 @@ def _sprites_body(sprites):
 
 
 def _convert(ctx: Context) -> None:
-    arena_block_a, arena_block_b = layout.read_layouts(layout.header_path(ctx.paths))["local"]
+    arena_block_a, arena_block_b = layout.read_layouts(layout.ini_path(ctx.paths))["esp32_local"]
     rom = _main_image(ctx)
     audio = rom_bytes(ctx, _AUDIO)
     fg = _decode_tiles(rom_bytes_all(ctx, _FG))

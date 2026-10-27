@@ -123,8 +123,8 @@ def _palette(ctx: Context) -> list[int]:
 
 
 def _convert(ctx: Context) -> None:
-    # arena_layout.h: the ASSETS_REMOTE (WiFi) layout, the tighter of both
-    arena_blocks = layout.read_layouts(layout.header_path(ctx.paths))["remote"]
+    # [arena] esp32_remote: the ASSETS_REMOTE (WiFi) layout, the tighter one
+    arena_blocks = layout.read_layouts(layout.ini_path(ctx.paths))["esp32_remote"]
     arena_budget = sum(arena_blocks)
     sizes = {}  # Arena residents: name -> (bytes, block)
 

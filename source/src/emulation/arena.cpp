@@ -19,16 +19,21 @@ uint32_t Arena::limitB = Arena::BLOCK_B_SIZE;
 uint32_t Arena::plannedA = Arena::BLOCK_A_SIZE;
 uint32_t Arena::plannedB = Arena::BLOCK_B_SIZE;
 
+// size 0 (one-pool layout): no block, nullptr
+static uint8_t *reserveBlock(uint32_t size) {
+  return size ? (uint8_t *)malloc(size) : nullptr;
+}
+
 void Arena::init() {
 #ifdef ASSETS_REMOTE
   // B first, so it gets its region before A takes it (smaller boot heap)
-  blockB = (uint8_t *)malloc(BLOCK_B_SIZE);
-  blockA = (uint8_t *)malloc(BLOCK_A_SIZE);
+  blockB = reserveBlock(BLOCK_B_SIZE);
+  blockA = reserveBlock(BLOCK_A_SIZE);
 #else
-  blockA = (uint8_t *)malloc(BLOCK_A_SIZE);
-  blockB = (uint8_t *)malloc(BLOCK_B_SIZE);
+  blockA = reserveBlock(BLOCK_A_SIZE);
+  blockB = reserveBlock(BLOCK_B_SIZE);
 #endif
-  if (!blockA || !blockB) {
+  if (!blockA || (!blockB && BLOCK_B_SIZE)) {
     printf("Arena: boot-time reservation failed (A=%p B=%p)\n", (void *)blockA, (void *)blockB);
     abort();
   }

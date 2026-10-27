@@ -68,7 +68,7 @@ def _write_palette(ctx, pal):
 
 
 def _convert(ctx: Context) -> None:
-    arena_capacity = sum(layout.read_layouts(layout.header_path(ctx.paths))["local"])
+    arena_capacity = sum(layout.read_layouts(layout.ini_path(ctx.paths))["esp32_local"])
     rom = rom_bytes_all(ctx, _MAIN)
     vlm = rom_bytes(ctx, _VLM)
     tiles = _decode_tiles(rom_bytes_all(ctx, _TILES))

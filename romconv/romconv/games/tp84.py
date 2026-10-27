@@ -17,7 +17,7 @@ from romconv.plan.budget import log_sizes
 
 
 def _convert(ctx: Context) -> None:
-    arena_capacity = sum(layout.read_layouts(layout.header_path(ctx.paths))["local"])
+    arena_capacity = sum(layout.read_layouts(layout.ini_path(ctx.paths))["esp32_local"])
 
     def rom(name, sha1):
         return ctx.rom(name, sha1)

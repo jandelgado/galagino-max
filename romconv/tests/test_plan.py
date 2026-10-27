@@ -12,11 +12,11 @@ from romconv.core.manifest import Asset, Manifest
 from romconv.core.paths import Paths, default
 from romconv.plan.arena import (extras_key, parse_machine_header, plan_assets, plan_header, solve,
                                 write_arena_plan)
-from romconv.plan.layout import header_path, read_layouts
+from romconv.plan.layout import define_name, ini_path, read_layouts, remote_layouts
 
 W = [49152, 35040, 35040]  # Williams RAM + 2 scanout buffers
 REMOTE, LOCAL = (69000, 110500), (118784, 110500)
-LAYOUTS = {"local": LOCAL, "remote": REMOTE}
+LAYOUTS = {"esp32_local": LOCAL, "esp32_remote": REMOTE}
 
 
 def _noop(ctx):
@@ -26,18 +26,37 @@ def _noop(ctx):
 # test_arena_layout
 
 
-def test_layouts_from_arena_layout_h():
-    layouts = read_layouts(header_path(default()))
-    assert layouts["local"] == (118784, 110500) and layouts["remote"] == (69000, 110500)
-    assert layouts == {"local": LOCAL, "remote": REMOTE}
+def test_layouts_from_platformio_ini():
+    layouts = read_layouts(ini_path(default()))
+    assert list(layouts) == ["esp32_local", "esp32_remote", "esp32s3_local", "rp2350"]
+    assert layouts["esp32_local"] == LOCAL and layouts["esp32_remote"] == REMOTE
 
 
-def test_layout_missing_define_rejected(tmp_path):
-    # a header missing a define is an error, not a silent default
-    p = tmp_path / "h.h"
-    p.write_text("#define ARENA_A_LOCAL 91000\n#define ARENA_B_SIZE 110500\n")
+@pytest.mark.parametrize("row", ["x = 1 2 3", "x = -1 2", "x = 0 2", "x = a b", "bad-name = 1 2"])
+def test_bad_layout_row_rejected(tmp_path, row):
+    # a bad row is an error naming it, not a silent default
+    p = tmp_path / "platformio.ini"
+    p.write_text(f"[arena]\n{row}\n")
+    with pytest.raises(ValueError) as err:
+        read_layouts(p)
+    assert row.split(" = ")[0] in str(err.value)
+
+
+def test_no_arena_section_rejected(tmp_path):
+    p = tmp_path / "platformio.ini"
+    p.write_text("[env]\nplatform = native\n")
     with pytest.raises(ValueError):
         read_layouts(p)
+
+
+def test_remote_layouts_and_define_name():
+    assert remote_layouts({"esp32_local": (1, 1), "esp32_remote": (1, 1), "rp2350": (1, 0)}) == ["esp32_remote"]
+    assert define_name("esp32_local") == "ARENA_LAYOUT_ESP32_LOCAL"
+
+
+def test_b_zero_layout_never_assigns_b():
+    m, r = solve([("a", 1000, 1), ("b", 2000, 1)], [], (118784, 0))
+    assert set(m.values()) <= {"A", "PLAIN"} and r[1] == 0
 
 
 # test_arena_plan
@@ -79,7 +98,7 @@ def test_oversize_asset_plain_not_error():
 
 
 def test_plan_header():
-    h = plan_header("1942", {"local": ({"x": "A"}, (8, 0)), "remote": ({"x": "PLAIN"}, (0, 0))},
+    h = plan_header("1942", {"esp32_local": ({"x": "A"}, (8, 0)), "esp32_remote": ({"x": "PLAIN"}, (0, 0))},
                     {"x": "unsigned char[8][8]"}, 0, LAYOUTS)
     assert '#include "../../emulation/asset.h"' in h
     assert "using x_asset = Asset<unsigned char[8][8], PLAIN>;" in h
@@ -91,7 +110,21 @@ def test_plan_header():
     assert "#define x_PLAIN 0" in h and "#define x_BLOCK ARENA_A" in h
     assert "Arena::BLOCK_A_SIZE == 69000 && Arena::BLOCK_B_SIZE == 110500" in h
     assert "Arena::BLOCK_A_SIZE == 118784 && Arena::BLOCK_B_SIZE == 110500" in h
-    assert h.index("#ifdef ASSETS_REMOTE") < h.index("{ 0, 0 }") < h.index("#else") < h.index("{ 8, 0 }")
+    # one block per layout in ini order, a build with another layout fails
+    assert (h.index("#if defined(ARENA_LAYOUT_ESP32_LOCAL)") < h.index("{ 8, 0 }")
+            < h.index("#elif defined(ARENA_LAYOUT_ESP32_REMOTE)") < h.index("{ 0, 0 }")
+            < h.index('#error "no Arena plan for this layout'))
+    assert "ASSETS_REMOTE" not in h
+
+
+def test_plan_header_duplicate_sizes():
+    # placeholders share sizes: still one block per layout
+    layouts = {"esp32_local": LOCAL, "esp32s3_local": LOCAL, "rp2350": (118784, 0)}
+    plans = {name: ({"x": "A"}, (8, 0)) for name in layouts}
+    h = plan_header("g", plans, {"x": "unsigned char"}, 0, layouts)
+    assert h.count("#if defined(") == 1 and h.count("#elif defined(") == 2
+    assert "#elif defined(ARENA_LAYOUT_RP2350)" in h
+    assert h.count("Arena::BLOCK_A_SIZE == 118784 && Arena::BLOCK_B_SIZE == 110500") == 2
 
 
 def test_extras_key():
@@ -101,7 +134,8 @@ def test_extras_key():
     assert extras_key([49152, 35040], True) == (49152 * 31 + 35040) ^ 0x80000000
     assert extras_key([35040, 49152], False) != extras_key([49152, 35040], False)
     assert extras_key([], False) == 0
-    h = plan_header("g", {"local": ({}, (0, 0)), "remote": ({}, (0, 0))}, {}, extras_key([7], False), LAYOUTS)
+    h = plan_header("g", {"esp32_local": ({}, (0, 0)), "esp32_remote": ({}, (0, 0))}, {}, extras_key([7], False),
+                    LAYOUTS)
     assert "static constexpr uint32_t g_arena_extras_key = 7u;" in h
 
 
@@ -182,11 +216,11 @@ def test_plan_assets_ignore_unplanned():
 
 
 def _plan_repo(tmp_path):
-    """tmp repo with the real arena_layout.h and a machine header for game g."""
+    """tmp repo with the real platformio.ini and a machine header for game g."""
     paths = Paths(tmp_path)
-    layout = header_path(paths)
-    layout.parent.mkdir(parents=True)
-    shutil.copy(header_path(default()), layout)
+    ini = ini_path(paths)
+    ini.parent.mkdir(parents=True)
+    shutil.copy(ini_path(default()), ini)
     machine = paths.machines / "g"
     machine.mkdir(parents=True)
     (machine / "g.h").write_text("class g {\n  static constexpr uint32_t ARENA_EXTRA[] = { 49152, 35040 };\n"
@@ -194,41 +228,42 @@ def _plan_repo(tmp_path):
     return paths
 
 
+# the same split in every layout of the real platformio.ini: g fits each
+_G_BLOCK = """\
+#define g_cmap_PLAIN 1
+#define g_cmap_BLOCK ARENA_ANY
+using g_cmap_asset = Asset<unsigned short, PLAIN>;
+#define g_main_PLAIN 0
+#define g_main_BLOCK ARENA_A
+using g_main_asset = Asset<unsigned char, COMPRESSED>;
+#define g_tiles_PLAIN 1
+#define g_tiles_BLOCK ARENA_ANY
+using g_tiles_asset = Asset<unsigned char[8][8], PLAIN>;
+#define g_words_PLAIN 0
+#define g_words_BLOCK ARENA_A
+using g_words_asset = Asset<uint32_t[2], COMPRESSED>;
+static constexpr ArenaPlan g_arena_plan = { 20480, 0 };
+"""
+
 _PLAN_BODY = """\
 #ifndef G_ARENA_PLAN_H
 #define G_ARENA_PLAN_H
 #include "../../emulation/asset.h"
 static constexpr uint32_t g_arena_extras_key = 1558752u;
-#ifdef ASSETS_REMOTE
-static_assert(Arena::BLOCK_A_SIZE == 69000 && Arena::BLOCK_B_SIZE == 110500, "Arena layout changed: rerun romconv");
-#define g_cmap_PLAIN 1
-#define g_cmap_BLOCK ARENA_ANY
-using g_cmap_asset = Asset<unsigned short, PLAIN>;
-#define g_main_PLAIN 0
-#define g_main_BLOCK ARENA_A
-using g_main_asset = Asset<unsigned char, COMPRESSED>;
-#define g_tiles_PLAIN 1
-#define g_tiles_BLOCK ARENA_ANY
-using g_tiles_asset = Asset<unsigned char[8][8], PLAIN>;
-#define g_words_PLAIN 0
-#define g_words_BLOCK ARENA_A
-using g_words_asset = Asset<uint32_t[2], COMPRESSED>;
-static constexpr ArenaPlan g_arena_plan = { 20480, 0 };
-#else
+#if defined(ARENA_LAYOUT_ESP32_LOCAL)
 static_assert(Arena::BLOCK_A_SIZE == 118784 && Arena::BLOCK_B_SIZE == 110500, "Arena layout changed: rerun romconv");
-#define g_cmap_PLAIN 1
-#define g_cmap_BLOCK ARENA_ANY
-using g_cmap_asset = Asset<unsigned short, PLAIN>;
-#define g_main_PLAIN 0
-#define g_main_BLOCK ARENA_A
-using g_main_asset = Asset<unsigned char, COMPRESSED>;
-#define g_tiles_PLAIN 1
-#define g_tiles_BLOCK ARENA_ANY
-using g_tiles_asset = Asset<unsigned char[8][8], PLAIN>;
-#define g_words_PLAIN 0
-#define g_words_BLOCK ARENA_A
-using g_words_asset = Asset<uint32_t[2], COMPRESSED>;
-static constexpr ArenaPlan g_arena_plan = { 20480, 0 };
+""" + _G_BLOCK + """\
+#elif defined(ARENA_LAYOUT_ESP32_REMOTE)
+static_assert(Arena::BLOCK_A_SIZE == 69000 && Arena::BLOCK_B_SIZE == 110500, "Arena layout changed: rerun romconv");
+""" + _G_BLOCK + """\
+#elif defined(ARENA_LAYOUT_ESP32S3_LOCAL)
+static_assert(Arena::BLOCK_A_SIZE == 118784 && Arena::BLOCK_B_SIZE == 110500, "Arena layout changed: rerun romconv");
+""" + _G_BLOCK + """\
+#elif defined(ARENA_LAYOUT_RP2350)
+static_assert(Arena::BLOCK_A_SIZE == 118784 && Arena::BLOCK_B_SIZE == 110500, "Arena layout changed: rerun romconv");
+""" + _G_BLOCK + """\
+#else
+#error "no Arena plan for this layout: add it to [arena] in platformio.ini and rerun romconv"
 #endif
 #endif
 """
