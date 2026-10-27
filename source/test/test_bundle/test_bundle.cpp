@@ -110,6 +110,7 @@ static void test_unmount(void) {
 // builds with esp32_local, this test reads the esp32_remote bundle
 #define ARENA_LAYOUT_ESP32_REMOTE
 #include "../../src/machines/1943/1943_bundle.h"
+#undef ARENA_LAYOUT_ESP32_REMOTE  // only that header selects by it
 #include "../../src/machines/1943/1943_rom.h"
 #include "../../src/machines/1943/1943_sound.h"
 #include "../../src/machines/1943/1943_bg1.h"

@@ -215,6 +215,19 @@ def test_planned_asset_without_block_for_layout_is_error(tree, log):
     assert "esp32_remote" in str(err.value)
 
 
+def test_missing_plan_header_named(tree):
+    # three different causes, three messages: no header, header without the block, stale sidecar
+    (tree.machines / "pacman" / "pacman_arena_plan.h").unlink()
+    with pytest.raises(ValueError, match="pacman_arena_plan.h is missing"):
+        bundles._assets("pacman", tree, "esp32_remote")
+
+
+def test_stale_sidecar_named(tree):
+    _sidecar(tree, "pacman", "pacman_extra", b"\x01" * 16, "PLANNED")
+    with pytest.raises(ValueError, match="pacman_extra: not in pacman_arena_plan.h block esp32_remote"):
+        bundles._assets("pacman", tree, "esp32_remote")
+
+
 def test_digit_led_symbol(tree, log):
     _sidecar(tree, "1943", "_1943_rom", b"\x01" * 10, "PLAIN")
     bundles.make_bundle(_ctx(tree, log), "1943")

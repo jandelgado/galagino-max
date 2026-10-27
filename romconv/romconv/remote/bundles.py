@@ -22,11 +22,11 @@ from romconv.remote.bundle import BundleWriter, bundle_hash, write_bundle
 from romconv.remote.catalog import NO_BLOBS, bundle_dirs, job_name, read_games
 
 
-def _remote_plain(machines: Path, dirname: str, layout: str) -> dict[str, bool]:
-    """<name> -> PLAIN flag of that layout's block in <dir>_arena_plan.h."""
+def _remote_plain(machines: Path, dirname: str, layout: str) -> dict[str, bool] | None:
+    """<name> -> PLAIN flag of that layout's block in <dir>_arena_plan.h; None without the header."""
     path = machines / dirname / f"{dirname}_arena_plan.h"
     if not path.exists():
-        return {}
+        return None
     text = path.read_text(encoding="utf-8")
     m = re.search(r"#(?:if|elif) defined\(" + define_name(layout) + r"\)\n(.*?)(?=#elif|#else)", text, re.S)
     if not m:
@@ -48,8 +48,10 @@ def _assets(game: str, paths: Paths, layout: str) -> list[tuple[str, bytes, byte
             name = meta_file.stem
             mode = json.loads(meta_file.read_bytes())["mode"]
             if mode == "PLANNED":
+                if plan is None:
+                    raise ValueError(f"{name}: planned, but {d}_arena_plan.h is missing (convert {d} first)")
                 if name not in plan:
-                    raise ValueError(f"{name}: planned, but {d}_arena_plan.h has no block for {layout}")
+                    raise ValueError(f"{name}: not in {d}_arena_plan.h block {layout} (stale sidecar, convert {d} again)")
                 mode = "PLAIN" if plan[name] else "COMPRESSED"
             raw = (src / f"{name}.raw").read_bytes()
             full = (src / f"{name}.lz").read_bytes()
