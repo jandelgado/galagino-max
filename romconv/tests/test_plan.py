@@ -223,14 +223,14 @@ def _manifest_from_markers(markers):
     for name, size, _packed, _align, type_ in markers:
         ctype = next(c for c in sorted(ctypes, key=len, reverse=True) if type_.startswith(c))
         manifest.add(Asset(dir="g", name=name, ctype=ctype, inner=type_[len(ctype):], count=size,
-                           mode="PLANNED", raw=bytes(size), packed=b"", lz64=b"", hint=None))
+                           mode="PLANNED", raw=bytes(size), packed=b"", lz64=b""))
     return manifest
 
 
 def test_plan_assets_ignore_unplanned():
     manifest = _manifest_from_markers(_MARKERS)
     manifest.add(Asset(dir="g", name="other", ctype="unsigned char", inner="", count=1, mode="COMPRESSED",
-                       raw=b"\0", packed=b"", lz64=None, hint=None))
+                       raw=b"\0", packed=b"", lz64=None))
     # the plan needs the LZMA size: a planned asset's flash cost when COMPRESSED
     assert plan_assets(manifest.assets()) == _MARKERS
 

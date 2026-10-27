@@ -8,9 +8,9 @@ from pathlib import Path
 class Asset:
     """One emitted FlashAsset.
 
-    mode: PLAIN, COMPRESSED or PLANNED. packed is the full-dictionary LZMA
-    stream in every mode; lz64 the 64 KB-dictionary stream (None for
-    COMPRESSED). hint: the converter's own mode for PLANNED, else None."""
+    mode: PLAIN, COMPRESSED or PLANNED (both forms emitted, the arena plan
+    picks per layout). packed is the full-dictionary LZMA stream in every
+    mode; lz64 the 64 KB-dictionary stream (None for COMPRESSED)."""
 
     dir: str
     name: str
@@ -21,7 +21,6 @@ class Asset:
     raw: bytes
     packed: bytes
     lz64: bytes | None
-    hint: str | None
 
 
 class Manifest:

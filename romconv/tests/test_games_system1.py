@@ -1,6 +1,6 @@
 from romconv.games.system1 import jobs
 from romconv.games.system1.crypt import _CRYPT, _CRYPT2, _SWAPS2
-from romconv.games.system1.sets import SETS
+from romconv.games.system1.sets import SETS, SetSpec
 
 
 def test_every_game_depends_on_the_palette_owner():
@@ -47,6 +47,7 @@ def test_palette_endpoints():
     assert len(jobs._prom_palette565(bytes(768))) == 256
 
 
-def test_plain_body_formats():
-    assert jobs._plain_body("", [1, 2]) == "0x01, 0x02"
-    assert jobs._plain_body("[2]", [1, 2, 3, 4]) == "{0x00000001, 0x00000002},\n{0x00000003, 0x00000004}"
+def test_no_converter_side_mode():
+    # the arena plan picks PLAIN or COMPRESSED per layout; a set carries no preference
+    assert "plain" not in SetSpec.__dataclass_fields__
+    assert not hasattr(jobs, "_plain_body")

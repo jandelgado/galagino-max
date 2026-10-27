@@ -145,8 +145,10 @@ romconv computes the split per layout:
   `<game>_arena_plan.h`: per layout the mode and Arena block of each asset,
   the `<name>_asset` type the machine declares its members with, and the
   bytes `Arena::reserve()` keeps for the planned assets.
-- The converter's own choice (`emit_plain` vs `emit_compressed`) is kept
-  whenever it fits; otherwise the split with the fewest PLAIN bytes wins.
+- The split with the fewest flash bytes wins (PLAIN raw bytes plus
+  COMPRESSED LZMA bytes); `emit_plain` and `emit_compressed` produce the
+  same planned asset. `ARENA_FLASH` / `ARENA_RAM` in the machine header pin
+  an asset, each entry with the reason in a comment.
 - Changing a `[arena]` row, or a machine's `ARENA_EXTRA` /
   `ARENA_EXTRA_ANY_ORDER` (the machine asserts `<game>_arena_extras_key`),
   makes the build fail until the game is converted again.

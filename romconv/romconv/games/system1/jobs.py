@@ -7,7 +7,7 @@ from functools import partial
 
 from romconv.core.context import Context
 from romconv.core.job import Job
-from romconv.emit.asset import emit_compressed, emit_plain
+from romconv.emit.asset import emit_compressed
 from romconv.emit.write import banner
 from romconv.games.system1.crypt import decrypt_main
 from romconv.games.system1.sets import SETS, SetSpec, load_roms
@@ -79,23 +79,10 @@ def _write_palette(f, name: str, comment: str, vals: Sequence[int]) -> None:
     f.write("};\n")
 
 
-def _plain_body(dims: str, values: Sequence[int]) -> str:
-    if not dims:
-        return ",\n".join(", ".join(f"0x{v:02x}" for v in values[i:i + 16])
-                          for i in range(0, len(values), 16))
-    n = int(dims[1:-1])
-    return ",\n".join("{" + ", ".join(f"0x{v:08x}" for v in values[i:i + n]) + "}"
-                      for i in range(0, len(values), n))
-
-
-# planned: "plain" is only the tie-break hint of the arena plan, which picks mode and block per layout
-def _emit(ctx: Context, game: str, asset: str, ctype: str, dims: str, count: int, values: Sequence[int],
-          plain: bool) -> None:
+# planned: the arena plan picks mode and block per layout
+def _emit(ctx: Context, game: str, asset: str, ctype: str, dims: str, count: int, values: Sequence[int]) -> None:
     with ctx.header(f"{game}_{asset}.h") as f:
-        if plain:
-            emit_plain(f, f"{game}_{asset}", ctype, dims, count, _plain_body(dims, values))
-        else:
-            emit_compressed(f, f"{game}_{asset}", ctype, dims, count, values)
+        emit_compressed(f, f"{game}_{asset}", ctype, dims, count, values)
 
 
 def _zip_of(game: str, spec: SetSpec) -> str:
@@ -142,7 +129,7 @@ def _assets(ctx: Context, game: str, spec: SetSpec) -> list[tuple[str, str, str,
 def _convert(ctx: Context, game: str) -> None:
     spec = SETS[game]
     for name, ctype, dims, count, values in _assets(ctx, game, spec):
-        _emit(ctx, game, name, ctype, dims, count, values, name in spec.plain)
+        _emit(ctx, game, name, ctype, dims, count, values)
     if spec.color:
         vals = _prom_palette565(load_roms(ctx, spec.color, _zip_of(game, spec)))
         with ctx.header(f"{game}_palette.h") as f:
