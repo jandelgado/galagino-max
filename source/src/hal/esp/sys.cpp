@@ -62,8 +62,9 @@ void memDump() {
   heap_caps_print_heap_info(MALLOC_CAP_8BIT);
 }
 
-void *dmaAlloc(uint32_t bytes) {
-  return heap_caps_malloc(bytes, MALLOC_CAP_DMA);
+void *allocSpare(uint32_t bytes) {
+  void *p = heap_caps_malloc(bytes, MALLOC_CAP_DMA);
+  return p ? p : malloc(bytes);
 }
 
 // stdout is the IDF console (UART0 / USB, sdkconfig)

@@ -151,7 +151,8 @@ void galagino_setup(void) {
   printf("AUDIO_ENABLE:     %s\n", "LOW");
   #endif
 
-  // permanent buffers: largest first, so none has to fit a hole
+  // permanent buffers: memory (largest) first in the main heap, the strip
+  // buffers in the spare pool, so A's region keeps its bytes for the Arena
   memory = (uint8_t *)malloc(RAMSIZE);
   if (!memory) {
     // DRAM statics grew (e.g. a new global): the heap block left after
@@ -161,8 +162,11 @@ void galagino_setup(void) {
            (int)m.largest, (int)m.free);
     abort();
   }
-  frame_buffer = (unsigned short*)malloc(240 * 8 * 2);
-  sprite_buffer = (sprite_S*)malloc(128 * sizeof(sprite_S));
+  frame_buffer = (unsigned short*)hal::allocSpare(240 * 8 * 2);
+  sprite_buffer = (sprite_S*)hal::allocSpare(128 * sizeof(sprite_S));
+#ifdef HEAP_PROBE
+  heapProbeDump("after-buffers");
+#endif
   audio.init();
 
   input.init(machinesCount == 1);

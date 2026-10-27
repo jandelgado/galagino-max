@@ -27,8 +27,8 @@ MemInfo memInfo();
 MemInfo memInfoData();
 void memDump();
 
-// No DMA restrictions on this chip.
-void *dmaAlloc(uint32_t bytes);
+// One RAM region on this chip: plain malloc.
+void *allocSpare(uint32_t bytes);
 
 // Console (USB serial) ready for printf; waits up to 2 s for a host.
 void consoleInit();

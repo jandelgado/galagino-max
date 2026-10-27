@@ -63,7 +63,9 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
 - `struct SysInfo { chip, revision, cores, cpuMhz, flashBytes, sdkVersion }`, `void sysInfo(SysInfo&)`
 - `struct MemInfo { free, largest, minFree }`, `MemInfo memInfo()` (internal RAM),
   `MemInfo memInfoData()` (byte addressable data RAM), `void memDump()`
-- `void *dmaAlloc(uint32_t bytes)`, `uint32_t random32()` (hardware random)
+- `void *allocSpare(uint32_t bytes)`: permanent buffer outside the main heap's largest region
+  where the platform has one (ESP32: D/IRAM pool), `malloc` fallback, free with `free()`;
+  `uint32_t random32()` (hardware random)
 - `void consoleInit()`, `void printPlatformInfo()`, `bool imageVerify(bool &supported)`,
   `bool resetWasPanic()`
 

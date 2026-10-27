@@ -34,7 +34,7 @@ inline void sysInfo(SysInfo &out) {
 inline MemInfo memInfo() { return MemInfo{0, 0, 0}; }
 inline MemInfo memInfoData() { return MemInfo{0, 0, 0}; }
 inline void memDump() {}
-inline void *dmaAlloc(uint32_t bytes) { return malloc(bytes); }
+inline void *allocSpare(uint32_t bytes) { return malloc(bytes); }
 inline void consoleInit() {}
 inline void printPlatformInfo() { printf("host\n"); }
 inline bool imageVerify(bool &supported) {
