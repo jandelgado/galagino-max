@@ -122,26 +122,39 @@ def _sidecar(paths, dirname, name, raw, mode):
         (out / (name + ext)).write_bytes(data)
 
 
+def _plan_header(paths, dirname, flags):
+    """<dir>_arena_plan.h with one block per layout: {layout: {name: PLAIN flag}}."""
+    lines = []
+    for i, (layout, plain) in enumerate(flags.items()):
+        lines.append(f"#{'if' if i == 0 else 'elif'} defined(ARENA_LAYOUT_{layout.upper()})")
+        lines += [f"#define {name}_PLAIN {flag}" for name, flag in plain.items()]
+    lines += ["#else", "#error", "#endif", ""]
+    (paths.machines / dirname / f"{dirname}_arena_plan.h").write_text("\n".join(lines))
+
+
 @pytest.fixture
-def tree(paths):
+def tree(paths, arena_layout):
     # pacman: one COMPRESSED, one planned (remote layout PLAIN); mspacman: one PLAIN
     _sidecar(paths, "pacman", "pacman_rom", bytes(range(256)) * 8, "COMPRESSED")
     _sidecar(paths, "pacman", "pacman_tiles", bytes(70000), "PLANNED")
     _sidecar(paths, "mspacman", "mspacman_rom", b"\x05" * 300, "PLAIN")
     (paths.machines / "pacman").mkdir(parents=True)
     (paths.machines / "mspacman").mkdir(parents=True)
-    (paths.machines / "pacman" / "pacman_arena_plan.h").write_text(
-        "#ifdef ASSETS_REMOTE\n#define pacman_tiles_PLAIN 1\n#else\n#define pacman_tiles_PLAIN 0\n#endif\n")
+    _plan_header(paths, "pacman", {"esp32_local": {"pacman_tiles": 0}, "esp32_remote": {"pacman_tiles": 1}})
     return paths
 
 
+def _entries(wire):
+    n = struct.unpack_from("<H", wire, 6)[0]
+    return {struct.unpack_from("<5L", wire, 8 + 20 * i)[0]: struct.unpack_from("<5L", wire, 8 + 20 * i)
+            for i in range(n)}
+
+
 def test_bundle_contents_and_flags(tree, log):
-    info = bundles.make_bundle(_ctx(tree, log), "mspacman")
+    info = bundles.make_bundle(_ctx(tree, log), "mspacman")["esp32_remote"]
     wire = (tree.server / "g" / info["hex"]).read_bytes()
     assert info["hex"] == bundle_hash(wire).hex()
-    n = struct.unpack_from("<H", wire, 6)[0]
-    entries = {struct.unpack_from("<5L", wire, 8 + 20 * i)[0]: struct.unpack_from("<5L", wire, 8 + 20 * i)
-               for i in range(n)}
+    entries = _entries(wire)
     assert set(entries) == {asset_id("mspacman_rom"), asset_id("pacman_rom"), asset_id("pacman_tiles")}
     assert entries[asset_id("mspacman_rom")][4] == FLAG_LZMA
     assert entries[asset_id("pacman_tiles")][4] == FLAG_LZMA
@@ -150,7 +163,7 @@ def test_bundle_contents_and_flags(tree, log):
 
 def test_bundle_header(tree, log):
     # BundleRef with hash, wire and entry length, name; built in -> nullptr
-    info = bundles.make_bundle(_ctx(tree, log), "mspacman")
+    info = bundles.make_bundle(_ctx(tree, log), "mspacman")["esp32_remote"]
     wire = (tree.server / "g" / info["hex"]).read_bytes()
     h = (tree.machines / "mspacman" / "mspacman_bundle.h").read_text()
     hash_c = ", ".join("0x%02x" % b for b in bundle_hash(wire))
@@ -161,9 +174,45 @@ def test_bundle_header(tree, log):
     guard = "#if !defined(BUILTIN_MSPACMAN) || !defined(BUILTIN_PACMAN)"
     assert '#include "../../net/bundle.h"' in h and guard in h, h
     assert ref in h, h
-    assert "#define mspacman_bundle_ref (&mspacman_bundle)" in h
+    # the bundle of the build's remote layout, none for any other layout
+    assert h.index(guard) < h.index("#if defined(ARENA_LAYOUT_ESP32_REMOTE)") < h.index(ref)
+    assert h.index(ref) < h.index('#error "no bundle for this Arena layout') < h.index("#define mspacman_bundle_ref (&mspacman_bundle)")
     assert "#define mspacman_bundle_ref nullptr" in h
     assert f"// GET /g/{info['hex']}" in h
+
+
+def test_two_remote_layouts_two_bundles(tree, log):
+    # a second _remote layout with another split: its own bundle, selected by define
+    tree_ini = tree.repo / "source" / "platformio.ini"
+    tree_ini.write_text("[arena]\nesp32_local = 91000 110500\nesp32_remote = 60000 110500\ns3_remote = 200000 0\n")
+    _plan_header(tree, "pacman", {"esp32_local": {"pacman_tiles": 0}, "esp32_remote": {"pacman_tiles": 1},
+                                  "s3_remote": {"pacman_tiles": 0}})
+    info = bundles.make_bundle(_ctx(tree, log), "mspacman")
+    assert list(info) == ["esp32_remote", "s3_remote"]
+    assert len(list((tree.server / "g").iterdir())) == 2
+    wire = (tree.server / "g" / info["s3_remote"]["hex"]).read_bytes()
+    assert _entries(wire)[asset_id("pacman_tiles")][4] == FLAG_PACKED
+    h = (tree.machines / "mspacman" / "mspacman_bundle.h").read_text()
+    assert (h.index("#if defined(ARENA_LAYOUT_ESP32_REMOTE)") < h.index(f"// GET /g/{info['esp32_remote']['hex']}")
+            < h.index("#elif defined(ARENA_LAYOUT_S3_REMOTE)") < h.index(f"// GET /g/{info['s3_remote']['hex']}"))
+
+
+def test_non_remote_layout_gets_no_bundle(tree, log):
+    tree_ini = tree.repo / "source" / "platformio.ini"
+    tree_ini.write_text("[arena]\nesp32_local = 91000 110500\nesp32_remote = 60000 110500\nrp2350 = 200000 0\n")
+    _plan_header(tree, "pacman", {"esp32_local": {"pacman_tiles": 0}, "esp32_remote": {"pacman_tiles": 1},
+                                  "rp2350": {"pacman_tiles": 0}})
+    info = bundles.make_bundle(_ctx(tree, log), "mspacman")
+    assert list(info) == ["esp32_remote"]
+    assert len(list((tree.server / "g").iterdir())) == 1
+    assert "RP2350" not in (tree.machines / "mspacman" / "mspacman_bundle.h").read_text()
+
+
+def test_planned_asset_without_block_for_layout_is_error(tree, log):
+    _plan_header(tree, "pacman", {"esp32_local": {"pacman_tiles": 0}})
+    with pytest.raises(ValueError) as err:
+        bundles.make_bundle(_ctx(tree, log), "mspacman")
+    assert "esp32_remote" in str(err.value)
 
 
 def test_digit_led_symbol(tree, log):
@@ -191,6 +240,8 @@ def test_game_without_asset_blobs_has_no_bundle(tree, log):
 
 
 def _games_tree(paths, names=("aaa", "bbb")):
+    (paths.repo / "source").mkdir(parents=True, exist_ok=True)
+    (paths.repo / "source" / "platformio.ini").write_text("[arena]\nesp32_local = 91000 110500\nesp32_remote = 60000 110500\n")
     (paths.src).mkdir(parents=True, exist_ok=True)
     (paths.src / "machines.h").write_text("".join(f"#ifdef ENABLE_{n.upper()}\n#endif\n" for n in names))
     for n in names:
