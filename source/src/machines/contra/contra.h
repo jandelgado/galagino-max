@@ -1,6 +1,7 @@
 #ifndef CONTRA_H
 #define CONTRA_H
 
+#include "contra_arena_plan.h"
 #include "../machineBase.h"
 #include "../../cpus/m6809/m6809.h"
 #include "../../emulation/seqlock.h"
@@ -39,11 +40,16 @@
 
 class contra : public machineBase {
 protected:
-  Asset<unsigned char, PLAIN> contra_main_rom;
-  Asset<unsigned char, COMPRESSED> contra_lut;
+  // ROM assets: flash or Arena block per layout in contra_arena_plan.h
+  // (romconv), unpacked in the ctor. The main ROM comes as its two ROM
+  // files (banks 0-7, banks 8-15 with the fixed 8000-ffff) so one can
+  // take a block; the tiles (548 KB) are flash only.
+  contra_rom_lo_asset contra_rom_lo;
+  contra_rom_hi_asset contra_rom_hi;
+  contra_lut_asset contra_lut;
   Asset<uint32_t[8], PLAIN> contra_tiles;
-  Asset<unsigned short, PLAIN> contra_tile_index;
-  Asset<unsigned char, PLAIN> contra_sid;
+  contra_tile_index_asset contra_tile_index;
+  contra_sid_asset contra_sid;
 
 public:
   contra();
@@ -74,6 +80,7 @@ private:
   static const int COLORS = 128;            // per K007121, 16 pens each
   static const int PENS = 16;
   static const int MAX_BLOCKS = 264;        // 8x8 sprite blocks per K007121 list
+  static const int BLOCKS_LIMIT = 15;       // a 32x32 sprite may pass MAX_BLOCKS by 15
   static const int SPRITE_BYTES = 5;
 
   // one visible 8x8 sprite block, in draw order
@@ -111,7 +118,9 @@ private:
   void drawSprites(short row);
 
   m6809_state main_cpu;
-  const uint8_t *main_rom = nullptr;
+  static const int BANKS = 16;
+  const uint8_t *banks[BANKS] = {};    // 6000-7fff: 8 KB bank b
+  const uint8_t *fixed = nullptr;      // 8000-ffff
   uint8_t *ram = nullptr;              // Arena, CONTRA_RAM_END bytes
   const uint8_t *lut = nullptr;        // 4 x 256 color lookup PROMs
   const uint32_t (*tiles)[8] = nullptr;
@@ -145,6 +154,16 @@ private:
   // 007452: w0 * w1 -> r0/r1; w4w5 / w2w3 -> r4/r5 quotient, r2/r3 remainder
   uint8_t math_regs[MATH_REGS] = {};
   uint16_t product = 0, quotient = 0, remainder = 0;
+
+  // Arena::alloc/create of the ctor, in order: romconv plans the assets
+  // around them (literals: romconv parses this line)
+  static constexpr uint32_t ARENA_EXTRA[] = { 24576, 10516, 10512, 4096, 4096, 8192, 4464 };
+  static_assert(ARENA_EXTRA[0] == CONTRA_RAM_END && ARENA_EXTRA[1] == sizeof(Seqlock<VideoState>) &&
+                ARENA_EXTRA[2] == sizeof(VideoState) && ARENA_EXTRA[3] == CHIPS * SPRITE_LIST &&
+                ARENA_EXTRA[4] == TUNE_RAM_SIZE && ARENA_EXTRA[5] == CHIPS * COLORS * PENS * sizeof(uint16_t) &&
+                ARENA_EXTRA[6] == CHIPS * (MAX_BLOCKS + BLOCKS_LIMIT) * sizeof(SpriteBlock), "update ARENA_EXTRA");
+  static_assert(arenaExtrasKey(ARENA_EXTRA, sizeof(ARENA_EXTRA) / sizeof(uint32_t), false) ==
+                contra_arena_extras_key, "ARENA_EXTRA changed: rerun romconv");
 };
 
 #endif

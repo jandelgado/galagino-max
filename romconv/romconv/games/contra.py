@@ -6,11 +6,12 @@ blocks). Stored rotated to the panel: native pixel (x, y) of a tile -> line x, c
 (panel line = native X, column = 239 - Y). One uint32_t per panel line, column c in nibble c.
 
   contra_tiles     17138 unique rotated tiles of both chips, PLAIN (548 KB, read sparsely)
-  contra_tile_index  2 x 16384 codes -> contra_tiles index, PLAIN (64 KB)
-  contra_main_rom  633i02 + 633m03, 0x20000 banked 6809 ROM, PLAIN (over the Arena budget)
+  contra_tile_index  2 x 16384 codes -> contra_tiles index (64 KB)
+  contra_rom_lo/hi 633i02 / 633m03: 16 x 8 KB banks of the 6809, 8000-ffff = hi's upper half
   contra_lut       4 x 256 color lookup PROMs, low nibble
   contra_sid       Gryzor.sid (HVSC, C64 port by Ocean), whole file: music and effects
 The sound ROM is not used: Gryzor.sid replaces the sound CPU and YM2151.
+Flash or Arena block per asset: contra_arena_plan.h (plan=True), tiles excepted.
 """
 from collections.abc import Callable, Sequence
 from types import MappingProxyType
@@ -104,18 +105,24 @@ def _rom(ctx: Context, name: str) -> bytes:
 def _convert_gfx(ctx: Context) -> None:
     unique, index = dedupe(gfx_words(lambda n: _rom(ctx, n)))
     rows = ",\n".join(" { " + ",".join("0x%x" % w for w in t) + " }" for t in unique)
-    with ctx.header("contra_gfx.h") as f:
+    # tiles: larger than any Arena block, flash only (no plan)
+    with ctx.header("contra_gfx.h", plan=False) as f:
         f.write(banner(__file__))
         emit_plain(f, "contra_tiles", "uint32_t", "[8]", len(unique), rows)
+    with ctx.header("contra_tile_index.h") as f:
+        f.write(banner(__file__))
         emit_plain(f, "contra_tile_index", "unsigned short", "", len(index), _body(index, "%d", 32))
     ctx.log.info(f"tiles: {len(unique)} unique of {len(index)}, {_TILE_BYTES * len(unique)} bytes")
 
 
 def _convert_cpu(ctx: Context) -> None:
-    rom = b"".join(_rom(ctx, n) for n in _MAIN)
+    # one asset per ROM file so the Arena plan can take a half: lo = banks
+    # 0-7, hi = banks 8-15 whose upper half is the fixed ROM 8000-ffff
     with ctx.header("contra_rom_main.h") as f:
         f.write(banner(__file__))
-        emit_plain(f, "contra_main_rom", "unsigned char", "", len(rom), _body(rom, "0x%02x", 16))
+        for name, rom in zip(("contra_rom_lo", "contra_rom_hi"), _MAIN):
+            data = _rom(ctx, rom)
+            emit_plain(f, name, "unsigned char", "", len(data), _body(data, "0x%02x", 16))
 
 
 def _convert_lut(ctx: Context) -> None:
@@ -142,4 +149,4 @@ def _convert(ctx: Context) -> None:
     _convert_sid(ctx)
 
 
-JOB = Job(name="contra", convert=_convert, machine="contra", zips=("contra.zip",))
+JOB = Job(name="contra", convert=_convert, machine="contra", zips=("contra.zip",), plan=True)

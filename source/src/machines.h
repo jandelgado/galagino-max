@@ -1442,7 +1442,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     contra::menuLeds,
 #endif
-    MCH_CONTRA, nullptr BUNDLE_REF(contra_bundle_ref) },
+    MCH_CONTRA, &contra_arena_plan BUNDLE_REF(contra_bundle_ref) },
 #endif
 #ifdef GAME_QBERT
   { createMachine<qbert>, qbert::logo,
