@@ -15,6 +15,8 @@
 #include <hardware/structs/bus_ctrl.h>
 #include <hardware/structs/hstx_ctrl.h>
 #include <hardware/structs/hstx_fifo.h>
+#include <hardware/structs/nvic.h>
+#include <pico/time.h>
 #include "../hal_attr.h"
 
 namespace hal {
@@ -76,6 +78,14 @@ const uint32_t SRC_ROWS = 36 * 8;
 const uint32_t PIC_LINES = DVI_SCALE == 1 ? SRC_ROWS : dvi::scaledLines(SRC_ROWS);
 const uint32_t PIC_TOP = (V_ACTIVE - PIC_LINES) / 2;
 const uint32_t LINE_WORDS = H_ACTIVE / 2;
+// The IRQ requeues a channel while the other one sends the next transfer,
+// so every transfer must take long enough to send. An active line is one
+// transfer (sync/porch commands, then the pixels); a short command list
+// right after pixels would leave well under 1 us, so the last active line
+// carries the first blank line as its tail.
+const uint32_t HEADER_WORDS = count_of(vactive_line);
+const uint32_t ACTIVE_WORDS = HEADER_WORDS + LINE_WORDS;
+const uint32_t TAIL_WORDS = count_of(vblank_vsync_off);
 
 // memset lives in flash: the IRQ clears with this loop from RAM
 __attribute__((optimize("no-tree-loop-distribute-patterns")))
@@ -85,21 +95,55 @@ HAL_FAST_CODE void clearWords(uint32_t *words, uint32_t n) {
   }
 }
 
+// The DMA IRQ has the highest priority: a late requeue makes a channel
+// replay a stale buffer, the HSTX command stream loses its framing and stays
+// garbled (about 160 frames/s, no picture). At that priority it may not call
+// FreeRTOS, so it pends wake_irq, a low priority IRQ that gives the semaphore.
 DviHstxVideo *self;
 SemaphoreHandle_t wake;          // given at vblank and when a strip frees
+int wake_irq;
 volatile uint32_t scan_frames;   // vblanks so far
 
-// Ping-pong line buffers: the IRQ builds line n while line n - 1 is sent.
-uint32_t line_buf[2][LINE_WORDS];
+// Scanout watchdog (endFrame): no vblank for STALL_MS, or more than
+// MAX_FPS frames per second, means the DMA chain lost its framing.
+const uint32_t STALL_MS = 100;
+const uint32_t MAX_FPS = 75;
+uint32_t rate_start_us;
+uint32_t rate_start_frames;
+uint32_t resyncs;
+
+// Ping-pong line buffers: the IRQ builds line n + 1 while line n is sent.
+uint32_t line_buf[2][ACTIVE_WORDS + TAIL_WORDS];
 uint16_t built_width[2];
-uint32_t black_line[LINE_WORDS];
+uint32_t black_line[ACTIVE_WORDS + TAIL_WORDS];
 
 int ch_ping;
 int ch_pong;
 bool pong;
 uint32_t v_scanline = 2;  // ping and pong are queued before the first IRQ
-bool vactive_cmd_posted;
 uint16_t released_strip;
+
+HAL_FAST_CODE void signalWake() {
+  nvic_hw->ispr[wake_irq / 32] = 1u << (wake_irq % 32);
+}
+
+void wakeIrq() {
+  BaseType_t woken = pdFALSE;
+  xSemaphoreGiveFromISR(wake, &woken);
+  portYIELD_FROM_ISR(woken);
+}
+
+// both channels queued with blank lines, as at start
+void queueBlankLines() {
+  dma_channel_hw_t *ping = &dma_hw->ch[ch_ping];
+  dma_channel_hw_t *pongCh = &dma_hw->ch[ch_pong];
+  ping->read_addr = (uintptr_t)vblank_vsync_off;
+  ping->transfer_count = count_of(vblank_vsync_off);
+  pongCh->read_addr = (uintptr_t)vblank_vsync_off;
+  pongCh->transfer_count = count_of(vblank_vsync_off);
+  pong = false;
+  v_scanline = 2;
+}
 
 } // namespace
 
@@ -124,8 +168,23 @@ void DviHstxVideo::submit(const uint16_t *strip, uint32_t pixels) {
 
 void DviHstxVideo::endFrame(uint8_t, uint32_t) {
   const uint32_t frame = scan_frames;
+  const uint32_t start = time_us_32();
   while (scan_frames == frame) {
+    if (time_us_32() - start > STALL_MS * 1000) {
+      resync();
+      break;
+    }
     xSemaphoreTake(wake, 1);
+  }
+
+  // over-rate: the stream lost its framing (see wake_irq)
+  const uint32_t now = time_us_32();
+  if (now - rate_start_us >= 1000000) {
+    if (scan_frames - rate_start_frames > MAX_FPS) {
+      resync();
+    }
+    rate_start_us = time_us_32();
+    rate_start_frames = scan_frames;
   }
   ring.startWrite();
 
@@ -148,7 +207,7 @@ void HAL_FAST_CODE DviHstxVideo::buildLine(uint32_t line, uint32_t buffer) {
   }
 
   // a new width leaves pixels in what is now border: clear once
-  uint32_t *out = line_buf[buffer];
+  uint32_t *out = line_buf[buffer] + HEADER_WORDS;
   const uint16_t width = viewport_width;
   if (built_width[buffer] != width) {
     clearWords(out, LINE_WORDS);
@@ -165,9 +224,7 @@ void HAL_FAST_CODE DviHstxVideo::buildLine(uint32_t line, uint32_t buffer) {
   const uint16_t strip = row / dvi::StripRing<RING_SLOTS>::STRIP_LINES;
   if (strip != released_strip) {
     released_strip = strip;
-    BaseType_t woken = pdFALSE;
-    xSemaphoreGiveFromISR(wake, &woken);
-    portYIELD_FROM_ISR(woken);
+    signalWake();
   }
 
   const uint32_t picWords = DVI_SCALE == 1 ? width / 2 : width;
@@ -196,41 +253,73 @@ void HAL_FAST_CODE DviHstxVideo::irq() {
   } else if (v_scanline < V_BLANK) {
     ch->read_addr = (uintptr_t)vblank_vsync_off;
     ch->transfer_count = count_of(vblank_vsync_off);
-  } else if (!vactive_cmd_posted) {
-    // the previous line's pixels are on their way: build this line now
-    ch->read_addr = (uintptr_t)vactive_line;
-    ch->transfer_count = count_of(vactive_line);
-    vactive_cmd_posted = true;
-    const uint32_t line = v_scanline - V_BLANK;
-    self->buildLine(line, line & 1);
   } else {
+    // requeue first, then build: the line before this one is being sent
     const uint32_t line = v_scanline - V_BLANK;
     const bool inPicture = line >= PIC_TOP && line < PIC_TOP + PIC_LINES;
     ch->read_addr = (uintptr_t)(inPicture ? line_buf[line & 1] : black_line);
-    ch->transfer_count = LINE_WORDS;
-    vactive_cmd_posted = false;
+    ch->transfer_count = ACTIVE_WORDS + (line == V_ACTIVE - 1 ? TAIL_WORDS : 0);
+    self->buildLine(line, line & 1);
   }
 
-  if (vactive_cmd_posted) {
+  v_scanline = v_scanline + 1;
+  if (v_scanline < V_TOTAL) {
     return;
   }
-  v_scanline = (v_scanline + 1) % V_TOTAL;
-  if (v_scanline != 0) {
-    return;
-  }
+  // blank line 0 went out as the tail of the last active line
+  v_scanline = 1;
 
   // vblank: every line of the frame is built, the next frame starts
   self->ring.startScan();
   released_strip = 0;
   scan_frames = scan_frames + 1;
-  BaseType_t woken = pdFALSE;
-  xSemaphoreGiveFromISR(wake, &woken);
-  portYIELD_FROM_ISR(woken);
+  signalWake();
+}
+
+// Rebuilds the DMA chain from line 0 (after pico-galagino's hstx_resync).
+void DviHstxVideo::resync() {
+  irq_set_enabled(DMA_IRQ_0, false);
+
+  // RP2350-E5: clear EN on both channels before the abort, else the chained
+  // partner can re-trigger the aborted channel with stale config
+  const uint32_t both = (1u << ch_ping) | (1u << ch_pong);
+  hw_clear_bits(&dma_hw->ch[ch_ping].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
+  hw_clear_bits(&dma_hw->ch[ch_pong].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
+  dma_channel_abort(ch_ping);
+  dma_channel_abort(ch_pong);
+
+  // EN low flushes the FIFO and resets the shifter and clock generator
+  hw_clear_bits(&hstx_ctrl_hw->csr, HSTX_CTRL_CSR_EN_BITS);
+  dma_hw->ints0 = both;
+  hw_set_bits(&dma_hw->ch[ch_ping].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
+  hw_set_bits(&dma_hw->ch[ch_pong].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
+  queueBlankLines();
+
+  // the frame being written is lost: black until the next one
+  ring.startScan();
+  released_strip = 0;
+  scan_frames = scan_frames + 1;
+
+  hw_set_bits(&hstx_ctrl_hw->csr, HSTX_CTRL_CSR_EN_BITS);
+  irq_set_enabled(DMA_IRQ_0, true);
+  dma_channel_start(ch_ping);
+  resyncs++;
+  printf("DVI: scanout resync %u\n", (unsigned)resyncs);
 }
 
 void DviHstxVideo::begin() {
   self = this;
   wake = xSemaphoreCreateBinary();
+  for (uint32_t i = 0; i < HEADER_WORDS; i++) {
+    line_buf[0][i] = line_buf[1][i] = black_line[i] = vactive_line[i];
+  }
+  for (uint32_t i = 0; i < TAIL_WORDS; i++) {
+    line_buf[0][ACTIVE_WORDS + i] = line_buf[1][ACTIVE_WORDS + i] =
+        black_line[ACTIVE_WORDS + i] = vblank_vsync_off[i];
+  }
+  wake_irq = user_irq_claim_unused(true);
+  irq_set_exclusive_handler(wake_irq, wakeIrq);
+  irq_set_enabled(wake_irq, true);
 
   // two bits per HSTX clock: 252 Mbit/s per lane from a 252 MHz clk_sys
   clock_configure_int_divider(clk_hstx, 0, CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLK_SYS,
@@ -292,9 +381,11 @@ void DviHstxVideo::begin() {
   dma_hw->ints0 = (1u << ch_ping) | (1u << ch_pong);
   dma_hw->inte0 = (1u << ch_ping) | (1u << ch_pong);
   irq_set_exclusive_handler(DMA_IRQ_0, &DviHstxVideo::irq);
+  irq_set_priority(DMA_IRQ_0, PICO_HIGHEST_IRQ_PRIORITY);
   irq_set_enabled(DMA_IRQ_0, true);
   bus_ctrl_hw->priority = BUSCTRL_BUS_PRIORITY_DMA_W_BITS | BUSCTRL_BUS_PRIORITY_DMA_R_BITS;
 
+  rate_start_us = time_us_32();
   dma_channel_start(ch_ping);
   printf("DVI 640x480 60 Hz, DVI_SCALE %d, picture %u lines from %u\n", DVI_SCALE,
          (unsigned)PIC_LINES, (unsigned)PIC_TOP);

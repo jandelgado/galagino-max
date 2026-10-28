@@ -53,6 +53,8 @@ private:
   // DMA interrupt: queues the next part of the scanout
   static void irq();
   void buildLine(uint32_t line, uint32_t buffer);
+  // restarts the scanout after the DMA chain lost its framing
+  void resync();
 
   dvi::StripRing<RING_SLOTS> ring;
   volatile uint16_t viewport_width = 224;
