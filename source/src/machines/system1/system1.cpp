@@ -120,6 +120,9 @@ system1::system1(const Roms &r, const Config &c)
     firstStrip = ROT0_FIRST_ROW / STRIP_LINES;
     lastStrip = (ROT0_FIRST_ROW + VIS_LINES) / STRIP_LINES - 1;
   }
+  for (SpriteWidth &w : widths) {
+    w.width = -1;
+  }
 }
 
 void system1::reset() {
@@ -465,7 +468,7 @@ void system1::irqLines() {
 }
 
 // Visible sprites with their widest row, so strips can skip them cheaply.
-void system1::prepare_frame(void) {
+void HAL_HOT_CODE system1::prepare_frame(void) {
   if (vramPages) {
     // the bg page copies are part of the published state: same retry loop
     vblank.visit([this](const VideoState &v) {
@@ -488,15 +491,7 @@ void system1::prepare_frame(void) {
       continue;
     }
 
-    const uint8_t *bank = spriteRom + s.bank * SPRITE_BANK;
-    const int y0 = s.top > 0 ? s.top : 0;
-    const int y1 = s.bottom < VIS_LINES ? s.bottom : VIS_LINES;
-    int width = 0;
-    for (int y = y0; y < y1; y++) {
-      const int w = walkRow(bank, rowAddr(s, y), [](int, uint8_t) {});
-      width = w > width ? w : width;
-    }
-
+    const int width = spriteWidth(n, s);
     const int x0 = spriteX(s.x);
     if (width == 0 || x0 > config.vis.x1 || x0 + width <= config.vis.x0) {
       continue;
@@ -514,6 +509,26 @@ void system1::prepare_frame(void) {
   }
 }
 
+// widest visible row of sprite slot n, remembered while the slot keeps it
+int system1::spriteWidth(int n, const Sprite &s) {
+  SpriteWidth &w = widths[n];
+  if (w.width >= 0 && w.addr == s.addr && w.stride == s.stride && w.top == s.top &&
+      w.bottom == s.bottom && w.bank == s.bank) {
+    return w.width;
+  }
+
+  const uint8_t *bank = spriteRom + s.bank * SPRITE_BANK;
+  const int y0 = s.top > 0 ? s.top : 0;
+  const int y1 = s.bottom < VIS_LINES ? s.bottom : VIS_LINES;
+  int width = 0;
+  for (int y = y0; y < y1; y++) {
+    const int row = walkRow(bank, rowAddr(s, y), [](int, uint8_t) {});
+    width = row > width ? row : width;
+  }
+  w = {s.addr, s.stride, s.top, s.bottom, s.bank, (int16_t)width};
+  return width;
+}
+
 // center x of the player sprite if it is on screen, else NO_PLAYER
 int system1::playerX() const {
   for (int a = 0; a < activeCount; a++) {
@@ -528,7 +543,7 @@ const int system1::renderWidth() {
   return config.orientation == ROT0 ? ROT0_WIDTH : VIS_LINES;
 }
 
-void system1::render_row(short strip) {
+void HAL_HOT_CODE system1::render_row(short strip) {
   if (strip < firstStrip || strip > lastStrip || (video.mode & VIDEO_BLANK)) {
     return;
   }
@@ -541,19 +556,20 @@ void system1::render_row(short strip) {
 }
 
 // ROT0: per native line the sprite pens, then tiles mixed over the window
-void system1::renderRot0(int strip) {
+void HAL_HOT_CODE system1::renderRot0(int strip) {
   const LineSrc f = lineSrc();
+  uint16_t pens[ROT0_WIDTH] = {};
   for (int l = 0; l < STRIP_LINES; l++) {
     const int y = strip * STRIP_LINES + l - ROT0_FIRST_ROW;
     const int fgX0 = y < config.window.hudLines ? config.window.hudX : winX;
-    uint16_t *out = &frame_buffer[l * ROT0_WIDTH];
     uint32_t sprCols = 0;
     for (int a = 0; a < activeCount; a++) {
       const ActiveSprite &as = active[a];
       sprCols |= spriteRow(spriteRom + as.s.bank * SPRITE_BANK, as.s, as.x0,
-                           as.number * PENS_PER_SPRITE, y, winX, ROT0_WIDTH, out);
+                           as.number * PENS_PER_SPRITE, y, winX, ROT0_WIDTH, pens);
     }
-    renderRow(f, y, winX, fgX0, ROT0_WIDTH, sprCols, out);
+    renderRow(f, y, winX, fgX0, ROT0_WIDTH, sprCols, pens, &frame_buffer[l * ROT0_WIDTH]);
+    clearPens(pens, sprCols, winX);
   }
 }
 
@@ -590,7 +606,7 @@ int system1::xOf(int row) const {
 }
 
 // Sprite pens (sprite * 16 + nibble, never 0) into frame_buffer, later wins.
-__attribute__((flatten)) void system1::drawSprites(int strip) {
+__attribute__((flatten)) void HAL_HOT_CODE system1::drawSprites(int strip) {
   const int firstRow = strip * STRIP_LINES;
   const int xA = xOf(firstRow);
   const int xB = xOf(firstRow + STRIP_LINES - 1);
@@ -635,7 +651,7 @@ __attribute__((flatten)) void system1::drawSprites(int strip) {
 
 // fg + bg tiles and the sprite pens mixed line by line (renderLine), in
 // native line order; ROT90 then mirrors each row: column = 223 - y
-void system1::mixStrip(int strip) {
+void HAL_HOT_CODE system1::mixStrip(int strip) {
   const LineSrc f = lineSrc();
 
   for (int l = 0; l < STRIP_LINES; l++) {

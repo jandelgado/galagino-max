@@ -274,14 +274,14 @@ static void test_render_row(void) {
     const int fgX0 = full || (round & 2) ? x0 : rnd() % 17;  // HUD line: fg window apart
     const uint32_t sprCols = rnd() & rnd();
 
-    uint16_t want[256] = {}, got[256] = {};
+    uint16_t want[256] = {}, got[256] = {}, pens[256] = {};
     for (int i = 0; i < n; i++) {
       if ((sprCols >> ((x0 + i) / TILE_SIZE)) & 1) {
-        want[i] = got[i] = (rnd() & 1) ? rnd() % 0x200 : 0;
+        want[i] = pens[i] = (rnd() & 1) ? rnd() % 0x200 : 0;
       }
     }
     referenceRow(f, prom, y, x0, fgX0, n, want);
-    renderRow(f, y, x0, fgX0, n, sprCols, got);
+    renderRow(f, y, x0, fgX0, n, sprCols, pens, got);
     TEST_ASSERT_EQUAL_HEX16_ARRAY(want, got, n);
   }
 }

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include "../../hal/hal_attr.h"
 
 // Pure Sega System 1 video logic (MAME system1_v.cpp), shared by render and
 // collision. x512 = MAME screen x (2x pixel clock), x = half-res native x,
@@ -209,15 +210,6 @@ struct LineSrc {
   uint8_t scrollY;
 };
 
-// pixels with fixed fg and bg tile, tile words aligned to bit 21
-struct Run {
-  uint32_t fw;
-  uint32_t bw;
-  const uint16_t *fgPal;
-  const uint16_t *bgPal;
-  uint16_t sel;
-};
-
 // bg tile under line pixel y at (bx, by) of the 512 x 512 bg map:
 // palette, priority and word aligned to y
 inline __attribute__((always_inline)) const uint16_t *bgTile(const LineSrc &f, uint16_t bx,
@@ -230,34 +222,49 @@ inline __attribute__((always_inline)) const uint16_t *bgTile(const LineSrc &f, u
   return &f.pal[BG_PENS | tilePen(t.color, 0)];
 }
 
-__attribute__((noinline)) inline void mixRun(uint16_t *out, const uint16_t *pens, int n,
-                                             const Run &r, const uint16_t *sprPal) {
-  uint32_t fw = r.fw;
-  uint32_t bw = r.bw;
-  for (int i = 0; i < n; i++, fw <<= 3, bw <<= 3) {
+// Per bg pixel of pass 1, for the mix in pass 2: pen | tile priority << 3
+constexpr uint8_t BG_PIX = 0x07;
+
+inline __attribute__((always_inline)) uint8_t bgKey(int pri, uint8_t pix) {
+  return (uint8_t)(pix | (pri << 3));
+}
+
+// n pixels of one fg tile (word aligned to bit 21) over the bg pass 1 left
+// in out, through the lookup PROM (MAME video_update_common). SPRITES: pens
+// holds the sprite pens of these pixels, else there are none. A pixel
+// without fg and sprite pen keeps bg when clearShowsBg.
+template <bool SPRITES>
+inline __attribute__((always_inline)) void mixTile(const LineSrc &f, uint16_t *out,
+                                                   const uint8_t *key, const uint16_t *pens,
+                                                   int n, uint32_t fw, uint8_t fgColor) {
+  const uint16_t *fgPal = &f.pal[FG_PENS | tilePen(fgColor, 0)];
+  const uint16_t *sel = &f.mixSel[fgColor >> 6];
+  const bool clearShowsBg = f.clearShowsBg;
+  for (int i = 0; i < n; i++, fw <<= 3) {
     const uint8_t fp = (fw >> 21) & 7;
-    const uint8_t bp = (bw >> 21) & 7;
-    const uint16_t spr = pens[i];
-    const int o = (spr ? 0 : 1) | (fp ? 0 : 2) | (bp ? 0 : 4);
-    const uint8_t source = (r.sel >> (2 * o)) & MIX_SOURCE;
+    const uint16_t spr = SPRITES ? pens[i] : 0;
+    if (!fp && !spr && clearShowsBg) {
+      continue;
+    }
+
+    const uint8_t k = key[i];
+    const int o = (spr ? 0 : 1) | (fp ? 0 : 2) | ((k & BG_PIX) ? 0 : 4);
+    const uint8_t source = (sel[(k >> 1) & ~3] >> (2 * o)) & MIX_SOURCE;
     if (source == SOURCE_SPRITE) {
-      out[i] = sprPal[spr];
+      out[i] = f.pal[spr];
     } else if (source == SOURCE_FG) {
-      out[i] = r.fgPal[fp];
-    } else {
-      out[i] = r.bgPal[bp];
+      out[i] = fgPal[fp];
     }
   }
 }
 
 // One output line at half-res x: fg + bg tiles and the sprite pens already in
-// out through the lookup PROM (MAME video_update_common). sprTiles bit ty
-// marks fg tile rows ty that may hold sprite pens, all others are 0. Pass 1
-// paints bg, pass 2 mixes only the fg tiles with fg or sprite pixels, few in
-// practice. Column games have one x scroll; the bg map is System 1's page 0
-// four times or System 2's 4 selected pages (tokisens).
-inline void renderLine(const LineSrc &f, int x, uint32_t sprTiles, uint16_t *out) {
-  static const uint16_t NO_PENS[TILE_SIZE] = {};
+// out through the lookup PROM. sprTiles bit ty marks fg tile rows ty that may
+// hold sprite pens, all others are 0. Pass 1 paints bg, pass 2 mixes only
+// the fg tiles with fg or sprite pixels, few in practice. Column games have
+// one x scroll; the bg map is System 1's page 0 four times or System 2's 4
+// selected pages (tokisens).
+static inline void HAL_HOT_CODE renderLine(const LineSrc &f, int x, uint32_t sprTiles, uint16_t *out) {
   const uint16_t bx = bgMapX(2 * x, f.rowScroll[0]);
 
   // pass 1 overwrites the sprite pens: keep the tiles holding them
@@ -268,6 +275,7 @@ inline void renderLine(const LineSrc &f, int x, uint32_t sprTiles, uint16_t *out
     memcpy(&pens[lo], &out[lo], (hi - lo) * sizeof(uint16_t));
   }
 
+  uint8_t key[VIS_LINES];
   uint16_t by = bgMapY(0, f.scrollY);
   for (int y = 0; y < VIS_LINES;) {
     uint32_t bw;
@@ -276,7 +284,9 @@ inline void renderLine(const LineSrc &f, int x, uint32_t sprTiles, uint16_t *out
     int n = TILE_SIZE - (by & 7);
     n = y + n > VIS_LINES ? VIS_LINES - y : n;
     for (int i = 0; i < n; i++, bw <<= 3) {
-      out[y + i] = bgPal[(bw >> 21) & 7];
+      const uint8_t bp = (bw >> 21) & 7;
+      out[y + i] = bgPal[bp];
+      key[y + i] = bgKey(pri, bp);
     }
     y += n;
     by = (by + n) & BG_MAP_MASK;
@@ -285,99 +295,70 @@ inline void renderLine(const LineSrc &f, int x, uint32_t sprTiles, uint16_t *out
   for (int ty = 0; ty < VIS_LINES / TILE_SIZE; ty++) {
     const int y = ty * TILE_SIZE;
     const Tile t = tileAt(f.fgPage, ty * PAGE_COLS + (x >> 3));
-    Run r;
-    r.fw = f.tiles[t.code][x & 7];
-    const bool sprite = (sprTiles >> ty) & 1;
-    if (r.fw == 0 && !sprite && f.clearShowsBg) {
-      continue;
-    }
-
-    // up to two bg tiles under this fg tile
-    r.fgPal = &f.pal[FG_PENS | tilePen(t.color, 0)];
-    const int fgPri = t.color >> 6;
-    const uint16_t *tilePens = sprite ? &pens[y] : NO_PENS;
-    for (int i = 0; i < TILE_SIZE;) {
-      const uint16_t by = bgMapY(y + i, f.scrollY);
-      int bgPri;
-      r.bgPal = bgTile(f, bx, by, r.bw, bgPri);
-      r.sel = f.mixSel[fgPri | (bgPri << 2)];
-      int n = TILE_SIZE - (by & 7);
-      n = i + n > TILE_SIZE ? TILE_SIZE - i : n;
-      mixRun(&out[y + i], &tilePens[i], n, r, f.pal);
-      r.fw <<= 3 * n;
-      i += n;
+    const uint32_t fw = f.tiles[t.code][x & 7];
+    if ((sprTiles >> ty) & 1) {
+      mixTile<true>(f, &out[y], &key[y], &pens[y], TILE_SIZE, fw, t.color);
+    } else if (fw != 0 || !f.clearShowsBg) {
+      mixTile<false>(f, &out[y], &key[y], nullptr, TILE_SIZE, fw, t.color);
     }
   }
 }
 
-// One ROT0 output line: native line y into out[0..n), bg and sprites from
-// native x0 + i, fg from fgX0 + i (HUD lines keep their text at a fixed x
-// while the scenery under it moves with the window; else fgX0 == x0). Tiles
-// stored TILES_BY_ROW. Sprite pens are already in out; sprCols bit tx marks
-// native tile columns tx (sprite space) that may hold them. One pass over
-// runs with a fixed fg and bg tile: runs without fg or sprite pixels copy
-// bg, the others go through mixRun (renderLine's pass 2). The bg line
-// crosses the left and right page of its page row and has its row's scroll.
-inline void renderRow(const LineSrc &f, int y, int x0, int fgX0, int n, uint32_t sprCols,
-                      uint16_t *out) {
-  static const uint16_t NO_PENS[TILE_SIZE] = {};
+// One ROT0 output line: native line y into out[0..n), n <= PAGE_SIZE, bg
+// and sprites from native x0 + i, fg from fgX0 + i (HUD lines keep their
+// text at a fixed x while the scenery under it moves with the window; else
+// fgX0 == x0). Tiles stored TILES_BY_ROW. pens[i]: sprite pen at out[i], 0
+// for none; sprCols bit tx marks native tile columns tx (sprite space) that
+// may hold them. Pass 1 paints bg per bg tile (its row's scroll, crossing
+// the left and right page of its page row), pass 2 mixes the fg tiles with
+// fg or sprite pixels, as renderLine.
+static inline void HAL_HOT_CODE renderRow(const LineSrc &f, int y, int x0, int fgX0, int n,
+                                          uint32_t sprCols, const uint16_t *pens, uint16_t *out) {
   constexpr uint32_t ROW_BITS = 0xffffff;  // 8 pixels x 3 bits
   const int scroll = f.rowScroll[(y >> 3) & (SCROLL_ROWS - 1)];
   const uint16_t by = bgMapY(y, f.scrollY);
   const uint8_t *const *bgPages = &f.bgPages[(by / PAGE_SIZE) * 2];
-  const int fgRow = (y >> 3) * PAGE_COLS;
   const int bgRow = ((by % PAGE_SIZE) >> 3) * PAGE_COLS;
 
   // bgMapX truncates toward 0: with an odd scroll bg column 0 shows twice,
   // the second time at i = dup, where the column count restarts
   const int dup = (scroll & 1) ? (scroll + 1) / 2 - x0 : -1;
 
-  int fgCol = -1;
-  int bgTileCol = -1;
-  uint32_t fgWord = 0;
-  uint32_t bgWord = 0;
-  int fgPri = 0;
-  int bgPri = 0;
-  Run r;
+  uint8_t key[PAGE_SIZE];
   for (int i = 0; i < n;) {
     const uint16_t bx = bgMapX(2 * (x0 + i), scroll);
-    const int fx = fgX0 + i;
     int len = TILE_SIZE - (bx & 7);
-    len = TILE_SIZE - (fx & 7) < len ? TILE_SIZE - (fx & 7) : len;
     len = n - i < len ? n - i : len;
     len = dup > i && dup < i + len ? dup - i : len;
 
-    // tiles change every 8 pixels, runs are shorter
-    if ((fx >> 3) != fgCol) {
-      fgCol = fx >> 3;
-      const Tile t = tileAt(f.fgPage, fgRow + fgCol);
-      fgWord = f.tiles[t.code][y & 7];
-      r.fgPal = &f.pal[FG_PENS | tilePen(t.color, 0)];
-      fgPri = t.color >> 6;
+    const Tile t = tileAt(bgPages[bx / PAGE_SIZE], bgRow + ((bx >> 3) & (PAGE_COLS - 1)));
+    uint32_t bw = f.tiles[t.code][by & 7] << (3 * (bx & 7));
+    const uint16_t *bgPal = &f.pal[BG_PENS | tilePen(t.color, 0)];
+    const int pri = t.color >> 6;
+    for (int k = 0; k < len; k++, bw <<= 3) {
+      const uint8_t bp = (bw >> 21) & 7;
+      out[i + k] = bgPal[bp];
+      key[i + k] = bgKey(pri, bp);
     }
-    if ((bx >> 3) != bgTileCol) {
-      bgTileCol = bx >> 3;
-      const Tile t = tileAt(bgPages[bx / PAGE_SIZE], bgRow + (bgTileCol & (PAGE_COLS - 1)));
-      bgWord = f.tiles[t.code][by & 7];
-      r.bgPal = &f.pal[BG_PENS | tilePen(t.color, 0)];
-      bgPri = t.color >> 6;
-    }
-    r.fw = fgWord << (3 * (fx & 7));
-    r.bw = bgWord << (3 * (bx & 7));
+    i += len;
+  }
 
+  const int fgRow = (y >> 3) * PAGE_COLS;
+  for (int i = 0; i < n;) {
+    const int fx = fgX0 + i;
+    int len = TILE_SIZE - (fx & 7);
+    len = n - i < len ? n - i : len;
+
+    const Tile t = tileAt(f.fgPage, fgRow + (fx >> 3));
+    const uint32_t fw = f.tiles[t.code][y & 7] << (3 * (fx & 7));
     // with the fg shifted (HUD lines) sprite tile columns do not line up,
     // so any sprite on the line counts for all
-    const bool sprite = fgX0 == x0 ? (sprCols >> fgCol) & 1 : sprCols != 0;
-    if ((r.fw & ROW_BITS) == 0 && !sprite && f.clearShowsBg) {
-      uint32_t bw = r.bw;
-      for (int k = 0; k < len; k++, bw <<= 3) {
-        out[i + k] = r.bgPal[(bw >> 21) & 7];
-      }
-    } else {
-      r.sel = f.mixSel[fgPri | (bgPri << 2)];
-      mixRun(&out[i], sprite ? &out[i] : NO_PENS, len, r, f.pal);
+    const bool sprite = fgX0 == x0 ? (sprCols >> (fx >> 3)) & 1 : sprCols != 0;
+    if (sprite) {
+      mixTile<true>(f, &out[i], &key[i], &pens[i], len, fw, t.color);
+    } else if ((fw & ROW_BITS) != 0 || !f.clearShowsBg) {
+      mixTile<false>(f, &out[i], &key[i], nullptr, len, fw, t.color);
     }
-
     i += len;
   }
 }
@@ -442,6 +423,20 @@ template <class F> inline int walkRow(const uint8_t *bank, uint16_t addr, F px) 
   return i;
 }
 
+// Zeroes the pens spriteRow wrote: the tile columns in sprCols (native
+// x, out[i] = native x winX + i), clipped to ROT0_WIDTH.
+inline void clearPens(uint16_t *pens, uint32_t sprCols, int winX) {
+  while (sprCols) {
+    const int tx = __builtin_ctz(sprCols);
+    sprCols &= sprCols - 1;
+    const int a = tx * TILE_SIZE - winX;
+    const int b = a + TILE_SIZE < ROT0_WIDTH ? a + TILE_SIZE : ROT0_WIDTH;
+    for (int i = a < 0 ? 0 : a; i < b; i++) {
+      pens[i] = 0;
+    }
+  }
+}
+
 // ROT0 window into the 256 px line. The game's own content may not span all
 // 256 px (Pitfall II: x 5..249), so the window moves only within [min, max],
 // following the player sprite. HUD lines use a fixed window: their text stays
@@ -502,7 +497,7 @@ struct WindowFollow {
 // ROT0: pens of one sprite on native line y into out[0..n), out[i] = native
 // x winX + i. x0 = spriteX of the sprite. Returns the native fg tile columns
 // it wrote (renderRow sprCols).
-inline uint32_t spriteRow(const uint8_t *bank, const Sprite &s, int x0, uint16_t penBase,
+static inline uint32_t HAL_HOT_CODE spriteRow(const uint8_t *bank, const Sprite &s, int x0, uint16_t penBase,
                           int y, int winX, int n, uint16_t *out) {
   if (y < s.top || y >= s.bottom) {
     return 0;

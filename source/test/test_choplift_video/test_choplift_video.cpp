@@ -289,9 +289,9 @@ static void test_rowscroll_per_8_lines(void) {
   const LineSrc f = {fgPage, {left, right, left, right}, {twoTiles, MAP, 1, TILES_BY_ROW},
                      identityPal, sel, clearShowsBg, rows, 0};
 
-  uint16_t row3[ROT0_WIDTH] = {}, row4[ROT0_WIDTH] = {};
-  renderRow(f, 31, 8, 8, ROT0_WIDTH, 0, row3);
-  renderRow(f, 32, 8, 8, ROT0_WIDTH, 0, row4);
+  uint16_t row3[ROT0_WIDTH] = {}, row4[ROT0_WIDTH] = {}, pens[ROT0_WIDTH] = {};
+  renderRow(f, 31, 8, 8, ROT0_WIDTH, 0, pens, row3);
+  renderRow(f, 32, 8, 8, ROT0_WIDTH, 0, pens, row4);
   for (int i = 0; i < ROT0_WIDTH; i++) {
     TEST_ASSERT_EQUAL_HEX16(bgPen(8 + i - 10), row3[i]);
     TEST_ASSERT_EQUAL_HEX16(bgPen(8 + i + 30), row4[i]);
@@ -381,14 +381,14 @@ static void test_bg_pages_random(void) {
     const int n = full ? 256 : ROT0_WIDTH;
     const uint32_t sprCols = rnd() & rnd();
 
-    uint16_t want[256] = {}, got[256] = {};
+    uint16_t want[256] = {}, got[256] = {}, pens[256] = {};
     for (int i = 0; i < n; i++) {
       if ((sprCols >> ((x0 + i) / TILE_SIZE)) & 1) {
-        want[i] = got[i] = (rnd() & 1) ? rnd() % 0x200 : 0;
+        want[i] = pens[i] = (rnd() & 1) ? rnd() % 0x200 : 0;
       }
     }
     referenceRow(f, prom, y, x0, n, want);
-    renderRow(f, y, x0, x0, n, sprCols, got);
+    renderRow(f, y, x0, x0, n, sprCols, pens, got);
     TEST_ASSERT_EQUAL_HEX16_ARRAY(want, got, n);
   }
 }
