@@ -1,20 +1,22 @@
 #ifndef HAL_RP2350_VIDEO_DVI_HSTX_H
 #define HAL_RP2350_VIDEO_DVI_HSTX_H
 
-// DVI (HDMI connector) over the RP2350's HSTX, 640x480 at 60 Hz. No
-// framebuffer: submitted strips go to a ring, and the scanout IRQ builds
-// each output line from it as the beam gets there (strip_ring.h). The
-// scanout is the frame clock: endFrame() returns at the next vblank.
+// DVI (HDMI connector) over the RP2350's HSTX, 640x480 at 60 Hz. Submitted
+// strips go to a 240 x 288 framebuffer; the scanout IRQ builds each output
+// line from it (dvi_line.h). A TV has no picture memory of its own: without
+// the framebuffer every strip would have to beat the beam, and slow frames
+// (many sprites, half rate machines) showed black lines. The scanout is the
+// frame clock: endFrame() returns at the next vblank.
 //
-//   main task (video core)            DMA IRQ (video core)
-//   renderRow -> submit() --ring-->   line build (dvi_line.h) -> HSTX
-//   endFrame(): wait for vblank  <--  vblank
+//   main task (video core)                DMA IRQ (video core)
+//   renderRow -> submit() --framebuffer--> line build -> HSTX
+//   endFrame(): wait for vblank      <--  vblank
 //
 // SDK calls are out of line (video_dvi_hstx.cpp, see time.h).
 
 #include <stdint.h>
 #include "../../config.h"
-#include "strip_ring.h"
+#include "dvi_line.h"
 
 namespace hal {
 
@@ -32,23 +34,25 @@ public:
   void flip(char flipY, char flipX);
   void flipReset(char, char) { flip(0, 0); }
 
-  // the scanout runs at 60 Hz: always full rate
-  void setHalfRate(bool) {}
-  uint8_t screenParts() const { return 1; }
+  // Half rate: a screen is rendered in two parts, one per scanout, as on
+  // the SPI panel; the scanout stays at 60 Hz.
+  void setHalfRate(bool half) { half_rate = half; }
+  uint8_t screenParts() const { return half_rate ? 2 : 1; }
 
-  // Scan order is top to bottom: a flipY screen renders its last strip first.
+  // Scan order is top to bottom: a flipY screen renders its last strip first,
+  // so rendering stays ahead of the beam.
   uint8_t stripIndex(uint8_t i) const {
     return flip_y == dvi::Mirror::ON ? STRIPS - 1 - i : i;
   }
 
-  // Copies the strip into the ring; waits while the ring is full.
+  // Copies the strip into the framebuffer.
   void submit(const uint16_t *strip, uint32_t pixels);
-  // Returns at the next vblank; strips submitted after it form the next frame.
+  // Returns at the next vblank; after the last part the next strip is the
+  // top one again.
   void endFrame(uint8_t part, uint32_t frameStartUs);
 
 private:
   static const uint8_t STRIPS = 36;
-  static const uint8_t RING_SLOTS = 8;
 
   // DMA interrupt: queues the next part of the scanout
   static void irq();
@@ -56,11 +60,11 @@ private:
   // restarts the scanout after the DMA chain lost its framing
   void resync();
 
-  dvi::StripRing<RING_SLOTS> ring;
   volatile uint16_t viewport_width = 224;
   dvi::Mirror flip_x = dvi::Mirror::OFF;
   dvi::Mirror flip_y = dvi::Mirror::OFF;
-  uint32_t frames_reported = 0;
+  bool half_rate = false;
+  uint8_t written = 0;  // strips of the current screen
 };
 
 } // namespace hal

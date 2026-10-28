@@ -85,6 +85,12 @@ static inline uint32_t scaleRow(uint32_t line, uint32_t rows, uint32_t lines, ui
   return row;
 }
 
+// Framebuffer row of line `line` (0..7) of the strip-th strip in scan order:
+// flipY strips arrive bottom strip first (stripIndex), their lines reversed.
+static inline uint32_t frameRow(uint32_t strip, uint32_t line, Mirror flipY) {
+  return strip * 8 + (flipY == Mirror::ON ? 7 - line : line);
+}
+
 // 1x: `width` pixels (even) into width / 2 words.
 static inline void line1x(const uint16_t *row, uint32_t *out, uint32_t width, Mirror mirror) {
   if (mirror == Mirror::ON) {

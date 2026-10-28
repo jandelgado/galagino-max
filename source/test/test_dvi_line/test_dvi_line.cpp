@@ -115,6 +115,15 @@ static void test_orientation_follows_panel_flips(void) {
   TEST_ASSERT_TRUE(orientation(1, 1).x == Mirror::OFF && orientation(1, 1).y == Mirror::ON);
 }
 
+// strips arrive in scan order; flipY reverses the lines inside a strip
+static void test_frame_row(void) {
+  TEST_ASSERT_EQUAL_UINT32(0, frameRow(0, 0, Mirror::OFF));
+  TEST_ASSERT_EQUAL_UINT32(7, frameRow(0, 0, Mirror::ON));
+  TEST_ASSERT_EQUAL_UINT32(287, frameRow(35, 7, Mirror::OFF));
+  TEST_ASSERT_EQUAL_UINT32(280, frameRow(35, 7, Mirror::ON));
+  TEST_ASSERT_EQUAL_UINT32(10, frameRow(1, 2, Mirror::OFF));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_swap565);
@@ -126,5 +135,6 @@ int main(int, char **) {
   RUN_TEST(test_line_2x);
   RUN_TEST(test_line_2x_224_leaves_border_black);
   RUN_TEST(test_orientation_follows_panel_flips);
+  RUN_TEST(test_frame_row);
   return UNITY_END();
 }

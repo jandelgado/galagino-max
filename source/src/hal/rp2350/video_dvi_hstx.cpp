@@ -95,12 +95,16 @@ HAL_FAST_CODE void clearWords(uint32_t *words, uint32_t n) {
   }
 }
 
+// Source picture, native RGB565, rows in scan order (flips applied).
+const uint32_t SRC_WIDTH = 240;
+uint16_t frame[SRC_ROWS][SRC_WIDTH];
+
 // The DMA IRQ has the highest priority: a late requeue makes a channel
 // replay a stale buffer, the HSTX command stream loses its framing and stays
 // garbled (about 160 frames/s, no picture). At that priority it may not call
 // FreeRTOS, so it pends wake_irq, a low priority IRQ that gives the semaphore.
 DviHstxVideo *self;
-SemaphoreHandle_t wake;          // given at vblank and when a strip frees
+SemaphoreHandle_t wake;          // given at vblank
 int wake_irq;
 volatile uint32_t scan_frames;   // vblanks so far
 
@@ -121,7 +125,6 @@ int ch_ping;
 int ch_pong;
 bool pong;
 uint32_t v_scanline = 2;  // ping and pong are queued before the first IRQ
-uint16_t released_strip;
 
 HAL_FAST_CODE void signalWake() {
   nvic_hw->ispr[wake_irq / 32] = 1u << (wake_irq % 32);
@@ -154,20 +157,20 @@ void DviHstxVideo::flip(char flipY, char flipX) {
 }
 
 void DviHstxVideo::submit(const uint16_t *strip, uint32_t pixels) {
-  uint16_t *slot;
-  while (!(slot = ring.tryAcquire())) {
-    xSemaphoreTake(wake, 1);
+  if (written >= STRIPS) {
+    return;
   }
 
-  // machines pack the strip at its width; the ring rows are 240 wide
-  const uint32_t width = pixels / dvi::StripRing<RING_SLOTS>::STRIP_LINES;
-  for (uint32_t line = 0; line < dvi::StripRing<RING_SLOTS>::STRIP_LINES; line++) {
-    dvi::copySwapped(strip + line * width, slot + line * dvi::StripRing<RING_SLOTS>::WIDTH, width);
+  // machines pack the strip at its width; framebuffer rows are 240 wide
+  const uint32_t lines = SRC_ROWS / STRIPS;
+  const uint32_t width = pixels / lines;
+  for (uint32_t line = 0; line < lines; line++) {
+    dvi::copySwapped(strip + line * width, frame[dvi::frameRow(written, line, flip_y)], width);
   }
-  ring.publish();
+  written++;
 }
 
-void DviHstxVideo::endFrame(uint8_t, uint32_t) {
+void DviHstxVideo::endFrame(uint8_t part, uint32_t) {
   const uint32_t frame = scan_frames;
   const uint32_t start = time_us_32();
   while (scan_frames == frame) {
@@ -187,21 +190,13 @@ void DviHstxVideo::endFrame(uint8_t, uint32_t) {
     rate_start_us = time_us_32();
     rate_start_frames = scan_frames;
   }
-  ring.startWrite();
-
-#ifdef DEBUG_TIMING
-  // strips that came after the beam needed them (black lines on screen)
-  if (scan_frames - frames_reported >= 600) {
-    printf("DVI late lines %u in %u frames\n", (unsigned)ring.lateLines(),
-           (unsigned)(scan_frames - frames_reported));
-    ring.clearLate();
-    frames_reported = scan_frames;
+  if (part + 1 >= screenParts()) {
+    written = 0;
   }
-#endif
 }
 
-// Builds active line `line` into line_buf[buffer] from the ring; border
-// lines are sent from black_line.
+// Builds active line `line` into line_buf[buffer] from the framebuffer;
+// border lines are sent from black_line.
 void HAL_FAST_CODE DviHstxVideo::buildLine(uint32_t line, uint32_t buffer) {
   if (line < PIC_TOP || line >= PIC_TOP + PIC_LINES) {
     return;
@@ -217,23 +212,11 @@ void HAL_FAST_CODE DviHstxVideo::buildLine(uint32_t line, uint32_t buffer) {
 
   uint32_t q = 0;
   const uint32_t row = DVI_SCALE == 1 ? line - PIC_TOP : dvi::scaleRow(line - PIC_TOP, SRC_ROWS, PIC_LINES, &q);
-  const uint16_t *a = ring.row(row, flip_y);
-  const uint16_t *b = q ? ring.row(row + 1, flip_y) : a;
-  ring.release(row);
-
-  // the writer moved past a strip: submit() may continue
-  const uint16_t strip = row / dvi::StripRing<RING_SLOTS>::STRIP_LINES;
-  if (strip != released_strip) {
-    released_strip = strip;
-    signalWake();
-  }
+  const uint16_t *a = frame[row];
+  const uint16_t *b = q ? frame[row + 1] : a;
 
   const uint32_t picWords = DVI_SCALE == 1 ? width / 2 : width;
   uint32_t *pic = out + (LINE_WORDS - picWords) / 2;
-  if (!a || !b) {
-    clearWords(pic, picWords);
-    return;
-  }
   if (DVI_SCALE == 1) {
     dvi::line1x(a, pic, width, flip_x);
   } else {
@@ -271,8 +254,6 @@ void HAL_FAST_CODE DviHstxVideo::irq() {
   v_scanline = 1;
 
   // vblank: every line of the frame is built, the next frame starts
-  self->ring.startScan();
-  released_strip = 0;
   scan_frames = scan_frames + 1;
   signalWake();
 }
@@ -296,9 +277,6 @@ void DviHstxVideo::resync() {
   hw_set_bits(&dma_hw->ch[ch_pong].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
   queueBlankLines();
 
-  // the frame being written is lost: black until the next one
-  ring.startScan();
-  released_strip = 0;
   scan_frames = scan_frames + 1;
 
   hw_set_bits(&hstx_ctrl_hw->csr, HSTX_CTRL_CSR_EN_BITS);
