@@ -1,6 +1,7 @@
 // Program entry: the scheduler starts a main task on core 0 (the video core)
 // that runs the application loop.
 #ifdef HAL_RP2350
+#include "../../config.h"  // the board profile may set GALAGINO_CLOCK_KHZ
 #include "../entry.h"
 #include <FreeRTOS.h>
 #include <task.h>

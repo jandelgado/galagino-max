@@ -18,6 +18,10 @@
 // CHEAP_YELLOW_DISPLAY_CONF is defined, else boards/galagino_default.h.
 #if defined(BOARD_PICO2)
   #define HAL_BOARD_PROFILE "boards/pico2.h"
+#elif defined(BOARD_FEATHER_RP2350)
+  #define HAL_BOARD_PROFILE "boards/feather_rp2350.h"
+#elif defined(BOARD_PICO2W_DVI)
+  #define HAL_BOARD_PROFILE "boards/pico2w_dvi.h"
 #elif defined(BOARD_CYD2432S028R)
   #define HAL_BOARD_PROFILE "boards/cyd2432s028r.h"
 #elif defined(BOARD_FNK0103F)
@@ -31,7 +35,7 @@
   #define USE_PIO_CONFIG
 #endif
 
-#if __has_include("config_local.h") && !defined(BOARD_PICO2)
+#if __has_include("config_local.h") && !defined(HAL_RP2350)
 #include "config_local.h"
 #endif
 
