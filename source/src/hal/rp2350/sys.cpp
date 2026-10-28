@@ -53,6 +53,12 @@ void printPlatformInfo() {
   if ((watchdog_hw->scratch[0] >> 8) == CRASH_MAGIC) {
     printf("LAST CRASH kind %u a=0x%08x b=0x%08x\n", (unsigned)(watchdog_hw->scratch[0] & 0xFF),
            (unsigned)watchdog_hw->scratch[1], (unsigned)watchdog_hw->scratch[2]);
+    // the message is a format string in flash: valid while the image is the same
+    const uint32_t msg = watchdog_hw->scratch[2];
+    if ((watchdog_hw->scratch[0] & 0xFF) == CRASH_PANIC && msg >= XIP_BASE &&
+        msg < XIP_BASE + PICO_FLASH_SIZE_BYTES) {
+      printf("LAST CRASH panic: %.80s\n", (const char *)msg);
+    }
     watchdog_hw->scratch[0] = 0;
   }
   SysInfo s;

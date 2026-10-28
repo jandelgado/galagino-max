@@ -33,6 +33,16 @@ extern "C" void hardFaultC(uint32_t *frame) {
   hal::crashReboot(hal::CRASH_FAULT, frame[6], frame[5]);  // pc, lr
 }
 
+// PICO_PANIC_FUNCTION (CMakeLists.txt): panic() pushed its caller's lr and
+// called this with the message in r0.
+extern "C" [[noreturn]] void galaginoPanicRecord(const char *fmt, uint32_t caller) {
+  hal::crashReboot(hal::CRASH_PANIC, caller, (uint32_t)fmt);
+}
+
+extern "C" __attribute__((naked, noreturn)) void galaginoPanic(const char *, ...) {
+  __asm volatile("ldr r1, [sp]\n b galaginoPanicRecord\n");
+}
+
 extern "C" __attribute__((naked)) void hardFault() {
   __asm volatile("tst lr, #4\n ite eq\n mrseq r0, msp\n mrsne r0, psp\n b hardFaultC\n");
 }

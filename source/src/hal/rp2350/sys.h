@@ -43,6 +43,7 @@ uint32_t random32();
 // Crash record: stored before the reset, printed by printPlatformInfo().
 static const uint32_t CRASH_STACK = 1;  // a = first two letters of the task name
 static const uint32_t CRASH_FAULT = 2;  // a = pc, b = lr
+static const uint32_t CRASH_PANIC = 3;  // a = caller of panic(), b = its message
 [[noreturn]] void crashReboot(uint32_t kind, uint32_t a, uint32_t b);
 
 // The last reset was a watchdog reset.

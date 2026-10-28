@@ -40,7 +40,7 @@ endforeach()
 add_executable(galagino ${SOURCES})
 target_include_directories(galagino PRIVATE ${SRC} ${CMAKE_CURRENT_LIST_DIR})
 target_compile_definitions(galagino PRIVATE ${GALAGINO_DEFINES} ${GALAGINO_BOARD_DEFINE}
-  PICO_FLASH_SIZE_BYTES=4194304 PICO_STACK_SIZE=0x1000)
+  PICO_FLASH_SIZE_BYTES=4194304 PICO_STACK_SIZE=0x1000 PICO_PANIC_FUNCTION=galaginoPanic)
 target_compile_options(galagino PRIVATE -O2 -w)
 target_link_libraries(galagino PRIVATE pico_stdlib pico_rand pico_multicore hardware_i2c
   hardware_dma hardware_watchdog hardware_vreg FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
