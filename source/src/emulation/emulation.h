@@ -1,6 +1,7 @@
 #ifndef _EMULATION_H_
 #define _EMULATION_H_
 
+#include <stdbool.h>  // also included by C (Z80.c)
 #include "../config.h"
 #include "cpus/z80/Z80.h"
 #include "cpus/i8048/i8048.h"
