@@ -19,4 +19,10 @@ idf_component_register(
 # break code that runs with the flash cache off). The CPU cores' opcode
 # switches then compile to compare chains and the emulation runs 25 to 40 %
 # slower: give this component jump tables back.
-target_compile_options(${COMPONENT_LIB} PRIVATE -fjump-tables -ftree-switch-conversion -flto=auto)
+target_compile_options(${COMPONENT_LIB} PRIVATE -fjump-tables -ftree-switch-conversion)
+# -DGALAGINO_NO_LTO=1 (cmake_extra_args) keeps one object per source with
+# per-function sections: the flash pick (romconv dev/games_max) reads their
+# symbols and relocations; firmware builds always link with LTO
+if(NOT GALAGINO_NO_LTO)
+  target_compile_options(${COMPONENT_LIB} PRIVATE -flto=auto)
+endif()
