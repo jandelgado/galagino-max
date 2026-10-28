@@ -121,11 +121,11 @@ void _1943::reset() {
   fm[1].reset();
 }
 
-unsigned char _1943::opZ80(unsigned short Addr) {
+unsigned char HAL_HOT_CODE _1943::opZ80(unsigned short Addr) {
   return rdZ80(Addr);
 }
 
-unsigned char _1943::rdZ80(unsigned short Addr) {
+unsigned char HAL_HOT_CODE _1943::rdZ80(unsigned short Addr) {
   if (current_cpu) {
     return rdSound(Addr);
   }
@@ -192,7 +192,7 @@ unsigned char _1943::rdInput(unsigned short Addr) {
   return 0xff;
 }
 
-void _1943::wrZ80(unsigned short Addr, unsigned char Value) {
+void HAL_HOT_CODE _1943::wrZ80(unsigned short Addr, unsigned char Value) {
   if (current_cpu) {
     wrSound(Addr, Value);
     return;
@@ -235,7 +235,7 @@ void _1943::wrZ80(unsigned short Addr, unsigned char Value) {
   }
 }
 
-unsigned char _1943::rdSound(unsigned short Addr) {
+unsigned char HAL_HOT_CODE _1943::rdSound(unsigned short Addr) {
   if (Addr < SOUND_ROM_END) {
     return sound_rom[Addr];
   }
@@ -251,7 +251,7 @@ unsigned char _1943::rdSound(unsigned short Addr) {
 // $E000/$E001 YM2203 #1, $E002/$E003 #2: even = address, odd = data.
 // Both YM2203 ports go to the chip (Ym2203: SSG registers 0-15, FM queue
 // for the rest). The game sets prescaler 1/3: SSG 750 kHz (AY_INC).
-void _1943::wrSound(unsigned short Addr, unsigned char Value) {
+void HAL_HOT_CODE _1943::wrSound(unsigned short Addr, unsigned char Value) {
   if (Addr >= 0xc000 && Addr < 0xc800) {
     memory[SOUND_RAM + Addr - 0xc000] = Value;
     return;
@@ -316,7 +316,7 @@ void _1943::latchVideo() {
   });
 }
 
-void _1943::renderFm(int16_t *out, int n) {
+void HAL_HOT_CODE _1943::renderFm(int16_t *out, int n) {
   static const int CHUNK = 64; // Audio renders 64 samples per call
   for (int done = 0; done < n; done += CHUNK) {
     const int len = n - done < CHUNK ? n - done : CHUNK;
@@ -413,7 +413,7 @@ static inline void addMask(uint32_t *mask, int u, uint32_t opaque) {
   }
 }
 
-__attribute__((optimize("O2"))) void _1943::blitBg2Line(uint16_t *dst, int vx) {
+__attribute__((optimize("O2"))) void HAL_HOT_CODE _1943::blitBg2Line(uint16_t *dst, int vx) {
   const uint16_t tx = vx + video.bg2_x;
   const unsigned char *map = tilemap + BG2_MAP + 2 * (tx >> 5) * TILE_ROWS;
 
@@ -435,7 +435,7 @@ __attribute__((optimize("O2"))) void _1943::blitBg2Line(uint16_t *dst, int vx) {
 }
 
 // bg1 pens whose lookup is 0x0F are transparent; mask gets the opaque ones
-__attribute__((optimize("O2"))) void _1943::blitBg1Line(uint16_t *dst, int vx, uint32_t *mask) {
+__attribute__((optimize("O2"))) void HAL_HOT_CODE _1943::blitBg1Line(uint16_t *dst, int vx, uint32_t *mask) {
   const uint16_t tx = vx + video.bg1_x;
   const unsigned char *map = tilemap + 2 * (tx >> 5) * TILE_ROWS;
 
@@ -458,7 +458,7 @@ __attribute__((optimize("O2"))) void _1943::blitBg1Line(uint16_t *dst, int vx, u
 }
 
 // a pixel taken by an earlier sprite stays taken, even where bg1 hides it
-void _1943::blitSprites(short row) {
+void HAL_HOT_CODE _1943::blitSprites(short row) {
   const int vx_top = 255 - 8 * (row - FIRST_ROW); // native x of strip line 0
   memset(drawn, 0, sizeof(drawn));
 
@@ -503,7 +503,7 @@ void _1943::blitSprites(short row) {
 
 // fg text, not scrolled: strip row = char column 31 - (row - FIRST_ROW),
 // panel column col = char row col + 2 (16 lines above the visible area)
-void _1943::blitChar(short row, int col) {
+void HAL_HOT_CODE _1943::blitChar(short row, int col) {
   const uint16_t idx = (col + TILEMAP_Y_OFFSET / 8) * 32 + (31 - (row - FIRST_ROW));
   const uint8_t attr = memory[FG_ATTR + idx];
   const uint16_t code = memory[FG_CODE + idx] | ((attr & 0xe0) << 3);
@@ -524,7 +524,7 @@ void _1943::blitChar(short row, int col) {
 }
 
 // layers bottom to top: bg2 (sea), bg1 (clouds), sprites, fg text
-void _1943::render_row(short row) {
+void HAL_HOT_CODE _1943::render_row(short row) {
   if (row < FIRST_ROW || row >= LAST_ROW) {
     return;
   }
@@ -579,7 +579,7 @@ void _1943::gameLeds(CRGB *leds) {
 #endif
 
 // YM2203 FM plus the SSG parts, clipped
-void _1943::renderAudio(int16_t *out, int n) {
+void HAL_HOT_CODE _1943::renderAudio(int16_t *out, int n) {
   int16_t ssg[AUDIO_CHUNK];
   renderFm(out, n);
   Ym2203::renderSsgBank(ym, ssg, n);

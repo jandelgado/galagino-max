@@ -106,6 +106,7 @@ Host: never starts.
 - `HAL_FAST_CODE`, `HAL_FAST_DATA`, `HAL_RETAINED` (survives a reset), `PROGMEM` (empty)
 - `HAL_HOT_CODE`: RAM where both cores share one flash cache (RP2350), flash elsewhere (ESP32:
   no IRAM cost). For code hot on one core that the other core's flash misses would evict.
+  `HAL_HOT_DATA`: its const tables, placed the same way.
 - RP2350 and host: no retained RAM yet, the retained attribute is empty there, so such a variable
   is zeroed at boot like any other.
 
