@@ -75,6 +75,7 @@ private:
   static const int CTRL_REGS = 8;
   static const int MATH_REGS = 6;
   static const int LAYERS = 3;              // 0, 1: scrolling (#0, #1), 2: text (#0)
+  static const int MAP_TILES = 32;          // tiles per map row and column
   static const int MAP_BYTES = 0x400;       // 32 x 32 tiles
   static const int SPRITE_LIST = 0x800;     // one bank of a K007121 sprite RAM
   static const int COLORS = 128;            // per K007121, 16 pens each
@@ -90,6 +91,13 @@ private:
     uint16_t tile;    // contra_tiles index
     uint8_t color;    // pens[chip] color
     uint8_t flags;    // chip, flips
+  };
+
+  // one map column of a layer, resolved for drawLayer()
+  struct TileColumn {
+    int16_t map_x = -1;               // -1: none (new frame)
+    const uint32_t *tile[MAP_TILES];   // contra_tiles entry per map row
+    const uint16_t *pen[MAP_TILES];
   };
 
   // Render input latched at vblank (seqlock.h): palette, tilemaps, the
@@ -113,7 +121,8 @@ private:
   void latchSprites(void);
   void buildPens(void);
   uint16_t tileCode(int layer, int index, uint8_t &color) const;
-  void drawLayer(int layer, int x, uint16_t *dst, bool opaque) const;
+  void loadColumn(int layer, int map_x);
+  void drawLayer(int layer, int x, uint16_t *dst, bool opaque);
   void listSprites(int chip);
   void drawSprites(short row);
 
@@ -133,6 +142,7 @@ private:
   uint16_t opaque[CHIPS][COLORS];            // bit p: sprite pen p drawn (lookup != 0)
   uint8_t pens_palette[0x100];               // palette RAM pens were built from
   bool pens_valid = false;
+  TileColumn columns[LAYERS];
   SpriteBlock *blocks = nullptr;             // Arena, CHIPS * (MAX_BLOCKS + 15)
   int block_count = 0;
 

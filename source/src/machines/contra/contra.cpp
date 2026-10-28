@@ -328,6 +328,9 @@ void contra::prepare_frame(void) {
     memcpy(pens_palette, video->palette, sizeof(pens_palette));
     pens_valid = true;
   }
+  for (TileColumn &t : columns) {
+    t.map_x = -1;
+  }
   block_count = 0;
   listSprites(0);
   listSprites(1);
@@ -356,7 +359,7 @@ void contra::buildPens(void) {
 
 // MAME get_tile_info / get_tx_tile_info: code bank bits from the attribute,
 // selected by ctrl5 (and masked by ctrl4 on the scrolling layers)
-uint16_t contra::tileCode(int layer, int index, uint8_t &color) const {
+uint16_t HAL_HOT_CODE contra::tileCode(int layer, int index, uint8_t &color) const {
   const uint8_t *c = video->ctrl[LAYER_CHIP[layer]];
   const uint8_t attr = video->cram[layer][index];
   int bank = ((attr >> ((c[5] & 3) + 3)) & 1) | ((attr >> (((c[5] >> 2) & 3) + 2)) & 2) |
@@ -372,23 +375,38 @@ uint16_t contra::tileCode(int layer, int index, uint8_t &color) const {
   return (uint16_t)(video->vram[layer][index] + bank * 256);
 }
 
+// The tiles and pens of map column map_x: 8 panel lines share them, so the
+// bank decode and the flash tile_index reads run once per tile column
+void HAL_HOT_CODE contra::loadColumn(int layer, int map_x) {
+  TileColumn &t = columns[layer];
+  const uint16_t chip_codes = LAYER_CHIP[layer] * CODES;
+  for (int map_y = 0; map_y < MAP_TILES; map_y++) {
+    uint8_t color;
+    const uint16_t code = tileCode(layer, map_y * MAP_TILES + map_x, color);
+    t.tile[map_y] = tiles[tile_index[chip_codes + code]];
+    t.pen[map_y] = pens[LAYER_CHIP[layer]][color];
+  }
+  t.map_x = (int16_t)map_x;
+}
+
 // One panel line = native column x: walk native Y 239 down to 16, tile by
 // tile; a tile word holds the 8 pixels of one tile column, Y descending.
-void contra::drawLayer(int layer, int x, uint16_t *dst, bool opaque) const {
+void HAL_HOT_CODE contra::drawLayer(int layer, int x, uint16_t *dst, bool opaque) {
   const uint8_t *c = video->ctrl[LAYER_CHIP[layer]];
   const bool scrolls = layer != 2;
   const int px = (x + (scrolls ? c[0] - SCROLL_X_BIAS : 0)) & 0xff;
   const int py0 = (VIS_LAST_Y + (scrolls ? c[2] : 0)) & 0xff;
-  const uint16_t chip_codes = LAYER_CHIP[layer] * CODES;
+  const TileColumn &t = columns[layer];
+  if (t.map_x != px >> 3) {
+    loadColumn(layer, px >> 3);
+  }
 
   for (int col = 0; col < WIDTH;) {
     const int py = (py0 - col) & 0xff;
     const int first = 7 - (py & 7);
     const int n = 8 - first < WIDTH - col ? 8 - first : WIDTH - col;
-    uint8_t color;
-    const uint16_t code = tileCode(layer, (py >> 3) * 32 + (px >> 3), color);
-    uint32_t w = tiles[tile_index[chip_codes + code]][px & 7] >> (4 * first);
-    const uint16_t *pen = pens[LAYER_CHIP[layer]][color];
+    uint32_t w = t.tile[py >> 3][px & 7] >> (4 * first);
+    const uint16_t *pen = t.pen[py >> 3];
     for (int k = 0; k < n; k++, w >>= 4) {
       const uint8_t pix = w & 15;
       if (pix || opaque) {
@@ -445,7 +463,7 @@ void contra::listSprites(int chip) {
 }
 
 // blocks over the strip's lines, clipped to X 40..279 and the 224 columns
-void contra::drawSprites(short row) {
+void HAL_HOT_CODE contra::drawSprites(short row) {
   const int x0 = row * 8 - TOP;
   for (int i = 0; i < block_count; i++) {
     const SpriteBlock &b = blocks[i];
@@ -479,7 +497,7 @@ void contra::drawSprites(short row) {
 
 // MAME screen_update: background pen, layer 1, layer 0, sprites #0, #1
 // (X 40..279); text layer over X 0..39
-void contra::render_row(short row) {
+void HAL_HOT_CODE contra::render_row(short row) {
   const uint16_t bg = pens[1][(video->ctrl[1][6] & 0x30) * 2 + 16][0];
   for (int i = 0; i < 8; i++) {
     const int x = row * 8 + i - TOP;
