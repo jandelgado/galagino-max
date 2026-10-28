@@ -2,7 +2,8 @@
 # usage: [BOARD=pico2w_dvi] build.sh [GAME[,GAME...]] [extra cmake args]   (default pacman); run inside devbox
 # BOARD: src/boards/ profile (pico2, pico2w_dvi, feather_rp2350), default pico2.
 # Several games give the menu. CLOCK_KHZ=252000 overclocks (and uses its own build dir);
-# DVI profiles set 252 MHz themselves.
+# DVI profiles set 252 MHz themselves. DEFINES="A=1 B" adds build defines
+# (e.g. DEFINES=MASTER_ATTRACT_GAME_TIMEOUT=120000).
 # Needs PICO_SDK_PATH and FREERTOS_KERNEL_PATH (defaults below).
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
@@ -15,6 +16,7 @@ export FREERTOS_KERNEL_PATH=${FREERTOS_KERNEL_PATH:-$HOME/src/external/pico-deps
 out=$here/build/$board-${game//,/-}${CLOCK_KHZ:+-$CLOCK_KHZ}
 mkdir -p "$out"
 python3 "$here/../../tools/pio_to_cmake.py" azdelivery-local --only "$game" --hal rp2350 --no-net \
-  --layout rp2350 --define DEBUG_TIMING ${CLOCK_KHZ:+--define GALAGINO_CLOCK_KHZ=$CLOCK_KHZ} > "$out/galagino.cmake"
+  --layout rp2350 --define DEBUG_TIMING --define DEBUG_TIMING_FPS_HUD ${CLOCK_KHZ:+--define GALAGINO_CLOCK_KHZ=$CLOCK_KHZ} \
+  $(for d in $DEFINES; do printf -- '--define %s ' "$d"; done) > "$out/galagino.cmake"
 cmake -S "$here" -B "$out" -G Ninja -DGALAGINO_CMAKE="$out/galagino.cmake" -DGALAGINO_BOARD="$board" "$@"
 cmake --build "$out" -- -k 0
