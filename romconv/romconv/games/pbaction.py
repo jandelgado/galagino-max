@@ -209,18 +209,12 @@ def _build_sprites32(ctx: Context) -> list[list[list[int]]]:
 _BANNER = "// Generated from the MAME pbaction - Pinball Action (set 1) ROM set. Do not edit.\n"
 
 
-def _write_bytes_header(ctx: Context, filename: str, guard: str, sym: str, data: bytes, note: str,
-                       compress: bool = True) -> None:
+def _write_bytes_header(ctx: Context, filename: str, guard: str, sym: str, data: bytes, note: str) -> None:
     with ctx.header(filename) as f:
         f.write(f"#ifndef {guard}\n#define {guard}\n\n")
         f.write(_BANNER)
         f.write(f"// {note}\n\n")
-        if compress:
-            emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
-        else:
-            body = ",\n".join("  " + ",".join("0x%02X" % b for b in data[i:i + 16])
-                               for i in range(0, len(data), 16))
-            emit_plain(f, sym, "unsigned char", "", len(data), body)
+        emit_compressed(f, sym, "unsigned char", "", len(data), list(data))
         f.write("\n#endif\n")
     ctx.log.info(f"  wrote {filename} {len(data):#8x} bytes")
 
@@ -288,9 +282,7 @@ def _convert(ctx: Context) -> None:
     _write_bytes_header(ctx, "pbaction_main_rom.h", "PBACTION_MAIN_ROM_H",
                        "pbaction_main_rom", _build_main_rom(ctx),
                        "Z80 main CPU space: b-p7 @0x0000, b-n7 @0x4000, b-l7 @0x8000; "
-                       "0xa000+ is RAM/video/I/O (filled 0xFF). "
-                       "Arena budget: PLAIN, compresses worst (~50%); bg tiles get the space.",
-                       compress=False)
+                       "0xa000+ is RAM/video/I/O (filled 0xFF).")
     _write_bytes_header(ctx, "pbaction_audio_rom.h", "PBACTION_AUDIO_ROM_H",
                        "pbaction_audio_rom", _build_audio_rom(ctx),
                        "Z80 audio CPU ROM a-e3.bin (0x0000-0x1fff).")
@@ -320,4 +312,4 @@ def _convert(ctx: Context) -> None:
     ctx.log.info("Pinball Action Conversion completed.")
 
 
-JOB = Job(name="pbaction", convert=_convert, machine="pbaction", zips=("pbaction.zip",))
+JOB = Job(name="pbaction", convert=_convert, machine="pbaction", zips=("pbaction.zip",), plan=True)

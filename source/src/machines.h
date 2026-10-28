@@ -1155,7 +1155,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     pbaction::menuLeds,
 #endif
-    MCH_PBACTION, nullptr BUNDLE_REF(pbaction_bundle_ref) },
+    MCH_PBACTION, &pbaction_arena_plan BUNDLE_REF(pbaction_bundle_ref) },
 #endif
 #ifdef GAME_MOTORACE
   { createMachine<motorace>, motorace::logo,
