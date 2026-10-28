@@ -51,7 +51,7 @@ static inline uint16_t blend565(uint16_t a, uint16_t b, uint32_t q) {
 
 // Output lines of a `rows` high picture in 2x mode: 2x when it fits the
 // screen, else 1.5x (288 rows -> 432 lines).
-static inline uint32_t scaledLines(uint32_t rows) {
+static inline constexpr uint32_t scaledLines(uint32_t rows) {
   return rows * 2 <= OUT_LINES ? rows * 2 : rows * 3 / 2;
 }
 

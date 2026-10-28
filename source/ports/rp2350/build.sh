@@ -11,7 +11,8 @@ board=${BOARD:-pico2}
 [ $# -gt 0 ] && shift
 export PICO_SDK_PATH=${PICO_SDK_PATH:-$HOME/src/external/pico-deps/pico-sdk}
 export FREERTOS_KERNEL_PATH=${FREERTOS_KERNEL_PATH:-$HOME/src/external/pico-deps/FreeRTOS-Kernel}
-out=$here/build/$board-$game${CLOCK_KHZ:+-$CLOCK_KHZ}
+# a comma in the build path breaks the linker map option
+out=$here/build/$board-${game//,/-}${CLOCK_KHZ:+-$CLOCK_KHZ}
 mkdir -p "$out"
 python3 "$here/../../tools/pio_to_cmake.py" azdelivery-local --only "$game" --hal rp2350 --no-net \
   --layout rp2350 --define DEBUG_TIMING ${CLOCK_KHZ:+--define GALAGINO_CLOCK_KHZ=$CLOCK_KHZ} > "$out/galagino.cmake"

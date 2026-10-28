@@ -49,7 +49,7 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
   HAL_AUDIO_NULL; HAL_AUDIO_DVI reserved for the DVI backend. Combinations: config_check.h.
 
 ## Video (`video.h`, not in `hal.h`)
-`hal::Video` is the backend class (`SpiTftVideo`, `NullVideo`, later a DVI backend). Strips are
+`hal::Video` is the backend class (`SpiTftVideo`, `DviHstxVideo`, `NullVideo`). Strips are
 240 x 8 RGB565 pixels in the order the machines render them (SPI byte order).
 - `void begin()`, `void setViewport(uint16_t width)` (224 or 240, every frame),
   `void flip(char flipY, char flipX)`, `void flipReset(char flipY, char flipX)`
