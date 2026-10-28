@@ -107,6 +107,7 @@ static void boot(void) {
     return;
   }
   Arena::init();
+  Arena::reserve(&solomon_arena_plan);
   machine = new solomon();
   machine->init(&input, frame_buffer, sprite_buf, memory);
   machine->reset();

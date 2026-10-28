@@ -1,14 +1,10 @@
 """Convert the MAME solomon ROM set into galagino headers (MAME tecmo/solomon.cpp)."""
 from romconv.core.context import Context
-from romconv.core.errors import ConversionError
 from romconv.core.job import Job
 from romconv.emit.asset import emit_plain
 from romconv.emit.write import write_array, write_asset, write_bytes
 from romconv.gfx.gfxutil import mame_decode, pack_nibbles, step
 from romconv.gfx.rom import rom_bytes, rom_bytes_all
-from romconv.plan import layout
-from romconv.plan.arena import solve
-from romconv.plan.budget import log_sizes
 
 
 # MAME ROM_START( solomon )
@@ -70,13 +66,12 @@ def _convert(ctx: Context) -> None:
     sprites = _decode_sprites(rom_bytes_all(ctx, _SPRITES))
     assert len(rom) == 0xd000 and len(audio) == 0x4000
 
-    # PLAIN: no Arena room left after both tile sets (bg + audio fill block A,
-    # fg block B); the main ROM compresses badly and sprites are read least
-    write_asset(ctx, "solomon_main_rom.h", "main Z80 0000-bfff, f000-ffff at offset c000, flash",
+    # flash or Arena block per asset and layout: solomon_arena_plan.h
+    write_asset(ctx, "solomon_main_rom.h", "main Z80 0000-bfff, f000-ffff at offset c000",
                 lambda f: emit_plain(f, "solomon_main_rom", "unsigned char", "", len(rom), _bytes_body(rom)),
                 __file__)
     write_asset(ctx, "solomon_sprites.h",
-                "512 sprites 16x16 4 bpp, [row][0] px 0-7, [row][1] px 8-15, first in bits 31-28, flash",
+                "512 sprites 16x16 4 bpp, [row][0] px 0-7, [row][1] px 8-15, first in bits 31-28",
                 lambda f: emit_plain(f, "solomon_sprites", "uint32_t", "[16][2]", 512, _sprites_body(sprites)),
                 __file__)
     write_bytes(ctx, "solomon_audio_rom.h", "solomon_audio_rom", audio, "sound Z80 0000-3fff", __file__)
@@ -85,16 +80,6 @@ def _convert(ctx: Context) -> None:
     write_array(ctx, "solomon_bg_tiles.h", "solomon_bg_tiles", "uint32_t", "[8]", 2048, bg,
                 "2048 bg chars 8x8 4 bpp, pixel 0 in bits 31-28", __file__)
 
-    # the ctor unpacks bg, fg, audio in that order, ARENA_ANY first fit: the
-    # three must land in every layout's blocks with the LZMA scratch gap left
-    sizes = {"bg": len(bg) * 4, "fg": len(fg) * 4, "audio": len(audio)}
-    log_sizes(ctx, sizes)
-    for name, blocks in layout.read_layouts(layout.ini_path(ctx.paths)).items():
-        try:
-            solve([], list(sizes.values()), blocks)
-        except ValueError as e:
-            raise ConversionError(f"solomon {name}: tiles and audio {e}") from e
-    ctx.log.info(f"  flash PLAIN: main {len(rom)}, sprites {len(sprites) * 128}")
 
 
-JOB = Job(name="solomon", convert=_convert, machine="solomon", zips=("solomon.zip",))
+JOB = Job(name="solomon", convert=_convert, machine="solomon", zips=("solomon.zip",), plan=True)

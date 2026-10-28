@@ -1316,7 +1316,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     solomon::menuLeds,
 #endif
-    MCH_SOLOMON, nullptr BUNDLE_REF(solomon_bundle_ref) },
+    MCH_SOLOMON, &solomon_arena_plan BUNDLE_REF(solomon_bundle_ref) },
 #endif
 #ifdef GAME_STARWARS
   { createMachine<starwars>, starwars::logo,
