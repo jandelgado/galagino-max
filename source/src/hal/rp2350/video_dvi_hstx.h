@@ -8,7 +8,7 @@
 // (many sprites, half rate machines) showed black lines. The scanout is the
 // frame clock: endFrame() returns at the next vblank.
 //
-//   main task (video core)                DMA IRQ (video core)
+//   main task (video core)                DMA IRQ (emulation core)
 //   renderRow -> submit() --framebuffer--> line build -> HSTX
 //   endFrame(): wait for vblank      <--  vblank
 //
@@ -56,6 +56,9 @@ private:
 
   // DMA interrupt: queues the next part of the scanout
   static void irq();
+  static void scanout();
+  // task on the emulation core: the IRQs run there
+  static void enableIrqs(void *);
   void buildLine(uint32_t line, uint32_t buffer);
   // restarts the scanout after the DMA chain lost its framing
   void resync();

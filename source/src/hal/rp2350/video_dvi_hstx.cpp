@@ -17,8 +17,10 @@
 #include <hardware/structs/hstx_ctrl.h>
 #include <hardware/structs/hstx_fifo.h>
 #include <hardware/structs/nvic.h>
+#include <hardware/sync.h>
 #include <pico/time.h>
 #include "../hal_attr.h"
+#include "rtos.h"
 
 namespace hal {
 
@@ -109,6 +111,14 @@ DviHstxVideo *self;
 SemaphoreHandle_t wake;          // given at vblank
 int wake_irq;
 volatile uint32_t scan_frames;   // vblanks so far
+
+// The IRQs run on the emulation core: the line builds (~3 ms a frame) would
+// take the video core's render time, the emulation core has time to spare.
+// resync() runs on the video core: it masks the IRQ and waits until a
+// handler running on the other core is done (both flags set before read).
+SemaphoreHandle_t irqs_ready;
+volatile bool irq_busy;
+volatile bool resyncing;
 
 // Scanout watchdog (endFrame): no vblank for STALL_MS, or more than
 // MAX_FPS frames per second, means the DMA chain lost its framing.
@@ -227,6 +237,18 @@ void HAL_FAST_CODE DviHstxVideo::buildLine(uint32_t line, uint32_t buffer) {
 }
 
 void HAL_FAST_CODE DviHstxVideo::irq() {
+  irq_busy = true;
+  __dmb();
+  if (resyncing) {
+    dma_hw->intr = (1u << ch_ping) | (1u << ch_pong);
+  } else {
+    scanout();
+  }
+  __dmb();
+  irq_busy = false;
+}
+
+void HAL_FAST_CODE DviHstxVideo::scanout() {
   // pong: the channel that just finished, now queued two transfers ahead
   const int chNum = pong ? ch_pong : ch_ping;
   dma_channel_hw_t *ch = &dma_hw->ch[chNum];
@@ -262,11 +284,15 @@ void HAL_FAST_CODE DviHstxVideo::irq() {
 
 // Rebuilds the DMA chain from line 0 (after pico-galagino's hstx_resync).
 void DviHstxVideo::resync() {
-  irq_set_enabled(DMA_IRQ_0, false);
+  const uint32_t both = (1u << ch_ping) | (1u << ch_pong);
+  resyncing = true;
+  __dmb();
+  hw_clear_bits(&dma_hw->inte0, both);
+  while (irq_busy) {
+  }
 
   // RP2350-E5: clear EN on both channels before the abort, else the chained
   // partner can re-trigger the aborted channel with stale config
-  const uint32_t both = (1u << ch_ping) | (1u << ch_pong);
   hw_clear_bits(&dma_hw->ch[ch_ping].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
   hw_clear_bits(&dma_hw->ch[ch_pong].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
   dma_channel_abort(ch_ping);
@@ -282,10 +308,23 @@ void DviHstxVideo::resync() {
   scan_frames = scan_frames + 1;
 
   hw_set_bits(&hstx_ctrl_hw->csr, HSTX_CTRL_CSR_EN_BITS);
-  irq_set_enabled(DMA_IRQ_0, true);
+  hw_set_bits(&dma_hw->inte0, both);
+  __dmb();
+  resyncing = false;
   dma_channel_start(ch_ping);
   resyncs++;
   printf("DVI: scanout resync %u\n", (unsigned)resyncs);
+}
+
+void DviHstxVideo::enableIrqs(void *) {
+  wake_irq = user_irq_claim_unused(true);
+  irq_set_exclusive_handler(wake_irq, wakeIrq);
+  irq_set_enabled(wake_irq, true);
+  irq_set_exclusive_handler(DMA_IRQ_0, &DviHstxVideo::irq);
+  irq_set_priority(DMA_IRQ_0, PICO_HIGHEST_IRQ_PRIORITY);
+  irq_set_enabled(DMA_IRQ_0, true);
+  xSemaphoreGive(irqs_ready);
+  taskExit();
 }
 
 void DviHstxVideo::begin() {
@@ -298,10 +337,6 @@ void DviHstxVideo::begin() {
     line_buf[0][ACTIVE_WORDS + i] = line_buf[1][ACTIVE_WORDS + i] =
         black_line[ACTIVE_WORDS + i] = vblank_vsync_off[i];
   }
-  wake_irq = user_irq_claim_unused(true);
-  irq_set_exclusive_handler(wake_irq, wakeIrq);
-  irq_set_enabled(wake_irq, true);
-
   // two bits per HSTX clock: 252 Mbit/s per lane from a 252 MHz clk_sys
   clock_configure_int_divider(clk_hstx, 0, CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLK_SYS,
                               clock_get_hz(clk_sys), 2);
@@ -358,12 +393,12 @@ void DviHstxVideo::begin() {
   dma_channel_configure(ch_pong, &c, &hstx_fifo_hw->fifo, vblank_vsync_off,
                         count_of(vblank_vsync_off), false);
 
-  // the IRQ runs on this core, the video core
+  // NVIC enables are per core: a short task enables both IRQs over there
   dma_hw->ints0 = (1u << ch_ping) | (1u << ch_pong);
   dma_hw->inte0 = (1u << ch_ping) | (1u << ch_pong);
-  irq_set_exclusive_handler(DMA_IRQ_0, &DviHstxVideo::irq);
-  irq_set_priority(DMA_IRQ_0, PICO_HIGHEST_IRQ_PRIORITY);
-  irq_set_enabled(DMA_IRQ_0, true);
+  irqs_ready = xSemaphoreCreateBinary();
+  taskSpawn(enableIrqs, nullptr, "dvi irq", 1024, configMAX_PRIORITIES - 1, EMULATION_CORE);
+  xSemaphoreTake(irqs_ready, portMAX_DELAY);
   bus_ctrl_hw->priority = BUSCTRL_BUS_PRIORITY_DMA_W_BITS | BUSCTRL_BUS_PRIORITY_DMA_R_BITS;
 
   rate_start_us = time_us_32();
