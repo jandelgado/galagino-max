@@ -8,6 +8,9 @@ namespace hal {
 // Discards strips, never waits. Headless runs and host tests.
 class NullVideo {
 public:
+  // game pixels available: as the SPI panel
+  enum : uint16_t { CANVAS_W = 240, CANVAS_H = 320 };
+
   void begin() {}
   void setViewport(uint16_t) {}
   void flip(char, char) {}
@@ -19,6 +22,7 @@ public:
     pixel_count += pixelCount;
   }
   void endFrame(uint8_t, uint32_t) { end_frame_count++; }
+  uint8_t stripIndex(uint8_t i) const { return i; }
 
   // test access
   uint32_t submits() const { return submit_count; }

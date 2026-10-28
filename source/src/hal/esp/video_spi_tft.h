@@ -14,6 +14,9 @@ namespace hal {
 // 33 ms.
 class SpiTftVideo {
 public:
+  // game pixels available on the 240 x 320 panel
+  enum : uint16_t { CANVAS_W = 240, CANVAS_H = 320 };
+
   SpiTftVideo();
 
   void begin(void);
@@ -32,6 +35,9 @@ public:
   // After the last strip of a screen part: sleeps until the next part may
   // start. frameStartUs is hal::micros() at the start of the frame.
   void endFrame(uint8_t part, uint32_t frameStartUs);
+  // Strip to render as the i-th of a screen: the panel flips by MADCTL, so
+  // render order is screen order.
+  uint8_t stripIndex(uint8_t i) const { return i; }
 
 private:
   void setAddrWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h);

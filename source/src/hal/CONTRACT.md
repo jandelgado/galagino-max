@@ -58,6 +58,10 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
 - `void submit(const uint16_t *strip, uint32_t pixels)`: may block.
 - `void endFrame(uint8_t part, uint32_t frameStartUs)`: after the last strip of a part; returns
   when the next part may start (backend pacing: deadline sleep, or vsync wait).
+- `CANVAS_W`, `CANVAS_H` (compile-time): game pixels the output can show (SPI TFT and null
+  240 x 320; DVI 640 x 480 at 1x, 320 x 320 at 2x).
+- `uint8_t stripIndex(uint8_t i) const`: strip to render as the i-th of a screen. Identity where
+  the panel flips (SPI TFT); DVI scans top to bottom, so a flipY machine renders strip `35 - i`.
 
 ## System (`sys.h`)
 - `struct SysInfo { chip, revision, cores, cpuMhz, flashBytes, sdkVersion }`, `void sysInfo(SysInfo&)`
