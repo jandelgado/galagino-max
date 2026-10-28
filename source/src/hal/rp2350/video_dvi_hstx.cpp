@@ -148,8 +148,9 @@ void queueBlankLines() {
 } // namespace
 
 void DviHstxVideo::flip(char flipY, char flipX) {
-  flip_y = flipY ? dvi::Mirror::ON : dvi::Mirror::OFF;
-  flip_x = flipX ? dvi::Mirror::ON : dvi::Mirror::OFF;
+  const dvi::Orientation o = dvi::orientation(flipY, flipX);
+  flip_x = o.x;
+  flip_y = o.y;
 }
 
 void DviHstxVideo::submit(const uint16_t *strip, uint32_t pixels) {

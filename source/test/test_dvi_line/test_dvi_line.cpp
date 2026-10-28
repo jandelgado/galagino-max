@@ -106,6 +106,15 @@ static void test_line_2x_224_leaves_border_black(void) {
   TEST_ASSERT_EQUAL_HEX32(0xFFFFFFFF, line[48 + 223]);
 }
 
+// galagino's flipY turns the screen by 180 degrees (SPI TFT: MADCTL MY|MX),
+// flipX mirrors it horizontally on top of that
+static void test_orientation_follows_panel_flips(void) {
+  TEST_ASSERT_TRUE(orientation(0, 0).x == Mirror::OFF && orientation(0, 0).y == Mirror::OFF);
+  TEST_ASSERT_TRUE(orientation(1, 0).x == Mirror::ON && orientation(1, 0).y == Mirror::ON);
+  TEST_ASSERT_TRUE(orientation(0, 1).x == Mirror::ON && orientation(0, 1).y == Mirror::OFF);
+  TEST_ASSERT_TRUE(orientation(1, 1).x == Mirror::OFF && orientation(1, 1).y == Mirror::ON);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_swap565);
@@ -116,5 +125,6 @@ int main(int, char **) {
   RUN_TEST(test_line_1x);
   RUN_TEST(test_line_2x);
   RUN_TEST(test_line_2x_224_leaves_border_black);
+  RUN_TEST(test_orientation_follows_panel_flips);
   return UNITY_END();
 }

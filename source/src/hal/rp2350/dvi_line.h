@@ -16,6 +16,18 @@ enum class Mirror : uint8_t { OFF, ON };
 
 static const uint32_t OUT_LINES = 480;
 
+struct Orientation {
+  Mirror x;
+  Mirror y;
+};
+
+// Machine flips as the SPI panel applies them: flipY turns the screen by
+// 180 degrees (MADCTL MY|MX), flipX mirrors it horizontally on top.
+static inline Orientation orientation(char flipY, char flipX) {
+  const bool x = (flipY != 0) != (flipX != 0);
+  return Orientation{x ? Mirror::ON : Mirror::OFF, flipY ? Mirror::ON : Mirror::OFF};
+}
+
 // SPI byte order (as machines render) to native RGB565.
 static inline uint16_t swap565(uint16_t spi) {
   return (uint16_t)((spi << 8) | (spi >> 8));
