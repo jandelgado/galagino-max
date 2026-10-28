@@ -19,12 +19,13 @@ from romconv.emit.write import banner
 from romconv.gfx.color import prom_level_4bit, rgb565_swapped
 from romconv.gfx.gfxutil import mame_decode, step
 from romconv.gfx.rom import rom_bytes_all
-from romconv.plan import layout
 
 # MAME ROM_START( 1943b ); bootleg files live in 1943b/ of the merged zip
 _MAIN = (("1943b/1.12d", "6f84e906656f132ffcb63022f6d067580d261431"),
          ("1943b/bm02.13d", "af1d8ce73e8671b7b41248ce6486c9b5aaf6a233"),
          ("1943b/bm03.14d", "f66d2356b413a418c887b4085a5315475c7a8bba"))
+_FIXED_END = 0x8000       # 1.12d: main Z80 0000-7fff
+_PAGES_BYTES = 0x10000    # bm02 / bm03: 4 pages of 16 KB each
 _SOUND = (("bm05.4k", "4d2d019a9f8452fbbb247e893280568a2e86073e"),)
 _CHARS = (("1943b/4.5h", "4833ad9f747b529ce92c4993388ab3516f8df4ed"),)
 _BG1 = (("1943b/15.12f", "181d7b0a1ca0cfcc3bd71f0b97dc80f7ff27a9c6"),
@@ -108,10 +109,8 @@ def _body32(rows):
     return ",\n".join("  {" + ",".join("0x%08x" % v for v in r) + "}" for r in rows)
 
 
-def _emit_plain_bytes(ctx: Context, name: str, data: bytes) -> None:
-    with ctx.header(name.lstrip("_") + ".h") as f:
-        f.write(banner(__file__))
-        emit_plain(f, name, "unsigned char", "", len(data), "  " + hex_block(data))
+def _emit_bytes(f, name: str, data: bytes) -> None:
+    emit_plain(f, name, "unsigned char", "", len(data), "  " + hex_block(data))
 
 
 def _palette(ctx: Context) -> list[int]:
@@ -123,19 +122,21 @@ def _palette(ctx: Context) -> list[int]:
 
 
 def _convert(ctx: Context) -> None:
-    # [arena] esp32_remote: the ASSETS_REMOTE (WiFi) layout, the tighter one
-    arena_blocks = layout.read_layouts(layout.ini_path(ctx.paths))["esp32_remote"]
-    arena_budget = sum(arena_blocks)
-    sizes = {}  # Arena residents: name -> (bytes, block)
-
+    # main Z80: 0000-7fff fixed (1.12d), 8000-bfff one of 8 x 16 KB pages
+    # (bm02 pages 0-3, bm03 pages 4-7). One asset per ROM file so the Arena
+    # plan can take a file; the machine picks the page pointer by the bank
     rom = rom_bytes_all(ctx, _MAIN)
     if len(rom) != 0x28000:
         raise ConversionError("1943b main ROM size")
-    # PLAIN: banked CPU ROM larger than the Arena budget
-    _emit_plain_bytes(ctx, "_1943_rom", rom)
-    # PLAIN: no room left in either Arena block (see budget below)
+    with ctx.header("1943_rom.h") as f:
+        f.write(banner(__file__))
+        _emit_bytes(f, "_1943_rom_fixed", rom[:_FIXED_END])
+        _emit_bytes(f, "_1943_rom_p03", rom[_FIXED_END:_FIXED_END + _PAGES_BYTES])
+        _emit_bytes(f, "_1943_rom_p47", rom[_FIXED_END + _PAGES_BYTES:])
     sound = rom_bytes_all(ctx, _SOUND)
-    _emit_plain_bytes(ctx, "_1943_sound", sound)
+    with ctx.header("1943_sound.h") as f:
+        f.write(banner(__file__))
+        _emit_bytes(f, "_1943_sound", sound)
 
     # chars: 2048 x 8x8 2bpp
     chars = _decode_chars(rom_bytes_all(ctx, _CHARS))
@@ -144,13 +145,12 @@ def _convert(ctx: Context) -> None:
         f.write(banner(__file__))
         flat = [w for words in char_lines for w in words]
         emit_compressed(f, "_1943_chars", "unsigned short", "[8]", len(chars), flat)
-    sizes["chars"] = (len(chars) * 16, 1)
 
     # bg1 (front, clouds): 512 x 32x32 4bpp
     bg1 = [_lines(t, 4) for t in _decode_tiles(rom_bytes_all(ctx, _BG1))]
-    with ctx.header("1943_bg1.h") as f:
+    with ctx.header("1943_bg1.h", plan=False) as f:
         f.write(banner(__file__))
-        # PLAIN: 256 KB, larger than the Arena; read per visible line
+        # PLAIN: 256 KB, larger than an Arena block; read per visible line
         emit_plain(f, "_1943_bg1", "uint32_t", "[128]", len(bg1), _body32(bg1))
 
     # bg2 (back, sea): 128 x 32x32 4bpp
@@ -159,13 +159,12 @@ def _convert(ctx: Context) -> None:
     with ctx.header("1943_bg2.h") as f:
         f.write(banner(__file__))
         emit_compressed(f, "_1943_bg2", "uint32_t", "[128]", len(bg2), [v for t in bg2 for v in t])
-    sizes["bg2"] = (len(bg2) * 512, 1)
 
     # sprites: 2048 x 16x16 4bpp
     sprites = [_lines(t, 4) for t in _decode_sprites(rom_bytes_all(ctx, _SPRITES))]
-    with ctx.header("1943_sprites.h") as f:
+    with ctx.header("1943_sprites.h", plan=False) as f:
         f.write(banner(__file__))
-        # PLAIN: 256 KB, larger than the Arena; read per visible sprite
+        # PLAIN: 256 KB, larger than an Arena block; read per visible sprite
         emit_plain(f, "_1943_sprites", "uint32_t", "[32]", len(sprites), _body32(sprites))
 
     # tilemaps: bg1 at 0x0000, bg2 at 0x8000 (2 bytes per 32x32 tile)
@@ -173,7 +172,6 @@ def _convert(ctx: Context) -> None:
     with ctx.header("1943_tilemap.h") as f:
         f.write(banner(__file__))
         emit_compressed(f, "_1943_tilemap", "unsigned char", "", len(tilemap), list(tilemap))
-    sizes["tilemap"] = (len(tilemap), 0)
 
     # colors per layer, RGB565 (byte swapped) per color and pen
     pal = _palette(ctx)
@@ -193,7 +191,6 @@ def _convert(ctx: Context) -> None:
         emit_compressed(f, "_1943_cmap_sprites", "unsigned short", "[16]", 16, [pal[c] for c in spr_ct])
         # row 0: bg1 pens that are transparent, row 1: sprite pens behind bg1
         emit_compressed(f, "_1943_pen_masks", "unsigned short", "[16]", 2, bg1_clear + spr_behind)
-    sizes["cmaps"] = (128 * 2 + 3 * 256 * 2 + 64, 0)
 
     # self-check: packed lines decode back to MAME's pixels
     for t in (0, 1, 127):
@@ -202,17 +199,5 @@ def _convert(ctx: Context) -> None:
     if _unpack(char_lines[0x41], 8, 2) != chars[0x41]:
         raise ConversionError("char line packing")
 
-    blocks = [0, 0]
-    for name, (size, block) in sizes.items():
-        blocks[block] += size
-        ctx.log.info(f"  arena {name:8s} {size:6d} block {'AB'[block]}")
-    for i, used in enumerate(blocks):
-        if used > arena_blocks[i]:
-            raise ConversionError(f"1943 block {'AB'[i]} {used} > {arena_blocks[i]}")
-    total = sum(blocks)
-    ctx.log.info(f"  arena total    {total:6d} of {arena_budget} (A {blocks[0]}, B {blocks[1]})")
-    if total >= arena_budget:
-        raise ConversionError("1943 assets exceed the Arena budget")
 
-
-JOB = Job(name="1943", convert=_convert, machine="1943", zips=("1943.zip",))
+JOB = Job(name="1943", convert=_convert, machine="1943", zips=("1943.zip",), plan=True)

@@ -2,6 +2,7 @@
 #define _1943_H
 
 #include "1943_logo.h"
+#include "1943_arena_plan.h"
 #include "../machineBase.h"
 #include "../../emulation/ym2203.h"
 #include "../../emulation/seqlock.h"
@@ -18,18 +19,22 @@
 //   native visible y' (0..223) -> panel column y'
 class _1943 : public machineBase {
 protected:
-  // ROM assets; the ctor unpacks the Arena residents in first-fit order:
-  // block A tilemap + color maps, block B bg2 + chars
-  Asset<unsigned char, COMPRESSED> _1943_tilemap;
-  Asset<uint32_t[128], COMPRESSED> _1943_bg2;
-  Asset<unsigned short[8], COMPRESSED> _1943_chars;
-  Asset<unsigned short[4], COMPRESSED> _1943_cmap_chars;
-  Asset<unsigned short[16], COMPRESSED> _1943_cmap_bg1;
-  Asset<unsigned short[16], COMPRESSED> _1943_cmap_bg2;
-  Asset<unsigned short[16], COMPRESSED> _1943_cmap_sprites;
-  Asset<unsigned short[16], COMPRESSED> _1943_pen_masks;
-  Asset<unsigned char, PLAIN> _1943_rom;
-  Asset<unsigned char, PLAIN> _1943_sound;
+  // ROM assets: flash or Arena block per layout in 1943_arena_plan.h
+  // (romconv), unpacked in the ctor. The main ROM comes as three chunks
+  // (fixed 0000-7fff, pages 0-3, pages 4-7) so a chunk can take a block.
+  _1943_tilemap_asset _1943_tilemap;
+  _1943_bg2_asset _1943_bg2;
+  _1943_chars_asset _1943_chars;
+  _1943_cmap_chars_asset _1943_cmap_chars;
+  _1943_cmap_bg1_asset _1943_cmap_bg1;
+  _1943_cmap_bg2_asset _1943_cmap_bg2;
+  _1943_cmap_sprites_asset _1943_cmap_sprites;
+  _1943_pen_masks_asset _1943_pen_masks;
+  _1943_rom_fixed_asset _1943_rom_fixed;
+  _1943_rom_p03_asset _1943_rom_p03;
+  _1943_rom_p47_asset _1943_rom_p47;
+  _1943_sound_asset _1943_sound;
+  // larger than any Arena block: flash, read per visible line
   Asset<uint32_t[128], PLAIN> _1943_bg1;
   Asset<uint32_t[32], PLAIN> _1943_sprites;
 
@@ -67,8 +72,10 @@ private:
   static const short LAST_ROW = 34;
   static const int LINE_WORDS = WIDTH / 32; // 1 bit per pixel of a line
 
-  // cached Asset::data()
-  const unsigned char *rom = nullptr;
+  // cached Asset::data(); rom_page[bank] = start of the 16 KB page at 8000
+  static const uint8_t ROM_PAGES = 8;
+  const unsigned char *rom_fixed = nullptr;
+  const unsigned char *rom_page[ROM_PAGES] = {};
   const unsigned char *sound_rom = nullptr;
   const unsigned char *tilemap = nullptr;
   const uint32_t (*bg1_tiles)[128] = nullptr;

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unity.h>
+#include <initializer_list>
 
 // Boots the real 1943b ROMs on the host through the machine class: main
 // and sound Z80, memory map, sound latch, YM2203 FM. The ROM headers are
@@ -15,7 +16,11 @@
 #include "../../src/emulation/ym2203fm.cpp"
 #include "../../src/emulation/ay8910.cpp"
 #include "../../src/emulation/ym2203.cpp"
+#define private public
+#define protected public
 #include "../../src/machines/1943/1943.cpp"
+#undef private
+#undef protected
 #endif
 
 void setUp(void) {}
@@ -56,6 +61,7 @@ static void boot(void) {
   }
   booted = true;
   Arena::init();
+  Arena::reserve(&_1943_arena_plan);
   machine = new _1943();
   machine->init(&input, frame_buffer, sprites, memory);
   machine->reset();
@@ -114,6 +120,24 @@ static void test_fm_music_after_coin(void) {
   }
   TEST_ASSERT_GREATER_THAN_INT32(20, game);
 }
+
+// main Z80 ROM in three planned chunks: 0000-7fff fixed, 8000-bfff one of
+// 8 pages selected by c804 bits 4-2 (pages 0-3 in p03, 4-7 in p47)
+static void test_rom_pages_follow_c804(void) {
+  boot();
+  const uint8_t *fixed = machine->_1943_rom_fixed.data();
+  for (uint16_t k : {0, 0x1234, 0x7fff}) {
+    TEST_ASSERT_EQUAL_HEX8(fixed[k], machine->rdZ80(k));
+  }
+  for (uint8_t bank = 0; bank < 8; bank++) {
+    const uint8_t *page = (bank < 4 ? machine->_1943_rom_p03.data() : machine->_1943_rom_p47.data())
+                          + (bank & 3) * 0x4000;
+    machine->c804 = bank << 2;
+    for (uint16_t k : {0, 0x2345, 0x3fff}) {
+      TEST_ASSERT_EQUAL_HEX8(page[k], machine->rdZ80(0x8000 + k));
+    }
+  }
+}
 #endif
 
 int main(int argc, char **argv) {
@@ -121,6 +145,7 @@ int main(int argc, char **argv) {
 #ifdef HAVE_ROM
   RUN_TEST(test_boot_starts_game);
   RUN_TEST(test_fm_music_after_coin);
+  RUN_TEST(test_rom_pages_follow_c804);
 #endif
   return UNITY_END();
 }

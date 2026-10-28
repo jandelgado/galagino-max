@@ -1519,7 +1519,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     _1943::menuLeds,
 #endif
-    MCH_1943, nullptr BUNDLE_REF(_1943_bundle_ref) },
+    MCH_1943, &_1943_arena_plan BUNDLE_REF(_1943_bundle_ref) },
 #endif
 #ifdef GAME_CBDASH
   { createMachine<cbdash>, cbdash::logo,
