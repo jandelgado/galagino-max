@@ -20,7 +20,7 @@ xevious::xevious(const FlashAsset<unsigned char, COMPRESSED> &cpu1,
 // CPU dispatch — ogni CPU ha una ROM di dimensione diversa (16K/8K/4K),
 // a differenza di galaga.cpp che assume tutte e tre almeno 16K
 // ============================================================================
-unsigned char xevious::opZ80(unsigned short Addr) {
+unsigned char HAL_HOT_CODE xevious::opZ80(unsigned short Addr) {
   if (current_cpu == 0) return (Addr < 0x4000) ? rom_cpu1[Addr] : 0xff;
   if (current_cpu == 1) return (Addr < 0x2000) ? rom_cpu2[Addr] : 0xff;
   return (Addr < 0x1000) ? rom_cpu3[Addr] : 0xff;
@@ -67,7 +67,7 @@ unsigned char xevious::xevious_bb_r(unsigned char offset) {
 // Namco 06xx/50xx/51xx (shortcut adattato da galaga.cpp: risposta diretta
 // invece del protocollo byte-per-byte reale, stessa famiglia di chip)
 // ============================================================================
-unsigned char xevious::rdZ80(unsigned short Addr) {
+unsigned char HAL_HOT_CODE xevious::rdZ80(unsigned short Addr) {
   if (current_cpu == 0 && Addr < 0x4000) return rom_cpu1[Addr];
   if (current_cpu == 1 && Addr < 0x2000) return rom_cpu2[Addr];
   if (current_cpu == 2 && Addr < 0x1000) return rom_cpu3[Addr];
@@ -227,7 +227,7 @@ unsigned char xevious::rdZ80(unsigned short Addr) {
   return 0xff;
 }
 
-void xevious::wrZ80(unsigned short Addr, unsigned char Value) {
+void HAL_HOT_CODE xevious::wrZ80(unsigned short Addr, unsigned char Value) {
   if (Addr < 0x4000) return;   // ROM
 
   // RAM per prima (bring-up #27, perf): finestre disgiunte da tutti gli IO
@@ -506,7 +506,7 @@ void xevious::prepare_frame(void) {
   }
 }
 
-void xevious::blit_sprite(short row, unsigned char s) {
+void HAL_HOT_CODE xevious::blit_sprite(short row, unsigned char s) {
   unsigned short code = sprite[s].code | ((unsigned short)sprite[s].color_block << 8);
   SpriteRows4bpp spr(xevious_sprites[code], sprite[s].flags & 3);
   const unsigned short *colors = cmap_spr[sprite[s].color & 0x3f];
@@ -542,7 +542,7 @@ void xevious::blit_sprite(short row, unsigned char s) {
 // video_start() (xevious.cpp): bg(-20,-16) fg(-32,-18), SOLO caso non-flip
 // (nessun supporto cocktail in questo progetto).
 // ============================================================================
-void xevious::blit_tilemap_row(short row, bool bg) {
+void HAL_HOT_CODE xevious::blit_tilemap_row(short row, bool bg) {
   unsigned short scrollx = bg ? video.bg_scrollx : video.fg_scrollx;
   unsigned short scrolly = bg ? video.bg_scrolly : video.fg_scrolly;
   // offset MAME (scrolldx/scrolldy da video_start()). Convenzione MAME:
@@ -637,7 +637,7 @@ void xevious::blit_tilemap_row(short row, bool bg) {
   }
 }
 
-void xevious::render_row(short row) {
+void HAL_HOT_CODE xevious::render_row(short row) {
   blit_tilemap_row(row, true);    // sfondo, opaco
 
   for (unsigned char s = 0; s < active_sprites; s++)
@@ -648,7 +648,7 @@ void xevious::render_row(short row) {
 }
 
 // WSG plus the 54xx explosion noise per sample
-void xevious::renderAudio(int16_t *out, int n) {
+void HAL_HOT_CODE xevious::renderAudio(int16_t *out, int n) {
   wsg.render(soundregs, xevious_wavetable, out, n);
   for (int i = 0; i < n; i++) {
     out[i] += n54.render();

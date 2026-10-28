@@ -1,4 +1,5 @@
 #include "namco54.h"
+#include "../hal/hal_attr.h"
 #include <math.h>
 
 // MB8844 clock: MASTER_CLOCK / 6 / 2 = 1.536 MHz, one machine cycle per
@@ -59,7 +60,7 @@ void Namco54::hold(bool reset) {
   reset_line.store(reset, std::memory_order_release);
 }
 
-void Namco54::write_o(uint8_t value, uint8_t mask) {
+void HAL_HOT_CODE Namco54::write_o(uint8_t value, uint8_t mask) {
   if (mask == 0x0f) {
     out[0] = value & 0x0f;
   } else {
@@ -67,13 +68,13 @@ void Namco54::write_o(uint8_t value, uint8_t mask) {
   }
 }
 
-void Namco54::write_r(uint8_t port, uint8_t value) {
+void HAL_HOT_CODE Namco54::write_r(uint8_t port, uint8_t value) {
   if (port == 1) {
     out[2] = value & 0x0f;
   }
 }
 
-void Namco54::feed(int cycles) {
+void HAL_HOT_CODE Namco54::feed(int cycles) {
   if (irq_left > 0) {
     irq_left -= cycles;
     if (irq_left <= 0) {
@@ -99,7 +100,7 @@ void Namco54::feed(int cycles) {
   set_irq(true);
 }
 
-int16_t Namco54::render() {
+int16_t HAL_HOT_CODE Namco54::render() {
   if (reset_line.load(std::memory_order_acquire)) {
     // held chip: restart from reset, drop bytes sent meanwhile
     if (!in_reset) {
@@ -145,7 +146,7 @@ void Namco54::BandPass::set(float r_in, float r_bias, float r_f, float c) {
   x1 = x2 = y1 = y2 = 0;
 }
 
-float Namco54::BandPass::step(float v_dac) {
+float HAL_HOT_CODE Namco54::BandPass::step(float v_dac) {
   const float v = v_dac - V_REF;
   float y = -a1 * y1 - a2 * y2 + b0 * (v - x2) + V_REF;
   x2 = x1;
@@ -162,7 +163,7 @@ float Namco54::BandPass::step(float v_dac) {
 }
 
 // MAME DISC_MIXER_IS_OP_AMP with output coupling cap cAmp (100k load)
-float Namco54::mix(float c1, float c2, float c3) {
+float HAL_HOT_CODE Namco54::mix(float c1, float c2, float c3) {
   float v = ((V_REF - c1) / MIX_R[0] + (V_REF - c2) / MIX_R[1] + (V_REF - c3) / MIX_R[2]) * MIX_RF;
   hp += (v - hp) * hp_k;
   return (v - hp) * MIX_GAIN;
