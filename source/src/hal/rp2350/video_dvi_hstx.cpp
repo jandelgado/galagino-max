@@ -6,6 +6,7 @@
 #ifdef HAL_VIDEO_DVI_HSTX
 #include "video_dvi_hstx.h"
 #include <stdio.h>
+#include <string.h>
 #include <FreeRTOS.h>
 #include <semphr.h>
 #include <hardware/clocks.h>
@@ -95,7 +96,8 @@ HAL_FAST_CODE void clearWords(uint32_t *words, uint32_t n) {
   }
 }
 
-// Source picture, native RGB565, rows in scan order (flips applied).
+// Source picture, RGB565 in SPI byte order (line builders swap), rows in
+// scan order (flips applied).
 const uint32_t SRC_WIDTH = 240;
 uint16_t frame[SRC_ROWS][SRC_WIDTH];
 
@@ -165,7 +167,7 @@ void DviHstxVideo::submit(const uint16_t *strip, uint32_t pixels) {
   const uint32_t lines = SRC_ROWS / STRIPS;
   const uint32_t width = pixels / lines;
   for (uint32_t line = 0; line < lines; line++) {
-    dvi::copySwapped(strip + line * width, frame[dvi::frameRow(written, line, flip_y)], width);
+    memcpy(frame[dvi::frameRow(written, line, flip_y)], strip + line * width, width * sizeof(uint16_t));
   }
   written++;
 }

@@ -1,12 +1,15 @@
 #ifndef HAL_RP2350_DVI_LINE_H
 #define HAL_RP2350_DVI_LINE_H
 
-// DVI output line builders: source rows (RGB565) to HSTX words, two pixels
-// per word, the first pixel in the low half. No SDK dependencies, so host
-// tests cover them. Row scaling follows pico-galagino's
+// DVI output line builders: source rows (RGB565 in SPI byte order, as
+// machines render) to HSTX words (native RGB565), two pixels per word, the
+// first pixel in the low half. Rows have an even width and are read a pixel
+// pair (one 32-bit word) at a time: the builders run 432 times a frame in
+// the scanout IRQ. No SDK dependencies, so host tests cover them. Row scaling follows pico-galagino's
 // pico_shared/drivers/pico_hdmi/hstx_scale.h (GPLv3).
 
 #include <stdint.h>
+#include <string.h>
 
 namespace hal {
 namespace dvi {
@@ -33,15 +36,26 @@ static inline uint16_t swap565(uint16_t spi) {
   return (uint16_t)((spi << 8) | (spi >> 8));
 }
 
-static inline void copySwapped(const uint16_t *spi, uint16_t *out, uint32_t n) {
-  for (uint32_t i = 0; i < n; i++) {
-    out[i] = swap565(spi[i]);
-  }
+// Both pixels of a pair from SPI byte order to native (one REV16 on ARM).
+static inline uint32_t swapPair(uint32_t spi) {
+  return ((spi & 0x00ff00ffu) << 8) | ((spi >> 8) & 0x00ff00ffu);
+}
+
+// Pixels x and x + 1 of an SPI order row, native, pixel x in the low half.
+static inline uint32_t pairAt(const uint16_t *row, uint32_t x) {
+  uint32_t pair;
+  memcpy(&pair, row + x, sizeof(pair));
+  return swapPair(pair);
 }
 
 // Per-channel average, rounded down; a flat colour stays the same.
 static inline uint16_t avg565(uint16_t a, uint16_t b) {
   return (uint16_t)((a & b) + (((a ^ b) & 0xF7DE) >> 1));
+}
+
+// avg565 of both pixels of two pairs at once.
+static inline uint32_t avgPair(uint32_t a, uint32_t b) {
+  return (a & b) + (((a ^ b) & 0xF7DEF7DEu) >> 1);
 }
 
 // a and b weighted (4 - q) : q, q in quarters 0..4.
@@ -91,33 +105,68 @@ static inline uint32_t frameRow(uint32_t strip, uint32_t line, Mirror flipY) {
   return strip * 8 + (flipY == Mirror::ON ? 7 - line : line);
 }
 
-// 1x: `width` pixels (even) into width / 2 words.
+// 1x: `width` pixels into width / 2 words.
 static inline void line1x(const uint16_t *row, uint32_t *out, uint32_t width, Mirror mirror) {
   if (mirror == Mirror::ON) {
     for (uint32_t x = 0; x < width; x += 2) {
-      *out++ = row[width - 1 - x] | (uint32_t)row[width - 2 - x] << 16;
+      const uint32_t pair = pairAt(row, width - 2 - x);
+      *out++ = pair >> 16 | pair << 16;
     }
     return;
   }
   for (uint32_t x = 0; x < width; x += 2) {
-    *out++ = row[x] | (uint32_t)row[x + 1] << 16;
+    *out++ = pairAt(row, x);
+  }
+}
+
+// How line2x mixes row b into row a: not, half and half (q = 2, all the
+// blended lines of 288 rows on 432), or by quarters (blend565).
+enum class Mix : uint8_t { NONE, HALF, QUARTERS };
+
+template <Mirror MIRROR, Mix MIX>
+static inline void line2xPairs(const uint16_t *a, const uint16_t *b, uint32_t q, uint32_t *out,
+                               uint32_t width) {
+  for (uint32_t i = 0; i < width; i += 2, out += 2) {
+    const uint32_t x = MIRROR == Mirror::ON ? width - 2 - i : i;
+    uint32_t pair = pairAt(a, x);
+    if (MIX == Mix::HALF) {
+      pair = avgPair(pair, pairAt(b, x));
+    }
+    if (MIX == Mix::QUARTERS) {
+      const uint32_t other = pairAt(b, x);
+      pair = blend565((uint16_t)pair, (uint16_t)other, q) |
+             (uint32_t)blend565((uint16_t)(pair >> 16), (uint16_t)(other >> 16), q) << 16;
+    }
+
+    const uint32_t lo = pair & 0xffffu;
+    const uint32_t hi = pair >> 16;
+    const uint32_t first = MIRROR == Mirror::ON ? hi : lo;
+    const uint32_t second = MIRROR == Mirror::ON ? lo : hi;
+    out[0] = first | first << 16;
+    out[1] = second | second << 16;
   }
 }
 
 // 2x wide: every pixel doubled into one word; q > 0 blends row a with b.
 static inline void line2x(const uint16_t *a, const uint16_t *b, uint32_t q, uint32_t *out,
                           uint32_t width, Mirror mirror) {
-  const int32_t step = mirror == Mirror::ON ? -1 : 1;
-  int32_t x = mirror == Mirror::ON ? (int32_t)width - 1 : 0;
-
-  if (q == 0) {
-    for (uint32_t i = 0; i < width; i++, x += step) {
-      *out++ = a[x] * 0x10001u;
+  const Mix mix = q == 0 ? Mix::NONE : q == 2 ? Mix::HALF : Mix::QUARTERS;
+  if (mirror == Mirror::ON) {
+    if (mix == Mix::NONE) {
+      line2xPairs<Mirror::ON, Mix::NONE>(a, b, q, out, width);
+    } else if (mix == Mix::HALF) {
+      line2xPairs<Mirror::ON, Mix::HALF>(a, b, q, out, width);
+    } else {
+      line2xPairs<Mirror::ON, Mix::QUARTERS>(a, b, q, out, width);
     }
     return;
   }
-  for (uint32_t i = 0; i < width; i++, x += step) {
-    *out++ = blend565(a[x], b[x], q) * 0x10001u;
+  if (mix == Mix::NONE) {
+    line2xPairs<Mirror::OFF, Mix::NONE>(a, b, q, out, width);
+  } else if (mix == Mix::HALF) {
+    line2xPairs<Mirror::OFF, Mix::HALF>(a, b, q, out, width);
+  } else {
+    line2xPairs<Mirror::OFF, Mix::QUARTERS>(a, b, q, out, width);
   }
 }
 
