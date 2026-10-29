@@ -1,7 +1,7 @@
 """Pick [games_max] of source/platformio.ini: the most games in 4 MB.
 
     uv run python -m dev.games_max OBJDIR --built BYTES [--budget N] [--margin N]
-                                   [--must X,Y] [--write]
+                                   [--built-dram BYTES --dram N] [--must X,Y] [--write]
 
 OBJDIR: objects of a firmware compiled with every game and without LTO,
 one section per function (pio_perf.ini env measure-all: mode_full flags,
@@ -10,6 +10,11 @@ ESP32 maps 4 MB of flash, the objects under .pio/build/measure-all/src
 remain). --built: the image size of the azdelivery-max build of the list
 that is in platformio.ini now: it calibrates the model (IDF libraries,
 linker relaxation) as one offset. See romconv.plan.flashpick for the model.
+
+--built-dram / --dram: static DRAM (dram0 data + bss, xtensa-esp32-elf-size -A)
+of that build calibrates the DRAM model the same way; --dram caps it. Static
+DRAM comes out of the heap Arena block A needs: a HEAP_PROBE sweep gives the
+headroom, so --dram = built DRAM + (min_free - bar).
 """
 import argparse
 import collections
@@ -132,8 +137,9 @@ def _write_list(games, own):
 
 
 def _cost(groups, games):
-    games = set(games)
-    return groups.base[0] + sum(size[0] for m, size in groups.shared.items() if m & games)
+    """(flash, dram) the model gives a game list."""
+    paid = [size for m, size in groups.shared.items() if m & set(games)]
+    return groups.base[0] + sum(s[0] for s in paid), groups.base[1] + sum(s[1] for s in paid)
 
 
 def main(argv):
@@ -142,9 +148,13 @@ def main(argv):
     ap.add_argument("--built", type=int, required=True, help="image bytes of azdelivery-max with the current list")
     ap.add_argument("--budget", type=int, default=_APP0, help="app partition bytes (default app0 of partitions.csv)")
     ap.add_argument("--margin", type=int, default=16384, help="bytes kept free (default 16384)")
+    ap.add_argument("--built-dram", type=int, help="static DRAM bytes of azdelivery-max with the current list")
+    ap.add_argument("--dram", type=int, help="static DRAM budget (needs --built-dram)")
     ap.add_argument("--must", default="", help="comma separated games that stay in")
     ap.add_argument("--write", action="store_true", help="write the pick into platformio.ini")
     a = ap.parse_args(argv)
+    if a.dram is not None and a.built_dram is None:
+        ap.error("--dram needs --built-dram")
 
     sections, symbols = _read_objects(a.objdir)
     classes = _classes_by_game()
@@ -155,19 +165,27 @@ def main(argv):
     groups = flashpick.groups(sections, base_roots, game_roots)
 
     current = _current_list()
-    offset = a.built - _cost(groups, current)
+    model_flash, model_dram = _cost(groups, current)
+    offset = a.built - model_flash
     own = {g: size[0] for m, size in groups.shared.items() for g in m if len(m) == 1}
     print(f"model: base {groups.base[0]} B + {len(groups.shared)} groups; current list {len(current)} games "
-          f"-> model {_cost(groups, current)} B, built {a.built} B, offset {offset:+d} B")
+          f"-> model {model_flash} B, built {a.built} B, offset {offset:+d} B")
+    dram_offset = 0
+    if a.built_dram is not None:
+        dram_offset = a.built_dram - model_dram
+        print(f"DRAM: model {model_dram} B, built {a.built_dram} B, offset {dram_offset:+d} B")
     print("\nshared groups over 8 KB (paid once per set):")
     for m, size in sorted(groups.shared.items(), key=lambda kv: -kv[1][0]):
         if len(m) > 1 and size[0] >= 8192:
             print(f"  {size[0]:8d}  {' '.join(sorted(m)) if len(m) <= 6 else f'{len(m)} games'}")
 
     must = {g for g in a.must.split(",") if g}
-    chosen = flashpick.pick(groups, flash=a.budget - a.margin - offset, must=must)
-    predicted = _cost(groups, chosen.games) + offset
-    print(f"\npick: {len(chosen.games)} games, predicted image {predicted} B of {a.budget} (margin {a.margin})")
+    dram = a.dram - dram_offset if a.dram is not None else None
+    chosen = flashpick.pick(groups, flash=a.budget - a.margin - offset, dram=dram, must=must)
+    flash, dram_used = _cost(groups, chosen.games)
+    print(f"\npick: {len(chosen.games)} games, predicted image {flash + offset} B of {a.budget} (margin {a.margin})")
+    if a.built_dram is not None:
+        print(f"  static DRAM {dram_used + dram_offset} B" + (f" of {a.dram}" if a.dram is not None else ""))
     print("  in :", " ".join(sorted(set(chosen.games) - set(current))) or "-")
     print("  out:", " ".join(sorted(set(current) - set(chosen.games))) or "-")
     print("\nbytes per game alone (own sections; shared groups above come on top):")
