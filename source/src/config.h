@@ -192,6 +192,13 @@
   #endif
 #endif
 
+// START is a button of its own (COIN pin, galagino controller, Bluetooth pad):
+// machines may put a second action on it. Else START reaches them as
+// BUTTON_EXTRA and BUTTON_START only follows a virtual coin.
+#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER) || defined(HAL_GAMEPAD_BT)
+  #define INPUT_START_BUTTON
+#endif
+
 #include "hal/config_check.h"
 
 #endif // _CONFIG_H_

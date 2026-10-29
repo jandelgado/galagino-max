@@ -2,7 +2,7 @@
 
 // action key: START with a COIN pin or the galagino controller, else EXTRA
 // (gng JUMP_KEY pattern)
-#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+#ifdef INPUT_START_BUTTON
 static const unsigned int ACTION_KEY = BUTTON_START;
 #else
 static const unsigned int ACTION_KEY = BUTTON_EXTRA;

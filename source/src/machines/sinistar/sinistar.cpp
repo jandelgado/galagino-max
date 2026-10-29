@@ -4,7 +4,7 @@ static_assert(0x0800 + 0x1000 <= RAMSIZE, "Sinistar SRAM in memory[]");
 
 // action key (sinibomb): START with a COIN pin or the galagino
 // controller, else EXTRA (defender.cpp)
-#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+#ifdef INPUT_START_BUTTON
 static const unsigned int ACTION_KEY = BUTTON_START;
 #else
 static const unsigned int ACTION_KEY = BUTTON_EXTRA;

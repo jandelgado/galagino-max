@@ -38,7 +38,7 @@ static const uint8_t SPR_HI = 0x04;  // code bit 8
 
 // fireball (BUTTON2) on START, as gng's jump: BUTTON_START with a COIN pin or
 // the galagino controller, else START itself reports as BUTTON_EXTRA
-#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+#ifdef INPUT_START_BUTTON
 static const unsigned int FIREBALL_KEY = BUTTON_START;
 #else
 static const unsigned int FIREBALL_KEY = BUTTON_EXTRA;

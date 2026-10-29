@@ -56,7 +56,7 @@ static constexpr uint8_t P1_FIRE = 0x10, P1_JUMP = 0x20;
 // jump on the START button: BUTTON_START with a COIN pin (EXTRA is then
 // COIN) or the galagino controller, else START itself reports as
 // BUTTON_EXTRA (BUTTON_START only follows a virtual coin), as gng
-#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+#ifdef INPUT_START_BUTTON
 static const unsigned int JUMP_KEY = BUTTON_START;
 #else
 static const unsigned int JUMP_KEY = BUTTON_EXTRA;
