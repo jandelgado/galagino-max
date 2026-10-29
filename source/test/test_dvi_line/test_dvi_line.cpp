@@ -150,6 +150,15 @@ static void test_frame_row(void) {
   TEST_ASSERT_EQUAL_UINT32(10, frameRow(1, 2, Mirror::OFF));
 }
 
+// frames per elapsed time, not per window: a game load holds endFrame off
+// for over a second while the scanout keeps 60 Hz
+static void test_over_rate(void) {
+  TEST_ASSERT_FALSE(overRate(60, 1000000, 75));
+  TEST_ASSERT_FALSE(overRate(90, 1500000, 75));
+  TEST_ASSERT_TRUE(overRate(76, 1000000, 75));
+  TEST_ASSERT_TRUE(overRate(240, 2000000, 75));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_swap565);
@@ -164,5 +173,6 @@ int main(int, char **) {
   RUN_TEST(test_line_2x_224_leaves_border_black);
   RUN_TEST(test_orientation_follows_panel_flips);
   RUN_TEST(test_frame_row);
+  RUN_TEST(test_over_rate);
   return UNITY_END();
 }

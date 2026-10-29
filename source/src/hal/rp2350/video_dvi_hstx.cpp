@@ -315,10 +315,11 @@ void DviHstxVideo::endFrame(uint8_t part, uint32_t) {
     xSemaphoreTake(wake, 1);
   }
 
-  // over-rate: the stream lost its framing (see wake_irq)
+  // over-rate: the stream lost its framing (see wake_irq). The window grows
+  // past 1 s while a game loads.
   const uint32_t now = time_us_32();
   if (now - rate_start_us >= 1000000) {
-    if (scan_frames - rate_start_frames > MAX_FPS) {
+    if (dvi::overRate(scan_frames - rate_start_frames, now - rate_start_us, MAX_FPS)) {
       resync();
     }
 #if defined(HAL_AUDIO_DVI) && defined(DEBUG_TIMING)

@@ -105,6 +105,12 @@ static inline uint32_t frameRow(uint32_t strip, uint32_t line, Mirror flipY) {
   return strip * 8 + (flipY == Mirror::ON ? 7 - line : line);
 }
 
+// Scanout watchdog: more than maxFps frames per second over `us`
+// microseconds means the DMA chain lost its framing.
+static inline bool overRate(uint32_t frames, uint32_t us, uint32_t maxFps) {
+  return (uint64_t)frames * 1000000u > (uint64_t)maxFps * us;
+}
+
 // 1x: `width` pixels into width / 2 words.
 static inline void line1x(const uint16_t *row, uint32_t *out, uint32_t width, Mirror mirror) {
   if (mirror == Mirror::ON) {
