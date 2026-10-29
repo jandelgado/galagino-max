@@ -1,5 +1,5 @@
 // Adafruit Feather RP2350 with HSTX port: an Adafruit DVI Sock on a ribbon
-// cable at the 22-pin HSTX connector, TV over HDMI (silent until DVI audio).
+// cable at the 22-pin HSTX connector, TV over HDMI, sound over the same cable.
 // HSTX pairs per the Adafruit pinout: 12/13 D2, 14/15 CK, 16/17 D1, 18/19 D0
 // (P on the even pin). Buttons to ground, internal pull-ups; STEMMA QT
 // (2/3) stays free for a Nunchuk. Never used: 7 (red LED), 8 (PSRAM CS),
@@ -11,7 +11,7 @@
 #define HAL_VIDEO_DVI_HSTX
 #endif
 #ifndef HAL_AUDIO_CHOSEN
-#define HAL_AUDIO_NULL
+#define HAL_AUDIO_DVI
 #endif
 #ifndef HSTX_CK_PIN
 #define HSTX_CK_PIN     14

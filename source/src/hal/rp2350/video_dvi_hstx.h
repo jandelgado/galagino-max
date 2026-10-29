@@ -15,6 +15,9 @@
 //   submit(): wait for the beam      <--  beam position (rows read)
 //   endFrame(): wait for strip 0     <--  wake as strip 0 / last row is read
 //
+// With HAL_AUDIO_DVI the stream is HDMI: every line carries a data island
+// (hdmi_line.h), the IRQ sends audio packets from audio_dvi.h's ring.
+//
 // SDK calls are out of line (video_dvi_hstx.cpp, see time.h).
 
 #include <stdint.h>

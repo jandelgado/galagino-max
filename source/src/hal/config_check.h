@@ -67,7 +67,7 @@
 #endif
 
 // HDMI audio rides in the DVI stream: one without the other is not a build.
-// Silent DVI (HAL_AUDIO_NULL) until the DVI audio backend exists.
+// HAL_AUDIO_NULL: plain DVI, silent, for sinks that reject HDMI data islands.
 #if defined(HAL_VIDEO_DVI_HSTX) && !defined(HAL_AUDIO_DVI) && !defined(HAL_AUDIO_NULL)
 #error "config: HAL_VIDEO_DVI_HSTX needs HAL_AUDIO_DVI or HAL_AUDIO_NULL (DVI builds play sound over DVI only)"
 #endif

@@ -6,8 +6,8 @@
 
 namespace hal {
 
-// HAL_AUDIO_NULL: timed silent sink (../audio_null.cpp). PWM and DVI
-// outputs follow (plan Tasks 16, 17).
+// HAL_AUDIO_DVI: HDMI audio in the DVI stream (audio_dvi.cpp).
+// HAL_AUDIO_NULL: timed silent sink (../audio_null.cpp).
 class AudioOut {
 public:
   static void init(const AudioConfig &cfg);

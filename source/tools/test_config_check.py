@@ -180,9 +180,15 @@ class Profiles(unittest.TestCase):
                 r = _macros(["HAL_RP2350", board] + _ARENA)
                 self.assertEqual(r.returncode, 0, r.stderr)
                 self.assertIn("#define HAL_VIDEO_DVI_HSTX", r.stdout)
-                self.assertIn("#define HAL_AUDIO_NULL", r.stdout)
+                self.assertIn("#define HAL_AUDIO_DVI", r.stdout)
                 self.assertIn("#define GALAGINO_CLOCK_KHZ 252000\n", r.stdout)
                 self.assertIn("#define DVI_SCALE 2\n", r.stdout)
+
+    def test_dvi_profile_falls_back_to_plain_dvi(self):
+        # sinks that reject HDMI data islands: -D HAL_AUDIO_NULL, silent DVI
+        r = _macros(["HAL_RP2350", "BOARD_PICO2W_DVI", "HAL_AUDIO_NULL"] + _ARENA)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("#define HAL_AUDIO_DVI", r.stdout)
 
     def test_usbup_flips_the_panel(self):
         r = _macros(["HAL_ESP", "BOARD_FNK0103B", "BOARD_USBUP"] + _ARENA)

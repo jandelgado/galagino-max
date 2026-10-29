@@ -46,7 +46,8 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
   a buffer is free, else returns false (all or nothing); `flushSilence` fills every buffer.
 - Backend by define (selected in hal/audio.h, set by the board profile; build defines, not API):
   HAL_AUDIO_ESP_DAC, HAL_AUDIO_ES8311 (I2S stream; Audio::init sets up the codec over I2c first),
-  HAL_AUDIO_NULL; HAL_AUDIO_DVI reserved for the DVI backend. Combinations: config_check.h.
+  HAL_AUDIO_NULL, HAL_AUDIO_DVI (HDMI audio in the DVI stream, scanout clocked; DVI boards'
+  default, HAL_AUDIO_NULL gives plain silent DVI). Combinations: config_check.h.
 
 ## Video (`video.h`, not in `hal.h`)
 `hal::Video` is the backend class (`SpiTftVideo`, `DviHstxVideo`, `NullVideo`). Strips are

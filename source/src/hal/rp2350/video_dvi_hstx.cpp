@@ -20,19 +20,21 @@
 #include <hardware/sync.h>
 #include <pico/time.h>
 #include "../hal_attr.h"
+#include "hdmi_line.h"
 #include "rtos.h"
+#ifdef HAL_AUDIO_DVI
+#include "audio_dvi.h"
+#endif
 
 namespace hal {
 
 namespace {
 
+using namespace hstx;
+
 // 640x480 60 Hz (CEA-861 VIC 1): 25.2 MHz pixel clock, 10 bits per pixel
 // and lane, two bits per HSTX clock: clk_hstx = 126 MHz.
 const uint32_t HSTX_HZ = 126000000;
-const uint32_t H_FRONT_PORCH = 16;
-const uint32_t H_SYNC_WIDTH = 96;
-const uint32_t H_BACK_PORCH = 48;
-const uint32_t H_ACTIVE = 640;
 const uint32_t V_FRONT_PORCH = 10;
 const uint32_t V_SYNC_WIDTH = 2;
 const uint32_t V_BACK_PORCH = 33;
@@ -40,20 +42,6 @@ const uint32_t V_ACTIVE = dvi::OUT_LINES;
 const uint32_t V_BLANK = V_FRONT_PORCH + V_SYNC_WIDTH + V_BACK_PORCH;
 const uint32_t V_TOTAL = V_BLANK + V_ACTIVE;
 const uint32_t HSTX_FIRST_PIN = 12;
-
-// TMDS control symbols: sync levels on lane 0, the other lanes idle
-const uint32_t TMDS_CTRL_00 = 0x354u;
-const uint32_t TMDS_CTRL_01 = 0x0abu;
-const uint32_t TMDS_CTRL_10 = 0x154u;
-const uint32_t TMDS_CTRL_11 = 0x2abu;
-const uint32_t SYNC_V0_H0 = TMDS_CTRL_00 | (TMDS_CTRL_00 << 10) | (TMDS_CTRL_00 << 20);
-const uint32_t SYNC_V0_H1 = TMDS_CTRL_01 | (TMDS_CTRL_00 << 10) | (TMDS_CTRL_00 << 20);
-const uint32_t SYNC_V1_H0 = TMDS_CTRL_10 | (TMDS_CTRL_00 << 10) | (TMDS_CTRL_00 << 20);
-const uint32_t SYNC_V1_H1 = TMDS_CTRL_11 | (TMDS_CTRL_00 << 10) | (TMDS_CTRL_00 << 20);
-
-const uint32_t CMD_RAW_REPEAT = 0x1u << 12;
-const uint32_t CMD_TMDS = 0x2u << 12;
-const uint32_t CMD_NOP = 0xfu << 12;
 
 // Command lists, padded with NOPs to at least the HSTX FIFO size so the DMA
 // does not ping-pong too fast for the IRQ.
@@ -69,12 +57,14 @@ uint32_t vblank_vsync_on[] = {
   CMD_RAW_REPEAT | (H_BACK_PORCH + H_ACTIVE), SYNC_V0_H1,
   CMD_NOP
 };
+#ifndef HAL_AUDIO_DVI
 uint32_t vactive_line[] = {
   CMD_RAW_REPEAT | H_FRONT_PORCH, SYNC_V1_H1, CMD_NOP,
   CMD_RAW_REPEAT | H_SYNC_WIDTH, SYNC_V1_H0, CMD_NOP,
   CMD_RAW_REPEAT | H_BACK_PORCH, SYNC_V1_H1,
   CMD_TMDS | H_ACTIVE
 };
+#endif
 
 // Picture placement: 288 source rows, 1x or scaled (dvi_line.h)
 const uint32_t SRC_ROWS = 36 * 8;
@@ -86,7 +76,12 @@ const uint32_t LINE_WORDS = H_ACTIVE / 2;
 // transfer (sync/porch commands, then the pixels); a short command list
 // right after pixels would leave well under 1 us, so the last active line
 // carries the first blank line as its tail.
+#ifdef HAL_AUDIO_DVI
+// HDMI: every line carries a data island (hdmi_line.h)
+const uint32_t HEADER_WORDS = hdmi::ACTIVE_WORDS;
+#else
 const uint32_t HEADER_WORDS = count_of(vactive_line);
+#endif
 const uint32_t ACTIVE_WORDS = HEADER_WORDS + LINE_WORDS;
 const uint32_t TAIL_WORDS = count_of(vblank_vsync_off);
 
@@ -131,7 +126,30 @@ uint32_t resyncs;
 // Ping-pong line buffers: the IRQ builds line n + 1 while line n is sent.
 uint32_t line_buf[2][ACTIVE_WORDS + TAIL_WORDS];
 uint16_t built_width[2];
-uint32_t black_line[ACTIVE_WORDS + TAIL_WORDS];
+uint32_t black_line[2][ACTIVE_WORDS + TAIL_WORDS];
+
+#ifdef HAL_AUDIO_DVI
+// HDMI audio: 48 kHz, every 24 kHz sample twice, four per sample packet. The
+// IRQ encodes a packet on every line it is due (200 a frame); vblank lines
+// carry Audio Clock Regeneration and the InfoFrames. Precomputed islands per
+// vsync level (hdmi::VSync).
+const uint32_t AUDIO_HZ = 48000;
+const uint32_t LINE_HZ = 25200000 / 800;
+const uint32_t PACKET_SAMPLES = 4;
+const uint32_t ACR_N = 6144;      // HDMI table for 48 kHz at 25.2 MHz
+const uint32_t ACR_CTS = 25200;
+const uint32_t AVI_LINE = 1;
+const uint32_t AUDIO_INFO_LINE = 2;
+
+uint32_t blank_buf[2][hdmi::BLANK_WORDS];
+uint32_t null_island[2][hdmi::ISLAND_WORDS];
+uint32_t acr_island[2][hdmi::ISLAND_WORDS];
+uint32_t avi_island[hdmi::ISLAND_WORDS];
+uint32_t audio_info_island[hdmi::ISLAND_WORDS];
+uint32_t audio_due;     // samples x line rate
+uint32_t cs_frame;      // IEC 60958 channel status frame
+uint32_t underruns;
+#endif
 
 int ch_ping;
 int ch_pong;
@@ -175,6 +193,63 @@ void queueBlankLines() {
   pong = false;
   v_scanline = 2;
 }
+
+#ifdef HAL_AUDIO_DVI
+HAL_FAST_CODE void copyIsland(uint32_t *out, const uint32_t *island) {
+  for (uint32_t i = 0; i < hdmi::ISLAND_WORDS; i++) {
+    out[i] = island[i];
+  }
+}
+
+// Data island of blank line `scanline` (0 .. V_BLANK - 1) or of an active
+// line (V_BLANK and up): fixed packets on some vblank lines, else an audio
+// packet when one is due, else a null packet.
+HAL_FAST_CODE void writeIsland(uint32_t *out, uint32_t scanline) {
+  const bool vpulse = scanline >= V_FRONT_PORCH && scanline < V_FRONT_PORCH + V_SYNC_WIDTH;
+  const hdmi::VSync v = vpulse ? hdmi::VSync::PULSE : hdmi::VSync::OFF;
+  const bool backPorch = scanline >= V_FRONT_PORCH + V_SYNC_WIDTH && scanline < V_BLANK;
+  if (scanline == V_FRONT_PORCH || (backPorch && scanline % 4 == 0)) {
+    copyIsland(out, acr_island[vpulse]);
+    return;
+  }
+  if (scanline == AVI_LINE) {
+    copyIsland(out, avi_island);
+    return;
+  }
+  if (scanline == AUDIO_INFO_LINE) {
+    copyIsland(out, audio_info_island);
+    return;
+  }
+  if (audio_due < PACKET_SAMPLES * LINE_HZ) {
+    copyIsland(out, null_island[vpulse]);
+    return;
+  }
+
+  audio_due -= PACKET_SAMPLES * LINE_HZ;
+  int16_t s[2] = {0, 0};
+  if (!hdmi::audioRing.pop(s, 2)) {
+    underruns++;
+  }
+  const int16_t samples[PACKET_SAMPLES] = {s[0], s[0], s[1], s[1]};
+  hdmi::Packet p;
+  cs_frame = hdmi::samplePacket(p, samples, cs_frame);
+  hdmi::encodeIsland(out, p, v);
+}
+
+void encodeIslands() {
+  hdmi::Packet p;
+  hdmi::nullPacket(p);
+  hdmi::encodeIsland(null_island[0], p, hdmi::VSync::OFF);
+  hdmi::encodeIsland(null_island[1], p, hdmi::VSync::PULSE);
+  hdmi::acrPacket(p, ACR_N, ACR_CTS);
+  hdmi::encodeIsland(acr_island[0], p, hdmi::VSync::OFF);
+  hdmi::encodeIsland(acr_island[1], p, hdmi::VSync::PULSE);
+  hdmi::aviInfoFrame(p);
+  hdmi::encodeIsland(avi_island, p, hdmi::VSync::OFF);
+  hdmi::audioInfoFrame(p);
+  hdmi::encodeIsland(audio_info_island, p, hdmi::VSync::OFF);
+}
+#endif
 
 } // namespace
 
@@ -234,6 +309,13 @@ void DviHstxVideo::endFrame(uint8_t part, uint32_t) {
     if (scan_frames - rate_start_frames > MAX_FPS) {
       resync();
     }
+#if defined(HAL_AUDIO_DVI) && defined(DEBUG_TIMING)
+    static uint32_t reported;
+    if (underruns != reported) {
+      printf("HDMI: audio underruns %u\n", (unsigned)underruns);
+      reported = underruns;
+    }
+#endif
     rate_start_us = time_us_32();
     rate_start_frames = scan_frames;
   }
@@ -304,18 +386,32 @@ void HAL_FAST_CODE DviHstxVideo::scanout() {
   dma_hw->intr = 1u << chNum;
   pong = !pong;
 
-  if (v_scanline >= V_FRONT_PORCH && v_scanline < V_FRONT_PORCH + V_SYNC_WIDTH) {
-    ch->read_addr = (uintptr_t)vblank_vsync_on;
-    ch->transfer_count = count_of(vblank_vsync_on);
-  } else if (v_scanline < V_BLANK) {
-    ch->read_addr = (uintptr_t)vblank_vsync_off;
+#ifdef HAL_AUDIO_DVI
+  audio_due += AUDIO_HZ;
+#endif
+  if (v_scanline < V_BLANK) {
+    const bool vpulse = v_scanline >= V_FRONT_PORCH && v_scanline < V_FRONT_PORCH + V_SYNC_WIDTH;
+#ifdef HAL_AUDIO_DVI
+    // the requeued channel's own buffer: the other channel is sending its own
+    uint32_t *buf = blank_buf[chNum == ch_pong];
+    hdmi::lineHeader(buf, hdmi::Line::BLANK, vpulse ? hdmi::VSync::PULSE : hdmi::VSync::OFF);
+    writeIsland(buf + hdmi::ISLAND_AT, v_scanline);
+    ch->read_addr = (uintptr_t)buf;
+    ch->transfer_count = hdmi::BLANK_WORDS;
+#else
+    ch->read_addr = (uintptr_t)(vpulse ? vblank_vsync_on : vblank_vsync_off);
     ch->transfer_count = count_of(vblank_vsync_off);
+#endif
   } else {
     // requeue first, then build: the line before this one is being sent
     const uint32_t line = v_scanline - V_BLANK;
     const bool inPicture = line >= PIC_TOP && line < PIC_TOP + PIC_LINES;
-    ch->read_addr = (uintptr_t)(inPicture ? line_buf[line & 1] : black_line);
+    uint32_t *buf = inPicture ? line_buf[line & 1] : black_line[line & 1];
+    ch->read_addr = (uintptr_t)buf;
     ch->transfer_count = ACTIVE_WORDS + (line == V_ACTIVE - 1 ? TAIL_WORDS : 0);
+#ifdef HAL_AUDIO_DVI
+    writeIsland(buf + hdmi::ISLAND_AT, v_scanline);
+#endif
     self->buildLine(line, line & 1);
   }
 
@@ -325,6 +421,9 @@ void HAL_FAST_CODE DviHstxVideo::scanout() {
   }
   // blank line 0 went out as the tail of the last active line
   v_scanline = 1;
+#ifdef HAL_AUDIO_DVI
+  audio_due += AUDIO_HZ;
+#endif
 
   // vblank: every line of the frame is built, the next frame starts
   scan_frames = scan_frames + 1;
@@ -383,13 +482,22 @@ void DviHstxVideo::enableIrqs(void *) {
 void DviHstxVideo::begin() {
   self = this;
   wake = xSemaphoreCreateBinary();
-  for (uint32_t i = 0; i < HEADER_WORDS; i++) {
-    line_buf[0][i] = line_buf[1][i] = black_line[i] = vactive_line[i];
+  for (uint32_t b = 0; b < 2; b++) {
+#ifdef HAL_AUDIO_DVI
+    hdmi::lineHeader(line_buf[b], hdmi::Line::ACTIVE, hdmi::VSync::OFF);
+    hdmi::lineHeader(black_line[b], hdmi::Line::ACTIVE, hdmi::VSync::OFF);
+#else
+    for (uint32_t i = 0; i < HEADER_WORDS; i++) {
+      line_buf[b][i] = black_line[b][i] = vactive_line[i];
+    }
+#endif
+    for (uint32_t i = 0; i < TAIL_WORDS; i++) {
+      line_buf[b][ACTIVE_WORDS + i] = black_line[b][ACTIVE_WORDS + i] = vblank_vsync_off[i];
+    }
   }
-  for (uint32_t i = 0; i < TAIL_WORDS; i++) {
-    line_buf[0][ACTIVE_WORDS + i] = line_buf[1][ACTIVE_WORDS + i] =
-        black_line[ACTIVE_WORDS + i] = vblank_vsync_off[i];
-  }
+#ifdef HAL_AUDIO_DVI
+  encodeIslands();
+#endif
   // two bits per HSTX clock: 252 Mbit/s per lane from a 252 MHz clk_sys
   clock_configure_int_divider(clk_hstx, 0, CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLK_SYS,
                               clock_get_hz(clk_sys), 2);
@@ -456,7 +564,12 @@ void DviHstxVideo::begin() {
 
   rate_start_us = time_us_32();
   dma_channel_start(ch_ping);
-  printf("DVI 640x480 60 Hz, DVI_SCALE %d, picture %u lines from %u\n", DVI_SCALE,
+#ifdef HAL_AUDIO_DVI
+  const char *mode = "HDMI";
+#else
+  const char *mode = "DVI";
+#endif
+  printf("%s 640x480 60 Hz, DVI_SCALE %d, picture %u lines from %u\n", mode, DVI_SCALE,
          (unsigned)PIC_LINES, (unsigned)PIC_TOP);
 }
 

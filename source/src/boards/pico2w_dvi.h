@@ -1,7 +1,7 @@
 // Raspberry Pi Pico 2 W with a DVI connector soldered to HSTX GPIO 12..19,
 // in the Pico DVI Sock order (pico-examples dvi_out_hstx_encoder): 12/13 D0,
-// 14/15 CK, 16/17 D2, 18/19 D1 (P on the even pin). TV over HDMI, silent
-// until DVI audio. Buttons as boards/pico2.h; the CYW43 pins (23, 24, 25,
+// 14/15 CK, 16/17 D2, 18/19 D1 (P on the even pin). TV over HDMI, sound
+// over the same cable. Buttons as boards/pico2.h; the CYW43 pins (23, 24, 25,
 // 29) stay untouched.
 #ifndef HAL_BOARD_PICO2W_DVI_H
 #define HAL_BOARD_PICO2W_DVI_H
@@ -10,7 +10,7 @@
 #define HAL_VIDEO_DVI_HSTX
 #endif
 #ifndef HAL_AUDIO_CHOSEN
-#define HAL_AUDIO_NULL
+#define HAL_AUDIO_DVI
 #endif
 #ifndef HSTX_CK_PIN
 #define HSTX_CK_PIN     14
