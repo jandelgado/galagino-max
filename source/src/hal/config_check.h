@@ -9,10 +9,10 @@
 #error "config: define only one of HAL_ESP, HAL_RP2350, HAL_HOST"
 #endif
 
-// Arena block sizes come from [arena] in platformio.ini (extraScript.py,
-// tools/pio_to_cmake.py), the table romconv plans against
+// Arena block sizes come from [arena] in firmware.toml (extraScript.py,
+// tools/config_to_cmake.py), the table romconv plans against
 #if !defined(ARENA_A_SIZE) || !defined(ARENA_B_SIZE)
-#error "config: ARENA_A_SIZE/ARENA_B_SIZE missing: set custom_arena_layout ([arena] in platformio.ini)"
+#error "config: ARENA_A_SIZE/ARENA_B_SIZE missing: set custom_arena_layout ([arena] in firmware.toml)"
 #endif
 
 #if defined(BOARD_PICO2) + defined(BOARD_FEATHER_RP2350) + defined(BOARD_PICO2W_DVI) + \
