@@ -22,8 +22,9 @@ from romconv.core.errors import ConversionError
 from romconv.core.manifest import Asset
 from romconv.emit.text import WIDTH, c_symbol
 from romconv.emit.write import module_path
-from romconv.plan.layout import define_name, ini_path, read_layouts
+from romconv.plan.layout import define_name, ini_path, read_layouts, remote_layouts
 from romconv.plan.solver import HighsSolver, Infeasible, Item, Problem, Solver, r4
+from romconv.remote.catalog import read_games
 
 # LZMA probability table of one unpack (LzmaProps_GetNumProbs 2614 x 2 at
 # lc = lp = 0, 5228 B) plus Arena::scratch alignment, taken from the top of
@@ -140,7 +141,10 @@ def write_arena_plan(ctx: Context) -> None:
     if not assets:
         raise ConversionError(f"{game}: no planned assets in {machine_dir}")
     try:
+        # _remote rows only for a game remote builds have (the catalog)
         layouts = read_layouts(ini_path(ctx.paths))
+        if not read_games(ctx.paths).get(game, False):
+            layouts = {n: r for n, r in layouts.items() if n not in remote_layouts(layouts)}
         extras, ram, flash, any_order = parse_machine_header(ctx.path(game + ".h"))
         plans = {}
         for layout, (a, b) in layouts.items():

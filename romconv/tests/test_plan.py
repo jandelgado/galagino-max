@@ -249,11 +249,14 @@ def test_plan_assets_ignore_unplanned():
     assert plan_assets(manifest.assets()) == _MARKERS
 
 
-def _plan_repo(tmp_path):
-    """tmp repo with a two-layout platformio.ini and a machine header for game g."""
+def _plan_repo(tmp_path, catalog=True):
+    """tmp repo with a two-layout platformio.ini and a machine header for game g, in
+    machines.h (the remote catalog) unless catalog is False."""
     paths = Paths(tmp_path)
     ini = ini_path(paths)
     ini.parent.mkdir(parents=True)
+    paths.src.mkdir()
+    (paths.src / "machines.h").write_text("#ifdef ENABLE_G\n#endif\n" if catalog else "")
     ini.write_text(f"[arena]\nesp32_local = {LOCAL[0]} {LOCAL[1]}\nesp32_remote = {REMOTE[0]} {REMOTE[1]}\n")
     machine = paths.machines / "g"
     machine.mkdir(parents=True)
@@ -306,6 +309,17 @@ def test_plan_header_text(tmp_path, log):
     write_arena_plan(ctx)
     text = (paths.machines / "g" / "g_arena_plan.h").read_text()
     assert text.split("\n", 1)[1] == _PLAN_BODY
+
+
+def test_plan_skips_remote_rows_of_non_catalog_games(tmp_path, log):
+    # a game no remote build has gets no plan (and no error) for _remote rows
+    paths = _plan_repo(tmp_path, catalog=False)
+    ctx = Context(Job("g", _noop, machine="g", plan=True), paths, (), log)
+    for a in _manifest_from_markers(_MARKERS).assets():
+        ctx.manifest.add(a)
+    write_arena_plan(ctx)
+    text = (paths.machines / "g" / "g_arena_plan.h").read_text()
+    assert "ARENA_LAYOUT_ESP32_LOCAL" in text and "ARENA_LAYOUT_ESP32_REMOTE" not in text
 
 
 def test_plan_without_planned_assets_is_error(tmp_path, log):
