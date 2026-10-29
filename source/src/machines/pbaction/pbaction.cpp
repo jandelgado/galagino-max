@@ -5,7 +5,7 @@
 #include "pbaction_bg_tiles.h"
 #include "pbaction_sprites16.h"
 
-// Unpack eagerly, largest first: only this order fits Arena's two blocks.
+// Unpack eagerly: the first data() must come before the emulation task (D7).
 pbaction::pbaction()
   : pbaction_audio_rom(pbaction_audio_rom_blob),
     pbaction_bg_tiles(pbaction_bg_tiles_blob),

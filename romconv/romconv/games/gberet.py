@@ -1,5 +1,6 @@
 """Convert the MAME gberet ROM set into galagino headers (MAME konami/gberet.cpp)."""
 from romconv.core.context import Context
+from romconv.core.errors import ConversionError
 from romconv.core.job import Job
 from romconv.emit.write import write_array, write_asset, write_bytes, write_color_tables
 from romconv.gfx.color import prom_rgb_332, rgb565_swapped
@@ -74,9 +75,11 @@ def convert_set(ctx: Context, prefix: str, title: str, files: dict, rom_comment:
     sizes = {"rom": len(rom), "tilemap": len(tiles) * 4, "spritemap": len(sprites) * 4}
     log_sizes(ctx, sizes)
     if check_arena:
-        # rom + tilemap and spritemap each fit one block of the tightest layout
-        arena_block = max(layout.min_blocks(layout.read_layouts(layout.ini_path(ctx.paths))))
-        assert sizes["rom"] + sizes["tilemap"] <= arena_block and sizes["spritemap"] <= arena_block
+        # rom + tilemap in one block, spritemap in the other, in the tightest layout
+        a, b = layout.min_blocks(layout.read_layouts(layout.ini_path(ctx.paths)))
+        g1, g2 = sizes["rom"] + sizes["tilemap"], sizes["spritemap"]
+        if not ((g1 <= a and g2 <= b) or (g1 <= b and g2 <= a)):
+            raise ConversionError(f"{prefix}: {g1} B and {g2} B do not fit Arena blocks {a} and {b}")
 
 
 def _convert(ctx: Context) -> None:

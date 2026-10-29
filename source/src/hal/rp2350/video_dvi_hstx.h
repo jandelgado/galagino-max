@@ -8,7 +8,8 @@
 // (many sprites, half rate machines) showed black lines. The scanout is the
 // frame clock, the render follows the beam one pass behind: submit()
 // overwrites a strip once the current pass has read it, the next pass shows
-// it, so a slow render never tears.
+// it, so a slow render does not tear (half rate: a second half that loses
+// the race to row 144 still mixes two screens, see endFrame).
 //
 //   main task (video core)                DMA IRQ (emulation core)
 //   renderRow -> submit() --framebuffer--> line build -> HSTX

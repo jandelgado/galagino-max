@@ -134,7 +134,7 @@ def test_scratch_gap_required(solver):
 def test_extras_first_fit_rejects_optimum(solver):
     # both assets in one block: the 6000 B extra lands in the other and no block
     # keeps SCRATCH_BYTES (A 10000 = asset + extra, B 9232 = asset + scratch);
-    # the nogood round splits them, PLAIN would cost 2000 B of flash
+    # the exact first-fit encoding splits them, PLAIN would cost 2000 B of flash
     m, r = solve([_a("x", 4000), _a("y", 4000)], [6000], (10000, 4000 + SCRATCH_BYTES), solver=solver)
     assert sorted(m.values()) == ["A", "B"], m
 
