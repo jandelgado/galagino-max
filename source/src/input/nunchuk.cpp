@@ -8,7 +8,13 @@
 static constexpr int PORT = 0;
 static constexpr uint8_t ADDR = 0x52;
 static constexpr uint32_t BUS_HZ = 400000;
-static constexpr uint32_t POLL_MS = 100;
+// A read returns the report sampled at the previous request: input lag is
+// one to two poll periods. 100 ms keeps the I2C transfer (~0.2 ms on the
+// emulation core) off most frames; boards with spare time poll faster.
+#ifndef NUNCHUCK_UPDATE_MS
+#define NUNCHUCK_UPDATE_MS 100
+#endif
+static constexpr uint32_t POLL_MS = NUNCHUCK_UPDATE_MS;
 static constexpr uint8_t STICK_CENTER = 127;
 static constexpr uint32_t REPORT_BYTES = 6;
 static constexpr uint8_t BUTTON_Z_BIT = 0x01;  // report byte 5, active low

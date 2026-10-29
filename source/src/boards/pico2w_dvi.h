@@ -46,6 +46,9 @@
 #ifndef NUNCHUCK_MOVE_THRESHOLD
 #define NUNCHUCK_MOVE_THRESHOLD 30 // stick dead zone
 #endif
+#ifndef NUNCHUCK_UPDATE_MS
+#define NUNCHUCK_UPDATE_MS 16  // every frame: input lag 16-33 ms
+#endif
 #ifndef GALAGINO_CONTROLLER_SDA
 #define GALAGINO_CONTROLLER_SDA 20
 #endif

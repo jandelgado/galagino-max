@@ -216,6 +216,8 @@ class Profiles(unittest.TestCase):
         base = ["HAL_RP2350", "BOARD_PICO2W_DVI"] + _ARENA + _DVI_ARENA
         r = _macros(base + ["NUNCHUCK_INPUT"])
         self.assertEqual(r.returncode, 0, r.stderr)
+        # every frame: the default 100 ms adds 100-200 ms of lag
+        self.assertIn("#define NUNCHUCK_UPDATE_MS 16\n", r.stdout)
         self.assertIn("#define NUNCHUCK_SDA 20\n", r.stdout)
         self.assertIn("#define NUNCHUCK_SCL 21\n", r.stdout)
 
