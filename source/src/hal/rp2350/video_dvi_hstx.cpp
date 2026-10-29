@@ -146,6 +146,12 @@ uint32_t null_island[2][hdmi::ISLAND_WORDS];
 uint32_t acr_island[2][hdmi::ISLAND_WORDS];
 uint32_t avi_island[hdmi::ISLAND_WORDS];
 uint32_t audio_info_island[hdmi::ISLAND_WORDS];
+// What an island slot holds: a null island is copied only when the slot
+// held something else (most lines carry no packet).
+enum Held : uint8_t { HELD_OTHER, HELD_NULL_OFF, HELD_NULL_PULSE };
+Held held_line[2];
+Held held_black[2];
+Held held_blank[2];
 uint32_t audio_due;     // samples x line rate
 uint32_t cs_frame;      // IEC 60958 channel status frame
 uint32_t underruns;
@@ -204,10 +210,13 @@ HAL_FAST_CODE void copyIsland(uint32_t *out, const uint32_t *island) {
 // Data island of blank line `scanline` (0 .. V_BLANK - 1) or of an active
 // line (V_BLANK and up): fixed packets on some vblank lines, else an audio
 // packet when one is due, else a null packet.
-HAL_FAST_CODE void writeIsland(uint32_t *out, uint32_t scanline) {
+HAL_FAST_CODE void writeIsland(uint32_t *out, Held &held, uint32_t scanline) {
   const bool vpulse = scanline >= V_FRONT_PORCH && scanline < V_FRONT_PORCH + V_SYNC_WIDTH;
   const hdmi::VSync v = vpulse ? hdmi::VSync::PULSE : hdmi::VSync::OFF;
   const bool backPorch = scanline >= V_FRONT_PORCH + V_SYNC_WIDTH && scanline < V_BLANK;
+  const Held null = vpulse ? HELD_NULL_PULSE : HELD_NULL_OFF;
+  const Held before = held;
+  held = HELD_OTHER;
   if (scanline == V_FRONT_PORCH || (backPorch && scanline % 4 == 0)) {
     copyIsland(out, acr_island[vpulse]);
     return;
@@ -221,7 +230,10 @@ HAL_FAST_CODE void writeIsland(uint32_t *out, uint32_t scanline) {
     return;
   }
   if (audio_due < PACKET_SAMPLES * LINE_HZ) {
-    copyIsland(out, null_island[vpulse]);
+    if (before != null) {
+      copyIsland(out, null_island[vpulse]);
+    }
+    held = null;
     return;
   }
 
@@ -395,7 +407,7 @@ void HAL_FAST_CODE DviHstxVideo::scanout() {
     // the requeued channel's own buffer: the other channel is sending its own
     uint32_t *buf = blank_buf[chNum == ch_pong];
     hdmi::lineHeader(buf, hdmi::Line::BLANK, vpulse ? hdmi::VSync::PULSE : hdmi::VSync::OFF);
-    writeIsland(buf + hdmi::ISLAND_AT, v_scanline);
+    writeIsland(buf + hdmi::ISLAND_AT, held_blank[chNum == ch_pong], v_scanline);
     ch->read_addr = (uintptr_t)buf;
     ch->transfer_count = hdmi::BLANK_WORDS;
 #else
@@ -410,7 +422,7 @@ void HAL_FAST_CODE DviHstxVideo::scanout() {
     ch->read_addr = (uintptr_t)buf;
     ch->transfer_count = ACTIVE_WORDS + (line == V_ACTIVE - 1 ? TAIL_WORDS : 0);
 #ifdef HAL_AUDIO_DVI
-    writeIsland(buf + hdmi::ISLAND_AT, v_scanline);
+    writeIsland(buf + hdmi::ISLAND_AT, inPicture ? held_line[line & 1] : held_black[line & 1], v_scanline);
 #endif
     self->buildLine(line, line & 1);
   }

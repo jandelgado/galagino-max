@@ -29,10 +29,6 @@ enum class VSync : uint8_t { OFF, PULSE };
 // IEC 60958 channel status block length in frames
 static const uint32_t CS_FRAMES = 192;
 
-static const uint16_t TERC4[16] HAL_FAST_DATA = {
-  0x29c, 0x263, 0x2e4, 0x2e2, 0x171, 0x11e, 0x18e, 0x13c,
-  0x2cc, 0x139, 0x19c, 0x2c6, 0x28e, 0x271, 0x163, 0x2c3,
-};
 static const uint16_t DATA_GUARD_BAND = 0x133;
 
 // BCH parity byte by byte, G(x) = 1 + x^6 + x^7 + x^8
@@ -63,6 +59,53 @@ static inline HAL_FAST_CODE uint8_t bch(const uint8_t *data, uint32_t n) {
   return v;
 }
 
+// Compile-time tables of the sample packet path, which runs in the scanout
+// IRQ. C++11 constexpr: one return statement per function.
+namespace table {
+
+// BCH state after feeding bits i .. 7 of x (LSB first) into state r
+constexpr uint8_t bchBits(uint8_t r, uint32_t x, int i) {
+  return i == 8 ? r
+                : bchBits((((x >> i) ^ r) & 1) ? (uint8_t)((r >> 1) ^ 0x83) : (uint8_t)(r >> 1), x, i + 1);
+}
+constexpr uint8_t bchZeros(uint8_t r, int n) { return n == 0 ? r : bchZeros(bchBits(r, 0, 0), n - 1); }
+
+// BCH parity is linear: a subpacket's parity is the XOR of each byte's
+// parity alone; x at position `pos` of the 7 data bytes
+constexpr uint8_t bchAt(int pos, uint32_t x) { return bchZeros(bchBits(0, x, 0), 6 - pos); }
+// a sample byte sits in both channels: low byte at 1 and 4, high at 2 and 5
+constexpr uint8_t bchLo(uint32_t x) { return (uint8_t)(bchAt(1, x) ^ bchAt(4, x)); }
+constexpr uint8_t bchHi(uint32_t x) { return (uint8_t)(bchAt(2, x) ^ bchAt(5, x)); }
+
+// TERC4: 4 bit to 10 bit symbol (HDMI 1.4 table 5-4)
+constexpr uint16_t TERC4[16] = {
+  0x29c, 0x263, 0x2e4, 0x2e2, 0x171, 0x11e, 0x18e, 0x13c,
+  0x2cc, 0x139, 0x19c, 0x2c6, 0x28e, 0x271, 0x163, 0x2c3,
+};
+constexpr uint16_t terc4(uint32_t i) { return TERC4[i]; }
+// bits 0, 2, 4, 6 / 1, 3, 5, 7 of i as a nibble
+constexpr uint32_t evens(uint32_t i) { return (i & 1) | ((i >> 1) & 2) | ((i >> 2) & 4) | ((i >> 3) & 8); }
+// lanes 1 and 2 of an HSTX word from interleaved bit pairs (see encodeIsland)
+constexpr uint32_t lanes(uint32_t i) { return ((uint32_t)TERC4[evens(i)] << 10) | ((uint32_t)TERC4[evens(i >> 1)] << 20); }
+
+} // namespace table
+
+#define HDMI_T4(f, i) table::f(i), table::f(i + 1), table::f(i + 2), table::f(i + 3)
+#define HDMI_T16(f, i) HDMI_T4(f, i), HDMI_T4(f, i + 4), HDMI_T4(f, i + 8), HDMI_T4(f, i + 12)
+#define HDMI_T64(f, i) HDMI_T16(f, i), HDMI_T16(f, i + 16), HDMI_T16(f, i + 32), HDMI_T16(f, i + 48)
+#define HDMI_T256(f) HDMI_T64(f, 0), HDMI_T64(f, 64), HDMI_T64(f, 128), HDMI_T64(f, 192)
+static const uint16_t TERC4[16] HAL_FAST_DATA = {HDMI_T16(terc4, 0)};
+static const uint8_t BCH_LO[256] HAL_FAST_DATA = {HDMI_T256(bchLo)};
+static const uint8_t BCH_HI[256] HAL_FAST_DATA = {HDMI_T256(bchHi)};
+// byte 6 of a sample subpacket by C | P << 1: 0x00, 0x44, 0x88, 0xcc
+static const uint8_t BCH_STATUS[4] HAL_FAST_DATA = {table::bchAt(6, 0x00), table::bchAt(6, 0x44),
+                                                    table::bchAt(6, 0x88), table::bchAt(6, 0xcc)};
+static const uint32_t TERC4_LANES[256] HAL_FAST_DATA = {HDMI_T256(lanes)};
+#undef HDMI_T256
+#undef HDMI_T64
+#undef HDMI_T16
+#undef HDMI_T4
+
 static inline HAL_FAST_CODE uint32_t parity8(uint32_t v) {
   v ^= v >> 4;
   v ^= v >> 2;
@@ -70,6 +113,8 @@ static inline HAL_FAST_CODE uint32_t parity8(uint32_t v) {
   return v & 1;
 }
 
+// the loop, not memset: memset lives in flash
+__attribute__((optimize("no-tree-loop-distribute-patterns")))
 static inline HAL_FAST_CODE void clear(Packet &p) {
   uint8_t *bytes = (uint8_t *)&p;
   for (uint32_t i = 0; i < sizeof(Packet); i++) {
@@ -147,20 +192,20 @@ static inline HAL_FAST_CODE uint32_t channelStatus(uint32_t frame) {
 // Four mono samples to both channels, frames `frame` .. `frame` + 3 of the
 // channel status block. Returns the next frame.
 static inline HAL_FAST_CODE uint32_t samplePacket(Packet &p, const int16_t *samples, uint32_t frame) {
-  clear(p);
-  p.header[0] = 0x02;
-  p.header[1] = 0x0f;
+  uint8_t blockStart = 0;
   for (int k = 0; k < 4; k++) {
     if (frame == 0) {
-      p.header[2] |= 0x10 << k;
+      blockStart |= 0x10 << k;
     }
 
     // 24 bit samples, the 16 bit sample in the top bytes
     uint8_t *d = p.sub[k];
     const uint8_t lo = (uint8_t)samples[k];
     const uint8_t hi = (uint8_t)((uint16_t)samples[k] >> 8);
+    d[0] = 0;
     d[1] = lo;
     d[2] = hi;
+    d[3] = 0;
     d[4] = lo;
     d[5] = hi;
 
@@ -168,9 +213,13 @@ static inline HAL_FAST_CODE uint32_t samplePacket(Packet &p, const int16_t *samp
     const uint32_t c = channelStatus(frame);
     const uint32_t parity = parity8(lo ^ hi) ^ c;
     d[6] = (uint8_t)((c << 2) | (parity << 3) | (c << 6) | (parity << 7));
+    d[7] = BCH_LO[lo] ^ BCH_HI[hi] ^ BCH_STATUS[c | (parity << 1)];
     frame = frame + 1 == CS_FRAMES ? 0 : frame + 1;
   }
-  setParity(p);
+  p.header[0] = 0x02;
+  p.header[1] = 0x0f;
+  p.header[2] = blockStart;
+  p.header[3] = bch(p.header, 3);
   return frame;
 }
 
@@ -189,21 +238,17 @@ static inline HAL_FAST_CODE void encodeIsland(uint32_t *out, const Packet &p, VS
   out[35] = guard;
 
   for (uint32_t i = 0; i < 8; i++) {
-    // transpose: nibble n of v = subpacket bits of one lane at one clock
-    uint32_t v = p.sub[0][i] | (p.sub[1][i] << 8) | (p.sub[2][i] << 16) | ((uint32_t)p.sub[3][i] << 24);
-    uint32_t t = (v ^ (v >> 7)) & 0x00aa00aa;
-    v = v ^ t ^ (t << 7);
-    t = (v ^ (v >> 14)) & 0x0000cccc;
-    v = v ^ t ^ (t << 14);
-    const uint32_t lane1[4] = {v & 0xf, (v >> 16) & 0xf, (v >> 4) & 0xf, (v >> 20) & 0xf};
-    const uint32_t lane2[4] = {(v >> 8) & 0xf, (v >> 24) & 0xf, (v >> 12) & 0xf, v >> 28};
-
+    // byte i of the subpackets, subpacket k in byte k of v
+    const uint32_t v = p.sub[0][i] | (p.sub[1][i] << 8) | (p.sub[2][i] << 16) | ((uint32_t)p.sub[3][i] << 24);
     const uint8_t h = p.header[i / 2];
     for (uint32_t j = 0; j < 4; j++) {
+      // bits 2j, 2j + 1 of each byte side by side: the multiply moves the
+      // pairs at 0, 8, 16, 24 to 24, 26, 28, 30 (no overlaps, no carries)
+      const uint32_t pairs = (((v >> (2 * j)) & 0x03030303u) * 0x01041040u) >> 24;
       const uint32_t clock = i * 4 + j;
       const uint32_t first = clock == 0 ? 0 : 8;
       const uint32_t lane0 = first | (((h >> (clock % 8)) & 1) << 2) | hv;
-      out[2 + clock] = word(TERC4[lane0], TERC4[lane1[j]], TERC4[lane2[j]]);
+      out[2 + clock] = TERC4[lane0] | TERC4_LANES[pairs];
     }
   }
 }
