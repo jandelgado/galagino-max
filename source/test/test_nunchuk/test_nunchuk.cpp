@@ -102,6 +102,18 @@ static void test_missing_nunchuk(void) {
   TEST_ASSERT_EQUAL_HEX(0, poll());
 }
 
+// connected() probes the bus; on the RP2350 that reads one byte of the
+// pending report. The next report must still start at the stick X byte
+// (was: shifted, phantom UP + Z + C in the controller test).
+static void test_connected_keeps_the_report_aligned(void) {
+  const uint8_t report[6] = {CENTER, CENTER, 0xc0, 0x80, 0x80, NO_BUTTONS};
+  hal::host::i2cAttachStream(0, NUNCHUK_ADDR, report, 6);
+  pad.setup();
+  TEST_ASSERT_EQUAL_HEX(0, poll());
+  TEST_ASSERT_TRUE(pad.connected());
+  TEST_ASSERT_EQUAL_HEX(0, poll());
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_setup_selects_unencrypted_reports);
@@ -112,5 +124,6 @@ int main(int, char **) {
   RUN_TEST(test_input_is_throttled_to_100_ms);
   RUN_TEST(test_disable_stops_reads);
   RUN_TEST(test_missing_nunchuk);
+  RUN_TEST(test_connected_keeps_the_report_aligned);
   return UNITY_END();
 }

@@ -80,6 +80,8 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
   clockHz(int port); static bool probe(int port, uint8_t addr); static bool write(int port,
   uint8_t addr, const uint8_t*, uint32_t len); static uint32_t read(int port, uint8_t addr,
   uint8_t*, uint32_t len) /* bytes read */; static bool writeRead(...); }`
+- `probe`: RP2350 reads one byte (its I2C block has no address-only transfer); a device with a
+  read pointer advances it.
 
 ## Gamepad (`gamepad.h`, not in `hal.h`; `HAL_GAMEPAD_BT` builds, host and RP2350 only)
 `GamepadState` (connected, dpad bits, stick x/y -512..511 with y negative

@@ -48,7 +48,10 @@ void Nunchuk::disable() {
 }
 
 bool Nunchuk::connected() {
-  return hal::I2c::probe(PORT, ADDR);
+  // a probe may read a byte of the pending report (RP2350): ask again
+  const bool present = hal::I2c::probe(PORT, ADDR);
+  request();
+  return present;
 }
 
 uint16_t Nunchuk::getInput() {
