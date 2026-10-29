@@ -127,6 +127,17 @@ class Rules(unittest.TestCase):
     def test_dvi_audio_needs_dvi_video(self):
         self._rejects(["HAL_RP2350", "HAL_VIDEO_NULL", "HAL_AUDIO_DVI"], "HAL_AUDIO_DVI needs HAL_VIDEO_DVI_HSTX")
 
+    def test_gamepad_bt_and_null_exclusive(self):
+        self._rejects(["HAL_HOST", "HAL_GAMEPAD_BT", "HAL_GAMEPAD_NULL"], "only one HAL_GAMEPAD_")
+
+    def test_gamepad_bt_needs_cyw43_board(self):
+        self._rejects(["HAL_ESP", "HAL_GAMEPAD_BT"], "HAL_GAMEPAD_BT needs a CYW43 board")
+        self._rejects(["HAL_RP2350", "BOARD_PICO2", "HAL_GAMEPAD_BT"], "HAL_GAMEPAD_BT needs a CYW43 board")
+
+    def test_gamepad_bt_on_host_passes(self):
+        r = _preprocess(_CHECK, ["HAL_HOST", "HAL_GAMEPAD_BT"] + _ARENA)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
 
 class Profiles(unittest.TestCase):
     def test_every_profile_passes(self):

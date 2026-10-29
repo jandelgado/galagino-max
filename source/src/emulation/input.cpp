@@ -22,6 +22,9 @@ void Input::init(bool SingleMachine) {
 #else
   nunchuck.setup();
 #endif
+#ifdef HAL_GAMEPAD_BT
+  hal::Gamepad::begin();
+#endif
 
   unsigned int inputs = buttons_get();
   if (inputs & BUTTON_FIRE) {
@@ -80,6 +83,10 @@ unsigned int Input::buttons_get(void) {
     (hal::pinRead(BTN_UP_PIN) ? 0 : BUTTON_UP) |
     (hal::pinRead(BTN_DOWN_PIN) ? 0 : BUTTON_DOWN) |
     (hal::pinRead(BTN_FIRE_PIN) ? 0 : BUTTON_FIRE);
+#endif
+#ifdef HAL_GAMEPAD_BT
+  // the Bluetooth pad adds to the wired source
+  input_states |= btGamepadInput();
 #endif
   
   unsigned int startAndCoinState = 0;

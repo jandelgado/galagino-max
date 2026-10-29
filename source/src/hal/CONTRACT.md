@@ -81,6 +81,13 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
   uint8_t addr, const uint8_t*, uint32_t len); static uint32_t read(int port, uint8_t addr,
   uint8_t*, uint32_t len) /* bytes read */; static bool writeRead(...); }`
 
+## Gamepad (`gamepad.h`, not in `hal.h`; `HAL_GAMEPAD_BT` builds, host and RP2350 only)
+`GamepadState` (connected, dpad bits, stick x/y -512..511 with y negative
+up, button bits) is defined in `gamepad.h` itself. Player 1's pad, further pads ignored.
+- `class Gamepad { static void begin(); static void read(GamepadState &out); }`: `begin()` once
+  at boot (radio up, pairing open); `read()` from any core, never blocks, a consistent copy.
+- Host: `host::setGamepad(const GamepadState &)` scripts the state.
+
 ## Flash region (`flash_region.h`, not in `hal.h`; ESP and host only)
 `class FlashRegion`, erased bytes read 0xFF, a write only clears bits. Host: RAM fake, extra
 size argument.

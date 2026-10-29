@@ -85,4 +85,12 @@
 #error "config: HAL_AUDIO_DVI needs HAL_VIDEO_DVI_HSTX"
 #endif
 
+// Bluetooth pad: radio of the Pico 2 W (host: scripted tests)
+#if defined(HAL_GAMEPAD_BT) && defined(HAL_GAMEPAD_NULL)
+#error "config: define only one HAL_GAMEPAD_* backend"
+#endif
+#if defined(HAL_GAMEPAD_BT) && !defined(HAL_HOST) && !defined(BOARD_PICO2W_DVI)
+#error "config: HAL_GAMEPAD_BT needs a CYW43 board (Pico 2 W)"
+#endif
+
 #endif // HAL_CONFIG_CHECK_H
