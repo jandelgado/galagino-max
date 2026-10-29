@@ -2,16 +2,16 @@
 #include "../../config.h"  // the board profile selects the backend
 #ifdef HAL_GAMEPAD_BT
 #include "../gamepad.h"
+#include "cyw43.h"
 #include "rtos.h"
 #include <stdio.h>
-#include <pico/async_context_freertos.h>
-#include <pico/cyw43_arch.h>
+#include <pico/async_context.h>
 extern "C" {
 #include <uni.h>
 }
 
 // Bluepad32 runs as a "custom platform": its callbacks below come from the
-// CYW43 async_context task (BTstack's run loop) on the video core. They
+// CYW43 async_context task (cyw43.h, BTstack's run loop) on the video core. They
 // publish the pad as a GamepadState; read() copies it on any core.
 //
 //   video core                                   any core
@@ -24,13 +24,10 @@ extern "C" {
 namespace hal {
 namespace {
 
-// above the main task (1): BT work is short, the main task busy-waits on
-// the beam
-const UBaseType_t BT_TASK_PRIORITY = 2;
-const uint32_t BT_TASK_STACK_BYTES = 4096;
-
-async_context_freertos_t context;
 GamepadState state;
+// pad connected; WiFi holds the scans off (btScan)
+volatile bool padReady;
+volatile bool scanPaused;
 
 int16_t clampAxis(int32_t v) {
   if (v < GamepadState::STICK_MIN) {
@@ -105,13 +102,17 @@ void onConnected(uni_hid_device_t *) {}
 
 void onDisconnected(uni_hid_device_t *) {
   publish(GamepadState());
-  uni_bt_start_scanning_and_autoconnect_unsafe();
+  padReady = false;
+  if (!scanPaused) {
+    uni_bt_start_scanning_and_autoconnect_unsafe();
+  }
   printf("Bluetooth: pad disconnected\n");
 }
 
 uni_error_t onReady(uni_hid_device_t *d) {
   // inquiry scans share the radio with the pad's reports
   uni_bt_stop_scanning_unsafe();
+  padReady = true;
   printf("Bluetooth: pad %s ready\n", d->name);
   return UNI_ERROR_SUCCESS;
 }
@@ -154,26 +155,27 @@ uni_platform platform = {
 } // namespace
 
 void Gamepad::begin() {
-  // the CYW43 and BTstack work runs in this context's task, on the video core
-  async_context_freertos_config_t config = async_context_freertos_default_config();
-  config.task_priority = BT_TASK_PRIORITY;
-  config.task_stack_size = BT_TASK_STACK_BYTES / sizeof(StackType_t);
-  config.task_core_id = VIDEO_CORE;
-  if (!async_context_freertos_init(&context, &config)) {
-    printf("Bluetooth: no task\n");
-    return;
-  }
-  cyw43_arch_set_async_context(&context.core);
-  if (cyw43_arch_init()) {
-    printf("Bluetooth: CYW43 init failed\n");
+  // the CYW43 and BTstack work runs in its async_context task (cyw43.h)
+  async_context *context = cyw43Begin();
+  if (!context) {
+    printf("Bluetooth: no CYW43\n");
     return;
   }
 
   // BTstack is not thread safe: set up under its run loop's lock
-  async_context_acquire_lock_blocking(&context.core);
+  async_context_acquire_lock_blocking(context);
   uni_platform_set_custom(&platform);
   uni_init(0, nullptr);
-  async_context_release_lock(&context.core);
+  async_context_release_lock(context);
+}
+
+void btScan(BtScan scan) {
+  scanPaused = scan == BtScan::PAUSED;
+  if (scanPaused) {
+    uni_bt_stop_scanning_safe();
+  } else if (!padReady) {
+    uni_bt_start_scanning_and_autoconnect_safe();
+  }
 }
 
 void Gamepad::read(GamepadState &out) {

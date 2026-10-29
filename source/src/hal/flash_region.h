@@ -7,6 +7,8 @@
 
 #if defined(HAL_ESP)
 #include "esp/flash_region.h"
+#elif defined(HAL_RP2350)
+#include "rp2350/flash_region.h"
 #elif defined(HAL_HOST)
 #include "host/flash_region.h"
 #else

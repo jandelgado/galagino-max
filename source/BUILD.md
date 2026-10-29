@@ -41,6 +41,15 @@ in pico_btstack's flash bank, the last 12 KB of flash: `ram_check.ld` fails the 
 image reaches into it. With a wired source (`-D NUNCHUCK_INPUT`, ...) the linker drops the BT
 code.
 
+RP2350 remote mode (Pico 2 W DVI only): `BOARD=pico2w_dvi MODE=remote ports/rp2350/build.sh
+[GAME,...]` (no game: the built-in set), layout `rp2350_dvi_remote`. WiFi over the same CYW43
+with lwIP (`ports/rp2350/lwipopts.h`, static, ~20 KB); `GAME_NO_IRAM M6502_NO_IRAM` as on the
+ESP32. build.sh copies the `GALAGINO_WIFI_SSID/PASS` and `GALAGINO_ASSETS_URL` lines of
+`config_local.h` into `config_wifi.h` (the rest of that file stays ESP32 only). The asset cache
+is all flash between the image (4 KB up) and the Bluetooth key bank (~1.3 MB with every
+built-in game); erase and write park the emulation core in RAM so the HDMI scanout keeps
+running. Bluetooth inquiry scans pause while WiFi is up (they take the shared radio).
+
 ## Pitfalls
 
 - `src/CMakeLists.txt` must list C sources first: PlatformIO's espidf builder orders the C/C++

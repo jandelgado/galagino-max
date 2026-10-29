@@ -35,9 +35,4 @@ target_include_directories(galagino PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 set_source_files_properties(${BP32_SOURCES} ${BP32_BACKEND} PROPERTIES
   INCLUDE_DIRECTORIES ${BP32}/include
   COMPILE_OPTIONS "-include;${CMAKE_CURRENT_LIST_DIR}/uni_config.h")
-target_link_libraries(galagino PRIVATE pico_cyw43_arch_sys_freertos pico_btstack_ble
-  pico_btstack_classic pico_btstack_cyw43)
-# CYW43 PIO SPI: the stock divider 2 is for 150 MHz; at 252 MHz 3.36 keeps
-# the same 75 MHz PIO clock
-target_compile_definitions(galagino PRIVATE CYW43_PIO_CLOCK_DIV_INT=3 CYW43_PIO_CLOCK_DIV_FRAC8=92
-  CYW43_LWIP=0)  # Bluetooth only, no IP stack
+target_link_libraries(galagino PRIVATE pico_btstack_ble pico_btstack_classic pico_btstack_cyw43)

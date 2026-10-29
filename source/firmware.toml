@@ -43,13 +43,15 @@ defines = [
 # boards. rp2350_dvi (build.sh picks it for DVI board profiles): B gave
 # 26 KB to the framebuffer (240 x 288 x 2 = 138 KB, the rest came from the
 # strip ring it replaced and the heap); tapper and the Williams games still
-# need both blocks, arkanoid 82 KB in one.
+# need both blocks, arkanoid 82 KB in one. rp2350_dvi_remote: Pico 2 W DVI
+# remote build (lwIP memory is static, outside the Arena).
 [arena]
 esp32_local = [126976, 110500]
 esp32_remote = [69000, 110500]
 esp32s3_local = [118784, 110500]
 rp2350 = [118784, 110500]
 rp2350_dvi = [118784, 84000]
+rp2350_dvi_remote = [90112, 84000]
 
 # Game sets, lower-case names, each becomes ENABLE_<NAME>. builtin, local and
 # rest are disjoint, each game appears once; max overlaps them.

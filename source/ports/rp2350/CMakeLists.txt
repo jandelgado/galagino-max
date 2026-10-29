@@ -57,6 +57,29 @@ if(GALAGINO_BOARD STREQUAL "pico2w_dvi")
   math(EXPR FLASH_END "0x10000000 + ${FLASH_BYTES} - ${BT_BANK_BYTES}" OUTPUT_FORMAT HEXADECIMAL)
 endif()
 
+# Remote mode (ASSETS_REMOTE): WiFi over the CYW43 with lwIP, downloaded
+# assets in the flash between the image and FLASH_END. Game functions and the
+# 6502 core stay in flash, as on the ESP32: the code of every catalog game is
+# in the image, its RAM functions would not fit.
+list(FIND GALAGINO_DEFINES ASSETS_REMOTE REMOTE_AT)
+if(NOT REMOTE_AT EQUAL -1)
+  if(NOT GALAGINO_BOARD STREQUAL "pico2w_dvi")
+    message(FATAL_ERROR "MODE=remote needs the CYW43 WiFi: BOARD=pico2w_dvi")
+  endif()
+  target_compile_definitions(galagino PRIVATE GAME_NO_IRAM M6502_NO_IRAM)
+  target_include_directories(galagino PRIVATE ${CMAKE_BINARY_DIR})  # config_wifi.h (build.sh)
+  target_link_libraries(galagino PRIVATE pico_cyw43_arch_lwip_sys_freertos hardware_flash)
+  target_compile_definitions(galagino PRIVATE CYW43_LWIP=1)
+elseif(GALAGINO_BOARD STREQUAL "pico2w_dvi")
+  target_link_libraries(galagino PRIVATE pico_cyw43_arch_sys_freertos)
+  target_compile_definitions(galagino PRIVATE CYW43_LWIP=0)  # Bluetooth only, no IP stack
+endif()
+if(GALAGINO_BOARD STREQUAL "pico2w_dvi")
+  # CYW43 PIO SPI: the stock divider 2 is for 150 MHz; at 252 MHz 3.36 keeps
+  # the same 75 MHz PIO clock
+  target_compile_definitions(galagino PRIVATE CYW43_PIO_CLOCK_DIV_INT=3 CYW43_PIO_CLOCK_DIV_FRAC8=92)
+endif()
+
 # heap check at link time: Arena blocks plus the other heap users
 # (machine object, strip buffers, stdio, input). Reserve not sized yet:
 # measure on device once the input backends are in.

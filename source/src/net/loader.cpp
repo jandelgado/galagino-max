@@ -19,7 +19,8 @@
 
 // event line, 28 chars + 0 (loader screen width)
 static constexpr uint32_t LINE_BYTES = 29;
-static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
+// RP2350: a join takes ~4 s and may need a retry (hal/rp2350/wifi.cpp)
+static constexpr uint32_t CONNECT_TIMEOUT_MS = 20000;
 // from Arena, outside the WiFi heap so the driver never competes for it;
 // static DRAM is too tight (solomon low-water 2.9 KB)
 static constexpr uint32_t RECV_BUF_BYTES = 4096;

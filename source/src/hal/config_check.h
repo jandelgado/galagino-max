@@ -78,7 +78,7 @@
 #if defined(HAL_VIDEO_DVI_HSTX) && (!defined(DVI_SCALE) || (DVI_SCALE != 1 && DVI_SCALE != 2))
 #error "config: DVI_SCALE must be 1 or 2 (1x, or 2x wide with scaled rows)"
 #endif
-#if defined(HAL_VIDEO_DVI_HSTX) && !defined(ARENA_LAYOUT_RP2350_DVI)
+#if defined(HAL_VIDEO_DVI_HSTX) && !defined(ARENA_LAYOUT_RP2350_DVI) && !defined(ARENA_LAYOUT_RP2350_DVI_REMOTE)
 #error "config: HAL_VIDEO_DVI_HSTX needs the rp2350_dvi Arena layout (the framebuffer takes part of block B)"
 #endif
 #if defined(HAL_AUDIO_DVI) && !defined(HAL_VIDEO_DVI_HSTX)

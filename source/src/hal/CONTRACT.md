@@ -90,17 +90,18 @@ up, button bits) is defined in `gamepad.h` itself. Player 1's pad, further pads 
   at boot (radio up, pairing open); `read()` from any core, never blocks, a consistent copy.
 - Host: host::setGamepad(state) scripts the state (tests).
 
-## Flash region (`flash_region.h`, not in `hal.h`; ESP and host only)
+## Flash region (`flash_region.h`, not in `hal.h`; ESP, RP2350 remote builds and host)
 `class FlashRegion`, erased bytes read 0xFF, a write only clears bits. Host: RAM fake, extra
-size argument.
+size argument. RP2350: the flash after the image, label ignored; erase and write park the
+emulation core in RAM (the DVI scanout IRQ keeps running).
 - `explicit FlashRegion(const char *label)`, `uint32_t size() const` (0: no region)
 - `bool erase(uint32_t offset, uint32_t length)` (4 KB aligned)
 - `bool write(uint32_t offset, const uint8_t *data, uint32_t length)`
 - `const uint8_t *map()` (whole region, nullptr on failure), `void unmap()`
 
-## WiFi (`wifi.h`, not in `hal.h`; ESP and host only)
+## WiFi (`wifi.h`, not in `hal.h`; ESP, RP2350 remote builds and host)
 `namespace Wifi`, station mode for the game loader. ESP: remote builds only (`-Wl,--wrap=free`).
-Host: never starts.
+RP2350: Pico 2 W CYW43 + lwIP, static memory, the heap argument unused. Host: never starts.
 - `HEAP_BYTES`: driver memory the caller passes to `begin()`.
 - `typedef bool (*Receive)(void *ctx, const uint8_t *data, uint32_t length)`: false stops.
 - `bool begin(const char *ssid, const char *pass, uint8_t *heap, uint32_t heapBytes)`: starts

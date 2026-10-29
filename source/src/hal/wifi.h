@@ -6,6 +6,8 @@
 
 #if defined(HAL_ESP)
 #include "esp/wifi.h"
+#elif defined(HAL_RP2350)
+#include "rp2350/wifi.h"
 #elif defined(HAL_HOST)
 #include "host/wifi.h"
 #else
