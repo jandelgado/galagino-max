@@ -36,23 +36,22 @@ def _arena_defines(env):
     return ["ARENA_LAYOUT_" + name.upper(), ("ARENA_A_SIZE", sizes[0]), ("ARENA_B_SIZE", sizes[1])]
 
 
-# "KEY=want (is have)" for every KEY=VAL of the defaults file that the
-# generated sdkconfig lacks or sets differently; [] when it does not exist
-def _stale_values(defaults_path, generated_path):
-    if not os.path.isfile(generated_path):
+# KEY -> VAL of an sdkconfig file; {} when it does not exist
+def _read_sdkconfig(path):
+    if not os.path.isfile(path):
+        return {}
+    with open(path) as f:
+        lines = [line.strip() for line in f]
+    return dict(line.split("=", 1) for line in lines if line and not line.startswith("#") and "=" in line)
+
+
+# "KEY=want (is have)" for every wanted value the generated sdkconfig lacks
+# or sets differently; [] when it does not exist
+def _stale_values(want, generated_path):
+    have = _read_sdkconfig(generated_path)
+    if not have:
         return []
-    with open(generated_path) as f:
-        have = dict(line.rstrip("\n").split("=", 1) for line in f if "=" in line and not line.startswith("#"))
-    stale = []
-    with open(defaults_path) as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, want = line.split("=", 1)
-            if have.get(key) != want:
-                stale.append("%s=%s (is %s)" % (key, want, have.get(key, "unset")))
-    return stale
+    return ["%s=%s (is %s)" % (k, v, have.get(k, "unset")) for k, v in sorted(want.items()) if have.get(k) != v]
 
 
 # A layout row may come with sdkconfig.defaults.<name> (the task stacks that
@@ -63,17 +62,28 @@ def _sdkconfig_defaults(env):
     name = env.GetProjectOption("custom_arena_layout", "")
     extra = "sdkconfig.defaults." + name
     project = env.subst("$PROJECT_DIR")
-    if not os.path.isfile(os.path.join(project, extra)):
-        return
+    own = _read_sdkconfig(os.path.join(project, extra))
+
+    # A layout without its own file wants the base values of every key
+    # another layout's file sets: an env moved off esp32_local keeps its
+    # cut stacks otherwise
+    want = own
+    if not own:
+        base = _read_sdkconfig(os.path.join(project, "sdkconfig.defaults"))
+        layouts = [k for k, _ in env.GetProjectConfig().items("arena")]
+        keys = {k for layout in layouts for k in _read_sdkconfig(os.path.join(project, "sdkconfig.defaults." + layout))}
+        want = {k: base[k] for k in keys if k in base}
 
     # IDF applies the defaults only when it creates sdkconfig.<env>; a
     # generated file from before the layout file (a pull, an edit) would
     # keep the old stacks and silently eat the Arena's margin
     generated = "sdkconfig." + env.subst("$PIOENV")
-    stale = _stale_values(os.path.join(project, extra), os.path.join(project, generated))
+    stale = _stale_values(want, os.path.join(project, generated))
     if stale:
         sys.exit("extraScript: %s predates %s (%s): delete source/%s and build again"
-                 % (generated, extra, ", ".join(stale), generated))
+                 % (generated, extra if own else "sdkconfig.defaults", ", ".join(stale), generated))
+    if not own:
+        return
 
     board = env.BoardConfig()
     args = board.get("build.cmake_extra_args", "")
