@@ -15,8 +15,11 @@ export FREERTOS_KERNEL_PATH=${FREERTOS_KERNEL_PATH:-$HOME/src/external/pico-deps
 # a comma in the build path breaks the linker map option
 out=$here/build/$board-${game//,/-}${CLOCK_KHZ:+-$CLOCK_KHZ}
 mkdir -p "$out"
+# the DVI framebuffer takes part of Arena block B
+layout=rp2350
+grep -q "define HAL_VIDEO_DVI_HSTX" "$here/../../src/boards/$board.h" && layout=rp2350_dvi
 python3 "$here/../../tools/pio_to_cmake.py" azdelivery-local --only "$game" --hal rp2350 --no-net \
-  --layout rp2350 --define DEBUG_TIMING --define DEBUG_TIMING_FPS_HUD ${CLOCK_KHZ:+--define GALAGINO_CLOCK_KHZ=$CLOCK_KHZ} \
+  --layout $layout --define DEBUG_TIMING --define DEBUG_TIMING_FPS_HUD ${CLOCK_KHZ:+--define GALAGINO_CLOCK_KHZ=$CLOCK_KHZ} \
   $(for d in $DEFINES; do printf -- '--define %s ' "$d"; done) > "$out/galagino.cmake"
 cmake -S "$here" -B "$out" -G Ninja -DGALAGINO_CMAKE="$out/galagino.cmake" -DGALAGINO_BOARD="$board" "$@"
 cmake --build "$out" -- -k 0

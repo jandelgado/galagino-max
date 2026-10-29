@@ -45,6 +45,16 @@ target_compile_options(galagino PRIVATE -O2 -w)
 target_link_libraries(galagino PRIVATE pico_stdlib pico_rand pico_multicore hardware_i2c
   hardware_dma hardware_watchdog hardware_vreg FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
 
+# heap check at link time: Arena blocks plus the other heap users
+# (machine object, strip buffers, stdio, input). Reserve not sized yet:
+# measure on device once the input backends are in.
+set(HEAP_RESERVE 0)
+string(REGEX MATCH "ARENA_A_SIZE=([0-9]+)" _ "${GALAGINO_DEFINES}")
+set(ARENA_A ${CMAKE_MATCH_1})
+string(REGEX MATCH "ARENA_B_SIZE=([0-9]+)" _ "${GALAGINO_DEFINES}")
+math(EXPR ARENA_BYTES "${ARENA_A} + ${CMAKE_MATCH_1}")
+target_link_options(galagino PRIVATE -Wl,--defsym=GALAGINO_ARENA_BYTES=${ARENA_BYTES}
+  -Wl,--defsym=GALAGINO_HEAP_RESERVE=${HEAP_RESERVE} ${CMAKE_CURRENT_LIST_DIR}/ram_check.ld)
 pico_enable_stdio_usb(galagino 1)
 pico_enable_stdio_uart(galagino 0)
 pico_add_extra_outputs(galagino)

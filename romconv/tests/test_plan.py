@@ -38,7 +38,7 @@ def _noop(ctx):
 
 def test_layouts_from_platformio_ini():
     layouts = read_layouts(ini_path(default()))
-    assert list(layouts) == ["esp32_local", "esp32_remote", "esp32s3_local", "rp2350"]
+    assert list(layouts) == ["esp32_local", "esp32_remote", "esp32s3_local", "rp2350", "rp2350_dvi"]
     assert layouts["esp32_local"] == (126976, 110500) and layouts["esp32_remote"] == REMOTE
 
 
