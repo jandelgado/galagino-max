@@ -7,8 +7,8 @@
 #include <stdint.h>
 #include "../hal/gamepad.h"
 
-// Bluetooth pad as BUTTON_* bits: dpad or stick = directions, A = FIRE (and
-// BUTTON_A), B/X/Y/L1/R1 = their BUTTON_*, START, SELECT = COIN and EXTRA
+// Bluetooth pad as BUTTON_* bits: dpad or stick = directions, A = FIRE,
+// B/X/Y/L1/R1 = their BUTTON_* (B: the second action), START, SELECT = COIN and EXTRA
 // (as a COIN pin: volume with up/down, held 3 s ends the game),
 // SYSTEM (Home) = MENU. Disconnected: 0.
 uint16_t btGamepadButtons(const hal::GamepadState &s);

@@ -14,7 +14,9 @@ struct ButtonMap {
 };
 
 static constexpr ButtonMap BUTTON_MAP[] = {
-  {GamepadState::A, BUTTON_FIRE | BUTTON_A},
+  // FIRE only: machines that read BUTTON_A give it an action of its own
+  // (defender hyperspace, sinistar bomb), a pad shot would trigger both
+  {GamepadState::A, BUTTON_FIRE},
   {GamepadState::B, BUTTON_B},
   {GamepadState::X, BUTTON_X},
   {GamepadState::Y, BUTTON_Y},

@@ -65,7 +65,7 @@ static void test_stick_and_dpad_or(void) {
 }
 
 static void test_button_map(void) {
-  TEST_ASSERT_EQUAL_HEX(BUTTON_FIRE | BUTTON_A, btGamepadButtons(pad(GamepadState::A)));
+  TEST_ASSERT_EQUAL_HEX(BUTTON_FIRE, btGamepadButtons(pad(GamepadState::A)));
   TEST_ASSERT_EQUAL_HEX(BUTTON_B, btGamepadButtons(pad(GamepadState::B)));
   TEST_ASSERT_EQUAL_HEX(BUTTON_X, btGamepadButtons(pad(GamepadState::X)));
   TEST_ASSERT_EQUAL_HEX(BUTTON_Y, btGamepadButtons(pad(GamepadState::Y)));
