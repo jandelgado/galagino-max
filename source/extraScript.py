@@ -4,36 +4,36 @@ import sys
 
 Import("env")
 
-_LAYOUT_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 _SDKCONFIG_DEFAULTS = re.compile(r'-DSDKCONFIG_DEFAULTS="([^"]*)"')
+_DEFINE = re.compile(r"-D\s*([A-Za-z_][A-Za-z0-9_]*)")
+
+sys.path.insert(0, os.path.join(env.subst("$PROJECT_DIR"), "tools"))
+import firmware_config  # noqa: E402
 
 
-# custom_arena_layout selects a row of [arena] (A B bytes): the Arena block
-# sizes the firmware builds with and romconv plans against
-def _arena_defines(env):
-    config = env.GetProjectConfig()
-    name = env.GetProjectOption("custom_arena_layout", "")
-    known = ", ".join(k for k, _ in config.items("arena")) if config.has_section("arena") else ""
-    if not _LAYOUT_NAME.match(name) or not config.has_option("arena", name):
-        sys.exit("extraScript: custom_arena_layout '%s' not in [arena]: %s" % (name, known))
+def _config():
+    try:
+        return firmware_config.load()
+    except firmware_config.ConfigError as e:
+        sys.exit("extraScript: %s" % e)
 
-    row = config.get("arena", name)
-    tokens = row.split()
-    sizes = [int(t) for t in tokens] if len(tokens) == 2 and all(t.isdigit() for t in tokens) else None
-    if sizes is None or sizes[0] <= 0:
-        sys.exit("extraScript: [arena] %s = %s: expected 'A B' bytes, A > 0, B >= 0" % (name, row))
 
-    # a _remote layout plans for the smaller boot heap of an ASSETS_REMOTE
-    # build and gets bundles; any other pairing builds something that
-    # cannot run or cannot download
+# firmware.toml: options, the games of custom_mode and the Arena row of
+# custom_arena_layout (the block sizes the firmware builds with and romconv
+# plans against)
+def _config_defines(env, cfg):
+    native = env.get("PIOPLATFORM") == "native"
+    target = firmware_config.Target.NATIVE if native else firmware_config.Target.DEVICE
+    mode = env.GetProjectOption("custom_mode", "") or None
+    layout = env.GetProjectOption("custom_arena_layout", "")
     flags = env.GetProjectOption("build_flags", [])
-    text = flags if isinstance(flags, str) else " ".join(flags)
-    remote = "ASSETS_REMOTE" in text
-    if name.endswith("_remote") != remote:
-        sys.exit("extraScript: layout '%s' is for %s builds but ASSETS_REMOTE is %s"
-                 % (name, "remote" if name.endswith("_remote") else "local", "set" if remote else "not set"))
+    own = _DEFINE.findall(flags if isinstance(flags, str) else " ".join(flags))
+    try:
+        defines = firmware_config.hook_defines(cfg, mode, layout, target, own)
+    except firmware_config.ConfigError as e:
+        sys.exit("extraScript: %s (env %s)" % (e, env.subst("$PIOENV")))
 
-    return ["ARENA_LAYOUT_" + name.upper(), ("ARENA_A_SIZE", sizes[0]), ("ARENA_B_SIZE", sizes[1])]
+    return [tuple(d.split("=", 1)) if "=" in d else d for d in defines]
 
 
 # KEY -> VAL of an sdkconfig file; {} when it does not exist
@@ -58,7 +58,7 @@ def _stale_values(want, generated_path):
 # make its block sizes fit): appended to the build's SDKCONFIG_DEFAULTS. Keyed
 # on the layout, not the mode, so azdelivery-max and the perf envs get the
 # same memory map as the swept local build.
-def _sdkconfig_defaults(env):
+def _sdkconfig_defaults(env, cfg):
     name = env.GetProjectOption("custom_arena_layout", "")
     extra = "sdkconfig.defaults." + name
     project = env.subst("$PROJECT_DIR")
@@ -70,7 +70,7 @@ def _sdkconfig_defaults(env):
     want = own
     if not own:
         base = _read_sdkconfig(os.path.join(project, "sdkconfig.defaults"))
-        layouts = [k for k, _ in env.GetProjectConfig().items("arena")]
+        layouts = list(cfg["arena"])
         keys = {k for layout in layouts for k in _read_sdkconfig(os.path.join(project, "sdkconfig.defaults." + layout))}
         want = {k: base[k] for k in keys if k in base}
 
@@ -99,6 +99,7 @@ if env.get("PIOPLATFORM") != "native":
     env.Replace(PROGNAME="%s_%s_%s" % (env.GetProjectOption("custom_prog_name"), env.GetProjectOption("custom_prog_version"), env.GetBuildType()))
 env.Append(CPPDEFINES=[("PROG_NAME", env.StringifyMacro(env.GetProjectOption("custom_prog_name")))])
 env.Append(CPPDEFINES=[("PROG_VERSION", env.StringifyMacro(env.GetProjectOption("custom_prog_version")))])
-env.Append(CPPDEFINES=_arena_defines(env))
+_cfg = _config()
+env.Append(CPPDEFINES=_config_defines(env, _cfg))
 if env.get("PIOPLATFORM") != "native":
-    _sdkconfig_defaults(env)
+    _sdkconfig_defaults(env, _cfg)

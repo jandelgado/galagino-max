@@ -1,6 +1,7 @@
 """Reads firmware.toml (options, Arena layouts, game sets, modes) and turns a
 mode + layout into the build defines. Used by extraScript.py (PlatformIO) and
 config_to_cmake.py (RP2350). romconv keeps its own [arena] reader."""
+import enum
 import re
 import tomllib
 from pathlib import Path
@@ -14,6 +15,11 @@ _REMOTE_SUFFIX = "_remote"
 
 class ConfigError(ValueError):
     pass
+
+
+class Target(enum.Enum):
+    DEVICE = "device"
+    NATIVE = "native"
 
 
 def load(path=CONFIG_PATH):
@@ -82,4 +88,16 @@ def check_layout_mode(layout, defines):
 def build_defines(cfg, mode, layout):
     defines = option_defines(cfg) + mode_defines(cfg, mode)
     check_layout_mode(layout, defines)
+    return defines + layout_defines(cfg, layout)
+
+
+# Defines the PlatformIO hook appends: an env with custom_mode gets
+# build_defines(); one without (perf envs, own ENABLE_ flags) the options and
+# the layout; env:native only the layout. own: the env's own -D names, part
+# of the layout check.
+def hook_defines(cfg, mode, layout, target, own=()):
+    defines = [] if target == Target.NATIVE else option_defines(cfg)
+    if mode is not None:
+        defines += mode_defines(cfg, mode)
+    check_layout_mode(layout, defines + list(own))
     return defines + layout_defines(cfg, layout)

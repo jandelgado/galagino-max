@@ -81,6 +81,29 @@ class LayoutDefines(unittest.TestCase):
             fc.build_defines(CFG, "m", "x_remote")
 
 
+class HookDefines(unittest.TestCase):
+    _LAYOUT = ["ARENA_LAYOUT_ESP32_LOCAL", "ARENA_A_SIZE=118784", "ARENA_B_SIZE=110500"]
+
+    def test_env_with_mode(self):
+        self.assertEqual(fc.hook_defines(CFG, "m", "esp32_local", fc.Target.DEVICE),
+                         fc.build_defines(CFG, "m", "esp32_local"))
+
+    def test_env_without_mode(self):
+        # perf envs: own ENABLE_ flags, still the options
+        self.assertEqual(fc.hook_defines(CFG, None, "esp32_local", fc.Target.DEVICE), ["OPT", "VAL=3"] + self._LAYOUT)
+
+    def test_native(self):
+        self.assertEqual(fc.hook_defines(CFG, None, "esp32_local", fc.Target.NATIVE), self._LAYOUT)
+
+    def test_own_flags_join_layout_check(self):
+        # an env without mode that defines ASSETS_REMOTE itself pairs with a _remote layout only
+        fc.hook_defines(CFG, None, "x_remote", fc.Target.DEVICE, own=["ASSETS_REMOTE"])
+        with self.assertRaises(fc.ConfigError):
+            fc.hook_defines(CFG, None, "esp32_local", fc.Target.DEVICE, own=["ASSETS_REMOTE"])
+        with self.assertRaises(fc.ConfigError):
+            fc.hook_defines(CFG, "m", "x_remote", fc.Target.DEVICE)
+
+
 class Load(unittest.TestCase):
     def test_bad_toml(self):
         with tempfile.TemporaryDirectory() as tmp:
