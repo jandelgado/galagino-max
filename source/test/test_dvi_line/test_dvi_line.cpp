@@ -159,6 +159,14 @@ static void test_over_rate(void) {
   TEST_ASSERT_TRUE(overRate(240, 2000000, 75));
 }
 
+// beam = pass * 512 + rows the pass read; 2x reads row 0 with no row done
+static void test_pass_base(void) {
+  TEST_ASSERT_EQUAL_UINT32(1024, passBase(1024, 512));
+  TEST_ASSERT_EQUAL_UINT32(1024, passBase(1024 + 288, 512));
+  TEST_ASSERT_EQUAL_UINT32(0, passBase(511, 512));
+  TEST_ASSERT_EQUAL_UINT32(0xfffffe00u, passBase(0xffffffffu, 512));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_swap565);
@@ -174,5 +182,6 @@ int main(int, char **) {
   RUN_TEST(test_orientation_follows_panel_flips);
   RUN_TEST(test_frame_row);
   RUN_TEST(test_over_rate);
+  RUN_TEST(test_pass_base);
   return UNITY_END();
 }

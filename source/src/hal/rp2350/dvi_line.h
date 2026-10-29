@@ -111,6 +111,11 @@ static inline bool overRate(uint32_t frames, uint32_t us, uint32_t maxFps) {
   return (uint64_t)frames * 1000000u > (uint64_t)maxFps * us;
 }
 
+// Base of the pass a beam position is in (beam = pass * span + rows read).
+static inline uint32_t passBase(uint32_t beam, uint32_t span) {
+  return beam & ~(span - 1);
+}
+
 // 1x: `width` pixels into width / 2 words.
 static inline void line1x(const uint16_t *row, uint32_t *out, uint32_t width, Mirror mirror) {
   if (mirror == Mirror::ON) {

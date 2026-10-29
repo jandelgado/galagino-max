@@ -279,7 +279,7 @@ void DviHstxVideo::submit(const uint16_t *strip, uint32_t pixels) {
   // the screen follows the pass the beam is in (endFrame returns once it
   // read the first strip)
   if (written == 0) {
-    render_base = (beam - 1) & ~(PASS_SPAN - 1);
+    render_base = dvi::passBase(beam, PASS_SPAN);
     render_start_us = time_us_32();
   }
 
