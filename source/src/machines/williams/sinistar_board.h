@@ -35,7 +35,7 @@ protected:
     if (k & BOARD_KEY_FIRE) {
       buttons |= FIRE;
     }
-    if (k & (actionKey | BOARD_KEY_A)) {
+    if (k & (actionKey | BOARD_KEY_A | BOARD_KEY_B)) {
       buttons |= BOMB;
     }
     if (k & BOARD_KEY_START) {

@@ -93,7 +93,7 @@ unsigned char supercobra::rdZ80(unsigned short Addr) {
           ignoreFireButton = 0;
 
         if(!ignoreFireButton && (keymask & BUTTON_FIRE))  retval &= ~0x08; // Laser
-        if(!ignoreFireButton && (keymask & BUTTON_START)) retval &= ~0x02; // Bomb
+        if(!ignoreFireButton && (keymask & (BUTTON_START | BUTTON_B))) retval &= ~0x02; // Bomb
         return retval;
       case 0x9801: // PPI0 - Port B
         retval = SUPERCOBRA_IN1_VALUE;

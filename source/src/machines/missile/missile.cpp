@@ -122,7 +122,7 @@ uint8_t missile::in1() const {
   if (k & BUTTON_L1) {
     v &= ~IN1_FIRE_LEFT;
   }
-  if (k & BUTTON_A) {
+  if (k & (BUTTON_A | BUTTON_B)) {
     v &= ~IN1_FIRE_CENTER;
   }
   if (k & BUTTON_R1) {

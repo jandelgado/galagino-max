@@ -56,12 +56,12 @@ unsigned char motorace::rdZ80(unsigned short Addr) {
     return val;
   }
   if (Addr == 0xD001) {
-    unsigned char keymask = input->buttons_get();
+    unsigned int keymask = input->buttons_get();
     unsigned char val = 0xFF;
     if (keymask & BUTTON_RIGHT) val &= ~0x01;
     if (keymask & BUTTON_LEFT)  val &= ~0x02;
     if (keymask & BUTTON_FIRE)  val &= ~0x20;  // accelerate
-    if (keymask & BUTTON_DOWN)  val &= ~0x80;  // brake
+    if (keymask & (BUTTON_DOWN | BUTTON_B)) val &= ~0x80;  // brake
     return val;
   }
   if (Addr == 0xD002) return 0xFF;
