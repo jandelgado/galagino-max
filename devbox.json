@@ -18,6 +18,6 @@
   // dir goes on the loader path (devbox's documented way for pip wheels
   // with system libraries; harmless where unneeded)
   "env": {
-    "LD_LIBRARY_PATH": "$DEVBOX_PACKAGES_DIR/lib:$LD_LIBRARY_PATH"
+    "LD_LIBRARY_PATH": "$DEVBOX_PACKAGES_DIR/lib"
   }
 }
