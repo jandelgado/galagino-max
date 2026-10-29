@@ -17,7 +17,7 @@ from pathlib import Path
 _SECTIONS = ("Time", "GPIO", "Tasks and sync", "Watchdog", "LEDs", "Audio", "System", "I2C",
              "Flash region", "WiFi", "Gamepad")
 # sections not every backend implements yet
-_SECTION_BACKENDS = {"Flash region": ("esp", "host"), "WiFi": ("esp", "host"), "Gamepad": ("host",)}
+_SECTION_BACKENDS = {"Flash region": ("esp", "host"), "WiFi": ("esp", "host"), "Gamepad": ("host", "rp2350")}
 _SKIP = {
     "hal", "uint8_t", "uint16_t", "uint32_t", "int16_t", "int", "bool", "void", "const", "char",
     "static", "class", "struct", "typedef", "NULL", "ms", "led_color", "CRGB", "fill_solid",

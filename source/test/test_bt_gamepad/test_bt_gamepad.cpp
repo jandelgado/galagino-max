@@ -1,7 +1,7 @@
 #include <unity.h>
 
-// Bluetooth pad mapping (input/bt_gamepad) and its merge into the GPIO source
-// of Input::buttons_get(). Pad state: hal host backend (setGamepad).
+// Bluetooth pad mapping (input/bt_gamepad) and Input::buttons_get() with the
+// pad as its only source. Pad state: hal host backend (setGamepad).
 #define HAL_GAMEPAD_BT
 #define USE_PIO_CONFIG
 #define BTN_START_PIN 1
@@ -77,13 +77,13 @@ static void test_button_map(void) {
   TEST_ASSERT_EQUAL_HEX(0, btGamepadButtons(pad(GamepadState::L2 | GamepadState::R2)));
 }
 
-static void test_input_ors_pad_on_gpio(void) {
+// one input source per build: GPIO pins are not read
+static void test_pad_replaces_gpio(void) {
   Input input;
   input.init(true);
   hal::host::setPinLevel(BTN_FIRE_PIN, false);
   hal::host::setGamepad(pad(0, GamepadState::LEFT));
-  const unsigned int bits = input.buttons_get();
-  TEST_ASSERT_EQUAL_HEX(BUTTON_FIRE | BUTTON_LEFT, bits & (BUTTON_FIRE | BUTTON_LEFT));
+  TEST_ASSERT_EQUAL_HEX(BUTTON_LEFT, input.buttons_get());
 }
 
 // fire held at boot switches demo sounds off and is ignored until released,
@@ -107,7 +107,7 @@ int main(int, char **) {
   RUN_TEST(test_stick_threshold);
   RUN_TEST(test_stick_and_dpad_or);
   RUN_TEST(test_button_map);
-  RUN_TEST(test_input_ors_pad_on_gpio);
+  RUN_TEST(test_pad_replaces_gpio);
   RUN_TEST(test_fire_held_at_start_blocks_pad_fire);
   return UNITY_END();
 }

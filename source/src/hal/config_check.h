@@ -85,9 +85,10 @@
 #error "config: HAL_AUDIO_DVI needs HAL_VIDEO_DVI_HSTX"
 #endif
 
-// Bluetooth pad: radio of the Pico 2 W (host: scripted tests)
-#if defined(HAL_GAMEPAD_BT) && defined(HAL_GAMEPAD_NULL)
-#error "config: define only one HAL_GAMEPAD_* backend"
+// Bluetooth pad: radio of the Pico 2 W (host: scripted tests), the only
+// input source of the build
+#if defined(HAL_GAMEPAD_BT) && (defined(NUNCHUCK_INPUT) || defined(GALAGINO_CONTROLLER))
+#error "config: HAL_GAMEPAD_BT is the only input source, drop NUNCHUCK_INPUT/GALAGINO_CONTROLLER"
 #endif
 #if defined(HAL_GAMEPAD_BT) && !defined(HAL_HOST) && !defined(BOARD_PICO2W_DVI)
 #error "config: HAL_GAMEPAD_BT needs a CYW43 board (Pico 2 W)"

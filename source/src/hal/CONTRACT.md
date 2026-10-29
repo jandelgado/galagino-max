@@ -86,7 +86,7 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
 up, button bits) is defined in `gamepad.h` itself. Player 1's pad, further pads ignored.
 - `class Gamepad { static void begin(); static void read(GamepadState &out); }`: `begin()` once
   at boot (radio up, pairing open); `read()` from any core, never blocks, a consistent copy.
-- Host: `host::setGamepad(const GamepadState &)` scripts the state.
+- Host: host::setGamepad(state) scripts the state (tests).
 
 ## Flash region (`flash_region.h`, not in `hal.h`; ESP and host only)
 `class FlashRegion`, erased bytes read 0xFF, a write only clears bits. Host: RAM fake, extra

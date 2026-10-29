@@ -1,9 +1,10 @@
 // Raspberry Pi Pico 2 W with a DVI connector soldered to HSTX GPIO 12..19,
 // in the Pico DVI Sock order (pico-examples dvi_out_hstx_encoder): 12/13 D0,
 // 14/15 CK, 16/17 D2, 18/19 D1 (P on the even pin). TV over HDMI, sound
-// over the same cable. Nunchuk on I2C0 GPIO 20/21 (-D GALAGINO_CONTROLLER:
-// the controller there; -D GPIO_BUTTONS: buttons as boards/pico2.h instead).
-// The CYW43 pins (23, 24, 25, 29) stay untouched.
+// over the same cable. One input source: a Bluetooth pad (8BitDo SN30 Pro /
+// Pro 2) over the CYW43; -D NUNCHUCK_INPUT or -D GALAGINO_CONTROLLER: that
+// device on I2C0 GPIO 20/21 instead; -D GPIO_BUTTONS: buttons as
+// boards/pico2.h.
 #ifndef HAL_BOARD_PICO2W_DVI_H
 #define HAL_BOARD_PICO2W_DVI_H
 
@@ -34,7 +35,7 @@
 #define GALAGINO_CLOCK_KHZ 252000
 #endif
 #if !defined(GPIO_BUTTONS) && !defined(GALAGINO_CONTROLLER) && !defined(NUNCHUCK_INPUT)
-#define NUNCHUCK_INPUT
+#define HAL_GAMEPAD_BT
 #endif
 #ifndef NUNCHUCK_SDA
 #define NUNCHUCK_SDA    20

@@ -24,7 +24,7 @@
 #define configUSE_TICK_HOOK                     0
 #define configUSE_TRACE_FACILITY                0
 #define configUSE_MUTEXES                       1
-#define configUSE_RECURSIVE_MUTEXES             0
+#define configUSE_RECURSIVE_MUTEXES             1  // async_context lock (CYW43)
 #define configUSE_COUNTING_SEMAPHORES           1
 #define configUSE_TASK_NOTIFICATIONS            1
 #define configTASK_NOTIFICATION_ARRAY_ENTRIES   1
@@ -54,5 +54,7 @@
 #define INCLUDE_uxTaskPriorityGet               1
 #define INCLUDE_xTaskGetIdleTaskHandle          1
 #define INCLUDE_xTaskGetSchedulerState          1
+#define INCLUDE_xSemaphoreGetMutexHolder        1  // async_context (CYW43)
+#define INCLUDE_vTaskPrioritySet                1  // flash_safe_execute (BT link keys)
 
 #endif // FREERTOS_CONFIG_H

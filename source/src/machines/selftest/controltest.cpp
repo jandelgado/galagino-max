@@ -22,7 +22,7 @@ const ControlTest::Row ControlTest::ROWS[] = {
   { "DOWN", BUTTON_DOWN },
   { "LEFT", BUTTON_LEFT },
   { "RIGHT", BUTTON_RIGHT },
-#if defined(GALAGINO_CONTROLLER)
+#if defined(GALAGINO_CONTROLLER) || defined(HAL_GAMEPAD_BT)
   { "FIRE", BUTTON_FIRE },
   { "START", BUTTON_START },
   { "COIN", BUTTON_COIN },
@@ -54,7 +54,9 @@ const ControlTest::Row ControlTest::ROWS[] = {
 const uint8_t ControlTest::ROW_COUNT = sizeof(ROWS) / sizeof(ROWS[0]);
 
 // the key Input resets on: MENU, else BUTTON_EXTRA held 3 s
-#if defined(GALAGINO_CONTROLLER)
+#if defined(HAL_GAMEPAD_BT)
+static constexpr const char *EXIT_HINT = "PRESS HOME TO EXIT";
+#elif defined(GALAGINO_CONTROLLER)
 static constexpr const char *EXIT_HINT = "PRESS MENU TO EXIT";
 #elif defined(NUNCHUCK_INPUT)
 static constexpr const char *EXIT_HINT = "HOLD C 3S TO EXIT";
