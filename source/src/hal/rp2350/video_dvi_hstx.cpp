@@ -108,7 +108,7 @@ uint16_t frame[SRC_ROWS][SRC_WIDTH];
 // garbled (about 160 frames/s, no picture). At that priority it may not call
 // FreeRTOS, so it pends wake_irq, a low priority IRQ that gives the semaphore.
 DviHstxVideo *self;
-SemaphoreHandle_t wake;          // given at vblank
+SemaphoreHandle_t wake;          // given as the beam reads strip 0 and the last row
 int wake_irq;
 volatile uint32_t scan_frames;   // vblanks so far
 
@@ -120,7 +120,7 @@ SemaphoreHandle_t irqs_ready;
 volatile bool irq_busy;
 volatile bool resyncing;
 
-// Scanout watchdog (endFrame): no vblank for STALL_MS, or more than
+// Scanout watchdog (endFrame): no beam progress for STALL_MS, or more than
 // MAX_FPS frames per second, means the DMA chain lost its framing.
 const uint32_t STALL_MS = 100;
 const uint32_t MAX_FPS = 75;
@@ -137,6 +137,22 @@ int ch_ping;
 int ch_pong;
 bool pong;
 uint32_t v_scanline = 2;  // ping and pong are queued before the first IRQ
+
+// The render follows the beam: it overwrites a strip only once the current
+// pass has read it, the next pass shows it. Every row gets a whole frame
+// between write and read, so a slow render never tears (rendering ahead of
+// the beam from vblank tore from mid screen on, 1943 at 1x in nearly every
+// heavy frame). Cost: one frame of latency.
+//
+// Beam position: pass number * PASS_SPAN + source rows read in that pass.
+// PASS_SPAN is a power of two, so the position wraps cleanly at 2^32.
+const uint32_t STRIP_ROWS = SRC_ROWS / 36;
+const uint32_t PASS_SPAN = 512;
+volatile uint32_t beam;
+uint32_t pass_base;    // beam at the start of the current pass (IRQ)
+uint32_t pass_rows;    // rows the current pass read (IRQ)
+uint32_t render_base;  // pass_base of the pass the screen's render follows
+uint32_t render_start_us;
 
 HAL_FAST_CODE void signalWake() {
   nvic_hw->ispr[wake_irq / 32] = 1u << (wake_irq % 32);
@@ -173,6 +189,19 @@ void DviHstxVideo::submit(const uint16_t *strip, uint32_t pixels) {
     return;
   }
 
+  // the screen follows the pass the beam is in (endFrame returns once it
+  // read the first strip)
+  if (written == 0) {
+    render_base = (beam - 1) & ~(PASS_SPAN - 1);
+    render_start_us = time_us_32();
+  }
+
+  // wait until that pass has read the strip's rows; a stalled scanout
+  // (endFrame resyncs it) holds the screen up only once
+  const uint32_t read = render_base + (written + 1) * STRIP_ROWS;
+  while ((int32_t)(beam - read) < 0 && time_us_32() - render_start_us < STALL_MS * 1000) {
+  }
+
   // machines pack the strip at its width; framebuffer rows are 240 wide
   const uint32_t lines = SRC_ROWS / STRIPS;
   const uint32_t width = pixels / lines;
@@ -183,9 +212,15 @@ void DviHstxVideo::submit(const uint16_t *strip, uint32_t pixels) {
 }
 
 void DviHstxVideo::endFrame(uint8_t part, uint32_t) {
-  const uint32_t frame = scan_frames;
+  // Next screen: once the pass after the screen's last one read the first
+  // strip. Half rate, second part: once the first part's pass read every
+  // row; the second half then has to beat the next pass to row 144.
+  const uint8_t parts = screenParts();
+  const bool last = part + 1 >= parts;
+  const uint32_t target = last ? render_base + parts * PASS_SPAN + STRIP_ROWS
+                               : render_base + SRC_ROWS;
   const uint32_t start = time_us_32();
-  while (scan_frames == frame) {
+  while ((int32_t)(beam - target) < 0) {
     if (time_us_32() - start > STALL_MS * 1000) {
       resync();
       break;
@@ -202,7 +237,7 @@ void DviHstxVideo::endFrame(uint8_t part, uint32_t) {
     rate_start_us = time_us_32();
     rate_start_frames = scan_frames;
   }
-  if (part + 1 >= screenParts()) {
+  if (last) {
     written = 0;
   }
 }
@@ -233,6 +268,20 @@ void HAL_FAST_CODE DviHstxVideo::buildLine(uint32_t line, uint32_t buffer) {
     dvi::line1x(a, pic, width, flip_x);
   } else {
     dvi::line2x(a, b, q, pic, width, flip_x);
+  }
+
+  // rows this pass no longer reads (2x: the next line may read `row` again);
+  // endFrame waits for the first strip and for the last row
+  const uint32_t done = line == PIC_TOP + PIC_LINES - 1 ? SRC_ROWS : (DVI_SCALE == 1 ? row + 1 : row);
+  const bool firstStrip = pass_rows < STRIP_ROWS && done >= STRIP_ROWS;
+  pass_rows = done;
+  beam = pass_base + done;
+  if (firstStrip || done == SRC_ROWS) {
+    signalWake();
+  }
+  if (done == SRC_ROWS) {
+    pass_base += PASS_SPAN;
+    pass_rows = 0;
   }
 }
 
@@ -279,7 +328,6 @@ void HAL_FAST_CODE DviHstxVideo::scanout() {
 
   // vblank: every line of the frame is built, the next frame starts
   scan_frames = scan_frames + 1;
-  signalWake();
 }
 
 // Rebuilds the DMA chain from line 0 (after pico-galagino's hstx_resync).
@@ -304,6 +352,11 @@ void DviHstxVideo::resync() {
   hw_set_bits(&dma_hw->ch[ch_ping].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
   hw_set_bits(&dma_hw->ch[ch_pong].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
   queueBlankLines();
+
+  // a new pass starts at row 0
+  pass_base = (beam & ~(PASS_SPAN - 1)) + PASS_SPAN;
+  pass_rows = 0;
+  beam = pass_base;
 
   scan_frames = scan_frames + 1;
 

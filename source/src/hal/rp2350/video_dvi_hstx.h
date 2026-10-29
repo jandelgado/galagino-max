@@ -6,11 +6,14 @@
 // line from it (dvi_line.h). A TV has no picture memory of its own: without
 // the framebuffer every strip would have to beat the beam, and slow frames
 // (many sprites, half rate machines) showed black lines. The scanout is the
-// frame clock: endFrame() returns at the next vblank.
+// frame clock, the render follows the beam one pass behind: submit()
+// overwrites a strip once the current pass has read it, the next pass shows
+// it, so a slow render never tears.
 //
 //   main task (video core)                DMA IRQ (emulation core)
 //   renderRow -> submit() --framebuffer--> line build -> HSTX
-//   endFrame(): wait for vblank      <--  vblank
+//   submit(): wait for the beam      <--  beam position (rows read)
+//   endFrame(): wait for strip 0     <--  wake as strip 0 / last row is read
 //
 // SDK calls are out of line (video_dvi_hstx.cpp, see time.h).
 
@@ -40,14 +43,16 @@ public:
   uint8_t screenParts() const { return half_rate ? 2 : 1; }
 
   // Scan order is top to bottom: a flipY screen renders its last strip first,
-  // so rendering stays ahead of the beam.
+  // so rendering follows the beam.
   uint8_t stripIndex(uint8_t i) const {
     return flip_y == dvi::Mirror::ON ? STRIPS - 1 - i : i;
   }
 
-  // Copies the strip into the framebuffer.
+  // Copies the strip into the framebuffer once the current pass has read
+  // its rows.
   void submit(const uint16_t *strip, uint32_t pixels);
-  // Returns at the next vblank; after the last part the next strip is the
+  // Returns once the next pass has read strip 0 (half rate, first part: once
+  // this pass has read every row); after the last part the next strip is the
   // top one again.
   void endFrame(uint8_t part, uint32_t frameStartUs);
 

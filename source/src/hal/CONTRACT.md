@@ -57,7 +57,7 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
 - `uint8_t screenParts() const`: 1, or 2 when a screen takes two emulation frames.
 - `void submit(const uint16_t *strip, uint32_t pixels)`: may block.
 - `void endFrame(uint8_t part, uint32_t frameStartUs)`: after the last strip of a part; returns
-  when the next part may start (backend pacing: deadline sleep, or vsync wait).
+  when the next part may start (backend pacing: deadline sleep, or scanout position).
 - `CANVAS_W`, `CANVAS_H` (compile-time): game pixels the output can show (SPI TFT and null
   240 x 320; DVI 640 x 480 at 1x, 320 x 320 at 2x).
 - `uint8_t stripIndex(uint8_t i) const`: strip to render as the i-th of a screen. Identity where
