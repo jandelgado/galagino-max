@@ -1,0 +1,318 @@
+# Firmware configuration shared by the PlatformIO hook (extraScript.py), the
+# RP2350 build (tools/config_to_cmake.py) and romconv (plan/layout.py):
+# options, Arena layouts, game sets and modes. Platform-specific flags stay
+# in platformio.ini (ESP32) and ports/rp2350/ (RP2350).
+
+# defines of every device build (not env:native)
+[options]
+defines = [
+  "BOOT_SELFTEST",
+  # "DEBUG_TIMING",
+  # "BUBLBOBL_SCALE",
+  "BUBLBOBL_CROP",
+  # "BUBLBOBL_SCALE_BORDER",
+  # "STARWARS_INVERT_Y",
+  # Solomon's Key: default crops 8 px per side, SOLOMON_SCALE drops every 16th
+  # column, SOLOMON_SCROLL moves the 240 px window with the player
+  # "SOLOMON_SCALE",
+  "SOLOMON_SCROLL",
+  # attract mode, defaults in config.h (config_local.h may override)
+  # "MASTER_ATTRACT_MENU_TIMEOUT=20000",  # ms idle in menu, then attract starts a game
+  # "MASTER_ATTRACT_GAME_TIMEOUT=300000",  # ms an attract game runs, then the next one
+  # "MASTER_ATTRACT_MENU_COUNTDOWN_BAR_COLOR565=0x1234",  # menu countdown bar, byte-swapped RGB565
+  # "NO_DOWNLOADS_IN_ATTRACT=0",  # remote build: menu attract downloads games too
+  "SILENT_ATTRACT_MODE",  # demo sounds off
+]
+
+# Arena blocks per layout: [A, B] bytes. Names are C identifiers; a name
+# ending in _remote gets asset bundles and pairs only with a mode that
+# defines ASSETS_REMOTE. Every build selects one (PlatformIO:
+# custom_arena_layout, RP2350: build.sh); it becomes ARENA_LAYOUT_<NAME>,
+# ARENA_A_SIZE, ARENA_B_SIZE, and PlatformIO appends sdkconfig.defaults.<name>
+# to SDKCONFIG_DEFAULTS when it exists (the task stacks that make the row
+# fit). ESP32: two internal RAM regions, one malloc cannot span them.
+# ASSETS_REMOTE links WiFi (~23 KB static DRAM out of the boot heap), so its
+# block A is smaller.
+# esp32_local: bar from the HEAP_PROBE end dump over all games of
+# azdelivery-local and -max: A's region (SRAM2) min_free >= 9328 (LZMA
+# scratch 5232 + one 4 KB heap step); sdkconfig.defaults.esp32_local cuts
+# the task stacks for it. The heap hands out blocks this large in 4 KB
+# steps, keep A a multiple of 4096.
+# B 110500: the second region (D/IRAM 0x3ffe4350, 113840 B) minus IDF use.
+# esp32s3_local: fnk0104 placeholder until measured. rp2350: headless
+# boards. rp2350_dvi (build.sh picks it for DVI board profiles): B gave
+# 26 KB to the framebuffer (240 x 288 x 2 = 138 KB, the rest came from the
+# strip ring it replaced and the heap); tapper and the Williams games still
+# need both blocks, arkanoid 82 KB in one.
+[arena]
+esp32_local = [126976, 110500]
+esp32_remote = [69000, 110500]
+esp32s3_local = [118784, 110500]
+rp2350 = [118784, 110500]
+rp2350_dvi = [118784, 84000]
+
+# Game sets, lower-case names, each becomes ENABLE_<NAME>. builtin, local and
+# rest are disjoint, each game appears once; max overlaps them.
+[games]
+# built in for every mode, in priority order
+builtin = [
+  "pacman",
+  "galaga",
+  "dkong",
+  "frogger",
+  "digdug",
+  "hero",
+  "commando",
+  "gng",
+  "mspacman",
+  "galaxian",
+  "dkongjr",
+  "spaceinvaders",
+  "asteroids",
+  "centipede",
+  "millipede",
+  "tempest",
+  "bzone",
+  "llander",
+  "missile",
+  "defender",
+  "robotron",
+  "joust",
+  "xevious",
+  "burgertime",
+  "mrdo",
+  "pengo",
+  "scramble",
+  "phoenix",
+  "mpatrol",
+  "berzerk",
+  "gyruss",
+  "timeplt",
+  "mappy",
+  "ladybug",
+  "amidar",
+  "digdug2",
+  "dkong3",
+  "supercobra",
+  "starwars",
+  "atetris",
+]
+# built in for local and full mode, downloaded in remote mode
+local = [
+  "marble",
+  "zaxxon",
+  "1942",
+  "theglob",
+  "anteater",
+  "bombjack",
+  "bagman",
+  "tutankhm",
+  "starforce",
+  "baluba",
+  "mooncresta",
+  "bnj",
+  "gaplus",
+  "circusc",
+  "rocnrope",
+  "roadfighter",
+  "fantasy",
+  "nibbler",
+  "scregg",
+  "vanguard",
+  "thepit",
+  "bublbobl",
+  "ccastles",
+  "gorf",
+  "starjack",
+  "regulus",
+  "swat",
+  "pitfall2",
+  "wboy",
+  "cbdash",
+  "phozon",
+  "gberet",
+  "tp84",
+  "cavenger",
+  "tron",
+]
+# built in for full mode only (16 MB flash), downloaded in remote mode
+rest = [
+  "arkanoid",
+  "spacduel",
+  "alibaba",
+  "gravitar",
+  "upndown",
+  "sinistar",
+  "todruaga",
+  "raflesia",
+  "flicky",
+  "imsorry",
+  "mrviking",
+  "gardia",
+  "fourdwarrio",
+  "turtles",
+  "hvymetal",
+  "crush",
+  "vulgus",
+  "trackfld",
+  "eyes",
+  "mrtnt",
+  "lizwiz",
+  "mikie",
+  "pleiads",
+  "yiear",
+  "dotron",
+  "elevator",
+  "choplift",
+  "tokisens",
+  "tapper",
+  "contra",
+  "qbert",
+  "krull",
+  "junofrst",
+  "tylz",
+  "docastle",
+  "mario",
+  "megazone",
+  "jungleh",
+  "motos",
+  "shollow",
+  "mhavoc",
+  "sxevious",
+  "szaxxon",
+  "mrgoemon",
+  "jailbrek",
+  "scotrsht",
+  "solomon",
+  "1943",
+  "pooyan",
+  "vanvan",
+  "bwidow",
+  "pbaction",
+  "motorace",
+]
+# most games in 4 MB flash: the pick of romconv's dev/games_max.py (MILP over
+# the reference graph of an all-games build, shared code paid once; sorted by
+# a game's own bytes, 2026-10-28). Rerun it after a size change instead of
+# editing by hand: `uv run python -m dev.games_max --write` rewrites this array.
+max = [
+  "pacman",
+  "turtles",
+  "frogger",
+  "dkong",
+  "scramble",
+  "burgertime",
+  "asteroids",
+  "centipede",
+  "spaceinvaders",
+  "llander",
+  "missile",
+  "xevious",
+  "galaxian",
+  "sxevious",
+  "nibbler",
+  "lizwiz",
+  "hero",
+  "mrtnt",
+  "bzone",
+  "thepit",
+  "theglob",
+  "berzerk",
+  "millipede",
+  "crush",
+  "anteater",
+  "amidar",
+  "eyes",
+  "alibaba",
+  "spacduel",
+  "mspacman",
+  "phoenix",
+  "pleiads",
+  "vanvan",
+  "tempest",
+  "mooncresta",
+  "defender",
+  "cbdash",
+  "qbert",
+  "bagman",
+  "pengo",
+  "ladybug",
+  "tutankhm",
+  "cavenger",
+  "supercobra",
+  "gravitar",
+  "scregg",
+  "bwidow",
+  "mpatrol",
+  "gorf",
+  "ccastles",
+  "galaga",
+  "dkongjr",
+  "timeplt",
+  "mappy",
+  "zaxxon",
+  "digdug",
+  "elevator",
+  "robotron",
+  "mrdo",
+  "tylz",
+  "bnj",
+  "digdug2",
+  "joust",
+  "pooyan",
+  "motos",
+  "todruaga",
+  "docastle",
+  "junofrst",
+  "mario",
+  "jungleh",
+  "phozon",
+  "shollow",
+  "gyruss",
+  "tron",
+  "motorace",
+  "krull",
+  "dkong3",
+  "starjack",
+  "rocnrope",
+  "sinistar",
+  "flicky",
+  "tp84",
+  "atetris",
+  "starwars",
+  "arkanoid",
+  "upndown",
+  "pitfall2",
+  "megazone",
+  "szaxxon",
+  "yiear",
+  "baluba",
+  "bombjack",
+  "tapper",
+  "vulgus",
+  "roadfighter",
+  "gberet",
+  "trackfld",
+  "circusc",
+  "mikie",
+  "dotron",
+  "raflesia",
+  "pbaction",
+  "regulus",
+  "gaplus",
+  "jailbrek",
+  "starforce",
+]
+
+# Modes: game sets built in, plus mode defines. Partitions live with the
+# platform.
+[modes]
+# 4 MB flash, games built in
+local = { games = ["builtin", "local"] }
+# 4 MB flash, most games
+max = { games = ["max"] }
+# 16 MB flash, every game built in
+full = { games = ["builtin", "local", "rest"] }
+# built-in games + every other catalog game downloaded over WiFi.
+# GALAGINO_WIFI_SSID/PASS and GALAGINO_ASSETS_URL from config_local.h.
+remote = { games = ["builtin"], defines = ["ASSETS_REMOTE"] }
