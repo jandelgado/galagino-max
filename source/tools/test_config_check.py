@@ -199,6 +199,25 @@ class Profiles(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("#define HAL_AUDIO_DVI", r.stdout)
 
+    def test_pico2w_dvi_nunchuk_on_gpio_20_21(self):
+        base = ["HAL_RP2350", "BOARD_PICO2W_DVI"] + _ARENA + _DVI_ARENA
+        r = _macros(base)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("#define NUNCHUCK_INPUT", r.stdout)
+        self.assertIn("#define NUNCHUCK_SDA 20\n", r.stdout)
+        self.assertIn("#define NUNCHUCK_SCL 21\n", r.stdout)
+
+        r = _macros(base + ["GALAGINO_CONTROLLER"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("#define NUNCHUCK_INPUT", r.stdout)
+        self.assertIn("#define GALAGINO_CONTROLLER_SDA 20\n", r.stdout)
+        self.assertIn("#define GALAGINO_CONTROLLER_SCL 21\n", r.stdout)
+
+        r = _macros(base + ["GPIO_BUTTONS"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("#define NUNCHUCK_INPUT", r.stdout)
+        self.assertNotIn("#define GALAGINO_CONTROLLER\n", r.stdout)
+
     def test_usbup_flips_the_panel(self):
         r = _macros(["HAL_ESP", "BOARD_FNK0103B", "BOARD_USBUP"] + _ARENA)
         self.assertNotIn("#define TFT_VFLIP", r.stdout)
