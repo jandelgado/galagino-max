@@ -90,15 +90,18 @@ static void test_infoframes(void) {
   TEST_ASSERT_EQUAL_HEX8(0x82, p.header[0]);
   TEST_ASSERT_EQUAL_HEX8(0x02, p.header[1]);
   TEST_ASSERT_EQUAL_HEX8(0x0d, p.header[2]);
-  TEST_ASSERT_EQUAL_HEX8(1, p.sub[0][4]);  // VIC 1: 640x480 60 Hz
+  TEST_ASSERT_EQUAL_HEX8(0x10, p.sub[0][1]);  // RGB, active format valid
+  TEST_ASSERT_EQUAL_HEX8(0x18, p.sub[0][2]);  // 4:3, format as picture
+  TEST_ASSERT_EQUAL_HEX8(1, p.sub[0][4]);     // VIC 1: 640x480 60 Hz
   assertChecksum(p);
 
   audioInfoFrame(p);
   TEST_ASSERT_EQUAL_HEX8(0x84, p.header[0]);
   TEST_ASSERT_EQUAL_HEX8(0x01, p.header[1]);
   TEST_ASSERT_EQUAL_HEX8(0x0a, p.header[2]);
-  TEST_ASSERT_EQUAL_HEX8(0x11, p.sub[0][1]);  // L-PCM, 2 channels
-  TEST_ASSERT_EQUAL_HEX8(0x0d, p.sub[0][2]);  // 48 kHz, 16 bit
+  // HDMI 1.4 8.2.2: coding type, rate and size 0 (from the stream)
+  TEST_ASSERT_EQUAL_HEX8(0x01, p.sub[0][1]);  // 2 channels
+  TEST_ASSERT_EQUAL_HEX8(0x00, p.sub[0][2]);
   assertChecksum(p);
 }
 

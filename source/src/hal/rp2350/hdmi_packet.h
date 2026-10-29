@@ -164,20 +164,21 @@ static inline void aviInfoFrame(Packet &p) {
   p.header[0] = 0x82;
   p.header[1] = 0x02;
   p.header[2] = 0x0d;
-  p.sub[0][2] = 0x08;  // active format: same as picture
+  p.sub[0][1] = 0x10;  // RGB, active format valid
+  p.sub[0][2] = 0x18;  // 4:3, active format same as picture
   p.sub[0][4] = 1;
   setChecksum(p);
   setParity(p);
 }
 
-// Audio InfoFrame: L-PCM, 2 channels, 48 kHz, 16 bit
+// Audio InfoFrame: 2 channels. HDMI 1.4 8.2.2: coding type, sample rate
+// and size stay 0, the sink reads them from the stream (channel status).
 static inline void audioInfoFrame(Packet &p) {
   clear(p);
   p.header[0] = 0x84;
   p.header[1] = 0x01;
   p.header[2] = 0x0a;
-  p.sub[0][1] = 0x11;
-  p.sub[0][2] = 0x0d;
+  p.sub[0][1] = 0x01;
   setChecksum(p);
   setParity(p);
 }
