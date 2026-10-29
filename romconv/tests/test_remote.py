@@ -183,8 +183,8 @@ def test_bundle_header(tree, log):
 
 def test_two_remote_layouts_two_bundles(tree, log):
     # a second _remote layout with another split: its own bundle, selected by define
-    tree_ini = tree.repo / "source" / "platformio.ini"
-    tree_ini.write_text("[arena]\nesp32_local = 91000 110500\nesp32_remote = 60000 110500\ns3_remote = 200000 0\n")
+    tree_ini = tree.repo / "source" / "firmware.toml"
+    tree_ini.write_text("[arena]\nesp32_local = [91000, 110500]\nesp32_remote = [60000, 110500]\ns3_remote = [200000, 0]\n")
     _plan_header(tree, "pacman", {"esp32_local": {"pacman_tiles": 0}, "esp32_remote": {"pacman_tiles": 1},
                                   "s3_remote": {"pacman_tiles": 0}})
     info = bundles.make_bundle(_ctx(tree, log), "mspacman")
@@ -198,8 +198,8 @@ def test_two_remote_layouts_two_bundles(tree, log):
 
 
 def test_non_remote_layout_gets_no_bundle(tree, log):
-    tree_ini = tree.repo / "source" / "platformio.ini"
-    tree_ini.write_text("[arena]\nesp32_local = 91000 110500\nesp32_remote = 60000 110500\nrp2350 = 200000 0\n")
+    tree_ini = tree.repo / "source" / "firmware.toml"
+    tree_ini.write_text("[arena]\nesp32_local = [91000, 110500]\nesp32_remote = [60000, 110500]\nrp2350 = [200000, 0]\n")
     _plan_header(tree, "pacman", {"esp32_local": {"pacman_tiles": 0}, "esp32_remote": {"pacman_tiles": 1},
                                   "rp2350": {"pacman_tiles": 0}})
     info = bundles.make_bundle(_ctx(tree, log), "mspacman")
@@ -254,7 +254,7 @@ def test_game_without_asset_blobs_has_no_bundle(tree, log):
 
 def _games_tree(paths, names=("aaa", "bbb")):
     (paths.repo / "source").mkdir(parents=True, exist_ok=True)
-    (paths.repo / "source" / "platformio.ini").write_text("[arena]\nesp32_local = 91000 110500\nesp32_remote = 60000 110500\n")
+    (paths.repo / "source" / "firmware.toml").write_text("[arena]\nesp32_local = [91000, 110500]\nesp32_remote = [60000, 110500]\n")
     (paths.src).mkdir(parents=True, exist_ok=True)
     (paths.src / "machines.h").write_text("".join(f"#ifdef ENABLE_{n.upper()}\n#endif\n" for n in names))
     for n in names:

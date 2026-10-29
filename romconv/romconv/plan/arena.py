@@ -4,7 +4,7 @@
 #
 # Inputs: the planned assets in the job's manifest (raw and LZMA sizes),
 # ARENA_EXTRA / ARENA_RAM / ARENA_FLASH in its machine header (plain
-# literals), block sizes of every layout in [arena] of source/platformio.ini
+# literals), block sizes of every layout in [arena] of source/firmware.toml
 # (plan/layout.py); the build selects its block with ARENA_LAYOUT_<NAME>,
 # any other layout is an #error.
 #
@@ -22,7 +22,7 @@ from romconv.core.errors import ConversionError
 from romconv.core.manifest import Asset
 from romconv.emit.text import WIDTH, c_symbol
 from romconv.emit.write import module_path
-from romconv.plan.layout import define_name, ini_path, read_layouts, remote_layouts
+from romconv.plan.layout import define_name, config_path, read_layouts, remote_layouts
 from romconv.plan.solver import HighsSolver, Infeasible, Item, Problem, Solver, r4
 from romconv.remote.catalog import read_games
 
@@ -101,7 +101,7 @@ def extras_key(extras, any_order):
 def plan_header(game: str, plans: dict, types: dict[str, str], key: int,
                 layouts: dict[str, tuple[int, int]]) -> str:
     """Header text; plans = {layout: (modes, reserve)} for every layout in
-    layouts (read_layouts(), ini order), one #if block per layout selected
+    layouts (read_layouts(), file order), one #if block per layout selected
     by its build define, #error for any other. types = {name: element type}
     for the <name>_asset aliases, key = extras_key() of the machine's
     ARENA_EXTRA."""
@@ -121,7 +121,7 @@ def plan_header(game: str, plans: dict, types: dict[str, str], key: int,
             out.append(f"#define {name}_BLOCK " + {"PLAIN": "ARENA_ANY", "A": "ARENA_A", "B": "ARENA_B"}[mode])
             out.append(f"using {name}_asset = Asset<{types[name]}, {'PLAIN' if mode == 'PLAIN' else 'COMPRESSED'}>;")
         out.append(f"static constexpr ArenaPlan {ident}_arena_plan = {{ {reserve[0]}, {reserve[1]} }};")
-    out += ["#else", '#error "no Arena plan for this layout: add it to [arena] in platformio.ini and rerun romconv"',
+    out += ["#else", '#error "no Arena plan for this layout: add it to [arena] in firmware.toml and rerun romconv"',
             "#endif", "#endif", ""]
     return "\n".join(out)
 
@@ -142,7 +142,7 @@ def write_arena_plan(ctx: Context) -> None:
         raise ConversionError(f"{game}: no planned assets in {machine_dir}")
     try:
         # _remote rows only for a game remote builds have (the catalog)
-        layouts = read_layouts(ini_path(ctx.paths))
+        layouts = read_layouts(config_path(ctx.paths))
         if not read_games(ctx.paths).get(game, False):
             layouts = {n: r for n, r in layouts.items() if n not in remote_layouts(layouts)}
         extras, ram, flash, any_order = parse_machine_header(ctx.path(game + ".h"))

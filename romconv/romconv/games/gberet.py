@@ -76,7 +76,7 @@ def convert_set(ctx: Context, prefix: str, title: str, files: dict, rom_comment:
     log_sizes(ctx, sizes)
     if check_arena:
         # rom + tilemap in one block, spritemap in the other, in the tightest layout
-        a, b = layout.min_blocks(layout.read_layouts(layout.ini_path(ctx.paths)))
+        a, b = layout.min_blocks(layout.read_layouts(layout.config_path(ctx.paths)))
         g1, g2 = sizes["rom"] + sizes["tilemap"], sizes["spritemap"]
         if not ((g1 <= a and g2 <= b) or (g1 <= b and g2 <= a)):
             raise ConversionError(f"{prefix}: {g1} B and {g2} B do not fit Arena blocks {a} and {b}")

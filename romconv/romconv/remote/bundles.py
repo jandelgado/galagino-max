@@ -17,7 +17,7 @@ from romconv.emit.asset import PLAIN_DICT_BYTES
 from romconv.emit.lzma import lzma_decompress
 from romconv.emit.text import c_symbol
 from romconv.emit.write import banner
-from romconv.plan.layout import define_name, ini_path, read_layouts, remote_layouts
+from romconv.plan.layout import define_name, config_path, read_layouts, remote_layouts
 from romconv.remote.bundle import BundleWriter, bundle_hash, write_bundle
 from romconv.remote.catalog import NO_BLOBS, bundle_dirs, job_name, read_games
 
@@ -63,7 +63,7 @@ def _assets(game: str, paths: Paths, layout: str) -> list[tuple[str, bytes, byte
 
 
 def _header(game: str, refs: dict[str, tuple[str, bytes, int, int]]) -> str:
-    """refs = {layout: (hex name, digest, wire bytes, entry bytes)} in ini order."""
+    """refs = {layout: (hex name, digest, wire bytes, entry bytes)} in file order."""
     sym = c_symbol(game)
     out = [
         banner(__file__).rstrip("\n"),
@@ -102,7 +102,7 @@ def _build(items) -> tuple[bytes, int, dict[str, int]]:
 
 def make_bundle(ctx: Context, game: str) -> dict[str, dict[str, int | str]] | None:
     """Write one bundle per _remote layout and <game>_bundle.h; report numbers per layout."""
-    layouts = remote_layouts(read_layouts(ini_path(ctx.paths)))
+    layouts = remote_layouts(read_layouts(config_path(ctx.paths)))
     per_layout = {layout: _assets(game, ctx.paths, layout) for layout in layouts}
     if not any(per_layout.values()):
         # tables only (hero): nothing to download

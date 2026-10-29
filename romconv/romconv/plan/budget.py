@@ -7,14 +7,14 @@ from collections.abc import Mapping
 
 from romconv.core.context import Context
 from romconv.core.errors import ConversionError
-from romconv.plan.layout import ini_path, min_capacity, read_layouts
+from romconv.plan.layout import config_path, min_capacity, read_layouts
 from romconv.remote.catalog import read_games
 
 
 def _capacity(ctx: Context) -> int:
     game = ctx.job.machine or ctx.job.name
     remote = read_games(ctx.paths).get(game, False)
-    return min_capacity(read_layouts(ini_path(ctx.paths)), remote)
+    return min_capacity(read_layouts(config_path(ctx.paths)), remote)
 
 
 def check_budget(ctx: Context, total: int) -> None:

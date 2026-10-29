@@ -11,7 +11,8 @@ from romconv.core.manifest import Asset, Manifest
 from romconv.core.paths import Paths, default
 from romconv.plan.arena import (SCRATCH_BYTES, extras_key, parse_machine_header, plan_assets, plan_header, solve,
                                 write_arena_plan)
-from romconv.plan.layout import define_name, ini_path, min_blocks, min_capacity, read_layouts, remote_layouts
+from romconv.plan.layout import (config_path, define_name, min_blocks, min_capacity, read_layouts, read_max_list,
+                                 remote_layouts, write_max_list)
 from romconv.plan.solver import ExhaustiveSolver, HighsSolver
 
 W = [49152, 35040, 35040]  # Williams RAM + 2 scanout buffers
@@ -36,17 +37,18 @@ def _noop(ctx):
 # test_arena_layout
 
 
-def test_layouts_from_platformio_ini():
+def test_layouts_from_firmware_toml():
     # the repo's rows parse; values change with every Arena measurement
-    layouts = read_layouts(ini_path(default()))
+    layouts = read_layouts(config_path(default()))
     assert {"esp32_local", "esp32_remote"} <= set(layouts)
     assert all(a > 0 and b >= 0 for a, b in layouts.values()), layouts
 
 
-@pytest.mark.parametrize("row", ["x = 1 2 3", "x = -1 2", "x = 0 2", "x = a b", "bad-name = 1 2"])
+@pytest.mark.parametrize("row", ["x = [1, 2, 3]", "x = [-1, 2]", "x = [0, 2]", 'x = ["a", "b"]', "x = [true, 2]",
+                                 "x = 5", "bad-name = [1, 2]"])
 def test_bad_layout_row_rejected(tmp_path, row):
     # a bad row is an error naming it, not a silent default
-    p = tmp_path / "platformio.ini"
+    p = tmp_path / "firmware.toml"
     p.write_text(f"[arena]\n{row}\n")
     with pytest.raises(ValueError) as err:
         read_layouts(p)
@@ -54,17 +56,51 @@ def test_bad_layout_row_rejected(tmp_path, row):
 
 
 def test_inline_comment_allowed(tmp_path):
-    # PlatformIO strips "; ..." and "# ..." after a value; romconv must read the same row
-    p = tmp_path / "platformio.ini"
-    p.write_text("[arena]\nrp2350 = 118784 0 ; one pool\nx = 1 2 # two\n")
+    p = tmp_path / "firmware.toml"
+    p.write_text("[arena]\nrp2350 = [118784, 0] # one pool\nx = [1, 2]\n")
     assert read_layouts(p) == {"rp2350": (118784, 0), "x": (1, 2)}
 
 
 def test_no_arena_section_rejected(tmp_path):
-    p = tmp_path / "platformio.ini"
-    p.write_text("[env]\nplatform = native\n")
+    p = tmp_path / "firmware.toml"
+    p.write_text("[modes]\nlocal = {}\n")
     with pytest.raises(ValueError):
         read_layouts(p)
+
+
+def test_bad_toml_named(tmp_path):
+    p = tmp_path / "firmware.toml"
+    p.write_text("[arena\n")
+    with pytest.raises(ValueError, match="firmware.toml"):
+        read_layouts(p)
+
+
+_MAX_FILE = """\
+# head
+[games]
+# built in
+builtin = [
+  "pacman",
+]
+# the pick
+max = [
+  "a",
+  "b",
+]
+
+[modes]
+max = { games = ["max"] }
+"""
+
+
+def test_write_list_keeps_rest(tmp_path):
+    # dev.games_max --write rewrites only the max array; comments and other keys stay byte-identical
+    p = tmp_path / "firmware.toml"
+    p.write_text(_MAX_FILE)
+    assert read_max_list(p) == ["a", "b"]
+    write_max_list(p, ["c", "a"])
+    assert p.read_text() == _MAX_FILE.replace('  "a",\n  "b",\n', '  "c",\n  "a",\n')
+    assert read_max_list(p) == ["c", "a"]
 
 
 def test_min_blocks_and_capacity():
@@ -252,14 +288,14 @@ def test_plan_assets_ignore_unplanned():
 
 
 def _plan_repo(tmp_path, catalog=True):
-    """tmp repo with a two-layout platformio.ini and a machine header for game g, in
+    """tmp repo with a two-layout firmware.toml and a machine header for game g, in
     machines.h (the remote catalog) unless catalog is False."""
     paths = Paths(tmp_path)
-    ini = ini_path(paths)
+    ini = config_path(paths)
     ini.parent.mkdir(parents=True)
     paths.src.mkdir()
     (paths.src / "machines.h").write_text("#ifdef ENABLE_G\n#endif\n" if catalog else "")
-    ini.write_text(f"[arena]\nesp32_local = {LOCAL[0]} {LOCAL[1]}\nesp32_remote = {REMOTE[0]} {REMOTE[1]}\n")
+    ini.write_text(f"[arena]\nesp32_local = [{LOCAL[0]}, {LOCAL[1]}]\nesp32_remote = [{REMOTE[0]}, {REMOTE[1]}]\n")
     machine = paths.machines / "g"
     machine.mkdir(parents=True)
     (machine / "g.h").write_text("class g {\n  static constexpr uint32_t ARENA_EXTRA[] = { 49152, 35040 };\n"
@@ -267,7 +303,7 @@ def _plan_repo(tmp_path, catalog=True):
     return paths
 
 
-# the same split in both layouts of the fixture ini: g fits each
+# the same split in both layouts of the fixture config: g fits each
 _G_BLOCK = """\
 #define g_cmap_PLAIN 1
 #define g_cmap_BLOCK ARENA_ANY
@@ -296,7 +332,7 @@ static_assert(Arena::BLOCK_A_SIZE == 118784 && Arena::BLOCK_B_SIZE == 110500, "A
 static_assert(Arena::BLOCK_A_SIZE == 69000 && Arena::BLOCK_B_SIZE == 110500, "Arena layout changed: rerun romconv");
 """ + _G_BLOCK + """\
 #else
-#error "no Arena plan for this layout: add it to [arena] in platformio.ini and rerun romconv"
+#error "no Arena plan for this layout: add it to [arena] in firmware.toml and rerun romconv"
 #endif
 #endif
 """

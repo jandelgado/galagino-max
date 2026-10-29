@@ -1,4 +1,4 @@
-"""Pick [games_max] of source/platformio.ini: the most games in 4 MB.
+"""Pick [games] max of source/firmware.toml: the most games in 4 MB.
 
     uv run python -m dev.games_max OBJDIR --built BYTES [--budget N] [--margin N]
                                    [--built-dram BYTES --dram N] [--must X,Y] [--write]
@@ -8,7 +8,7 @@ one section per function (pio_perf.ini env measure-all: mode_full flags,
 GAME_NO_IRAM, cmake -DGALAGINO_NO_LTO=1; its link fails on purpose, the
 ESP32 maps 4 MB of flash, the objects under .pio/build/measure-all/src
 remain). --built: the image size of the azdelivery-max build of the list
-that is in platformio.ini now: it calibrates the model (IDF libraries,
+that is in firmware.toml now: it calibrates the model (IDF libraries,
 linker relaxation) as one offset. See romconv.plan.flashpick for the model.
 
 --built-dram / --dram: static DRAM (dram0 data + bss, xtensa-esp32-elf-size -A)
@@ -24,10 +24,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from romconv.plan import flashpick
+from romconv.plan import flashpick, layout
 
 _REPO = Path(__file__).resolve().parents[2]
-_INI = _REPO / "source" / "platformio.ini"
+_CONFIG = _REPO / "source" / "firmware.toml"
 _MACHINES_H = _REPO / "source" / "src" / "machines.h"
 _OBJDUMP = Path.home() / ".platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32-elf-objdump"
 _APP0 = 0x3f0000          # partitions.csv app0
@@ -121,19 +121,13 @@ def _roots(sections, symbols, classes):
     return base, per_game
 
 
+# upper case, as the ENABLE_ guards of machines.h
 def _current_list():
-    ini = _INI.read_text()
-    block = ini[ini.index("[games_max]"):]
-    block = block[:block.index("\n;", 1)] if "\n;" in block[1:] else block
-    return re.findall(r"ENABLE_([A-Z0-9_]+)", block)
+    return [g.upper() for g in layout.read_max_list(_CONFIG)]
 
 
 def _write_list(games, own):
-    ini = _INI.read_text()
-    a = ini.index("[games_max]")
-    b = ini.index("\n;", a + 1) + 1
-    body = "[games_max]\nlist =\n" + "".join(f"    -D ENABLE_{g}\n" for g in sorted(games, key=lambda g: own.get(g, 0))) + "\n"
-    _INI.write_text(ini[:a] + body + ini[b:])
+    layout.write_max_list(_CONFIG, [g.lower() for g in sorted(games, key=lambda g: own.get(g, 0))])
 
 
 def _cost(groups, games):
@@ -151,7 +145,7 @@ def main(argv):
     ap.add_argument("--built-dram", type=int, help="static DRAM bytes of azdelivery-max with the current list")
     ap.add_argument("--dram", type=int, help="static DRAM budget (needs --built-dram)")
     ap.add_argument("--must", default="", help="comma separated games that stay in")
-    ap.add_argument("--write", action="store_true", help="write the pick into platformio.ini")
+    ap.add_argument("--write", action="store_true", help="write the pick into firmware.toml")
     a = ap.parse_args(argv)
     if a.dram is not None and a.built_dram is None:
         ap.error("--dram needs --built-dram")
@@ -193,7 +187,7 @@ def main(argv):
         print(f"  {g:14s} {own[g]:8d} {'in' if g in chosen.games else ''}")
     if a.write:
         _write_list(chosen.games, own)
-        print(f"\nwrote {len(chosen.games)} games to {_INI}: build azdelivery-max to confirm the size")
+        print(f"\nwrote {len(chosen.games)} games to {_CONFIG}: build azdelivery-max to confirm the size")
 
 
 if __name__ == "__main__":

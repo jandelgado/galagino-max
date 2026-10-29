@@ -24,7 +24,7 @@ def _pack(tile):
 
 def _convert(ctx: Context) -> None:
     # the tiles and their map share one block in every layout
-    arena_block = max(layout.min_blocks(layout.read_layouts(layout.ini_path(ctx.paths))))
+    arena_block = max(layout.min_blocks(layout.read_layouts(layout.config_path(ctx.paths))))
     main = (ctx.rom("arkangc/arkgc.1", "beb759cee68009a06824b755d2aa26d7d436b5b0") +
             ctx.rom("arkangc/arkgc.2", "731c9224616a338084edd6944c754d68eabba7f2"))[:_ROM_SIZE]
     gfx = (ctx.rom("a75__03.ic64", "ac053cc4908b4075f918748b89570e07a0ba5116") +
