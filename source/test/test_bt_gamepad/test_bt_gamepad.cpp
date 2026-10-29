@@ -72,7 +72,7 @@ static void test_button_map(void) {
   TEST_ASSERT_EQUAL_HEX(BUTTON_L1, btGamepadButtons(pad(GamepadState::L1)));
   TEST_ASSERT_EQUAL_HEX(BUTTON_R1, btGamepadButtons(pad(GamepadState::R1)));
   TEST_ASSERT_EQUAL_HEX(BUTTON_START, btGamepadButtons(pad(GamepadState::START)));
-  TEST_ASSERT_EQUAL_HEX(BUTTON_COIN, btGamepadButtons(pad(GamepadState::SELECT)));
+  TEST_ASSERT_EQUAL_HEX(BUTTON_COIN | BUTTON_EXTRA, btGamepadButtons(pad(GamepadState::SELECT)));
   TEST_ASSERT_EQUAL_HEX(BUTTON_MENU, btGamepadButtons(pad(GamepadState::SYSTEM)));
   TEST_ASSERT_EQUAL_HEX(0, btGamepadButtons(pad(GamepadState::L2 | GamepadState::R2)));
 }
@@ -100,6 +100,23 @@ static void test_fire_held_at_start_blocks_pad_fire(void) {
   TEST_ASSERT_EQUAL_HEX(BUTTON_FIRE, input.buttons_get() & BUTTON_FIRE);
 }
 
+// SELECT is the COIN button: held 3 s it ends the game (as a GPIO COIN pin)
+static void test_select_held_resets(void) {
+  Input input;
+  input.init(false);
+  bool reset = false;
+  input.onDoReset([&reset]() { reset = true; });
+  hal::host::setGamepad(pad(GamepadState::SELECT));
+  hal::host::setMicros(1000);
+  input.buttons_get();
+  hal::host::setMicros(2000000);
+  input.buttons_get();
+  TEST_ASSERT_FALSE(reset);
+  hal::host::setMicros(3200000);
+  input.buttons_get();
+  TEST_ASSERT_TRUE(reset);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_disconnected_is_zero);
@@ -109,5 +126,6 @@ int main(int, char **) {
   RUN_TEST(test_button_map);
   RUN_TEST(test_pad_replaces_gpio);
   RUN_TEST(test_fire_held_at_start_blocks_pad_fire);
+  RUN_TEST(test_select_held_resets);
   return UNITY_END();
 }

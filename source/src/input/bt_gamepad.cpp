@@ -21,7 +21,7 @@ static constexpr ButtonMap BUTTON_MAP[] = {
   {GamepadState::L1, BUTTON_L1},
   {GamepadState::R1, BUTTON_R1},
   {GamepadState::START, BUTTON_START},
-  {GamepadState::SELECT, BUTTON_COIN},
+  {GamepadState::SELECT, BUTTON_COIN | BUTTON_EXTRA},  // as a COIN pin: held 3 s ends the game
   {GamepadState::SYSTEM, BUTTON_MENU},
 };
 
