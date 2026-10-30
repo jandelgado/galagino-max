@@ -249,7 +249,7 @@ void yiear::prepare_frame(void) {
     const uint8_t attr = video.spr0[offs];
     int y = 240 - video.spr0[offs + 1] - 16;
     if (offs < SPRITE_TOP_FIX) { y++; }
-    const int x = video.spr1[offs] - 8;
+    const int x = video.spr1[offs] - CROP;
     if (x <= -16 || x >= OUT_WIDTH || y <= -16 || y >= VIS_LINES) { continue; }
 
     sprite_S &spr = sprite[active_sprites++];
@@ -267,12 +267,12 @@ void yiear::render_line(unsigned short *dst, int line) {
   const int ty = ny & 7;
   const uint8_t *vram = video.vram + ((ny >> 3) - FIRST_TILE_ROW) * 64;
 
-  // native x 8..247: tile columns 1..30
-  for (int col = 1; col <= 30; col++) {
+  // native x CROP..CROP + OUT_WIDTH - 1: tile columns 1..30 (0..31 on 256)
+  for (int col = CROP / 8; col < (CROP + OUT_WIDTH) / 8; col++) {
     const uint8_t attr = vram[col * 2];
     const uint16_t code = vram[col * 2 + 1] | ((attr & 0x10) << 4);
     const uint32_t bits = tiles[code][(attr & 0x40) ? 7 - ty : ty];
-    unsigned short *d = dst + (col - 1) * 8;
+    unsigned short *d = dst + col * 8 - CROP;
     const bool flipx = attr & 0x80;
     for (int px = 0; px < 8; px++) {
       const int sx = flipx ? 7 - px : px;

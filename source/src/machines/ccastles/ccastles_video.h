@@ -2,13 +2,16 @@
 #define CCASTLES_VIDEO_H
 
 #include <stdint.h>
+#include "../../hal/video_width.h"
 
 // Pure video helpers for ccastles. MAME atari/ccastles.cpp: paletteram_w,
 // write_vram, bitmode_*, screen_update.
 namespace ccastles_video {
 
-constexpr int OUT_WIDTH = 240;
-constexpr int CROP_LEFT = 8;      // native x 8..247 shown, edges hold no game content
+constexpr int NATIVE_WIDTH = 256;
+// 240 columns: native x 8..247 shown (edges hold no game content); 256 (DVI): all
+constexpr int OUT_WIDTH = hal::fitWidth(NATIVE_WIDTH, 240);
+constexpr int CROP_LEFT = (NATIVE_WIDTH - OUT_WIDTH) / 2;
 constexpr int FIRST_LINE = 24;    // sync PROM: vblank lines 0..23
 constexpr int VIS_LINES = 232;    // lines 24..255
 constexpr int FIRST_STRIP = 4;    // 29 strips: panel rows 32..263

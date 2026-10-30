@@ -61,8 +61,8 @@ static const uint8_t DIAL_STEP = 4;  // dial counts per frame for L1/R1
 
 static const uint8_t LED_FLASH_FRAMES = 4;
 
-// panel layout: native half-res X 8-247 -> column 247 - X, Y -> row Y + 24
-static const int X_FIRST = 8, X_LAST = 247;
+// panel layout: native half-res X X_FIRST..X_LAST -> column X_LAST - X,
+// Y -> row Y + 24
 static const int FIRST_STRIP = 3;  // panel strip of tile row 0
 
 dotron::dotron()
@@ -336,18 +336,18 @@ void dotron::prepare_frame(void) {
   }
 }
 
-// One strip = native tile row ty. Panel column = 247 - X, so tile tx covers
-// columns 240 - 8 * tx .. +7 (tx 1-30 visible). Stored gfx is mirrored:
-// stored pixel c lands on column 240 - 8 * tx + c; native flipx reads
-// stored pixel 7 - c, flipy gfx row 7 - r.
+// One strip = native tile row ty. Panel column = X_LAST - X, so tile tx
+// covers columns X_LAST - 7 - 8 * tx .. +7 (240: tx 1-30 visible, 256: 0-31).
+// Stored gfx is mirrored: stored pixel c lands on column X_LAST - 7 - 8 * tx
+// + c; native flipx reads stored pixel 7 - c, flipy gfx row 7 - r.
 void dotron::render_tiles(int ty) {
-  for (int tx = 1; tx <= TILE_COLS - 2; tx++) {
+  for (int tx = X_FIRST / 8; tx <= X_LAST / 8; tx++) {
     const uint8_t *t = video.tiles + (ty * TILE_COLS + tx) * 2;
     const uint16_t w = t[0] | (t[1] << 8);
     const uint32_t *gfx = tiles[w & 0x1ff];  // 512 tiles, code bit 9 wraps
     const uint16_t *pal = video.pal + ((w >> 12) & 3) * 16;
     const bool flipx = (w >> 10) & 1, flipy = (w >> 11) & 1;
-    const int col = OUT_WIDTH - 8 * tx;
+    const int col = X_LAST - 7 - 8 * tx;
 
     for (int r = 0; r < 8; r++) {
       const uint32_t bits = gfx[flipy ? 7 - r : r];

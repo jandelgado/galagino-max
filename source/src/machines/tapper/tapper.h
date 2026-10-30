@@ -1,6 +1,7 @@
 #ifndef TAPPER_H
 #define TAPPER_H
 
+#include "../../hal/video_width.h"
 #include "../machineBase.h"
 #include "../../emulation/seqlock.h"
 #include "../../emulation/z80ctc.h"
@@ -59,7 +60,11 @@ public:
 #endif
 
 private:
-  static const int OUT_WIDTH = 240;
+  static constexpr int NATIVE_WIDTH = 256;
+  // 240 columns: native x 8..247; 256 (DVI): all
+  static constexpr int OUT_WIDTH = hal::fitWidth(NATIVE_WIDTH, 240);
+  static constexpr int CROP = (NATIVE_WIDTH - OUT_WIDTH) / 2;
+  static constexpr int X_FIRST = CROP, X_LAST = CROP + OUT_WIDTH - 1;
   static const int TILE_COLS = 32;  // native X / 8
   static const int TILE_ROWS = 30;  // native Y / 8
   static const int TILE_BYTES = TILE_COLS * TILE_ROWS * 2;

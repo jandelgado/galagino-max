@@ -1,6 +1,7 @@
 #ifndef TRACKFLD_H
 #define TRACKFLD_H
 
+#include "../../hal/video_width.h"
 #include "../machineBase.h"
 #include "../../emulation/sn76489.h"
 #include "../../emulation/vlm5030.h"
@@ -64,7 +65,10 @@ public:
 #endif
 
 private:
-  static const int OUT_WIDTH = 240;
+  static constexpr int NATIVE_WIDTH = 256;
+  // 240 columns: native x 8..247; 256 (DVI): all
+  static constexpr int OUT_WIDTH = hal::fitWidth(NATIVE_WIDTH, 240);
+  static constexpr int CROP = (NATIVE_WIDTH - OUT_WIDTH) / 2;
   static const int VIS_LINES = 224;
   static const int FIRST_TILE_ROW = 2;  // native y 16
   static const int VIS_TILE_ROWS = 28;
