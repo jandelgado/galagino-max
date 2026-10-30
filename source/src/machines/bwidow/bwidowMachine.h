@@ -28,6 +28,9 @@ protected:
   bwidowMachine(uint8_t (*read)(m6502_t *, uint16_t),
                 void (*write)(m6502_t *, uint16_t, uint8_t),
                 const Map &map, const bwidow_layout::Screen &screen,
+#ifdef HAL_VIDEO_NATIVE
+                const bwidow_layout::Screen &screen_native, uint16_t native_width,
+#endif
                 uint8_t dsw0, uint8_t dsw1);
 
   uint8_t pokey_read(uint8_t n, uint8_t reg);
@@ -52,6 +55,9 @@ private:
 
   const Map map;
   const bwidow_layout::Screen screen;
+#ifdef HAL_VIDEO_NATIVE
+  const bwidow_layout::Screen screen_native;
+#endif
   const uint8_t dsw[POKEYS];
   avg::State avg_state; // emulation core only (decode_frame)
   uint32_t avg_done_at = 0; // cpu_cycles() the AVG halts

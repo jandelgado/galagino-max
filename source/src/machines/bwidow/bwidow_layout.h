@@ -12,6 +12,9 @@ namespace bwidow_layout {
 // AVG flip (set here = flipped)
 enum : uint8_t { FLIP_X = 0x40, FLIP_Y = 0x80 };
 
+// native HDMI: avg::Memory::frac_bits, coordinates in 1/16 beam units
+static const uint8_t NATIVE_FRAC = 4;
+
 // Line::color = color111 << avg::SW_COLOR_SHIFT | level
 static const uint8_t PALETTE_SIZE = 128;
 
