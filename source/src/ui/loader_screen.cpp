@@ -87,7 +87,10 @@ void LoaderScreen::draw() {
     snprintf(count, sizeof(count), "%u OF %u", (unsigned)got, (unsigned)total);
   }
 
+  // one part per screen, whatever the last game used
+  const uint32_t start = hal::micros();
   video.setViewport(WIDTH);
+  video.setHalfRate(false);
   for (uint8_t row = 0; row < ROWS; row++) {
     memset(frameBuffer, 0, WIDTH * ROW_LINES * sizeof(uint16_t));
     hud_text(frameBuffer, WIDTH, row, HUD_FLIP_NONE, MARGIN, TITLE_Y, HUD_GREEN, title);
@@ -98,6 +101,8 @@ void LoaderScreen::draw() {
     drawBar(row, BAR_Y);
     video.submit(frameBuffer, WIDTH * ROW_LINES);
   }
+  // DVI takes the next screen only after it
+  video.endFrame(0, start);
   lastDraw = hal::millis();
 }
 #endif

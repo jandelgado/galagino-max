@@ -57,7 +57,7 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
 - `void setHalfRate(bool)`: the machine's preference, called every frame before `screenParts()`.
 - `uint8_t screenParts() const`: 1, or 2 when a screen takes two emulation frames.
 - `void submit(const uint16_t *strip, uint32_t pixels)`: may block. A screen is 36 strips, then
-  `endFrame()`: DVI drops strips past 36 until it (the remote loader skips it: ESP32 only).
+  `endFrame()`: DVI drops strips past 36 until it.
 - `void endFrame(uint8_t part, uint32_t frameStartUs)`: after the last strip of a part; returns
   when the next part may start (backend pacing: deadline sleep, or scanout position).
 - `CANVAS_W`, `CANVAS_H` (compile-time): game pixels the output can show (SPI TFT and null

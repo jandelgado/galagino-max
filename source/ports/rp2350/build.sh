@@ -23,11 +23,6 @@ export BLUEPAD32_PATH=${BLUEPAD32_PATH:-$HOME/src/external/pico-deps/bluepad32}
 out=$here/build/$board-${game//,/-}${CLOCK_KHZ:+-$CLOCK_KHZ}
 [ "$mode" = local ] || out=$out-$mode
 mkdir -p "$out"
-# remote: the WiFi and server lines of config_local.h (the rest is ESP32 setup)
-if [ "$mode" = remote ]; then
-  grep -E '^#define GALAGINO_(WIFI_SSID|WIFI_PASS|ASSETS_URL) ' "$here/../../src/config_local.h" \
-    > "$out/config_wifi.h" || true
-fi
 # the DVI framebuffer takes part of Arena block B
 layout=rp2350
 grep -q "define HAL_VIDEO_DVI_HSTX" "$here/../../src/boards/$board.h" && layout=rp2350_dvi

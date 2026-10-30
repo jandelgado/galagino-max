@@ -35,12 +35,8 @@
   #define USE_PIO_CONFIG
 #endif
 
-#if __has_include("config_local.h") && !defined(HAL_RP2350)
+#if __has_include("config_local.h")
 #include "config_local.h"
-#endif
-// RP2350 remote builds: only the WiFi lines of config_local.h (build.sh)
-#if defined(HAL_RP2350) && defined(ASSETS_REMOTE) && __has_include("config_wifi.h")
-#include "config_wifi.h"
 #endif
 
 // Backend axes already chosen by a build flag or config_local.h: the profile
