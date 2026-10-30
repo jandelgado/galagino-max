@@ -20,6 +20,18 @@ static const uint8_t RED_STRIPS = 11;
 // Returns the kept count.
 uint16_t map(vec2d::Line *lines, uint16_t count);
 
+#ifdef HAL_VIDEO_NATIVE
+// native HDMI: avg::Memory::frac_bits, coordinates in 1/16 beam units, one
+// scale onto NATIVE_WIDTH x 480 (square pixels)
+static const uint8_t NATIVE_FRAC = 4;
+static const uint16_t NATIVE_WIDTH = 614;
+// red overlay above native y 80 -> row 96 = strip 12
+static const uint8_t RED_STRIPS_NATIVE = 12;
+
+// map() for native: text at its own size, the glyph tag removed
+uint16_t map_native(vec2d::Line *lines, uint16_t count);
+#endif
+
 } // namespace bzone_layout
 
 #endif

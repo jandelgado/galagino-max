@@ -83,4 +83,41 @@ uint16_t map(vec2d::Line *lines, uint16_t count) {
   return kept;
 }
 
+#ifdef HAL_VIDEO_NATIVE
+// VISIBLE in 1/16 units; 6384 -> rows 0..479 and 8176 -> columns 0..613 as
+// mul >> 16 (1.20 px a unit)
+static const int16_t NATIVE_X0 = 32 << NATIVE_FRAC, NATIVE_X1 = 543 << NATIVE_FRAC;
+static const int16_t NATIVE_Y1 = 399 << NATIVE_FRAC;
+static const vec2d::Rect VISIBLE_NATIVE = {NATIVE_X0, 0, NATIVE_X1, NATIVE_Y1};
+static const int32_t NATIVE_MUL = 4918, NATIVE_SHIFT = 16;
+
+static_assert((NATIVE_Y1 * NATIVE_MUL) >> NATIVE_SHIFT == hal::VIDEO_NATIVE_H - 1,
+              "bottom edge on the last row");
+static_assert(((NATIVE_X1 - NATIVE_X0) * NATIVE_MUL) >> NATIVE_SHIFT == NATIVE_WIDTH - 1,
+              "right edge on the last column");
+static_assert(NATIVE_WIDTH % 2 == 0, "even width");
+static_assert(((80 << NATIVE_FRAC) * NATIVE_MUL) >> NATIVE_SHIFT == RED_STRIPS_NATIVE * 8,
+              "overlay boundary on a strip edge");
+
+static int16_t to_native(int16_t v) { return (v * NATIVE_MUL) >> NATIVE_SHIFT; }
+
+uint16_t map_native(vec2d::Line *lines, uint16_t count) {
+  uint16_t kept = 0;
+  for (uint16_t i = 0; i < count; i++) {
+    vec2d::Line l = lines[i];
+    l.color &= ~avg::GLYPH;
+    if (!vec2d::clip(l, VISIBLE_NATIVE)) {
+      continue;
+    }
+
+    l.x0 = to_native(l.x0 - NATIVE_X0);
+    l.x1 = to_native(l.x1 - NATIVE_X0);
+    l.y0 = to_native(l.y0);
+    l.y1 = to_native(l.y1);
+    lines[kept++] = l;
+  }
+  return kept;
+}
+#endif
+
 } // namespace bzone_layout

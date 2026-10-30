@@ -69,6 +69,10 @@ tempest::tempest()
   rom = tempest_rom.data();
   vrom = tempest_vrom.data();
   tempest_layout::palette(pal);
+#ifdef HAL_VIDEO_NATIVE
+  native = true;
+  out_width = tempest_layout::NATIVE_WIDTH;
+#endif
 }
 
 void tempest::reset() {
@@ -262,11 +266,20 @@ void tempest::main_write(m6502_t *cpu, uint16_t a, uint8_t v) {
 
 uint16_t tempest::decode_frame(const uint8_t *vram) {
   const avg::Memory m = {vram, TP_VRAM_SIZE, vrom, AVG_ROM_BASE, TP_VROM_SIZE, 0, 0, avg::TEMPEST,
-                         memory + COLOR_OFS};
+                         memory + COLOR_OFS
+#ifdef HAL_VIDEO_NATIVE
+                         , nullptr, false, uint8_t(native ? tempest_layout::NATIVE_FRAC : 0)
+#endif
+  };
   return avg::decode(m, avg_state, work, MAX_LINES);
 }
 
 uint16_t tempest::map_lines(uint16_t count) {
+#ifdef HAL_VIDEO_NATIVE
+  if (native) {
+    return tempest_layout::map_native(work, count, flip);
+  }
+#endif
   return tempest_layout::map(work, count, flip);
 }
 
