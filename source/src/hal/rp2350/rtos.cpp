@@ -20,6 +20,9 @@ void taskExit() { vTaskDelete(NULL); }
 
 void yield() { taskYIELD(); }
 
+uint32_t rtosHeapFree() { return xPortGetFreeHeapSize(); }
+uint32_t rtosHeapMinFree() { return xPortGetMinimumEverFreeHeapSize(); }
+
 int coreId() { return portGET_CORE_ID(); }
 
 void sleepMs(uint32_t ms) {

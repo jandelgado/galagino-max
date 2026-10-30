@@ -40,7 +40,8 @@ MemInfo memInfoData() { return memInfo(); }
 
 void memDump() {
   const MemInfo m = memInfo();
-  printf("heap free %u\n", (unsigned)m.free);
+  printf("heap free %u, rtos heap free %u (min %u)\n", (unsigned)m.free,
+         (unsigned)rtosHeapFree(), (unsigned)rtosHeapMinFree());
 }
 
 void *allocSpare(uint32_t bytes) { return malloc(bytes); }

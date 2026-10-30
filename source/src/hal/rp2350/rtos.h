@@ -28,6 +28,10 @@ void yield();
 
 int coreId();
 
+// FreeRTOS heap (task stacks, kernel objects): free now and lowest ever
+uint32_t rtosHeapFree();
+uint32_t rtosHeapMinFree();
+
 // At least one tick for any non-zero request: a zero-tick delay would not
 // yield.
 void sleepMs(uint32_t ms);
