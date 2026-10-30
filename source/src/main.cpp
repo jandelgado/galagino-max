@@ -19,6 +19,7 @@
 #include "emulation/arena.h"
 #include "emulation/audio.h"
 #include "hal/video.h"
+#include "hal/video_width.h"
 #include "emulation/input.h"
 #include "machines/menu/menu.h"
 #include "emulation/emulation.h"
@@ -75,6 +76,9 @@ Audio audio;  // not copy-initialized: holds atomics (ima_adpcm::Voice)
 hal::Video video;
 static_assert(hal::Video::CANVAS_W >= 240 && hal::Video::CANVAS_H >= 288,
               "video canvas smaller than the 240 x 288 strip picture");
+static_assert(hal::Video::MAX_WIDTH == hal::VIDEO_MAX_WIDTH &&
+              hal::Video::CANVAS_W >= hal::VIDEO_MAX_WIDTH,
+              "video_width.h disagrees with the video backend");
 Input input = Input();
 #ifdef LED_PIN
   Led led = Led();
@@ -164,7 +168,7 @@ void galagino_setup(void) {
            (int)m.largest, (int)m.free);
     abort();
   }
-  frame_buffer = (unsigned short*)hal::allocSpare(240 * 8 * 2);
+  frame_buffer = (unsigned short*)hal::allocSpare(hal::VIDEO_MAX_WIDTH * 8 * 2);
   sprite_buffer = (sprite_S*)hal::allocSpare(128 * sizeof(sprite_S));
 #ifdef HEAP_PROBE
   heapProbeDump("after-buffers");

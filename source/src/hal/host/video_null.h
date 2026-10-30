@@ -10,6 +10,8 @@ class NullVideo {
 public:
   // game pixels available: as the SPI panel
   enum : uint16_t { CANVAS_W = 240, CANVAS_H = 320 };
+  // widest strip (video_width.h)
+  enum : uint16_t { MAX_WIDTH = 240 };
 
   void begin() {}
   void setViewport(uint16_t) {}

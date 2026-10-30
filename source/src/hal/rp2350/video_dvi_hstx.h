@@ -2,7 +2,7 @@
 #define HAL_RP2350_VIDEO_DVI_HSTX_H
 
 // DVI (HDMI connector) over the RP2350's HSTX, 640x480 at 60 Hz. Submitted
-// strips go to a 240 x 288 framebuffer; the scanout IRQ builds each output
+// strips go to a 256 x 288 framebuffer; the scanout IRQ builds each output
 // line from it (dvi_line.h). A TV has no picture memory of its own: without
 // the framebuffer every strip would have to beat the beam, and slow frames
 // (many sprites, half rate machines) showed black lines. The scanout is the
@@ -35,6 +35,8 @@ public:
     CANVAS_W = DVI_SCALE == 1 ? 640 : 320,
     CANVAS_H = DVI_SCALE == 1 ? 480 : 320
   };
+  // widest strip (video_width.h), the framebuffer row width
+  enum : uint16_t { MAX_WIDTH = 256 };
 
   void begin();
   void setViewport(uint16_t width) { viewport_width = width; }
