@@ -35,7 +35,7 @@ static const uint8_t FWD = 1, BACK = 0xff;
 static const int16_t STOP_MARGIN = 0x10;
 
 // X pan: view x window and step thresholds (same shape as the Y rule)
-static const int16_t PAN_LO = 64, PAN_HI = 176, PAN_MID = 16, PAN_FAR = 48;
+static const int16_t PAN_LO = 64, PAN_HI = marble_video::OUT_W - PAN_LO, PAN_MID = 16, PAN_FAR = 48;
 
 // lowest sy of the players that steer the camera (silly: highest); only player 1 here
 int16_t playerSy(const Mem &m, int16_t none, bool silly) {

@@ -17,8 +17,8 @@ static const uint8_t FILL_SETS = 8;
 static const int16_t MIN_X = 8, MAX_X = 0x148, MIN_Y = 0, MAX_Y = 0xe0;  // pixels
 
 // view position of a slot: MO x = x - 8 (left half), top line 224 - y (MARBLE.md "Attract"),
-// the arcade screen 48 px left of and 24 lines above the view's
-static const int16_t VIEW_DX = -8 - 48, VIEW_Y = 224 + 24;
+// the arcade screen 48 px (40 on 256 columns) left of and 24 lines above the view's
+static const int16_t VIEW_DX = -8 - (marble_video::ARCADE_W - marble_video::OUT_W) / 2, VIEW_Y = 224 + 24;
 
 // random velocity: rng(96) - 0x30, moved 0x10 away from 0
 static uint16_t velocity(Mem &m) {
