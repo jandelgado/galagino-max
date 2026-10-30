@@ -1,6 +1,7 @@
 #ifndef GOTTLIEB_VIDEO_H
 #define GOTTLIEB_VIDEO_H
 
+#include "../../hal/video_width.h"
 #include <stdint.h>
 #include <string.h>
 
@@ -15,8 +16,8 @@
 // row, one or two sprite words per sprite.
 //
 // ROT0 (Tylz, *Rot0), native 256 x 240 to 240 x 240, window native x 4-243
-// (content spans 8-243: sprites reach 243, tiles end at 239):
-//   panel column = native x - 4, panel line = native y + 20
+// (content spans 8-243: sprites reach 243, tiles end at 239), all 256 on DVI:
+//   panel column = native x - ROT0_LEFT, panel line = native y + 20
 // Here tile and sprite words hold a native row instead of a column.
 namespace gottlieb_video {
 
@@ -145,8 +146,9 @@ inline void renderStrip(int row, const uint8_t *vram, uint8_t ctrl, const uint16
 // ---- ROT0 ----
 
 constexpr int ROT0_TOP = 20;        // first panel line (native y 0)
-constexpr int ROT0_LEFT = 4;        // native x of panel column 0
-constexpr int ROT0_TILE_COLS = (WIDTH + ROT0_LEFT + 7) / 8;   // 31, the last one partly
+constexpr int ROT0_WIDTH = hal::fitWidth(NATIVE_W, WIDTH);    // panel columns
+constexpr int ROT0_LEFT = ROT0_WIDTH == NATIVE_W ? 0 : 4;     // native x of panel column 0
+constexpr int ROT0_TILE_COLS = (ROT0_WIDTH + ROT0_LEFT + 7) / 8;  // 31 (the last one partly), 32
 
 // sprites that can reach the visible area, in drawing order
 inline int listSpritesRot0(const uint8_t *spr, Sprite *out) {
@@ -154,7 +156,7 @@ inline int listSpritesRot0(const uint8_t *spr, Sprite *out) {
   for (int i = 0; i < SPRITES; i++) {
     const uint8_t *s = spr + 4 * i;
     const int x = s[1] - SPRITE_DX, y = s[0] - SPRITE_DY;
-    if (x + SPRITE_SIZE <= SPRITE_CLIP_X || x >= ROT0_LEFT + WIDTH || y + SPRITE_SIZE <= 0 ||
+    if (x + SPRITE_SIZE <= SPRITE_CLIP_X || x >= ROT0_LEFT + ROT0_WIDTH || y + SPRITE_SIZE <= 0 ||
         y >= TILE_ROWS * 8) {
       continue;
     }
@@ -184,7 +186,7 @@ inline void drawTileRow(int y, const uint8_t *vram, const uint16_t *pens, const 
       continue;
     }
     const int k0 = tx == 0 ? ROT0_LEFT : 0;
-    const int k1 = tx == ROT0_TILE_COLS - 1 ? WIDTH + ROT0_LEFT - tx * 8 : 8;
+    const int k1 = tx == ROT0_TILE_COLS - 1 ? ROT0_WIDTH + ROT0_LEFT - tx * 8 : 8;
     drawTileWord(w, k0, k1, pens, transparent, line + tx * 8 - ROT0_LEFT);
   }
 }
@@ -202,7 +204,7 @@ inline void drawSpriteRow(int y, const uint16_t *pens, const uint32_t (*sprites)
       uint32_t w = sprites[s.code][row * 2 + h];
       for (int x = s.x + h * 8; w; x++, w >>= 4) {
         const uint8_t pen = w & 0x0f;
-        if (pen && x >= SPRITE_CLIP_X && x < ROT0_LEFT + WIDTH) {
+        if (pen && x >= SPRITE_CLIP_X && x < ROT0_LEFT + ROT0_WIDTH) {
           line[x - ROT0_LEFT] = pens[pen];
         }
       }
@@ -210,21 +212,21 @@ inline void drawSpriteRow(int y, const uint16_t *pens, const uint32_t (*sprites)
   }
 }
 
-// strip `row` (8 panel lines) into fb (WIDTH x 8); ctrl: 0x5803 latch
+// strip `row` (8 panel lines) into fb (ROT0_WIDTH x 8); ctrl: 0x5803 latch
 inline void renderStripRot0(int row, const uint8_t *vram, uint8_t ctrl, const uint16_t *pens,
                             const uint32_t (*tiles)[8], const uint32_t (*sprites)[32], const Sprite *list, int n,
                             uint16_t *fb) {
   const bool bgOver = ctrl & CTRL_BG_OVER_SPRITES;
   for (int k = 0; k < 8; k++) {
-    uint16_t *line = fb + k * WIDTH;
+    uint16_t *line = fb + k * ROT0_WIDTH;
     const int y = row * 8 + k - ROT0_TOP;
     if (y < 0 || y >= TILE_ROWS * 8) {
-      memset(line, 0, WIDTH * sizeof(uint16_t));
+      memset(line, 0, ROT0_WIDTH * sizeof(uint16_t));
       continue;
     }
 
     if (bgOver) {
-      for (int c = 0; c < WIDTH; c++) {
+      for (int c = 0; c < ROT0_WIDTH; c++) {
         line[c] = pens[0];
       }
     } else {
