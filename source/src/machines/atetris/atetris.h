@@ -9,6 +9,7 @@
 #include "../machineBase.h"
 #include "../../emulation/pokey.h"
 #include "../../emulation/seqlock.h"
+#include "../../hal/video_width.h"
 
 // Atari Tetris, MAME atetris (set 1), atari/atetris.cpp. One M6502 at
 // 14.318181 MHz / 8, slapstic 137412-101 banking 0x4000-0x7fff, two POKEYs
@@ -17,7 +18,8 @@
 //
 // Unrotated (as bublbobl): native lines 0..239 -> strips 3..32. Game layout
 // (castle tile 677 at row 0, column 19): native x 0..223, the player 1
-// side, centered. Other screens: 336 -> 240, columns with x % 7 == 2 or 5 dropped.
+// side, centered. Other screens: 336 scaled to the output width by dropping
+// columns (atetris_video::scaleKeeps). Output: 240 columns, 256 on DVI.
 class atetris : public machineBase {
 protected:
   // ROM assets, unpacked into the Arena on first data()
@@ -34,8 +36,8 @@ public:
   void run_frame() override;
   void prepare_frame() override;
   void render_row(short row) override;
-  const int renderWidth() override { return atetris_video::OUT_WIDTH; }
-  const int renderBuffer() override { return atetris_video::OUT_WIDTH * 2 * 8; }
+  const int renderWidth() override { return OUT_WIDTH; }
+  const int renderBuffer() override { return OUT_WIDTH * 2 * 8; }
   static const Logo &logo() { return atetris_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
@@ -43,6 +45,9 @@ public:
 #endif
 
 private:
+  // output columns: the panel's 240, 256 where the video backend takes it
+  static constexpr int OUT_WIDTH = hal::VIDEO_MAX_WIDTH >= 256 ? 256 : 240;
+
   static uint8_t main_read(m6502_t *, uint16_t);
   static void main_write(m6502_t *, uint16_t, uint8_t);
   uint8_t read(uint16_t a);

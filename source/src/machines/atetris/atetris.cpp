@@ -52,8 +52,8 @@ atetris::atetris()
   m_cpu.user = this;
   rom = atetris_rom.data();
   tiles = atetris_tiles.data();
-  buildSpans(FIT_CROP, crop_spans);
-  buildSpans(FIT_SCALE, scale_spans);
+  buildSpans<OUT_WIDTH>(FIT_CROP, crop_spans);
+  buildSpans<OUT_WIDTH>(FIT_SCALE, scale_spans);
 }
 
 void atetris::reset() {
