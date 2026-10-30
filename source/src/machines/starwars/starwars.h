@@ -73,7 +73,8 @@ public:
 
 private:
   static const uint16_t VRAM_SIZE = 0x3000; // 0x0000-0x2fff, AVG address 0
-  static const uint8_t STRIPS = 36, NATIVE_STRIPS = 60;
+  static const uint8_t STRIPS = 36;
+  static const uint8_t NATIVE_STRIPS = hal::VIDEO_NATIVE_H / vec2d::StripRasterizer::STRIP_H;
   uint8_t strips() const { return native ? NATIVE_STRIPS : STRIPS; }
 
   // output geometry: native = 480 rows at 1x on HDMI, set by the ctor.

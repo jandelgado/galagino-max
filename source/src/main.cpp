@@ -25,6 +25,10 @@
 #include "emulation/emulation.h"
 #include "emulation/hud.h"
 #include "machines/selftest/selftest.h"
+#ifdef HAL_VIDEO_NATIVE
+#include <assert.h>
+#include "emulation/vector2d.h"
+#endif
 #ifdef ASSETS_REMOTE
   #include "net/loader.h"
   #include "ui/loader_screen.h"
@@ -353,6 +357,7 @@ void updateAudioVideo(void) {
   currentMachine->prepare_frame();
 
 #ifdef HAL_VIDEO_NATIVE
+  // native machines never reach renderRow(): their strip exceeds frame_buffer
   if (currentMachine->renderRows() == hal::VIDEO_NATIVE_H) {
     renderNative(t0);
     return;
@@ -394,6 +399,9 @@ void updateAudioVideo(void) {
 }
 
 void renderRow(short row) {
+#ifdef HAL_VIDEO_NATIVE
+  assert(currentMachine->renderRows() != hal::VIDEO_NATIVE_H);
+#endif
   memset(frame_buffer, 0, currentMachine->renderBuffer());
   currentMachine->render_row(row);
 #ifdef DEBUG_TIMING_FPS_HUD
@@ -424,6 +432,10 @@ void onDoReset() {
 }
 
 #ifdef HAL_VIDEO_NATIVE
+static_assert(hal::Video::NATIVE_STRIPS ==
+                  hal::VIDEO_NATIVE_H / vec2d::StripRasterizer::STRIP_H,
+              "native strips differ between scanout and machines");
+
 // Native screen (vector games on HDMI): 60 strips rendered straight into the
 // scanout ring, just ahead of the beam. One screen per scanout pass.
 static void renderNative(uint32_t t0) {

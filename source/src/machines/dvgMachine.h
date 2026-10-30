@@ -87,7 +87,8 @@ protected:
 private:
   static const uint32_t CYCLES_PER_FRAME = 25200; // 1.512 MHz / 60 Hz
   static const uint32_t CYCLES_PER_INT = 6144;    // 3 kHz / 12 = 246 Hz
-  static const uint8_t STRIPS = 36, NATIVE_STRIPS = 60;
+  static const uint8_t STRIPS = 36;
+  static const uint8_t NATIVE_STRIPS = hal::VIDEO_NATIVE_H / vec2d::StripRasterizer::STRIP_H;
   uint8_t strips() const { return native ? NATIVE_STRIPS : STRIPS; }
 
   const Interrupt interrupt;

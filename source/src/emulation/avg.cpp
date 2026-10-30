@@ -178,10 +178,76 @@ static AVG_INLINE int16_t coord(int32_t v, uint8_t shift) {
   return c > INT16_MAX ? INT16_MAX : c < INT16_MIN ? INT16_MIN : (int16_t)c;
 }
 
+enum : uint8_t { LEFT = 1, RIGHT = 2, TOP = 4, BOTTOM = 8 };
+
+static AVG_INLINE uint8_t edge_code(int32_t x, int32_t y, const vec2d::Rect &r) {
+  return (x < r.x0 ? LEFT : x > r.x1 ? RIGHT : 0) | (y < r.y0 ? TOP : y > r.y1 ? BOTTOM : 0);
+}
+
+// n / d rounded to nearest, d != 0 (vec2d div_round in 64 bit)
+static int32_t div_round(int64_t n, int64_t d) {
+  if (d < 0) {
+    n = -n;
+    d = -d;
+  }
+  return (int32_t)(n >= 0 ? (n + d / 2) / d : -((-n + d / 2) / d));
+}
+
+// vec2d::clip in 32 bit coordinates with 64 bit products: at frac_bits 4
+// int16 holds only +-2047 beam units, and int32 products of int16
+// coordinates can overflow. Same steps and rounding as vec2d::clip.
+static bool clip_wide(int32_t &x0, int32_t &y0, int32_t &x1, int32_t &y1, const vec2d::Rect &r) {
+  uint8_t c0 = edge_code(x0, y0, r), c1 = edge_code(x1, y1, r);
+  for (uint8_t pass = 0;; pass++) {
+    if (!(c0 | c1)) {
+      return true;
+    }
+    if (pass == 8 || (c0 & c1)) {
+      return false;
+    }
+    const uint8_t c = c0 ? c0 : c1;
+    int32_t x, y;
+    if (c & (TOP | BOTTOM)) {
+      y = c & TOP ? r.y0 : r.y1;
+      x = x0 + div_round((int64_t)(x1 - x0) * (y - y0), y1 - y0);
+    } else {
+      x = c & LEFT ? r.x0 : r.x1;
+      y = y0 + div_round((int64_t)(y1 - y0) * (x - x0), x1 - x0);
+    }
+    if (c == c0) {
+      x0 = x;
+      y0 = y;
+      c0 = edge_code(x0, y0, r);
+    } else {
+      x1 = x;
+      y1 = y;
+      c1 = edge_code(x1, y1, r);
+    }
+  }
+}
+
+// Line endpoints from beam positions (16.16), clipped to r; false: nothing
+// visible. Narrowed to int16 after the clip: saturating a far endpoint per
+// axis first would bend the visible part (Star Wars, Major Havoc 3D).
+static AVG_INLINE bool segment(vec2d::Line &l, int32_t ax, int32_t ay, int32_t bx, int32_t by,
+                               uint8_t shift, const vec2d::Rect &r) {
+  int32_t x0 = ax >> shift, y0 = ay >> shift, x1 = bx >> shift, y1 = by >> shift;
+  if ((edge_code(x0, y0, r) | edge_code(x1, y1, r)) && !clip_wide(x0, y0, x1, y1, r)) {
+    return false;
+  }
+  l.x0 = x0;
+  l.y0 = y0;
+  l.x1 = x1;
+  l.y1 = y1;
+  return true;
+}
+
 // MAME mhavoc_strobe3: the beam moves a point per 8 cycles, each point's
 // segment in the color the LFSR selects there. At most MAX_SEGMENTS
 // segments: the colors stay random, the line count bounded (a long
-// sparkle vector has up to 127 points). Returns the new line count.
+// sparkle vector has up to 127 points). Per segment the LFSR steps
+// points / segments times, dropping points % segments: its phase drifts
+// from MAME's, the colors still look random. Returns the new line count.
 static uint16_t sparkle_split(const Memory &mem, State &s, int32_t x0, int32_t y0, uint32_t cycles,
                               uint8_t int_latch, const vec2d::Rect &window, uint8_t glyph_sp,
                               int16_t run_x, int16_t run_y, vec2d::Line *out, uint16_t n, uint16_t max) {
@@ -199,14 +265,11 @@ static uint16_t sparkle_split(const Memory &mem, State &s, int32_t x0, int32_t y
     sparkle_steps(s, 8 * (points / segments));
 
     vec2d::Line l = {};
-    l.x0 = coord(px, shift);
-    l.y0 = coord(py, shift);
-    l.x1 = coord(nx, shift);
-    l.y1 = coord(ny, shift);
     l.color = c;
+    const bool visible = c && segment(l, px, py, nx, ny, shift, window);
     px = nx;
     py = ny;
-    if (!c || !(inside(l, window) || vec2d::clip(l, window))) {
+    if (!visible) {
       continue;
     }
     if (glyph_sp) {
@@ -328,12 +391,17 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
         }
         if (intensity) {
           vec2d::Line l = {};
+#ifdef HAL_VIDEO_NATIVE
+          l.color = intensity;
+          if (segment(l, x0, y0, s.xpos, s.ypos, shift, window)) {
+#else
           l.x0 = AVG_COORD(x0);
           l.y0 = AVG_COORD(y0);
           l.x1 = AVG_COORD(s.xpos);
           l.y1 = AVG_COORD(s.ypos);
           l.color = intensity;
           if (inside(l, window) || vec2d::clip(l, window)) {
+#endif
             if (glyph_sp) {
               l.color |= GLYPH;
               l.dx = run_x;

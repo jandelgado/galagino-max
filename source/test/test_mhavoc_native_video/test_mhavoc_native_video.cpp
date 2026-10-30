@@ -170,6 +170,26 @@ static void test_frac_bits_whole_units(void) {
     TEST_ASSERT_EQUAL(a.color, b.color);
   }
 }
+
+// sparkle split: segments per point add lines on frames with sparkle
+static void test_sparkle_points_add_lines(void) {
+  boot();
+  static vec2d::Line lines[dvgMachine::MAX_LINES];
+  uint32_t more = 0;
+  for (const MameFrame &f : mame_frames) {
+    load(f);
+    avg::Memory mem = machine->avg_memory();
+    avg::State s = machine->avg_state;
+    mem.sparkle_points = false;
+    const uint16_t one = avg::decode(mem, s, lines, dvgMachine::MAX_LINES);
+    s = machine->avg_state;
+    mem.sparkle_points = true;
+    const uint16_t split = avg::decode(mem, s, lines, dvgMachine::MAX_LINES);
+    TEST_ASSERT_GREATER_OR_EQUAL(one, split);
+    more += split > one;
+  }
+  TEST_ASSERT_GREATER_THAN_UINT32(0, more);
+}
 #endif
 
 int main(int, char **) {
@@ -179,6 +199,7 @@ int main(int, char **) {
   RUN_TEST(test_native_corners);
   RUN_TEST(test_native_frames_inside);
   RUN_TEST(test_frac_bits_whole_units);
+  RUN_TEST(test_sparkle_points_add_lines);
 #endif
   return UNITY_END();
 }

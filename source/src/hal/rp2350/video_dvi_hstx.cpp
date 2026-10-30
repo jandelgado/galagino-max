@@ -5,6 +5,7 @@
 #include "../../config.h"  // the board profile selects the backend
 #ifdef HAL_VIDEO_DVI_HSTX
 #include "video_dvi_hstx.h"
+#include "../video_width.h"
 #include <stdio.h>
 #include <string.h>
 #include <FreeRTOS.h>
@@ -101,13 +102,17 @@ uint16_t frame[SRC_ROWS][SRC_WIDTH];
 // Native mode: `frame` holds the strip ring (dvi_line.h). slot_tag[slot] =
 // the strip written there last; the IRQ sends a line only from its own
 // strip, else black.
-static_assert(dvi::RING_SLOTS * dvi::NATIVE_STRIP_ROWS * 640 <= SRC_ROWS * SRC_WIDTH,
+static_assert(dvi::RING_SLOTS * dvi::NATIVE_STRIP_ROWS * VIDEO_NATIVE_W <= SRC_ROWS * SRC_WIDTH,
               "native ring does not fit the framebuffer");
-volatile uint32_t native_rows;   // lines built since the switch (IRQ)
+static_assert(dvi::NATIVE_ROWS == VIDEO_NATIVE_H, "native rows differ from the HAL raster");
+// native_rows: lines built since the switch (IRQ). Wraps after ~41 h in one
+// native session: rows misalign until the next resync, never stale pixels.
+volatile uint32_t native_rows;
 volatile uint32_t slot_tag[dvi::RING_SLOTS];
 const uint32_t NO_STRIP = 0xffffffffu;
 volatile uint32_t native_misses; // lines sent black: strip late
 int8_t pending_mode = -1;        // switchMode: native_mode after the resync
+uint16_t pending_width;          // setNative: native_width after the resync
 #ifdef DEBUG_TIMING
 uint32_t native_late;            // strips submitted after the beam built their first row
 uint32_t native_wait_us;         // video core time spent waiting for a free slot
@@ -229,6 +234,11 @@ void drainHstx() {
   uint32_t pushed = 0;
   while (pushed < NOPS || !(hstx_fifo_hw->stat & HSTX_FIFO_STAT_EMPTY_BITS)) {
     if (time_us_32() - start > TIMEOUT_US) {
+#ifdef DEBUG_TIMING
+      static uint32_t timeouts;
+      timeouts++;
+      printf("DVI: HSTX drain timeout %u\n", (unsigned)timeouts);
+#endif
       break; // halted HSTX: no hang
     }
     if (pushed < NOPS && !(hstx_fifo_hw->stat & HSTX_FIFO_STAT_FULL_BITS)) {
@@ -449,7 +459,6 @@ void HAL_FAST_CODE DviHstxVideo::buildNative(uint32_t buffer) {
   const uint32_t row = native_rows;
   const uint32_t strip = row / dvi::NATIVE_STRIP_ROWS;
   const uint32_t slot = dvi::ringSlot(strip);
-  native_rows = row + 1;
 
   if (!dvi::stripReady(slot_tag[slot], strip)) {
     if (built_width[buffer] != 0) {
@@ -457,6 +466,7 @@ void HAL_FAST_CODE DviHstxVideo::buildNative(uint32_t buffer) {
       built_width[buffer] = 0;
     }
     native_misses = native_misses + 1;
+    native_rows = row + 1;
     return;
   }
 
@@ -468,13 +478,19 @@ void HAL_FAST_CODE DviHstxVideo::buildNative(uint32_t buffer) {
   }
   const uint16_t *src = &frame[0][0] + (slot * dvi::NATIVE_STRIP_ROWS + row % dvi::NATIVE_STRIP_ROWS) * width;
   dvi::line1x(src, out + (LINE_WORDS - width / 2) / 2, width, dvi::Mirror::OFF);
+
+  // counted after the copy: slotFree() hands the slot to the video core
+  __dmb();
+  native_rows = row + 1;
 }
 
+// a new width readdresses the ring: set while the resync holds the IRQ
 void DviHstxVideo::setNative(uint16_t width) {
-  native_width = width;
-  if (!native_mode) {
-    switchMode(true);
+  if (native_mode && width == native_width) {
+    return;
   }
+  pending_width = width;
+  switchMode(true);
 }
 
 void DviHstxVideo::switchMode(bool native) {
@@ -616,6 +632,9 @@ void DviHstxVideo::resync() {
   // mode switch: the IRQ is off, the new mode starts with this pass
   if (pending_mode >= 0) {
     native_mode = pending_mode;
+    if (native_mode) {
+      native_width = pending_width;
+    }
     pending_mode = -1;
     native_rows = 0;
     native_count = 0;
