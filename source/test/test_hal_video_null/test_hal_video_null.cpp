@@ -44,6 +44,13 @@ static void test_max_width(void) {
   TEST_ASSERT_EQUAL_UINT16(240, hal::Video::MAX_WIDTH);
 }
 
+// a game shows all native columns where they fit, else its own fit
+static void test_fit_width(void) {
+  TEST_ASSERT_EQUAL_UINT16(256, hal::fitWidth(256, 224, 256));
+  TEST_ASSERT_EQUAL_UINT16(224, hal::fitWidth(256, 224, 240));
+  TEST_ASSERT_EQUAL_UINT16(240, hal::fitWidth(256, 240));
+}
+
 static void test_strip_index_identity(void) {
   hal::Video video;
   for (uint8_t i = 0; i < 36; i++) {
@@ -62,6 +69,7 @@ int main(int, char **) {
   RUN_TEST(test_end_frame_returns_at_once);
   RUN_TEST(test_canvas);
   RUN_TEST(test_max_width);
+  RUN_TEST(test_fit_width);
   RUN_TEST(test_strip_index_identity);
   return UNITY_END();
 }

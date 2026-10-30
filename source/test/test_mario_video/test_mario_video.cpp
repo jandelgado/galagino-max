@@ -85,7 +85,7 @@ static uint32_t crc32(const uint8_t *p, size_t n) {
 }
 
 static Input input;
-static unsigned short frame_buffer[mario_video::OUT_WIDTH * 8];
+static unsigned short frame_buffer[mario_video::FIT_WIDTH * 8];
 static sprite_S sprites[128];
 static unsigned char memory[RAMSIZE];
 

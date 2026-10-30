@@ -283,6 +283,10 @@ void mario::run_frame(void) {
 }
 
 uint8_t mario::nativeX(uint16_t col, uint8_t pan) {
+  if (OUT_WIDTH == mario_video::NATIVE_WIDTH) {
+    return (uint8_t)col;
+  }
+
 #if defined(MARIO_CROP)
   (void)pan;
   return mario_video::crop_x(col);
@@ -403,8 +407,8 @@ void mario::render_row(short row) {
   }
 
   for (uint8_t l = 0; l < 8; l++) {
-    unsigned short *out = frame_buffer + l * mario_video::OUT_WIDTH;
-    for (uint16_t c = 0; c < mario_video::OUT_WIDTH; c++) {
+    unsigned short *out = frame_buffer + l * OUT_WIDTH;
+    for (uint16_t c = 0; c < OUT_WIDTH; c++) {
       out[c] = palette[pens[l][nativeX(c, pan)]];
     }
   }
