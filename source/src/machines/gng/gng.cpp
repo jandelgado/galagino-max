@@ -372,7 +372,7 @@ void gng::prepare_frame() {
   }
 }
 
-// One native line y' of the 512 x 512 bg plane, panel columns 0..239.
+// One native line y' of the 512 x 512 bg plane, panel columns 0..WIDTH - 1.
 // Group 1 tiles are also recorded for the front pass.
 void gng::blit_bg_line(uint8_t line, int y) {
   uint16_t *dst = frame_buffer + WIDTH * line;
@@ -432,8 +432,9 @@ void gng::blit_front(short row) {
 }
 
 void gng::blit_tile(short row, char col) {
-  static_assert(CROP == 8, "gngFgColumn() crops one fg column");
-  const uint16_t idx = (row - FIRST_ROW + FG_ROW_OFFSET) * 32 + gngFgColumn(col, fg_lead); // SCAN_ROWS
+  static_assert(CROP == 8 || CROP == 0, "gngFgColumn() crops one fg column");
+  const uint8_t fg_col = CROP ? gngFgColumn(col, fg_lead) : col;
+  const uint16_t idx = (row - FIRST_ROW + FG_ROW_OFFSET) * 32 + fg_col; // SCAN_ROWS
   const uint8_t attr = memory[FG_ATTR + idx];
   const uint16_t code = memory[FG_CODE + idx] + ((attr & 0xc0) << 2);
   if (blank_chars[code >> 5] & (1u << (code & 31))) {
@@ -524,7 +525,8 @@ void gng::render_row(short row) {
   }
 
   const uint16_t fg_row = (row - FIRST_ROW + FG_ROW_OFFSET) * 32;
-  fg_lead = gngLeadRun(memory + FG_CODE + fg_row, memory + FG_ATTR + fg_row, blank_chars);
+  // the lead run moves right only where the crop hides native column 0
+  fg_lead = CROP ? gngLeadRun(memory + FG_CODE + fg_row, memory + FG_ATTR + fg_row, blank_chars) : 0;
   for (char col = 0; col < WIDTH / 8; col++) {
     blit_tile(row, col);
   }

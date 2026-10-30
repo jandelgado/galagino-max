@@ -1,6 +1,7 @@
 #ifndef ELEVATOR_H
 #define ELEVATOR_H
 
+#include "../../hal/video_width.h"
 #include "../machineBase.h"
 #include "../../emulation/ay8910.h"
 #include "../../emulation/seqlock.h"
@@ -54,7 +55,9 @@ private:
   Asset<unsigned char, COMPRESSED> elevator_draw_order;
 
 public:
-  static const int WIDTH = 240;
+  static const int NATIVE_WIDTH = 256;
+  // 240 columns: native x 8..247; 256 (DVI): all
+  static constexpr int WIDTH = hal::fitWidth(NATIVE_WIDTH, 240);
 
   elevator();
   uint8_t machineType() override { return MCH_ELEVATOR; }

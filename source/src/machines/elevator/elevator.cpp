@@ -42,7 +42,7 @@ static constexpr uint8_t MODE_FLIP_XY = 0x03;
 // video geometry (MAME taitosj_v.cpp)
 static constexpr uint8_t FIRST_ROW = 4, LAST_ROW = 32;  // panel strips of lines 16..239
 static constexpr uint8_t VIS_TOP = 16;
-static constexpr uint8_t CROP = 8;                      // native x 8..247 -> 240 columns
+static constexpr uint8_t CROP = (elevator::NATIVE_WIDTH - elevator::WIDTH) / 2; // 8 on 240
 static constexpr uint16_t CHAR_BANK = 0x1800;           // gfx bank 1 in character RAM
 static constexpr uint16_t PLANE = 0x800;                // bit planes, first byte = LSB
 static constexpr uint8_t SPRITES = 32;
@@ -682,7 +682,7 @@ void GAME_IRAM elevator::drawSprites(uint8_t y0) {
 // flipped picture and the screen turns it upright again: drawn like ROT0
 // with turned offsets. Without flip, panel strip row shows native strip
 // FIRST_ROW + LAST_ROW - 1 - row turned 180 degrees; reversing the whole
-// strip buffer turns it (the crop is symmetric, native x 8..247).
+// strip buffer turns it (the crop is symmetric, native x 8..247 or none).
 void GAME_IRAM elevator::render_row(short row) {
   if (row < FIRST_ROW || row >= LAST_ROW) {
     return;
