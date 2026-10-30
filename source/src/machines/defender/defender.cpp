@@ -11,7 +11,7 @@ static const unsigned int ACTION_KEY = BUTTON_EXTRA;
 // romMain..romSound unpack before hw's Arena::alloc calls (member order).
 // The three allocs are unordered among themselves; every order fits.
 defender::defender()
-  : williams(hw, DEFENDER_COLUMNS),
+  : williams(hw, fit(DEFENDER_COLUMNS, DEFENDER_COLUMNS_256)),
     defender_rom_main(defender_rom_main_blob), defender_rom_banked(defender_rom_banked_blob),
     defender_rom_sound(defender_rom_sound_blob),
     romMain(defender_rom_main.data()), romBanked(defender_rom_banked.data()),

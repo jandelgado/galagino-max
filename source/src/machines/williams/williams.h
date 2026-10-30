@@ -6,6 +6,7 @@
 #include "williams_board.h"
 #include "williams_video.h"
 #include "../../emulation/dc_block.h"
+#include "../../hal/video_width.h"
 
 static_assert(BOARD_KEY_LEFT == BUTTON_LEFT && BOARD_KEY_RIGHT == BUTTON_RIGHT &&
               BOARD_KEY_UP == BUTTON_UP && BOARD_KEY_DOWN == BUTTON_DOWN &&
@@ -16,7 +17,8 @@ static_assert(BOARD_KEY_LEFT == BUTTON_LEFT && BOARD_KEY_RIGHT == BUTTON_RIGHT &
 
 // Galagino side of the Williams gen 1 machines: forwards the 6809 bus to
 // the board, renders the scanout through the column map, feeds the DAC.
-// Native 292 x 240 (ROT0) -> 239 x 240, rows 24..263 of the 288; ROT270
+// Native 292 x 240 (ROT0) -> 239 x 240 (256 x 240 on DVI), rows 24..263 of
+// the 288; ROT270
 // (Sinistar) upright: 240 x 288, see uprightX().
 class williams : public machineBase {
 public:
@@ -25,8 +27,8 @@ public:
   void run_frame() override;
   void prepare_frame() override;
   void render_row(short row) override;
-  const int renderWidth() override { return ColumnMap::OUT_MAX; }
-  const int renderBuffer() override { return ColumnMap::OUT_MAX * 2 * 8; }
+  const int renderWidth() override { return upright ? Scanout::ROWS : OUT_WIDTH; }
+  const int renderBuffer() override { return (upright ? Scanout::ROWS : OUT_WIDTH) * 2 * 8; }
   void renderAudio(int16_t *out, int n) override;
 
   unsigned char m6809_read(m6809_state *s, uint16_t addr) override;
@@ -34,6 +36,14 @@ public:
   unsigned char m6809_read_opcode(m6809_state *s, uint16_t addr) override;
 
 protected:
+  // output columns: the panel's 240, 256 where the video backend takes it
+  static const uint16_t OUT_WIDTH = hal::VIDEO_MAX_WIDTH >= 256 ? 256 : 240;
+
+  // the game's layout for OUT_WIDTH
+  static const ColumnLayout &fit(const ColumnLayout &narrow, const ColumnLayout &wide) {
+    return OUT_WIDTH == 256 ? wide : narrow;
+  }
+
   // board is a member of the derived class, not yet built: store only
   williams(WilliamsBoard &board, const ColumnLayout &columns);
   explicit williams(WilliamsBoard &board);  // ROT270 upright (Sinistar)
@@ -52,7 +62,7 @@ private:
 
   Asset<unsigned short, COMPRESSED> williams_rgb;  // shared by all Williams games
   const uint16_t *rgb;
-  ColumnMap columns;
+  ColumnMap<OUT_WIDTH> columns;
   uint8_t shown = 0;
   uint16_t pens[Scanout::BANDS][PENS];
   int lastSample = 0;

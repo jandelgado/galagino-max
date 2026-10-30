@@ -7,11 +7,12 @@ void tearDown(void) {}
 
 static const int NATIVE_WIDTH = 292;
 
+template <uint16_t W>
 static void checkLayout(const ColumnLayout &l, int expectCount) {
-  ColumnMap m;
+  ColumnMap<W> m;
   m.build(l);
   TEST_ASSERT_EQUAL(expectCount, m.count());
-  TEST_ASSERT_TRUE(m.left() + m.count() <= ColumnMap::OUT_MAX);
+  TEST_ASSERT_TRUE(m.left() + m.count() <= W);
   for (int i = 0; i < m.count(); i++) {
     const int last = m.src(i) + (m.merge(i) ? 1 : 0);
     TEST_ASSERT_TRUE(last < NATIVE_WIDTH);
@@ -19,13 +20,28 @@ static void checkLayout(const ColumnLayout &l, int expectCount) {
 }
 
 void test_layouts_fit_240(void) {
-  checkLayout(DEFENDER_COLUMNS, 239);
-  checkLayout(ROBOTRON_COLUMNS, 239);
-  checkLayout(JOUST_COLUMNS, 239);
+  checkLayout<240>(DEFENDER_COLUMNS, 239);
+  checkLayout<240>(ROBOTRON_COLUMNS, 239);
+  checkLayout<240>(JOUST_COLUMNS, 239);
+}
+
+// DVI: 1 of 8 dropped (292 -> 256), robotron 1 of 12 (278 -> 255)
+void test_layouts_fit_256(void) {
+  checkLayout<256>(DEFENDER_COLUMNS_256, 256);
+  checkLayout<256>(ROBOTRON_COLUMNS_256, 255);
+  checkLayout<256>(JOUST_COLUMNS_256, 256);
+
+  ColumnMap<256> m;
+  m.build(DEFENDER_COLUMNS_256);
+  TEST_ASSERT_EQUAL(0, m.left());
+  TEST_ASSERT_EQUAL(291, m.src(255));
+  TEST_ASSERT_EQUAL(4, m.src(4));
+  TEST_ASSERT_TRUE(m.merge(4));
+  TEST_ASSERT_EQUAL(6, m.src(5));
 }
 
 void test_defender_drops_3_and_8_of_11(void) {
-  ColumnMap m;
+  ColumnMap<240> m;
   m.build(DEFENDER_COLUMNS);
   // kept 0,1,2 (2 merges 3), 4..7 (7 merges 8), 9, 10, 11 ...
   TEST_ASSERT_EQUAL(2, m.src(2));
@@ -112,6 +128,7 @@ void test_upright_mapping(void) {
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_layouts_fit_240);
+  RUN_TEST(test_layouts_fit_256);
   RUN_TEST(test_defender_drops_3_and_8_of_11);
   RUN_TEST(test_pixel_nibbles);
   RUN_TEST(test_capture_copies_visible_lines_to_back);
