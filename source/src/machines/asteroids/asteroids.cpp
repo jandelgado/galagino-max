@@ -61,6 +61,43 @@ static int16_t panel_row(int16_t y) {
   return TOP_BORDER + (((VISIBLE.y1 - y) * SCALE_MUL) >> SCALE_SHIFT);
 }
 
+#ifdef HAL_VIDEO_NATIVE
+// native HDMI: VISIBLE onto NATIVE_WIDTH x 480 (square pixels), 788 ->
+// rows 0..479 and 1023 -> columns 0..621 as mul >> 16 (0.61 px a unit)
+static const uint16_t NATIVE_WIDTH = 622;
+static const int16_t NATIVE_X1 = 1023, NATIVE_Y0 = 118, NATIVE_Y1 = 906;
+static const int32_t NATIVE_MUL = 39840, NATIVE_SHIFT = 16;
+
+static_assert(((NATIVE_Y1 - NATIVE_Y0) * NATIVE_MUL) >> NATIVE_SHIFT == hal::VIDEO_NATIVE_H - 1,
+              "bottom edge on the last row");
+static_assert((NATIVE_X1 * NATIVE_MUL) >> NATIVE_SHIFT == NATIVE_WIDTH - 1,
+              "right edge on the last column");
+static_assert(NATIVE_WIDTH % 2 == 0, "even width");
+
+static int16_t native_col(int16_t x) { return (x * NATIVE_MUL) >> NATIVE_SHIFT; }
+
+static int16_t native_row(int16_t y) { return ((NATIVE_Y1 - y) * NATIVE_MUL) >> NATIVE_SHIFT; }
+
+// map_lines() for native, the glyph tag removed
+static uint16_t map_native(vec2d::Line *lines, uint16_t count) {
+  uint16_t kept = 0;
+  for (uint16_t i = 0; i < count; i++) {
+    vec2d::Line l = lines[i];
+    l.color &= ~dvg::GLYPH;
+    if (!vec2d::clip(l, VISIBLE)) {
+      continue;
+    }
+
+    l.x0 = native_col(l.x0);
+    l.x1 = native_col(l.x1);
+    l.y0 = native_row(l.y0);
+    l.y1 = native_row(l.y1);
+    lines[kept++] = l;
+  }
+  return kept;
+}
+#endif
+
 // "(C) ATARI 1979" is a vector ROM subroutine (DVG word 0x852) starting with
 // LABS y=128 x=400 scale 0. Scale 1 doubles it, glyphs included, for the
 // small panel; x 310 keeps its center (width 180 -> 360). Patches the
@@ -82,7 +119,13 @@ asteroids::asteroids()
   static_assert(RAM_END <= VRAM_OFS, "Asteroids RAM overlaps VRAM");
   rom = asteroids_rom.data();
   vrom = asteroids_vrom.data();
-  enlarge_copyright(const_cast<unsigned char *>(vrom));
+#ifdef HAL_VIDEO_NATIVE
+  native = true;
+  out_width = NATIVE_WIDTH;
+#endif
+  if (!native) {
+    enlarge_copyright(const_cast<unsigned char *>(vrom));
+  }
   dvg_mem = dvg::Memory{nullptr, vrom, DVG_ROM_BASE, VROM_SIZE / 2, 0, 0};
 }
 
@@ -188,6 +231,11 @@ void asteroids::main_write(m6502_t *cpu, uint16_t a, uint8_t v) {
 // Clips lines to the visible area and turns them into panel coordinates,
 // keeping only visible ones. Returns their count.
 uint16_t asteroids::map_lines(uint16_t count) {
+#ifdef HAL_VIDEO_NATIVE
+  if (native) {
+    return map_native(work, count);
+  }
+#endif
   uint16_t kept = 0;
   for (uint16_t i = 0; i < count; i++) {
     vec2d::Line l = work[i];

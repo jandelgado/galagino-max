@@ -9,7 +9,8 @@
 // Atari Lunar Lander, MAME llander (rev 2), atari/asteroid.cpp.
 // Asteroids hardware with 8 KiB program ROM, 6 KiB vector ROM, an analog
 // thrust lever and discrete sound. Upright like asteroids; text is
-// enlarged by llander_layout (HUD in the borders).
+// enlarged by llander_layout (HUD in the borders), native HDMI at its own
+// size.
 //
 // Controls: stick left/right rotate, up/down move the thrust lever (it
 // stays where left, like the real one), FIRE = Select Game (before

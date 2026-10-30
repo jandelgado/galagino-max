@@ -18,6 +18,8 @@
 //   y 118 +-----------+           +-----------------+ row 235 = y 118
 //         x 0      x 1023         +-----------------+ row 287
 //                                 col 0 = x 0, col 239 = x 1023
+//
+// Native HDMI: the same area on 622 x 480, copyright at its own size.
 class asteroids : public dvgMachine {
 protected:
   // ROM assets, unpacked into the Arena on first data()

@@ -78,6 +78,10 @@ llander::llander()
   rom = llander_rom.data();
   vrom = llander_vrom.data();
   dvg_mem = dvg::Memory{nullptr, vrom, DVG_ROM_BASE, VROM_SIZE / 2, GLYPH_LO, GLYPH_HI};
+#ifdef HAL_VIDEO_NATIVE
+  native = true;
+  out_width = llander_layout::NATIVE_WIDTH;
+#endif
 }
 
 void llander::reset() {
@@ -212,6 +216,11 @@ uint16_t llander::decode_frame(const uint8_t *vram) {
 }
 
 uint16_t llander::map_lines(uint16_t count) {
+#ifdef HAL_VIDEO_NATIVE
+  if (native) {
+    return llander_layout::map_native(work, count);
+  }
+#endif
   return llander_layout::map(work, count);
 }
 
