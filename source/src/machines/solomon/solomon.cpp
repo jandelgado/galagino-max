@@ -58,7 +58,7 @@ solomon::solomon()
   sprites = solomon_sprites.data();
 
 #ifdef SOLOMON_SCALE
-  for (int c = 0; c < OUT_WIDTH; c++) {
+  for (int c = 0; c < FIT_WIDTH; c++) {
     x_map[c] = scaleX(c);
   }
 #endif
@@ -403,29 +403,34 @@ void solomon::render_line(uint16_t *dst, int line) {
   outputLine(dst, native, line);
 }
 
-// scale: fixed column map; crop/scroll: 240 px window at scroll_x, HUD
-// lines fixed with their empty columns dropped
+// 256 columns: 1:1. 240: scale: fixed column map; crop/scroll: 240 px
+// window at scroll_x, HUD lines fixed with their empty columns dropped
 void solomon::outputLine(uint16_t *dst, const uint16_t *native, int line) {
+  if (OUT_WIDTH == NATIVE_WIDTH) {
+    memcpy(dst, native, OUT_WIDTH * sizeof(uint16_t));
+    return;
+  }
+
 #ifdef SOLOMON_SCALE
-  for (int c = 0; c < OUT_WIDTH; c++) {
+  for (int c = 0; c < FIT_WIDTH; c++) {
     dst[c] = native[x_map[c]];
   }
 #else
   if (line < HUD_TOP_LINES) {
-    for (int c = 0; c < OUT_WIDTH; c++) {
+    for (int c = 0; c < FIT_WIDTH; c++) {
       dst[c] = native[hudTopX(c)];
     }
     return;
   }
 
   if (line >= HUD_BOTTOM) {
-    for (int c = 0; c < OUT_WIDTH; c++) {
+    for (int c = 0; c < FIT_WIDTH; c++) {
       dst[c] = native[hudBottomX(c)];
     }
     return;
   }
 
-  memcpy(dst, native + scroll_x, OUT_WIDTH * sizeof(uint16_t));
+  memcpy(dst, native + scroll_x, FIT_WIDTH * sizeof(uint16_t));
 #endif
 }
 

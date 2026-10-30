@@ -8,6 +8,7 @@
 #include "solomon_dipswitches.h"
 #include "solomon_logo.h"
 #include "solomon_video.h"
+#include "../../hal/video_width.h"
 
 // ============================================================
 // Solomon's Key (Tecmo 1986), MAME tecmo/solomon.cpp.
@@ -50,8 +51,8 @@ public:
   void reset() override;
   uint8_t machineType() override { return MCH_SOLOMON; }
   void renderAudio(int16_t *out, int n) override { Ay8910::renderBank(ay, soundregs, out, n); }
-  const int renderWidth() override { return solomon_video::OUT_WIDTH; }
-  const int renderBuffer() override { return solomon_video::OUT_WIDTH * 2 * 8; }
+  const int renderWidth() override { return OUT_WIDTH; }
+  const int renderBuffer() override { return OUT_WIDTH * 2 * 8; }
 
   unsigned char rdZ80(unsigned short Addr) override;
   void wrZ80(unsigned short Addr, unsigned char Value) override;
@@ -69,6 +70,10 @@ public:
 #endif
 
 private:
+  // all 256 native columns where the video backend takes them (DVI)
+  static constexpr int OUT_WIDTH =
+      hal::fitWidth(solomon_video::NATIVE_WIDTH, solomon_video::FIT_WIDTH);
+
   // Render input, latched at vblank (see seqlock.h). Visible tile rows only.
   struct VideoState {
     uint8_t fg_color[solomon_video::VIS_TILES];
@@ -95,7 +100,7 @@ private:
 
   uint16_t palette[256];            // RGB565 swapped, written by the emulation core
 #ifdef SOLOMON_SCALE
-  uint8_t x_map[solomon_video::OUT_WIDTH];  // output column -> native x
+  uint8_t x_map[solomon_video::FIT_WIDTH];  // output column -> native x
 #endif
   uint8_t scroll_x = solomon_video::CROP_LEFT;  // native x of output column 0, video core only
   bool nmi_mask = false;            // e600 b0
