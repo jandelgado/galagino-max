@@ -131,8 +131,8 @@ SemaphoreHandle_t irqs_ready;
 volatile bool irq_busy;
 volatile bool resyncing;
 
-// Scanout watchdog (endFrame): no beam progress for STALL_MS, or more than
-// MAX_FPS frames per second, means the DMA chain lost its framing.
+// Scanout watchdog (endFrame, nativeStrip): no beam progress for STALL_MS, or
+// more than MAX_FPS frames per second, means the DMA chain lost its framing.
 const uint32_t STALL_MS = 100;
 const uint32_t MAX_FPS = 75;
 uint32_t rate_start_us;
@@ -214,6 +214,28 @@ void queueBlankLines() {
   pongCh->transfer_count = count_of(vblank_vsync_off);
   pong = false;
   v_scanline = 2;
+}
+
+// EN low stops the HSTX but keeps the FIFO's words. Words left from an
+// aborted line would start the new stream mid-command: the expander reads
+// pixels as commands, the DMA runs about 2.3x fast for good. Drains the FIFO
+// into the running HSTX with NOPs past the longest command (12-bit count)
+// the expander may be in, so it stops on a command boundary.
+void drainHstx() {
+  const uint32_t MAX_COUNT = 4096, FIFO_WORDS = 8;
+  const uint32_t NOPS = MAX_COUNT + FIFO_WORDS;
+  const uint32_t TIMEOUT_US = 2000; // takes 0.35-0.6 ms
+  const uint32_t start = time_us_32();
+  uint32_t pushed = 0;
+  while (pushed < NOPS || !(hstx_fifo_hw->stat & HSTX_FIFO_STAT_EMPTY_BITS)) {
+    if (time_us_32() - start > TIMEOUT_US) {
+      break; // halted HSTX: no hang
+    }
+    if (pushed < NOPS && !(hstx_fifo_hw->stat & HSTX_FIFO_STAT_FULL_BITS)) {
+      hstx_fifo_hw->fifo = CMD_NOP;
+      pushed++;
+    }
+  }
 }
 
 #ifdef HAL_AUDIO_DVI
@@ -328,6 +350,7 @@ void DviHstxVideo::endFrame(uint8_t part, uint32_t) {
       last_us = time_us_32();
     }
 #endif
+    checkScanRate();
     return;
   }
 
@@ -347,8 +370,15 @@ void DviHstxVideo::endFrame(uint8_t part, uint32_t) {
     xSemaphoreTake(wake, 1);
   }
 
-  // over-rate: the stream lost its framing (see wake_irq). The window grows
-  // past 1 s while a game loads.
+  checkScanRate();
+  if (last) {
+    written = 0;
+  }
+}
+
+// over-rate: the stream lost its framing (see wake_irq). The window grows
+// past 1 s while a game loads.
+void DviHstxVideo::checkScanRate() {
   const uint32_t now = time_us_32();
   if (now - rate_start_us >= 1000000) {
     if (dvi::overRate(scan_frames - rate_start_frames, now - rate_start_us, MAX_FPS)) {
@@ -363,9 +393,6 @@ void DviHstxVideo::endFrame(uint8_t part, uint32_t) {
 #endif
     rate_start_us = time_us_32();
     rate_start_frames = scan_frames;
-  }
-  if (last) {
-    written = 0;
   }
 }
 
@@ -578,7 +605,8 @@ void DviHstxVideo::resync() {
   dma_channel_abort(ch_ping);
   dma_channel_abort(ch_pong);
 
-  // EN low flushes the FIFO and resets the shifter and clock generator
+  // empty FIFO, then EN low resets the shifter and clock generator
+  drainHstx();
   hw_clear_bits(&hstx_ctrl_hw->csr, HSTX_CTRL_CSR_EN_BITS);
   dma_hw->ints0 = both;
   hw_set_bits(&dma_hw->ch[ch_ping].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);

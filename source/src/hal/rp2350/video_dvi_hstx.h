@@ -93,6 +93,8 @@ private:
   void buildLine(uint32_t line, uint32_t buffer);
   // restarts the scanout after the DMA chain lost its framing
   void resync();
+  // resyncs a scanout running over MAX_FPS (endFrame, both modes)
+  void checkScanRate();
   // resync into framebuffer or native mode
   void switchMode(bool native);
   void buildNative(uint32_t buffer);
