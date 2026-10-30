@@ -65,9 +65,10 @@ defines = [
 # steps, keep A a multiple of 4096.
 # B 110500: the second region (D/IRAM 0x3ffe4350, 113840 B) minus IDF use.
 # esp32s3_local: fnk0104 placeholder until measured. rp2350: headless
-# boards. rp2350_dvi (DVI board profiles): B gave
-# 26 KB to the framebuffer (240 x 288 x 2 = 138 KB, the rest came from the
-# strip ring it replaced and the heap); tapper and the Williams games still
+# boards. rp2350_dvi (DVI board profiles): B gave 26 KB to the framebuffer
+# (240 x 288 x 2 = 138 KB, the rest came from the
+# strip ring it replaced and the heap; 256 x 288 since 2026-10-30, the 9 KB
+# more from FreeRTOS's heap); tapper and the Williams games still
 # need both blocks, arkanoid 82 KB in one. rp2350_dvi_remote: Pico 2 W DVI
 # remote build (lwIP memory is static, outside the Arena).
 [arena]
