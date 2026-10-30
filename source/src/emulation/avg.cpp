@@ -106,7 +106,8 @@ static AVG_INLINE uint8_t line_color(const Memory &m, const State &s, uint8_t z)
 
   // MAME tempest_strobe3: color RAM bits are inverted, 0xf is black.
   // Major Havoc sparkle (mhavoc_strobe3) takes a color per point from color
-  // RAM 15..30; one color per line here, the first point's.
+  // RAM 15..30; one color per line here, the first point's (native: see
+  // sparkle_split).
   static const uint8_t BLACK = 0xf, SPARKLE_COLORS = 0xf;
   const uint8_t index = s.sparkle ? SPARKLE_COLORS + bitswap4(s.lfsr, 0, 2, 4, 6) : s.color;
   const uint8_t value = m.colorram[index] & 0xf;
@@ -170,13 +171,74 @@ static AVG_INLINE int32_t deflect(uint16_t dv, uint32_t cycles, uint8_t scale, u
   return (int32_t)((uint32_t)dac * cycles * (uint32_t)(scale ^ 0xff)) >> 4;
 }
 
+#ifdef HAL_VIDEO_NATIVE
+// beam position (16.16) -> Line coordinate, saturated to int16
+static AVG_INLINE int16_t coord(int32_t v, uint8_t shift) {
+  const int32_t c = v >> shift;
+  return c > INT16_MAX ? INT16_MAX : c < INT16_MIN ? INT16_MIN : (int16_t)c;
+}
+
+// MAME mhavoc_strobe3: the beam moves a point per 8 cycles, each point's
+// segment in the color the LFSR selects there. At most MAX_SEGMENTS
+// segments: the colors stay random, the line count bounded (a long
+// sparkle vector has up to 127 points). Returns the new line count.
+static uint16_t sparkle_split(const Memory &mem, State &s, int32_t x0, int32_t y0, uint32_t cycles,
+                              uint8_t int_latch, const vec2d::Rect &window, uint8_t glyph_sp,
+                              int16_t run_x, int16_t run_y, vec2d::Line *out, uint16_t n, uint16_t max) {
+  static const uint32_t MAX_SEGMENTS = 16;
+  const uint8_t shift = 16 - mem.frac_bits;
+  uint32_t points = cycles / 8;
+  points = points ? points : 1;
+  const uint32_t segments = points < MAX_SEGMENTS ? points : MAX_SEGMENTS;
+  const int32_t sx = (s.xpos - x0) / (int32_t)segments, sy = (s.ypos - y0) / (int32_t)segments;
+  int32_t px = x0, py = y0;
+  for (uint32_t k = 1; k <= segments && n < max; k++) {
+    const int32_t nx = k == segments ? s.xpos : px + sx;
+    const int32_t ny = k == segments ? s.ypos : py + sy;
+    const uint8_t c = line_color(mem, s, int_latch);
+    sparkle_steps(s, 8 * (points / segments));
+
+    vec2d::Line l = {};
+    l.x0 = coord(px, shift);
+    l.y0 = coord(py, shift);
+    l.x1 = coord(nx, shift);
+    l.y1 = coord(ny, shift);
+    l.color = c;
+    px = nx;
+    py = ny;
+    if (!c || !(inside(l, window) || vec2d::clip(l, window))) {
+      continue;
+    }
+    if (glyph_sp) {
+      l.color |= GLYPH;
+      l.dx = run_x;
+      l.dy = run_y;
+    }
+    out[n++] = l;
+  }
+  return n;
+}
+
+// beam position -> decode() Line coordinate (shift: decode()'s local)
+#define AVG_COORD(v) coord(v, shift)
+#else
+// whole units: the plain shift, ESP code unchanged
+#define AVG_COORD(v) int16_t((v) >> 16)
+#endif
+
 uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
+#ifdef HAL_VIDEO_NATIVE
+  const uint8_t shift = 16 - mem.frac_bits;
+  const int16_t far = WINDOW_FAR << mem.frac_bits;
+#else
+  const int16_t far = WINDOW_FAR;
+#endif
   // byte offsets of a word's high (opcode) and low byte
   const uint8_t hi_ofs = mem.variant == STARWARS ? 0 : 1, lo_ofs = hi_ofs ^ 1;
   uint16_t pc = 0, stack[4] = {0, 0, 0, 0};
   uint8_t sp = 0;
   uint16_t n = 0;
-  vec2d::Rect window = {0, 0, WINDOW_FAR, WINDOW_FAR};
+  vec2d::Rect window = {0, 0, far, far};
   uint8_t glyph_sp = 0; // stack depth inside a glyph routine, 0: outside
   bool in_run = false;
   int16_t run_x = 0, run_y = 0;
@@ -189,7 +251,7 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
     if (mem.variant == MHAVOC) {
       // MAME mhavoc_latch1: only the window top
       if (!s.lst) {
-        window.y0 = s.ypos >> 16;
+        window.y0 = AVG_COORD(s.ypos);
       }
     } else if (!s.hst || !s.lst) {
       if (!s.hst) {
@@ -200,8 +262,8 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
         s.clipx_min = s.xpos;
         s.clipy_max = s.ypos;
       }
-      const int16_t x0 = s.clipx_min >> 16, x1 = s.clipx_max >> 16;
-      const int16_t y0 = s.clipy_min >> 16, y1 = s.clipy_max >> 16;
+      const int16_t x0 = AVG_COORD(s.clipx_min), x1 = AVG_COORD(s.clipx_max);
+      const int16_t y0 = AVG_COORD(s.clipy_min), y1 = AVG_COORD(s.clipy_max);
       window.x0 = x0 < x1 ? x0 : x1;
       window.x1 = x0 < x1 ? x1 : x0;
       window.y0 = y0 < y1 ? y0 : y1;
@@ -236,8 +298,8 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
       const uint16_t t = dvy << 1; // JSRL target
       if (op == OP_JSRL && t >= mem.glyph_lo && t < mem.glyph_hi) {
         if (!in_run) {
-          run_x = s.xpos >> 16;
-          run_y = s.ypos >> 16;
+          run_x = AVG_COORD(s.xpos);
+          run_y = AVG_COORD(s.ypos);
           in_run = true;
         }
         glyph_sp = sp + 1; // depth after the push below
@@ -254,16 +316,22 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
         const int32_t x0 = s.xpos, y0 = s.ypos;
         s.xpos += deflect(dvx, cycles, s.scale, s.xflip ? DAC_XOR_FLIP : DAC_XOR);
         s.ypos -= deflect(dvy, cycles, s.scale);
+#ifdef HAL_VIDEO_NATIVE
+        if (s.sparkle && mem.sparkle_points) {
+          n = sparkle_split(mem, s, x0, y0, cycles, int_latch, window, glyph_sp, run_x, run_y, out, n, max);
+          break;
+        }
+#endif
         const uint8_t intensity = line_color(mem, s, int_latch);
         if (s.sparkle) {
           sparkle_steps(s, cycles);
         }
         if (intensity) {
           vec2d::Line l = {};
-          l.x0 = x0 >> 16;
-          l.y0 = y0 >> 16;
-          l.x1 = s.xpos >> 16;
-          l.y1 = s.ypos >> 16;
+          l.x0 = AVG_COORD(x0);
+          l.y0 = AVG_COORD(y0);
+          l.x1 = AVG_COORD(s.xpos);
+          l.y1 = AVG_COORD(s.ypos);
           l.color = intensity;
           if (inside(l, window) || vec2d::clip(l, window)) {
             if (glyph_sp) {
@@ -315,5 +383,7 @@ uint16_t decode(const Memory &mem, State &s, vec2d::Line *out, uint16_t max) {
   }
   return n;
 }
+
+#undef AVG_COORD
 
 } // namespace avg

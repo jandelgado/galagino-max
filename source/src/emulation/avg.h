@@ -11,6 +11,7 @@
 
 #include <stdint.h>
 #include "vector2d.h"
+#include "../hal/video_width.h" // HAL_VIDEO_NATIVE
 
 namespace avg {
 
@@ -39,6 +40,15 @@ struct Memory {
   Variant variant;
   const uint8_t *colorram; // Tempest: 16 entries, Major Havoc: 32, read at decode time
   const uint8_t *banked;   // Major Havoc: 4 pages of 8 KiB at AVG 0x2000-0x3fff
+#ifdef HAL_VIDEO_NATIVE
+  // Major Havoc sparkle as MAME draws it: a segment per point (8 cycles),
+  // each in its own color, black ones skipped, at most 16 per vector. Else
+  // one line in the first point's color (enough on 240 columns).
+  bool sparkle_points;
+  // Line coordinates in 1 / 2^frac_bits beam units (native HDMI: 4, joints
+  // of long lines stay exact at 1.85 px a unit); 0: whole units
+  uint8_t frac_bits;
+#endif
 };
 
 static const uint8_t GLYPH = 0x80; // Line::color flag
@@ -68,7 +78,8 @@ struct State {
   void reset(int32_t xc, int32_t yc);
 };
 
-// Decodes the list at AVG address 0 into lines in screen units: x right,
+// Decodes the list at AVG address 0 into lines in screen units (native:
+// 1 / 2^Memory::frac_bits units, saturated to int16): x right,
 // y down. Lines are clipped to the hardware window (MAME vg_flush:
 // (0, 0)-(1280, 1280) until the list sets one). Line::color = intensity
 // 1..15 (Star Wars and color: see SW_COLOR_SHIFT, Tempest: TP_COLOR_SHIFT); moves (intensity 0) are skipped. Stops at HALT, after max lines

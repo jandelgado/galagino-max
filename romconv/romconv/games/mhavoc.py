@@ -10,7 +10,8 @@ from romconv.emit.write import write_bytes
 from romconv.plan.budget import log_sizes
 
 # dvgMachine::MAX_LINES vec2d::Line (16 B) x 2 (decode + video) + PackedLine
-# (8 B) GO list + StripRasterizer next/active + 36 strip heads, start()
+# (8 B) GO list + StripRasterizer next/active + 60 strip heads (native HDMI),
+# start()
 _MAX_LINES = 1024
 
 
@@ -38,7 +39,7 @@ def _convert(ctx: Context) -> None:
         "avgrom": _write(ctx, "mhavoc_avgrom", avgrom, "AVG ROM pages 0-3, AVG 2000-3fff."),
         "gamma": _write(ctx, "mhavoc_gamma", gamma, "Gamma M6502 8000-bfff, mirrored at c000-ffff."),
     }
-    sizes["lines"] = _MAX_LINES * (16 + 16 + 8 + 2 * 2) + 36 * 2 + 8
+    sizes["lines"] = _MAX_LINES * (16 + 16 + 8 + 2 * 2) + 60 * 2 + 8
     log_sizes(ctx, sizes)
 
 

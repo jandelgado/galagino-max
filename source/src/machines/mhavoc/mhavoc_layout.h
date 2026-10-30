@@ -8,6 +8,12 @@
 // center (150, 130), MAME avg_device::device_start.
 namespace mhavoc_layout {
 static const bwidow_layout::Screen SCREEN = {{0, 0, 300, 260}, 150, 130, 819, 40};
+// native HDMI: coordinates in 1/16 beam units (avg::Memory::frac_bits),
+// 118 / 1024 a sixteenth (1.84 px a unit) onto NATIVE_WIDTH x 480, 1:1 pixels
+static const uint8_t NATIVE_FRAC = 4;
+static const bwidow_layout::Screen SCREEN_NATIVE = {{0, 0, 300 << NATIVE_FRAC, 260 << NATIVE_FRAC},
+                                                    150 << NATIVE_FRAC, 130 << NATIVE_FRAC, 118, 0};
+static const uint16_t NATIVE_WIDTH = 554;
 
 // Line::color = color RAM value << avg::TP_COLOR_SHIFT | level
 static const uint8_t PALETTE_SIZE = 128;

@@ -138,6 +138,10 @@ mhavoc::mhavoc()
   gamma.write = gamma_write;
   gamma.user = this;
   mhavoc_layout::palette(pal);
+#ifdef HAL_VIDEO_NATIVE
+  native = true;
+  out_width = mhavoc_layout::NATIVE_WIDTH;
+#endif
 }
 
 void mhavoc::reset() {
@@ -875,7 +879,11 @@ void mhavoc::gamma_write(m6502_t *cpu, uint16_t a, uint8_t v) {
 avg::Memory mhavoc::avg_memory() const {
   return avg::Memory{memory + VRAM_OFS, MH_VRAM_SIZE, vrom, MH_VRAM_SIZE, 0x1000,
                      mhavoc_layout::GLYPH_LO, mhavoc_layout::GLYPH_HI, avg::MHAVOC,
-                     memory + COLOR_OFS, avgrom};
+                     memory + COLOR_OFS, avgrom
+#ifdef HAL_VIDEO_NATIVE
+                     , native, uint8_t(native ? mhavoc_layout::NATIVE_FRAC : 0)
+#endif
+  };
 }
 
 uint16_t mhavoc::decode_frame(const uint8_t *) {
@@ -886,6 +894,15 @@ uint16_t mhavoc::decode_frame(const uint8_t *) {
 
 // small text grows: unreadable on 240 columns at the monitor's size
 uint16_t mhavoc::map_lines(uint16_t count) {
+#ifdef HAL_VIDEO_NATIVE
+  if (native) {
+    // text at its own size: only the glyph tag goes
+    for (uint16_t i = 0; i < count; i++) {
+      work[i].color &= ~avg::GLYPH;
+    }
+    return bwidow_layout::map(mhavoc_layout::SCREEN_NATIVE, work, count, 0);
+  }
+#endif
   mhavoc_layout::enlarge_text(work, count);
   return bwidow_layout::map(mhavoc_layout::SCREEN, work, count, 0);
 }
