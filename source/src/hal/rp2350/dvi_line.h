@@ -4,7 +4,7 @@
 // DVI output line builders: source rows (RGB565 in SPI byte order, as
 // machines render) to HSTX words (native RGB565), two pixels per word, the
 // first pixel in the low half. Rows have an even width and are read a pixel
-// pair (one 32-bit word) at a time: the builders run 432 times a frame in
+// pair (one 32-bit word) at a time: the builders run up to 480 times a frame in
 // the scanout IRQ. No SDK dependencies, so host tests cover them. Row scaling follows pico-galagino's
 // pico_shared/drivers/pico_hdmi/hstx_scale.h (GPLv3).
 
@@ -114,6 +114,36 @@ static inline bool overRate(uint32_t frames, uint32_t us, uint32_t maxFps) {
 // Base of the pass a beam position is in (beam = pass * span + rows read).
 static inline uint32_t passBase(uint32_t beam, uint32_t span) {
   return beam & ~(span - 1);
+}
+
+// Native mode (vector games): 480 rows at 1x from a ring of RING_SLOTS strips
+// of 8 rows in the framebuffer memory. Rows and strips count from the mode
+// switch: row = pass * 480 + line, strip = row / 8, its slot strip % 14.
+static const uint32_t NATIVE_ROWS = 480, NATIVE_STRIP_ROWS = 8;
+static const uint32_t NATIVE_STRIPS = NATIVE_ROWS / NATIVE_STRIP_ROWS;
+static const uint32_t RING_SLOTS = 14;
+
+static inline uint32_t ringSlot(uint32_t strip) {
+  return strip % RING_SLOTS;
+}
+
+// First strip of the next screen: it shows in the first pass whose row 0
+// the scanout has not built yet (rowsBuilt rows so far).
+static inline uint32_t firstStrip(uint32_t rowsBuilt) {
+  return (rowsBuilt + NATIVE_ROWS - 1) / NATIVE_ROWS * NATIVE_STRIPS;
+}
+
+// The slot of `strip` is free once the scanout built the last row of the
+// strip that used it before (strip - RING_SLOTS). Wraps with the row counter.
+static inline bool slotFree(uint32_t strip, uint32_t rowsBuilt) {
+  return strip < RING_SLOTS ||
+         (int32_t)(rowsBuilt - (strip - RING_SLOTS + 1) * NATIVE_STRIP_ROWS) >= 0;
+}
+
+// A slot shows only the strip it was tagged with, else black: a late strip
+// never shows the previous pass's pixels.
+static inline bool stripReady(uint32_t tag, uint32_t strip) {
+  return tag == strip;
 }
 
 // 1x: `width` pixels into width / 2 words.

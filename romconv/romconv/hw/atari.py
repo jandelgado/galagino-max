@@ -7,9 +7,9 @@ from romconv.gfx.rom import rom_bytes_all
 from romconv.plan.budget import check_budget
 
 # dvgMachine::_MAX_LINES vec2d::Line (16 B) + StripRasterizer next/active
-# (2 x uint16_t per line) + 36 strip heads, allocated in start()
+# (2 x uint16_t per line) + 60 strip heads (native HDMI), allocated in start()
 _MAX_LINES = 1024
-_LINE_BUFFER_BYTES = _MAX_LINES * 16 + _MAX_LINES * 2 * 2 + 36 * 2
+_LINE_BUFFER_BYTES = _MAX_LINES * 16 + _MAX_LINES * 2 * 2 + 60 * 2
 # GO list: decode buffer (vec2d::Line per line) and published PackedLine
 # (8 B) list (+ 2 B count + 4 B sequence)
 _GO_LIST_BYTES = _MAX_LINES * 16 + _MAX_LINES * 8 + 8

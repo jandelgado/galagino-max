@@ -98,6 +98,22 @@ HAL_FAST_CODE void clearWords(uint32_t *words, uint32_t n) {
 const uint32_t SRC_WIDTH = DviHstxVideo::MAX_WIDTH;
 uint16_t frame[SRC_ROWS][SRC_WIDTH];
 
+// Native mode: `frame` holds the strip ring (dvi_line.h). slot_tag[slot] =
+// the strip written there last; the IRQ sends a line only from its own
+// strip, else black.
+static_assert(dvi::RING_SLOTS * dvi::NATIVE_STRIP_ROWS * 640 <= SRC_ROWS * SRC_WIDTH,
+              "native ring does not fit the framebuffer");
+volatile uint32_t native_rows;   // lines built since the switch (IRQ)
+volatile uint32_t slot_tag[dvi::RING_SLOTS];
+const uint32_t NO_STRIP = 0xffffffffu;
+volatile uint32_t native_misses; // lines sent black: strip late
+int8_t pending_mode = -1;        // switchMode: native_mode after the resync
+#ifdef DEBUG_TIMING
+uint32_t native_late;            // strips submitted after the beam built their first row
+uint32_t native_wait_us;         // video core time spent waiting for a free slot
+uint32_t native_frame_start_us, native_frame_max_us;
+#endif
+
 // The DMA IRQ has the highest priority: a late requeue makes a channel
 // replay a stale buffer, the HSTX command stream loses its framing and stays
 // garbled (about 160 frames/s, no picture). At that priority it may not call
@@ -299,6 +315,22 @@ void DviHstxVideo::submit(const uint16_t *strip, uint32_t pixels) {
 }
 
 void DviHstxVideo::endFrame(uint8_t part, uint32_t) {
+  // native: nativeStrip() paces the screens
+  if (native_mode) {
+#ifdef DEBUG_TIMING
+    static uint32_t last_us;
+    if (time_us_32() - last_us > 1000000) {
+      printf("DVI: native misses %u late strips %u, frame max %u us, slot wait %u us/s\n",
+             (unsigned)native_misses, (unsigned)native_late, (unsigned)native_frame_max_us,
+             (unsigned)native_wait_us);
+      native_frame_max_us = 0;
+      native_wait_us = 0;
+      last_us = time_us_32();
+    }
+#endif
+    return;
+  }
+
   // Next screen: once the pass after the screen's last one read the first
   // strip. Half rate, second part: once the first part's pass read every
   // row; the second half then has to beat the next pass to row 144.
@@ -340,6 +372,10 @@ void DviHstxVideo::endFrame(uint8_t part, uint32_t) {
 // Builds active line `line` into line_buf[buffer] from the framebuffer;
 // border lines are sent from black_line.
 void HAL_FAST_CODE DviHstxVideo::buildLine(uint32_t line, uint32_t buffer) {
+  if (native_mode) {
+    buildNative(buffer);
+    return;
+  }
   if (line < PIC_TOP || line >= PIC_TOP + PIC_LINES) {
     return;
   }
@@ -380,6 +416,90 @@ void HAL_FAST_CODE DviHstxVideo::buildLine(uint32_t line, uint32_t buffer) {
   }
 }
 
+// Native: the next line from its strip at 1x, black if the strip is late
+void HAL_FAST_CODE DviHstxVideo::buildNative(uint32_t buffer) {
+  uint32_t *out = line_buf[buffer] + HEADER_WORDS;
+  const uint32_t row = native_rows;
+  const uint32_t strip = row / dvi::NATIVE_STRIP_ROWS;
+  const uint32_t slot = dvi::ringSlot(strip);
+  native_rows = row + 1;
+
+  if (!dvi::stripReady(slot_tag[slot], strip)) {
+    if (built_width[buffer] != 0) {
+      clearWords(out, LINE_WORDS);
+      built_width[buffer] = 0;
+    }
+    native_misses = native_misses + 1;
+    return;
+  }
+
+  // a new width leaves pixels in what is now border: clear once
+  const uint16_t width = native_width;
+  if (built_width[buffer] != width) {
+    clearWords(out, LINE_WORDS);
+    built_width[buffer] = width;
+  }
+  const uint16_t *src = &frame[0][0] + (slot * dvi::NATIVE_STRIP_ROWS + row % dvi::NATIVE_STRIP_ROWS) * width;
+  dvi::line1x(src, out + (LINE_WORDS - width / 2) / 2, width, dvi::Mirror::OFF);
+}
+
+void DviHstxVideo::setNative(uint16_t width) {
+  native_width = width;
+  if (!native_mode) {
+    switchMode(true);
+  }
+}
+
+void DviHstxVideo::switchMode(bool native) {
+  pending_mode = native ? 1 : 0;
+  resync();
+}
+
+uint16_t *DviHstxVideo::nativeStrip() {
+  if (native_count == 0) {
+    native_strip = dvi::firstStrip(native_rows);
+#ifdef DEBUG_TIMING
+    native_frame_start_us = time_us_32();
+#endif
+  }
+  const uint32_t strip = native_strip + native_count;
+
+  // a stalled scanout holds the screen up only once
+  const uint32_t start = time_us_32();
+  while (!dvi::slotFree(strip, native_rows)) {
+    if (time_us_32() - start > STALL_MS * 1000) {
+      resync();
+      break;
+    }
+  }
+#ifdef DEBUG_TIMING
+  native_wait_us += time_us_32() - start;
+#endif
+  return &frame[0][0] + dvi::ringSlot(strip) * dvi::NATIVE_STRIP_ROWS * native_width;
+}
+
+void DviHstxVideo::nativeSubmit() {
+  const uint32_t strip = native_strip + native_count;
+#ifdef DEBUG_TIMING
+  if ((int32_t)(native_rows - strip * dvi::NATIVE_STRIP_ROWS) > 0) {
+    native_late++;
+  }
+  if (native_count + 1 == NATIVE_STRIPS) {
+    const uint32_t us = time_us_32() - native_frame_start_us;
+    native_frame_max_us = us > native_frame_max_us ? us : native_frame_max_us;
+  }
+#endif
+
+  // pixels before the tag: the IRQ runs on the other core
+  __dmb();
+  slot_tag[dvi::ringSlot(strip)] = strip;
+  native_count = native_count + 1 == NATIVE_STRIPS ? 0 : native_count + 1;
+}
+
+uint32_t DviHstxVideo::nativeMisses() const {
+  return native_misses;
+}
+
 void HAL_FAST_CODE DviHstxVideo::irq() {
   irq_busy = true;
   __dmb();
@@ -418,7 +538,7 @@ void HAL_FAST_CODE DviHstxVideo::scanout() {
   } else {
     // requeue first, then build: the line before this one is being sent
     const uint32_t line = v_scanline - V_BLANK;
-    const bool inPicture = line >= PIC_TOP && line < PIC_TOP + PIC_LINES;
+    const bool inPicture = self->native_mode || (line >= PIC_TOP && line < PIC_TOP + PIC_LINES);
     uint32_t *buf = inPicture ? line_buf[line & 1] : black_line[line & 1];
     ch->read_addr = (uintptr_t)buf;
     ch->transfer_count = ACTIVE_WORDS + (line == V_ACTIVE - 1 ? TAIL_WORDS : 0);
@@ -464,6 +584,21 @@ void DviHstxVideo::resync() {
   hw_set_bits(&dma_hw->ch[ch_ping].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
   hw_set_bits(&dma_hw->ch[ch_pong].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
   queueBlankLines();
+
+  // mode switch: the IRQ is off, the new mode starts with this pass
+  if (pending_mode >= 0) {
+    native_mode = pending_mode;
+    pending_mode = -1;
+    native_rows = 0;
+    native_count = 0;
+    for (uint32_t i = 0; i < dvi::RING_SLOTS; i++) {
+      slot_tag[i] = NO_STRIP;
+    }
+    built_width[0] = built_width[1] = 0xffff;
+    memset(frame, 0, sizeof(frame));
+  }
+  // native: the restarted pass begins at a whole pass
+  native_rows = dvi::firstStrip(native_rows) * dvi::NATIVE_STRIP_ROWS;
 
   // a new pass starts at row 0
   pass_base = (beam & ~(PASS_SPAN - 1)) + PASS_SPAN;

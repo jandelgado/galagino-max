@@ -68,6 +68,13 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
   240 x 320; DVI 640 x 480 at 1x, 320 x 320 at 2x).
 - `uint8_t stripIndex(uint8_t i) const`: strip to render as the i-th of a screen. Identity where
   the panel flips (SPI TFT); DVI scans top to bottom, so a flipY machine renders strip `35 - i`.
+- Native mode (DVI only, `HAL_VIDEO_NATIVE` from `video_width.h`; `hal::VIDEO_NATIVE_W` x
+  `VIDEO_NATIVE_H` = 640 x 480): the HDMI raster at 1x, for vector games. `setNative(width)`
+  (even, <= 640, centered; `setViewport` leaves the mode, both switch at a scanout pass), then per
+  screen `NATIVE_STRIPS` (60) x (`uint16_t *nativeStrip()`, render 8 rows of `width` into it,
+  `nativeSubmit()`), then `endFrame()` (returns at once). The strips race the beam in a ring of
+  14 in the framebuffer memory; a strip not submitted in time shows black for that pass
+  (`nativeMisses()` counts the lines). Flips are ignored: the machine maps them.
 
 ## System (`sys.h`)
 - `struct SysInfo { chip, revision, cores, cpuMhz, flashBytes, sdkVersion }`, `void sysInfo(SysInfo&)`

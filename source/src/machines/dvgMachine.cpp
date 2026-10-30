@@ -53,11 +53,11 @@ void dvgMachine::start() {
   lines = Arena::alloc<vec2d::Line>(MAX_LINES);
   line_next = Arena::alloc<uint16_t>(MAX_LINES);
   line_active = Arena::alloc<uint16_t>(MAX_LINES);
-  strip_head = Arena::alloc<uint16_t>(STRIPS);
+  strip_head = Arena::alloc<uint16_t>(strips());
 #ifdef DVG_GLOW
   glow_carry = Arena::alloc<uint16_t>(renderWidth());
 #endif
-  raster.init(line_next, line_active, strip_head, STRIPS, glow_carry);
+  raster.init(line_next, line_active, strip_head, strips(), glow_carry);
   raster.begin(lines, 0);
 }
 
@@ -130,7 +130,16 @@ void dvgMachine::go() {
     g.count = count;
     for (uint16_t i = 0; i < count; i++) {
       const vec2d::Line &l = work[i];
+#ifdef HAL_VIDEO_NATIVE
+      PackedLine &p = g.lines[i];
+      p.y0 = l.y0;
+      p.y1 = l.y1;
+      p.x0 = l.x0;
+      p.x1 = l.x1;
+      p.color = l.color;
+#else
       g.lines[i] = {(uint16_t)l.y0, (uint16_t)l.y1, (uint8_t)l.x0, (uint8_t)l.x1, l.color};
+#endif
     }
   });
   game_started = 1;

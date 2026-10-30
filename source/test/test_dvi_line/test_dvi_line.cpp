@@ -190,6 +190,45 @@ static void test_pass_base(void) {
   TEST_ASSERT_EQUAL_UINT32(0xfffffe00u, passBase(0xffffffffu, 512));
 }
 
+// native mode: the strip ring lives in the 256 x 288 framebuffer
+static void test_native_ring_fits_framebuffer(void) {
+  TEST_ASSERT_EQUAL_UINT32(480, NATIVE_ROWS);
+  TEST_ASSERT_EQUAL_UINT32(NATIVE_ROWS, NATIVE_STRIPS * NATIVE_STRIP_ROWS);
+  TEST_ASSERT_TRUE(RING_SLOTS * NATIVE_STRIP_ROWS * 640 * 2 <= 256 * 288 * 2);
+}
+
+// a screen starts with the first pass whose row 0 is not built yet
+static void test_native_first_strip(void) {
+  TEST_ASSERT_EQUAL_UINT32(0, firstStrip(0));
+  TEST_ASSERT_EQUAL_UINT32(60, firstStrip(1));
+  TEST_ASSERT_EQUAL_UINT32(60, firstStrip(480));
+  TEST_ASSERT_EQUAL_UINT32(120, firstStrip(481));
+}
+
+// a slot is free once the beam built the last row of the strip before it
+static void test_native_slot_free(void) {
+  TEST_ASSERT_TRUE(slotFree(0, 0));
+  TEST_ASSERT_TRUE(slotFree(13, 0));
+  TEST_ASSERT_FALSE(slotFree(14, 7));
+  TEST_ASSERT_TRUE(slotFree(14, 8));
+  TEST_ASSERT_FALSE(slotFree(73, 479));
+  TEST_ASSERT_TRUE(slotFree(73, 480));
+  // the row counter wraps after 2^32 lines: compare the difference
+  TEST_ASSERT_FALSE(slotFree(0x1fffffffu, 0xffffff8fu));
+  TEST_ASSERT_TRUE(slotFree(0x1fffffffu, 0xffffff90u));
+  TEST_ASSERT_TRUE(slotFree(0x1fffffffu, 0x00000010u));
+}
+
+// a slot still tagged with the previous pass's strip is not shown
+static void test_native_slot_tags(void) {
+  const uint32_t strip = 75;
+  TEST_ASSERT_EQUAL_UINT32(ringSlot(strip - RING_SLOTS), ringSlot(strip));
+  TEST_ASSERT_EQUAL_UINT32(5, ringSlot(75));
+  TEST_ASSERT_FALSE(stripReady(strip - RING_SLOTS, strip));
+  TEST_ASSERT_FALSE(stripReady(0xffffffffu, strip));
+  TEST_ASSERT_TRUE(stripReady(strip, strip));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_swap565);
@@ -208,5 +247,9 @@ int main(int, char **) {
   RUN_TEST(test_frame_row);
   RUN_TEST(test_over_rate);
   RUN_TEST(test_pass_base);
+  RUN_TEST(test_native_ring_fits_framebuffer);
+  RUN_TEST(test_native_first_strip);
+  RUN_TEST(test_native_slot_free);
+  RUN_TEST(test_native_slot_tags);
   return UNITY_END();
 }

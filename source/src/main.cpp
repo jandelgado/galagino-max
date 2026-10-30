@@ -86,6 +86,9 @@ Input input = Input();
 
 void updateAudioVideo(void);
 void renderRow(short row);
+#ifdef HAL_VIDEO_NATIVE
+static void renderNative(uint32_t t0);
+#endif
 void onDoAttractReset();
 void onVolumeUpDown(bool up, bool down);
 void onDoReset();
@@ -349,6 +352,13 @@ void updateAudioVideo(void) {
 
   currentMachine->prepare_frame();
 
+#ifdef HAL_VIDEO_NATIVE
+  if (currentMachine->renderRows() == hal::VIDEO_NATIVE_H) {
+    renderNative(t0);
+    return;
+  }
+#endif
+
   video.setHalfRate(currentMachine->useVideoHalfRate());
   const int renderWidth = currentMachine->renderWidth();
   const int renderWrite = renderWidth << 3;
@@ -412,3 +422,30 @@ void onDoReset() {
     doReset = true;
   }
 }
+
+#ifdef HAL_VIDEO_NATIVE
+// Native screen (vector games on HDMI): 60 strips rendered straight into the
+// scanout ring, just ahead of the beam. One screen per scanout pass.
+static void renderNative(uint32_t t0) {
+  const uint32_t strips = hal::Video::NATIVE_STRIPS;
+  const uint32_t stripsPerAudio = strips / 6;
+  video.setNative(currentMachine->renderWidth());
+
+  const int bytes = currentMachine->renderBuffer();
+  for (uint32_t s = 0; s < strips; s++) {
+    uint16_t *strip = video.nativeStrip();
+    memset(strip, 0, bytes);
+    currentMachine->setFrameBuffer(strip);
+    currentMachine->render_row(s);
+    video.nativeSubmit();
+    if ((s + 1) % stripsPerAudio == 0) {
+      audio.transmit();
+    }
+  }
+  currentMachine->setFrameBuffer(frame_buffer);
+
+  emulation_videoRendered();
+  video.endFrame(0, t0);
+  emulation_notifyGive();
+}
+#endif

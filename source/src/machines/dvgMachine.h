@@ -16,7 +16,7 @@
 //   emulation core                   video core
 //   CPU writes VRAM, GO: go()        prepare_frame(): go_list ->
 //     decode_frame(), map_lines()      lines, raster.begin()
-//     publishes go_list -----------> render_row() x 36
+//     publishes go_list -----------> render_row() x 36 (native: 60)
 //
 // Decoding at GO like the real DVG keeps the vector count off the video
 // core, which has no time left beside SPI (240 columns) and audio.
@@ -27,8 +27,11 @@ public:
   void run_frame() override;
   void prepare_frame() override;
   void render_row(short row) override;
-  const int renderWidth() override { return 240; }
-  const int renderBuffer() override { return 240 * 2 * 8; }
+  const int renderWidth() override { return out_width; }
+  const int renderBuffer() override { return out_width * 2 * 8; }
+#ifdef HAL_VIDEO_NATIVE
+  const int renderRows() override { return native ? hal::VIDEO_NATIVE_H : 288; }
+#endif
 
   // keep in sync with LINE_BUFFER_BYTES in the romconv scripts
   static const uint16_t MAX_LINES = 1024;
@@ -69,21 +72,35 @@ protected:
   uint32_t cycles = 0;
 
   dvg::Memory dvg_mem = {}; // ROM window and glyphs, set by the subclass ctor
+  // output geometry, set by a subclass ctor: native = 480 rows at 1x on
+  // HDMI. Constants without HAL_VIDEO_NATIVE: ESP code stays as it was.
+#ifdef HAL_VIDEO_NATIVE
+  uint16_t out_width = 240;
+  bool native = false;
+#else
+  static const uint16_t out_width = 240;
+  static const bool native = false;
+#endif
   vec2d::Line *work = nullptr; // emulation core decode buffer, Arena
   uint16_t palette[16]; // intensity -> RGB565, byte swapped
 
 private:
   static const uint32_t CYCLES_PER_FRAME = 25200; // 1.512 MHz / 60 Hz
   static const uint32_t CYCLES_PER_INT = 6144;    // 3 kHz / 12 = 246 Hz
-  static const uint8_t STRIPS = 36;
+  static const uint8_t STRIPS = 36, NATIVE_STRIPS = 60;
+  uint8_t strips() const { return native ? NATIVE_STRIPS : STRIPS; }
 
   const Interrupt interrupt;
   uint32_t next_int = 0; // cycles value of the next interrupt
 
   // mapped line, half a vec2d::Line
   struct PackedLine {
+#ifdef HAL_VIDEO_NATIVE
+    uint64_t y0 : 10, y1 : 10, x0 : 10, x1 : 10, color : 8;
+#else
     uint16_t y0, y1;
     uint8_t x0, x1, color;
+#endif
   };
   static_assert(sizeof(PackedLine) == 8, "PackedLine size is part of the Arena budget");
 

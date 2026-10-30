@@ -29,12 +29,12 @@ _MATH_PROMS = (
 
 # Other Arena users, allocated in starwars::start(); keep in sync:
 # - lines: starwars::MAX_LINES vec2d::Line (16 B) + StripRasterizer
-#   next/active (2 x uint16_t per line) + 36 strip heads
+#   next/active (2 x uint16_t per line) + 60 strip heads (native HDMI)
 # - GO list: decode buffer (vec2d::Line per line) and published
 #   PackedLine (8 B) list (+ 2 B count + 4 B sequence)
 # - Math RAM 0x5000-0x5fff
 _MAX_LINES = 2048
-_LINE_BUFFER_BYTES = _MAX_LINES * 16 + _MAX_LINES * 2 * 2 + 36 * 2
+_LINE_BUFFER_BYTES = _MAX_LINES * 16 + _MAX_LINES * 2 * 2 + 60 * 2
 _GO_LIST_BYTES = _MAX_LINES * 16 + _MAX_LINES * 8 + 8
 _MATH_RAM_BYTES = 0x1000
 
