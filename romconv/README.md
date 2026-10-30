@@ -127,10 +127,9 @@ uv run python -m dev.golden diff before after   # "identical" or the differing f
 ## Asset split per Arena layout
 
 Machines unpack COMPRESSED assets into the Arena, two RAM blocks whose
-sizes depend on the build: `[arena]` in `source/platformio.ini` lists one
-layout per row (`name = A B` bytes; block A is smaller in `_remote`
-layouts, which link WiFi), and every env selects one with
-`custom_arena_layout`. romconv plans every row on every run; the build
+sizes depend on the build: `[arena]` in `source/firmware.toml` lists one
+layout per row (`name = [A, B]` bytes; block A is smaller in `_remote`
+layouts, which link WiFi), and every env of `[envs]` selects one. romconv plans every row on every run; the build
 picks its block by `ARENA_LAYOUT_<NAME>` and fails for a layout without
 one. For games that do not fit every layout with one hand-written split,
 romconv computes the split per layout:

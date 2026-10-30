@@ -1,7 +1,6 @@
-"""Reads firmware.toml (options, Arena layouts, game sets, modes) and turns a
-mode + layout into the build defines. Used by extraScript.py (PlatformIO) and
+"""Reads firmware.toml (envs, options, Arena layouts, game sets, modes) and
+turns an env into its build defines. Used by extraScript.py (PlatformIO) and
 config_to_cmake.py (RP2350). romconv keeps its own [arena] reader."""
-import enum
 import re
 import tomllib
 from pathlib import Path
@@ -11,15 +10,14 @@ CONFIG_PATH = Path(__file__).resolve().parent.parent / "firmware.toml"
 _LAYOUT_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 _REMOTE_DEFINE = "ASSETS_REMOTE"
 _REMOTE_SUFFIX = "_remote"
+_GAME_PREFIX = "ENABLE_"
+# [envs] platform -> HAL define, also the src/hal/<platform>/ backend
+PLATFORMS = {"esp": "HAL_ESP", "rp2350": "HAL_RP2350", "host": "HAL_HOST"}
+_ENV_KEYS = {"platform", "board", "mode", "layout"}
 
 
 class ConfigError(ValueError):
     pass
-
-
-class Target(enum.Enum):
-    DEVICE = "device"
-    NATIVE = "native"
 
 
 def load(path=CONFIG_PATH):
@@ -49,7 +47,16 @@ def mode_defines(cfg, mode):
                               % (mode, name, ", ".join(games)))
         enabled += [g for g in games[name] if g not in enabled]
 
-    return list(modes[mode].get("defines", [])) + ["ENABLE_" + g.upper() for g in enabled]
+    return list(modes[mode].get("defines", [])) + [_GAME_PREFIX + g.upper() for g in enabled]
+
+
+# ENABLE_<GAME> of a dev build's game list (GAMES=a,b), each a game of [games]
+def _game_defines(cfg, games):
+    known = {g for names in cfg.get("games", {}).values() for g in names}
+    unknown = [g for g in games if g not in known]
+    if unknown:
+        raise ConfigError("firmware.toml: games %s not in [games]" % ", ".join(unknown))
+    return [_GAME_PREFIX + g.upper() for g in games]
 
 
 def _is_size(v):
@@ -85,19 +92,49 @@ def check_layout_mode(layout, defines):
                          "set" if remote else "not set"))
 
 
-def build_defines(cfg, mode, layout):
-    defines = option_defines(cfg) + mode_defines(cfg, mode)
-    check_layout_mode(layout, defines)
-    return defines + layout_defines(cfg, layout)
+# one [envs] row: platform, layout; a device env also board and mode
+def env(cfg, name):
+    envs = cfg.get("envs", {})
+    if name not in envs:
+        raise ConfigError("firmware.toml: env '%s' not in [envs]: %s" % (name, ", ".join(envs)))
+
+    row = envs[name]
+    extra = set(row) - _ENV_KEYS
+    if extra:
+        raise ConfigError("firmware.toml: [envs] %s: unknown keys %s" % (name, ", ".join(sorted(extra))))
+    if row.get("platform") not in PLATFORMS:
+        raise ConfigError("firmware.toml: [envs] %s: platform must be one of %s"
+                          % (name, ", ".join(PLATFORMS)))
+    if "layout" not in row:
+        raise ConfigError("firmware.toml: [envs] %s: layout missing" % name)
+    device = row["platform"] != "host"
+    if device and not ("board" in row and "mode" in row):
+        raise ConfigError("firmware.toml: [envs] %s: a device env needs board and mode" % name)
+    return row
 
 
-# Defines the PlatformIO hook appends: an env with custom_mode gets
-# build_defines(); one without (perf envs, own ENABLE_ flags) the options and
-# the layout; env:native only the layout. own: the env's own -D names, part
-# of the layout check.
-def hook_defines(cfg, mode, layout, target, own=()):
-    defines = [] if target == Target.NATIVE else option_defines(cfg)
-    if mode is not None:
-        defines += mode_defines(cfg, mode)
-    check_layout_mode(layout, defines + list(own))
-    return defines + layout_defines(cfg, layout)
+# Defines of one env: HAL_<PLATFORM>, BOARD_<NAME>, the options, the mode's
+# defines and games, the layout, then extra. games (a dev build, GAMES=a,b)
+# replaces the mode's games.
+def env_defines(cfg, name, games=None, extra=()):
+    row = env(cfg, name)
+    defines = [PLATFORMS[row["platform"]]]
+    if "board" in row:
+        defines.append("BOARD_" + row["board"].upper())
+    if "mode" in row:
+        mode = mode_defines(cfg, row["mode"])
+        if games is not None:
+            mode = [d for d in mode if not d.startswith(_GAME_PREFIX)] + _game_defines(cfg, games)
+        defines += option_defines(cfg) + mode
+    elif games is not None:
+        raise ConfigError("firmware.toml: env '%s' has no mode, GAMES does not apply" % name)
+
+    check_layout_mode(row["layout"], defines + list(extra))
+    return defines + layout_defines(cfg, row["layout"]) + list(extra)
+
+
+# A dev build's overrides from the environment: GAMES=a,b replaces the env's
+# games, DEFINES="A=1 B" adds defines. Both builds read them the same way.
+def dev_overrides(environ):
+    games = environ.get("GAMES", "").strip()
+    return ([g for g in games.split(",") if g] if games else None), environ.get("DEFINES", "").split()

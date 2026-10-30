@@ -17,9 +17,9 @@ _tmp = tempfile.TemporaryDirectory()
 _SRC = Path(_tmp.name)
 _CHECK = _SRC / "hal" / "config_check.h"
 _CONFIG = _SRC / "config.h"
-# every build gets these from extraScript.py (custom_arena_layout)
+# every build gets these from its env's layout (firmware.toml)
 _ARENA = ["ARENA_A_SIZE=1", "ARENA_B_SIZE=1"]
-# a DVI build's Arena layout (build.sh picks it for DVI profiles)
+# a DVI env's Arena layout
 _DVI_ARENA = ["ARENA_LAYOUT_RP2350_DVI"]
 # a DVI build's HSTX pins and placement (board profiles set them)
 _HSTX = _DVI_ARENA + ["HSTX_CK_PIN=14", "HSTX_D0_PIN=18", "HSTX_D1_PIN=16", "HSTX_D2_PIN=12", "DVI_SCALE=2"]
@@ -55,7 +55,7 @@ class Rules(unittest.TestCase):
     def test_arena_layout_needed(self):
         r = _preprocess(_CHECK, ["HAL_ESP"])
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("set custom_arena_layout", r.stderr)
+        self.assertIn("build an env of [envs]", r.stderr)
 
     def test_one_platform(self):
         self._rejects(["HAL_ESP", "HAL_RP2350"], "only one of HAL_ESP")
@@ -148,7 +148,8 @@ class Rules(unittest.TestCase):
 
 class Profiles(unittest.TestCase):
     def test_every_profile_passes(self):
-        boards = {"BOARD_CYD2432S028R": "HAL_ESP", "BOARD_FNK0103F": "HAL_ESP",
+        boards = {"BOARD_AZDELIVERY": "HAL_ESP", "BOARD_CYDMANUAL": "HAL_ESP",
+                  "BOARD_CYD2432S028R": "HAL_ESP", "BOARD_FNK0103F": "HAL_ESP",
                   "BOARD_FNK0103B": "HAL_ESP", "BOARD_FNK0104": "HAL_ESP",
                   "BOARD_PICO2": "HAL_RP2350", "BOARD_FEATHER_RP2350": "HAL_RP2350",
                   "BOARD_PICO2W_DVI": "HAL_RP2350"}
@@ -165,6 +166,12 @@ class Profiles(unittest.TestCase):
             with self.subTest(header=header.name):
                 r = _preprocess(header, ["HAL_ESP"])
                 self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_cydmanual_selects_cyd_manual_at_80_mhz(self):
+        r = _macros(["HAL_ESP", "BOARD_CYDMANUAL"] + _ARENA)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("#define CHEAP_YELLOW_DISPLAY_CONF", r.stdout)
+        self.assertIn("#define TFT_SPICLK 80000000L", r.stdout)
 
     def test_old_spi_host_name_is_rejected(self):
         r = _preprocess(_CONFIG, ["HAL_ESP", "BOARD_FNK0103F", "TFT_SPI_HOST=SPI3_HOST"] + _ARENA)

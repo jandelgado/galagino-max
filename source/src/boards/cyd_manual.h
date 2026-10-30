@@ -1,5 +1,5 @@
 // Cheap Yellow Display wired by hand: GPIO buttons or a Nunchuk on CN1.
-// Selected by CHEAP_YELLOW_DISPLAY_CONF (config_local.h or a build flag).
+// Selected by BOARD_CYDMANUAL or CHEAP_YELLOW_DISPLAY_CONF (config_local.h).
 #ifndef HAL_BOARD_CYD_MANUAL_H
 #define HAL_BOARD_CYD_MANUAL_H
 
@@ -8,6 +8,10 @@
 #endif
 #ifndef HAL_AUDIO_CHOSEN
 #define HAL_AUDIO_ESP_DAC
+#endif
+// ST7789 copes with 80 MHz
+#ifndef TFT_SPICLK
+#define TFT_SPICLK      80000000L
 #endif
 #ifndef TFT_CS
 #define TFT_CS          15

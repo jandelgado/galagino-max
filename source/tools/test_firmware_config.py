@@ -1,3 +1,4 @@
+import configparser
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,7 +10,13 @@ CFG = {
     "arena": {"esp32_local": [118784, 110500], "x_remote": [60000, 110500], "rp2350": [200000, 0]},
     "games": {"a": ["x", "y"], "b": ["y", "z"]},
     "modes": {"m": {"games": ["a", "b"], "defines": ["D"]}, "r": {"games": ["a"], "defines": ["ASSETS_REMOTE"]}},
+    "envs": {
+        "dev-m": {"platform": "esp", "board": "fnk0104", "mode": "m", "layout": "esp32_local"},
+        "dev-r": {"platform": "rp2350", "board": "pico2", "mode": "r", "layout": "x_remote"},
+        "native": {"platform": "host", "layout": "esp32_local"},
+    },
 }
+_LAYOUT = ["ARENA_LAYOUT_ESP32_LOCAL", "ARENA_A_SIZE=118784", "ARENA_B_SIZE=110500"]
 
 
 class RepoConfig(unittest.TestCase):
@@ -22,6 +29,20 @@ class RepoConfig(unittest.TestCase):
             fc.mode_defines(cfg, mode)
         for layout in cfg["arena"]:
             fc.layout_defines(cfg, layout)
+
+    def test_every_env_resolves(self):
+        cfg = fc.load()
+        for name in cfg["envs"]:
+            with self.subTest(env=name):
+                fc.env_defines(cfg, name)
+
+    def test_platformio_envs_match(self):
+        # PlatformIO builds the esp and host rows, each one of its [env:] sections
+        ini = configparser.ConfigParser(interpolation=None)
+        ini.read(fc.CONFIG_PATH.parent / "platformio.ini")
+        pio = {s[len("env:"):] for s in ini.sections() if s.startswith("env:")}
+        envs = fc.load()["envs"]
+        self.assertEqual(pio, {n for n, row in envs.items() if row["platform"] in ("esp", "host")})
 
     def test_games_disjoint(self):
         games = fc.load()["games"]
@@ -73,35 +94,56 @@ class LayoutDefines(unittest.TestCase):
         fc.check_layout_mode("esp32_remote", ["ASSETS_REMOTE"])
         fc.check_layout_mode("esp32_local", [])
 
-    def test_build_defines(self):
-        self.assertEqual(fc.build_defines(CFG, "r", "x_remote"),
-                         ["OPT", "VAL=3", "ASSETS_REMOTE", "ENABLE_X", "ENABLE_Y",
-                          "ARENA_LAYOUT_X_REMOTE", "ARENA_A_SIZE=60000", "ARENA_B_SIZE=110500"])
-        with self.assertRaises(fc.ConfigError):
-            fc.build_defines(CFG, "m", "x_remote")
 
+class EnvDefines(unittest.TestCase):
+    def test_device_env(self):
+        self.assertEqual(fc.env_defines(CFG, "dev-m"),
+                         ["HAL_ESP", "BOARD_FNK0104", "OPT", "VAL=3", "D", "ENABLE_X", "ENABLE_Y",
+                          "ENABLE_Z"] + _LAYOUT)
 
-class HookDefines(unittest.TestCase):
-    _LAYOUT = ["ARENA_LAYOUT_ESP32_LOCAL", "ARENA_A_SIZE=118784", "ARENA_B_SIZE=110500"]
+    def test_remote_env(self):
+        self.assertEqual(fc.env_defines(CFG, "dev-r"),
+                         ["HAL_RP2350", "BOARD_PICO2", "OPT", "VAL=3", "ASSETS_REMOTE", "ENABLE_X",
+                          "ENABLE_Y", "ARENA_LAYOUT_X_REMOTE", "ARENA_A_SIZE=60000", "ARENA_B_SIZE=110500"])
 
-    def test_env_with_mode(self):
-        self.assertEqual(fc.hook_defines(CFG, "m", "esp32_local", fc.Target.DEVICE),
-                         fc.build_defines(CFG, "m", "esp32_local"))
+    def test_host_env(self):
+        # no board, no mode: no options, no games
+        self.assertEqual(fc.env_defines(CFG, "native"), ["HAL_HOST"] + _LAYOUT)
 
-    def test_env_without_mode(self):
-        # perf envs: own ENABLE_ flags, still the options
-        self.assertEqual(fc.hook_defines(CFG, None, "esp32_local", fc.Target.DEVICE), ["OPT", "VAL=3"] + self._LAYOUT)
+    def test_games_replace_the_mode_games(self):
+        got = fc.env_defines(CFG, "dev-m", games=["z"], extra=["DEBUG_TIMING"])
+        self.assertEqual([d for d in got if d.startswith("ENABLE_")], ["ENABLE_Z"])
+        self.assertIn("D", got)
+        self.assertEqual(got[-1], "DEBUG_TIMING")
 
-    def test_native(self):
-        self.assertEqual(fc.hook_defines(CFG, None, "esp32_local", fc.Target.NATIVE), self._LAYOUT)
+    def test_unknown_game(self):
+        with self.assertRaisesRegex(fc.ConfigError, "nope"):
+            fc.env_defines(CFG, "dev-m", games=["nope"])
 
-    def test_own_flags_join_layout_check(self):
-        # an env without mode that defines ASSETS_REMOTE itself pairs with a _remote layout only
-        fc.hook_defines(CFG, None, "x_remote", fc.Target.DEVICE, own=["ASSETS_REMOTE"])
-        with self.assertRaises(fc.ConfigError):
-            fc.hook_defines(CFG, None, "esp32_local", fc.Target.DEVICE, own=["ASSETS_REMOTE"])
-        with self.assertRaises(fc.ConfigError):
-            fc.hook_defines(CFG, "m", "x_remote", fc.Target.DEVICE)
+    def test_games_need_a_mode(self):
+        with self.assertRaisesRegex(fc.ConfigError, "native"):
+            fc.env_defines(CFG, "native", games=["x"])
+
+    def test_extra_joins_layout_check(self):
+        with self.assertRaisesRegex(fc.ConfigError, "esp32_local"):
+            fc.env_defines(CFG, "dev-m", extra=["ASSETS_REMOTE"])
+
+    def test_bad_rows(self):
+        rows = {"unknown": None,
+                "platform": {"platform": "avr", "layout": "esp32_local"},
+                "layout": {"platform": "host"},
+                "device": {"platform": "esp", "mode": "m", "layout": "esp32_local"},
+                "keys": {"platform": "host", "layout": "esp32_local", "games": ["x"]},
+                "pairing": {"platform": "esp", "board": "b", "mode": "m", "layout": "x_remote"}}
+        for name, row in rows.items():
+            with self.subTest(name=name):
+                envs = {} if row is None else {name: row}
+                with self.assertRaisesRegex(fc.ConfigError, name if row is None else "x_remote|" + name):
+                    fc.env_defines(dict(CFG, envs=envs), name)
+
+    def test_dev_overrides(self):
+        self.assertEqual(fc.dev_overrides({}), (None, []))
+        self.assertEqual(fc.dev_overrides({"GAMES": "a,b", "DEFINES": "X=1 Y"}), (["a", "b"], ["X=1", "Y"]))
 
 
 class Load(unittest.TestCase):

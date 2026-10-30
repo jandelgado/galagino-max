@@ -12,10 +12,14 @@
 #ifndef LOW
 #define LOW  0x0
 #endif
-// Board profile (src/boards/): the build selects one with BOARD_<NAME>. A
+// Board profile (src/boards/): the env selects one with BOARD_<NAME>. A
 // profile sets pins, video and controller; config_local.h then keeps its own
-// pin block out (USE_PIO_CONFIG). Without a profile: boards/cyd_manual.h if
-// CHEAP_YELLOW_DISPLAY_CONF is defined, else boards/galagino_default.h.
+// pin block out (USE_PIO_CONFIG). Without a profile (BOARD_AZDELIVERY):
+// boards/cyd_manual.h if CHEAP_YELLOW_DISPLAY_CONF is defined, else
+// config_local.h's pins or boards/galagino_default.h.
+#if defined(BOARD_CYDMANUAL)
+  #define CHEAP_YELLOW_DISPLAY_CONF
+#endif
 #if defined(BOARD_PICO2)
   #define HAL_BOARD_PROFILE "boards/pico2.h"
 #elif defined(BOARD_FEATHER_RP2350)

@@ -5,7 +5,6 @@ import sys
 Import("env")
 
 _SDKCONFIG_DEFAULTS = re.compile(r'-DSDKCONFIG_DEFAULTS="([^"]*)"')
-_DEFINE = re.compile(r"-D\s*([A-Za-z_][A-Za-z0-9_]*)")
 
 sys.path.insert(0, os.path.join(env.subst("$PROJECT_DIR"), "tools"))
 import firmware_config  # noqa: E402
@@ -18,20 +17,15 @@ def _config():
         sys.exit("extraScript: %s" % e)
 
 
-# firmware.toml: options, the games of custom_mode and the Arena row of
-# custom_arena_layout (the block sizes the firmware builds with and romconv
-# plans against)
+# firmware.toml: the [envs] row of this env (platform, board, mode, layout)
+# as defines; GAMES and DEFINES from the environment for dev builds
 def _config_defines(env, cfg):
-    native = env.get("PIOPLATFORM") == "native"
-    target = firmware_config.Target.NATIVE if native else firmware_config.Target.DEVICE
-    mode = env.GetProjectOption("custom_mode", "") or None
-    layout = env.GetProjectOption("custom_arena_layout", "")
-    flags = env.GetProjectOption("build_flags", [])
-    own = _DEFINE.findall(flags if isinstance(flags, str) else " ".join(flags))
+    name = env.subst("$PIOENV")
+    games, extra = firmware_config.dev_overrides(os.environ)
     try:
-        defines = firmware_config.hook_defines(cfg, mode, layout, target, own)
+        defines = firmware_config.env_defines(cfg, name, games, extra)
     except firmware_config.ConfigError as e:
-        sys.exit("extraScript: %s (env %s)" % (e, env.subst("$PIOENV")))
+        sys.exit("extraScript: %s (env %s)" % (e, name))
 
     return [tuple(d.split("=", 1)) if "=" in d else d for d in defines]
 
@@ -56,10 +50,10 @@ def _stale_values(want, generated_path):
 
 # A layout row may come with sdkconfig.defaults.<name> (the task stacks that
 # make its block sizes fit): appended to the build's SDKCONFIG_DEFAULTS. Keyed
-# on the layout, not the mode, so azdelivery-max and the perf envs get the
+# on the layout, not the mode, so azdelivery-max and dev builds (GAMES=) get the
 # same memory map as the swept local build.
 def _sdkconfig_defaults(env, cfg):
-    name = env.GetProjectOption("custom_arena_layout", "")
+    name = firmware_config.env(cfg, env.subst("$PIOENV"))["layout"]
     extra = "sdkconfig.defaults." + name
     project = env.subst("$PROJECT_DIR")
     own = _read_sdkconfig(os.path.join(project, extra))
