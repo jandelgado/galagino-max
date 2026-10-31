@@ -139,6 +139,8 @@ Example `config_local.h`:
 #define DEBUG_TIMING_FPS_HUD      // show emulation FPS at the bottom of the screen
 #define GALAGINO_WIFI_SSID   "my-ssid"
 #define GALAGINO_WIFI_PASS   "my-password"
+#define GALAGINO_ASSETS_URL  "http://192.168.1.2:8080"
+
 #define LED_PIN           16
 #define SND_RIGHT_CHANNEL         // audio on GPIO 25 instead of 26
 
