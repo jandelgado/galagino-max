@@ -147,8 +147,8 @@ Envs are rows of `[envs]` in `source/firmware.toml`, as on the ESP32.
 ### Tools and ROMs (both platforms)
 
 The builds run on Linux and macOS (Windows: see [ESP32](#build-for-esp32)). All tools come from
-[devbox](https://www.jetify.com/devbox), pinned in `devbox.json`: Python, uv, PlatformIO, the
-Arm compiler, CMake, Ninja and picotool.
+[devbox](https://www.jetify.com/devbox), listed in `devbox.json`: Python, uv, the Arm compiler,
+CMake, Ninja and picotool. uv runs the pinned PlatformIO and esptool, nothing to install.
 
 1. Install devbox (`curl -fsSL https://get.jetify.com/devbox | bash`) and git.
 2. Get the source and enter the shell (the first start downloads the tools):
@@ -175,9 +175,10 @@ Arm compiler, CMake, Ninja and picotool.
 
 ### Build for ESP32
 
-Toolchain: [PlatformIO](https://platformio.org/) 6.1.19 (in devbox). The first build downloads
-ESP-IDF 6.1 and the Xtensa compiler into `~/.platformio`; this takes a while. The firmware uses
-ESP-IDF, no Arduino core; details in [source/BUILD.md](source/BUILD.md).
+Toolchain: [PlatformIO](https://platformio.org/) 6.1.19, run by uv through `source/tools/pio`
+(on the devbox `PATH` as `pio`). Only uv and make are needed. The first build downloads ESP-IDF
+6.1 and the Xtensa compiler into `~/.platformio`; this takes a while. The firmware uses ESP-IDF,
+no Arduino core; details in [source/BUILD.md](source/BUILD.md).
 
 1. Pick the env for your board from the [ESP32 table](#esp32): `<board>-<mode>`.
 2. Build, flash and open the serial monitor, from `source/`:
@@ -190,13 +191,13 @@ ESP-IDF, no Arduino core; details in [source/BUILD.md](source/BUILD.md).
    ```
 
    `make` finds the board at `/dev/ttyUSB0` or `/dev/ttyACM0`; `DEVICE=1` takes the second
-   one. Without `make`: `pio run -e <env> -t upload`.
+   one. Without `make`: `tools/pio run -e <env> -t upload`.
 3. On Linux, upload needs access to the serial port: add yourself to the `dialout` group
    (`uucp` on Arch) and log in again. A board that does not enter upload mode on its own needs
    BOOT held while the upload starts.
 
-Windows: install the PlatformIO IDE extension in VS Code and open `source/` as project; convert
-the ROMs with `romconv\convert.bat` (needs uv).
+Windows: install uv, convert the ROMs with `romconv\convert.bat`, then build in `source\` with
+`uvx --from platformio==6.1.19 --with intelhex pio run -e <env> -t upload` (untested).
 
 ### Build for RP2350
 

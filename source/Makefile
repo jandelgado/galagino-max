@@ -26,6 +26,9 @@ DEVICE ?= 0
 DEVICE_PATH := $(DEVICE_BASE)$(DEVICE)
 
 ENV ?= $(DEFAULT_ENV)
+# PlatformIO and esptool, pinned, run by uv
+PIO ?= ./tools/pio
+ESPTOOL ?= uvx --from esptool==5.2.0 esptool
 BIN = .pio/build/$(ENV)/GALAGINOMAX_*_release.bin
 
 # every device env of platformio.ini
@@ -38,37 +41,37 @@ else
 endif
 
 config: phony
-	pio project config
+	$(PIO) project config
 
 envs: phony
 	@echo $(ENVS)
 
 build: phony
-	pio run $(VERBOSE) -e $(ENV)
+	$(PIO) run $(VERBOSE) -e $(ENV)
 
 monitor: phony
-	pio device monitor -e $(ENV) --port $(DEVICE_PATH)
+	$(PIO) device monitor -e $(ENV) --port $(DEVICE_PATH)
 
 upload: phony
-	pio run $(VERBOSE) -e $(ENV) -t upload -t monitor
+	$(PIO) run $(VERBOSE) -e $(ENV) -t upload -t monitor
 
 upload-only: phony
-	pio run $(VERBOSE) -e $(ENV) -t upload
+	$(PIO) run $(VERBOSE) -e $(ENV) -t upload
 
 # make <env>: upload + monitor that env
 $(ENVS): phony
 	$(MAKE) upload ENV=$@
 
 image-info: phony
-	esptool image-info $(BIN)
+	$(ESPTOOL) image-info $(BIN)
 
 verify-flash: phony
-	esptool --port $(DEVICE_PATH) verify-flash --diff 0x10000 $(BIN)
+	$(ESPTOOL) --port $(DEVICE_PATH) verify-flash --diff 0x10000 $(BIN)
 
 erase-flash: phony
-	esptool --port $(DEVICE_PATH) erase-flash
+	$(ESPTOOL) --port $(DEVICE_PATH) erase-flash
 
 flash-id: phony
-	esptool --port $(DEVICE_PATH) flash-id
+	$(ESPTOOL) --port $(DEVICE_PATH) flash-id
 
 phony:
