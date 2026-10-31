@@ -4,6 +4,7 @@
 ##   make upload-only ENV=<env> build, upload
 ## RP2350 envs (e.g. pico2w_dvi-local_bt) build with ports/rp2350/build.sh and
 ## upload with picotool; GAMES=a,b and DEFINES="A B" work for both platforms.
+##   make sdks                  clone the RP2350 SDKs into <repo>/sdks (once)
 ##   make monitor ENV=<env>     serial monitor
 ##   make config                resolved platformio.ini
 ##   make image-info|verify-flash|erase-flash|flash-id ENV=<env>   esptool
@@ -49,6 +50,9 @@ endif
 
 config: phony
 	$(PIO) project config
+
+sdks: phony
+	ports/rp2350/sdks.sh
 
 envs: phony
 	@echo $(ENVS) $(RP_ENVS)

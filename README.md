@@ -4,14 +4,15 @@ Arcade emulator for the ESP32 with a 240x320 SPI display and for the RP2350 (Ras
 over HDMI. Fork of Galagino, now with **125+ games**.
 
 Using compression, galagino**max** can **squeeze up to 106 games into the classic ESP-WROOM-32's 4 MB 
-of flash**. You can also **have all 125+ games in flash, with some ROMs downloaded to the ESP32 on demand**. No need to upgrade to the S3!
+of flash**. You can also **have all 125+ games in flash, with some ROMs downloaded on demand**. No need for more flash or PSRAM.
 
 * **New platforms and games:**
   * Atari DVG/AVG vector machines: Asteroids, Star Wars, Battle Zone, Lunar Lander, Tempest, Space Duel, Gravitar,
-     Major Havoc, Black Widow
+     Major Havoc, Black Widow. On the RP2350 when using HDMI output, the vector games use the higher
+     resolution.
   * More Atari classics: Centipede, Missile Command, Tetris, Millipede, Crystal Castles
   * Sega System 1 and 2: Pitfall II, Flicky, Wonder Boy, Mister Viking, Up'n Down, Star Jacker,
-    Choplifter
+    Choplifter. 
   * Williams: Defender, Robotron, Joust, Sinistar
   * Midway MCR: Tron, Discs of Tron, Tapper, Satan's Hollow
   * Gottlieb: Q*bert, Krull, Tylz
@@ -29,22 +30,23 @@ of flash**. You can also **have all 125+ games in flash, with some ROMs download
 * Bootup "self-test", FPS display, rotating cylinder menu added.
 * **Fast, portable ROM conversion.** Converts games in parallel and uses 
   [uv](https://docs.astral.sh/uv/) to ease the setup.
+* ESP32 version builds on ESP-IDF SDK now, no Arduino or FastLED dependencies needed.
 
 ![Cabinet](images/galagino_cabinet.jpg)
 
 ## ESP32 or RP2350
 
-Same games and emulation on both. The platforms differ in video, sound and input:
+Same games and emulation on both. Differences in video, audio and input-support:
 
 | Feature           | ESP32                              | RP2350                                |
 | ---               | ---                                | ---                                   |
 | SPI TFT 240x320   | yes                                | soon                                  |
-| HDMI (DVI)        | no                                 | 640x480 60 Hz, vectors in full detail |
+| HDMI (DVI)        | no                                 | 640x480 60 Hz                         |
 | Audio             | built-in DAC, ES8311 (ESP32-S3)    | over HDMI                             |
 | Bluetooth pad     | via galagino controller (I2C)      | built in (Pico 2 W), 8BitDo SN30 Pro  |
 | Wired input       | GPIO, Nunchuk, galagino controller | same                                  |
 | Frame rate        | 60 Hz (80 MHz SPI), 30 Hz (40 MHz) | 60 Hz                                 |
-| Games in flash    | 75 or 106 (4 MB), all (S3, 16 MB)  | 74 (Pico 2 W, 4 MB)                   |
+| Games in flash    | 75 or 106 (4 MB), all (S3, 16 MB)  | 72 (Pico 2 W, 4 MB)                   |
 | ROM downloads     | yes, WiFi                          | yes, WiFi (Pico 2 W)                  |
 | Toolchain         | PlatformIO, ESP-IDF 6.1            | pico-sdk 2.2.0, CMake, no PlatformIO  |
 | Flashing          | USB serial                         | UF2 file onto the USB drive           |
@@ -70,8 +72,7 @@ This builds on a lot of other people's great work.
 * [VirtualClaudioBoy/GalaginoPlus](https://github.com/VirtualClaudioBoy/GalaginoPlus): Pooyan,
   Donkey Kong 3 sound, 48 game build.
 * [BaasPierre/GalaginoPlusXT](https://github.com/BaasPierre/GalaginoPlusXT): new games for
-  GalaginoPlus: Pinball Action, Ghosts 'n Goblins, The Fairyland Story, Bubble Bobble, Moon Patrol,
-  Arkanoid.
+  GalaginoPlus
 * [galagino/galagino-controller](https://github.com/galagino/galagino-controller): the
   Bluetooth controller, read over I2C.
 * [FabGL](https://github.com/fdivitto/FabGL): i8086 core (MIT), basis of the 8088 core.
@@ -131,12 +132,14 @@ Pico DVI Sock order:
 | 24           | 18   | D1+         |
 | 25           | 19   | D1-         |
 
-Input is a Bluetooth pad; build with `NUNCHUCK_INPUT`, `GALAGINO_CONTROLLER` (I2C on GPIO 20/21)
-or `GPIO_BUTTONS` (GPIO 2..7) for wired input. Pins: `source/src/boards/pico2w_dvi.h`.
+The Pico 2 W build supports a Bluetooth pad by default, tested with an 8BitDo SN30 Pro.
+Build with `NUNCHUCK_INPUT`, `GALAGINO_CONTROLLER` (I2C on GPIO 20/21)
+or `GPIO_BUTTONS` (GPIO 2..7) for wired input. Default pins: board profile
+`source/src/boards/pico2w_dvi.h`; override them in `config_local.h`.
 
 | Board                         | Env                    | Notes                                 |
 | ---                           | ---                    | ---                                   |
-| Raspberry Pi Pico 2 W + DVI   | `pico2w_dvi-local_bt`  | 74 games in flash                     |
+| Raspberry Pi Pico 2 W + DVI   | `pico2w_dvi-local_bt`  | 72 games in flash                     |
 | Raspberry Pi Pico 2 W + DVI   | `pico2w_dvi-remote`    | 40 games in flash, the rest over WiFi |
 | Adafruit Feather RP2350 + DVI | `feather_rp2350-local` | Untested. GPIO buttons, no radio      |
 
@@ -205,24 +208,21 @@ Toolchain: the Raspberry Pi [pico-sdk](https://github.com/raspberrypi/pico-sdk) 
 [FreeRTOS](https://github.com/FreeRTOS/FreeRTOS-Kernel) V11.3.2 and, for the Bluetooth pad,
 [Bluepad32](https://github.com/ricardoquesada/bluepad32) 4.2.0. Built with CMake and Ninja by
 `source/ports/rp2350/build.sh` (called by `make`), no PlatformIO. devbox has all build tools.
-Without devbox install CMake 3.13 or newer, Ninja, `arm-none-eabi-gcc`, `picotool`, uv and
+Without devbox install CMake 3.13 or newer, Ninja, `arm-none-eabi-gcc`, `picotool`, `uv` and
 Python 3.11 or newer.
 
-1. Get the SDKs once. `build.sh` finds them in `~/src/external/pico-deps`:
-
-   ```sh
-   mkdir -p ~/src/external/pico-deps && cd ~/src/external/pico-deps
-   git clone -b 2.2.0 --recurse-submodules https://github.com/raspberrypi/pico-sdk.git
-   git clone -b V11.3.2 https://github.com/FreeRTOS/FreeRTOS-Kernel.git
-   git -C FreeRTOS-Kernel submodule update --init portable/ThirdParty/Community-Supported-Ports
-   git clone -b 4.2.0 https://github.com/ricardoquesada/bluepad32.git
-   ```
-
-   Elsewhere: set `PICO_SDK_PATH`, `FREERTOS_KERNEL_PATH` and `BLUEPAD32_PATH`.
-2. Build, back in the repository root:
+1. Get the SDKs once, into `sdks/` of the repository (git-ignored, about 500 MB):
 
    ```sh
    cd source
+   make sdks
+   ```
+
+   SDKs elsewhere: set `PICO_SDK_PATH`, `FREERTOS_KERNEL_PATH` and `BLUEPAD32_PATH`, or link
+   `sdks` to their directory.
+2. Build, in `source/`:
+
+   ```sh
    make build ENV=pico2w_dvi-local_bt   # build only
    make pico2w_dvi-local_bt             # build, upload with picotool, open the serial monitor
    ```
@@ -257,7 +257,8 @@ lists (`[games]`), and each mode picks lists (`[modes]`); every env of `[envs]` 
 
 Modes: `local` = builtin + local (75 games, 4 MB). `max` = the max list (4 MB). `full` = builtin +
 local + rest (16 MB). `builtin` = the builtin list. `local_bt` = local without
-`bublbobl` (74 games, Pico 2 W: the Bluetooth stack takes 406 KB of flash).
+`bublbobl`, `digdug2`, `baluba`
+(72 games, Pico 2 W: the Bluetooth stack takes 406 KB of flash and RAM).
 `remote` = builtin in flash, local + rest downloaded.
 
 To change the set, edit the lists. ROM-convert only the games you enable. Games that are not

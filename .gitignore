@@ -16,3 +16,6 @@ romconv/build/
 
 # romconv/romconv/remote/bundles.py: BundleRef per game (hash of the converted ROMs)
 source/src/machines/*/*_bundle.h
+
+# RP2350 SDKs (source/ports/rp2350/sdks.sh)
+/sdks

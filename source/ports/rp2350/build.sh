@@ -3,16 +3,17 @@
 # ENV: an rp2350 row of [envs] in firmware.toml (e.g. pico2w_dvi-remote).
 # Dev builds, as with PlatformIO: GAMES replaces the env's games (own build dir),
 # DEFINES adds defines (e.g. DEBUG_TIMING, GALAGINO_CLOCK_KHZ=252000).
-# Needs PICO_SDK_PATH, FREERTOS_KERNEL_PATH and, for the Pico 2 W pad, BLUEPAD32_PATH
-# (defaults below; pico-sdk 2.2.0 with submodules, FreeRTOS-Kernel V11.3.2 with
-# Community-Supported-Ports, Bluepad32 4.2.0; clone commands in the README).
+# SDKs from <repo>/sdks (sdks.sh clones them) unless PICO_SDK_PATH,
+# FREERTOS_KERNEL_PATH or BLUEPAD32_PATH (Pico 2 W pad) are set.
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
+sdks=$(cd "$here/../../.." && pwd)/sdks
 env=${1:?usage: build.sh ENV (an rp2350 row of [envs] in firmware.toml)}
 shift
-export PICO_SDK_PATH=${PICO_SDK_PATH:-$HOME/src/external/pico-deps/pico-sdk}
-export FREERTOS_KERNEL_PATH=${FREERTOS_KERNEL_PATH:-$HOME/src/external/pico-deps/FreeRTOS-Kernel}
-export BLUEPAD32_PATH=${BLUEPAD32_PATH:-$HOME/src/external/pico-deps/bluepad32}
+export PICO_SDK_PATH=${PICO_SDK_PATH:-$sdks/pico-sdk}
+export FREERTOS_KERNEL_PATH=${FREERTOS_KERNEL_PATH:-$sdks/FreeRTOS-Kernel}
+export BLUEPAD32_PATH=${BLUEPAD32_PATH:-$sdks/bluepad32}
+[ -d "$PICO_SDK_PATH" ] || { echo "no pico-sdk at $PICO_SDK_PATH: run $here/sdks.sh or set PICO_SDK_PATH" >&2; exit 1; }
 cfg=$(GAMES=$GAMES DEFINES=$DEFINES python3 "$here/../../tools/config_to_cmake.py" "$env")
 # a comma in the build path breaks the linker map option
 out=$here/build/$env${GAMES:+-${GAMES//,/-}}
