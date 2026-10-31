@@ -44,7 +44,7 @@ Same games and emulation on both. The platforms differ in video, sound and input
 | Bluetooth pad     | via galagino controller (I2C)      | built in (Pico 2 W), 8BitDo SN30 Pro  |
 | Wired input       | GPIO, Nunchuk, galagino controller | same                                  |
 | Frame rate        | 60 Hz (80 MHz SPI), 30 Hz (40 MHz) | 60 Hz                                 |
-| Games in flash    | 75 or 106 (4 MB), all (S3, 16 MB)  | 40 (Pico 2 W, 4 MB)                   |
+| Games in flash    | 75 or 106 (4 MB), all (S3, 16 MB)  | 74 (Pico 2 W, 4 MB)                   |
 | ROM downloads     | yes, WiFi                          | yes, WiFi (Pico 2 W)                  |
 | Toolchain         | PlatformIO, ESP-IDF 6.1            | pico-sdk 2.2.0, CMake, no PlatformIO  |
 | Flashing          | USB serial                         | UF2 file onto the USB drive           |
@@ -136,7 +136,7 @@ or `GPIO_BUTTONS` (GPIO 2..7) for wired input. Pins: `source/src/boards/pico2w_d
 
 | Board                         | Env                    | Notes                                 |
 | ---                           | ---                    | ---                                   |
-| Raspberry Pi Pico 2 W + DVI   | `pico2w_dvi-builtin`   | 40 games in flash                     |
+| Raspberry Pi Pico 2 W + DVI   | `pico2w_dvi-local_bt`  | 74 games in flash                     |
 | Raspberry Pi Pico 2 W + DVI   | `pico2w_dvi-remote`    | 40 games in flash, the rest over WiFi |
 | Adafruit Feather RP2350 + DVI | `feather_rp2350-local` | Untested. GPIO buttons, no radio      |
 
@@ -191,21 +191,22 @@ no Arduino core; details in [source/BUILD.md](source/BUILD.md).
    ```
 
    `make` finds the board at `/dev/ttyUSB0` or `/dev/ttyACM0`; `DEVICE=1` takes the second
-   one. Without `make`: `tools/pio run -e <env> -t upload`.
+   one.
 3. On Linux, upload needs access to the serial port: add yourself to the `dialout` group
    (`uucp` on Arch) and log in again. A board that does not enter upload mode on its own needs
    BOOT held while the upload starts.
 
-Windows: install uv, convert the ROMs with `romconv\convert.bat`, then build in `source\` with
-`uvx --from platformio==6.1.19 --with intelhex pio run -e <env> -t upload` (untested).
+Windows (untested): install uv, convert the ROMs with `romconv\convert.bat`, then build and
+upload in `source\` with `tools\pio run -e <env> -t upload`.
 
 ### Build for RP2350
 
 Toolchain: the Raspberry Pi [pico-sdk](https://github.com/raspberrypi/pico-sdk) 2.2.0 with
 [FreeRTOS](https://github.com/FreeRTOS/FreeRTOS-Kernel) V11.3.2 and, for the Bluetooth pad,
 [Bluepad32](https://github.com/ricardoquesada/bluepad32) 4.2.0. Built with CMake and Ninja by
-`source/ports/rp2350/build.sh`, no PlatformIO. devbox has all build tools. Without devbox
-install CMake 3.13 or newer, Ninja, `arm-none-eabi-gcc`, `picotool` and Python 3.11 or newer.
+`source/ports/rp2350/build.sh` (called by `make`), no PlatformIO. devbox has all build tools.
+Without devbox install CMake 3.13 or newer, Ninja, `arm-none-eabi-gcc`, `picotool`, uv and
+Python 3.11 or newer.
 
 1. Get the SDKs once. `build.sh` finds them in `~/src/external/pico-deps`:
 
@@ -221,17 +222,17 @@ install CMake 3.13 or newer, Ninja, `arm-none-eabi-gcc`, `picotool` and Python 3
 2. Build, back in the repository root:
 
    ```sh
-   cd source/ports/rp2350
-   ./build.sh pico2w_dvi-builtin
+   cd source
+   make build ENV=pico2w_dvi-local_bt   # build only
+   make pico2w_dvi-local_bt             # build, upload with picotool, open the serial monitor
    ```
 
-   The image is `source/ports/rp2350/build/pico2w_dvi-builtin/galagino.uf2`. `GAMES=` replaces
+   The image is `source/ports/rp2350/build/pico2w_dvi-local_bt/galagino.uf2`. `GAMES=` replaces
    the env's games, `DEFINES=` adds defines, e.g.
-   `GAMES=galaga,dkong DEFINES="NUNCHUCK_INPUT" ./build.sh pico2w_dvi-builtin`.
-3. Flash: hold BOOTSEL on the Pico while plugging in USB. A drive named `RP2350` appears; copy
-   `galagino.uf2` onto it. The Pico reboots into the emulator. Or with picotool:
-   `picotool load -f -x build/pico2w_dvi-builtin/galagino.uf2` (reboots a running Pico into
-   BOOTSEL; on Linux needs picotool's udev rules or root).
+   `make build ENV=pico2w_dvi-local_bt GAMES=galaga,dkong DEFINES="NUNCHUCK_INPUT"`.
+3. Flash: `make pico2w_dvi-local_bt` uploads with picotool; it reboots a running Pico into
+   BOOTSEL first (on Linux picotool needs its udev rules or root). Without picotool: hold BOOTSEL
+   on the Pico while plugging in USB, a drive named `RP2350` appears, copy `galagino.uf2` onto it.
 4. Pair the pad: the emulator scans for pads after boot. 8BitDo SN30 Pro: START+Y (Switch mode),
    then hold the pair button for 3 s. The pairing is stored in flash: next time the pad
    connects by itself. A = FIRE, SELECT = COIN, START = START, Home = menu.
@@ -255,7 +256,8 @@ lists (`[games]`), and each mode picks lists (`[modes]`); every env of `[envs]` 
 | `[games] max`         | 106   | `max` only. Overlaps the lists above, smallest games first    |
 
 Modes: `local` = builtin + local (75 games, 4 MB). `max` = the max list (4 MB). `full` = builtin +
-local + rest (16 MB). `builtin` = the builtin list (Pico 2 W: the Bluetooth stack takes flash).
+local + rest (16 MB). `builtin` = the builtin list. `local_bt` = local without
+`bublbobl` (74 games, Pico 2 W: the Bluetooth stack takes 406 KB of flash).
 `remote` = builtin in flash, local + rest downloaded.
 
 To change the set, edit the lists. ROM-convert only the games you enable. Games that are not
@@ -368,8 +370,7 @@ once**. Use a `*-remote` env to build images with that feature enabled.
    python3 -m http.server 8080 --directory galagino-server/data
    ```
 
-4. Flash a `*-remote` env: `make azdelivery-remote` in `source/`, or on the RP2350
-   `./build.sh pico2w_dvi-remote` in `source/ports/rp2350/` and copy the UF2.
+4. Flash a `*-remote` env in `source/`: `make azdelivery-remote`, `make pico2w_dvi-remote`.
 
 ## Adding new machines
 

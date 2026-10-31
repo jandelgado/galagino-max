@@ -66,6 +66,15 @@ class ModeDefines(unittest.TestCase):
         with self.assertRaisesRegex(fc.ConfigError, "missing"):
             fc.mode_defines(cfg, "m")
 
+    def test_mode_excludes_games(self):
+        cfg = dict(CFG, modes={"m": {"games": ["a", "b"], "exclude": ["y"]}})
+        self.assertEqual(fc.mode_defines(cfg, "m"), ["ENABLE_X", "ENABLE_Z"])
+
+    def test_unknown_excluded_game(self):
+        cfg = dict(CFG, modes={"m": {"games": ["a"], "exclude": ["z"]}})
+        with self.assertRaisesRegex(fc.ConfigError, "z"):
+            fc.mode_defines(cfg, "m")
+
     def test_option_defines(self):
         self.assertEqual(fc.option_defines(CFG), ["OPT", "VAL=3"])
 

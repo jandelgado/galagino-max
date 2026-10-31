@@ -23,7 +23,7 @@ fnk0103b-local = { platform = "esp", board = "fnk0103b", mode = "local", layout 
 fnk0103b-remote = { platform = "esp", board = "fnk0103b", mode = "remote", layout = "esp32_remote" }
 fnk0104-full = { platform = "esp", board = "fnk0104", mode = "full", layout = "esp32s3_local" }
 pico2-local = { platform = "rp2350", board = "pico2", mode = "local", layout = "rp2350" }
-pico2w_dvi-builtin = { platform = "rp2350", board = "pico2w_dvi", mode = "builtin", layout = "rp2350_dvi" }
+pico2w_dvi-local_bt = { platform = "rp2350", board = "pico2w_dvi", mode = "local_bt", layout = "rp2350_dvi" }
 pico2w_dvi-remote = { platform = "rp2350", board = "pico2w_dvi", mode = "remote", layout = "rp2350_dvi_remote" }
 feather_rp2350-local = { platform = "rp2350", board = "feather_rp2350", mode = "local", layout = "rp2350_dvi" }
 # host unit tests (pio test -e native): no board, no mode
@@ -339,6 +339,9 @@ max = [
 local = { games = ["builtin", "local"] }
 # 4 MB flash with the Bluetooth stack (Pico 2 W): the built-in set only
 builtin = { games = ["builtin"] }
+# 4 MB flash with the Bluetooth stack (Pico 2 W): local without its largest
+# game (bublbobl 352 KB; with it the image is 259 KB too big)
+local_bt = { games = ["builtin", "local"], exclude = ["bublbobl"] }
 # 4 MB flash, most games: per-game IRAM code in flash (IRAM full)
 max = { games = ["max"], defines = ["GAME_NO_IRAM"] }
 # 16 MB flash, every game built in
