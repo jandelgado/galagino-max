@@ -130,6 +130,34 @@ static void test_replay_objects(void) {
     }
   }
 }
+
+// Intermediate race start on a cleared work RAM, then the marble in zone 9 (end of the race):
+// the wave (tag 6) spawns and rewrites dynamic terrain codes. The trace fixtures never reach
+// zone 9, and their RAM image hides the wave enable 0x40075e that 0x10504 sets.
+static void test_intermediate_wave(void) {
+  static const uint8_t RACE = 2, ZONE = 9, TAG_WAVE = 6, TICKS = 60;
+  static const uint8_t P_ZONE = 0x1b, S_ACTIVE = 0x18, S_TAG = 0x1f;
+  memset(ram, 0, sizeof(ram));
+  Mem m(ram, RACE);
+  marble_physics::startRace(m, RACE);
+  m.wb(PLAYER_OBJ + P_ZONE, ZONE);
+
+  marble_objects::update(m);
+  uint8_t waves = 0;
+  for (uint8_t i = 0; i < 25; i++) {
+    const uint32_t a = SLOT_AREA + 0x56 * i;
+    if (m.rb(a + S_ACTIVE) == 1 && m.rb(a + S_TAG) == TAG_WAVE) { waves++; }
+  }
+  TEST_ASSERT_EQUAL_MESSAGE(1, waves, "wave slots after zone 9 entry");
+
+  const uint32_t before = crc32(ram + (DYN_AREA - marble_physics::RAM_BASE), DYN_AREA_LEN);
+  for (uint8_t k = 0; k < TICKS; k++) {
+    marble_objects::applyQueued(m);
+    marble_objects::update(m);
+  }
+  const uint32_t after = crc32(ram + (DYN_AREA - marble_physics::RAM_BASE), DYN_AREA_LEN);
+  TEST_ASSERT_NOT_EQUAL_MESSAGE(before, after, "wave left the dynamic terrain codes unchanged");
+}
 #endif
 
 int main(int, char **) {
@@ -139,6 +167,7 @@ int main(int, char **) {
   Arena::reserve(&marble_arena_plan);  // like switchTo()
   marble_physics::loadRom();
   RUN_TEST(test_replay_objects);
+  RUN_TEST(test_intermediate_wave);
 #else
   TEST_IGNORE_MESSAGE("marble_rom.h missing, run romconv ./convert.sh marble");
 #endif
