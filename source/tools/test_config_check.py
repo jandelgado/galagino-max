@@ -104,6 +104,11 @@ class Rules(unittest.TestCase):
         r = _preprocess(_CHECK, ["HAL_RP2350", "HAL_VIDEO_DVI_HSTX", "HAL_AUDIO_NULL"] + remote + _ARENA)
         self.assertEqual(r.returncode, 0, r.stderr)
 
+    def test_dvi_bt_layout_passes(self):
+        bt = ["ARENA_LAYOUT_RP2350_DVI_BT"] + _HSTX[1:]
+        r = _preprocess(_CHECK, ["HAL_RP2350", "HAL_VIDEO_DVI_HSTX", "HAL_AUDIO_NULL"] + bt + _ARENA)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
     def test_dvi_needs_hstx_pins(self):
         pins = [d for d in _HSTX if not d.startswith("HSTX_CK_PIN")]
         self._rejects(["HAL_RP2350", "HAL_VIDEO_DVI_HSTX", "HAL_AUDIO_NULL"] + pins,

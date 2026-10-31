@@ -23,7 +23,7 @@ fnk0103b-local = { platform = "esp", board = "fnk0103b", mode = "local", layout 
 fnk0103b-remote = { platform = "esp", board = "fnk0103b", mode = "remote", layout = "esp32_remote" }
 fnk0104-full = { platform = "esp", board = "fnk0104", mode = "full", layout = "esp32s3_local" }
 pico2-local = { platform = "rp2350", board = "pico2", mode = "local", layout = "rp2350" }
-pico2w_dvi-local_bt = { platform = "rp2350", board = "pico2w_dvi", mode = "local_bt", layout = "rp2350_dvi" }
+pico2w_dvi-local_bt = { platform = "rp2350", board = "pico2w_dvi", mode = "local_bt", layout = "rp2350_dvi_bt" }
 pico2w_dvi-remote = { platform = "rp2350", board = "pico2w_dvi", mode = "remote", layout = "rp2350_dvi_remote" }
 feather_rp2350-local = { platform = "rp2350", board = "feather_rp2350", mode = "local", layout = "rp2350_dvi" }
 # host unit tests (pio test -e native): no board, no mode
@@ -70,7 +70,10 @@ defines = [
 # strip ring it replaced and the heap; 256 x 288 since 2026-10-30, the 9 KB
 # more from FreeRTOS's heap); tapper and the Williams games still
 # need both blocks, arkanoid 82 KB in one. rp2350_dvi_remote: Pico 2 W DVI
-# remote build (lwIP memory is static, outside the Arena).
+# remote build (lwIP memory is static, outside the Arena). rp2350_dvi_bt:
+# Pico 2 W local_bt, A 24 KB smaller: its games keep ~10 KB HAL_HOT_CODE in
+# RAM and Bluetooth takes ~23 KB of heap; the menu left 5.5 KB, games with a
+# 10-12 KB machine object (marble, gng, System 1) panicked: Out of memory.
 [arena]
 esp32_local = [126976, 110500]
 esp32_remote = [69000, 110500]
@@ -78,6 +81,7 @@ esp32s3_local = [118784, 110500]
 rp2350 = [118784, 110500]
 rp2350_dvi = [118784, 84000]
 rp2350_dvi_remote = [90112, 84000]
+rp2350_dvi_bt = [94208, 84000]
 
 # Game sets, lower-case names, each becomes ENABLE_<NAME>. builtin, local and
 # rest are disjoint, each game appears once; max overlaps them.
@@ -337,11 +341,10 @@ max = [
 [modes]
 # 4 MB flash, games built in
 local = { games = ["builtin", "local"] }
-# 4 MB flash with the Bluetooth stack (Pico 2 W): the built-in set only
-builtin = { games = ["builtin"] }
-# 4 MB flash with the Bluetooth stack (Pico 2 W): local without its largest
-# game (bublbobl 352 KB; with it the image is 259 KB too big)
-local_bt = { games = ["builtin", "local"], exclude = ["bublbobl"] }
+# 4 MB flash with the Bluetooth stack (Pico 2 W): local without bublbobl
+# (352 KB; with it the image is 259 KB too big), digdug2 and baluba (flash
+# for the smaller rp2350_dvi_bt Arena)
+local_bt = { games = ["builtin", "local"], exclude = ["bublbobl", "digdug2", "baluba"] }
 # 4 MB flash, most games: per-game IRAM code in flash (IRAM full)
 max = { games = ["max"], defines = ["GAME_NO_IRAM"] }
 # 16 MB flash, every game built in

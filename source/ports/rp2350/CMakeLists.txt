@@ -77,9 +77,13 @@ if(GALAGINO_BOARD STREQUAL "pico2w_dvi")
 endif()
 
 # heap check at link time: Arena blocks plus the other heap users
-# (machine object, strip buffers, stdio, input). Reserve not sized yet:
-# measure on device once the input backends are in.
+# (machine object, strip buffers, stdio, input). Pico 2 W DVI: Bluetooth
+# takes ~23 KB, the largest machine object is ~12 KB (System 1); 17 KB
+# panicked at boot, 29 KB at game start. Other boards not measured yet.
 set(HEAP_RESERVE 0)
+if(GALAGINO_BOARD STREQUAL "pico2w_dvi")
+  set(HEAP_RESERVE 40960)
+endif()
 string(REGEX MATCH "ARENA_A_SIZE=([0-9]+)" _ "${GALAGINO_DEFINES}")
 set(ARENA_A ${CMAKE_MATCH_1})
 string(REGEX MATCH "ARENA_B_SIZE=([0-9]+)" _ "${GALAGINO_DEFINES}")
