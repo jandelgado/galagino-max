@@ -31,8 +31,11 @@ using marble_physics::PLAYER;
 // Stick as trackball (MARBLE.md "Logic tick"): counter delta per tick, k = 9 is about MAME's
 // keyboard trackball speed. Screen right: c7 = c6 = -k; down: c7 = +k, c6 = -k.
 #define MARBLE_STICK_K 9
-// FIRE held while steering: turbo, as the C64, Amiga and NES ports. Speed cap stays the arcade's.
-#define MARBLE_STICK_TURBO_K 18
+// FIRE held: the stick's trackball spins up to k = MARBLE_STICK_MAX_K (a hard spun arcade
+// trackball), released it spins down to MARBLE_STICK_K. Turbo of the C64 and Amiga ports, but
+// gradual. Faster push and brake, the speed cap stays the arcade's.
+#define MARBLE_STICK_MAX_K 48
+static const uint8_t SPIN_UP = 2, SPIN_DOWN = 3;  // k per logic tick (30 Hz)
 
 // C64 0x0700-0x0aff (player frame counter and reads) live in tune RAM at MARBLE_SID_ALIAS
 static const uint16_t SID_ALIAS_FROM = 0x0700, SID_ALIAS_SIZE = 0x400;
@@ -41,9 +44,15 @@ static const uint16_t RNG_TICK = 0x100;   // main loop rng(0x100) 0x118a4
 // Remake view is 24 lines taller above and below the arcade screen: object culls move out
 static const int16_t MARBLE_CULL_MARGIN = 24;
 
+// spin of the stick's trackball, k over MARBLE_STICK_K: FIRE spins up, release spins down
+static uint8_t spin(uint8_t s, uint32_t keys) {
+  const uint8_t top = MARBLE_STICK_MAX_K - MARBLE_STICK_K;
+  if (keys & BUTTON_FIRE) { return s + SPIN_UP < top ? s + SPIN_UP : top; }
+  return s > SPIN_DOWN ? s - SPIN_DOWN : 0;
+}
+
 // stick -> trackball deltas c6/c7; diagonals scaled by 1/sqrt(2) to keep the length
-static void stick(uint32_t keys, int8_t &c6, int8_t &c7) {
-  const int16_t k = (keys & BUTTON_FIRE) ? MARBLE_STICK_TURBO_K : MARBLE_STICK_K;
+static void stick(uint32_t keys, int16_t k, int8_t &c6, int8_t &c7) {
   int16_t a = 0, b = 0, n = 0;  // c7, c6
   if (keys & BUTTON_RIGHT) { a -= k; b -= k; n++; }
   if (keys & BUTTON_LEFT)  { a += k; b += k; n++; }
@@ -124,7 +133,9 @@ void marble::loadRace() {
 // rng 0x118a4, then the MO list 0x26f3e
 void marble::logicTick(uint32_t keys) {
   int8_t c6 = 0, c7 = 0;
-  if (!(keys & BUTTON_EXTRA)) { stick(keys, c6, c7); }  // EXTRA + UP/DOWN is volume
+  spun = spin(spun, keys);
+  // EXTRA + UP/DOWN is volume
+  if (!(keys & BUTTON_EXTRA)) { stick(keys, MARBLE_STICK_K + spun, c6, c7); }
 
   Mem m(memory, race);
   marble_objects::applyQueued(m);
