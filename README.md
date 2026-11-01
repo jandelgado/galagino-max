@@ -1,16 +1,18 @@
 ![galaginomax logo](logos/maxlogo.png)
 
-Arcade emulator for the ESP32 with a 240x320 SPI display. Fork of Galagino, now with **125+ games**.
+Arcade emulator for the ESP32 with a 240x320 SPI display and for the RP2350 (Raspberry Pi Pico 2 W)
+over HDMI. Fork of Galagino, now with **125+ games**.
 
-Using compression, galagino**max** can **squeeze up to 101 games into the classic ESP-WROOM-32's 4 MB 
-of flash**. You can also **have all 125+ games in flash, with some ROMs downloaded to the ESP32 on demand**. No need to upgrade to the S3!
+Using compression, galagino**max** can **squeeze up to 106 games into the classic ESP-WROOM-32's 4 MB 
+of flash**. You can also **have all 125+ games in flash, with some ROMs downloaded on demand**. No need for more flash or PSRAM.
 
 * **New platforms and games:**
   * Atari DVG/AVG vector machines: Asteroids, Star Wars, Battle Zone, Lunar Lander, Tempest, Space Duel, Gravitar,
-     Major Havoc, Black Widow
+     Major Havoc, Black Widow. On the RP2350 when using HDMI output, the vector games use the higher
+     resolution.
   * More Atari classics: Centipede, Missile Command, Tetris, Millipede, Crystal Castles
   * Sega System 1 and 2: Pitfall II, Flicky, Wonder Boy, Mister Viking, Up'n Down, Star Jacker,
-    Choplifter
+    Choplifter. 
   * Williams: Defender, Robotron, Joust, Sinistar
   * Midway MCR: Tron, Discs of Tron, Tapper, Satan's Hollow
   * Gottlieb: Q*bert, Krull, Tylz
@@ -28,8 +30,26 @@ of flash**. You can also **have all 125+ games in flash, with some ROMs download
 * Bootup "self-test", FPS display, rotating cylinder menu added.
 * **Fast, portable ROM conversion.** Converts games in parallel and uses 
   [uv](https://docs.astral.sh/uv/) to ease the setup.
+* ESP32 version builds on ESP-IDF SDK now, no Arduino or FastLED dependencies needed.
 
 ![Cabinet](images/galagino_cabinet.jpg)
+
+## ESP32 or RP2350
+
+Same games and emulation on both. Differences in video, audio and input-support:
+
+| Feature           | ESP32                              | RP2350                                |
+| ---               | ---                                | ---                                   |
+| SPI TFT 240x320   | yes                                | soon                                  |
+| HDMI (DVI)        | no                                 | 640x480 60 Hz                         |
+| Audio             | built-in DAC, ES8311 (ESP32-S3)    | over HDMI                             |
+| Bluetooth pad     | via galagino controller (I2C)      | built in (Pico 2 W), 8BitDo SN30 Pro  |
+| Wired input       | GPIO, Nunchuk, galagino controller | same                                  |
+| Frame rate        | 60 Hz (80 MHz SPI), 30 Hz (40 MHz) | 60 Hz                                 |
+| Games in flash    | 75 or 106 (4 MB), all (S3, 16 MB)  | 72 (Pico 2 W, 4 MB)                   |
+| ROM downloads     | yes, WiFi                          | yes, WiFi (Pico 2 W)                  |
+| Toolchain         | PlatformIO, ESP-IDF 6.1            | pico-sdk 2.2.0, CMake, no PlatformIO  |
+| Flashing          | USB serial                         | UF2 file onto the USB drive           |
 
 ## Prior work and credits
 
@@ -52,8 +72,7 @@ This builds on a lot of other people's great work.
 * [VirtualClaudioBoy/GalaginoPlus](https://github.com/VirtualClaudioBoy/GalaginoPlus): Pooyan,
   Donkey Kong 3 sound, 48 game build.
 * [BaasPierre/GalaginoPlusXT](https://github.com/BaasPierre/GalaginoPlusXT): new games for
-  GalaginoPlus: Pinball Action, Ghosts 'n Goblins, The Fairyland Story, Bubble Bobble, Moon Patrol,
-  Arkanoid.
+  GalaginoPlus
 * [galagino/galagino-controller](https://github.com/galagino/galagino-controller): the
   Bluetooth controller, read over I2C.
 * [FabGL](https://github.com/fdivitto/FabGL): i8086 core (MIT), basis of the 8088 core.
@@ -61,6 +80,8 @@ This builds on a lot of other people's great work.
 * [MAME](https://www.mamedev.org/): the reference
 
 ## Hardware
+
+### ESP32
 
 Any ESP32 board with a 240x320 ILI9341 or ST7789 display, a speaker and a stick with one fire
 button works. Pins and display type are set in `config_local.h` or `platformio.ini`.
@@ -91,28 +112,141 @@ Builds and sources:
 * Freenove boards: [Freenove_ESP32_Display](https://github.com/Freenove/Freenove_ESP32_Display),
   [Freenove_ESP32_S3_Display](https://github.com/Freenove/Freenove_ESP32_S3_Display).
 
-## Build and Configuration
+### RP2350
 
-Needs [PlatformIO](https://platformio.org/) and [uv](https://docs.astral.sh/uv/). The firmware
-builds on ESP-IDF (PlatformIO `espidf` framework, no Arduino core); details in
-[source/BUILD.md](source/BUILD.md).
+A Raspberry Pi Pico 2 W with an HDMI (DVI) connector on the HSTX pins (GPIO 12..19). Picture and
+sound go over HDMI to a TV or monitor. Tested: an
+[Adafruit DVI Sock for Pico](https://www.adafruit.com/product/5957) wired to the HSTX pins, in the
+Pico DVI Sock order:
 
-1. Put the ROM zips and optional SID files into [romszip/](romszip/) (see [ROMs](#roms)).
-2. Convert them: `romconv/convert.sh` (`romconv/convert.bat` on Windows). Pass game names to
-   convert only those. See [romconv/README.md](romconv/README.md).
-3. Build and flash from `source/`:
+| Pico 2 W pin | GPIO | HDMI signal |
+| ---          | ---  | ---         |
+| 16           | 12   | D0+         |
+| 17           | 13   | D0-         |
+| 18           | GND  | GND         |
+| 19           | 14   | CK+         |
+| 20           | 15   | CK-         |
+| 21           | 16   | D2+         |
+| 22           | 17   | D2-         |
+| 23           | GND  | GND         |
+| 24           | 18   | D1+         |
+| 25           | 19   | D1-         |
+
+The Pico 2 W build supports a Bluetooth pad by default, tested with an 8BitDo SN30 Pro.
+Build with `NUNCHUCK_INPUT`, `GALAGINO_CONTROLLER` (I2C on GPIO 20/21)
+or `GPIO_BUTTONS` (GPIO 2..7) for wired input. Default pins: board profile
+`source/src/boards/pico2w_dvi.h`; override them in `config_local.h`.
+
+| Board                         | Env                    | Notes                                 |
+| ---                           | ---                    | ---                                   |
+| Raspberry Pi Pico 2 W + DVI   | `pico2w_dvi-local_bt`  | 72 games in flash                     |
+| Raspberry Pi Pico 2 W + DVI   | `pico2w_dvi-remote`    | 40 games in flash, the rest over WiFi |
+| Adafruit Feather RP2350 + DVI | `feather_rp2350-local` | Untested. GPIO buttons, no radio      |
+
+Envs are rows of `[envs]` in `source/firmware.toml`, as on the ESP32.
+
+## Build and flash
+
+### Tools and ROMs (both platforms)
+
+The builds run on Linux and macOS (Windows: see [ESP32](#build-for-esp32)). All tools come from
+[devbox](https://www.jetify.com/devbox), listed in `devbox.json`: Python, uv, the Arm compiler,
+CMake, Ninja and picotool. uv runs the pinned PlatformIO and esptool, nothing to install.
+
+1. Install devbox (`curl -fsSL https://get.jetify.com/devbox | bash`) and git.
+2. Get the source and enter the shell (the first start downloads the tools):
 
    ```sh
-   make envs                      # list envs
-   make azdelivery-max            # build, upload, open serial monitor
-   make build ENV=fnk0103f-local  # build only
+   git clone https://github.com/jandelgado/galagino-max.git
+   cd galagino-max
+   devbox shell
    ```
 
-   Or `pio run -e <env> -t upload` or call `PlatformIO` bypassing `make`.
+   All commands below run in this shell. Without devbox install
+   [uv](https://docs.astral.sh/uv/) and the platform tools listed in the chapters below.
+3. Put the ROM zips and optional SID files into [romszip/](romszip/) (see [ROMs](#roms)).
+4. Convert them:
+
+   ```sh
+   romconv/convert.sh            # every game
+   romconv/convert.sh galaga dkong  # only these
+   ```
+
+   See [romconv/README.md](romconv/README.md). A build needs every game of its lists converted:
+   remove games you have no ROMs for from `[games]` in `source/firmware.toml` (see
+   [Game lists](#game-lists)). Rerun the conversion after editing `firmware.toml`.
+
+### Build for ESP32
+
+Toolchain: [PlatformIO](https://platformio.org/) 6.1.19, run by uv through `source/tools/pio`
+(on the devbox `PATH` as `pio`). Only uv and make are needed. The first build downloads ESP-IDF
+6.1 and the Xtensa compiler into `~/.platformio`; this takes a while. The firmware uses ESP-IDF,
+no Arduino core; details in [source/BUILD.md](source/BUILD.md).
+
+1. Pick the env for your board from the [ESP32 table](#esp32): `<board>-<mode>`.
+2. Build, flash and open the serial monitor, from `source/`:
+
+   ```sh
+   cd source
+   make envs                       # list envs
+   make build ENV=fnk0103f-local   # build only
+   make azdelivery-max             # build, upload, open the serial monitor
+   ```
+
+   `make` finds the board at `/dev/ttyUSB0` or `/dev/ttyACM0`; `DEVICE=1` takes the second
+   one.
+3. On Linux, upload needs access to the serial port: add yourself to the `dialout` group
+   (`uucp` on Arch) and log in again. A board that does not enter upload mode on its own needs
+   BOOT held while the upload starts.
+
+Windows (untested): install uv, convert the ROMs with `romconv\convert.bat`, then build and
+upload in `source\` with `tools\pio run -e <env> -t upload`.
+
+### Build for RP2350
+
+Toolchain: the Raspberry Pi [pico-sdk](https://github.com/raspberrypi/pico-sdk) 2.2.0 with
+[FreeRTOS](https://github.com/FreeRTOS/FreeRTOS-Kernel) V11.3.2 and, for the Bluetooth pad,
+[Bluepad32](https://github.com/ricardoquesada/bluepad32) 4.2.0. Built with CMake and Ninja by
+`source/ports/rp2350/build.sh` (called by `make`), no PlatformIO. devbox has all build tools.
+Without devbox install CMake 3.13 or newer, Ninja, `arm-none-eabi-gcc`, `picotool`, `uv` and
+Python 3.11 or newer.
+
+1. Get the SDKs once, into `sdks/` of the repository (git-ignored, about 500 MB):
+
+   ```sh
+   cd source
+   make sdks
+   ```
+
+   SDKs elsewhere: set `PICO_SDK_PATH`, `FREERTOS_KERNEL_PATH` and `BLUEPAD32_PATH`, or link
+   `sdks` to their directory.
+2. Build, in `source/`:
+
+   ```sh
+   make build ENV=pico2w_dvi-local_bt   # build only
+   make pico2w_dvi-local_bt             # build, upload with picotool, open the serial monitor
+   ```
+
+   The image is `source/ports/rp2350/build/pico2w_dvi-local_bt/GALAGINOMAX_v1.0.0.uf2`.
+   `GAMES=` replaces the env's games, `DEFINES=` adds defines, e.g.
+   `make build ENV=pico2w_dvi-local_bt GAMES=galaga,dkong DEFINES="NUNCHUCK_INPUT"`.
+3. Flash: `make pico2w_dvi-local_bt` uploads with picotool; it reboots a running Pico into
+   BOOTSEL first (on Linux picotool needs its udev rules or root). Without picotool: hold BOOTSEL
+   on the Pico while plugging in USB, a drive named `RP2350` appears, copy the `.uf2` file onto it.
+4. Pair the pad: the emulator scans for pads after boot. 8BitDo SN30 Pro: START+Y (Switch mode),
+   then hold the pair button for 3 s. The pairing is stored in flash: next time the pad
+   connects by itself. A = FIRE, SELECT = COIN, START = START, Home = menu.
+5. Serial console (log, crashes): USB serial at `/dev/ttyACM0`, any terminal program.
+
+Downloading games (`pico2w_dvi-remote`) works as on the ESP32, see
+[Downloading ROMs](#downloading-roms).
+
+## Configuration
+
+### Game lists
 
 A game is built in with an `ENABLE_<GAME>` define. `source/firmware.toml` groups the games in
-lists (`[games]`), and each mode picks lists (`[modes]`); the PlatformIO envs name their mode with
-`custom_mode`, the RP2350 build with `MODE=`:
+lists (`[games]`), and each mode picks lists (`[modes]`); every env of `[envs]` names its mode:
 
 | List                  | Games | Used by                                                       |
 | ---                   | ---   | ---                                                           |
@@ -122,7 +256,10 @@ lists (`[games]`), and each mode picks lists (`[modes]`); the PlatformIO envs na
 | `[games] max`         | 106   | `max` only. Overlaps the lists above, smallest games first    |
 
 Modes: `local` = builtin + local (75 games, 4 MB). `max` = the max list (4 MB). `full` = builtin +
-local + rest (16 MB). `remote` = builtin in flash, local + rest downloaded.
+local + rest (16 MB). `builtin` = the builtin list. `local_bt` = local without
+`bublbobl`, `digdug2`, `baluba`
+(72 games, Pico 2 W: the Bluetooth stack takes 406 KB of flash and RAM).
+`remote` = builtin in flash, local + rest downloaded.
 
 To change the set, edit the lists. ROM-convert only the games you enable. Games that are not
 converted cannot be built in.
@@ -130,8 +267,9 @@ converted cannot be built in.
 ### Local settings
 
 Keep personal settings out of `config.h`. Put them in `source/src/config_local.h`. The file is
-git-ignored and included first by `config.h`. Precedence: `platformio.ini` build flags, then
-`config_local.h`, then `config.h` defaults.
+git-ignored and included first by `config.h`, in ESP32 and RP2350 builds alike: keep pins of
+one board out of it when you build for another. Precedence: build flags (`platformio.ini`,
+`DEFINES=`), then `config_local.h`, then the board profile, then `config.h` defaults.
 
 Example `config_local.h`:
 
@@ -154,8 +292,8 @@ Example `config_local.h`:
 
 ### Defines
 
-Set in `config_local.h` (`#define X`), `[options]` of `firmware.toml` (every device build) or
-`platformio.ini` (`-D X`).
+Set in `config_local.h` (`#define X`), `[options]` of `firmware.toml` (every device build),
+`platformio.ini` (`-D X`) or `DEFINES="X"` of the RP2350 `build.sh`.
 
 | Define                                | Default          | Effect                                                    |
 | ---                                   | ---              | ---                                                       |
@@ -206,14 +344,14 @@ Use dumps from machines you own. Zip names must match the names in the [game lis
 Some games need a parent or BIOS zip, or a C64 `.sid` file from the
 [HVSC](https://hvsc.c64.org/). Put them all in [romszip/](romszip/).
 
-### Downloading ROMs on the ESP32
+### Downloading ROMs
 
-galagino**max** support downloading of ROMs via WIFI on doman. This allows to build an image
-with fewer games built-in, and have others (the big ones) downloaded one demand via WIFI from your 
-private server. Downloaded data stays in a 1 MB flash cache, until evicted (oldest first). Menu 
-entries not cached yet show a little `NET` marker in the lower right are of the games logo. That 
-way, a 4 MB ESP32 **can host all 125+ games at once**. Use the `remote` envs in `platformio.ini` 
-to build images with that feature enabled.
+galagino**max** supports downloading ROMs over WiFi on demand. This allows to build an image
+with fewer games built-in, and have others (the big ones) downloaded on demand over WiFi from your
+private server. Downloaded data stays in a flash cache (ESP32: 1 MB, Pico 2 W: the free flash,
+~1.3 MB), until evicted (oldest first). Menu entries not cached yet show a little `NET` marker in
+the lower right area of the game's logo. That way, a 4 MB board **can host all 125+ games at
+once**. Use a `*-remote` env to build images with that feature enabled.
 
 
 1. Set WiFi and server in `config_local.h`:
@@ -233,7 +371,7 @@ to build images with that feature enabled.
    python3 -m http.server 8080 --directory galagino-server/data
    ```
 
-4. Flash a `*-remote` env: `make azdelivery-remote` in `source/`. 
+4. Flash a `*-remote` env in `source/`: `make azdelivery-remote`, `make pico2w_dvi-remote`.
 
 ## Adding new machines
 

@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_TUTANKHM
+
 #include "tutankhm.h"
 #include "tutankhm_rom.h"
 #include "tutankhm_bank_rom.h"
@@ -390,3 +393,5 @@ void tutankhm::menuLeds(CRGB *leds) {
     memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_TUTANKHM

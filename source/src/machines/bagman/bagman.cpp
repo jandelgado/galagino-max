@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_BAGMAN
+
 #include "bagman.h"
 #include "bagman_rom.h"
 #include "bagman_tilemap.h"
@@ -288,3 +291,5 @@ void bagman::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_BAGMAN

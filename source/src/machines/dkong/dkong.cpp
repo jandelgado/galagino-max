@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#if defined(GAME_DKONG) || defined(GAME_DKONGJR)
+
 #include "dkong.h"
 #include "dkong_rom1.h"
 #include "dkong_rom2.h"
@@ -388,3 +391,5 @@ void dkong::renderAudio(int16_t *out, int n) {
     out[i] = audioClamp(value, OUT_MAX);
   }
 }
+
+#endif // dkong games

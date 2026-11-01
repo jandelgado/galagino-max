@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_GALAGA
+
 #include "galaga.h"
 #include "../../emulation/spriteflip.h"
 
@@ -474,3 +477,5 @@ void galaga::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_GALAGA

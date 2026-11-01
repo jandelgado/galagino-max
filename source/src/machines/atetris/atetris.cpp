@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_ATETRIS
+
 #include "atetris.h"
 #include "atetris_rom.h"
 #include "atetris_tiles.h"
@@ -297,3 +300,5 @@ void atetris::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_ATETRIS

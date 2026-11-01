@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_MARIO
+
 #include "mario.h"
 #include "mario_rom_main.h"
 #include "mario_tiles.h"
@@ -456,3 +459,5 @@ void mario::gameLeds(CRGB *leds) {
   menuLeds(leds);
 }
 #endif
+
+#endif // GAME_MARIO

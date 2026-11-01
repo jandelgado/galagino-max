@@ -5,19 +5,16 @@
     "gcc-arm-embedded@latest",
     "ninja@latest",
     "picotool@latest",
-    "zlib@latest"
+    "zlib@latest",
+    "cmake@latest",
   ],
-  "shell": {
-    "init_hook": [
-      "test -z $FISH_VERSION && . $VENV_DIR/bin/activate || source $VENV_DIR/bin/activate.fish",
-      "pip install --quiet --upgrade pip platformio==6.1.19 zombie-imp packaging intelhex setuptools gcovr==8.6"
-    ]
-  },
   // romconv's highspy wheel links the system libz.so.1; nix's python never
   // looks in /usr/lib64, so zlib comes from the packages above and its lib
   // dir goes on the loader path (devbox's documented way for pip wheels
-  // with system libraries; harmless where unneeded)
+  // with system libraries; harmless where unneeded).
+  // PATH: source/tools/pio, the uv-run PlatformIO, as plain `pio`
   "env": {
-    "LD_LIBRARY_PATH": "$DEVBOX_PACKAGES_DIR/lib"
-  }
+    "LD_LIBRARY_PATH": "$DEVBOX_PACKAGES_DIR/lib",
+    "PATH": "$PWD/source/tools:$PATH",
+  },
 }

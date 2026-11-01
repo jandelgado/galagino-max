@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_STARWARS
+
 #include "starwars.h"
 #include "starwars_rom.h"
 #include "starwars_vrom.h"
@@ -726,3 +729,5 @@ void starwars::renderAudio(int16_t *out, int n) {
     out[i] = audioClamp((out[i] >> POKEY_SHIFT) + (voice[i] >> SPEECH_SHIFT), AUDIO_MAX);
   }
 }
+
+#endif // GAME_STARWARS

@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_MRDO
+
 #include "mrdo.h"
 #include "mrdo_rom1.h"
 #include "mrdo_bg_tiles.h"
@@ -411,3 +414,5 @@ void mrdo::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_MRDO

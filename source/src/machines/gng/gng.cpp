@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_GNG
+
 #include "gng.h"
 #include "gng_rom.h"
 #include "gng_bank.h"
@@ -583,3 +586,5 @@ void gng::renderAudio(int16_t *out, int n) {
   audioAdd(out, ssg, n);
   audioClampAll(out, n, AUDIO_MAX);
 }
+
+#endif // GAME_GNG

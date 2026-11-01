@@ -1,0 +1,4 @@
+#!/bin/sh
+# PlatformIO, pinned, run by uv: nothing to install. intelhex: the
+# espressif32 platform's bootloader image step imports it.
+exec uvx --from platformio==6.1.19 --with intelhex pio "$@"

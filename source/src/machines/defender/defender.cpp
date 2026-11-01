@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_DEFENDER
+
 #include "defender.h"
 
 // action key: START with a COIN pin or the galagino controller, else EXTRA
@@ -38,3 +41,5 @@ void defender::gameLeds(CRGB *leds) {
   menuLeds(leds);
 }
 #endif
+
+#endif // GAME_DEFENDER

@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_SPACDUEL
+
 #include "spacduel.h"
 #include "spacduel_rom.h"
 #include "spacduel_vrom.h"
@@ -154,3 +157,5 @@ void spacduel::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_SPACDUEL

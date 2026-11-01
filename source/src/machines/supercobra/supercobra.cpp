@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_SUPERCOBRA
+
 #include "supercobra.h"
 #include <algorithm>
 #include "supercobra_main_rom.h"
@@ -541,3 +544,5 @@ void supercobra::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_SUPERCOBRA

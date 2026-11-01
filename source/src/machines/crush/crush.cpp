@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_CRUSH
+
 #include "crush.h"
 #include "crush_rom.h"
 #include "crush_tilemap.h"
@@ -229,3 +232,5 @@ void crush::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_CRUSH

@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_BWIDOW
+
 #include "bwidow.h"
 #include "bwidow_rom.h"
 #include "bwidow_vrom.h"
@@ -150,3 +153,5 @@ void bwidow::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_BWIDOW

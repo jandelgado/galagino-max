@@ -1,6 +1,52 @@
 {
   "lockfile_version": "1",
   "packages": {
+    "cmake@latest": {
+      "last_modified": "2026-10-30T07:30:20Z",
+      "resolved": "github:NixOS/nixpkgs/885ba4d038f10c3d17d7a92e8c3cc185b99c9158#cmake",
+      "source": "devbox-search",
+      "version": "4.4.4",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/fsdy1l7x2ybpry7lrhw2m7r6w8jvp01i-cmake-4.4.4",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/fsdy1l7x2ybpry7lrhw2m7r6w8jvp01i-cmake-4.4.4"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/8fp7iplwh21cb85fs1db8kmdhdnjfqyl-cmake-4.4.4",
+              "default": true
+            },
+            {
+              "name": "debug",
+              "path": "/nix/store/c1xilygs3vk3v3b9hf0b8wima2526kdb-cmake-4.4.4-debug"
+            }
+          ],
+          "store_path": "/nix/store/8fp7iplwh21cb85fs1db8kmdhdnjfqyl-cmake-4.4.4"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/rlpcs1h48m058z811xxkn5672v77p5qj-cmake-4.4.4",
+              "default": true
+            },
+            {
+              "name": "debug",
+              "path": "/nix/store/0ngxk7svkx1h8xg5ml4ciar46xmmnms2-cmake-4.4.4-debug"
+            }
+          ],
+          "store_path": "/nix/store/rlpcs1h48m058z811xxkn5672v77p5qj-cmake-4.4.4"
+        }
+      }
+    },
     "gcc-arm-embedded@latest": {
       "last_modified": "2026-10-24T03:22:33Z",
       "resolved": "github:NixOS/nixpkgs/674a2028661e550a97400c1cc992b9cca9a668a1#gcc-arm-embedded",

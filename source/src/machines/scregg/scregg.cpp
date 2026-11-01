@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_SCREGG
+
 #include "scregg.h"
 #include "scregg_rom.h"
 #include "scregg_chartiles.h"
@@ -212,3 +215,5 @@ void scregg::render_row(short row) {
   for (char col = 0; col < 30; col++) blit_tile(row, col);
   for (unsigned char i = 0; i < sprite_count; i++) blit_sprite(row, i);
 }
+
+#endif // GAME_SCREGG

@@ -1,12 +1,11 @@
-#ifndef MARBLE_H
-#define MARBLE_H
+#pragma once
 
 #include "../machineBase.h"
-#include "marble_arena_plan.h"
 
 #include "../../catalog.h"
 #ifdef GAME_MARBLE
 
+#include "marble_arena_plan.h"
 #include "marble_logo.h"
 #include "marble_level.h"
 #include "marble_video.h"
@@ -89,4 +88,3 @@ private:
 };
 
 #endif // GAME_MARBLE
-#endif // MARBLE_H

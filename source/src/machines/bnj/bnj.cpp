@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_BNJ
+
 #include "bnj.h"
 #include "bnj_rom_main.h"
 #include "bnj_rom_audio.h"
@@ -456,3 +459,5 @@ void bnj::render_row(short row) {
 const Logo &bnj::logo(void) {
   return bnj_logo;
 }
+
+#endif // GAME_BNJ

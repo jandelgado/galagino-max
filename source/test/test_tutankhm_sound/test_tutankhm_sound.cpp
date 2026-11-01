@@ -4,6 +4,7 @@
 
 #if __has_include("../../src/machines/tutankhm/tutankhm_rom.h")
 #define HAVE_ROM 1
+#define ENABLE_TUTANKHM
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
 #include "../../src/cpus/m6809/m6809.c"

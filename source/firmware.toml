@@ -3,6 +3,12 @@
 # envs, options, Arena layouts, game sets and modes. Toolchain flags stay in
 # platformio.ini (ESP32) and ports/rp2350/ (RP2350).
 
+# firmware image name and version, every platform: <name>_<version>_release.bin
+# (ESP32), <name>_<version>.uf2 (RP2350)
+[firmware]
+name = "GALAGINOMAX"
+version = "v1.0.0"
+
 # Every build is an env: <board>-<mode>, the same parameters on every
 # platform. platform: esp, rp2350 or host (src/hal/<platform>/); board:
 # BOARD_<NAME>, profile src/boards/<board>.h (azdelivery has none: pins from
@@ -23,7 +29,7 @@ fnk0103b-local = { platform = "esp", board = "fnk0103b", mode = "local", layout 
 fnk0103b-remote = { platform = "esp", board = "fnk0103b", mode = "remote", layout = "esp32_remote" }
 fnk0104-full = { platform = "esp", board = "fnk0104", mode = "full", layout = "esp32s3_local" }
 pico2-local = { platform = "rp2350", board = "pico2", mode = "local", layout = "rp2350" }
-pico2w_dvi-builtin = { platform = "rp2350", board = "pico2w_dvi", mode = "builtin", layout = "rp2350_dvi" }
+pico2w_dvi-local_bt = { platform = "rp2350", board = "pico2w_dvi", mode = "local_bt", layout = "rp2350_dvi_bt" }
 pico2w_dvi-remote = { platform = "rp2350", board = "pico2w_dvi", mode = "remote", layout = "rp2350_dvi_remote" }
 feather_rp2350-local = { platform = "rp2350", board = "feather_rp2350", mode = "local", layout = "rp2350_dvi" }
 # host unit tests (pio test -e native): no board, no mode
@@ -53,14 +59,14 @@ defines = [
 # Arena blocks per layout: [A, B] bytes. Names are C identifiers; a name
 # ending in _remote gets asset bundles and pairs only with a mode that
 # defines ASSETS_REMOTE. Every env selects one; it becomes ARENA_LAYOUT_<NAME>,
-# ARENA_A_SIZE, ARENA_B_SIZE, and PlatformIO appends sdkconfig.defaults.<name>
+# ARENA_A_SIZE, ARENA_B_SIZE, and PlatformIO appends pio/sdkconfigs/sdkconfig.defaults.<name>
 # to SDKCONFIG_DEFAULTS when it exists (the task stacks that make the row
 # fit). ESP32: two internal RAM regions, one malloc cannot span them.
 # ASSETS_REMOTE links WiFi (~23 KB static DRAM out of the boot heap), so its
 # block A is smaller.
 # esp32_local: bar from the HEAP_PROBE end dump over all games of
 # azdelivery-local and -max: A's region (SRAM2) min_free >= 9328 (LZMA
-# scratch 5232 + one 4 KB heap step); sdkconfig.defaults.esp32_local cuts
+# scratch 5232 + one 4 KB heap step); pio/sdkconfigs/sdkconfig.defaults.esp32_local cuts
 # the task stacks for it. The heap hands out blocks this large in 4 KB
 # steps, keep A a multiple of 4096.
 # B 110500: the second region (D/IRAM 0x3ffe4350, 113840 B) minus IDF use.
@@ -70,7 +76,10 @@ defines = [
 # strip ring it replaced and the heap; 256 x 288 since 2026-10-30, the 9 KB
 # more from FreeRTOS's heap); tapper and the Williams games still
 # need both blocks, arkanoid 82 KB in one. rp2350_dvi_remote: Pico 2 W DVI
-# remote build (lwIP memory is static, outside the Arena).
+# remote build (lwIP memory is static, outside the Arena). rp2350_dvi_bt:
+# Pico 2 W local_bt, A 24 KB smaller: its games keep ~10 KB HAL_HOT_CODE in
+# RAM and Bluetooth takes ~23 KB of heap; the menu left 5.5 KB, games with a
+# 10-12 KB machine object (marble, gng, System 1) panicked: Out of memory.
 [arena]
 esp32_local = [126976, 110500]
 esp32_remote = [69000, 110500]
@@ -78,6 +87,7 @@ esp32s3_local = [118784, 110500]
 rp2350 = [118784, 110500]
 rp2350_dvi = [118784, 84000]
 rp2350_dvi_remote = [90112, 84000]
+rp2350_dvi_bt = [94208, 84000]
 
 # Game sets, lower-case names, each becomes ENABLE_<NAME>. builtin, local and
 # rest are disjoint, each game appears once; max overlaps them.
@@ -337,8 +347,10 @@ max = [
 [modes]
 # 4 MB flash, games built in
 local = { games = ["builtin", "local"] }
-# 4 MB flash with the Bluetooth stack (Pico 2 W): the built-in set only
-builtin = { games = ["builtin"] }
+# 4 MB flash with the Bluetooth stack (Pico 2 W): local without bublbobl
+# (352 KB; with it the image is 259 KB too big), digdug2 and baluba (flash
+# for the smaller rp2350_dvi_bt Arena)
+local_bt = { games = ["builtin", "local"], exclude = ["bublbobl", "digdug2", "baluba"] }
 # 4 MB flash, most games: per-game IRAM code in flash (IRAM full)
 max = { games = ["max"], defines = ["GAME_NO_IRAM"] }
 # 16 MB flash, every game built in

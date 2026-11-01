@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_GRAVITAR
+
 #include "gravitar.h"
 #include "gravitar_rom.h"
 #include "gravitar_vrom.h"
@@ -145,3 +148,5 @@ void gravitar::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_GRAVITAR

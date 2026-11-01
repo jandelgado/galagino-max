@@ -11,13 +11,14 @@ profile `src/boards/<board>.h`), `mode` (`[modes]`: games and defines) and `layo
 and linker flags) and RP2350 (`ports/rp2350/build.sh <name>`). Dev builds, both platforms:
 `GAMES=a,b` replaces the env's games, `DEFINES="A=1 B"` adds defines (e.g. `DEBUG_TIMING`).
 
-Config: `sdkconfig.defaults` (240 MHz, QIO 80 MHz flash, 4 MB, 1000 Hz tick, `-Os`, log level
-warn, BT off), `sdkconfig.defaults.16mb` for 16 MB boards (`board_build.cmake_extra_args`),
-`sdkconfig.defaults.<layout>` for an Arena layout that needs its own task stacks (appended by
-`extraScript.py` for the env's layout, e.g. `esp32_local`), `CMakeLists.txt`,
-`src/CMakeLists.txt`. `sdkconfig.<env>` is generated and git-ignored: delete it after changing
-any defaults file, or the old values stay (the hook stops the build when it disagrees with
-the layout file and names the file to delete).
+PlatformIO inputs live in `pio/`: board definitions (`pio/boards/`), partition tables
+(`pio/partitions/`) and the IDF configuration (`pio/sdkconfigs/`): `sdkconfig.defaults` (240 MHz,
+QIO 80 MHz flash, 4 MB, 1000 Hz tick, `-Os`, log level warn, BT off), `sdkconfig.defaults.16mb`
+for 16 MB boards (`board_build.cmake_extra_args`), `sdkconfig.defaults.<layout>` for an Arena
+layout that needs its own task stacks (appended by `extraScript.py` for the env's layout, e.g.
+`esp32_local`). Also `CMakeLists.txt`, `src/CMakeLists.txt`. The generated sdkconfig is
+`.pio/build/<env>/sdkconfig`: delete it after changing any defaults file, or the old values stay
+(the hook stops the build when it disagrees with the layout file and names the file to delete).
 
 Arena layout: `[arena]` in `firmware.toml` lists the block sizes per layout (`name = [A, B]`
 bytes), every env selects one. It becomes `ARENA_LAYOUT_<NAME>`, `ARENA_A_SIZE` and
@@ -39,7 +40,7 @@ comes after the emulation task spawned: machines take `data()` in the ctor or `s
 
 RP2350 Bluetooth pad (Pico 2 W DVI default input, `HAL_GAMEPAD_BT`): BTstack from the pico-sdk
 2.2.0 submodules (`lib/btstack`, `lib/cyw43-driver`; `lib/lwip` only for the CMake targets) and
-Bluepad32 4.2.0 (`BLUEPAD32_PATH`, default `~/src/external/pico-deps/bluepad32`), compiled into
+Bluepad32 4.2.0 (`BLUEPAD32_PATH`, default `sdks/bluepad32`), compiled into
 the image by `ports/rp2350/bt/bluepad32.cmake` with the configs next to it (one classic pad,
 BLE off). Costs ~20 KB RAM and ~406 KB flash (232 KB of it the CYW43 firmware). Link keys live
 in pico_btstack's flash bank, the last 12 KB of flash: `ram_check.ld` fails the link when an

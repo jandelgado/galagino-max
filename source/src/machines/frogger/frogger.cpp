@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#if defined(GAME_ANTEATER) || defined(GAME_FROGGER)
+
 #include "frogger.h"
 #include "frogger_logo.h"
 #include "frogger_rom1.h"
@@ -440,3 +443,5 @@ void frogger::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB));
 }
 #endif
+
+#endif // frogger games

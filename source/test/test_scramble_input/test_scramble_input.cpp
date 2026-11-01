@@ -6,6 +6,7 @@
 // without them the test is skipped.
 #if __has_include("../../src/machines/scramble/scramble_main_rom.h")
 #define HAVE_ROM 1
+#define ENABLE_SCRAMBLE
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
 #include "../../src/cpus/z80/Z80.c"

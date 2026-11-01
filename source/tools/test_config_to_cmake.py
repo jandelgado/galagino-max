@@ -47,7 +47,8 @@ class Sources(unittest.TestCase):
 
 class Emit(unittest.TestCase):
     def test_emit(self):
-        out = c._emit("pico2", ["A", "B=1"], ["main.cpp", "x/y.c"])
+        out = c._emit(("NAME", "v1"), "pico2", ["A", "B=1"], ["main.cpp", "x/y.c"])
+        self.assertIn("set(GALAGINO_PROG_NAME NAME)\nset(GALAGINO_PROG_VERSION v1)\n", out)
         self.assertIn("set(GALAGINO_BOARD pico2)\n", out)
         self.assertIn("set(GALAGINO_DEFINES\n    A\n    B=1\n)", out)
         self.assertIn("set(GALAGINO_SOURCES\n    main.cpp\n    x/y.c\n)", out)

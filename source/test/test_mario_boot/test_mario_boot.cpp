@@ -8,6 +8,7 @@
 // (./convert.sh mario); without them the tests are skipped.
 #if __has_include("../../src/machines/mario/mario_rom_main.h")
 #define HAVE_ROM 1
+#define ENABLE_MARIO
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
 #include "../../src/cpus/z80/Z80.c"

@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_FANTASY
+
 #include "fantasy.h"
 #include "fantasy_rom.h"
 #include "fantasy_gfx.h"
@@ -244,3 +247,5 @@ void fantasy::render_row(short strip) {
     }
   }
 }
+
+#endif // GAME_FANTASY

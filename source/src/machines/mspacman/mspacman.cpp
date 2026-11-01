@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_MSPACMAN
+
 #include "mspacman.h"
 #include "../pacman/pacman_rom.h"
 #include "mspacman_pacrom.h"
@@ -165,3 +168,5 @@ const uint32_t *mspacman::spriteRom(unsigned char code) {
 const Logo &mspacman::logo(void) {
   return mspacman_logo;
 }
+
+#endif // GAME_MSPACMAN

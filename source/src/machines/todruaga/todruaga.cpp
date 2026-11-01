@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_TODRUAGA
+
 #include "todruaga.h"
 #include "../../emulation/spriteflip.h"
 
@@ -428,3 +431,5 @@ void todruaga::render_row(short row) {
 
   render_tiles(row, 1);
 }
+
+#endif // GAME_TODRUAGA

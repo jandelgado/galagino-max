@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_MOONCRESTA
+
 #include "mooncresta.h"
 #include "mooncresta_rom.h"
 #include "mooncresta_tilemap.h"
@@ -483,3 +486,5 @@ void mooncresta::menuLeds(CRGB *leds) {
 }
 #endif
 
+
+#endif // GAME_MOONCRESTA

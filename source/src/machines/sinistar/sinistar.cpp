@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_SINISTAR
+
 #include "sinistar.h"
 
 static_assert(0x0800 + 0x1000 <= RAMSIZE, "Sinistar SRAM in memory[]");
@@ -43,3 +46,5 @@ void sinistar::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_SINISTAR

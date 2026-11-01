@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_EYES
+
 #include "eyes.h"
 #include "eyes_rom.h"
 #include "eyes_tilemap.h"
@@ -139,3 +142,5 @@ void eyes::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_EYES

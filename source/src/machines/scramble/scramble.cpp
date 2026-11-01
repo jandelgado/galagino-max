@@ -1,3 +1,7 @@
+#include "../../catalog.h"
+#if defined(GAME_AMIDAR) || defined(GAME_SCRAMBLE) || defined(GAME_SUPERCOBRA) || \
+    defined(GAME_TURTLES)
+
 #include "scramble.h"
 #include <algorithm>
 #include "scramble_logo.h"
@@ -628,3 +632,5 @@ void scramble::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+#endif // scramble games

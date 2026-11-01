@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_GALAXIAN
+
 #include "galaxian.h"
 #include "galaxian_rom.h"
 #include "galaxian_tilemap.h"
@@ -425,3 +428,5 @@ void galaxian::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_GALAXIAN

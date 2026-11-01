@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#if defined(GAME_BNJ) || defined(GAME_BURGERTIME)
+
 #include "burgertime.h"
 #include "burgertime_rom_main.h"
 #include "burgertime_rom_audio.h"
@@ -497,3 +500,5 @@ void burgertime::render_row(short row) {
 const Logo &burgertime::logo(void) {
   return burgertime_logo;
 }
+
+#endif // burgertime games

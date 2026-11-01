@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_JOUST
+
 #include "joust.h"
 
 // romMain/romSound unpack before hw's Arena::alloc calls (member order).
@@ -26,3 +29,5 @@ void joust::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_JOUST

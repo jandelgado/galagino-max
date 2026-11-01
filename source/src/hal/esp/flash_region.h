@@ -5,7 +5,7 @@
 
 namespace hal {
 
-// Data partition found by label (subtype 0x40, partitions-assets.csv).
+// Data partition found by label (subtype 0x40, pio/partitions/partitions-assets.csv).
 // Looked up on first use, not at static init.
 class FlashRegion {
 public:

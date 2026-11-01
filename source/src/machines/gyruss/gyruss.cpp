@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_GYRUSS
+
 #include "gyruss.h"
 #include "gyruss_rom_main.h"
 #include "gyruss_rom_sub.h"
@@ -620,3 +623,5 @@ void gyruss::gameLeds(CRGB *leds) {
   menuLeds(leds);
 }
 #endif
+
+#endif // GAME_GYRUSS

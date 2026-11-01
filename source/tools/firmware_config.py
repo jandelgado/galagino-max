@@ -1,4 +1,4 @@
-"""Reads firmware.toml (envs, options, Arena layouts, game sets, modes) and
+"""Reads firmware.toml (name, envs, options, Arena layouts, game sets, modes) and
 turns an env into its build defines. Used by extraScript.py (PlatformIO) and
 config_to_cmake.py (RP2350). romconv keeps its own [arena] reader."""
 import re
@@ -20,6 +20,14 @@ class ConfigError(ValueError):
     pass
 
 
+# [firmware] name and version of every image
+def program(cfg):
+    fw = cfg.get("firmware", {})
+    if not ("name" in fw and "version" in fw):
+        raise ConfigError("firmware.toml: [firmware] needs name and version")
+    return fw["name"], fw["version"]
+
+
 def load(path=CONFIG_PATH):
     try:
         with open(path, "rb") as f:
@@ -33,7 +41,8 @@ def option_defines(cfg):
 
 
 # the mode's own defines, then ENABLE_<GAME> of its game sets in order, each
-# game once
+# game once, without the mode's exclude list (e.g. a set that does not fit
+# next to the Bluetooth stack)
 def mode_defines(cfg, mode):
     modes = cfg.get("modes", {})
     if mode not in modes:
@@ -46,6 +55,13 @@ def mode_defines(cfg, mode):
             raise ConfigError("firmware.toml: [modes] %s: game set '%s' not in [games]: %s"
                               % (mode, name, ", ".join(games)))
         enabled += [g for g in games[name] if g not in enabled]
+
+    exclude = modes[mode].get("exclude", [])
+    unknown = [g for g in exclude if g not in enabled]
+    if unknown:
+        raise ConfigError("firmware.toml: [modes] %s: excluded games not in its sets: %s"
+                          % (mode, ", ".join(unknown)))
+    enabled = [g for g in enabled if g not in exclude]
 
     return list(modes[mode].get("defines", [])) + [_GAME_PREFIX + g.upper() for g in enabled]
 

@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#if defined(GAME_AMIDAR) || defined(GAME_TURTLES)
+
 #include "turtles.h"
 #include "turtles_logo.h"
 #include "turtles_main_rom.h"
@@ -299,3 +302,5 @@ void turtles::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+#endif // turtles games

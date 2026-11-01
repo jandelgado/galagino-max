@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#if defined(GAME_SZAXXON) || defined(GAME_ZAXXON)
+
 #include "zaxxon.h"
 #include "zaxxon_dipswitches.h"
 #include "zaxxon_sprite_geom.h"
@@ -606,3 +609,5 @@ void zaxxon::gameLeds(CRGB *leds) {
   led = (led + 1) % (sizeof(idle_leds) / sizeof(CRGB));
 }
 #endif
+
+#endif // zaxxon games

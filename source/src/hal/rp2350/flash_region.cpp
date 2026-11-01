@@ -39,11 +39,14 @@ uintptr_t start() {
 }
 uintptr_t end() { return (uintptr_t)&GALAGINO_FLASH_END; }
 
-Signal *park;
+// parkLoop() takes park only after the scheduler starts, when all static
+// constructors have run: init order against FlashRegion's does not matter
+Signal park;
+TaskHandle parker;
 volatile bool parked;
 volatile bool released;
 
-// noinline: inlined into parker() it would run from flash
+// noinline: inlined into parkLoop() it would run from flash
 __attribute__((noinline)) HAL_FAST_CODE void spin() {
   __asm volatile("msr basepri, %0" ::"r"(PARK_BASEPRI) : "memory");
   __dsb();
@@ -54,28 +57,18 @@ __attribute__((noinline)) HAL_FAST_CODE void spin() {
   __asm volatile("msr basepri, %0" ::"r"(0) : "memory");
 }
 
-void parker(void *) {
+void parkLoop(void *) {
   for (;;) {
-    park->take(WAIT_FOREVER);
+    park.take(WAIT_FOREVER);
     spin();
   }
-}
-
-bool parkerStarted() {
-  static bool started;
-  if (!started) {
-    park = new Signal();
-    const uint32_t top = configMAX_PRIORITIES - 1;
-    started = taskSpawn(parker, nullptr, "flash park", 512, top, EMULATION_CORE) != nullptr;
-  }
-  return started;
 }
 
 // fn runs every IRQ of this core masked, the other core parked
 template <typename Fn>
 void withoutXip(Fn fn) {
   released = false;
-  park->give();
+  park.give();
   while (!parked) {
   }
   const uint32_t irqs = save_and_disable_interrupts();
@@ -88,12 +81,20 @@ void withoutXip(Fn fn) {
 
 } // namespace
 
+FlashRegion::FlashRegion(const char *) {
+  if (parker) {
+    return;
+  }
+  const uint32_t top = configMAX_PRIORITIES - 1;
+  parker = taskSpawn(parkLoop, nullptr, "flash park", 512, top, EMULATION_CORE);
+}
+
 uint32_t FlashRegion::size() const {
   return end() > start() ? end() - start() : 0;
 }
 
 bool FlashRegion::erase(uint32_t offset, uint32_t length) {
-  if (offset % SECTOR || length % SECTOR || offset + length > size() || !parkerStarted()) {
+  if (offset % SECTOR || length % SECTOR || offset + length > size() || !parker) {
     return false;
   }
   const uint32_t flashOffset = start() - XIP_BASE + offset;
@@ -107,7 +108,7 @@ bool FlashRegion::erase(uint32_t offset, uint32_t length) {
 
 // whole pages, 0xFF around the data: programming a 1 bit leaves flash as it is
 bool FlashRegion::write(uint32_t offset, const uint8_t *data, uint32_t length) {
-  if (offset + length > size() || offset + length < offset || !parkerStarted()) {
+  if (offset + length > size() || offset + length < offset || !parker) {
     return false;
   }
   static uint8_t page[FLASH_PAGE_SIZE];

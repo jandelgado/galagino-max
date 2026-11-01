@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_MAPPY
+
 #include "mappy.h"
 #include "../../emulation/spriteflip.h"
 
@@ -552,3 +555,5 @@ void mappy::render_row(short row) {
 
   render_tiles(row, 1);
 }
+
+#endif // GAME_MAPPY

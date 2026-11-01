@@ -9,6 +9,7 @@
 // from romconv (./convert.sh gyruss); without them the test is skipped.
 #if __has_include("../../src/machines/gyruss/gyruss_rom_main.h")
 #define HAVE_ROM 1
+#define ENABLE_GYRUSS
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
 #include "../../src/cpus/z80/Z80.c"

@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_ROCNROPE
+
 #include "rocnrope.h"
 #include "rocnrope_main_rom.h"
 #include "rocnrope_audio_rom.h"
@@ -429,3 +432,5 @@ void rocnrope::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_ROCNROPE

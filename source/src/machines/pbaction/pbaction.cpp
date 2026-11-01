@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_PBACTION
+
 #include "pbaction.h"
 #include "pbaction_main_rom.h"
 #include "pbaction_audio_rom.h"
@@ -635,3 +638,5 @@ void pbaction::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_PBACTION

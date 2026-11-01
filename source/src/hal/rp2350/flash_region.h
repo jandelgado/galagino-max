@@ -11,7 +11,9 @@ namespace hal {
 // emulation core in RAM with only the DVI scanout IRQ enabled (flash_region.cpp).
 class FlashRegion {
 public:
-  explicit FlashRegion(const char *) { }
+  // static instance: spawns the parker task during static init, so its
+  // heap blocks sit below every later allocation (no fragmentation)
+  explicit FlashRegion(const char *);
 
   uint32_t size() const;
   // offset and length 4 KB aligned, sector by sector

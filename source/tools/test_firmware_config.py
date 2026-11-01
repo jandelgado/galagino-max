@@ -30,6 +30,12 @@ class RepoConfig(unittest.TestCase):
         for layout in cfg["arena"]:
             fc.layout_defines(cfg, layout)
 
+    def test_program(self):
+        name, version = fc.program(fc.load())
+        self.assertTrue(name and version)
+        with self.assertRaises(fc.ConfigError):
+            fc.program({})
+
     def test_every_env_resolves(self):
         cfg = fc.load()
         for name in cfg["envs"]:
@@ -64,6 +70,15 @@ class ModeDefines(unittest.TestCase):
     def test_unknown_game_list(self):
         cfg = dict(CFG, modes={"m": {"games": ["missing"]}})
         with self.assertRaisesRegex(fc.ConfigError, "missing"):
+            fc.mode_defines(cfg, "m")
+
+    def test_mode_excludes_games(self):
+        cfg = dict(CFG, modes={"m": {"games": ["a", "b"], "exclude": ["y"]}})
+        self.assertEqual(fc.mode_defines(cfg, "m"), ["ENABLE_X", "ENABLE_Z"])
+
+    def test_unknown_excluded_game(self):
+        cfg = dict(CFG, modes={"m": {"games": ["a"], "exclude": ["z"]}})
+        with self.assertRaisesRegex(fc.ConfigError, "z"):
             fc.mode_defines(cfg, "m")
 
     def test_option_defines(self):

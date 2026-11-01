@@ -1,8 +1,6 @@
 .pio
 .vscode
 src/config_local.h
-/sdkconfig.*
-!/sdkconfig.defaults*
 /dependencies.lock
 __pycache__/
 /ports/rp2350/build/

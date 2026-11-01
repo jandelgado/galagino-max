@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_BZONE
+
 #include "bzone.h"
 #include "bzone_rom.h"
 #include "bzone_vrom.h"
@@ -245,3 +248,5 @@ void bzone::renderAudio(int16_t *out, int n) {
   pokey.render(soundregs, pk, n);
   sound.render(soundregs[BZ_SND_LATCH], pk, out, n);
 }
+
+#endif // GAME_BZONE

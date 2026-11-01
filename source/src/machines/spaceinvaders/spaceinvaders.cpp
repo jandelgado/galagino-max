@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_SPACEINVADERS
+
 #include "spaceinvaders.h"
 #include "spaceinvaders_rom.h"
 
@@ -252,3 +255,5 @@ void spaceinvaders::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_SPACEINVADERS

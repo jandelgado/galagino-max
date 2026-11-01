@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_AMIDAR
+
 #include "amidar.h"
 #include "amidar_main_rom.h"
 #include "amidar_audio_rom.h"
@@ -174,3 +177,5 @@ void amidar::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_AMIDAR

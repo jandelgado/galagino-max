@@ -4,6 +4,7 @@
 
 #if __has_include("../../src/machines/supercobra/supercobra_main_rom.h")
 #define HAVE_ROM 1
+#define ENABLE_SUPERCOBRA
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
 #include "../../src/cpus/z80/Z80.c"
