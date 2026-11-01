@@ -4,10 +4,11 @@
 #include <stdint.h>
 
 // Pure Berzerk video helpers (host tested): magic RAM ALU and shifter
-// (MAME berzerk magicram_w), 256 -> 240 column map, palette.
+// (MAME berzerk magicram_w), 256 -> 240 column map (1:1 on 256), palette.
 namespace berzerk_video {
 
-constexpr int OUT_WIDTH = 240;
+constexpr int NATIVE_WIDTH = 256;
+constexpr int FIT_WIDTH = 240;
 constexpr int VIS_TOP = 32;     // first visible vpos
 constexpr int VIS_LINES = 224;
 constexpr int FIRST_STRIP = 4;  // 224 lines centered in 288
@@ -45,9 +46,17 @@ constexpr int mergeStart(int k) {
   return MERGE_FIRST + MERGE_STEP * k - (((MERGE_FIRST + MERGE_STEP * k) & 3) == 3);
 }
 
-// native x -> output column, -1 = cropped. Merged pairs share a column,
-// so a 1 px line on either one stays visible.
+// native x -> output column on W columns, -1 = cropped. 240: merged pairs
+// share a column, so a 1 px line on either one stays visible. 256: 1:1.
+template <int W>
 inline void buildColumnMap(int16_t map[256]) {
+  if (W == NATIVE_WIDTH) {
+    for (int x = 0; x < 256; x++) {
+      map[x] = (int16_t)x;
+    }
+    return;
+  }
+
   int out = 0, k = 0;
   for (int x = 0; x < 256; x++) {
     if (x < CROP || x >= 256 - CROP) {

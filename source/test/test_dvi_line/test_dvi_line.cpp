@@ -132,6 +132,29 @@ static void test_line_2x_224_leaves_border_black(void) {
   TEST_ASSERT_EQUAL_HEX32(0xFFFFFFFF, line[48 + 223]);
 }
 
+// DVI strips are up to 256 wide: 512 doubled pixels
+static void test_line_2x_256_fills_512_pixels(void) {
+  uint16_t row[256];
+  for (int x = 0; x < 256; x++) {
+    row[x] = swap565((uint16_t)(x + 1));
+  }
+  uint32_t out[256] = {};
+  line2x(row, row, 0, out, 256, Mirror::OFF);
+  TEST_ASSERT_EQUAL_HEX32(0x00010001, out[0]);
+  TEST_ASSERT_EQUAL_HEX32(0x01000100, out[255]);
+}
+
+static void test_line_2x_256_mirror(void) {
+  uint16_t row[256];
+  for (int x = 0; x < 256; x++) {
+    row[x] = swap565((uint16_t)(x + 1));
+  }
+  uint32_t out[256] = {};
+  line2x(row, row, 0, out, 256, Mirror::ON);
+  TEST_ASSERT_EQUAL_HEX32(0x01000100, out[0]);
+  TEST_ASSERT_EQUAL_HEX32(0x00010001, out[255]);
+}
+
 // galagino's flipY turns the screen by 180 degrees (SPI TFT: MADCTL MY|MX),
 // flipX mirrors it horizontally on top of that
 static void test_orientation_follows_panel_flips(void) {
@@ -179,6 +202,8 @@ int main(int, char **) {
   RUN_TEST(test_line_2x);
   RUN_TEST(test_line_2x_blends_like_blend565);
   RUN_TEST(test_line_2x_224_leaves_border_black);
+  RUN_TEST(test_line_2x_256_fills_512_pixels);
+  RUN_TEST(test_line_2x_256_mirror);
   RUN_TEST(test_orientation_follows_panel_flips);
   RUN_TEST(test_frame_row);
   RUN_TEST(test_over_rate);

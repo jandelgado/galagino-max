@@ -23,6 +23,7 @@
 namespace marble_hud {
 
 static const uint8_t ROWS = 36, COLS = 30;
+static const int LEFT = (marble_video::OUT_W - COLS * 8) / 2;  // grid x: 0, 8 on 256 columns
 
 enum Screen : uint16_t {
   PAL = 1 << 0,        // alpha palette loaded (else nothing shows: level load)

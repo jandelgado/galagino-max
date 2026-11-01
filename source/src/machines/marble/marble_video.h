@@ -3,14 +3,18 @@
 
 #include <stdint.h>
 #include "marble_level.h"
+#include "../../hal/video_width.h"
 
-// 240x288 viewport on the 288 px wide playfield, 1:1. sx pans 0..48, sy scrolls.
+// 240x288 (256x288 on DVI) viewport on the 288 px wide playfield, 1:1. sx pans
+// 0..48 (0..32), sy scrolls.
 // The marble is drawn over the playfield (motion objects, MARBLE.md "Marble sprite").
 namespace marble_video {
 
-static const int OUT_W = 240;
+static const int OUT_W = hal::VIDEO_MAX_WIDTH;  // the playfield is wider than both
+static_assert(OUT_W <= marble_level::WIDTH, "viewport wider than the playfield");
 static const int OUT_H = 288;  // galagino renders 36 strips x 8 lines
-static const int16_t PAN = marble_level::WIDTH - OUT_W;  // 48
+static const int16_t PAN = marble_level::WIDTH - OUT_W;  // 48, 32 on 256
+static const int16_t ARCADE_W = 336;                     // arcade screen columns
 static const int16_t ARCADE_H = 240;                     // arcade screen lines
 static const int16_t MARGIN = (OUT_H - ARCADE_H) / 2;    // view lines above the arcade screen
 

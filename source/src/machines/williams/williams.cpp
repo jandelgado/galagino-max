@@ -51,10 +51,10 @@ void GAME_IRAM williams::render_row(short row) {
   }
   const Scanout &s = board.scanout();
   for (int dy = 0; dy < 8; dy++) {
-    uint16_t *dst = frame_buffer + dy * ColumnMap::OUT_MAX;
+    uint16_t *dst = frame_buffer + dy * OUT_WIDTH;
     const int y = row * 8 + dy - TOP_ROW;
     if (y < 0 || y >= Scanout::ROWS) {
-      memset(dst, 0, ColumnMap::OUT_MAX * sizeof(uint16_t));
+      memset(dst, 0, OUT_WIDTH * sizeof(uint16_t));
       continue;
     }
     const uint8_t *line = s.frame(shown) + y * Scanout::COLS;
@@ -76,7 +76,7 @@ void GAME_IRAM williams::render_row(short row) {
 void GAME_IRAM williams::renderUpright(short row) {
   const uint8_t *frame = board.scanout().frame(shown);
   for (int dy = 0; dy < 8; dy++) {
-    uint16_t *dst = frame_buffer + dy * ColumnMap::OUT_MAX;
+    uint16_t *dst = frame_buffer + dy * Scanout::ROWS;
     const uint16_t x = uprightX(row * 8 + dy);
     const uint8_t *src = frame;
     for (int c = 0; c < Scanout::ROWS; c++, src += Scanout::COLS) {
@@ -85,11 +85,11 @@ void GAME_IRAM williams::renderUpright(short row) {
   }
 }
 
-// columns outside the 239 scaled ones (1 here)
+// columns outside the scaled ones (239 or 255 of 240 or 256)
 void williams::clearPads(uint16_t *line) {
   const int right = columns.left() + columns.count();
   memset(line, 0, columns.left() * sizeof(uint16_t));
-  memset(line + right, 0, (ColumnMap::OUT_MAX - right) * sizeof(uint16_t));
+  memset(line + right, 0, (OUT_WIDTH - right) * sizeof(uint16_t));
 }
 
 // audio core: hold the last value when the ring runs dry

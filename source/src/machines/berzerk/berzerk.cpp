@@ -55,7 +55,7 @@ berzerk::berzerk()
   video = Arena::alloc<VideoState>(1);
   memset(video, 0, sizeof(*video));
 
-  buildColumnMap(column_map);
+  buildColumnMap<OUT_WIDTH>(column_map);
   for (int i = 0; i < 16; i++) {
     pens[i] = pen(i);
   }

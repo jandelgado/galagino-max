@@ -51,8 +51,12 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
 
 ## Video (`video.h`, not in `hal.h`)
 `hal::Video` is the backend class (`SpiTftVideo`, `DviHstxVideo`, `NullVideo`). Strips are
-240 x 8 RGB565 pixels in the order the machines render them (SPI byte order).
-- `void begin()`, `void setViewport(uint16_t width)` (224 or 240, every frame),
+`renderWidth()` x 8 RGB565 pixels in the order the machines render them (SPI byte order).
+- `MAX_WIDTH` (compile-time): widest strip, SPI TFT and null 240, DVI 256. A property of the
+  backend, not the platform. Machines read it as `hal::VIDEO_MAX_WIDTH` (`video_width.h`, no SDK
+  headers); `main.cpp` asserts both agree.
+- `void begin()`, `void setViewport(uint16_t width)` (224, 240 or an even width up to
+  `MAX_WIDTH`, every frame),
   `void flip(char flipY, char flipX)`, `void flipReset(char flipY, char flipX)`
 - `void setHalfRate(bool)`: the machine's preference, called every frame before `screenParts()`.
 - `uint8_t screenParts() const`: 1, or 2 when a screen takes two emulation frames.

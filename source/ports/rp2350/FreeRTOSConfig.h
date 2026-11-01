@@ -41,10 +41,13 @@
 #define configSUPPORT_STATIC_ALLOCATION         0
 // Task stacks and kernel objects only; the application uses malloc.
 #ifdef ASSETS_REMOTE
-// remote: 23.5 KB stayed free with WiFi and Bluetooth up; malloc needs the rest
-#define configTOTAL_HEAP_SIZE                   (40 * 1024)
+// remote: 23.5 KB stayed free at 40 KB with WiFi and Bluetooth up; the 256
+// column DVI framebuffer took 9.5 KB from malloc, 8 KB come back from here
+#define configTOTAL_HEAP_SIZE                   (32 * 1024)
 #else
-#define configTOTAL_HEAP_SIZE                   (48 * 1024)
+// local: 9.6 KB stayed free (marble, gng, defender, gyruss on DVI); the 256
+// column DVI framebuffer took the rest from malloc
+#define configTOTAL_HEAP_SIZE                   (36 * 1024)
 #endif
 #define configAPPLICATION_ALLOCATED_HEAP        0
 

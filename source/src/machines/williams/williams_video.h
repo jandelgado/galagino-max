@@ -3,8 +3,9 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <type_traits>
 
-// 292 native columns to <= 240 panel columns: drop `dropA`/`dropB` of every
+// 292 native columns to <= 240 panel (256 DVI) columns: drop `dropA`/`dropB` of every
 // `period` columns; a dropped pixel folds into its left neighbour
 // (out = a ? a : b), so 1 px shots and stars stay visible.
 struct ColumnLayout {
@@ -22,10 +23,18 @@ static const ColumnLayout DEFENDER_COLUMNS = { 0, 292, 11, 3, 8 };
 static const ColumnLayout ROBOTRON_COLUMNS = { 6, 278, 7, 5, NO_DROP };
 // Joust uses all 292 columns (attract probe 2026-10-14)
 static const ColumnLayout JOUST_COLUMNS = { 0, 292, 11, 3, 8 };
+// 256 columns (DVI): 1 of 8 dropped, robotron 1 of 12 (255)
+static const ColumnLayout DEFENDER_COLUMNS_256 = { 0, 292, 8, 5, NO_DROP };
+static const ColumnLayout ROBOTRON_COLUMNS_256 = { 6, 278, 12, 5, NO_DROP };
+static const ColumnLayout JOUST_COLUMNS_256 = { 0, 292, 8, 5, NO_DROP };
 
+template <uint16_t OUT>
 class ColumnMap {
+  // column counts up to OUT: 8 bit where they fit
+  typedef typename std::conditional<(OUT > 255), uint16_t, uint8_t>::type Count;
+
 public:
-  static const int OUT_MAX = 240;
+  static const int OUT_MAX = OUT;
 
   void build(const ColumnLayout &l) {
     n = 0;
@@ -44,15 +53,15 @@ public:
     leftPad = (OUT_MAX - n) / 2;
   }
 
-  uint8_t count() const { return n; }
-  uint8_t left() const { return leftPad; }
+  Count count() const { return n; }
+  Count left() const { return leftPad; }
   uint16_t src(int i) const { return source[i]; }
   bool merge(int i) const { return mergeNext[i]; }
 
 private:
   uint16_t source[OUT_MAX];
   uint8_t mergeNext[OUT_MAX];
-  uint8_t n = 0, leftPad = 0;
+  Count n = 0, leftPad = 0;
 };
 
 // ROT270 upright (Sinistar): panel row r shows native column 289 - r

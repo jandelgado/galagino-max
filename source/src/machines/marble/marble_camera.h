@@ -11,7 +11,7 @@
 //   start(m, race)       level init 0x16f6c: camera at the race top (silly: bottom)
 //   tick(m)              per logic tick, before the player update (0x10fce)
 //   top(m)               playfield y of the arcade screen's first line
-//   pan(p, x)            per 60 Hz frame: keep playfield x between view x 64 and 176
+//   pan(p, x)            per 60 Hz frame: keep playfield x between view x 64 and OUT_W - 64
 namespace marble_camera {
 
 void start(marble_physics::Mem &m, uint8_t race);

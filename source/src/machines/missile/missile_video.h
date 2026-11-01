@@ -2,13 +2,16 @@
 #define MISSILE_VIDEO_H
 
 #include <stdint.h>
+#include "../../hal/video_width.h"
 
 // Pure video helpers for missile. MAME atari/missile.cpp: get_bit3_addr,
 // vram_mad_w/r, screen_update_missile, palette_w.
 namespace missile_video {
 
-constexpr int OUT_WIDTH = 240;
-constexpr int CROP_LEFT = 8;    // native x 8..247 shown (crop to 240 columns)
+constexpr int NATIVE_WIDTH = 256;
+// 240 columns: native x 8..247 shown (edges hold no game content); 256 (DVI): all
+constexpr int OUT_WIDTH = hal::fitWidth(NATIVE_WIDTH, 240);
+constexpr int CROP_LEFT = (NATIVE_WIDTH - OUT_WIDTH) / 2;
 constexpr int FIRST_LINE = 24;  // vblank lines 0..23; line 24 drawn black
 constexpr int VIS_LINES = 232;  // lines 24..255
 constexpr int FIRST_STRIP = 4;  // 29 strips: panel rows 32..263

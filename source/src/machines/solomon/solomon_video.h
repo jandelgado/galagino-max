@@ -6,11 +6,12 @@
 // Pure Solomon's Key geometry, MAME tecmo/solomon.cpp. ROT0, visarea
 // x 0..255, y 16..239. Output line l = screen y - 16; output column c maps
 // to native x c + CROP_LEFT (default), scaleX (SOLOMON_SCALE) or c + scroll
-// (SOLOMON_SCROLL), HUD lines by hudTopX/hudBottomX.
+// (SOLOMON_SCROLL), HUD lines by hudTopX/hudBottomX. Where the video backend
+// takes 256 columns (DVI), output column c is native x c.
 namespace solomon_video {
 
 constexpr int NATIVE_WIDTH = 256;
-constexpr int OUT_WIDTH = 240;
+constexpr int FIT_WIDTH = 240;
 constexpr int VIS_TOP = 16;          // first visible screen y
 constexpr int VIS_LINES = 224;
 constexpr int FIRST_LINE = 32;       // panel line of output line 0, centered in 288
@@ -22,7 +23,7 @@ constexpr int SPRITE_BYTES = 0x80;   // 32 sprites x 4 bytes
 constexpr int SPRITE_SIZE = 16;
 constexpr int SPRITE_Y_BASE = 241;   // MAME: sy = 241 - byte 2
 constexpr int CROP_LEFT = 8;
-constexpr int SCROLL_MAX = NATIVE_WIDTH - OUT_WIDTH;
+constexpr int SCROLL_MAX = NATIVE_WIDTH - FIT_WIDTH;
 constexpr int SCALE_GROUP = 15;      // output columns per 16 native columns
 constexpr int BG_PALETTE = 128;
 

@@ -50,7 +50,7 @@ void i8048_xdm_write(i8048_state_S *s, unsigned char a, unsigned char v) { machi
 
 static Input input;
 static FILE *audio_dump;  // MARIO_AUDIO_DUMP=<file>: raw int16 24 kHz
-static unsigned short frame_buffer[mario_video::OUT_WIDTH * 8];
+static unsigned short frame_buffer[mario_video::FIT_WIDTH * 8];
 static sprite_S sprites[128];
 static unsigned char memory[RAMSIZE];
 

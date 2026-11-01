@@ -7,6 +7,7 @@
 #include "../machineBase.h"
 #include "../../emulation/seqlock.h"
 #include "../../emulation/sidplayer.h"
+#include "../../hal/video_width.h"
 #include "bublbobl_sound.h"
 
 // ============================================================
@@ -126,20 +127,25 @@ private:
   static constexpr uint8_t IN0_BUBBLE = 0x20;
   static constexpr uint8_t IN0_START1 = 0x40;
 
-  // 256 native columns -> OUT_WIDTH, see config.h
+  // 256 native columns -> FIT_WIDTH, see config.h; all 256 where the video
+  // backend takes them (DVI)
 #if defined(BUBLBOBL_SCALE) + defined(BUBLBOBL_CROP) + defined(BUBLBOBL_SCALE_BORDER) != 1
 #error "define exactly one of BUBLBOBL_SCALE, BUBLBOBL_CROP, BUBLBOBL_SCALE_BORDER"
 #endif
 #if defined(BUBLBOBL_CROP)
-  static constexpr uint16_t OUT_WIDTH = bublbobl_video::CROP_WIDTH;
-  static constexpr uint8_t native_x(uint16_t col) { return bublbobl_video::crop_x(col); }
+  static constexpr uint16_t FIT_WIDTH = bublbobl_video::CROP_WIDTH;
+  static constexpr uint8_t fit_x(uint16_t col) { return bublbobl_video::crop_x(col); }
 #elif defined(BUBLBOBL_SCALE_BORDER)
-  static constexpr uint16_t OUT_WIDTH = bublbobl_video::BORDER_WIDTH;
-  static constexpr uint8_t native_x(uint16_t col) { return bublbobl_video::border_x(col); }
+  static constexpr uint16_t FIT_WIDTH = bublbobl_video::BORDER_WIDTH;
+  static constexpr uint8_t fit_x(uint16_t col) { return bublbobl_video::border_x(col); }
 #else
-  static constexpr uint16_t OUT_WIDTH = bublbobl_video::SCALE_WIDTH;
-  static constexpr uint8_t native_x(uint16_t col) { return bublbobl_video::keep_x(col); }
+  static constexpr uint16_t FIT_WIDTH = bublbobl_video::SCALE_WIDTH;
+  static constexpr uint8_t fit_x(uint16_t col) { return bublbobl_video::keep_x(col); }
 #endif
+  static constexpr uint16_t OUT_WIDTH = hal::fitWidth(bublbobl_video::NATIVE_WIDTH, FIT_WIDTH);
+  static constexpr uint8_t native_x(uint16_t col) {
+    return OUT_WIDTH == bublbobl_video::NATIVE_WIDTH ? (uint8_t)col : fit_x(col);
+  }
 
   static constexpr uint8_t FIRST_ROW = 4;
   static constexpr uint8_t LAST_ROW = FIRST_ROW + bublbobl_video::STRIPS;

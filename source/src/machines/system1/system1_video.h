@@ -1,6 +1,7 @@
 #ifndef SYSTEM1_VIDEO_H
 #define SYSTEM1_VIDEO_H
 
+#include "../../hal/video_width.h"
 #include <stdint.h>
 #include <string.h>
 #include "../../hal/hal_attr.h"
@@ -13,7 +14,9 @@ namespace system1_video {
 constexpr int VIS_LINES = 224;
 constexpr int ROW_OF_X0 = 271;   // ROT270: half-res x 0 -> galagino row 271
 constexpr int ROT90_ROW_OF_X0 = 16;  // ROT90: half-res x 0 -> galagino row 16
-constexpr int ROT0_WIDTH = 240;     // ROT0: panel columns, a window into 256
+constexpr int ROT0_NATIVE = 256;    // ROT0: native columns
+// ROT0: panel columns, a window into the 256 (all of them on DVI)
+constexpr int ROT0_WIDTH = hal::fitWidth(ROT0_NATIVE, 240);
 constexpr int ROT0_FIRST_ROW = 32;  // ROT0: line 0 -> galagino row 32, centered in 288
 constexpr int SPRITES = 32;
 constexpr int SPRITE_BYTES = 16;
@@ -453,8 +456,13 @@ struct Window {
   int8_t hudX;
 };
 
-// proportional: player at the left wall -> min, right wall -> max
+// proportional: player at the left wall -> min, right wall -> max; 0 where
+// the whole line is shown
 inline int windowTarget(const Window &w, int playerX) {
+  if (ROT0_WIDTH == ROT0_NATIVE) {
+    return 0;
+  }
+
   if (playerX < 0) {
     return (w.min + w.max) / 2;
   }

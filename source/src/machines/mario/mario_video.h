@@ -4,15 +4,17 @@
 #include <stdint.h>
 
 // Pure geometry: 256 native columns onto the 240 column panel, host tested.
+// Where the video backend takes 256 columns (DVI) all are shown 1:1.
 //
 //   MARIO_CROP    native 8..247
 //   MARIO_SCALE   native 0..255 without x & 15 == 15
 //   MARIO_SCROLL  native pan..pan+239, pan follows player 1
 namespace mario_video {
 
-constexpr uint16_t OUT_WIDTH = 240;
+constexpr uint16_t NATIVE_WIDTH = 256;
+constexpr uint16_t FIT_WIDTH = 240;
 constexpr uint8_t CROP_LEFT = 8;
-constexpr uint8_t PAN_MAX = 16;          // 256 - OUT_WIDTH
+constexpr uint8_t PAN_MAX = 16;          // NATIVE_WIDTH - FIT_WIDTH
 constexpr uint8_t PAN_LEFT_EDGE = 64;    // player x left of this: pan 0
 constexpr uint8_t PAN_RIGHT_EDGE = 192;  // right of this: PAN_MAX
 

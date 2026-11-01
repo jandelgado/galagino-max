@@ -434,7 +434,7 @@ void blend(const Grid &g, int row, uint16_t *dst) {
     if (lines == NONE && !(w & OPAQUE)) { continue; }
 
     const uint16_t *pal = g.pal + ((w >> 10) & 7) * 4;
-    uint16_t *out = dst + c * 8;
+    uint16_t *out = dst + LEFT + c * 8;
     for (int y = 0; y < 8; y++, out += marble_video::OUT_W) {
       const uint16_t bits = lines[y];
       for (int x = 0; x < 8; x++) {

@@ -29,6 +29,8 @@ public:
   uint8_t machineType() override { return MCH_TYLZ; }
   void prepare_frame(void) override;
   void render_row(short row) override;
+  const int renderWidth() override { return gottlieb_video::ROT0_WIDTH; }
+  const int renderBuffer() override { return gottlieb_video::ROT0_WIDTH * 2 * 8; }
   static const Logo &logo(void) { return tylz_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);

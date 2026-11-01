@@ -32,11 +32,11 @@ void tearDown(void) {}
 static void test_hud_columns(void) {
   TEST_ASSERT_EQUAL_UINT8(15, hudTopX(15));
   TEST_ASSERT_EQUAL_UINT8(24, hudTopX(16));
-  TEST_ASSERT_EQUAL_UINT8(247, hudTopX(OUT_WIDTH - 1));
+  TEST_ASSERT_EQUAL_UINT8(247, hudTopX(FIT_WIDTH - 1));
   TEST_ASSERT_EQUAL_UINT8(0, hudBottomX(0));
   TEST_ASSERT_EQUAL_UINT8(119, hudBottomX(119));
   TEST_ASSERT_EQUAL_UINT8(136, hudBottomX(120));
-  TEST_ASSERT_EQUAL_UINT8(255, hudBottomX(OUT_WIDTH - 1));
+  TEST_ASSERT_EQUAL_UINT8(255, hudBottomX(FIT_WIDTH - 1));
 }
 
 // left wall -> 0, right wall -> 16, monotonic between
@@ -54,7 +54,7 @@ static void test_scroll_target(void) {
 // every native x except x % 16 == 15, ascending
 static void test_scale_columns(void) {
   int prev = -1;
-  for (int c = 0; c < OUT_WIDTH; c++) {
+  for (int c = 0; c < FIT_WIDTH; c++) {
     const int x = scaleX(c);
     TEST_ASSERT_TRUE(x > prev);
     TEST_ASSERT_NOT_EQUAL(15, x % 16);
@@ -98,7 +98,7 @@ word LoopZ80(Z80 *) { return INT_NONE; }
 }
 
 static Input input;
-static unsigned short frame_buffer[OUT_WIDTH * 8];
+static unsigned short frame_buffer[FIT_WIDTH * 8];
 static sprite_S sprite_buf[128];
 static unsigned char memory[RAMSIZE];
 
@@ -165,7 +165,7 @@ static void test_e603_hack(void) {
 // one sprite at native x sx, screen y 100 (output lines 84..99) on an
 // empty screen (all tiles code 0, palette entry i = i + 1, so sprite pens
 // differ from the bg color); counts its pixels in output columns
-// [0, 16) and [OUT_WIDTH - 16, OUT_WIDTH)
+// [0, 16) and [FIT_WIDTH - 16, FIT_WIDTH)
 static const int SPR_LINE = 84;
 static void spritePixels(int sx, int *left, int *right) {
   boot();
@@ -198,14 +198,14 @@ static void spritePixels(int sx, int *left, int *right) {
   const uint16_t bg = machine->palette[BG_PALETTE];
   *left = *right = 0;
   for (int line = SPR_LINE; line < SPR_LINE + SPRITE_SIZE; line++) {
-    uint16_t dst[OUT_WIDTH];
+    uint16_t dst[FIT_WIDTH];
     machine->render_line(dst, line);
-    for (int c = 0; c < OUT_WIDTH; c++) {
+    for (int c = 0; c < FIT_WIDTH; c++) {
       if (dst[c] == bg) {
         continue;
       }
       *left += c < 16;
-      *right += c >= OUT_WIDTH - 16;
+      *right += c >= FIT_WIDTH - 16;
     }
   }
   memcpy(machine->palette, saved_palette, sizeof(saved_palette));  // shared machine
@@ -274,10 +274,10 @@ static void writePpm(const char *name) {
   snprintf(path, sizeof(path), "%s/%s", dir ? dir : "/tmp", name);
   FILE *f = fopen(path, "wb");
   TEST_ASSERT_NOT_NULL(f);
-  fprintf(f, "P6\n%d 288\n255\n", OUT_WIDTH);
+  fprintf(f, "P6\n%d 288\n255\n", FIT_WIDTH);
   for (int row = 0; row < 36; row++) {
     machine->render_row(row);
-    for (int i = 0; i < OUT_WIDTH * 8; i++) {
+    for (int i = 0; i < FIT_WIDTH * 8; i++) {
       putPixel(f, frame_buffer[i]);
     }
   }
@@ -350,7 +350,7 @@ static void checkFrame(const MameFrame &m) {
   machine->prepare_frame();
 
   int bad = 0, first = -1;
-  static uint16_t screen[VIS_LINES][OUT_WIDTH];
+  static uint16_t screen[VIS_LINES][FIT_WIDTH];
   for (int line = 0; line < VIS_LINES; line++) {
     machine->render_line(screen[line], line);
     if (crc32((const uint8_t *)screen[line], sizeof(screen[line])) != m.line_crc[line]) {

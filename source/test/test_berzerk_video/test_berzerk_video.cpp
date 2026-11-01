@@ -38,13 +38,13 @@ static void test_shift_and_flip(void) {
 
 static void test_column_map(void) {
   int16_t map[256];
-  buildColumnMap(map);
+  buildColumnMap<240>(map);
   for (int x = 0; x < CROP; x++) {
     TEST_ASSERT_EQUAL_INT16(-1, map[x]);
     TEST_ASSERT_EQUAL_INT16(-1, map[255 - x]);
   }
   TEST_ASSERT_EQUAL_INT16(0, map[CROP]);
-  TEST_ASSERT_EQUAL_INT16(OUT_WIDTH - 1, map[255 - CROP]);
+  TEST_ASSERT_EQUAL_INT16(FIT_WIDTH - 1, map[255 - CROP]);
 
   int merges = 0;
   for (int x = CROP + 1; x < 256 - CROP; x++) {
@@ -61,13 +61,22 @@ static void test_column_map(void) {
 // every output column gets a native column: a 1 px laser never vanishes
 static void test_merge_keeps_single_pixel(void) {
   int16_t map[256];
-  buildColumnMap(map);
-  bool hit[OUT_WIDTH] = {};
+  buildColumnMap<240>(map);
+  bool hit[FIT_WIDTH] = {};
   for (int x = CROP; x < 256 - CROP; x++) {
     hit[map[x]] = true;
   }
-  for (int o = 0; o < OUT_WIDTH; o++) {
+  for (int o = 0; o < FIT_WIDTH; o++) {
     TEST_ASSERT_TRUE(hit[o]);
+  }
+}
+
+// DVI: all 256 native columns, 1:1, edges included
+static void test_column_map_256(void) {
+  int16_t map[256];
+  buildColumnMap<256>(map);
+  for (int x = 0; x < 256; x++) {
+    TEST_ASSERT_EQUAL_INT16(x, map[x]);
   }
 }
 
@@ -83,6 +92,7 @@ int main(int, char **) {
   RUN_TEST(test_shift_and_flip);
   RUN_TEST(test_column_map);
   RUN_TEST(test_merge_keeps_single_pixel);
+  RUN_TEST(test_column_map_256);
   RUN_TEST(test_pens);
   return UNITY_END();
 }

@@ -95,7 +95,7 @@ HAL_FAST_CODE void clearWords(uint32_t *words, uint32_t n) {
 
 // Source picture, RGB565 in SPI byte order (line builders swap), rows in
 // scan order (flips applied).
-const uint32_t SRC_WIDTH = 240;
+const uint32_t SRC_WIDTH = DviHstxVideo::MAX_WIDTH;
 uint16_t frame[SRC_ROWS][SRC_WIDTH];
 
 // The DMA IRQ has the highest priority: a late requeue makes a channel
@@ -289,7 +289,7 @@ void DviHstxVideo::submit(const uint16_t *strip, uint32_t pixels) {
   while ((int32_t)(beam - read) < 0 && time_us_32() - render_start_us < STALL_MS * 1000) {
   }
 
-  // machines pack the strip at its width; framebuffer rows are 240 wide
+  // machines pack the strip at its width; framebuffer rows are SRC_WIDTH wide
   const uint32_t lines = SRC_ROWS / STRIPS;
   const uint32_t width = pixels / lines;
   for (uint32_t line = 0; line < lines; line++) {

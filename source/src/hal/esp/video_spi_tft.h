@@ -16,6 +16,8 @@ class SpiTftVideo {
 public:
   // game pixels available on the 240 x 320 panel
   enum : uint16_t { CANVAS_W = 240, CANVAS_H = 320 };
+  // widest strip (video_width.h): the panel width
+  enum : uint16_t { MAX_WIDTH = 240 };
 
   SpiTftVideo();
 

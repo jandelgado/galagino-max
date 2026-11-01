@@ -3,7 +3,7 @@
 // romMain/romSound unpack before hw's Arena::alloc calls (member order).
 // The three allocs are unordered among themselves; every order fits.
 robotron::robotron()
-  : williams(hw, ROBOTRON_COLUMNS),
+  : williams(hw, fit(ROBOTRON_COLUMNS, ROBOTRON_COLUMNS_256)),
     robotron_rom_main(robotron_rom_main_blob), robotron_rom_sound(robotron_rom_sound_blob),
     romMain(robotron_rom_main.data()), romSound(robotron_rom_sound.data()),
     hw(Arena::alloc(WilliamsBoard::RAM_SIZE), Arena::alloc(Scanout::BUF_BYTES),

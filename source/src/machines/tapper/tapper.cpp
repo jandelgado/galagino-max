@@ -59,8 +59,8 @@ static const uint8_t IP1_TAP = 0x10;
 
 static const uint8_t LED_FLASH_FRAMES = 4;
 
-// panel layout: native half-res X 8-247 -> column X - 8, Y -> row Y + 24
-static const int X_FIRST = 8, X_LAST = 247;
+// panel layout: native half-res X X_FIRST..X_LAST -> column X - X_FIRST,
+// Y -> row Y + 24
 static const int FIRST_STRIP = 3;  // panel strip of tile row 0
 
 tapper::tapper()
@@ -314,11 +314,11 @@ void tapper::prepare_frame(void) {
   }
 }
 
-// One strip = native tile row ty. Panel column = X - 8, so tile tx covers
-// columns 8 * tx - 8 .. +7 (tx 1-30 visible); flipx reads pixel 7 - c,
-// flipy gfx row 7 - r.
+// One strip = native tile row ty. Panel column = X - X_FIRST, so tile tx
+// covers columns 8 * tx - X_FIRST .. +7 (tx 1-30 visible, 0-31 on 256);
+// flipx reads pixel 7 - c, flipy gfx row 7 - r.
 void tapper::render_tiles(int ty) {
-  for (int tx = 1; tx <= TILE_COLS - 2; tx++) {
+  for (int tx = X_FIRST / 8; tx <= X_LAST / 8; tx++) {
     const uint8_t *t = video.tiles + (ty * TILE_COLS + tx) * 2;
     const uint16_t w = t[0] | (t[1] << 8);
     const uint32_t *gfx = tiles[w & 0x3ff];

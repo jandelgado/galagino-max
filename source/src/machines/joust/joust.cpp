@@ -3,7 +3,7 @@
 // romMain/romSound unpack before hw's Arena::alloc calls (member order).
 // The three allocs are unordered among themselves; every order fits.
 joust::joust()
-  : williams(hw, JOUST_COLUMNS),
+  : williams(hw, fit(JOUST_COLUMNS, JOUST_COLUMNS_256)),
     joust_rom_main(joust_rom_main_blob), joust_rom_sound(joust_rom_sound_blob),
     romMain(joust_rom_main.data()), romSound(joust_rom_sound.data()),
     hw(Arena::alloc(WilliamsBoard::RAM_SIZE), Arena::alloc(Scanout::BUF_BYTES),

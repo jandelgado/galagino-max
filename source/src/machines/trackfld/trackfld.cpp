@@ -367,7 +367,7 @@ void trackfld::prepare_frame(void) {
     const uint8_t attr = video.spr2[offs];
     const int y = 240 - video.spr2[offs + 1] + 1 - 16;
     if (y <= -16 || y >= VIS_LINES) { continue; }
-    const int x = video.spr[offs] - 1 - 8;
+    const int x = video.spr[offs] - 1 - CROP;
     add_sprite(x, y, video.spr[offs + 1], attr);
     add_sprite(x - 256, y, video.spr[offs + 1], attr);
   }
@@ -380,7 +380,7 @@ void trackfld::render_line(unsigned short *dst, int line) {
   const int trow = (ny >> 3) - FIRST_TILE_ROW;
   const uint8_t *vram = video.vram + trow * 64;
   const uint8_t *cram = video.cram + trow * 64;
-  uint16_t tx = (uint16_t)((8 + video.scroll[trow]) & 511);
+  uint16_t tx = (uint16_t)((CROP + video.scroll[trow]) & 511);
   int x = 0;
   while (x < OUT_WIDTH) {
     const int px0 = tx & 7;

@@ -11,22 +11,26 @@ constexpr int VIS_COLS = 42;    // 336 px
 constexpr int VIS_ROWS = 30;    // 240 lines
 constexpr int CELL_BYTES = 2;
 constexpr int RAM_COLS = 64;    // tilemap row stride in cells
-constexpr int OUT_WIDTH = 240;
 constexpr int FIRST_STRIP = 3;  // 240 lines centered in 288
 
-// game layout: native x 0..223 (player 1 side), centered in 240 columns
+// game layout: native x 0..223 (player 1 side), centered in the output
 constexpr int CROP_COLS = 28;
-constexpr int CROP_LEFT = (OUT_WIDTH - CROP_COLS * 8) / 2;
 
 // castle top, only present in the game layout (MAME, 66 of 66 frames)
 constexpr int GAME_TILE_COL = 19;
 constexpr uint16_t GAME_TILE_CODE = 677;
 
-// how 336 native columns fit 240
+// how 336 native columns fit the W output columns (240 panel, 256 DVI)
 enum Fit : uint8_t {
-  FIT_SCALE, // drop x % 7 == 2 or 5 (336 * 5 / 7 = 240)
+  FIT_SCALE, // drop native columns, see scaleKeeps
   FIT_CROP,  // native x 0..223, centered: player 1 side of the game layout
 };
+
+template <int W> inline bool scaleKeeps(int x);
+// 336 * 5 / 7 = 240: drop x % 7 == 2 or 5
+template <> inline bool scaleKeeps<240>(int x) { return x % 7 != 2 && x % 7 != 5; }
+// 336 * 16 / 21 = 256: drop x % 21 == 2, 6, 10, 14 or 18
+template <> inline bool scaleKeeps<256>(int x) { return x % 21 % 4 != 2; }
 
 // native pixels 8 tx + i with bit i of keep set go to columns out, out+1, ...
 struct Span {
@@ -34,14 +38,15 @@ struct Span {
   uint8_t out;
 };
 
+template <int W>
 inline void buildSpans(Fit fit, Span s[VIS_COLS]) {
-  int out = fit == FIT_CROP ? CROP_LEFT : 0;
+  int out = fit == FIT_CROP ? (W - CROP_COLS * 8) / 2 : 0;
   for (int tx = 0; tx < VIS_COLS; tx++) {
     s[tx].out = (uint8_t)out;
     uint8_t keep = 0;
     for (int i = 0; i < 8; i++) {
       const int x = tx * 8 + i;
-      if (fit == FIT_CROP ? x < CROP_COLS * 8 : (x % 7 != 2 && x % 7 != 5)) {
+      if (fit == FIT_CROP ? x < CROP_COLS * 8 : scaleKeeps<W>(x)) {
         keep |= 1 << i;
         out++;
       }

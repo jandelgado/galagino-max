@@ -561,7 +561,8 @@ void HAL_HOT_CODE system1::renderRot0(int strip) {
   uint16_t pens[ROT0_WIDTH] = {};
   for (int l = 0; l < STRIP_LINES; l++) {
     const int y = strip * STRIP_LINES + l - ROT0_FIRST_ROW;
-    const int fgX0 = y < config.window.hudLines ? config.window.hudX : winX;
+    const bool hud = ROT0_WIDTH < ROT0_NATIVE && y < config.window.hudLines;
+    const int fgX0 = hud ? config.window.hudX : winX;
     uint32_t sprCols = 0;
     for (int a = 0; a < activeCount; a++) {
       const ActiveSprite &as = active[a];

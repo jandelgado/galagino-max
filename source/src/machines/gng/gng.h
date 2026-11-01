@@ -1,6 +1,7 @@
 #ifndef GNG_H
 #define GNG_H
 
+#include "../../hal/video_width.h"
 #include "gng_arena_plan.h"
 #include "gng_logo.h"
 #include "../machineBase.h"
@@ -83,11 +84,13 @@ private:
   static_assert(arenaExtrasKey(ARENA_EXTRA, sizeof(ARENA_EXTRA) / sizeof(uint32_t), false) ==
                 gng_arena_extras_key, "ARENA_EXTRA changed: rerun romconv");
 
-  static const int WIDTH = 240;
-  static const int CROP = 8;          // native columns cropped per side
+  static const int NATIVE_WIDTH = 256;
+  // 240 columns: native x 8..247; 256 (DVI): all
+  static constexpr int WIDTH = hal::fitWidth(NATIVE_WIDTH, 240);
+  static constexpr int CROP = (NATIVE_WIDTH - WIDTH) / 2;  // native columns cropped per side
   static const short FIRST_ROW = 4;   // panel rows 4..31 show the game
   static const short LAST_ROW = 32;
-  static const int MAX_FRONT = 16;    // priority tile runs per line
+  static constexpr int MAX_FRONT = WIDTH / 16 + 1;  // priority tile runs per line
 
   // cached Asset::data(), read per pixel/tile
   const unsigned char *rom = nullptr;  // CPU $4000-$FFFF

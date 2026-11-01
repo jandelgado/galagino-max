@@ -7,13 +7,15 @@
 #include "berzerk_video.h"
 #include "../machineBase.h"
 #include "../../emulation/seqlock.h"
+#include "../../hal/video_width.h"
 
 // Stern Berzerk (1980, MAME berzerk, RC31A). Z80 @ 2.5 MHz, 256 x 224
 // 1bpp bitmap with 4 x 4 px color cells, ROT0. Sound: S14001A speech and
 // Exidy 6840 effects, see berzerk_audio.h.
 //
 // Native 256 columns are shown in 240 (berzerk_video::buildColumnMap):
-// 4 px always black borders cropped, 8 column pairs OR-merged.
+// 4 px always black borders cropped, 8 column pairs OR-merged. 1:1 where
+// the video backend takes 256 columns (DVI).
 class berzerk : public machineBase
 {
   // ROM assets, unpacked into the Arena on first data()
@@ -24,8 +26,8 @@ public:
   berzerk();
 
   uint8_t machineType() override { return MCH_BERZERK; }
-  const int renderWidth() override { return berzerk_video::OUT_WIDTH; }
-  const int renderBuffer() override { return berzerk_video::OUT_WIDTH * 2 * 8; }
+  const int renderWidth() override { return OUT_WIDTH; }
+  const int renderBuffer() override { return OUT_WIDTH * 2 * 8; }
   void reset() override;
 
   unsigned char opZ80(unsigned short Addr) override;
@@ -75,6 +77,8 @@ private:
   Seqlock<VideoState> *vblank = nullptr; // Arena
   VideoState *video = nullptr;           // Arena, render copy
   BerzerkAudio audio;
+  static constexpr int OUT_WIDTH =
+      hal::fitWidth(berzerk_video::NATIVE_WIDTH, berzerk_video::FIT_WIDTH);
   int16_t column_map[256];
   uint16_t pens[16];
 

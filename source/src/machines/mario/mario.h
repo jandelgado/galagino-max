@@ -6,6 +6,7 @@
 #include "../machineBase.h"
 #include "../../emulation/seqlock.h"
 #include "../../emulation/ima_adpcm.h"
+#include "../../hal/video_width.h"
 
 // ============================================================
 // Mario Bros. (Nintendo 1983, MAME mario, US rev G)
@@ -59,8 +60,8 @@ public:
   void run_frame(void) override;
   void prepare_frame(void) override;
   void render_row(short row) override;
-  const int renderWidth() override { return mario_video::OUT_WIDTH; }
-  const int renderBuffer() override { return mario_video::OUT_WIDTH * 2 * 8; }
+  const int renderWidth() override { return OUT_WIDTH; }
+  const int renderBuffer() override { return OUT_WIDTH * 2 * 8; }
   static const Logo &logo(void);
 
 #ifdef LED_PIN
@@ -72,6 +73,10 @@ private:
 #if defined(MARIO_SCROLL) + defined(MARIO_SCALE) + defined(MARIO_CROP) != 1
 #error "define exactly one of MARIO_SCROLL, MARIO_SCALE, MARIO_CROP"
 #endif
+  // all 256 native columns where the video backend takes them (DVI), else
+  // the config.h fit
+  static constexpr uint16_t OUT_WIDTH =
+      hal::fitWidth(mario_video::NATIVE_WIDTH, mario_video::FIT_WIDTH);
 
   // 4 MHz Z80 per 16 ms frame (6 x AUDIO_CHUNK samples at 24 kHz)
   static constexpr int32_t Z80_CYCLES_FRAME = 64000;

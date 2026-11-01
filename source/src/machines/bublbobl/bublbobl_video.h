@@ -6,6 +6,7 @@
 // Pure video geometry of MAME screen_update_bublbobl, host tested.
 namespace bublbobl_video {
 
+constexpr uint16_t NATIVE_WIDTH = 256;
 constexpr uint16_t SCALE_WIDTH = 224; // 256 native columns, every 8th dropped
 constexpr uint16_t CROP_WIDTH = 240;  // native columns 8..247
 constexpr uint8_t CROP_LEFT = 8;
