@@ -34,7 +34,7 @@ constexpr uint32_t arenaExtrasKey(const uint32_t *extras, uint32_t count, bool a
 class Arena {
 public:
     // An asset cannot span both blocks, so each block size matters.
-    // Sizes: [arena] in platformio.ini, selected by custom_arena_layout,
+    // Sizes: [arena] in firmware.toml, selected by the env's layout,
     // the same table romconv plans against (romconv/romconv/plan/arena.py).
     // B = 0: one-pool platform, block B is never allocated.
     static constexpr uint32_t BLOCK_A_SIZE = ARENA_A_SIZE;

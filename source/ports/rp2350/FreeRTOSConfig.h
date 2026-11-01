@@ -40,7 +40,12 @@
 #define configSUPPORT_DYNAMIC_ALLOCATION        1
 #define configSUPPORT_STATIC_ALLOCATION         0
 // Task stacks and kernel objects only; the application uses malloc.
+#ifdef ASSETS_REMOTE
+// remote: 23.5 KB stayed free with WiFi and Bluetooth up; malloc needs the rest
+#define configTOTAL_HEAP_SIZE                   (40 * 1024)
+#else
 #define configTOTAL_HEAP_SIZE                   (48 * 1024)
+#endif
 #define configAPPLICATION_ALLOCATED_HEAP        0
 
 #define configCHECK_FOR_STACK_OVERFLOW          2
@@ -56,5 +61,6 @@
 #define INCLUDE_xTaskGetSchedulerState          1
 #define INCLUDE_xSemaphoreGetMutexHolder        1  // async_context (CYW43)
 #define INCLUDE_vTaskPrioritySet                1  // flash_safe_execute (BT link keys)
+#define INCLUDE_xTaskGetHandle                  1  // lwIP thread pinning (wifi.cpp)
 
 #endif // FREERTOS_CONFIG_H

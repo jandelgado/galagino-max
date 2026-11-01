@@ -57,7 +57,7 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
 - `void setHalfRate(bool)`: the machine's preference, called every frame before `screenParts()`.
 - `uint8_t screenParts() const`: 1, or 2 when a screen takes two emulation frames.
 - `void submit(const uint16_t *strip, uint32_t pixels)`: may block. A screen is 36 strips, then
-  `endFrame()`: DVI drops strips past 36 until it (the remote loader skips it: ESP32 only).
+  `endFrame()`: DVI drops strips past 36 until it.
 - `void endFrame(uint8_t part, uint32_t frameStartUs)`: after the last strip of a part; returns
   when the next part may start (backend pacing: deadline sleep, or scanout position).
 - `CANVAS_W`, `CANVAS_H` (compile-time): game pixels the output can show (SPI TFT and null
@@ -90,17 +90,18 @@ up, button bits) is defined in `gamepad.h` itself. Player 1's pad, further pads 
   at boot (radio up, pairing open); `read()` from any core, never blocks, a consistent copy.
 - Host: host::setGamepad(state) scripts the state (tests).
 
-## Flash region (`flash_region.h`, not in `hal.h`; ESP and host only)
+## Flash region (`flash_region.h`, not in `hal.h`; ESP, RP2350 remote builds and host)
 `class FlashRegion`, erased bytes read 0xFF, a write only clears bits. Host: RAM fake, extra
-size argument.
+size argument. RP2350: the flash after the image, label ignored; erase and write park the
+emulation core in RAM (the DVI scanout IRQ keeps running).
 - `explicit FlashRegion(const char *label)`, `uint32_t size() const` (0: no region)
 - `bool erase(uint32_t offset, uint32_t length)` (4 KB aligned)
 - `bool write(uint32_t offset, const uint8_t *data, uint32_t length)`
 - `const uint8_t *map()` (whole region, nullptr on failure), `void unmap()`
 
-## WiFi (`wifi.h`, not in `hal.h`; ESP and host only)
+## WiFi (`wifi.h`, not in `hal.h`; ESP, RP2350 remote builds and host)
 `namespace Wifi`, station mode for the game loader. ESP: remote builds only (`-Wl,--wrap=free`).
-Host: never starts.
+RP2350: Pico 2 W CYW43 + lwIP, static memory, the heap argument unused. Host: never starts.
 - `HEAP_BYTES`: driver memory the caller passes to `begin()`.
 - `typedef bool (*Receive)(void *ctx, const uint8_t *data, uint32_t length)`: false stops.
 - `bool begin(const char *ssid, const char *pass, uint8_t *heap, uint32_t heapBytes)`: starts

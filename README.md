@@ -43,7 +43,7 @@ This builds on a lot of other people's great work.
 * [galagino/galagino](https://github.com/galagino/galagino): the repo this fork started from.
   Moon Cresta, Scramble, Super Cobra. Bluetooth controller over I2C with several fire buttons, ESP32-S3 16 MB board with external DAC (ES8311), 240 px
   portrait and landscape-on-portrait games, Time Pilot sprite multiplexing, Gyruss drums, display
-  flip/invert fixes, Linux ROM conversion scripts, game selection in `platformio.ini`.
+  flip/invert fixes, Linux ROM conversion scripts, game selection in `platformio.ini` (now `firmware.toml`).
 * [Alby1970](https://github.com/Alby1970): Bombjack, Mr. Do!, Pengo, Donkey Kong Jr.,
   Donkey Kong 3, Star Force.
 * [SurvivalHacking/galagino3](https://github.com/SurvivalHacking/galagino3): Gyruss, Lady Bug,
@@ -110,15 +110,16 @@ builds on ESP-IDF (PlatformIO `espidf` framework, no Arduino core); details in
 
    Or `pio run -e <env> -t upload` or call `PlatformIO` bypassing `make`.
 
-A game is built in with a `-D ENABLE_<GAME>` flag. `source/platformio.ini` groups the flags in
-lists, and each mode picks lists (`[mode_*]`):
+A game is built in with an `ENABLE_<GAME>` define. `source/firmware.toml` groups the games in
+lists (`[games]`), and each mode picks lists (`[modes]`); the PlatformIO envs name their mode with
+`custom_mode`, the RP2350 build with `MODE=`:
 
 | List                  | Games | Used by                                                       |
 | ---                   | ---   | ---                                                           |
 | `[games] builtin`     | 40    | All modes except `max`. In `remote` these are the only games in flash |
 | `[games] local`       | 35    | `local` and `full`. Downloaded in `remote`                    |
-| `[games] rest`        | 49    | `full` only (16 MB flash). Downloaded in `remote`             |
-| `[games_max] list`    | 101   | `max` only. Overlaps the lists above, smallest games first    |
+| `[games] rest`        | 53    | `full` only (16 MB flash). Downloaded in `remote`             |
+| `[games] max`         | 106   | `max` only. Overlaps the lists above, smallest games first    |
 
 Modes: `local` = builtin + local (75 games, 4 MB). `max` = the max list (4 MB). `full` = builtin +
 local + rest (16 MB). `remote` = builtin in flash, local + rest downloaded.
@@ -139,6 +140,8 @@ Example `config_local.h`:
 #define DEBUG_TIMING_FPS_HUD      // show emulation FPS at the bottom of the screen
 #define GALAGINO_WIFI_SSID   "my-ssid"
 #define GALAGINO_WIFI_PASS   "my-password"
+#define GALAGINO_ASSETS_URL  "http://192.168.1.2:8080"
+
 #define LED_PIN           16
 #define SND_RIGHT_CHANNEL         // audio on GPIO 25 instead of 26
 
@@ -151,7 +154,8 @@ Example `config_local.h`:
 
 ### Defines
 
-Set in `config_local.h` (`#define X`) or `platformio.ini` (`-D X`).
+Set in `config_local.h` (`#define X`), `[options]` of `firmware.toml` (every device build) or
+`platformio.ini` (`-D X`).
 
 | Define                                | Default          | Effect                                                    |
 | ---                                   | ---              | ---                                                       |
@@ -239,7 +243,7 @@ to build images with that feature enabled.
    rendering, video state snapshot, audio.
 3. Add a `MCH_<NAME>` menu entry (`machineBase.h`, `menu.cpp`, `machines.h`) and a 224x96 logo in
    `logos/<name>.png`.
-4. Add `-D ENABLE_<NAME>` to `source/platformio.ini`.
+4. Add `<name>` to a `[games]` list of `source/firmware.toml`.
 5. Put the ROM zip in [romszip/](romszip/), run `romconv/convert.sh <name>`, build, test on the
    device.
 6. Add a row to the [game list](#games).

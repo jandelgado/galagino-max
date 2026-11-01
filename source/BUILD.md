@@ -3,24 +3,29 @@
 ESP-IDF 6.1 (PlatformIO `espidf` framework), no Arduino core, no FastLED. Every SDK call sits in
 `src/hal/esp/` (contract: `src/hal/CONTRACT.md`). Build and flash: see the README.
 
+Envs: every build is a row of `[envs]` in `firmware.toml`, `<board>-<mode>` with the same
+parameters on every platform: `platform` (`esp`, `rp2350`, `host`), `board` (`BOARD_<NAME>`,
+profile `src/boards/<board>.h`), `mode` (`[modes]`: games and defines) and `layout` (`[arena]`).
+`tools/firmware_config.py` turns a row into the defines for both builds: PlatformIO
+(`extraScript.py`, an `[env:<name>]` in `platformio.ini` adds the PlatformIO board, partitions
+and linker flags) and RP2350 (`ports/rp2350/build.sh <name>`). Dev builds, both platforms:
+`GAMES=a,b` replaces the env's games, `DEFINES="A=1 B"` adds defines (e.g. `DEBUG_TIMING`).
+
 Config: `sdkconfig.defaults` (240 MHz, QIO 80 MHz flash, 4 MB, 1000 Hz tick, `-Os`, log level
 warn, BT off), `sdkconfig.defaults.16mb` for 16 MB boards (`board_build.cmake_extra_args`),
 `sdkconfig.defaults.<layout>` for an Arena layout that needs its own task stacks (appended by
-`extraScript.py` for the env's `custom_arena_layout`, e.g. `esp32_local`), `CMakeLists.txt`,
+`extraScript.py` for the env's layout, e.g. `esp32_local`), `CMakeLists.txt`,
 `src/CMakeLists.txt`. `sdkconfig.<env>` is generated and git-ignored: delete it after changing
 any defaults file, or the old values stay (the hook stops the build when it disagrees with
 the layout file and names the file to delete).
 
-Arena layout: `[arena]` in `platformio.ini` lists the block sizes per layout (`name = A B`
-bytes), every env selects one with `custom_arena_layout`. `extraScript.py` turns it into
-`ARENA_LAYOUT_<NAME>`, `ARENA_A_SIZE` and `ARENA_B_SIZE` (`tools/pio_to_cmake.py --layout` for
-the RP2350 build: `ports/rp2350/build.sh` picks `rp2350_dvi` for DVI profiles, `rp2350`
-otherwise; `ports/rp2350/ram_check.ld` fails the link when the heap left next to the image's
-RAM code cannot hold the Arena). romconv plans every layout; a generated `*_arena_plan.h` or `*_bundle.h`
+Arena layout: `[arena]` in `firmware.toml` lists the block sizes per layout (`name = [A, B]`
+bytes), every env selects one. It becomes `ARENA_LAYOUT_<NAME>`, `ARENA_A_SIZE` and
+`ARENA_B_SIZE` (RP2350: `ports/rp2350/ram_check.ld` fails the link when the heap left next to
+the image's RAM code cannot hold the Arena). romconv plans every layout; a generated `*_arena_plan.h` or `*_bundle.h`
 without a block for the build's layout is an `#error`, stale sizes fail a `static_assert`:
 after editing a row, rerun romconv. Native tests build with `esp32_local`. A `_remote` layout
-in a local env (or the reverse) stops at the hook. `-D DEBUG_ARENA` (e.g. in
-`PLATFORMIO_BUILD_FLAGS`) prints `Asset: late unpack` when a COMPRESSED asset's first access
+in a local env (or the reverse) stops the build. `DEFINES=DEBUG_ARENA` prints `Asset: late unpack` when a COMPRESSED asset's first access
 comes after the emulation task spawned: machines take `data()` in the ctor or `start()`.
 
 | Subsystem | Implementation |
@@ -40,6 +45,13 @@ BLE off). Costs ~20 KB RAM and ~406 KB flash (232 KB of it the CYW43 firmware). 
 in pico_btstack's flash bank, the last 12 KB of flash: `ram_check.ld` fails the link when an
 image reaches into it. With a wired source (`-D NUNCHUCK_INPUT`, ...) the linker drops the BT
 code.
+
+RP2350 remote mode (Pico 2 W DVI only): env `pico2w_dvi-remote`. WiFi over the same CYW43
+with lwIP (`ports/rp2350/lwipopts.h`, static, ~20 KB). WiFi and server: `GALAGINO_WIFI_SSID/PASS` and `GALAGINO_ASSETS_URL` in
+`config_local.h`. The asset cache
+is all flash between the image (4 KB up) and the Bluetooth key bank (~1.3 MB with every
+built-in game); erase and write park the emulation core in RAM so the HDMI scanout keeps
+running. Bluetooth inquiry scans pause while WiFi is up (they take the shared radio).
 
 ## Pitfalls
 
