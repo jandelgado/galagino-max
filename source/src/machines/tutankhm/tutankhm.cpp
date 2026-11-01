@@ -93,7 +93,7 @@ unsigned char tutankhm::m6809_read(m6809_state *s, uint16_t addr) {
     // GALAGINO CONTROLLER maps L2=EXTRA and R2=COIN.
     if (keymask & BUTTON_FIRE)                                                retval &= ~0x10;  // Shoot Left
     if (keymask & BUTTON_FIRE)                                                retval &= ~0x20;  // Shoot Right
-    if (keymask & BUTTON_EXTRA || keymask & BUTTON_L1 || keymask & BUTTON_R1) retval &= ~0x40;  // Flash Bomb
+    if (keymask & (BUTTON_EXTRA | BUTTON_B | BUTTON_L1 | BUTTON_R1))           retval &= ~0x40;  // Flash Bomb
       return retval;
   }
 

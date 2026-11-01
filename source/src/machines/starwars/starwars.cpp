@@ -134,6 +134,38 @@ static uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
   return (rgb >> 8) | (rgb << 8);
 }
 
+// Uncomment for the old linear palette (e.g. if the gamma one looks too
+// bright on the SPI TFT)
+// #define STARWARS_LINEAR_PALETTE
+
+enum : uint8_t { SW_GREEN = 2, SW_RED = 4 }; // STAT RGB color
+
+// Channel value of AVG level 0..14 in STAT color rgb. Most lines use level
+// 7: linear gives 158 (white looks grey), gamma 255 * (level / 14)^0.4
+// gives 193 and keeps all levels distinct. Pure red uses levels 2..7 only:
+// its curve tops out at 7. Pure green (levels 2..14) gets exponent 0.25.
+static uint8_t level_value(uint8_t rgb, uint8_t level) {
+#ifdef STARWARS_LINEAR_PALETTE
+  (void)rgb;
+  const uint16_t l = 60 + level * 14;
+  return level ? (l > 255 ? 255 : l) : 0;
+#else
+  static const uint8_t GAMMA[15] = {0,   89,  117, 138, 154, 169, 182, 193,
+                                    204, 214, 223, 232, 240, 248, 255};
+  static const uint8_t RED[15] = {0,   117, 154, 182, 204, 223, 240, 255,
+                                  255, 255, 255, 255, 255, 255, 255};
+  static const uint8_t GREEN[15] = {0,   132, 157, 173, 186, 197, 206, 214,
+                                    222, 228, 234, 240, 245, 250, 255};
+  if (rgb == SW_RED) {
+    return RED[level];
+  }
+  if (rgb == SW_GREEN) {
+    return GREEN[level];
+  }
+  return GAMMA[level];
+#endif
+}
+
 starwars::starwars()
   : starwars_rom(starwars_rom_blob),
     starwars_vrom(starwars_vrom_blob),
@@ -152,8 +184,7 @@ starwars::starwars()
   // color index (RGB << 4 | level 1..14); level 14 is MAME's brightest
   for (uint8_t i = 0; i < 128; i++) {
     const uint8_t rgb = i >> avg::SW_COLOR_SHIFT, level = i & 0xf;
-    const uint16_t l = 60 + level * 14;
-    const uint8_t v = level ? (l > 255 ? 255 : l) : 0;
+    const uint8_t v = level_value(rgb, level);
     palette[i] = rgb565(rgb & 4 ? v : 0, rgb & 2 ? v : 0, rgb & 1 ? v : 0);
   }
 }

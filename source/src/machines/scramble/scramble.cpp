@@ -91,15 +91,9 @@ unsigned char scramble::rdZ80(unsigned short Addr) {
         if(ignoreFireButton && !(keymask & BUTTON_FIRE) && !(keymask & BUTTON_START))
           ignoreFireButton = 0;
 
-        #ifdef GALAGINO_CONTROLLER
-        if(!ignoreFireButton)
-        if(keymask & BUTTON_A || keymask & BUTTON_X || keymask & BUTTON_L1 )                retval &= ~0x08; // Laser
-        if(!ignoreFireButton)
-        if(keymask & BUTTON_B || keymask & BUTTON_Y || keymask & BUTTON_R1 || BUTTON_START) retval &= ~0x02; // Bomb
-        #else
-        if(!ignoreFireButton && (keymask & BUTTON_FIRE))  retval &= ~0x08; // Laser
-        if(!ignoreFireButton && (keymask & BUTTON_START)) retval &= ~0x02; // Bomb
-        #endif
+        // laser: FIRE (controller A/X/L1), bomb: START or B (controller Y/R1)
+        if(!ignoreFireButton && (keymask & (BUTTON_FIRE | BUTTON_A | BUTTON_X | BUTTON_L1)))  retval &= ~0x08;
+        if(!ignoreFireButton && (keymask & (BUTTON_START | BUTTON_B | BUTTON_Y | BUTTON_R1))) retval &= ~0x02;
         return retval;
       case 0x8101: // PPI0 - Port B
       case 0x8111:

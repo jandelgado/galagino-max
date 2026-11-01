@@ -95,14 +95,14 @@ unsigned char rocnrope::m6809_read(m6809_state *s, uint16_t addr) {
     return val;
   }
   if (addr == 0x3081) {
-    uint8_t keys = input->buttons_get();
+    unsigned int keys = input->buttons_get();
     uint8_t val  = 0xFF;
     if (keys & BUTTON_LEFT)  val &= ~0x01;
     if (keys & BUTTON_RIGHT) val &= ~0x02;
     if (keys & BUTTON_UP)    val &= ~0x04;
     if (keys & BUTTON_DOWN)  val &= ~0x08;
     if (keys & BUTTON_FIRE)  val &= ~0x10;
-    if (keys & BUTTON_COIN)  val &= ~0x20;  // button 2 (flash) on the coin key
+    if (keys & (BUTTON_COIN | BUTTON_B)) val &= ~0x20;  // button 2 (flash): B, or the coin key
     return val;
   }
   if (addr == 0x3082) return 0xFF;  // P2 idle

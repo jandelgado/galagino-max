@@ -87,6 +87,7 @@ unsigned char phoenix::rdZ80(unsigned short Addr) {
     if (b & BUTTON_FIRE)  v &= ~0x10;   // bit 4 = FIRE
     if (b & BUTTON_UP)    v &= ~0x80;   // bit 7 = SHIELD/BARRIER
     if (b & BUTTON_DOWN)  v &= ~0x80;   // bit 7 = SHIELD/BARRIER
+    if (b & BUTTON_B)     v &= ~0x80;   // bit 7 = SHIELD/BARRIER (BT pad)
     #endif
     return v;
   }

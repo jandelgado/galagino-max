@@ -96,7 +96,7 @@ uint8_t asteroids::in0(uint8_t bit) const {
   const unsigned int k = input->buttons_get();
   switch (bit) {
     case IN0_CLOCK_3K: return input_bit(clock_3k());
-    case IN0_HYPERSPACE: return input_bit(in_game() && (k & START_KEYS));
+    case IN0_HYPERSPACE: return input_bit(in_game() && (k & (START_KEYS | BUTTON_B)));
     case IN0_FIRE: return input_bit(k & BUTTON_FIRE);
   }
   return input_bit(false); // DVG done, diag step, tilt, self test off

@@ -19,6 +19,8 @@ void mrdo::reset() {
 
 void mrdo::start(void) {
   rom_ptr = mrdo_rom1.data();
+  bg_tiles = mrdo_bg_tiles.data();
+  fg_tiles = mrdo_fg_tiles.data();
 }
 
 unsigned char mrdo::opZ80(unsigned short Addr) {
@@ -231,62 +233,47 @@ void mrdo::prepare_frame(void) {
   }
 }
 
+// The background scrolls in both axes and is turned by 90 degrees: along a
+// screen line the world x (tile column) stays fixed and the world y steps
+// down by one per pixel, so tile, colour and the tile's pixel row change
+// only every 8 pixels (at most 25 runs per line).
 void mrdo::render_background_strip(short screen_strip_row) {
   const int screen_width = 224;
   const int game_width = 192;
   const int border_width = (screen_width - game_width) / 2;
+  // the game draws from tile column 2: fixed 16 pixel hardware offset
+  const int world_y_offset = 32;
 
-  short buffer_y_start = (screen_strip_row - 2) * 8;
+  const short buffer_y_start = (screen_strip_row - 2) * 8;
 
   for (int y_in_strip = 0; y_in_strip < 8; y_in_strip++) {
-    short screen_y = buffer_y_start + y_in_strip;
-    uint16_t *ptr_row_start = frame_buffer + (y_in_strip * 224);
+    const int world_x = (buffer_y_start + y_in_strip + scrollx_w) & 0xff;
+    const int tile_col_x = world_x / 8;
+    const int tile_y = world_x % 8;
 
-    for (int screen_x = border_width; screen_x < screen_width - border_width; screen_x++) {
-      int game_coord_x = screen_y;
-      int game_coord_y = (game_width - 1) - (screen_x - border_width);
+    uint16_t *out = frame_buffer + y_in_strip * screen_width + border_width;
+    int world_y = (game_width - 1 + scrolly_w + world_y_offset) & 0xff;
+    int left = game_width;
+    while (left > 0) {
+      // pixels left in this tile: world y counts down to its row 0
+      const int pixel_row = world_y % 8;
+      const int run = pixel_row + 1 < left ? pixel_row + 1 : left;
 
-      int world_x = (game_coord_x + scrollx_w) % 256;
+      const unsigned short addr = (world_y / 8) * 32 + tile_col_x;
+      const uint8_t attr = memory[addr];
+      const uint16_t tile_code = memory[addr + 0x400] + ((attr & 0x80) ? 256 : 0);
+      const uint16_t *colors = &mrdo_master_palette[(attr & 0x3F) * 4];
+      const uint16_t transparent = (attr & 0x40) ? colors[0] : mrdo_master_palette[0];
+      const uint8_t *pixels = bg_tiles[tile_code][tile_y] + 7 - pixel_row;
 
-      // Applica lo scroll orizzontale
-      int scrolled_y = game_coord_y + scrolly_w;
+      for (int i = 0; i < run; i++) {
+        const uint8_t pixel_index = pixels[i];
+        out[i] = pixel_index ? colors[pixel_index] : transparent;
+      }
 
-      // Il gioco inizia a disegnare dalla colonna di tile 2.
-      // Questo significa che c'è un offset hardware fisso di 16 pixel.
-      // Dobbiamo sottrarre questo offset per allineare correttamente il mondo.
-      int world_y = (scrolled_y + 32) % 256;
-
-      // Gestione del modulo per numeri negativi in C
-      if (world_y < 0)
-        world_y += 256;
-
-      int tile_col_x = world_x / 8;
-      int tile_row_y = world_y / 8;
-      int pixel_col_in_tile_world = world_x % 8;
-      int pixel_row_in_tile_world = world_y % 8;
-
-      unsigned short addr = (tile_row_y * 32) + tile_col_x;
-
-      uint8_t attr = memory[addr];
-      uint16_t tile_code = memory[addr + 0x400];
-      if (attr & 0x80)
-        tile_code += 256;
-
-      int tile_x = 7 - pixel_row_in_tile_world;
-      int tile_y = pixel_col_in_tile_world;
-      uint8_t pixel_index = mrdo_bg_tiles[tile_code][tile_y][tile_x];
-
-      uint8_t color_group_index = attr & 0x3F;
-      uint16_t palette_base_offset = color_group_index * 4;
-      const uint16_t *colors = &mrdo_master_palette[palette_base_offset];
-
-      uint16_t color_to_draw;
-      if (pixel_index || (attr & 0x40))
-        color_to_draw = colors[pixel_index];
-      else
-        color_to_draw = mrdo_master_palette[0];
-
-      *(ptr_row_start + screen_x) = color_to_draw;
+      out += run;
+      left -= run;
+      world_y = (world_y - run) & 0xff;
     }
   }
 }
@@ -307,7 +294,7 @@ void mrdo::blit_tile_fg(short row, char col) {
   uint8_t color_group_index = attr & 0x3F;
   uint16_t palette_base_offset = (color_group_index * 4);
 
-  const uint8_t(*tile_data)[8] = mrdo_fg_tiles[tile_code];
+  const uint8_t(*tile_data)[8] = fg_tiles[tile_code];
   const uint16_t *colors = &mrdo_master_palette[palette_base_offset];
 
   // Calcola il puntatore all'inizio della prima riga del tile

@@ -51,7 +51,7 @@ unsigned char mpatrol::rdZ80(unsigned short Addr) {
   if (Addr >= 0x8000 && Addr < 0x8800) { return memory[MP_MEM_VRAM + (Addr - 0x8000)]; }
   if (Addr >= 0x8800 && Addr < 0x9000) { return protection(bg1x); }
   if (Addr >= 0xd000 && Addr < 0xd800) {
-    uint8_t keys = input->buttons_get();
+    unsigned int keys = input->buttons_get();
     uint8_t v = 0xff;
     switch (Addr & 7) {
       case 0:  // IN0
@@ -61,7 +61,7 @@ unsigned char mpatrol::rdZ80(unsigned short Addr) {
       case 1:  // IN1
         if (keys & BUTTON_RIGHT) { v &= ~0x01; }
         if (keys & BUTTON_LEFT) { v &= ~0x02; }
-        if (keys & BUTTON_UP) { v &= ~0x20; }  // jump (BUTTON2), no 2nd button on GPIO
+        if (keys & (BUTTON_UP | BUTTON_B)) { v &= ~0x20; }  // jump (BUTTON2): UP on GPIO
         if (keys & BUTTON_FIRE) { v &= ~0x80; }  // fire (BUTTON1)
         return v;
       case 3: return MPATROL_DSW1;

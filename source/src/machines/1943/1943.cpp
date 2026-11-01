@@ -173,7 +173,7 @@ unsigned char _1943::rdInput(unsigned short Addr) {
       if (keys & (BUTTON_FIRE | BUTTON_L1)) {
         v &= ~0x10;
       }
-      if (keys & (ACTION_KEY | BUTTON_R1)) {
+      if (keys & (ACTION_KEY | BUTTON_B | BUTTON_R1)) {
         v &= ~0x20;
       }
       return v;

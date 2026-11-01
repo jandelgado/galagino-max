@@ -59,6 +59,8 @@ private:
 
   // Cached: hot path reads these per access; data() checks the cache on every call.
   const unsigned char *rom_ptr = nullptr;
+  const unsigned char (*bg_tiles)[8][8] = nullptr;
+  const unsigned char (*fg_tiles)[8][8] = nullptr;
 
 protected:
   Sn76489 sn[2] = {Sn76489(Sn76489::INC_4MHZ), Sn76489(Sn76489::INC_4MHZ)};

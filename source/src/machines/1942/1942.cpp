@@ -95,7 +95,7 @@ unsigned char _1942::rdZ80(unsigned short Addr) {
       if(keymask & BUTTON_DOWN)  retval &= ~0x04;
       if(keymask & BUTTON_UP)    retval &= ~0x08;
       if(keymask & BUTTON_FIRE  || keymask & BUTTON_L1) retval &= ~0x10; // ABXY  + L1 fire
-      if(keymask & BUTTON_START || keymask & BUTTON_R1) retval &= ~0x20; // START + R1 loop
+      if(keymask & (BUTTON_START | BUTTON_B | BUTTON_R1)) retval &= ~0x20; // START, B, R1 loop
       last_coin = keymask & BUTTON_COIN;
       return retval;
     }

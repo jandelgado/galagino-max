@@ -99,7 +99,8 @@ unsigned char xevious::rdZ80(unsigned short Addr) {
     // (carry=bit0=1 -> niente bomba). Come Scramble (laser+bomba sullo
     // stesso tasto, richiesta utente bring-up #28): FIRE spara e bombarda
     // insieme; il gioco ha comunque il suo cooldown interno (0x7940).
-    if (bit == 0 && (input->buttons_get() & BUTTON_FIRE)) b0 = 0;
+    // B (controller, Bluetooth pad) bombs alone
+    if (bit == 0 && (input->buttons_get() & (BUTTON_FIRE | BUTTON_B))) b0 = 0;
     return b0 | (b1 << 1);
   }
 
