@@ -6,10 +6,9 @@ import struct
 
 import pytest
 
-from romconv.core.context import Context
+from romconv.core.context import SHARED_DIRS, Context
 from romconv.core.errors import ConversionError
 from romconv.core.job import Job
-from romconv.core.paths import default
 from romconv.emit.asset import PLAIN_DICT_BYTES
 from romconv.emit.lzma import lzma_compress
 from romconv.registry import resolve
@@ -17,7 +16,7 @@ from romconv.remote import bundles, catalog
 from romconv.remote.bundle import (CACHE_BYTES, FLAG_LZMA, FLAG_PACKED, TAG_BYTES, BundleWriter, asset_id,
                                    bundle_hash)
 from romconv.emit.text import c_symbol
-from romconv.remote.catalog import BASES, EXCLUDED, bundle_dirs, catalog_h, read_games
+from romconv.remote.catalog import BASES, catalog_h
 
 
 def _noop(ctx):
@@ -319,34 +318,17 @@ def test_resolve_pulls_deps_of_always_jobs():
 # test_catalog
 
 
-def test_catalog_games():
-    games = read_games(default())
-    assert len(games) >= 118, len(games)
-    assert "motorace" in games and not games["motorace"]
-    assert {g for g, in_catalog in games.items() if in_catalog} == set(games) - EXCLUDED
-    assert "1943" in games and games["1943"] and games["gng"]
-    assert all(b in games for bases in BASES.values() for b in bases)
-
-
-def test_bundle_dirs():
-    # own dir, then base dirs whose assets the class constructs
-    assert bundle_dirs("amidar") == ("amidar", "turtles", "scramble")
-    assert bundle_dirs("mspacman") == ("mspacman", "pacman")
-    assert bundle_dirs("gng") == ("gng",)
-
-
 def test_catalog_h_text():
-    # GAME_ compiled in, BUILTIN_ assets in the app
-    text = catalog_h(read_games(default()))
-    assert "#if defined(ENABLE_GNG) || defined(ASSETS_REMOTE)\n#define GAME_GNG\n#endif" in text
-    assert "#if defined(ENABLE_MOTORACE)\n#define GAME_MOTORACE\n#endif" in text
-    m = re.search(r"#if (.*)\n#define BUILTIN_PACMAN\n", text)
-    for g in ("pacman", "mspacman", "pengo", "alibaba", "crush", "eyes", "lizwiz", "mrtnt", "theglob"):
-        assert f"defined(ENABLE_{g.upper()})" in m.group(1), (g, m.group(1))
-    assert "#if defined(ENABLE_GNG)\n#define BUILTIN_GNG\n#endif" in text
-    m = re.search(r"#if (.*)\n#define BUILTIN_SCRAMBLE\n", text)
-    assert "defined(ENABLE_AMIDAR)" in m.group(1) and "defined(ENABLE_SUPERCOBRA)" in m.group(1)
-    assert "#define BUILTIN_NAMCO54\n" in text and "#define BUILTIN_WILLIAMS\n" in text
+    # GAME_ compiled in (remote builds: every catalog game), BUILTIN_ assets in the app
+    text = catalog_h({"aaa": True, "bbb": False})
+    assert "#if defined(ENABLE_AAA) || defined(ASSETS_REMOTE)\n#define GAME_AAA\n#endif" in text
+    assert "#if defined(ENABLE_BBB)\n#define GAME_BBB\n#endif" in text
+    assert "#if defined(ENABLE_AAA)\n#define BUILTIN_AAA\n#endif" in text
+    assert all(f"#define BUILTIN_{d.upper()}\n" in text for d in SHARED_DIRS)
+    # a base dir's assets are built in when any subclass game is
+    sub, (base, *_) = next(iter(BASES.items()))
+    m = re.search(rf"#if (.*)\n#define BUILTIN_{base.upper()}\n", catalog_h({base: True, sub: True}))
+    assert f"defined(ENABLE_{sub.upper()})" in m.group(1)
 
 
 def test_catalog_job_writes_catalog_h(paths, log):

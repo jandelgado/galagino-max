@@ -16,7 +16,7 @@ from romconv.core.paths import Paths
 from romconv.emit.write import banner
 
 # broken or WiP, not in remote builds
-EXCLUDED = frozenset({"motorace"})
+_EXCLUDED = frozenset()
 
 # catalog games without asset blobs (tables only): always built in
 NO_BLOBS = frozenset({"hero"})
@@ -46,7 +46,7 @@ def read_games(paths: Paths) -> dict[str, bool]:
     """Every game of machines.h -> whether it is in the catalog."""
     text = (paths.src / "machines.h").read_text(encoding="utf-8")
     games = {g.lower() for g in re.findall(r"#ifdef (?:ENABLE|GAME)_(\w+)", text)}
-    return {g: g not in EXCLUDED for g in sorted(games)}
+    return {g: g not in _EXCLUDED for g in sorted(games)}
 
 
 def bundle_dirs(game: str) -> tuple[str, ...]:

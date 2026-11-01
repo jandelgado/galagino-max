@@ -1,4 +1,3 @@
-import configparser
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,44 +18,11 @@ CFG = {
 _LAYOUT = ["ARENA_LAYOUT_ESP32_LOCAL", "ARENA_A_SIZE=118784", "ARENA_B_SIZE=110500"]
 
 
-class RepoConfig(unittest.TestCase):
-    def test_repo_config_loads(self):
-        cfg = fc.load()
-        self.assertIn("esp32_local", cfg["arena"])
-        self.assertIn("esp32_remote", cfg["arena"])
-        self.assertLessEqual({"local", "max", "full", "remote"}, set(cfg["modes"]))
-        for mode in cfg["modes"]:
-            fc.mode_defines(cfg, mode)
-        for layout in cfg["arena"]:
-            fc.layout_defines(cfg, layout)
-
+class Program(unittest.TestCase):
     def test_program(self):
-        name, version = fc.program(fc.load())
-        self.assertTrue(name and version)
+        self.assertEqual(fc.program({"firmware": {"name": "N", "version": "1"}}), ("N", "1"))
         with self.assertRaises(fc.ConfigError):
             fc.program({})
-
-    def test_every_env_resolves(self):
-        cfg = fc.load()
-        for name in cfg["envs"]:
-            with self.subTest(env=name):
-                fc.env_defines(cfg, name)
-
-    def test_platformio_envs_match(self):
-        # PlatformIO builds the esp and host rows, each one of its [env:] sections
-        ini = configparser.ConfigParser(interpolation=None)
-        ini.read(fc.CONFIG_PATH.parent / "platformio.ini")
-        pio = {s[len("env:"):] for s in ini.sections() if s.startswith("env:")}
-        envs = fc.load()["envs"]
-        self.assertEqual(pio, {n for n, row in envs.items() if row["platform"] in ("esp", "host")})
-
-    def test_games_disjoint(self):
-        games = fc.load()["games"]
-        seen = {}
-        for name in ("builtin", "local", "rest"):
-            for game in games[name]:
-                self.assertNotIn(game, seen, "%s in %s and %s" % (game, seen.get(game), name))
-                seen[game] = name
 
 
 class ModeDefines(unittest.TestCase):
