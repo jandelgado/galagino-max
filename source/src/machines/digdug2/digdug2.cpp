@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#if defined(GAME_DIGDUG2) || defined(GAME_MOTOS)
+
 #include "digdug2.h"
 #include "../../emulation/spriteflip.h"
 
@@ -550,3 +553,5 @@ void digdug2::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // digdug2 games

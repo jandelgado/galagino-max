@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_BUBLBOBL
+
 #include "bublbobl.h"
 #include "bublbobl_bank_rom.h"
 #include "bublbobl_main_rom.h"
@@ -540,3 +543,5 @@ void bublbobl::menuLeds(CRGB *leds) {
   defaultMenuLeds(leds);
 }
 #endif
+
+#endif // GAME_BUBLBOBL

@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_CENTIPEDE
+
 #include "centipede.h"
 #include "centipede_rom.h"
 #include "centipede_gfx.h"
@@ -467,3 +470,5 @@ void centipede::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_CENTIPEDE

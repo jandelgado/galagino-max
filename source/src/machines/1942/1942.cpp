@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_1942
+
 #include "1942.h"
 
 // Unpack eagerly. Blocks come from romconv (<game>_arena_plan.h): any order fits.
@@ -555,3 +558,5 @@ void _1942::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_1942

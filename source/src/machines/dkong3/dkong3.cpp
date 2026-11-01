@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_DKONG3
+
 #include "dkong3.h"
 #include "dkong3_rom.h"
 #include "dkong3_sound_roms.h"
@@ -634,3 +637,5 @@ void dkong3::renderAudio(int16_t *out, int n) {
     out[i] = value;
   }
 }
+
+#endif // GAME_DKONG3

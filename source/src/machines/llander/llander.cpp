@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_LLANDER
+
 #include "llander.h"
 #include "llander_rom.h"
 #include "llander_vrom.h"
@@ -246,3 +249,5 @@ void llander::gameLeds(CRGB *leds) {
   fill_solid(leds, NUM_LEDS, CRGB(LLANDER_LED_ORANGE).nscale8(volume * 36));
 }
 #endif
+
+#endif // GAME_LLANDER

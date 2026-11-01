@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_LADYBUG
+
 #include "ladybug.h"
 #include "ladybug_rom.h"
 #include "ladybug_tilemap.h"
@@ -357,3 +360,5 @@ void ladybug::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_LADYBUG

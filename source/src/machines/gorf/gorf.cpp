@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_GORF
+
 #include "gorf.h"
 #include "gorf_rom.h"
 #include "gorf_sc01.h"
@@ -511,3 +514,5 @@ void gorf::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_GORF

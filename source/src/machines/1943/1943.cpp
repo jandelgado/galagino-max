@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_1943
+
 #include "1943.h"
 #include "1943_rom.h"
 #include "1943_sound.h"
@@ -586,3 +589,5 @@ void HAL_HOT_CODE _1943::renderAudio(int16_t *out, int n) {
   audioAdd(out, ssg, n);
   audioClampAll(out, n, AUDIO_MAX);
 }
+
+#endif // GAME_1943

@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#if defined(GAME_SXEVIOUS) || defined(GAME_XEVIOUS)
+
 #include "xevious.h"
 #include "../../emulation/spriteflip.h"
 
@@ -658,3 +661,5 @@ void HAL_HOT_CODE xevious::renderAudio(int16_t *out, int n) {
 const Logo &xevious::logo(void) {
   return xevious_logo;
 }
+
+#endif // xevious games

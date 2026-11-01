@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_THEGLOB
+
 #include "theglob.h"
 #include "theglob_rom.h"
 #include "theglob_tilemap.h"
@@ -189,3 +192,5 @@ void theglob::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_THEGLOB

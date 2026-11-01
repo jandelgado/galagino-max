@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_VANVAN
+
 #include "vanvan.h"
 #include "vanvan_rom.h"
 #include "vanvan_rom2.h"
@@ -242,3 +245,5 @@ void vanvan::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_VANVAN

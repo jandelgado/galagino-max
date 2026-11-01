@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_NIBBLER
+
 #include "nibbler.h"
 #include "nibbler_rom.h"
 #include "nibbler_gfx.h"
@@ -198,3 +201,5 @@ void nibbler::render_row(short strip) {
     }
   }
 }
+
+#endif // GAME_NIBBLER

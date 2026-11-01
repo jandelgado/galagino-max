@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_DKONGJR
+
 #include "dkongjr.h"
 #include "dkongjr_rom1.h"
 #include "dkongjr_rom2.h"
@@ -313,3 +316,5 @@ void dkongjr::blit_sprite(short row, unsigned char s) {
 const Logo &dkongjr::logo(void) {
   return dkongjr_logo;
 }
+
+#endif // GAME_DKONGJR

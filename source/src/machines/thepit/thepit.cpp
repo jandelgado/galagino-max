@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_THEPIT
+
 #include "thepit.h"
 #include <algorithm>
 #include "thepit_logo.h"
@@ -409,3 +412,5 @@ void thepit::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_THEPIT

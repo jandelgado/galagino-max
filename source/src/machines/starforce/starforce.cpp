@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#if defined(GAME_BALUBA) || defined(GAME_STARFORCE)
+
 #include "starforce.h"
 #include "starforce_logo.h"
 #include "starforce_dipswitches.h"
@@ -642,3 +645,5 @@ void starforce::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+#endif // starforce games

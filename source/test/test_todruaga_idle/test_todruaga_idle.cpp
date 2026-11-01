@@ -8,6 +8,7 @@
 // test is skipped.
 #if __has_include("../../src/machines/todruaga/todruaga_rom_main.h")
 #define HAVE_ROM 1
+#define ENABLE_TODRUAGA
 #include "../../src/emulation/lzma/LzmaDec.c"
 #include "../../src/emulation/arena.cpp"
 #include "../../src/cpus/m6809/m6809.c"

@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_BERZERK
+
 #include "berzerk.h"
 #include "berzerk_rom.h"
 #include "berzerk_speech.h"
@@ -288,3 +291,5 @@ void berzerk::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_BERZERK

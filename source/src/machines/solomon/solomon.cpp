@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_SOLOMON
+
 #include "solomon.h"
 #include "solomon_main_rom.h"
 #include "solomon_audio_rom.h"
@@ -470,3 +473,5 @@ void solomon::gameLeds(CRGB *leds) {
   fill_solid(leds, NUM_LEDS, (led_frame & FIRE_BLINK) ? SOLOMON_LED_FIRE : CRGB::Black);
 }
 #endif
+
+#endif // GAME_SOLOMON

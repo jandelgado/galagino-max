@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_MHAVOC
+
 #include "mhavoc.h"
 #include "mhavoc_rom.h"
 #include "mhavoc_avgrom.h"
@@ -927,3 +930,5 @@ void mhavoc::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_MHAVOC

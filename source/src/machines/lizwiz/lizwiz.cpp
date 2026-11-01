@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_LIZWIZ
+
 #include "lizwiz.h"
 #include "lizwiz_rom.h"
 #include "lizwiz_tilemap.h"
@@ -135,3 +138,5 @@ void lizwiz::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_LIZWIZ

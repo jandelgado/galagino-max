@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_GAPLUS
+
 #include "gaplus.h"
 #include "../../emulation/spriteflip.h"
 
@@ -673,3 +676,5 @@ void gaplus::render_row(short row) {
   for (char col = 0; col < 28; col++)
     blit_tile(row, col, 1);
 }
+
+#endif // GAME_GAPLUS

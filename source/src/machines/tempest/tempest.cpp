@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_TEMPEST
+
 #include "tempest.h"
 #include "tempest_rom.h"
 #include "tempest_vrom.h"
@@ -304,3 +307,5 @@ void tempest::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_TEMPEST

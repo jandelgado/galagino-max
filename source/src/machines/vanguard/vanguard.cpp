@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_VANGUARD
+
 #include "vanguard.h"
 #include "vanguard_rom.h"
 #include "vanguard_gfx.h"
@@ -270,3 +273,5 @@ void vanguard::render_row(short strip) {
     }
   }
 }
+
+#endif // GAME_VANGUARD

@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_BOMBJACK
+
 #include "bombjack.h"
 #include "bombjack_rom1.h"
 #include "bombjack_rom2.h"
@@ -490,3 +493,5 @@ void bombjack::menuLeds(CRGB *leds)
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_BOMBJACK

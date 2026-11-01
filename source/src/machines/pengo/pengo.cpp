@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_PENGO
+
 #include "pengo.h"
 #include "pengo_rom.h"
 #include "pengo_tiles.h"
@@ -305,3 +308,5 @@ const NamcoWave *pengo::waveTable() {
 const Logo &pengo::logo(void) {
   return pengo_logo;
 }
+
+#endif // GAME_PENGO

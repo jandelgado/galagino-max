@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_ALIBABA
+
 #include "alibaba.h"
 #include "alibaba_rom.h"
 #include "alibaba_tilemap.h"
@@ -353,3 +356,5 @@ void alibaba::render_row(short row) {
 const Logo &alibaba::logo(void) {
   return alibaba_logo;
 }
+
+#endif // GAME_ALIBABA

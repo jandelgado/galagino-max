@@ -1,3 +1,7 @@
+#include "../../catalog.h"
+#if defined(GAME_DEFENDER) || defined(GAME_JOUST) || defined(GAME_ROBOTRON) || \
+    defined(GAME_SINISTAR)
+
 #include "williams.h"
 #include "williams_palette.h"
 
@@ -119,3 +123,5 @@ unsigned char GAME_IRAM williams::m6809_read_opcode(m6809_state *, uint16_t addr
 void GAME_IRAM williams::m6809_write(m6809_state *, uint16_t addr, uint8_t val) {
   board.write(addr, val);
 }
+
+#endif // williams games

@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_ANTEATER
+
 #include "anteater.h"
 #include "anteater_rom1.h"
 #include "anteater_rom2.h"
@@ -452,3 +455,5 @@ void anteater::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_ANTEATER

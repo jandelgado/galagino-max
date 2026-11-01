@@ -1,3 +1,8 @@
+#include "../../catalog.h"
+#if defined(GAME_ALIBABA) || defined(GAME_CRUSH) || defined(GAME_EYES) || defined(GAME_LIZWIZ) || \
+    defined(GAME_MRTNT) || defined(GAME_MSPACMAN) || defined(GAME_PACMAN) || defined(GAME_PENGO) || \
+    defined(GAME_THEGLOB)
+
 #include "pacman.h"
 #include "pacman_logo.h"
 #include "pacman_rom.h"
@@ -242,3 +247,5 @@ void pacman::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB));
 }
 #endif
+
+#endif // pacman games

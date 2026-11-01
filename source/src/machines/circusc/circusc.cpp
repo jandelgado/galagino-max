@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_CIRCUSC
+
 #include "circusc.h"
 #include "circusc_main_rom.h"
 #include "circusc_audio_rom.h"
@@ -388,3 +391,5 @@ void circusc::render_row(short row) {
 
   render_tiles(row, 1);
 }
+
+#endif // GAME_CIRCUSC

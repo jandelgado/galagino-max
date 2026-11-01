@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#if defined(GAME_SZAXXON) || defined(GAME_ZAXXON)
+
 #include "zaxxon_sample_missile_homing.h"
 #include "zaxxon_sample_missile_base.h"
 #include "zaxxon_sample_laser.h"
@@ -210,3 +213,5 @@ void ZaxxonSound::render(const uint8_t *regs, int16_t *out, int n) {
     out[i] = value;
   }
 }
+
+#endif // zaxxon games

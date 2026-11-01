@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_ASTEROIDS
+
 #include "asteroids.h"
 #include "asteroids_rom.h"
 #include "asteroids_vrom.h"
@@ -277,3 +280,5 @@ void asteroids::gameLeds(CRGB *leds) {
   fill_solid(leds, NUM_LEDS, flash);
 }
 #endif
+
+#endif // GAME_ASTEROIDS

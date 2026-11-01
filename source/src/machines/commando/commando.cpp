@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_COMMANDO
+
 #include "commando.h"
 #include "commando_rom.h"
 #include "commando_chars.h"
@@ -566,3 +569,5 @@ void commando::renderAudio(int16_t *out, int n) {
   audioAdd(out, ssg, n);
   audioClampAll(out, n, AUDIO_MAX);
 }
+
+#endif // GAME_COMMANDO

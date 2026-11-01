@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_CCASTLES
+
 #include "ccastles.h"
 #include "ccastles_rom.h"
 #include "ccastles_sprites.h"
@@ -360,3 +363,5 @@ void ccastles::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_CCASTLES

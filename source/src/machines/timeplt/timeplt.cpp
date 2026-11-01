@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_TIMEPLT
+
 #include "timeplt.h"
 #include "timeplt_rom.h"
 #include "timeplt_snd_rom.h"
@@ -485,3 +488,5 @@ void timeplt::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_TIMEPLT

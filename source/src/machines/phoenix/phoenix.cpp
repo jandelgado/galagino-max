@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_PHOENIX
+
 // ============================================================================
 // galagino - machines/phoenix/phoenix.cpp
 //
@@ -227,3 +230,5 @@ void phoenix::render_row(short row) {
   }
 }
 
+
+#endif // GAME_PHOENIX

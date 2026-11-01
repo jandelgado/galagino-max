@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_MILLIPEDE
+
 #include "millipede.h"
 #include "millipede_rom.h"
 #include "millipede_gfx.h"
@@ -502,3 +505,5 @@ void millipede::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_MILLIPEDE

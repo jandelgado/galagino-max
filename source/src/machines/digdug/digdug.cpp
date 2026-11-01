@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_DIGDUG
+
 #include "digdug.h"
 #include "../../emulation/spriteflip.h"
 
@@ -440,3 +443,5 @@ void digdug::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS*sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_DIGDUG

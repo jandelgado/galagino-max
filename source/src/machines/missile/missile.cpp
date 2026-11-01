@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_MISSILE
+
 #include "missile.h"
 #include "missile_rom.h"
 #include "../../emulation/pokey.h"
@@ -376,3 +379,5 @@ void missile::gameLeds(CRGB *leds) {
   fill_solid(leds, NUM_LEDS, (led_frame & FIRE_BLINK) ? MISSILE_LED_A : CRGB::Black);
 }
 #endif
+
+#endif // GAME_MISSILE

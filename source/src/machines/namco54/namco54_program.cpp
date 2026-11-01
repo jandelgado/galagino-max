@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#if defined(GAME_GALAGA) || defined(GAME_SXEVIOUS) || defined(GAME_XEVIOUS)
+
 #include "namco54_program.h"
 #include "namco54_rom.h"
 #include "../../emulation/arena.h"
@@ -8,3 +11,5 @@ const uint8_t *namco54Program(void) {
   rom.decodeInto(program);
   return program;
 }
+
+#endif // namco54 games

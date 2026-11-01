@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_TP84
+
 #include "tp84.h"
 #include "tp84_rom_main.h"
 #include "tp84_rom_sub.h"
@@ -381,3 +384,5 @@ void tp84::menuLeds(CRGB *leds) {
   memcpy(leds, menu_leds, NUM_LEDS * sizeof(CRGB));
 }
 #endif
+
+#endif // GAME_TP84

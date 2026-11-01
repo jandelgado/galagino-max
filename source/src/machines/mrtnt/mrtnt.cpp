@@ -1,3 +1,6 @@
+#include "../../catalog.h"
+#ifdef GAME_MRTNT
+
 #include "mrtnt.h"
 #include "mrtnt_rom.h"
 #include "mrtnt_tilemap.h"
@@ -133,3 +136,5 @@ void mrtnt::gameLeds(CRGB *leds) {
   }
 }
 #endif
+
+#endif // GAME_MRTNT
