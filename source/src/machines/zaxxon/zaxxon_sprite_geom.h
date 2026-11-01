@@ -1,10 +1,9 @@
-#ifndef ZAXXON_SPRITE_GEOM_H
-#define ZAXXON_SPRITE_GEOM_H
+#pragma once
 
 #include <stdint.h>
 
-// Standalone (no machineBase/Arduino deps) so host_test can exercise it
-// directly -- see host_test/test_zaxxon_sprite_wrap.cpp.
+// Standalone (no machineBase deps) so a native test can exercise it
+// directly -- see test/test_zaxxon_sprite_wrap.
 //
 // MAME's zaxxon_state::draw_sprites (zaxxon_v.cpp) draws every sprite 4x,
 // at (sx,sy), (sx,sy-0x100), (sx-0x100,sy) and (sx-0x100,sy-0x100): sx/sy
@@ -31,5 +30,3 @@ inline int16_t zaxxon_resolve_sprite_dst_x(uint8_t spr_x, uint8_t oy,
   }
   return -1;
 }
-
-#endif
