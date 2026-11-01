@@ -39,7 +39,27 @@ public:
   enum : uint16_t { MAX_WIDTH = 256 };
 
   void begin();
-  void setViewport(uint16_t width) { viewport_width = width; }
+  // framebuffer mode, picture `width` x 288 scaled (leaves native mode)
+  void setViewport(uint16_t width) {
+    if (native_mode) {
+      switchMode(false);
+    }
+    viewport_width = width;
+  }
+
+  // Native mode: picture `width` (even, <= 640) x 480 at 1x, centered. The
+  // video core races the beam: strips of 8 rows go into a ring of
+  // dvi::RING_SLOTS in the framebuffer memory; a strip the beam reaches
+  // before it was written is sent black. Per screen: NATIVE_STRIPS x
+  // (nativeStrip(), render, nativeSubmit()); endFrame() returns at once.
+  static const uint32_t NATIVE_STRIPS = dvi::NATIVE_STRIPS;
+  void setNative(uint16_t width);
+  // ring slot of the screen's next strip (row stride = width), once the
+  // beam has read the strip that used it before
+  uint16_t *nativeStrip();
+  void nativeSubmit();
+  // lines sent black since begin()
+  uint32_t nativeMisses() const;
   void flip(char flipY, char flipX);
   void flipReset(char, char) { flip(0, 0); }
 
@@ -73,8 +93,17 @@ private:
   void buildLine(uint32_t line, uint32_t buffer);
   // restarts the scanout after the DMA chain lost its framing
   void resync();
+  // resyncs a scanout running over MAX_FPS (endFrame, both modes)
+  void checkScanRate();
+  // resync into framebuffer or native mode
+  void switchMode(bool native);
+  void buildNative(uint32_t buffer);
 
   volatile uint16_t viewport_width = 224;
+  volatile bool native_mode = false;
+  uint16_t native_width = 0;
+  uint32_t native_strip = 0; // strip number nativeStrip() hands out first
+  uint8_t native_count = 0;  // strips of the current screen
   dvi::Mirror flip_x = dvi::Mirror::OFF;
   dvi::Mirror flip_y = dvi::Mirror::OFF;
   bool half_rate = false;

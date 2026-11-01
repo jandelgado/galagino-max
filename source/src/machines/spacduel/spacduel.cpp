@@ -41,7 +41,11 @@ enum : uint8_t { LAMP_START = 0x20 };
 
 spacduel::spacduel()
   : bwidowMachine(main_read, main_write, {SD_VRAM, SD_VRAM_SIZE, SD_VROM, SD_VROM_SIZE},
-                  spacduel_layout::SCREEN, SPACDUEL_DSW0, SPACDUEL_DSW1),
+                  spacduel_layout::SCREEN,
+#ifdef HAL_VIDEO_NATIVE
+                  spacduel_layout::SCREEN_NATIVE, spacduel_layout::NATIVE_WIDTH,
+#endif
+                  SPACDUEL_DSW0, SPACDUEL_DSW1),
     spacduel_rom(spacduel_rom_blob),
     spacduel_vrom(spacduel_vrom_blob) {
   static_assert(RAM_END <= VRAM_OFS, "Space Duel RAM overlaps VRAM");

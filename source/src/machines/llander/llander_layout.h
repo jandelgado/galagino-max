@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "../../emulation/vector2d.h"
 #include "../../emulation/dvg.h"
+#include "../../hal/video_width.h" // HAL_VIDEO_NATIVE
 
 // Lunar Lander's text is 8x12 DVG units, 2.8 px at panel scale. This lays
 // the picture out upright on the 240 x 288 panel and enlarges the text:
@@ -17,6 +18,15 @@ namespace llander_layout {
 // enlarging text (lines tagged dvg::GLYPH, the tag is removed). Returns
 // the kept count.
 uint16_t map(vec2d::Line *lines, uint16_t count);
+
+#ifdef HAL_VIDEO_NATIVE
+// native HDMI: the picture alone on NATIVE_WIDTH x 480 (square pixels)
+static const uint16_t NATIVE_WIDTH = 614;
+
+// map() for native: text and lander at their own size, HUD in place, the
+// glyph tag removed
+uint16_t map_native(vec2d::Line *lines, uint16_t count);
+#endif
 
 } // namespace llander_layout
 

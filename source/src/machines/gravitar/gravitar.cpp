@@ -38,7 +38,11 @@ enum : uint8_t { LAMP_START = 0x10 };
 
 gravitar::gravitar()
   : bwidowMachine(main_read, main_write, {GV_VRAM, GV_VRAM_SIZE, GV_VROM, GV_VROM_SIZE},
-                  gravitar_layout::SCREEN, GRAVITAR_DSW0, GRAVITAR_DSW1),
+                  gravitar_layout::SCREEN,
+#ifdef HAL_VIDEO_NATIVE
+                  gravitar_layout::SCREEN_NATIVE, gravitar_layout::NATIVE_WIDTH,
+#endif
+                  GRAVITAR_DSW0, GRAVITAR_DSW1),
     gravitar_rom(gravitar_rom_blob),
     gravitar_vrom(gravitar_vrom_blob) {
   static_assert(RAM_HIGH_OFS + RAM_END - RAM_LOW_END <= RAMSIZE, "Gravitar RAM does not fit");

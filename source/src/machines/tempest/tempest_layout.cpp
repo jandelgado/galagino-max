@@ -42,6 +42,52 @@ uint16_t map(vec2d::Line *lines, uint16_t count, uint8_t flip) {
   return kept;
 }
 
+#ifdef HAL_VIDEO_NATIVE
+// VISIBLE and the center in 1/16 units; 9120 -> columns 0..359 and
+// 9200 -> rows 0..479 as mul >> 16 (the 3:4 tube: x 0.63, y 0.83 px a unit)
+static const int16_t NATIVE_X0 = 5 << NATIVE_FRAC, NATIVE_X1 = 575 << NATIVE_FRAC;
+static const int16_t NATIVE_Y1 = 575 << NATIVE_FRAC;
+static const vec2d::Rect VISIBLE_NATIVE = {NATIVE_X0, 0, NATIVE_X1, NATIVE_Y1};
+static const int16_t XCENTER_NATIVE = XCENTER << NATIVE_FRAC;
+static const int16_t YCENTER_NATIVE = YCENTER << NATIVE_FRAC;
+static const int32_t NATIVE_COL_MUL = 2580, NATIVE_ROW_MUL = 3413, NATIVE_SHIFT = 16;
+
+static_assert(((NATIVE_X1 - NATIVE_X0) * NATIVE_COL_MUL) >> NATIVE_SHIFT == NATIVE_WIDTH - 1,
+              "right edge on the last column");
+static_assert((NATIVE_Y1 * NATIVE_ROW_MUL) >> NATIVE_SHIFT == hal::VIDEO_NATIVE_H - 1,
+              "bottom edge on the last row");
+static_assert(NATIVE_WIDTH % 2 == 0 && NATIVE_WIDTH * 4 == hal::VIDEO_NATIVE_H * 3,
+              "even width, 3:4");
+
+static int16_t col_native(int16_t x) { return ((x - NATIVE_X0) * NATIVE_COL_MUL) >> NATIVE_SHIFT; }
+static int16_t row_native(int16_t y) { return ((NATIVE_Y1 - y) * NATIVE_ROW_MUL) >> NATIVE_SHIFT; }
+
+uint16_t map_native(vec2d::Line *lines, uint16_t count, uint8_t flip) {
+  uint16_t kept = 0;
+  for (uint16_t i = 0; i < count; i++) {
+    vec2d::Line l = lines[i];
+    if (flip & FLIP_X) {
+      l.x0 = 2 * XCENTER_NATIVE - l.x0;
+      l.x1 = 2 * XCENTER_NATIVE - l.x1;
+    }
+    if (flip & FLIP_Y) {
+      l.y0 = 2 * YCENTER_NATIVE - l.y0;
+      l.y1 = 2 * YCENTER_NATIVE - l.y1;
+    }
+    if (!vec2d::clip(l, VISIBLE_NATIVE)) {
+      continue;
+    }
+
+    l.x0 = col_native(l.x0);
+    l.x1 = col_native(l.x1);
+    l.y0 = row_native(l.y0);
+    l.y1 = row_native(l.y1);
+    lines[kept++] = l;
+  }
+  return kept;
+}
+#endif
+
 static uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
   const uint16_t rgb = ((r & 0xf8) << 8) | ((g & 0xfc) << 3) | (b >> 3);
   return (rgb >> 8) | (rgb << 8);

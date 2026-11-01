@@ -122,6 +122,47 @@ static const vec2d::Rect VISIBLE = {0, 0, 250, 280};
 static const int SCALE_MUL = 245, SCALE_SHIFT = 8;
 static const int16_t TOP_BORDER = 4;
 
+#ifdef HAL_VIDEO_NATIVE
+// native HDMI: avg::Memory::frac_bits, VISIBLE in 1/16 beam units onto 480
+// rows, square pixels: 4480 -> row 479 and 4000 -> column 427 as mul >> 16
+// (1.71 px a beam unit)
+static const uint8_t NATIVE_FRAC = 4;
+static const uint16_t NATIVE_WIDTH = 428;
+static const int16_t NATIVE_X1 = 250 << NATIVE_FRAC, NATIVE_Y1 = 280 << NATIVE_FRAC;
+static const vec2d::Rect VISIBLE_NATIVE = {0, 0, NATIVE_X1, NATIVE_Y1};
+static const int32_t NATIVE_MUL = 7008, NATIVE_SHIFT = 16;
+
+static_assert((NATIVE_Y1 * NATIVE_MUL) >> NATIVE_SHIFT == hal::VIDEO_NATIVE_H - 1,
+              "bottom edge on the last row");
+static_assert((NATIVE_X1 * NATIVE_MUL) >> NATIVE_SHIFT == NATIVE_WIDTH - 1,
+              "right edge on the last column");
+static_assert(NATIVE_WIDTH % 2 == 0 && NATIVE_WIDTH <= hal::VIDEO_NATIVE_W, "even, fits");
+
+static int16_t to_native(int16_t v) { return (v * NATIVE_MUL) >> NATIVE_SHIFT; }
+
+// map_lines() for native: clip and one scale, no border
+static uint16_t map_native(vec2d::Line *lines, uint16_t count) {
+  uint16_t kept = 0;
+  for (uint16_t i = 0; i < count; i++) {
+    vec2d::Line l = lines[i];
+    // most lines are on screen, skip the clip call for them
+    const bool visible =
+        (uint16_t)l.x0 <= NATIVE_X1 && (uint16_t)l.x1 <= NATIVE_X1 &&
+        (uint16_t)l.y0 <= NATIVE_Y1 && (uint16_t)l.y1 <= NATIVE_Y1;
+    if (!visible && !vec2d::clip(l, VISIBLE_NATIVE)) {
+      continue;
+    }
+
+    l.x0 = to_native(l.x0);
+    l.x1 = to_native(l.x1);
+    l.y0 = to_native(l.y0);
+    l.y1 = to_native(l.y1);
+    lines[kept++] = l;
+  }
+  return kept;
+}
+#endif
+
 // NVRAM block 2 (nibbles 0x34-0x8f, ROM table 0xc7b6) starts with the
 // yoke calibration (min, gain per axis) the game self-tunes from yoke
 // extremes. Erased NVRAM loads the defaults, off center by ~48 px until
@@ -187,6 +228,10 @@ starwars::starwars()
     const uint8_t v = level_value(rgb, level);
     palette[i] = rgb565(rgb & 4 ? v : 0, rgb & 2 ? v : 0, rgb & 1 ? v : 0);
   }
+#ifdef HAL_VIDEO_NATIVE
+  native = true;
+  out_width = NATIVE_WIDTH;
+#endif
 }
 
 void starwars::start() {
@@ -200,8 +245,8 @@ void starwars::start() {
   lines = Arena::alloc<vec2d::Line>(MAX_LINES);
   line_next = Arena::alloc<uint16_t>(MAX_LINES);
   line_active = Arena::alloc<uint16_t>(MAX_LINES);
-  strip_head = Arena::alloc<uint16_t>(STRIPS);
-  raster.init(line_next, line_active, strip_head, STRIPS);
+  strip_head = Arena::alloc<uint16_t>(strips());
+  raster.init(line_next, line_active, strip_head, strips());
   raster.begin(lines, 0);
 }
 
@@ -304,7 +349,12 @@ void starwars::outlatch_write(uint8_t bit, bool v) {
 
 // The AVG draws the list right away; the CPU builds the next one meanwhile.
 void starwars::go() {
-  const avg::Memory m = {memory + MAIN_RAM_OFS, VRAM_SIZE, vrom, VROM, VROM_SIZE, 0, 0, avg::STARWARS};
+  const avg::Memory m = {memory + MAIN_RAM_OFS, VRAM_SIZE, vrom, VROM, VROM_SIZE, 0, 0,
+                         avg::STARWARS
+#ifdef HAL_VIDEO_NATIVE
+                         , nullptr, nullptr, false, uint8_t(native ? NATIVE_FRAC : 0)
+#endif
+  };
   const uint16_t count = map_lines(avg::decode(m, avg_state, work, MAX_LINES));
 
   // packed after mapping: the video core spins while a publish runs
@@ -312,7 +362,16 @@ void starwars::go() {
     g.count = count;
     for (uint16_t i = 0; i < count; i++) {
       const vec2d::Line &l = work[i];
+#ifdef HAL_VIDEO_NATIVE
+      PackedLine &p = g.lines[i];
+      p.y0 = l.y0;
+      p.y1 = l.y1;
+      p.x0 = l.x0;
+      p.x1 = l.x1;
+      p.color = l.color;
+#else
       g.lines[i] = {(uint16_t)l.y0, (uint16_t)l.y1, (uint8_t)l.x0, (uint8_t)l.x1, l.color};
+#endif
     }
   });
   game_started = 1;
@@ -582,6 +641,11 @@ void starwars::run_frame() {
 }
 
 uint16_t starwars::map_lines(uint16_t count) {
+#ifdef HAL_VIDEO_NATIVE
+  if (native) {
+    return map_native(work, count);
+  }
+#endif
   uint16_t kept = 0;
   for (uint16_t i = 0; i < count; i++) {
     vec2d::Line l = work[i];

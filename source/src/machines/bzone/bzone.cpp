@@ -71,6 +71,10 @@ bzone::bzone()
     palette[i] = rgb565(l / 8, l, l / 8);
     red[i] = rgb565(l, l / 8, l / 8);
   }
+#ifdef HAL_VIDEO_NATIVE
+  native = true;
+  out_width = bzone_layout::NATIVE_WIDTH;
+#endif
 }
 
 void bzone::reset() {
@@ -179,15 +183,30 @@ void bzone::main_write(m6502_t *cpu, uint16_t a, uint8_t v) {
 }
 
 uint16_t bzone::decode_frame(const uint8_t *vram) {
-  const avg::Memory m = {vram, BZ_VRAM_SIZE, vrom, AVG_ROM_BASE, BZ_VROM_SIZE, GLYPH_LO, GLYPH_HI};
+  const avg::Memory m = {vram, BZ_VRAM_SIZE, vrom, AVG_ROM_BASE, BZ_VROM_SIZE, GLYPH_LO, GLYPH_HI
+#ifdef HAL_VIDEO_NATIVE
+                         , avg::BZONE, nullptr, nullptr, false,
+                         uint8_t(native ? bzone_layout::NATIVE_FRAC : 0)
+#endif
+  };
   return avg::decode(m, avg_state, work, MAX_LINES);
 }
 
 uint16_t bzone::map_lines(uint16_t count) {
+#ifdef HAL_VIDEO_NATIVE
+  if (native) {
+    return bzone_layout::map_native(work, count);
+  }
+#endif
   return bzone_layout::map(work, count);
 }
 
 const uint16_t *bzone::strip_palette(uint8_t strip) const {
+#ifdef HAL_VIDEO_NATIVE
+  if (native) {
+    return strip < bzone_layout::RED_STRIPS_NATIVE ? red : palette;
+  }
+#endif
   return strip < bzone_layout::RED_STRIPS ? red : palette;
 }
 

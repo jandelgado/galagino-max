@@ -88,8 +88,8 @@ def test_gyruss_gfx_decoders():
 
 
 def test_atari_line_buffer_sizes():
-    # 1024 lines of 16 + 2 * 2 bytes and 36 strip heads; GO list 1024 lines of 16 + 8 bytes and 8 more
-    assert atari._LINE_BUFFER_BYTES == 20552
+    # 1024 lines of 16 + 2 * 2 bytes and 60 strip heads; GO list 1024 lines of 16 + 8 bytes and 8 more
+    assert atari._LINE_BUFFER_BYTES == 20600
     assert atari._GO_LIST_BYTES == 24584
 
 

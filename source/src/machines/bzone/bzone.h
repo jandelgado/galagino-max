@@ -15,7 +15,7 @@
 // Asteroids CPU board (M6502 at 12.096 MHz / 8, 246 Hz NMI) with an AVG
 // vector generator, Mathbox, POKEY and discrete sound. ROT0, upright,
 // panel layout in bzone_layout.h. The cabinet overlay is red above
-// native y 80 (strips 0-10), green below.
+// native y 80 (strips 0-10, native HDMI 0-11), green below.
 //
 // Controls: stick drives both treads (see bzone_treads.h), FIRE fires,
 // START = coin + start.

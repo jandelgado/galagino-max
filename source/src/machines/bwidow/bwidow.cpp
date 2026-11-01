@@ -38,7 +38,11 @@ enum : uint8_t { LAMP_START = 0x10 };
 
 bwidow::bwidow()
   : bwidowMachine(main_read, main_write, {BW_VRAM, BW_VRAM_SIZE, BW_VROM, BW_VROM_SIZE},
-                  bwidow_game_layout::SCREEN, BWIDOW_DSW0, BWIDOW_DSW1),
+                  bwidow_game_layout::SCREEN,
+#ifdef HAL_VIDEO_NATIVE
+                  bwidow_game_layout::SCREEN_NATIVE, bwidow_game_layout::NATIVE_WIDTH,
+#endif
+                  BWIDOW_DSW0, BWIDOW_DSW1),
     bwidow_rom(bwidow_rom_blob),
     bwidow_vrom(bwidow_vrom_blob) {
   static_assert(RAM_HIGH_OFS + RAM_END - RAM_LOW_END <= RAMSIZE, "Black Widow RAM does not fit");

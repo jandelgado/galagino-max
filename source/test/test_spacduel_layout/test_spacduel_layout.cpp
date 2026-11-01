@@ -32,6 +32,32 @@ static void test_corners(void) {
   TEST_ASSERT_EQUAL(0x7f, l[0].color);
 }
 
+// native HDMI: 1/16 units, corners (0, 0)-(8640, 6400) -> columns 0..632 of 634, rows 5..473
+// (width limits the scale: 640 columns)
+static void test_native_corners(void) {
+  const int16_t r = 540 << bwidow_layout::NATIVE_FRAC, b = 400 << bwidow_layout::NATIVE_FRAC;
+  const int W = spacduel_layout::NATIVE_WIDTH, H = 480;
+  Line l[2] = {line(0, 0, r, b, 0x7f), line(-100, b + 100, r + 100, -100, 0x7f)};
+  TEST_ASSERT_EQUAL(2, bwidow_layout::map(spacduel_layout::SCREEN_NATIVE, l, 2, 0));
+  TEST_ASSERT_EQUAL(0, l[0].x0);
+  TEST_ASSERT_EQUAL(5, l[0].y0);
+  TEST_ASSERT_EQUAL(632, l[0].x1);
+  TEST_ASSERT_EQUAL(473, l[0].y1);
+  TEST_ASSERT_EQUAL(0, W & 1);
+  TEST_ASSERT_TRUE(W <= 640);
+  for (const Line &k : l) {
+    TEST_ASSERT_TRUE(k.x0 >= 0 && k.x0 < W && k.x1 >= 0 && k.x1 < W);
+    TEST_ASSERT_TRUE(k.y0 >= 0 && k.y0 < H && k.y1 >= 0 && k.y1 < H);
+  }
+  Line f[1] = {line(0, 0, r, b, 0x7f)};
+  TEST_ASSERT_EQUAL(1, bwidow_layout::map(spacduel_layout::SCREEN_NATIVE, f, 1,
+                                          bwidow_layout::FLIP_X | bwidow_layout::FLIP_Y));
+  TEST_ASSERT_EQUAL(632, f[0].x0);
+  TEST_ASSERT_EQUAL(473, f[0].y0);
+  TEST_ASSERT_EQUAL(0, f[0].x1);
+  TEST_ASSERT_EQUAL(5, f[0].y1);
+}
+
 // lines outside the visible area are dropped or clipped
 static void test_clip(void) {
   Line l[2] = {line(-20, 10, -5, 10, 0x1f), line(-10, 100, 100, 100, 0x2f)};
@@ -70,6 +96,7 @@ static void test_palette(void) {
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_corners);
+  RUN_TEST(test_native_corners);
   RUN_TEST(test_clip);
   RUN_TEST(test_flip);
   RUN_TEST(test_palette);

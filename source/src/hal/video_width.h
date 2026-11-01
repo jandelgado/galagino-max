@@ -11,9 +11,12 @@
 namespace hal {
 #if defined(HAL_VIDEO_DVI_HSTX)
 constexpr uint16_t VIDEO_MAX_WIDTH = 256;
+// native scanout (vector games): the HDMI raster 1:1, see DviHstxVideo::setNative
+#define HAL_VIDEO_NATIVE 1
 #else
 constexpr uint16_t VIDEO_MAX_WIDTH = 240;
 #endif
+constexpr uint16_t VIDEO_NATIVE_W = 640, VIDEO_NATIVE_H = 480;
 
 // Output width of a game `native` columns wide: all of them where they fit,
 // else the game's own crop or scale to `fit` columns.

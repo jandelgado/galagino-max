@@ -19,12 +19,12 @@
 // Main M6809 and sound M6809 at 12.096 MHz / 8, AVG vector generator
 // (Star Wars variant, color), math board (starwars_math.h), 4 POKEY and
 // a 6532 RIOT and a TMS5220 speech chip on the sound board. ROT0,
-// 250 x 280, scaled onto 240 columns.
+// 250 x 280, scaled onto 240 columns (native HDMI: 428 x 480).
 //
 //   emulation core                     video core
 //   main CPU writes VRAM, GO:          prepare_frame(): go_list ->
 //     avg::decode(), map_lines()         lines, raster.begin()
-//     publishes go_list -------------> render_row() x 36
+//     publishes go_list -------------> render_row() x 36 (native: 60)
 //   sound CPU writes POKEY regs
 //     -> soundregs -> renderAudio() (audio core)
 //   sound CPU drives the TMS5220
@@ -53,8 +53,11 @@ public:
   void prepare_frame() override;
   void render_row(short row) override;
   void renderSpeech(int16_t *out, int n);
-  const int renderWidth() override { return 240; }
-  const int renderBuffer() override { return 240 * 2 * 8; }
+  const int renderWidth() override { return out_width; }
+  const int renderBuffer() override { return out_width * 2 * 8; }
+#ifdef HAL_VIDEO_NATIVE
+  const int renderRows() override { return native ? hal::VIDEO_NATIVE_H : 288; }
+#endif
   static const Logo &logo() { return starwars_logo; }
 #ifdef LED_PIN
   static void menuLeds(CRGB *leds);
@@ -71,11 +74,27 @@ public:
 private:
   static const uint16_t VRAM_SIZE = 0x3000; // 0x0000-0x2fff, AVG address 0
   static const uint8_t STRIPS = 36;
+  static const uint8_t NATIVE_STRIPS = hal::VIDEO_NATIVE_H / vec2d::StripRasterizer::STRIP_H;
+  uint8_t strips() const { return native ? NATIVE_STRIPS : STRIPS; }
+
+  // output geometry: native = 480 rows at 1x on HDMI, set by the ctor.
+  // Constants without HAL_VIDEO_NATIVE: ESP code stays as it was.
+#ifdef HAL_VIDEO_NATIVE
+  uint16_t out_width = 240;
+  bool native = false;
+#else
+  static const uint16_t out_width = 240;
+  static const bool native = false;
+#endif
 
   // mapped line, half a vec2d::Line
   struct PackedLine {
+#ifdef HAL_VIDEO_NATIVE
+    uint64_t y0 : 10, y1 : 10, x0 : 10, x1 : 10, color : 8;
+#else
     uint16_t y0, y1;
     uint8_t x0, x1, color;
+#endif
   };
   static_assert(sizeof(PackedLine) == 8, "PackedLine size is part of the Arena budget");
 

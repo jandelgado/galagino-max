@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../hal/hal.h"
+#include "../hal/video_width.h"
 
 // Per-game hot functions. GAME_NO_IRAM (remote builds) keeps them in flash:
 // the IRAM they took (18 KB) is worth more to the CPU cores there.
@@ -227,6 +228,12 @@ public:
 
     virtual const int   renderWidth() { return 224; }
     virtual const int   renderBuffer() { return 224 * 2 * 8; }
+#ifdef HAL_VIDEO_NATIVE
+    // 288: strips into the framebuffer; hal::VIDEO_NATIVE_H: native screen
+    virtual const int   renderRows() { return 288; }
+    // native screens render straight into the scanout ring
+    void setFrameBuffer(unsigned short *fb) { frame_buffer = fb; }
+#endif
     
     virtual unsigned char rdZ80(unsigned short Addr) { return 0xff; }
     virtual void wrZ80(unsigned short Addr, unsigned char Value) { };

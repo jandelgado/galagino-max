@@ -1,5 +1,6 @@
 #include <unity.h>
 
+#define HAL_VIDEO_NATIVE 1
 #include "../../src/emulation/vector2d.cpp"
 #include "../../src/machines/llander/llander_layout.cpp"
 
@@ -90,6 +91,41 @@ static void test_lander_doubled(void) {
   assert_line(l[2], 500 * 15 / 64, row, 500 * 15 / 64, 50 + (781 - 360) * 15 / 64, 15);
 }
 
+// native HDMI: one scale onto 480 rows, visible corners on the first and
+// last column and row
+static void test_native_corners(void) {
+  const int W = llander_layout::NATIVE_WIDTH, H = 480;
+  TEST_ASSERT_EQUAL(614, W);
+  Line l[2] = {line(0, 781, 1023, -19, 7), line(-100, 900, 1100, -100, 3)};
+  TEST_ASSERT_EQUAL(2, llander_layout::map_native(l, 2));
+  assert_line(l[0], 0, 0, W - 1, H - 1, 7);
+  for (const Line &k : l) {
+    TEST_ASSERT_TRUE(k.x0 >= 0 && k.x0 < W && k.x1 >= 0 && k.x1 < W);
+    TEST_ASSERT_TRUE(k.y0 >= 0 && k.y0 < H && k.y1 >= 0 && k.y1 < H);
+  }
+  Line o[1] = {line(0, 800, 100, 990, 7)};
+  TEST_ASSERT_EQUAL(0, llander_layout::map_native(o, 1));
+}
+
+// text (HUD and messages) and the lander keep their size and place on
+// native, the glyph tag goes
+static void test_native_text_kept(void) {
+  const int G = dvg::GLYPH;
+  Line t[4] = {line(100, 748, 108, 748, 7 | G, 100, 748),
+               line(600, 720, 600, 732, 7 | G, 600, 720),
+               line(500, 500, 508, 500, 7 | G, 500, 500),
+               line(496, 400, 504, 400, 12)};
+  Line p[4] = {line(100, 748, 108, 748, 7), line(600, 720, 600, 732, 7),
+               line(500, 500, 508, 500, 7), line(496, 400, 504, 400, 12)};
+  TEST_ASSERT_EQUAL(4, llander_layout::map_native(t, 4));
+  TEST_ASSERT_EQUAL(4, llander_layout::map_native(p, 4));
+  for (int i = 0; i < 4; i++) {
+    assert_line(t[i], p[i].x0, p[i].y0, p[i].x1, p[i].y1, p[i].color);
+  }
+  // 8 units at 0.6 px a unit, not 2x
+  TEST_ASSERT_TRUE(t[2].x1 - t[2].x0 <= 5);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_playfield);
@@ -99,5 +135,7 @@ int main(int, char **) {
   RUN_TEST(test_message_centered);
   RUN_TEST(test_message_edge);
   RUN_TEST(test_lander_doubled);
+  RUN_TEST(test_native_corners);
+  RUN_TEST(test_native_text_kept);
   return UNITY_END();
 }

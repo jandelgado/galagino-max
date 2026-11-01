@@ -10,9 +10,20 @@ static const uint32_t AVG_CLOCKS_PER_CPU_CLOCK = 8;
 bwidowMachine::bwidowMachine(uint8_t (*read)(m6502_t *, uint16_t),
                              void (*write)(m6502_t *, uint16_t, uint8_t),
                              const Map &map, const bwidow_layout::Screen &screen,
+#ifdef HAL_VIDEO_NATIVE
+                             const bwidow_layout::Screen &screen_native, uint16_t native_width,
+#endif
                              uint8_t dsw0, uint8_t dsw1)
-  : dvgMachine(read, write, IRQ), map(map), screen(screen), dsw{dsw0, dsw1} {
+  : dvgMachine(read, write, IRQ), map(map), screen(screen),
+#ifdef HAL_VIDEO_NATIVE
+    screen_native(screen_native),
+#endif
+    dsw{dsw0, dsw1} {
   bwidow_layout::palette(pal);
+#ifdef HAL_VIDEO_NATIVE
+  native = true;
+  out_width = native_width;
+#endif
 }
 
 void bwidowMachine::reset() {
@@ -73,12 +84,21 @@ void bwidowMachine::avg_reset() {
 
 uint16_t bwidowMachine::decode_frame(const uint8_t *vram) {
   const avg::Memory m = {vram, map.vram_size, vrom, uint16_t(map.vrom - map.vram), map.vrom_size,
-                         0, 0, avg::COLOR, nullptr};
+                         0, 0, avg::COLOR, nullptr
+#ifdef HAL_VIDEO_NATIVE
+                         , nullptr, false, uint8_t(native ? bwidow_layout::NATIVE_FRAC : 0)
+#endif
+  };
   const uint16_t count = avg::decode(m, avg_state, work, MAX_LINES);
   avg_done_at = cpu_cycles() + avg_state.draw_clocks / AVG_CLOCKS_PER_CPU_CLOCK;
   return count;
 }
 
 uint16_t bwidowMachine::map_lines(uint16_t count) {
+#ifdef HAL_VIDEO_NATIVE
+  if (native) {
+    return bwidow_layout::map(screen_native, work, count, flip);
+  }
+#endif
   return bwidow_layout::map(screen, work, count, flip);
 }

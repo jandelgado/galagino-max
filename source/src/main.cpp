@@ -25,6 +25,10 @@
 #include "emulation/emulation.h"
 #include "emulation/hud.h"
 #include "machines/selftest/selftest.h"
+#ifdef HAL_VIDEO_NATIVE
+#include <assert.h>
+#include "emulation/vector2d.h"
+#endif
 #ifdef ASSETS_REMOTE
   #include "net/loader.h"
   #include "ui/loader_screen.h"
@@ -86,6 +90,9 @@ Input input = Input();
 
 void updateAudioVideo(void);
 void renderRow(short row);
+#ifdef HAL_VIDEO_NATIVE
+static void renderNative(uint32_t t0);
+#endif
 void onDoAttractReset();
 void onVolumeUpDown(bool up, bool down);
 void onDoReset();
@@ -349,6 +356,14 @@ void updateAudioVideo(void) {
 
   currentMachine->prepare_frame();
 
+#ifdef HAL_VIDEO_NATIVE
+  // native machines never reach renderRow(): their strip exceeds frame_buffer
+  if (currentMachine->renderRows() == hal::VIDEO_NATIVE_H) {
+    renderNative(t0);
+    return;
+  }
+#endif
+
   video.setHalfRate(currentMachine->useVideoHalfRate());
   const int renderWidth = currentMachine->renderWidth();
   const int renderWrite = renderWidth << 3;
@@ -384,6 +399,9 @@ void updateAudioVideo(void) {
 }
 
 void renderRow(short row) {
+#ifdef HAL_VIDEO_NATIVE
+  assert(currentMachine->renderRows() != hal::VIDEO_NATIVE_H);
+#endif
   memset(frame_buffer, 0, currentMachine->renderBuffer());
   currentMachine->render_row(row);
 #ifdef DEBUG_TIMING_FPS_HUD
@@ -412,3 +430,34 @@ void onDoReset() {
     doReset = true;
   }
 }
+
+#ifdef HAL_VIDEO_NATIVE
+static_assert(hal::Video::NATIVE_STRIPS ==
+                  hal::VIDEO_NATIVE_H / vec2d::StripRasterizer::STRIP_H,
+              "native strips differ between scanout and machines");
+
+// Native screen (vector games on HDMI): 60 strips rendered straight into the
+// scanout ring, just ahead of the beam. One screen per scanout pass.
+static void renderNative(uint32_t t0) {
+  const uint32_t strips = hal::Video::NATIVE_STRIPS;
+  const uint32_t stripsPerAudio = strips / 6;
+  video.setNative(currentMachine->renderWidth());
+
+  const int bytes = currentMachine->renderBuffer();
+  for (uint32_t s = 0; s < strips; s++) {
+    uint16_t *strip = video.nativeStrip();
+    memset(strip, 0, bytes);
+    currentMachine->setFrameBuffer(strip);
+    currentMachine->render_row(s);
+    video.nativeSubmit();
+    if ((s + 1) % stripsPerAudio == 0) {
+      audio.transmit();
+    }
+  }
+  currentMachine->setFrameBuffer(frame_buffer);
+
+  emulation_videoRendered();
+  video.endFrame(0, t0);
+  emulation_notifyGive();
+}
+#endif

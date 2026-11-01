@@ -150,4 +150,39 @@ uint16_t map(vec2d::Line *lines, uint16_t count) {
   return kept;
 }
 
+#ifdef HAL_VIDEO_NATIVE
+// VISIBLE: 800 -> rows 0..479 and 1023 -> columns 0..613 as mul >> 16
+// (0.6 px a unit; the smallest mul with an even width)
+static const int16_t NATIVE_X1 = 1023, NATIVE_Y0 = -19, NATIVE_Y1 = 781;
+static const int32_t NATIVE_MUL = 39271, NATIVE_SHIFT = 16;
+
+static_assert(((NATIVE_Y1 - NATIVE_Y0) * NATIVE_MUL) >> NATIVE_SHIFT == hal::VIDEO_NATIVE_H - 1,
+              "bottom edge on the last row");
+static_assert((NATIVE_X1 * NATIVE_MUL) >> NATIVE_SHIFT == NATIVE_WIDTH - 1,
+              "right edge on the last column");
+static_assert(NATIVE_WIDTH % 2 == 0, "even width");
+
+static int16_t native_col(int16_t x) { return (x * NATIVE_MUL) >> NATIVE_SHIFT; }
+
+static int16_t native_row(int16_t y) { return ((NATIVE_Y1 - y) * NATIVE_MUL) >> NATIVE_SHIFT; }
+
+uint16_t map_native(vec2d::Line *lines, uint16_t count) {
+  uint16_t kept = 0;
+  for (uint16_t i = 0; i < count; i++) {
+    vec2d::Line l = lines[i];
+    l.color &= ~dvg::GLYPH;
+    if (!vec2d::clip(l, VISIBLE)) {
+      continue;
+    }
+
+    l.x0 = native_col(l.x0);
+    l.x1 = native_col(l.x1);
+    l.y0 = native_row(l.y0);
+    l.y1 = native_row(l.y1);
+    lines[kept++] = l;
+  }
+  return kept;
+}
+#endif
+
 } // namespace llander_layout
