@@ -40,7 +40,10 @@ ENVS := $(filter-out native,$(shell sed -n 's/^\[env:\(.*\)\]/\1/p' platformio.i
 # every rp2350 env of firmware.toml; build.sh names its build dir after GAMES
 RP_ENVS := $(shell sed -n 's/^\([^ ]*\) = { platform = "rp2350".*/\1/p' firmware.toml)
 comma := ,
-RP_UF2 = ports/rp2350/build/$(ENV)$(if $(GAMES),-$(subst $(comma),-,$(GAMES)))/galagino.uf2
+# image name: [firmware] of firmware.toml
+FW_NAME := $(shell sed -n 's/^name = "\(.*\)"/\1/p' firmware.toml)
+FW_VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' firmware.toml)
+RP_UF2 = ports/rp2350/build/$(ENV)$(if $(GAMES),-$(subst $(comma),-,$(GAMES)))/$(FW_NAME)_$(FW_VERSION).uf2
 
 ifeq ($(V),)
         VERBOSE :=

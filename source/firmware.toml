@@ -3,6 +3,12 @@
 # envs, options, Arena layouts, game sets and modes. Toolchain flags stay in
 # platformio.ini (ESP32) and ports/rp2350/ (RP2350).
 
+# firmware image name and version, every platform: <name>_<version>_release.bin
+# (ESP32), <name>_<version>.uf2 (RP2350)
+[firmware]
+name = "GALAGINOMAX"
+version = "v1.0.0"
+
 # Every build is an env: <board>-<mode>, the same parameters on every
 # platform. platform: esp, rp2350 or host (src/hal/<platform>/); board:
 # BOARD_<NAME>, profile src/boards/<board>.h (azdelivery has none: pins from

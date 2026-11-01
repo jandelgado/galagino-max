@@ -93,4 +93,10 @@ target_link_options(galagino PRIVATE -Wl,--defsym=GALAGINO_ARENA_BYTES=${ARENA_B
   ${CMAKE_CURRENT_LIST_DIR}/ram_check.ld)
 pico_enable_stdio_usb(galagino 1)
 pico_enable_stdio_uart(galagino 0)
+# image <name>_<version>.uf2, name and version for picotool info, as on the ESP32
+set_target_properties(galagino PROPERTIES OUTPUT_NAME ${GALAGINO_PROG_NAME}_${GALAGINO_PROG_VERSION})
+pico_set_program_name(galagino ${GALAGINO_PROG_NAME})
+pico_set_program_version(galagino ${GALAGINO_PROG_VERSION})
+target_compile_definitions(galagino PRIVATE PROG_NAME="${GALAGINO_PROG_NAME}"
+  PROG_VERSION="${GALAGINO_PROG_VERSION}")
 pico_add_extra_outputs(galagino)

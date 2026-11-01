@@ -227,12 +227,12 @@ Python 3.11 or newer.
    make pico2w_dvi-local_bt             # build, upload with picotool, open the serial monitor
    ```
 
-   The image is `source/ports/rp2350/build/pico2w_dvi-local_bt/galagino.uf2`. `GAMES=` replaces
-   the env's games, `DEFINES=` adds defines, e.g.
+   The image is `source/ports/rp2350/build/pico2w_dvi-local_bt/GALAGINOMAX_v1.0.0.uf2`.
+   `GAMES=` replaces the env's games, `DEFINES=` adds defines, e.g.
    `make build ENV=pico2w_dvi-local_bt GAMES=galaga,dkong DEFINES="NUNCHUCK_INPUT"`.
 3. Flash: `make pico2w_dvi-local_bt` uploads with picotool; it reboots a running Pico into
    BOOTSEL first (on Linux picotool needs its udev rules or root). Without picotool: hold BOOTSEL
-   on the Pico while plugging in USB, a drive named `RP2350` appears, copy `galagino.uf2` onto it.
+   on the Pico while plugging in USB, a drive named `RP2350` appears, copy the `.uf2` file onto it.
 4. Pair the pad: the emulator scans for pads after boot. 8BitDo SN30 Pro: START+Y (Switch mode),
    then hold the pair button for 3 s. The pairing is stored in flash: next time the pad
    connects by itself. A = FIRE, SELECT = COIN, START = START, Home = menu.

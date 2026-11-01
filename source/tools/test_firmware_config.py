@@ -30,6 +30,12 @@ class RepoConfig(unittest.TestCase):
         for layout in cfg["arena"]:
             fc.layout_defines(cfg, layout)
 
+    def test_program(self):
+        name, version = fc.program(fc.load())
+        self.assertTrue(name and version)
+        with self.assertRaises(fc.ConfigError):
+            fc.program({})
+
     def test_every_env_resolves(self):
         cfg = fc.load()
         for name in cfg["envs"]:

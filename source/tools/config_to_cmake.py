@@ -3,7 +3,8 @@
 
   [GAMES=a,b] [DEFINES="A=1 B"] python3 tools/config_to_cmake.py pico2w_dvi-remote > build/<x>/galagino.cmake
 
-Sets GALAGINO_BOARD (the env's board), GALAGINO_DEFINES (firmware_config.env_defines:
+Sets GALAGINO_PROG_NAME and GALAGINO_PROG_VERSION ([firmware]), GALAGINO_BOARD (the env's
+board), GALAGINO_DEFINES (firmware_config.env_defines:
 platform, board, options, mode, layout, DEFINES) and GALAGINO_SOURCES (paths relative
 to src/: the platform's HAL backend; src/net/ only for ASSETS_REMOTE builds).
 GAMES replaces the env's games, as in the PlatformIO build.
@@ -37,10 +38,11 @@ def _sources(src_root, hal, defines):
     return found
 
 
-def _emit(board, flags, sources):
+def _emit(program, board, flags, sources):
     def block(name, items):
         return "set(%s\n%s\n)\n" % (name, "\n".join("    " + i for i in items))
-    return "set(GALAGINO_BOARD %s)\n" % board + block("GALAGINO_DEFINES", flags) + block("GALAGINO_SOURCES", sources)
+    head = "set(GALAGINO_PROG_NAME %s)\nset(GALAGINO_PROG_VERSION %s)\n" % program
+    return head + "set(GALAGINO_BOARD %s)\n" % board + block("GALAGINO_DEFINES", flags) + block("GALAGINO_SOURCES", sources)
 
 
 def main():
@@ -51,13 +53,14 @@ def main():
     games, extra = firmware_config.dev_overrides(os.environ)
     try:
         cfg = firmware_config.load()
+        program = firmware_config.program(cfg)
         row = firmware_config.env(cfg, args.env)
         defines = firmware_config.env_defines(cfg, args.env, games, extra)
     except firmware_config.ConfigError as e:
         sys.exit("config_to_cmake: %s" % e)
 
     src = Path(__file__).resolve().parent.parent / "src"
-    sys.stdout.write(_emit(row.get("board", ""), defines, _sources(src, row["platform"], defines)))
+    sys.stdout.write(_emit(program, row.get("board", ""), defines, _sources(src, row["platform"], defines)))
 
 
 if __name__ == "__main__":

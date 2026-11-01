@@ -1,4 +1,4 @@
-"""Reads firmware.toml (envs, options, Arena layouts, game sets, modes) and
+"""Reads firmware.toml (name, envs, options, Arena layouts, game sets, modes) and
 turns an env into its build defines. Used by extraScript.py (PlatformIO) and
 config_to_cmake.py (RP2350). romconv keeps its own [arena] reader."""
 import re
@@ -18,6 +18,14 @@ _ENV_KEYS = {"platform", "board", "mode", "layout"}
 
 class ConfigError(ValueError):
     pass
+
+
+# [firmware] name and version of every image
+def program(cfg):
+    fw = cfg.get("firmware", {})
+    if not ("name" in fw and "version" in fw):
+        raise ConfigError("firmware.toml: [firmware] needs name and version")
+    return fw["name"], fw["version"]
 
 
 def load(path=CONFIG_PATH):

@@ -19,6 +19,13 @@ def _config():
         sys.exit("extraScript: %s" % e)
 
 
+def _program(cfg):
+    try:
+        return firmware_config.program(cfg)
+    except firmware_config.ConfigError as e:
+        sys.exit("extraScript: %s" % e)
+
+
 # firmware.toml: the [envs] row of this env (platform, board, mode, layout)
 # as defines; GAMES and DEFINES from the environment for dev builds
 def _config_defines(env, cfg):
@@ -94,12 +101,12 @@ def _sdkconfig_defaults(env, cfg):
                  args[:m.start()] + option + args[m.end():] if m else (args + " " + option).strip())
 
 
+_cfg = _config()
+_name, _version = _program(_cfg)
 # firmware file name; the native test runner looks for the default program name
 if env.get("PIOPLATFORM") != "native":
-    env.Replace(PROGNAME="%s_%s_%s" % (env.GetProjectOption("custom_prog_name"), env.GetProjectOption("custom_prog_version"), env.GetBuildType()))
-env.Append(CPPDEFINES=[("PROG_NAME", env.StringifyMacro(env.GetProjectOption("custom_prog_name")))])
-env.Append(CPPDEFINES=[("PROG_VERSION", env.StringifyMacro(env.GetProjectOption("custom_prog_version")))])
-_cfg = _config()
+    env.Replace(PROGNAME="%s_%s_%s" % (_name, _version, env.GetBuildType()))
+env.Append(CPPDEFINES=[("PROG_NAME", env.StringifyMacro(_name)), ("PROG_VERSION", env.StringifyMacro(_version))])
 env.Append(CPPDEFINES=_config_defines(env, _cfg))
 if env.get("PIOPLATFORM") != "native":
     _sdkconfig_defaults(env, _cfg)
