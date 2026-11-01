@@ -27,7 +27,7 @@ def _ctx(job, paths, log):
 def test_job_shapes():
     jobs = {j.name: j for j in JOBS}
     assert len(jobs) == 23
-    assert {n for n, j in jobs.items() if j.plan} == {"bnj", "bublbobl"}
+    assert {n for n, j in jobs.items() if j.plan} == {"1943", "bnj", "bublbobl"}
     assert jobs["btime"].machine == "burgertime" and jobs["bnj"].deps == ("btime",)
     assert jobs["alibaba"].deps == ("pacman",)
     assert jobs["jungleh"].zips == ("junglek.zip",) and jobs["elevator"].zips == ("elevator.zip",)
@@ -93,13 +93,14 @@ def test_atari_line_buffer_sizes():
     assert atari._GO_LIST_BYTES == 24584
 
 
-def test_atari_convert_vector_checks_sizes(paths, log, make_zip):
+def test_atari_convert_vector_checks_sizes(paths, log, make_zip, arena_layout):
     import hashlib
     make_zip("t.zip", {"p": b"\1" * 4, "v": b"\2" * 4})
     sha = {n: hashlib.sha1(d).hexdigest() for n, d in (("p", b"\1" * 4), ("v", b"\2" * 4))}
     job = asteroids.JOB.__class__(name="t", convert=lambda c: None, machine="asteroids", zips=("t.zip",))
     ctx = _ctx(job, paths, log)
     (paths.machines / "asteroids").mkdir(parents=True)
+    (paths.src / "machines.h").write_text("")  # the budget check asks the catalog
     with pytest.raises(AssertionError):
         atari.convert_vector(ctx, "t", [("p", sha["p"])], [("v", sha["v"])], "a", "b", program_bytes=5,
                              vector_bytes=4)

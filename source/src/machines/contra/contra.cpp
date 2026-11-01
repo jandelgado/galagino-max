@@ -5,6 +5,7 @@
 #include "contra_rom_main.h"
 #include "contra_prom.h"
 #include "contra_gfx.h"
+#include "contra_tile_index.h"
 #include "contra_sid.h"
 
 // one frame = 264 lines of 384 px at 6 MHz, CPU 3 MHz: 50688 cycles
@@ -15,7 +16,7 @@ static constexpr int VBLANK_LINE = 240;   // K007121 IRQ and sprite latch
 static constexpr uint16_t REGS_END = 0x0100;
 static constexpr uint16_t BANK_BASE = 0x6000, FIXED_BASE = 0x8000;
 static constexpr uint32_t BANK_SIZE = 0x2000;
-static constexpr uint32_t FIXED_ROM = 0x18000;   // 8000-ffff = ROM 18000-1ffff
+static constexpr uint32_t FIXED_ROM = 0x8000;    // 8000-ffff = upper half of contra_rom_hi
 static constexpr uint8_t BANK_MASK = 0x0f;
 static constexpr uint16_t BANK_SELECT = 0x7000;
 
@@ -45,7 +46,6 @@ static constexpr uint8_t LAYER_CHIP[3] = {0, 1, 0};
 static constexpr uint16_t LAYER_CRAM[3] = {CONTRA_CRAM0, CONTRA_CRAM1, CONTRA_CRAM2};
 static constexpr uint16_t LAYER_VRAM[3] = {CONTRA_VRAM0, CONTRA_VRAM1, CONTRA_VRAM2};
 static constexpr int SPRITE_DX = 40;          // MAME set_sprite_offsets(40, 16)
-static constexpr int BLOCKS_LIMIT = 15;       // a 32x32 sprite may pass MAX_BLOCKS by 15
 static constexpr uint8_t BLOCK_CHIP1 = 0x01, BLOCK_FLIPX = 0x02, BLOCK_FLIPY = 0x04;
 
 // main CPU inputs (konamipt.h KONAMI8_SYSTEM_UNK / KONAMI8_B12_UNK), active low
@@ -63,10 +63,14 @@ static const unsigned int JUMP_KEY = BUTTON_EXTRA;
 #endif
 
 contra::contra()
-  : contra_main_rom(contra_main_rom_blob), contra_lut(contra_lut_blob), contra_tiles(contra_tiles_blob),
-    contra_tile_index(contra_tile_index_blob), contra_sid(contra_sid_blob) {
-  // m6809_reset() reads the reset vector through main_rom
-  main_rom = contra_main_rom.data();
+  : contra_rom_lo(contra_rom_lo_blob), contra_rom_hi(contra_rom_hi_blob), contra_lut(contra_lut_blob),
+    contra_tiles(contra_tiles_blob), contra_tile_index(contra_tile_index_blob), contra_sid(contra_sid_blob) {
+  // m6809_reset() reads the reset vector through fixed
+  const uint8_t *lo = contra_rom_lo.data(), *hi = contra_rom_hi.data();
+  for (uint32_t b = 0; b < BANKS; b++) {
+    banks[b] = (b < BANKS / 2 ? lo : hi) + (b % (BANKS / 2)) * BANK_SIZE;
+  }
+  fixed = hi + FIXED_ROM;
   lut = contra_lut.data();
   tiles = contra_tiles.data();
   tile_index = contra_tile_index.data();
@@ -99,7 +103,7 @@ void contra::reset() {
   pens_valid = false;
 
   m6809_reset(&main_cpu);
-  main_cpu.rom_direct = main_rom + FIXED_ROM;   // must follow m6809_reset()
+  main_cpu.rom_direct = fixed;   // must follow m6809_reset()
   main_cpu.rom_base = FIXED_BASE;
   main_cpu.rom_size = 0x10000 - FIXED_BASE;
 }
@@ -112,10 +116,10 @@ unsigned char GAME_IRAM contra::m6809_read_opcode(m6809_state *s, uint16_t addr)
 
 unsigned char GAME_IRAM contra::m6809_read(m6809_state *s, uint16_t addr) {
   if (addr >= FIXED_BASE) {
-    return main_rom[FIXED_ROM + addr - FIXED_BASE];
+    return fixed[addr - FIXED_BASE];
   }
   if (addr >= BANK_BASE) {
-    return main_rom[bank * BANK_SIZE + addr - BANK_BASE];
+    return banks[bank][addr - BANK_BASE];
   }
   if (addr < REGS_END) {
     return readPort(addr);

@@ -45,7 +45,7 @@ def _seen(ctx):
 
 def _asset(ctx):
     ctx.manifest.add(Asset(dir="shared", name=ctx.job.name, ctype="unsigned char", inner="",
-                           count=1, mode="PLAIN", raw=b"\x00", packed=b"P", lz64=b"Q", hint=None))
+                           count=1, mode="PLAIN", raw=b"\x00", packed=b"P", lz64=b"Q"))
     _write(ctx, "asset")
 
 

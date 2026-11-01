@@ -29,8 +29,10 @@ MemInfo memInfoData();
 // Per region listing of the data RAM, on the console.
 void memDump();
 
-// RAM a DMA engine can read. Free with free().
-void *dmaAlloc(uint32_t bytes);
+// Permanent buffer from the RAM plain malloc uses last (ESP32: the D/IRAM
+// pool), so the main heap keeps its largest block for the Arena; malloc
+// when that pool is taken. Free with free().
+void *allocSpare(uint32_t bytes);
 
 // Console (serial or USB) ready for printf. Takes up to 2.2 s on chips with
 // USB.

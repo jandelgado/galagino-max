@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unity.h>
+#include <initializer_list>
 
 // Boots the Contra ROM on the host through the machine class: HD6309 main CPU
 // run as a plain 6809, IRQ from K007121 #0, banked ROM, 007452 math. ROM
@@ -93,11 +94,31 @@ static void boot(void) {
     return;
   }
   Arena::init();
+  Arena::reserve(&contra_arena_plan);
   machine = new contra();
   machine->init(&input, frame_buffer, sprites, memory);
   machine->reset();
   machine->start();
   machine->start();
+}
+
+// main ROM in two planned chunks (one per ROM file): 6000-7fff = bank b of
+// lo (b < 8) or hi, 8000-ffff = the upper half of hi, also the opcode window
+static void test_rom_windows_follow_bank(void) {
+  boot();
+  const uint8_t *lo = machine->contra_rom_lo.data(), *hi = machine->contra_rom_hi.data();
+  TEST_ASSERT_EQUAL_PTR(hi + 0x8000, machine->main_cpu.rom_direct);
+  for (uint16_t k : {0, 0x1234, 0x7fff}) {
+    TEST_ASSERT_EQUAL_HEX8(hi[0x8000 + k], machine->m6809_read(&machine->main_cpu, 0x8000 + k));
+  }
+  for (uint8_t bank = 0; bank < 16; bank++) {
+    const uint8_t *src = (bank < 8 ? lo : hi) + (bank & 7) * 0x2000;
+    machine->bank = bank;
+    for (uint16_t k : {0, 0x0777, 0x1fff}) {
+      TEST_ASSERT_EQUAL_HEX8(src[k], machine->m6809_read(&machine->main_cpu, 0x6000 + k));
+    }
+  }
+  machine->bank = 0;
 }
 
 // all opcode fetches through m6809_read_opcode, for the opcode check
@@ -210,6 +231,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_no_unknown_opcodes);
   RUN_TEST(test_inputs);
   RUN_TEST(test_idle_loop_skipped);
+  RUN_TEST(test_rom_windows_follow_bank);
 #endif
   return UNITY_END();
 }

@@ -87,7 +87,7 @@ def test_plain_planned_both_forms(tmp_path):
     out, _ = _emit(tmp_path, emit_plain, "_p", "uint32_t", "[2]", 2, " { 0x1,0x2 },\n { 0x3,0x4 } // 99",
                    plan_game="tst")
     for s in ('#include "../../emulation/asset.h"', '#include "tst_arena_plan.h"',
-              "// arena-asset _p 16 4 PLAIN uint32_t[2]", "#if _p_PLAIN", "#else", "#endif",
+              "// arena-asset _p 16 4 uint32_t[2]", "#if _p_PLAIN", "#else", "#endif",
               "alignas(4) static const uint32_t _p_data[][2] = {",
               "static constexpr FlashAsset<uint32_t[2], PLAIN> _p_blob = { _p_data, 2 };",
               "static constexpr FlashAsset<uint32_t[2], COMPRESSED> _p_blob = { _p_packed, sizeof(_p_packed), 2, _p_BLOCK };",
@@ -104,7 +104,7 @@ def test_wrong_value_count_rejected(tmp_path):
 
 def test_compressed_planned_plain_array_and_marker(tmp_path):
     out, _ = _emit(tmp_path, emit_compressed, "_c", "unsigned short", "", 3, [1, 2, 0xFFFF], plan_game="tst")
-    assert "// arena-asset _c 6 2 COMPRESSED unsigned short" in out
+    assert "// arena-asset _c 6 2 unsigned short" in out
     assert _plain_values(out, "_c") == [1, 2, 0xFFFF]
     assert _packed_of(out, "_c") == struct.pack("<3H", 1, 2, 0xFFFF)
 
@@ -200,12 +200,13 @@ def test_planned_asset_in_manifest(tmp_path):
                           plan_game="foo", remote_dir="foo")
     a = _asset(manifest, "foo_q")
     assert a.mode == "PLANNED"
-    assert a.hint == "PLAIN"
     assert a.lz64 is not None
-    assert "// arena-asset foo_q 2 1 PLAIN unsigned char" in out
+    assert "// arena-asset foo_q 2 1 unsigned char" in out
+    # emit_plain and emit_compressed produce the same planned asset: the plan picks the mode
     _, manifest = _emit(tmp_path, emit_compressed, "foo_r", "unsigned char", "", 2, [1, 2],
                         plan_game="foo", remote_dir="foo")
-    assert _asset(manifest, "foo_r").hint == "COMPRESSED"
+    assert _asset(manifest, "foo_r").mode == "PLANNED"
+    assert not hasattr(a, "hint")
 
 
 def test_no_remote_form_without_remote_dir(tmp_path):
@@ -220,10 +221,10 @@ def test_planned_asset_without_remote_dir_registers(tmp_path):
                           plan_game="foo", remote_dir=None)
     assert "ASSETS_REMOTE" not in out
     a = _asset(manifest, "foo_s")
-    assert (a.mode, a.hint, a.dir) == ("PLANNED", "COMPRESSED", "foo")
+    assert (a.mode, a.dir) == ("PLANNED", "foo")
     out, manifest = _emit(tmp_path, emit_plain, "foo_t", "unsigned char", "", 2, "  0x01,0x02",
                           plan_game="foo", remote_dir=None)
-    assert _asset(manifest, "foo_t").hint == "PLAIN"
+    assert _asset(manifest, "foo_t").mode == "PLANNED"
 
 
 def test_shared_dir_no_remote_form(tmp_path, log):

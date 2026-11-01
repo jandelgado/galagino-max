@@ -87,7 +87,7 @@ def test_header_plan_and_remote_flags(paths, log):
 
 def test_manifest_persist_layout(tmp_path):
     asset = Asset(dir="g", name="n", ctype="unsigned char", inner="", count=4, mode="PLAIN",
-                  raw=b"\x01\x02\x03\x04", packed=b"FULL", lz64=b"L64", hint=None)
+                  raw=b"\x01\x02\x03\x04", packed=b"FULL", lz64=b"L64")
     manifest = Manifest()
     manifest.add(asset)
     assert manifest.dirs() == {"g"}
@@ -110,7 +110,7 @@ def test_manifest_persist_layout(tmp_path):
 def test_manifest_persist_without_lz64(tmp_path):
     manifest = Manifest()
     manifest.add(Asset(dir="g", name="n", ctype="unsigned char", inner="", count=1,
-                       mode="COMPRESSED", raw=b"\x01", packed=b"P", lz64=None, hint=None))
+                       mode="COMPRESSED", raw=b"\x01", packed=b"P", lz64=None))
     manifest.persist(tmp_path)
     assert sorted(p.name for p in (tmp_path / "g").iterdir()) == ["n.json", "n.lz", "n.raw"]
 

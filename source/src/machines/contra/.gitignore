@@ -1,4 +1,5 @@
 contra_gfx.h
+contra_tile_index.h
 contra_rom_main.h
 contra_prom.h
 contra_sid.h

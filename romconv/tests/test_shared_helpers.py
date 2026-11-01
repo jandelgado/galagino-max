@@ -79,13 +79,19 @@ def test_rom_bytes(paths, make_zip, ctx):
         rom_bytes(ctx, ("y", sha))
 
 
-def test_budget_helpers(ctx):
-    check_budget(ctx, 181999)
+def test_budget_from_layouts(ctx, paths, arena_layout):
+    # fixture rows: esp32_local 91000 + 110500, esp32_remote 60000 + 110500;
+    # a catalog game (in machines.h, not EXCLUDED) is held to the remote pool too
+    paths.src.mkdir(parents=True, exist_ok=True)
+    (paths.src / "machines.h").write_text("#ifdef ENABLE_G\n#endif\n")
+    check_budget(ctx, 170499)
     with pytest.raises(ConversionError, match="Arena budget"):
-        check_budget(ctx, 182000)
-    log_sizes(ctx, {"a": 1, "b": 2}, 4)
-    with pytest.raises(ConversionError, match="3 >= 3"):
-        log_sizes(ctx, {"a": 1, "b": 2}, 3)
+        check_budget(ctx, 170500)
+    (paths.src / "machines.h").write_text("#ifdef ENABLE_OTHER\n#endif\n")
+    check_budget(ctx, 201499)
+    log_sizes(ctx, {"a": 1, "b": 201498})
+    with pytest.raises(ConversionError, match="201500 >= 201500"):
+        log_sizes(ctx, {"a": 1, "b": 201499})
 
 
 def test_gfxutil_packing():

@@ -2,7 +2,7 @@
 
 // Arena reservation and planned blocks (src/emulation/arena.cpp). Block
 // bases are found without extra API: after reset() the first first-fit
-// allocation starts block A, one larger than A starts block B.
+// allocation starts block A; once A is full the next one starts block B.
 #include "../../src/emulation/arena.cpp"
 
 static uint8_t *baseA;
@@ -10,8 +10,8 @@ static uint8_t *baseB;
 
 void setUp(void) {
   Arena::reset();
-  baseA = Arena::alloc(1);
-  baseB = Arena::alloc(Arena::BLOCK_A_SIZE);
+  baseA = Arena::alloc(Arena::BLOCK_A_SIZE);
+  baseB = Arena::alloc(1);
   Arena::reset();
 }
 
@@ -23,7 +23,8 @@ static bool inRange(const uint8_t *p, const uint8_t *lo, const uint8_t *hi) {
 
 static void test_any_first_fit_without_plan(void) {
   TEST_ASSERT_EQUAL_PTR(baseA, Arena::alloc(100));
-  TEST_ASSERT_EQUAL_PTR(baseB, Arena::alloc(Arena::BLOCK_A_SIZE));
+  TEST_ASSERT_EQUAL_PTR(baseA + 100, Arena::alloc(Arena::BLOCK_A_SIZE - 100));
+  TEST_ASSERT_EQUAL_PTR(baseB, Arena::alloc(1));
 }
 
 static void test_reserved_region(void) {
@@ -92,6 +93,15 @@ static void test_scratch_below_reservation(void) {
   TEST_ASSERT_TRUE(Arena::release(s));
 }
 
+// sizes come from [arena] in platformio.ini via extraScript.py
+#ifndef ARENA_LAYOUT_ESP32_LOCAL
+#error "native env must select custom_arena_layout = esp32_local"
+#endif
+static void test_block_sizes_from_layout(void) {
+  TEST_ASSERT_EQUAL_UINT32(ARENA_A_SIZE, Arena::BLOCK_A_SIZE);
+  TEST_ASSERT_EQUAL_UINT32(ARENA_B_SIZE, Arena::BLOCK_B_SIZE);
+}
+
 static void test_scratch_no_room(void) {
   Arena::alloc(Arena::BLOCK_A_SIZE);
   Arena::alloc(Arena::BLOCK_B_SIZE - 100);
@@ -110,6 +120,7 @@ int main(int, char **) {
   RUN_TEST(test_scratch_is_transient);
   RUN_TEST(test_scratch_one_at_a_time);
   RUN_TEST(test_scratch_below_reservation);
+  RUN_TEST(test_block_sizes_from_layout);
   RUN_TEST(test_scratch_no_room);
   return UNITY_END();
 }

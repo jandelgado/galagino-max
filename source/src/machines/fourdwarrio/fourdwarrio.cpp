@@ -14,8 +14,7 @@
 // Z80 PIO board (sys1pio), ROT0, full 256 px visarea. The scrolling
 // playfield fills x 0..255 and the ship flies across it: the window stays
 // centered at 8, cropping 8 px per side. FIRE is BUTTON1, START BUTTON2.
-// 315-5162 (segacrp2): romconv decrypts; the opcode image stays PLAIN in
-// flash (Arena total 218656 > 201500).
+// 315-5162 (segacrp2): romconv decrypts into a separate opcode image.
 static const system1_video::Window FOURDWARRIO_WINDOW = {8, 8, system1_video::NO_PLAYER, 0, 0};
 
 fourdwarrio::fourdwarrio() : system1(Roms{

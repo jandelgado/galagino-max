@@ -60,6 +60,7 @@ static void boot(void) {
     return;
   }
   Arena::init();
+  Arena::reserve(&_1943_arena_plan);
   machine = new _1943();
   machine->init(&input, frame_buffer, sprites, memory);
   machine->reset();

@@ -50,7 +50,7 @@ solomon::solomon()
     solomon_fg_tiles(solomon_fg_tiles_blob),
     solomon_bg_tiles(solomon_bg_tiles_blob),
     solomon_sprites(solomon_sprites_blob) {
-  // Unpack eagerly: bg -> block A, fg -> block B, audio -> A
+  // planned assets: unpack in the ctor, before the emulation task (D7)
   bg_tiles = solomon_bg_tiles.data();
   fg_tiles = solomon_fg_tiles.data();
   audio_rom = solomon_audio_rom.data();

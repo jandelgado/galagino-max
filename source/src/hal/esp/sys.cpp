@@ -62,8 +62,14 @@ void memDump() {
   heap_caps_print_heap_info(MALLOC_CAP_8BIT);
 }
 
-void *dmaAlloc(uint32_t bytes) {
-  return heap_caps_malloc(bytes, MALLOC_CAP_DMA);
+// MALLOC_CAP_DMA lands in the D/IRAM pool, outside the Arena's region, by
+// IDF 6.1's heap priorities, not by a documented guarantee: check the
+// HEAP_PROBE "after-buffers" dump after an IDF update. On the ESP32 all
+// internal 8-bit RAM is DMA capable, so the malloc fallback only serves
+// other chips.
+void *allocSpare(uint32_t bytes) {
+  void *p = heap_caps_malloc(bytes, MALLOC_CAP_DMA);
+  return p ? p : malloc(bytes);
 }
 
 // stdout is the IDF console (UART0 / USB, sdkconfig)

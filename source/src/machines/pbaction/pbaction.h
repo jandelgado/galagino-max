@@ -3,6 +3,7 @@
 
 #include "pbaction_dipswitches.h"
 #include "pbaction_logo.h"
+#include "pbaction_arena_plan.h"
 #include "../tileaddr.h"
 #include "../machineBase.h"
 #include "../../emulation/ay8910.h"
@@ -47,12 +48,13 @@
 class pbaction : public machineBase
 {
 protected:
-  // ROM assets, unpacked into the Arena on first data()
-  Asset<unsigned char, COMPRESSED> pbaction_audio_rom;
-  Asset<uint32_t[8], COMPRESSED> pbaction_bg_tiles;          // 8 px per word, pixel i in bits 4*i
-  Asset<unsigned char[8][8], COMPRESSED> pbaction_fg_tiles;
-  Asset<unsigned char, PLAIN> pbaction_main_rom;  // compresses worst: flash
-  Asset<uint32_t[16][2], COMPRESSED> pbaction_sprites16; // same packing, also the 32x32 sprites
+  // ROM assets: flash or Arena block per layout in pbaction_arena_plan.h
+  // (romconv), unpacked in the ctor
+  pbaction_audio_rom_asset pbaction_audio_rom;
+  pbaction_bg_tiles_asset pbaction_bg_tiles;        // 8 px per word, pixel i in bits 4*i
+  pbaction_fg_tiles_asset pbaction_fg_tiles;
+  pbaction_main_rom_asset pbaction_main_rom;
+  pbaction_sprites16_asset pbaction_sprites16;      // same packing, also the 32x32 sprites
 public:
   pbaction();
 

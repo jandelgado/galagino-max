@@ -36,14 +36,14 @@ def _inner_elements(inner_dims: str) -> int:
 
 
 def _register(f: HeaderWriter, dir: str, name: str, ctype: str, inner_dims: str, count: int, mode: str,
-              raw: bytes, packed: bytes, hint: str | None) -> None:
+              raw: bytes, packed: bytes) -> None:
     lz64 = None if mode == "COMPRESSED" else lzma_compress(raw, PLAIN_DICT_BYTES)
     f.manifest.add(Asset(dir=dir, name=name, ctype=ctype, inner=inner_dims, count=count, mode=mode,
-                         raw=raw, packed=packed, lz64=lz64, hint=hint))
+                         raw=raw, packed=packed, lz64=lz64))
 
 
 def _remote_open(f: HeaderWriter, rdir: str, name: str, ctype: str, inner_dims: str, count: int,
-                 mode: str, raw: bytes, packed: bytes, hint: str | None) -> None:
+                 mode: str, raw: bytes, packed: bytes) -> None:
     """Remote blob(s) and the #else of the built-in form; mode PLANNED: both
     blobs behind <name>_PLAIN from the arena plan header. Registers the asset."""
     t = f"{ctype}{inner_dims}"
@@ -58,7 +58,7 @@ def _remote_open(f: HeaderWriter, rdir: str, name: str, ctype: str, inner_dims: 
     else:
         print(plain if mode == "PLAIN" else comp, file=f)
     print("#else", file=f)
-    _register(f, rdir, name, ctype, inner_dims, count, mode, raw, packed, hint)
+    _register(f, rdir, name, ctype, inner_dims, count, mode, raw, packed)
 
 
 def _remote_close(f: HeaderWriter, rdir: str | None) -> None:
@@ -67,21 +67,21 @@ def _remote_close(f: HeaderWriter, rdir: str | None) -> None:
 
 
 def _emit_planned(f: HeaderWriter, game: str, name: str, ctype: str, inner_dims: str, count: int,
-                  raw: bytes, array_body: str, hint: str, rdir: str | None) -> None:
+                  raw: bytes, array_body: str, rdir: str | None) -> None:
     """Both forms, picked by <name>_PLAIN from <game>_arena_plan.h
-    (plan.arena, also defines <name>_asset), plus the marker the plan
-    reads. hint: the converter's own mode, the tie-break."""
+    (plan.arena, also defines <name>_asset), plus a marker line (name, raw
+    bytes, element width, type) for reading the header."""
     packed = lzma_compress(raw)
     ratio = 100.0 * (1.0 - len(packed) / len(raw)) if raw else 0.0
     t = f"{ctype}{inner_dims}"
     print('#include "../../emulation/asset.h"', file=f)
     print(f'#include "{game}_arena_plan.h"', file=f)
-    print(f"// arena-asset {name} {len(raw)} {WIDTH[ctype]} {hint} {t}", file=f)
+    print(f"// arena-asset {name} {len(raw)} {WIDTH[ctype]} {t}", file=f)
     if rdir:
-        _remote_open(f, rdir, name, ctype, inner_dims, count, "PLANNED", raw, packed, hint)
+        _remote_open(f, rdir, name, ctype, inner_dims, count, "PLANNED", raw, packed)
     else:
         # no remote form (shared dir), but the arena plan needs every planned asset
-        _register(f, f.machine, name, ctype, inner_dims, count, "PLANNED", raw, packed, hint)
+        _register(f, f.machine, name, ctype, inner_dims, count, "PLANNED", raw, packed)
     print(f"#if {name}_PLAIN", file=f)
     # aligned like an Arena copy: readers may load wider words (marble_tables)
     print(f"alignas(4) static const {ctype} {name}_data[]{inner_dims} = {{\n{array_body}\n}};", file=f)
@@ -106,15 +106,14 @@ def emit_compressed(f: HeaderWriter, name: str, ctype: str, inner_dims: str, cou
     rdir = f.remote_dir if remote else None
     game = f.plan_game if plan else None
     if game:
-        _emit_planned(f, game, name, ctype, inner_dims, count, raw, flat_body(ctype, flat_values),
-                      "COMPRESSED", rdir)
+        _emit_planned(f, game, name, ctype, inner_dims, count, raw, flat_body(ctype, flat_values), rdir)
         return
     packed = lzma_compress(raw)
     ratio = 100.0 * (1.0 - len(packed) / len(raw)) if raw else 0.0
 
     print('#include "../../emulation/asset.h"', file=f)
     if rdir:
-        _remote_open(f, rdir, name, ctype, inner_dims, count, "COMPRESSED", raw, packed, None)
+        _remote_open(f, rdir, name, ctype, inner_dims, count, "COMPRESSED", raw, packed)
     print(f"// {name}: {len(raw)} -> {len(packed)} bytes ({ratio:.1f}% smaller)", file=f)
     print(f"static const unsigned char {name}_packed[] = {{\n  " + hex_block(packed) + "\n};", file=f)
     print(f"static constexpr FlashAsset<{ctype}{inner_dims}, COMPRESSED> {name}_blob = {{ {name}_packed, sizeof({name}_packed), {count} }};", file=f)
@@ -133,13 +132,13 @@ def emit_plain(f: HeaderWriter, name: str, ctype: str, inner_dims: str, count: i
     game = f.plan_game if plan else None
     if game:
         values = body_values(array_body, count * _inner_elements(inner_dims))
-        _emit_planned(f, game, name, ctype, inner_dims, count, raw_bytes(ctype, values), array_body, "PLAIN", rdir)
+        _emit_planned(f, game, name, ctype, inner_dims, count, raw_bytes(ctype, values), array_body, rdir)
         return
     print('#include "../../emulation/asset.h"', file=f)
     if rdir:
         # count is not always the byte count (ADPCM: samples), so take all values
         raw = raw_bytes(ctype, body_values(array_body))
-        _remote_open(f, rdir, name, ctype, inner_dims, count, "PLAIN", raw, lzma_compress(raw), None)
+        _remote_open(f, rdir, name, ctype, inner_dims, count, "PLAIN", raw, lzma_compress(raw))
     print(f"static const {ctype} {name}_data[]{inner_dims} = {{\n{array_body}\n}};", file=f)
     print(f"static constexpr FlashAsset<{ctype}{inner_dims}, PLAIN> {name}_blob = {{ {name}_data, {count} }};", file=f)
     _remote_close(f, rdir)

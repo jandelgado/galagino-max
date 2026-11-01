@@ -185,11 +185,8 @@ def _resample_to_8bit(wav_file, rate):
     return np.clip(np.round(resampled * scale), -128, 127).astype(np.int8)
 
 def _write_samples(ctx):
-    # PLAIN/flash-resident, not Asset<COMPRESSED>: the existing gfx assets
-    # already fill Arena to ~17KB spare (see ARENA BUDGET note in
-    # zaxxon_rom_main.h), and up to 12 of these can play concurrently, so
-    # heap-decompressing even one (let alone several at once) doesn't fit --
-    # same tradeoff as zaxxon_tilemap.h. Encoded as 4-bit IMA-ADPCM (see
+    # PLAIN and unplanned (plan=False): up to 12 of these play concurrently
+    # and the Arena has no room for them. Encoded as 4-bit IMA-ADPCM (see
     # romconv/romconv/gfx/adpcm.py), decoded inline per-sample by
     # Audio::zaxxon_render_buffer (ima_adpcm_decode in audio.cpp) -- halves
     # flash usage vs raw 8-bit PCM with no heap/RAM cost.
@@ -205,9 +202,8 @@ def _write_samples(ctx):
             print(f"// {comment} (zaxxon-audio.zip:{wav_name}), resampled at", file=f)
             print(f"// {rate} Hz and encoded as 4-bit IMA-ADPCM: a 2-byte", file=f)
             print("// little-endian initial predictor followed by one nibble per", file=f)
-            print("// remaining sample. PLAIN/flash-resident: see ARENA BUDGET note in", file=f)
-            print("// zaxxon_rom_main.h -- up to 12 of these play concurrently and Arena", file=f)
-            print("// has no headroom left for heap decompression; the Asset count", file=f)
+            print("// remaining sample. PLAIN and unplanned: up to 12 of these play", file=f)
+            print("// concurrently and the Arena has no room for them; the Asset count", file=f)
             print("// below is the decoded sample count, not the encoded byte count.", file=f)
             print(f"// {len(samples8)} samples ({len(samples8)/rate:.3f}s)", file=f)
             # never planned: count is samples, zaxxon_sound.cpp reads the PLAIN blobs
@@ -232,7 +228,6 @@ def _write_char_tiles(ctx, prefix, tiles):
         print("// Zaxxon foreground char set (gfx_tx). 256 tile 8x8 2bpp", file=f)
         print("// (pixel values 0-3). Color group comes from the prom_fgsel", file=f)
         print(f"// lookup table ({prefix}_fgcolor_codes), not from tile data.", file=f)
-        print(f"// PLAIN/flash-resident: see ARENA BUDGET note in {prefix}_rom_main.h.", file=f)
         body = ",\n".join("{" + ",".join("{" + ",".join(str(v) for v in t[y]) + "}" for y in range(8)) + "}"
                            for t in tiles)
         emit_plain(f, f"{prefix}_chartiles", "unsigned char", "[8][8]", len(tiles), body)
@@ -248,9 +243,7 @@ def _write_bg_tiles(ctx, prefix, tiles):
 def _write_sprite_tiles(ctx, prefix, tiles):
     with ctx.header(f"{prefix}_spritetiles.h") as f:
         print("// Zaxxon sprites (gfx_spr). 64 sprite 32x32 3bpp (pixel", file=f)
-        print("// values 0-7). COMPRESSED: see ARENA BUDGET note in", file=f)
-        print(f"// {prefix}_rom_main.h -- this is one of the two 65536-byte", file=f)
-        print("// assets that must each anchor its own Arena block.", file=f)
+        print("// values 0-7).", file=f)
         flat = [v for t in tiles for y in range(32) for v in t[y]]
         emit_compressed(f, f"{prefix}_spritetiles", "unsigned char", "[32][32]", len(tiles), flat)
 
@@ -265,7 +258,6 @@ def _write_tilemap(ctx, prefix, tile_code, tile_color):
         print("// tilemap (16384 cells, row-major, TILEMAP_SCAN_ROWS order).", file=f)
         print(f"// tile_code indexes {prefix}_bgtiles (0-1023); tile_color is", file=f)
         print("// the 4-bit bg color group (0-15).", file=f)
-        print(f"// Both COMPRESSED. See ARENA BUDGET note in {prefix}_rom_main.h.", file=f)
         emit_compressed(f, f"{prefix}_tilemap_code", "unsigned short", "", len(tile_code), list(tile_code))
         emit_compressed(f, f"{prefix}_tilemap_color", "unsigned char", "", len(tile_color), list(tile_color))
 
@@ -303,22 +295,9 @@ def _convert_set(ctx: Context, prefix: str, files, rom_title: str, crypt=None) -
   _write_rom(ctx, f"{prefix}_rom_main.h", f"{prefix}_rom_main", maincpu,
             f"{rom_title}\n"
             "\n"
-            "ARENA BUDGET (see arena.h): every COMPRESSED asset this machine\n"
-            "uses stays resident for the machine's whole lifetime, so they all\n"
-            "have to bin-pack into Arena's two blocks (91000, 110500) at once.\n"
-            f"This ROM and {prefix}_chartiles are PLAIN (flash): they gain least\n"
-            "from compression (20480 -> ~14000, 16384 -> ~1250), so the Arena\n"
-            f"holds {prefix}_tilemap_code (32768 -> ~3500) instead.\n"
-            "\n"
-            "zaxxon::zaxxon() unpacks every COMPRESSED asset eagerly, largest\n"
-            "first: Arena fills block A before B, so access order is\n"
-            "placement order:\n"
-            f"  {prefix}_bgtiles        (65536) -> A (A: 65536)\n"
-            f"  {prefix}_spritetiles    (65536) -> B (B: 65536)\n"
-            f"  {prefix}_tilemap_code   (32768) -> B (B: 98304)\n"
-            f"  {prefix}_tilemap_color  (16384) -> A (A: 81920)\n"
-            f"  {prefix}_palette          (512) -> A (A: 82432)\n"
-            f"  {prefix}_fgcolor_codes    (256) -> A (A: 82688)")
+            f"Flash or Arena block per layout: {prefix}_arena_plan.h (romconv plan).\n"
+            "zaxxon::zaxxon() takes data() of every planned asset, so unpacks\n"
+            "finish before the emulation task spawns.")
 
   # ---- gfx_tx: chars, 2bpp planar 8x8 ----
   char_tiles = decode_char_tiles(roms["gfx_tx_1"] + roms["gfx_tx_2"])

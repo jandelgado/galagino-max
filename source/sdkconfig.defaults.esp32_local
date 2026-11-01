@@ -1,0 +1,6 @@
+# esp32_local layout (platformio.ini [arena]), added to SDKCONFIG_DEFAULTS by
+# extraScript.py: Arena block A 126976 needs the main task stack at 4096
+# (frame loop, 1184 B used over all games) and the idle stacks at 1024
+# (536 B used); measured 2026-10-27 with a HEAP_PROBE sweep.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=4096
+CONFIG_FREERTOS_IDLE_TASK_STACKSIZE=1024

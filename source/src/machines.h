@@ -1155,7 +1155,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     pbaction::menuLeds,
 #endif
-    MCH_PBACTION, nullptr BUNDLE_REF(pbaction_bundle_ref) },
+    MCH_PBACTION, &pbaction_arena_plan BUNDLE_REF(pbaction_bundle_ref) },
 #endif
 #ifdef GAME_MOTORACE
   { createMachine<motorace>, motorace::logo,
@@ -1316,7 +1316,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     solomon::menuLeds,
 #endif
-    MCH_SOLOMON, nullptr BUNDLE_REF(solomon_bundle_ref) },
+    MCH_SOLOMON, &solomon_arena_plan BUNDLE_REF(solomon_bundle_ref) },
 #endif
 #ifdef GAME_STARWARS
   { createMachine<starwars>, starwars::logo,
@@ -1442,7 +1442,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     contra::menuLeds,
 #endif
-    MCH_CONTRA, nullptr BUNDLE_REF(contra_bundle_ref) },
+    MCH_CONTRA, &contra_arena_plan BUNDLE_REF(contra_bundle_ref) },
 #endif
 #ifdef GAME_QBERT
   { createMachine<qbert>, qbert::logo,
@@ -1519,7 +1519,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     _1943::menuLeds,
 #endif
-    MCH_1943, nullptr BUNDLE_REF(_1943_bundle_ref) },
+    MCH_1943, &_1943_arena_plan BUNDLE_REF(_1943_bundle_ref) },
 #endif
 #ifdef GAME_CBDASH
   { createMachine<cbdash>, cbdash::logo,

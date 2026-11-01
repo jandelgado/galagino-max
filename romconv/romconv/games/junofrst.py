@@ -60,7 +60,7 @@ def _convert(ctx: Context) -> None:
 
     sizes = {name: len(data) for name, data in assets}
     sizes["junofrst_pens"] = 2 * len(pens)
-    log_sizes(ctx, sizes, 201500)
+    log_sizes(ctx, sizes)
 
 
 JOB = Job(name="junofrst", convert=_convert, machine="junofrst", zips=("junofrst.zip",))

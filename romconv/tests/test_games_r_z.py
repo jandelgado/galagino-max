@@ -28,7 +28,7 @@ def _ctx(job, paths, log):
 def test_job_shapes():
     jobs = {j.name: j for j in JOBS}
     assert len(jobs) == 17
-    assert {n for n, j in jobs.items() if j.plan} == {"scregg", "zaxxon", "szaxxon"}
+    assert {n for n, j in jobs.items() if j.plan} == {"scregg", "solomon", "zaxxon", "szaxxon"}
     assert jobs["roadfighter"].zips == ("roadf2.zip",)
     assert jobs["zaxxon"].zips == ("zaxxon.zip", "zaxxon-audio.zip")
     assert jobs["szaxxon"].zips == ("szaxxon.zip",)

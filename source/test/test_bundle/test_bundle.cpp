@@ -106,7 +106,11 @@ static void test_unmount(void) {
 #if __has_include("../../src/machines/1943/1943_bundle.h")
 #include "../test_asset_remote/lzma.c"
 #include "../../src/net/bundle_unpack.cpp"
+// the bundle header selects its BundleRef by Arena layout; the native env
+// builds with esp32_local, this test reads the esp32_remote bundle
+#define ARENA_LAYOUT_ESP32_REMOTE
 #include "../../src/machines/1943/1943_bundle.h"
+#undef ARENA_LAYOUT_ESP32_REMOTE  // only that header selects by it
 #include "../../src/machines/1943/1943_rom.h"
 #include "../../src/machines/1943/1943_sound.h"
 #include "../../src/machines/1943/1943_bg1.h"
@@ -162,8 +166,11 @@ static void test_real_1943_bundle(void) {
   TEST_ASSERT_EQUAL_UINT32(_1943_bundle.entryLength, entry.size());
 
   TEST_ASSERT_TRUE(Bundle::mount(entry.data(), entry.size()));
-  expectAsset("_1943_rom", Bundle::FLAG_RAW, _1943_rom_data, sizeof(_1943_rom_data));
-  expectAsset("_1943_sound", Bundle::FLAG_RAW, _1943_sound_data, sizeof(_1943_sound_data));
+  // planned chunks: a form the esp32_remote bundle and the native (esp32_local)
+  // header share; the sound ROM has none (RAW in the bundle, packed here)
+  expectAsset("_1943_rom_fixed", Bundle::FLAG_RAW, _1943_rom_fixed_data, sizeof(_1943_rom_fixed_data));
+  expectAsset("_1943_rom_p03", Bundle::FLAG_PACKED, _1943_rom_p03_packed, sizeof(_1943_rom_p03_packed));
+  expectAsset("_1943_rom_p47", Bundle::FLAG_RAW, _1943_rom_p47_data, sizeof(_1943_rom_p47_data));
   expectAsset("_1943_bg1", Bundle::FLAG_RAW, _1943_bg1_data, sizeof(_1943_bg1_data));
   expectAsset("_1943_sprites", Bundle::FLAG_RAW, _1943_sprites_data, sizeof(_1943_sprites_data));
   expectAsset("_1943_chars", Bundle::FLAG_PACKED, _1943_chars_packed, sizeof(_1943_chars_packed));

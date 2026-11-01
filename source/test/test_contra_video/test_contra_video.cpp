@@ -60,6 +60,7 @@ static void boot(void) {
     return;
   }
   Arena::init();
+  Arena::reserve(&contra_arena_plan);
   machine = new contra();
   machine->init(&input, frame_buffer, sprites, memory);
   machine->reset();

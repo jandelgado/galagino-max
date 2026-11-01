@@ -40,7 +40,7 @@ void memDump() {
   printf("heap free %u\n", (unsigned)m.free);
 }
 
-void *dmaAlloc(uint32_t bytes) { return malloc(bytes); }
+void *allocSpare(uint32_t bytes) { return malloc(bytes); }
 
 void consoleInit() {
   stdio_init_all();

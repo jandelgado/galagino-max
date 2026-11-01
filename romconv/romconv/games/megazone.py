@@ -88,7 +88,7 @@ def _convert(ctx: Context) -> None:
 
     sizes = {"main": len(main), "sound": len(sound), "i8039": len(i8039), "chars": _CHAR_COUNT * 32,
              "sprites": _SPRITE_COUNT * 128, "rgb": 64, "lut": 512}
-    log_sizes(ctx, sizes, 201500)
+    log_sizes(ctx, sizes)
 
 
 JOB = Job(name="megazone", convert=_convert, machine="megazone", zips=("megazone.zip",))

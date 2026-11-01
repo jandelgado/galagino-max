@@ -11,6 +11,6 @@ export FREERTOS_KERNEL_PATH=${FREERTOS_KERNEL_PATH:-$HOME/src/external/pico-deps
 out=$here/build/$game${CLOCK_KHZ:+-$CLOCK_KHZ}
 mkdir -p "$out"
 python3 "$here/../../tools/pio_to_cmake.py" azdelivery-local --only "$game" --hal rp2350 --no-net \
-  --define DEBUG_TIMING ${CLOCK_KHZ:+--define GALAGINO_CLOCK_KHZ=$CLOCK_KHZ} > "$out/galagino.cmake"
+  --layout rp2350 --define DEBUG_TIMING ${CLOCK_KHZ:+--define GALAGINO_CLOCK_KHZ=$CLOCK_KHZ} > "$out/galagino.cmake"
 cmake -S "$here" -B "$out" -G Ninja -DGALAGINO_CMAKE="$out/galagino.cmake" "$@"
 cmake --build "$out" -- -k 0

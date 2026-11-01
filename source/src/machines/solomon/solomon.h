@@ -1,6 +1,7 @@
 #ifndef SOLOMON_H
 #define SOLOMON_H
 
+#include "solomon_arena_plan.h"
 #include "../machineBase.h"
 #include "../../emulation/ay8910.h"
 #include "../../emulation/seqlock.h"
@@ -35,12 +36,13 @@ static_assert(SOL_MEM_END <= RAMSIZE, "solomon RAM does not fit");
 
 class solomon : public machineBase
 {
-  // ROM assets: COMPRESSED ones unpacked eagerly in the ctor, bg first
-  Asset<unsigned char, PLAIN> solomon_main_rom;
-  Asset<unsigned char, COMPRESSED> solomon_audio_rom;
-  Asset<uint32_t[8], COMPRESSED> solomon_fg_tiles;
-  Asset<uint32_t[8], COMPRESSED> solomon_bg_tiles;
-  Asset<uint32_t[16][2], PLAIN> solomon_sprites;
+  // ROM assets: flash or Arena block per layout in solomon_arena_plan.h
+  // (romconv), unpacked in the ctor
+  solomon_main_rom_asset solomon_main_rom;
+  solomon_audio_rom_asset solomon_audio_rom;
+  solomon_fg_tiles_asset solomon_fg_tiles;
+  solomon_bg_tiles_asset solomon_bg_tiles;
+  solomon_sprites_asset solomon_sprites;
 
 public:
   solomon();

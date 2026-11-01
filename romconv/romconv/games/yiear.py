@@ -6,7 +6,6 @@ from romconv.gfx.bits import BIT
 from romconv.gfx.color import rgb565_swapped
 from romconv.gfx.gfxutil import mame_decode, pack_nibbles, pack_sprite_rows, step
 from romconv.gfx.rom import rom_bytes, rom_bytes_all
-from romconv.plan import layout
 from romconv.plan.budget import log_sizes
 
 
@@ -68,7 +67,6 @@ def _write_palette(ctx, pal):
 
 
 def _convert(ctx: Context) -> None:
-    arena_capacity = sum(layout.read_layouts(layout.header_path(ctx.paths))["local"])
     rom = rom_bytes_all(ctx, _MAIN)
     vlm = rom_bytes(ctx, _VLM)
     tiles = _decode_tiles(rom_bytes_all(ctx, _TILES))
@@ -83,8 +81,7 @@ def _convert(ctx: Context) -> None:
                 __file__)
     _write_palette(ctx, _palette(rom_bytes(ctx, _PROM)))
 
-    log_sizes(ctx, {"rom": len(rom), "vlm": len(vlm), "tilemap": len(tiles) * 4, "spritemap": len(sprites) * 4},
-              arena_capacity)
+    log_sizes(ctx, {"rom": len(rom), "vlm": len(vlm), "tilemap": len(tiles) * 4, "spritemap": len(sprites) * 4})
 
 
 JOB = Job(name="yiear", convert=_convert, machine="yiear", zips=("yiear.zip",))

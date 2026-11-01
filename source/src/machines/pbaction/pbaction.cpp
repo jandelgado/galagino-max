@@ -12,10 +12,12 @@ pbaction::pbaction()
     pbaction_fg_tiles(pbaction_fg_tiles_blob),
     pbaction_main_rom(pbaction_main_rom_blob),
     pbaction_sprites16(pbaction_sprites16_blob) {
+	// planned assets: every unpack here, before the emulation task (D7)
 	pbaction_bg_tiles.data();
 	pbaction_fg_tiles.data();
 	pbaction_sprites16.data();
 	pbaction_audio_rom.data();
+	pbaction_main_rom.data();
 }
 
 // ===========================================================================

@@ -13,6 +13,7 @@ from romconv.core.context import Context
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
 from romconv.gfx.color import rgb565_swapped
+from romconv.plan.budget import check_budget
 
 _MAIN = (("01p_a1.bin", "e397d283e8b8e1c512495b777c0fe16f66bb1862"),
          ("01n_a2.bin", "f7b0c7466cd6a3854eda818c63663e3559dc7bc2"),
@@ -90,7 +91,7 @@ def _convert(ctx: Context) -> None:
         f.write("};\n")
 
     resident = len(main) + len(slave) + 4 * (len(tiles) + len(sprites))
-    ctx.log.info(f"docastle resident compressed assets: {resident} bytes (limit 182000)")
+    check_budget(ctx, resident)
 
 
 JOB = Job(name="docastle", convert=_convert, machine="docastle", zips=("docastle.zip",), plan=True)

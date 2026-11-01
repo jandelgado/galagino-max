@@ -19,9 +19,9 @@
 //   native y' (0..223)  -> panel line 32 + y'
 class gng : public machineBase {
 protected:
-  // ROM assets: Arena residents unpacked in the ctor (largest first, to
-  // fit Arena's two blocks). Main ROM and bg tiles stay in flash: the main
-  // ROM compresses worst of all, the bg tiles do not fit.
+  // ROM assets: flash or Arena block per layout in gng_arena_plan.h (romconv
+  // plans it by flash bytes); the ctor takes data() of each, so every unpack
+  // finishes before the emulation task spawns.
   gng_rom_asset gng_rom;
   gng_sprites0_asset gng_sprites0;
   gng_sprites1_asset gng_sprites1;

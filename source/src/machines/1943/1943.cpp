@@ -71,11 +71,12 @@ _1943::_1943()
     _1943_cmap_bg2(_1943_cmap_bg2_blob),
     _1943_cmap_sprites(_1943_cmap_sprites_blob),
     _1943_pen_masks(_1943_pen_masks_blob),
-    _1943_rom(_1943_rom_blob),
+    _1943_rom_fixed(_1943_rom_fixed_blob),
+    _1943_rom_p03(_1943_rom_p03_blob),
+    _1943_rom_p47(_1943_rom_p47_blob),
     _1943_sound(_1943_sound_blob),
     _1943_bg1(_1943_bg1_blob),
     _1943_sprites(_1943_sprites_blob) {
-  // this order only (first fit): A tilemap, B bg2 and chars, A color maps
   tilemap = _1943_tilemap.data();
   bg2_tiles = _1943_bg2.data();
   chars = _1943_chars.data();
@@ -85,7 +86,11 @@ _1943::_1943()
   cmap_sprites = _1943_cmap_sprites.data();
   bg1_clear = _1943_pen_masks.data()[0];
   spr_behind = _1943_pen_masks.data()[1];
-  rom = _1943_rom.data();
+  rom_fixed = _1943_rom_fixed.data();
+  const uint8_t *p03 = _1943_rom_p03.data(), *p47 = _1943_rom_p47.data();
+  for (uint8_t b = 0; b < ROM_PAGES; b++) {
+    rom_page[b] = (b < ROM_PAGES / 2 ? p03 : p47) + (b % (ROM_PAGES / 2)) * BANK_SIZE;
+  }
   sound_rom = _1943_sound.data();
   bg1_tiles = _1943_bg1.data();
   sprite_gfx = _1943_sprites.data();
@@ -125,11 +130,10 @@ unsigned char _1943::rdZ80(unsigned short Addr) {
     return rdSound(Addr);
   }
   if (Addr < ROM_END) {
-    return rom[Addr];
+    return rom_fixed[Addr];
   }
   if (Addr < BANK_END) {
-    const uint8_t bank = (c804 >> C804_BANK_SHIFT) & C804_BANK_MASK;
-    return rom[ROM_END + bank * BANK_SIZE + Addr - ROM_END];
+    return rom_page[(c804 >> C804_BANK_SHIFT) & C804_BANK_MASK][Addr - ROM_END];
   }
   if (Addr >= 0xe000) {
     return memory[RAM + Addr - 0xe000];
