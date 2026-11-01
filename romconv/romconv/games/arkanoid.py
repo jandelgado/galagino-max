@@ -6,6 +6,7 @@
 #   (panel column) in bits 31-28 - 4x. Sprites use the same tiles.
 # Palette: 512 RGB565 from 3 PROMs (MAME RGB_444_PROMS weights), pen = color * 8 + pixel.
 from romconv.core.context import Context
+from romconv.core.errors import ConversionError
 from romconv.core.job import Job
 from romconv.emit.asset import emit_compressed
 from romconv.gfx.color import prom_level_4bit, rgb565_swapped
@@ -23,7 +24,7 @@ def _pack(tile):
 
 def _convert(ctx: Context) -> None:
     # the tiles and their map share one block in every layout
-    arena_block = max(layout.min_blocks(layout.read_layouts(layout.ini_path(ctx.paths))))
+    arena_block = max(layout.min_blocks(layout.read_layouts(layout.config_path(ctx.paths))))
     main = (ctx.rom("arkangc/arkgc.1", "beb759cee68009a06824b755d2aa26d7d436b5b0") +
             ctx.rom("arkangc/arkgc.2", "731c9224616a338084edd6944c754d68eabba7f2"))[:_ROM_SIZE]
     gfx = (ctx.rom("a75__03.ic64", "ac053cc4908b4075f918748b89570e07a0ba5116") +
@@ -64,7 +65,8 @@ def _convert(ctx: Context) -> None:
     sizes = {"rom": len(main), "tiles": len(unique) * 32, "tile_map": _TILE_COUNT * 2, "rgb": _COLORS * 2}
     ctx.log.info(f"unique tiles {len(unique)} of {_TILE_COUNT}")
     log_sizes(ctx, sizes)
-    assert sizes["tiles"] + sizes["tile_map"] < arena_block   # one Arena block
+    if sizes["tiles"] + sizes["tile_map"] >= arena_block:   # one Arena block
+        raise ConversionError(f"arkanoid tiles exceed one Arena block ({arena_block} B)")
 
 
 JOB = Job(name="arkanoid", convert=_convert, machine="arkanoid", zips=("arkanoid.zip",))

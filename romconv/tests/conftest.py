@@ -31,8 +31,8 @@ def make_zip(paths):
 
 @pytest.fixture
 def arena_layout(paths):
-    """source/platformio.ini of the fake repo with [arena] (jobs that check the Arena blocks read it)."""
-    ini = paths.repo / "source" / "platformio.ini"
+    """source/firmware.toml of the fake repo with [arena] (jobs that check the Arena blocks read it)."""
+    ini = paths.repo / "source" / "firmware.toml"
     ini.parent.mkdir(parents=True, exist_ok=True)
-    ini.write_text("[arena]\nesp32_local = 91000 110500\nesp32_remote = 60000 110500\n")
+    ini.write_text("[arena]\nesp32_local = [91000, 110500]\nesp32_remote = [60000, 110500]\n")
     return ini

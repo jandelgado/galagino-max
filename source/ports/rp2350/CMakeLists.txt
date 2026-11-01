@@ -27,7 +27,7 @@ set(CMAKE_CXX_STANDARD 17)
 pico_sdk_init()
 
 if(NOT GALAGINO_CMAKE)
-  message(FATAL_ERROR "pass -DGALAGINO_CMAKE=<file from tools/pio_to_cmake.py> (see build.sh)")
+  message(FATAL_ERROR "pass -DGALAGINO_CMAKE=<file from tools/config_to_cmake.py> (see build.sh)")
 endif()
 include(${GALAGINO_CMAKE})
 

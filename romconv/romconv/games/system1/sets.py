@@ -11,8 +11,9 @@ _RomRef = tuple[str, ...]
 @dataclass(frozen=True)
 class SetSpec:
     """One game. crypt: main CPU encryption (None: plain), key: MC-8123 key file, rot0: ROT0 tile
-    order, banked: main image past 0x8000 is 16 KB banks at 8000-bfff, color: PROMs of games without the fixed palette, mame_set: MAME set name
-    (dev checks), zip: zip name if not <game>.zip."""
+    order, banked: main image past 0x8000 is 16 KB banks at 8000-bfff, color: PROMs of games
+    without the fixed palette, mame_set: MAME set name (dev checks), zip: zip name if not
+    <game>.zip."""
 
     main: tuple[_RomRef, ...]
     sound: tuple[_RomRef, ...]
@@ -260,9 +261,6 @@ SETS = MappingProxyType({
         crypt="315-5135",
         rot0=True,
         banked=True,
-        # ~400 KB decoded: sprites (128K, read per sprite line), the 64K
-        # banked ROM and the opcode image (CPU reads via the flash cache)
-        # stay PLAIN; tiles (read per pixel row) fit the Arena
         main=(("epr-6790a.1", "63dde673bd875dd23d445b152decb1d70c3750a4"),
               ("epr-6789a.2", "07ef58ee2a5212e1e2800efc2bd48d2b2a9ed10d"),
               ("epr-6788a.3", "3236313d5d826873d58af5ad80652c8d0ae0cc31")),
@@ -287,8 +285,6 @@ SETS = MappingProxyType({
     "gardia": SetSpec(
         crypt="317-0006",
         banked=True,
-        # sprites (128K) and the opcode image stay PLAIN; the 64K banks fit
-        # the Arena (174 KB total) and pack to about half in flash
         main=(("epr-10255.1", "f19e345e5fae6a518276cc1bd09d1e2083672b25"),
               ("epr-10254.2", "de1faf33cca031b72052bf5244fcb0bd79d85659"),
               ("epr-10253.3", "44196f0a6c4c2b22a68609ddfc75be6a7877a69a")),
@@ -311,8 +307,6 @@ SETS = MappingProxyType({
     "choplift": SetSpec(
         rot0=True,
         banked=True,
-        # sprites (128K), tiles (4096 x 32 B, read per pixel row) and the
-        # 64K banked ROM stay PLAIN
         main=(("chopliftu/epr-7152.ic90", "307be38dd73ed37b275c1b464d266a752cb06132"),
               ("chopliftu/epr-7153.ic91", "0f4c6db9558272f5ceb347e742b284474f18b707"),
               ("chopliftu/epr-7154.ic92", "ad8ccf15fe7f1d6716f78490892da0167d79f678")),
@@ -335,8 +329,6 @@ SETS = MappingProxyType({
         crypt="mc8123",
         key=(("317-0040.key", "4fcf457279dac317ccf700591cfaa9a4cff81b4a"),),
         banked=True,
-        # sprites (128K), tiles (4096 x 32 B), the 64K banks and both opcode
-        # images (32K + 64K) stay PLAIN, as in choplift
         main=(("epr-10961.ic90", "65c3730d2255be5e09fda2f8eae1c7f3d245ce9b"),
               ("epr-10962.ic91", "591b1bd4ab694f45d472bb50483dadb980cd2f86"),
               ("epr-10963.ic92", "870dbd3558a4c3a47f36d3d3c0c71c647baacf10")),

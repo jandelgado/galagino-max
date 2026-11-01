@@ -1,4 +1,4 @@
-"""Which games fit a flash budget: the [games_max] pick as a MILP.
+"""Which games fit a flash budget: the [games] max pick as a MILP.
 
 Input is the reference graph of a firmware compiled with every game
 (dev/games_max.py reads it from the objects): a Section is one function or
