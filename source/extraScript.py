@@ -5,6 +5,8 @@ import sys
 Import("env")
 
 _SDKCONFIG_DEFAULTS = re.compile(r'-DSDKCONFIG_DEFAULTS="([^"]*)"')
+_SDKCONFIG_DIR = "pio/sdkconfigs"
+_SDKCONFIG_BASE = _SDKCONFIG_DIR + "/sdkconfig.defaults"
 
 sys.path.insert(0, os.path.join(env.subst("$PROJECT_DIR"), "tools"))
 import firmware_config  # noqa: E402
@@ -51,10 +53,11 @@ def _stale_values(want, generated_path):
 # A layout row may come with sdkconfig.defaults.<name> (the task stacks that
 # make its block sizes fit): appended to the build's SDKCONFIG_DEFAULTS. Keyed
 # on the layout, not the mode, so azdelivery-max and dev builds (GAMES=) get the
-# same memory map as the swept local build.
+# same memory map as the swept local build. Defaults live in pio/sdkconfigs/,
+# the generated sdkconfig in the env's build dir.
 def _sdkconfig_defaults(env, cfg):
     name = firmware_config.env(cfg, env.subst("$PIOENV"))["layout"]
-    extra = "sdkconfig.defaults." + name
+    extra = _SDKCONFIG_DIR + "/sdkconfig.defaults." + name
     project = env.subst("$PROJECT_DIR")
     own = _read_sdkconfig(os.path.join(project, extra))
 
@@ -63,27 +66,30 @@ def _sdkconfig_defaults(env, cfg):
     # cut stacks otherwise
     want = own
     if not own:
-        base = _read_sdkconfig(os.path.join(project, "sdkconfig.defaults"))
+        base = _read_sdkconfig(os.path.join(project, _SDKCONFIG_BASE))
         layouts = list(cfg["arena"])
-        keys = {k for layout in layouts for k in _read_sdkconfig(os.path.join(project, "sdkconfig.defaults." + layout))}
+        files = [os.path.join(project, _SDKCONFIG_DIR, "sdkconfig.defaults." + layout) for layout in layouts]
+        keys = {k for f in files for k in _read_sdkconfig(f)}
         want = {k: base[k] for k in keys if k in base}
 
-    # IDF applies the defaults only when it creates sdkconfig.<env>; a
+    # IDF applies the defaults only when it creates the sdkconfig; a
     # generated file from before the layout file (a pull, an edit) would
     # keep the old stacks and silently eat the Arena's margin
-    generated = "sdkconfig." + env.subst("$PIOENV")
-    stale = _stale_values(want, os.path.join(project, generated))
-    if stale:
-        sys.exit("extraScript: %s predates %s (%s): delete source/%s and build again"
-                 % (generated, extra if own else "sdkconfig.defaults", ", ".join(stale), generated))
-    if not own:
-        return
-
     board = env.BoardConfig()
+    generated = os.path.join(env.subst("$BUILD_DIR"), "sdkconfig")
+    board.update("build.esp-idf.sdkconfig_path", generated)
+    stale = _stale_values(want, generated)
+    if stale:
+        sys.exit("extraScript: %s predates %s (%s): delete it and build again"
+                 % (generated, extra if own else _SDKCONFIG_BASE, ", ".join(stale)))
+
+    # SDKCONFIG_DEFAULTS of the ini (16 MB boards) or the base file, then the layout's
     args = board.get("build.cmake_extra_args", "")
     m = _SDKCONFIG_DEFAULTS.search(args)
-    files = m.group(1).split(";") if m else ["sdkconfig.defaults"]
-    option = '-DSDKCONFIG_DEFAULTS="%s"' % ";".join(files + [extra])
+    files = m.group(1).split(";") if m else [_SDKCONFIG_BASE]
+    if own:
+        files.append(extra)
+    option = '-DSDKCONFIG_DEFAULTS="%s"' % ";".join(files)
     board.update("build.cmake_extra_args",
                  args[:m.start()] + option + args[m.end():] if m else (args + " " + option).strip())
 

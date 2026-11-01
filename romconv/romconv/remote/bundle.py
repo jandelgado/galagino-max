@@ -25,7 +25,7 @@ FLAG_LZMA = 2    # wire only: decoded into a RAW entry by the loader
 _ALIGN = 4        # uint32_t assets are read in place
 _MAX_ENTRIES = 64
 TAG_BYTES = 4096        # cache tag sector before each entry
-CACHE_BYTES = 0x100000  # assets partition (source/partitions-assets.csv)
+CACHE_BYTES = 0x100000  # assets partition (source/pio/partitions/partitions-assets.csv)
 
 
 def fnv1a(data: bytes) -> int:
