@@ -322,7 +322,6 @@ def test_resolve_pulls_deps_of_always_jobs():
 def test_catalog_games():
     games = read_games(default())
     assert len(games) >= 118, len(games)
-    assert "motorace" in games and not games["motorace"]
     assert {g for g, in_catalog in games.items() if in_catalog} == set(games) - EXCLUDED
     assert "1943" in games and games["1943"] and games["gng"]
     assert all(b in games for bases in BASES.values() for b in bases)
@@ -339,7 +338,6 @@ def test_catalog_h_text():
     # GAME_ compiled in, BUILTIN_ assets in the app
     text = catalog_h(read_games(default()))
     assert "#if defined(ENABLE_GNG) || defined(ASSETS_REMOTE)\n#define GAME_GNG\n#endif" in text
-    assert "#if defined(ENABLE_MOTORACE)\n#define GAME_MOTORACE\n#endif" in text
     m = re.search(r"#if (.*)\n#define BUILTIN_PACMAN\n", text)
     for g in ("pacman", "mspacman", "pengo", "alibaba", "crush", "eyes", "lizwiz", "mrtnt", "theglob"):
         assert f"defined(ENABLE_{g.upper()})" in m.group(1), (g, m.group(1))

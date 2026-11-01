@@ -16,7 +16,7 @@ from romconv.core.paths import Paths
 from romconv.emit.write import banner
 
 # broken or WiP, not in remote builds
-EXCLUDED = frozenset({"motorace"})
+EXCLUDED = frozenset()
 
 # catalog games without asset blobs (tables only): always built in
 NO_BLOBS = frozenset({"hero"})

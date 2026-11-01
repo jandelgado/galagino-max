@@ -503,6 +503,9 @@
 
 #ifdef GAME_MOTORACE
   #include "machines/motorace/motorace.h"
+  #ifdef ASSETS_REMOTE
+    #include "machines/motorace/motorace_bundle.h"
+  #endif
 #endif
 
 #ifdef GAME_ROADFIGHTER
@@ -1162,7 +1165,7 @@ constexpr machineInfo machines[] = {
 #ifdef LED_PIN
     machineBase::defaultMenuLeds,
 #endif
-    MCH_MOTORACE, nullptr BUNDLE_REF(nullptr) },
+    MCH_MOTORACE, nullptr BUNDLE_REF(motorace_bundle_ref) },
 #endif
 #ifdef GAME_ROADFIGHTER
   { createMachine<roadfighter>, roadfighter::logo,
