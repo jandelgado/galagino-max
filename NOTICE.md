@@ -10,6 +10,7 @@ The galagino source code is GPLv3 ([LICENSE](LICENSE)). Not everything in this r
   | `ym2203fm` (ymfm, Aaron Giles) | BSD-3-Clause |
   | `sid` (Rockbox TinySID) | GPL-2.0+ |
   | `cpus/i8048` (derived from [asig/kosmos-cp1](https://github.com/asig/kosmos-cp1)) | GPL-3.0 |
+  | `hal/rp2350` DVI/HDMI encoding (derived from [PicoPlus-devel/pico-galagino](https://github.com/PicoPlus-devel/pico-galagino)) | GPL-3.0 |
   | `cpus/i8086` (FabGL, 8086tiny) | MIT, [notice](source/src/cpus/i8086/LICENSE-8086tiny) |
   | Marble Madness logic ([Marble Love](https://github.com/magno73/marble-love)) | MIT, [notice](source/src/machines/marble/LICENSE-marble-love) |
   | `audio/codec_es8311` register setup (Espressif es8311 driver) | Apache-2.0 |

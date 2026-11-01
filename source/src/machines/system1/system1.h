@@ -146,6 +146,17 @@ private:
     uint8_t mode;
   };
 
+  // widest row of the sprite in a list slot: walking its rows reads the
+  // sprite ROM, so it is redone only when the slot's sprite changes
+  struct SpriteWidth {
+    uint16_t addr;
+    uint16_t stride;
+    int16_t top;
+    int16_t bottom;
+    uint8_t bank;
+    int16_t width;  // -1: not measured
+  };
+
   struct ActiveSprite {
     system1_video::Sprite s;
     uint8_t number;
@@ -174,6 +185,7 @@ private:
   void mixStrip(int strip);
   void renderRot0(int strip);
   int playerX() const;
+  int spriteWidth(int n, const system1_video::Sprite &s);
   int rowOf(int x) const;
   int xOf(int row) const;
   system1_video::LineSrc lineSrc() const;
@@ -212,6 +224,7 @@ private:
 
   Seqlock<VideoState> vblank;
   VideoState video = {};
+  SpriteWidth widths[system1_video::SPRITES];
   ActiveSprite active[system1_video::SPRITES];
   int activeCount = 0;
   uint32_t sprTiles[STRIP_LINES];  // per strip line: tile rows with sprite pens

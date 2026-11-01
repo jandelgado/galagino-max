@@ -46,18 +46,24 @@ signature. Portable code includes only `hal/hal.h` (and `hal_attr.h`). Backend s
   a buffer is free, else returns false (all or nothing); `flushSilence` fills every buffer.
 - Backend by define (selected in hal/audio.h, set by the board profile; build defines, not API):
   HAL_AUDIO_ESP_DAC, HAL_AUDIO_ES8311 (I2S stream; Audio::init sets up the codec over I2c first),
-  HAL_AUDIO_NULL; HAL_AUDIO_DVI reserved for the DVI backend. Combinations: config_check.h.
+  HAL_AUDIO_NULL, HAL_AUDIO_DVI (HDMI audio in the DVI stream, scanout clocked; DVI boards'
+  default, HAL_AUDIO_NULL gives plain silent DVI). Combinations: config_check.h.
 
 ## Video (`video.h`, not in `hal.h`)
-`hal::Video` is the backend class (`SpiTftVideo`, `NullVideo`, later a DVI backend). Strips are
+`hal::Video` is the backend class (`SpiTftVideo`, `DviHstxVideo`, `NullVideo`). Strips are
 240 x 8 RGB565 pixels in the order the machines render them (SPI byte order).
 - `void begin()`, `void setViewport(uint16_t width)` (224 or 240, every frame),
   `void flip(char flipY, char flipX)`, `void flipReset(char flipY, char flipX)`
 - `void setHalfRate(bool)`: the machine's preference, called every frame before `screenParts()`.
 - `uint8_t screenParts() const`: 1, or 2 when a screen takes two emulation frames.
-- `void submit(const uint16_t *strip, uint32_t pixels)`: may block.
+- `void submit(const uint16_t *strip, uint32_t pixels)`: may block. A screen is 36 strips, then
+  `endFrame()`: DVI drops strips past 36 until it (the remote loader skips it: ESP32 only).
 - `void endFrame(uint8_t part, uint32_t frameStartUs)`: after the last strip of a part; returns
-  when the next part may start (backend pacing: deadline sleep, or vsync wait).
+  when the next part may start (backend pacing: deadline sleep, or scanout position).
+- `CANVAS_W`, `CANVAS_H` (compile-time): game pixels the output can show (SPI TFT and null
+  240 x 320; DVI 640 x 480 at 1x, 320 x 320 at 2x).
+- `uint8_t stripIndex(uint8_t i) const`: strip to render as the i-th of a screen. Identity where
+  the panel flips (SPI TFT); DVI scans top to bottom, so a flipY machine renders strip `35 - i`.
 
 ## System (`sys.h`)
 - `struct SysInfo { chip, revision, cores, cpuMhz, flashBytes, sdkVersion }`, `void sysInfo(SysInfo&)`
@@ -100,6 +106,9 @@ Host: never starts.
 
 ## Attributes (`hal_attr.h`)
 - `HAL_FAST_CODE`, `HAL_FAST_DATA`, `HAL_RETAINED` (survives a reset), `PROGMEM` (empty)
+- `HAL_HOT_CODE`: RAM where both cores share one flash cache (RP2350), flash elsewhere (ESP32:
+  no IRAM cost). For code hot on one core that the other core's flash misses would evict.
+  `HAL_HOT_DATA`: its const tables, placed the same way.
 - RP2350 and host: no retained RAM yet, the retained attribute is empty there, so such a variable
   is zeroed at boot like any other.
 

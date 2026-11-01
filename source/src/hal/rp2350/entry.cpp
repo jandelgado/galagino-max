@@ -1,6 +1,7 @@
 // Program entry: the scheduler starts a main task on core 0 (the video core)
 // that runs the application loop.
 #ifdef HAL_RP2350
+#include "../../config.h"  // the board profile may set GALAGINO_CLOCK_KHZ
 #include "../entry.h"
 #include <FreeRTOS.h>
 #include <task.h>
@@ -30,6 +31,16 @@ extern "C" void vApplicationStackOverflowHook(TaskHandle_t, char *name) {
 
 extern "C" void hardFaultC(uint32_t *frame) {
   hal::crashReboot(hal::CRASH_FAULT, frame[6], frame[5]);  // pc, lr
+}
+
+// PICO_PANIC_FUNCTION (CMakeLists.txt): panic() pushed its caller's lr and
+// called this with the message in r0.
+extern "C" [[noreturn]] void galaginoPanicRecord(const char *fmt, uint32_t caller) {
+  hal::crashReboot(hal::CRASH_PANIC, caller, (uint32_t)fmt);
+}
+
+extern "C" __attribute__((naked, noreturn)) void galaginoPanic(const char *, ...) {
+  __asm volatile("ldr r1, [sp]\n b galaginoPanicRecord\n");
 }
 
 extern "C" __attribute__((naked)) void hardFault() {

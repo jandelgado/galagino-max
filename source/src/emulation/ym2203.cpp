@@ -1,11 +1,12 @@
 #include <string.h>
+#include "../hal/hal_attr.h"
 #include "ym2203.h"
 #include "ym2203fm.h"
 
 Ym2203::Ym2203(uint8_t ssg_inc, uint8_t ssg_gain, Ym2203Fm *fm)
     : fm(fm), ssg(ssg_inc, ssg_gain) {}
 
-void Ym2203::writeAddress(uint8_t a) {
+void HAL_HOT_CODE Ym2203::writeAddress(uint8_t a) {
   addr = a;
   // ymfm ym2203::write_address: $2d-$2f select the prescaler
   if (a == 0x2d) {
@@ -20,7 +21,7 @@ void Ym2203::writeAddress(uint8_t a) {
   }
 }
 
-void Ym2203::writeData(uint8_t value) {
+void HAL_HOT_CODE Ym2203::writeData(uint8_t value) {
   busy_left = 32u * pre;  // ymfm ym2203::write_data
   if (addr < Ay8910::REG_COUNT) {
     ssg_regs[addr] = value;
@@ -84,7 +85,7 @@ void Ym2203::writeMode(uint8_t value) {
   }
 }
 
-void Ym2203::tick(uint32_t cycles) {
+void HAL_HOT_CODE Ym2203::tick(uint32_t cycles) {
   clocks += cycles;
   busy_left = cycles < busy_left ? busy_left - cycles : 0;
   if (a_run) {

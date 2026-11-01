@@ -1,6 +1,7 @@
 #include "namco_wsg.h"
+#include "../hal/hal_attr.h"
 
-void NamcoWsg::render(const uint8_t *regs, const NamcoWave *waves, int16_t *out, int n) {
+void HAL_HOT_CODE NamcoWsg::render(const uint8_t *regs, const NamcoWave *waves, int16_t *out, int n) {
   const signed char *wave[VOICES];
   uint32_t freq[VOICES];
   uint8_t volume[VOICES];
@@ -26,7 +27,7 @@ void NamcoWsg::render(const uint8_t *regs, const NamcoWave *waves, int16_t *out,
   }
 }
 
-void Namco15xx::render(const uint8_t *regs, const NamcoWave *waves, bool enabled, int16_t *out, int n) {
+void HAL_HOT_CODE Namco15xx::render(const uint8_t *regs, const NamcoWave *waves, bool enabled, int16_t *out, int n) {
   const signed char *wave[VOICES];
   uint32_t freq[VOICES];
   uint8_t volume[VOICES];

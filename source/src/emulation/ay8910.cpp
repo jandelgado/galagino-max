@@ -1,9 +1,10 @@
 #include "ay8910.h"
+#include "../hal/hal_attr.h"
 
 Ay8910::Ay8910(uint8_t inc, uint8_t gain, uint8_t flags)
     : inc(inc), gain(gain), flags(flags), chanGain{gain, gain, gain} {}
 
-void Ay8910::render(const uint8_t *regs, int16_t *out, int n) {
+void HAL_HOT_CODE Ay8910::render(const uint8_t *regs, int16_t *out, int n) {
   for (int c = 0; c < TONES; c++) {
     period[c] = regs[2 * c] + 256 * (regs[2 * c + 1] & 0x0f);  // 12 bit
     enable[c] = (((regs[7] >> c) & 1) | ((regs[7] >> (c + 2)) & 2)) ^ 3;
@@ -100,7 +101,7 @@ void Ay8910::setLowpass(int ch, uint16_t hz) {
 
 // MAME: one step per 2 x period ticks of clock / 8 (AY8910 m_step = 2),
 // every tick for period 0
-void Ay8910::stepEnvelope(void) {
+void HAL_HOT_CODE Ay8910::stepEnvelope(void) {
   if (env_holding) {
     return;
   }

@@ -32,10 +32,28 @@ static void test_end_frame_returns_at_once(void) {
   TEST_ASSERT_EQUAL_UINT32(2, video.endFrames());
 }
 
+static void test_canvas(void) {
+  TEST_ASSERT_EQUAL_UINT16(240, hal::Video::CANVAS_W);
+  TEST_ASSERT_EQUAL_UINT16(320, hal::Video::CANVAS_H);
+}
+
+static void test_strip_index_identity(void) {
+  hal::Video video;
+  for (uint8_t i = 0; i < 36; i++) {
+    TEST_ASSERT_EQUAL_UINT8(i, video.stripIndex(i));
+  }
+  video.flip(1, 1);
+  for (uint8_t i = 0; i < 36; i++) {
+    TEST_ASSERT_EQUAL_UINT8(i, video.stripIndex(i));
+  }
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_counts_submitted_strips);
   RUN_TEST(test_screen_parts_follow_half_rate);
   RUN_TEST(test_end_frame_returns_at_once);
+  RUN_TEST(test_canvas);
+  RUN_TEST(test_strip_index_identity);
   return UNITY_END();
 }

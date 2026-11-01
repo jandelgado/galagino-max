@@ -1,4 +1,5 @@
 #include "ym2203fm.h"
+#include "../hal/hal_attr.h"
 
 #include <string.h>
 
@@ -17,7 +18,7 @@ static const uint16_t MARK = 0x0100;    // ring entry of writeMark()
 static const uint16_t MARK_LAG = 12;    // marks queued beyond this: catch up
 
 // abs_sin_attenuation: 4.8 log attenuation of 1/4 sine, from the die
-static const uint16_t SIN_TABLE[256] = {
+static const uint16_t HAL_HOT_DATA SIN_TABLE[256] = {
   0x859,0x6c3,0x607,0x58b,0x52e,0x4e4,0x4a6,0x471,0x443,0x41a,0x3f5,0x3d3,0x3b5,0x398,0x37e,0x365,
   0x34e,0x339,0x324,0x311,0x2ff,0x2ed,0x2dc,0x2cd,0x2bd,0x2af,0x2a0,0x293,0x286,0x279,0x26d,0x261,
   0x256,0x24b,0x240,0x236,0x22c,0x222,0x218,0x20f,0x206,0x1fd,0x1f5,0x1ec,0x1e4,0x1dc,0x1d4,0x1cd,
@@ -38,7 +39,7 @@ static const uint16_t SIN_TABLE[256] = {
 
 // attenuation_to_volume: 10-bit mantissas, implicit 0x400 bit, << 2, reversed
 #define X(a) (((a) | 0x400) << 2)
-static const uint16_t POWER_TABLE[256] = {
+static const uint16_t HAL_HOT_DATA POWER_TABLE[256] = {
   X(0x3fa),X(0x3f5),X(0x3ef),X(0x3ea),X(0x3e4),X(0x3df),X(0x3da),X(0x3d4),
   X(0x3cf),X(0x3c9),X(0x3c4),X(0x3bf),X(0x3b9),X(0x3b4),X(0x3ae),X(0x3a9),
   X(0x3a4),X(0x39f),X(0x399),X(0x394),X(0x38f),X(0x38a),X(0x384),X(0x37f),
@@ -75,7 +76,7 @@ static const uint16_t POWER_TABLE[256] = {
 #undef X
 
 // attenuation_increment: 4-bit steps per 6-bit rate and 3-bit index
-static const uint32_t INCREMENT_TABLE[64] = {
+static const uint32_t HAL_HOT_DATA INCREMENT_TABLE[64] = {
   0x00000000, 0x00000000, 0x10101010, 0x10101010, 0x10101010, 0x10101010, 0x11101110, 0x11101110,
   0x10101010, 0x10111010, 0x11101110, 0x11111110, 0x10101010, 0x10111010, 0x11101110, 0x11111110,
   0x10101010, 0x10111010, 0x11101110, 0x11111110, 0x10101010, 0x10111010, 0x11101110, 0x11111110,
@@ -87,7 +88,7 @@ static const uint32_t INCREMENT_TABLE[64] = {
 };
 
 // detune_adjustment per 5-bit keycode and detune & 3
-static const uint8_t DETUNE_TABLE[32][4] = {
+static const uint8_t HAL_HOT_DATA DETUNE_TABLE[32][4] = {
   { 0,  0,  1,  2 },  { 0,  0,  1,  2 },  { 0,  0,  1,  2 },  { 0,  0,  1,  2 },
   { 0,  1,  2,  2 },  { 0,  1,  2,  3 },  { 0,  1,  2,  3 },  { 0,  1,  2,  3 },
   { 0,  1,  2,  4 },  { 0,  1,  3,  4 },  { 0,  1,  3,  4 },  { 0,  1,  3,  5 },
@@ -102,7 +103,7 @@ static const uint8_t DETUNE_TABLE[32][4] = {
 // of op1..op3 also reach the output
 #define ALGORITHM(op2in, op3in, op4in, op1out, op2out, op3out) \
   ((op2in) | ((op3in) << 1) | ((op4in) << 4) | ((op1out) << 7) | ((op2out) << 8) | ((op3out) << 9))
-static const uint16_t ALGORITHM_OPS[8] = {
+static const uint16_t HAL_HOT_DATA ALGORITHM_OPS[8] = {
   ALGORITHM(1,2,3, 0,0,0), // 0: O1 -> O2 -> O3 -> O4 -> out (O4)
   ALGORITHM(0,5,3, 0,0,0), // 1: (O1 + O2) -> O3 -> O4 -> out (O4)
   ALGORITHM(0,2,6, 0,0,0), // 2: (O1 + (O2 -> O3)) -> O4 -> out (O4)
@@ -116,7 +117,7 @@ static const uint16_t ALGORITHM_OPS[8] = {
 
 // operator register offsets inside a channel: carrier 1, modulator 1,
 // carrier 2, modulator 2 (ymfm opn operator_map, bit-swapped)
-static const uint8_t OP_OFFSET[4] = {0, 8, 4, 12};
+static const uint8_t HAL_HOT_DATA OP_OFFSET[4] = {0, 8, 4, 12};
 
 static inline uint32_t bits(uint32_t v, int start, int count) {
   return (v >> start) & ((1u << count) - 1);
@@ -178,7 +179,7 @@ void Ym2203Fm::reset() {
   last = 0;
 }
 
-void Ym2203Fm::push(uint16_t entry) {
+void HAL_HOT_CODE Ym2203Fm::push(uint16_t entry) {
   const uint16_t h = head.load(std::memory_order_relaxed);
   const uint16_t next = (h + 1) % RING_SIZE;
   if (next == tail.load(std::memory_order_acquire)) {
@@ -189,19 +190,19 @@ void Ym2203Fm::push(uint16_t entry) {
   head.store(next, std::memory_order_release);
 }
 
-void Ym2203Fm::writeAddress(uint8_t addr) {
+void HAL_HOT_CODE Ym2203Fm::writeAddress(uint8_t addr) {
   if (addr >= 0x2d && addr <= 0x2f) {
     push((uint16_t)(addr - 0x20) << 8);
   }
 }
 
-void Ym2203Fm::writeData(uint8_t reg, uint8_t value) {
+void HAL_HOT_CODE Ym2203Fm::writeData(uint8_t reg, uint8_t value) {
   if (reg >= 0x10) {
     push((uint16_t)(reg << 8) | value);
   }
 }
 
-void Ym2203Fm::writeMark() {
+void HAL_HOT_CODE Ym2203Fm::writeMark() {
   const uint16_t dropped_before = dropped_;
   push(MARK);
   if (dropped_ == dropped_before) {
@@ -214,7 +215,7 @@ void Ym2203Fm::writeMark() {
 // milliseconds apart on the sound CPU but land between two FM ticks here;
 // prepare() in between keeps a key off + key on pair from collapsing into
 // "on".
-void Ym2203Fm::drain() {
+void HAL_HOT_CODE Ym2203Fm::drain() {
   uint16_t t = tail.load(std::memory_order_relaxed);
   const uint16_t h = head.load(std::memory_order_acquire);
   const uint16_t marks = marks_in.load(std::memory_order_acquire);
@@ -247,7 +248,7 @@ void Ym2203Fm::drain() {
 // FM ticks run at fmRate(); the output takes the latest tick's sample, or
 // the mean of the sample's ticks (average_). At out_rate == fmRate() this
 // is exactly clock() per sample.
-void Ym2203Fm::render(int32_t *out, int n, uint32_t out_rate) {
+void HAL_HOT_CODE Ym2203Fm::render(int32_t *out, int n, uint32_t out_rate) {
   drain();
   const uint32_t step = (uint32_t)(((uint64_t)fmRate() << 16) / out_rate);
   for (int i = 0; i < n; i++) {
@@ -273,7 +274,7 @@ uint32_t Ym2203Fm::fmRate() const {
 }
 
 // ym2203::write_address: $2D-$2F select the prescaler
-void Ym2203Fm::applyAddress(uint8_t addr) {
+void HAL_HOT_CODE Ym2203Fm::applyAddress(uint8_t addr) {
   if (addr == 0x2d) {
     prescale = 6;
   } else if (addr == 0x2e && prescale == 6) {
@@ -284,7 +285,7 @@ void Ym2203Fm::applyAddress(uint8_t addr) {
 }
 
 // fm_engine_base::write + opn_registers_base::write
-void Ym2203Fm::applyWrite(uint8_t reg, uint8_t value) {
+void HAL_HOT_CODE Ym2203Fm::applyWrite(uint8_t reg, uint8_t value) {
   if (reg < 0x10) {
     return; // SSG
   }
@@ -328,7 +329,7 @@ void Ym2203Fm::applyWrite(uint8_t reg, uint8_t value) {
 }
 
 // cache_operator_data + compute_phase_step (no LFO)
-void Ym2203Fm::cacheOp(uint8_t c, Op &o) {
+void HAL_HOT_CODE Ym2203Fm::cacheOp(uint8_t c, Op &o) {
   const uint32_t block_freq = (bits(regs[0xa4 + c], 0, 6) << 8) | regs[0xa0 + c];
 
   uint32_t keycode = bits(block_freq, 10, 4) << 1;
@@ -368,7 +369,7 @@ void Ym2203Fm::cacheOp(uint8_t c, Op &o) {
 }
 
 // clock_keystate, start_attack, start_release
-void Ym2203Fm::keystate(Op &o, uint8_t on) {
+void HAL_HOT_CODE Ym2203Fm::keystate(Op &o, uint8_t on) {
   if (on == o.key_state) {
     return;
   }
@@ -390,7 +391,7 @@ void Ym2203Fm::keystate(Op &o, uint8_t on) {
 }
 
 // fm_channel::prepare for all channels: cache registers, apply key changes
-void Ym2203Fm::prepare() {
+void HAL_HOT_CODE Ym2203Fm::prepare() {
   active = 0;
   for (uint8_t c = 0; c < CHANNELS; c++) {
     for (uint8_t n = 0; n < OPS; n++) {
@@ -405,7 +406,7 @@ void Ym2203Fm::prepare() {
 }
 
 // clock_envelope; counter = env_counter >> 2
-void Ym2203Fm::envelope(Op &o, uint32_t counter) {
+void HAL_HOT_CODE Ym2203Fm::envelope(Op &o, uint32_t counter) {
   if (o.state == EG_ATTACK && o.env == 0) {
     o.state = EG_DECAY;
   }
@@ -457,7 +458,7 @@ int32_t Ym2203Fm::volume(const Op &o, uint32_t phase) const {
 }
 
 // fm_channel::output_4op, rshift 0, clipmax 32767
-int32_t Ym2203Fm::output(Channel &c) {
+int32_t HAL_HOT_CODE Ym2203Fm::output(Channel &c) {
   const uint8_t b0 = regs[0xb0 + (c.op[0].offset & 3)];
   const uint32_t feedback = bits(b0, 3, 3);
   int32_t opmod = 0;
@@ -497,7 +498,7 @@ int32_t Ym2203Fm::output(Channel &c) {
 }
 
 // ym2203::clock_fm: engine clock, output of the active channels, DAC
-int16_t Ym2203Fm::clock() {
+int16_t HAL_HOT_CODE Ym2203Fm::clock() {
   advance(1);
   return mix();
 }
@@ -505,7 +506,7 @@ int16_t Ym2203Fm::clock() {
 // fm_engine_base::clock, ticks times in a row. Only the envelopes need
 // every tick; prepare() changes phases only on the first tick (writes are
 // applied before render's loop), so phases advance once by ticks steps.
-void Ym2203Fm::advance(uint32_t ticks) {
+void HAL_HOT_CODE Ym2203Fm::advance(uint32_t ticks) {
   for (uint32_t t = 0; t < ticks; t++) {
     if (modified || prepare_count++ >= PREPARE_PERIOD) {
       prepare();
@@ -538,7 +539,7 @@ void Ym2203Fm::advance(uint32_t ticks) {
 }
 
 // fm_engine_base::output + roundtrip_fp
-int16_t Ym2203Fm::mix() {
+int16_t HAL_HOT_CODE Ym2203Fm::mix() {
   int32_t sum = 0;
   for (uint8_t c = 0; c < CHANNELS; c++) {
     if (active & (1 << c)) {

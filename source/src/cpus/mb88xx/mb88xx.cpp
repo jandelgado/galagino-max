@@ -1,4 +1,5 @@
 #include "mb88xx.h"
+#include "../../hal/hal_attr.h"
 
 // Port of MAME mb88xx.cpp, see mb88xx.h. Flag macros of the original:
 // st = status (branch taken when 1), set to 1 by most instructions.
@@ -31,7 +32,7 @@ void Mb88::reset() {
   icount = 0;
 }
 
-void Mb88::set_irq(bool state) {
+void HAL_HOT_CODE Mb88::set_irq(bool state) {
   const uint8_t s = state ? 1 : 0;
   if (!irq_line && s && (pio & INT_CAUSE_EXTERNAL)) {
     pending_irq |= INT_CAUSE_EXTERNAL;
@@ -39,14 +40,14 @@ void Mb88::set_irq(bool state) {
   irq_line = s;
 }
 
-void Mb88::run(int cycles) {
+void HAL_HOT_CODE Mb88::run(int cycles) {
   icount += cycles;
   while (icount > 0) {
     step();
   }
 }
 
-void Mb88::inc_pc() {
+void HAL_HOT_CODE Mb88::inc_pc() {
   PC++;
   if (PC >= 0x40) {
     PC = 0;
@@ -55,14 +56,14 @@ void Mb88::inc_pc() {
 }
 
 // 8-bit PLA: CF selects the O nibble (0 = O3-O0, 1 = O7-O4)
-void Mb88::write_pla(uint8_t index) {
+void HAL_HOT_CODE Mb88::write_pla(uint8_t index) {
   const uint8_t shift = (index & 0x10) ? 4 : 0;
   const uint8_t mask = 0x0f << shift;
   o_output = (o_output & ~mask) | ((index << shift) & mask);
   write_o(o_output, mask);
 }
 
-void Mb88::increment_timer() {
+void HAL_HOT_CODE Mb88::increment_timer() {
   TL = (TL + 1) & 0x0f;
   if (TL != 0) {
     return;
@@ -74,7 +75,7 @@ void Mb88::increment_timer() {
   }
 }
 
-void Mb88::burn_cycles(int cycles) {
+void HAL_HOT_CODE Mb88::burn_cycles(int cycles) {
   icount -= cycles;
 
   if (pio & PIO_INTERNAL_CLOCK) {
@@ -100,7 +101,7 @@ void Mb88::burn_cycles(int cycles) {
   burn_cycles(3);
 }
 
-void Mb88::step() {
+void HAL_HOT_CODE Mb88::step() {
   const uint8_t opcode = fetch();
   inc_pc();
   int oc = 1;

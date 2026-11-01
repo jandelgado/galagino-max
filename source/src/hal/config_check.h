@@ -15,13 +15,17 @@
 #error "config: ARENA_A_SIZE/ARENA_B_SIZE missing: set custom_arena_layout ([arena] in platformio.ini)"
 #endif
 
-#if defined(BOARD_PICO2) + defined(BOARD_CYD2432S028R) + defined(BOARD_FNK0103F) + \
-    defined(BOARD_FNK0103B) + defined(BOARD_FNK0104) > 1
+#if defined(BOARD_PICO2) + defined(BOARD_FEATHER_RP2350) + defined(BOARD_PICO2W_DVI) + \
+    defined(BOARD_CYD2432S028R) + defined(BOARD_FNK0103F) + defined(BOARD_FNK0103B) + \
+    defined(BOARD_FNK0104) > 1
 #error "config: define only one BOARD_<NAME>"
 #endif
 
 #if defined(BOARD_PICO2) && !defined(HAL_RP2350)
 #error "config: BOARD_PICO2 needs HAL_RP2350 (build with ports/rp2350/build.sh)"
+#endif
+#if (defined(BOARD_FEATHER_RP2350) || defined(BOARD_PICO2W_DVI)) && !defined(HAL_RP2350)
+#error "config: RP2350 board profiles need HAL_RP2350 (build with ports/rp2350/build.sh)"
 #endif
 #if (defined(BOARD_CYD2432S028R) || defined(BOARD_FNK0103F) || defined(BOARD_FNK0103B) || \
      defined(BOARD_FNK0104)) && !defined(HAL_ESP)
@@ -62,9 +66,20 @@
 #error "config: NUNCHUCK_INPUT needs NUNCHUCK_SDA, NUNCHUCK_SCL and NUNCHUCK_MOVE_THRESHOLD"
 #endif
 
-// HDMI audio rides in the DVI stream: one without the other is not a build
-#if defined(HAL_VIDEO_DVI_HSTX) && !defined(HAL_AUDIO_DVI)
-#error "config: HAL_VIDEO_DVI_HSTX needs HAL_AUDIO_DVI (DVI builds play sound over DVI only)"
+// HDMI audio rides in the DVI stream: one without the other is not a build.
+// HAL_AUDIO_NULL: plain DVI, silent, for sinks that reject HDMI data islands.
+#if defined(HAL_VIDEO_DVI_HSTX) && !defined(HAL_AUDIO_DVI) && !defined(HAL_AUDIO_NULL)
+#error "config: HAL_VIDEO_DVI_HSTX needs HAL_AUDIO_DVI or HAL_AUDIO_NULL (DVI builds play sound over DVI only)"
+#endif
+#if defined(HAL_VIDEO_DVI_HSTX) && (!defined(HSTX_CK_PIN) || !defined(HSTX_D0_PIN) || \
+    !defined(HSTX_D1_PIN) || !defined(HSTX_D2_PIN))
+#error "config: HAL_VIDEO_DVI_HSTX needs HSTX_CK_PIN, HSTX_D0_PIN, HSTX_D1_PIN, HSTX_D2_PIN (board profile)"
+#endif
+#if defined(HAL_VIDEO_DVI_HSTX) && (!defined(DVI_SCALE) || (DVI_SCALE != 1 && DVI_SCALE != 2))
+#error "config: DVI_SCALE must be 1 or 2 (1x, or 2x wide with scaled rows)"
+#endif
+#if defined(HAL_VIDEO_DVI_HSTX) && !defined(ARENA_LAYOUT_RP2350_DVI)
+#error "config: HAL_VIDEO_DVI_HSTX needs the rp2350_dvi Arena layout (the framebuffer takes part of block B)"
 #endif
 #if defined(HAL_AUDIO_DVI) && !defined(HAL_VIDEO_DVI_HSTX)
 #error "config: HAL_AUDIO_DVI needs HAL_VIDEO_DVI_HSTX"

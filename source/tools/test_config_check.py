@@ -19,6 +19,10 @@ _CHECK = _SRC / "hal" / "config_check.h"
 _CONFIG = _SRC / "config.h"
 # every build gets these from extraScript.py (custom_arena_layout)
 _ARENA = ["ARENA_A_SIZE=1", "ARENA_B_SIZE=1"]
+# a DVI build's Arena layout (build.sh picks it for DVI profiles)
+_DVI_ARENA = ["ARENA_LAYOUT_RP2350_DVI"]
+# a DVI build's HSTX pins and placement (board profiles set them)
+_HSTX = _DVI_ARENA + ["HSTX_CK_PIN=14", "HSTX_D0_PIN=18", "HSTX_D1_PIN=16", "HSTX_D2_PIN=12", "DVI_SCALE=2"]
 
 
 def setUpModule():
@@ -87,9 +91,30 @@ class Rules(unittest.TestCase):
     def test_es8311_needs_pins(self):
         self._rejects(["HAL_ESP", "HAL_AUDIO_ES8311", "ES8311_I2C_SDA=1"], "HAL_AUDIO_ES8311 needs ES8311_")
 
-    def test_dvi_video_needs_dvi_audio(self):
-        self._rejects(["HAL_RP2350", "HAL_VIDEO_DVI_HSTX", "HAL_AUDIO_NULL"],
-                      "HAL_VIDEO_DVI_HSTX needs HAL_AUDIO_DVI")
+    def test_dvi_video_takes_dvi_or_no_audio(self):
+        self._rejects(["HAL_RP2350", "HAL_VIDEO_DVI_HSTX", "HAL_AUDIO_ESP_DAC"] + _HSTX,
+                      "HAL_VIDEO_DVI_HSTX needs HAL_AUDIO_DVI or HAL_AUDIO_NULL")
+
+    def test_dvi_silent_passes(self):
+        r = _preprocess(_CHECK, ["HAL_RP2350", "HAL_VIDEO_DVI_HSTX", "HAL_AUDIO_NULL"] + _HSTX + _ARENA)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_dvi_needs_hstx_pins(self):
+        pins = [d for d in _HSTX if not d.startswith("HSTX_CK_PIN")]
+        self._rejects(["HAL_RP2350", "HAL_VIDEO_DVI_HSTX", "HAL_AUDIO_NULL"] + pins,
+                      "HAL_VIDEO_DVI_HSTX needs HSTX_CK_PIN")
+
+    def test_dvi_scale_is_1_or_2(self):
+        self._rejects(["HAL_RP2350", "HAL_VIDEO_DVI_HSTX", "HAL_AUDIO_NULL", "DVI_SCALE=3"] +
+                      _HSTX[:-1], "DVI_SCALE must be 1 or 2")
+
+    def test_dvi_needs_dvi_arena_layout(self):
+        # the framebuffer takes part of block B: rp2350_dvi in [arena]
+        self._rejects(["HAL_RP2350", "HAL_VIDEO_DVI_HSTX", "HAL_AUDIO_NULL"] + _HSTX[1:],
+                      "HAL_VIDEO_DVI_HSTX needs the rp2350_dvi Arena layout")
+
+    def test_dvi_board_needs_rp2350(self):
+        self._rejects(["HAL_ESP", "BOARD_FEATHER_RP2350"], "RP2350 board profiles need HAL_RP2350")
 
     def test_one_i2c_input(self):
         self._rejects(["HAL_ESP", "NUNCHUCK_INPUT", "GALAGINO_CONTROLLER", "NUNCHUCK_SDA=1",
@@ -107,10 +132,13 @@ class Profiles(unittest.TestCase):
     def test_every_profile_passes(self):
         boards = {"BOARD_CYD2432S028R": "HAL_ESP", "BOARD_FNK0103F": "HAL_ESP",
                   "BOARD_FNK0103B": "HAL_ESP", "BOARD_FNK0104": "HAL_ESP",
-                  "BOARD_PICO2": "HAL_RP2350"}
+                  "BOARD_PICO2": "HAL_RP2350", "BOARD_FEATHER_RP2350": "HAL_RP2350",
+                  "BOARD_PICO2W_DVI": "HAL_RP2350"}
+        dvi = ("BOARD_FEATHER_RP2350", "BOARD_PICO2W_DVI")
         for board, platform in boards.items():
             with self.subTest(board=board):
-                r = _preprocess(_CONFIG, [platform, board] + _ARENA)
+                layout = _DVI_ARENA if board in dvi else []
+                r = _preprocess(_CONFIG, [platform, board] + _ARENA + layout)
                 self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_every_profile_file_parses(self):
@@ -154,6 +182,22 @@ class Profiles(unittest.TestCase):
         self.assertNotIn("#define GALAGINO_CONTROLLER\n", r.stdout)
         self.assertIn("#define NUNCHUCK_SDA 16\n", r.stdout)
         self.assertIn("#define NUNCHUCK_SCL 15\n", r.stdout)
+
+    def test_dvi_profiles_pick_dvi_and_252_mhz(self):
+        for board in ("BOARD_FEATHER_RP2350", "BOARD_PICO2W_DVI"):
+            with self.subTest(board=board):
+                r = _macros(["HAL_RP2350", board] + _ARENA + _DVI_ARENA)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertIn("#define HAL_VIDEO_DVI_HSTX", r.stdout)
+                self.assertIn("#define HAL_AUDIO_DVI", r.stdout)
+                self.assertIn("#define GALAGINO_CLOCK_KHZ 252000\n", r.stdout)
+                self.assertIn("#define DVI_SCALE 2\n", r.stdout)
+
+    def test_dvi_profile_falls_back_to_plain_dvi(self):
+        # sinks that reject HDMI data islands: -D HAL_AUDIO_NULL, silent DVI
+        r = _macros(["HAL_RP2350", "BOARD_PICO2W_DVI", "HAL_AUDIO_NULL"] + _ARENA + _DVI_ARENA)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("#define HAL_AUDIO_DVI", r.stdout)
 
     def test_usbup_flips_the_panel(self):
         r = _macros(["HAL_ESP", "BOARD_FNK0103B", "BOARD_USBUP"] + _ARENA)

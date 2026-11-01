@@ -14,7 +14,9 @@ the layout file and names the file to delete).
 Arena layout: `[arena]` in `platformio.ini` lists the block sizes per layout (`name = A B`
 bytes), every env selects one with `custom_arena_layout`. `extraScript.py` turns it into
 `ARENA_LAYOUT_<NAME>`, `ARENA_A_SIZE` and `ARENA_B_SIZE` (`tools/pio_to_cmake.py --layout` for
-the RP2350 build). romconv plans every layout; a generated `*_arena_plan.h` or `*_bundle.h`
+the RP2350 build: `ports/rp2350/build.sh` picks `rp2350_dvi` for DVI profiles, `rp2350`
+otherwise; `ports/rp2350/ram_check.ld` fails the link when the heap left next to the image's
+RAM code cannot hold the Arena). romconv plans every layout; a generated `*_arena_plan.h` or `*_bundle.h`
 without a block for the build's layout is an `#error`, stale sizes fail a `static_assert`:
 after editing a row, rerun romconv. Native tests build with `esp32_local`. A `_remote` layout
 in a local env (or the reverse) stops at the hook. `-D DEBUG_ARENA` (e.g. in

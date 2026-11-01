@@ -3,7 +3,8 @@
 
 // hal::AudioOut selection, the audio axis of the build: one of
 // HAL_AUDIO_ESP_DAC (built-in DAC), HAL_AUDIO_ES8311 (codec over I2S),
-// HAL_AUDIO_NULL (silent sink with the timing of a real one; host: test sink).
+// HAL_AUDIO_DVI (HDMI audio, RP2350 DVI boards), HAL_AUDIO_NULL (silent sink
+// with the timing of a real one; host: test sink).
 // config.h chooses it (board profile or platform default). Backend
 // sources include this header and compile only for their define.
 

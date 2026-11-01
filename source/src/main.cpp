@@ -73,6 +73,8 @@ unsigned char *memory;
 
 Audio audio;  // not copy-initialized: holds atomics (ima_adpcm::Voice)
 hal::Video video;
+static_assert(hal::Video::CANVAS_W >= 240 && hal::Video::CANVAS_H >= 288,
+              "video canvas smaller than the 240 x 288 strip picture");
 Input input = Input();
 #ifdef LED_PIN
   Led led = Led();
@@ -362,7 +364,7 @@ void updateAudioVideo(void) {
   for (uint8_t part = 0; part < parts; part++) {
     for (int c = stripsPerPart * part; c < stripsPerPart * (part + 1); c += stripsPerAudio) {
       for (int i = 0; i < stripsPerAudio; i++) {
-        renderRow(c + i); video.submit(frame_buffer, renderWrite);
+        renderRow(video.stripIndex(c + i)); video.submit(frame_buffer, renderWrite);
       }
       audio.transmit();
     }
