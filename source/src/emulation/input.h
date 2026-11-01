@@ -11,6 +11,7 @@
 #ifdef GALAGINO_CONTROLLER
 #include "../input/galagino_controller.h"
 #endif
+#include "../input/bt_gamepad.h"
 
 class Input {
 public:

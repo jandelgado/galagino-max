@@ -1,0 +1,20 @@
+#ifndef INPUT_BT_GAMEPAD_H
+#define INPUT_BT_GAMEPAD_H
+
+#include "../config.h"
+
+#ifdef HAL_GAMEPAD_BT
+#include <stdint.h>
+#include "../hal/gamepad.h"
+
+// Bluetooth pad as BUTTON_* bits: dpad or stick = directions, A = FIRE,
+// B/X/Y/L1/R1 = their BUTTON_* (B: the second action), START, SELECT = COIN and EXTRA
+// (as a COIN pin: volume with up/down, held 3 s ends the game),
+// SYSTEM (Home) = MENU. Disconnected: 0.
+uint16_t btGamepadButtons(const hal::GamepadState &s);
+// The pad's current bits.
+uint16_t btGamepadInput();
+
+#endif
+
+#endif // INPUT_BT_GAMEPAD_H

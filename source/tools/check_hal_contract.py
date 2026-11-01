@@ -2,7 +2,7 @@
 """Checks that every name of hal/CONTRACT.md is defined in each backend directory.
 
 Sections that are checked: Time, GPIO, Tasks and sync, Watchdog, LEDs, Audio, System, I2C, and
-Flash region and WiFi (esp and host only, no RP2350 backend yet).
+Flash region and WiFi (esp and host only, no RP2350 backend yet), Gamepad (host and rp2350).
 A name counts as defined when its identifier occurs in a file of the backend directory.
 
   python3 tools/check_hal_contract.py [--hal DIR] [--backends esp,host,rp2350]
@@ -15,9 +15,9 @@ import tempfile
 from pathlib import Path
 
 _SECTIONS = ("Time", "GPIO", "Tasks and sync", "Watchdog", "LEDs", "Audio", "System", "I2C",
-             "Flash region", "WiFi")
+             "Flash region", "WiFi", "Gamepad")
 # sections not every backend implements yet
-_SECTION_BACKENDS = {"Flash region": ("esp", "host"), "WiFi": ("esp", "host")}
+_SECTION_BACKENDS = {"Flash region": ("esp", "host"), "WiFi": ("esp", "host"), "Gamepad": ("host", "rp2350")}
 _SKIP = {
     "hal", "uint8_t", "uint16_t", "uint32_t", "int16_t", "int", "bool", "void", "const", "char",
     "static", "class", "struct", "typedef", "NULL", "ms", "led_color", "CRGB", "fill_solid",

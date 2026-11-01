@@ -5,7 +5,9 @@
 
 void Input::init(bool SingleMachine) {
   singleMachine = SingleMachine;
-#ifndef NUNCHUCK_INPUT
+#if defined(HAL_GAMEPAD_BT)
+  hal::Gamepad::begin();
+#elif !defined(NUNCHUCK_INPUT)
   #ifdef GALAGINO_CONTROLLER
   Controller.setup();
   #else
@@ -64,7 +66,9 @@ unsigned int Input::buttons_get(void) {
   // be implemented by the start button. Whenever the start button 
   // is pressed, a virtual coin button will be sent first 
   unsigned int input_states = 0;
-#if defined(GALAGINO_CONTROLLER)
+#if defined(HAL_GAMEPAD_BT)
+  input_states = btGamepadInput();
+#elif defined(GALAGINO_CONTROLLER)
   input_states = Controller.getInput();
 #elif defined(NUNCHUCK_INPUT)
   input_states = nunchuck.getInput();  
@@ -87,7 +91,7 @@ unsigned int Input::buttons_get(void) {
   // there is a coin pin -> coin and start work normal
   startAndCoinState = (hal::pinRead(BTN_START_PIN) ? 0 : BUTTON_START) |
     (hal::pinRead(BTN_COIN_PIN) ? 0 : BUTTON_COIN);
-#elif defined(GALAGINO_CONTROLLER)
+#elif defined(GALAGINO_CONTROLLER) || defined(HAL_GAMEPAD_BT)
   // Coin and Start work normal - no virtual Coin
 #else
   switch(virtual_coin_state)  {

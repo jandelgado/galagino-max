@@ -32,6 +32,15 @@ comes after the emulation task spawned: machines take `data()` in the ctor or `s
 | I2C | `i2c_master` (controller, Nunchuk, ES8311 share port 0) |
 | WiFi (remote mode) | `esp_wifi`, driver heap in Arena, `-Wl,--wrap=free` |
 
+RP2350 Bluetooth pad (Pico 2 W DVI default input, `HAL_GAMEPAD_BT`): BTstack from the pico-sdk
+2.2.0 submodules (`lib/btstack`, `lib/cyw43-driver`; `lib/lwip` only for the CMake targets) and
+Bluepad32 4.2.0 (`BLUEPAD32_PATH`, default `~/src/external/pico-deps/bluepad32`), compiled into
+the image by `ports/rp2350/bt/bluepad32.cmake` with the configs next to it (one classic pad,
+BLE off). Costs ~20 KB RAM and ~406 KB flash (232 KB of it the CYW43 firmware). Link keys live
+in pico_btstack's flash bank, the last 12 KB of flash: `ram_check.ld` fails the link when an
+image reaches into it. With a wired source (`-D NUNCHUCK_INPUT`, ...) the linker drops the BT
+code.
+
 ## Pitfalls
 
 - `src/CMakeLists.txt` must list C sources first: PlatformIO's espidf builder orders the C/C++

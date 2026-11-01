@@ -37,13 +37,25 @@ foreach(f ${GALAGINO_SOURCES})
   list(APPEND SOURCES ${SRC}/${f})
 endforeach()
 
+set(FLASH_BYTES 4194304)
 add_executable(galagino ${SOURCES})
 target_include_directories(galagino PRIVATE ${SRC} ${CMAKE_CURRENT_LIST_DIR})
 target_compile_definitions(galagino PRIVATE ${GALAGINO_DEFINES} ${GALAGINO_BOARD_DEFINE}
-  PICO_FLASH_SIZE_BYTES=4194304 PICO_STACK_SIZE=0x1000 PICO_PANIC_FUNCTION=galaginoPanic)
+  PICO_FLASH_SIZE_BYTES=${FLASH_BYTES} PICO_STACK_SIZE=0x1000 PICO_PANIC_FUNCTION=galaginoPanic)
 target_compile_options(galagino PRIVATE -O2 -w)
 target_link_libraries(galagino PRIVATE pico_stdlib pico_rand pico_multicore hardware_i2c
   hardware_dma hardware_watchdog hardware_vreg FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
+
+# Bluetooth pad on the Pico 2 W (the profile's default input; with a wired
+# source the linker drops the unused BT code); its link keys
+# live in pico_btstack's flash bank: 8 KB plus a spare 4 KB sector at the end
+# on the RP2350 (PICO_FLASH_BANK_STORAGE_OFFSET)
+set(BT_BANK_BYTES 12288)
+math(EXPR FLASH_END "0x10000000 + ${FLASH_BYTES}" OUTPUT_FORMAT HEXADECIMAL)
+if(GALAGINO_BOARD STREQUAL "pico2w_dvi")
+  include(bt/bluepad32.cmake)
+  math(EXPR FLASH_END "0x10000000 + ${FLASH_BYTES} - ${BT_BANK_BYTES}" OUTPUT_FORMAT HEXADECIMAL)
+endif()
 
 # heap check at link time: Arena blocks plus the other heap users
 # (machine object, strip buffers, stdio, input). Reserve not sized yet:
@@ -54,7 +66,8 @@ set(ARENA_A ${CMAKE_MATCH_1})
 string(REGEX MATCH "ARENA_B_SIZE=([0-9]+)" _ "${GALAGINO_DEFINES}")
 math(EXPR ARENA_BYTES "${ARENA_A} + ${CMAKE_MATCH_1}")
 target_link_options(galagino PRIVATE -Wl,--defsym=GALAGINO_ARENA_BYTES=${ARENA_BYTES}
-  -Wl,--defsym=GALAGINO_HEAP_RESERVE=${HEAP_RESERVE} ${CMAKE_CURRENT_LIST_DIR}/ram_check.ld)
+  -Wl,--defsym=GALAGINO_HEAP_RESERVE=${HEAP_RESERVE} -Wl,--defsym=GALAGINO_FLASH_END=${FLASH_END}
+  ${CMAKE_CURRENT_LIST_DIR}/ram_check.ld)
 pico_enable_stdio_usb(galagino 1)
 pico_enable_stdio_uart(galagino 0)
 pico_add_extra_outputs(galagino)

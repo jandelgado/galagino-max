@@ -20,7 +20,7 @@
 
 // action key: START with a COIN pin or the galagino controller, else EXTRA
 // (without a COIN pin BUTTON_START only follows a virtual coin, 600 ms late)
-#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+#ifdef INPUT_START_BUTTON
 static const unsigned int ACTION_KEY = BUTTON_START;
 #else
 static const unsigned int ACTION_KEY = BUTTON_EXTRA;

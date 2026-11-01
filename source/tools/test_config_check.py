@@ -127,6 +127,19 @@ class Rules(unittest.TestCase):
     def test_dvi_audio_needs_dvi_video(self):
         self._rejects(["HAL_RP2350", "HAL_VIDEO_NULL", "HAL_AUDIO_DVI"], "HAL_AUDIO_DVI needs HAL_VIDEO_DVI_HSTX")
 
+    def test_gamepad_bt_is_the_only_input(self):
+        nunchuk = ["NUNCHUCK_INPUT", "NUNCHUCK_SDA=1", "NUNCHUCK_SCL=2", "NUNCHUCK_MOVE_THRESHOLD=30"]
+        self._rejects(["HAL_HOST", "HAL_GAMEPAD_BT"] + nunchuk, "HAL_GAMEPAD_BT is the only input")
+        self._rejects(["HAL_HOST", "HAL_GAMEPAD_BT", "GALAGINO_CONTROLLER"], "HAL_GAMEPAD_BT is the only input")
+
+    def test_gamepad_bt_needs_cyw43_board(self):
+        self._rejects(["HAL_ESP", "HAL_GAMEPAD_BT"], "HAL_GAMEPAD_BT needs a CYW43 board")
+        self._rejects(["HAL_RP2350", "BOARD_PICO2", "HAL_GAMEPAD_BT"], "HAL_GAMEPAD_BT needs a CYW43 board")
+
+    def test_gamepad_bt_on_host_passes(self):
+        r = _preprocess(_CHECK, ["HAL_HOST", "HAL_GAMEPAD_BT"] + _ARENA)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
 
 class Profiles(unittest.TestCase):
     def test_every_profile_passes(self):
@@ -198,6 +211,39 @@ class Profiles(unittest.TestCase):
         r = _macros(["HAL_RP2350", "BOARD_PICO2W_DVI", "HAL_AUDIO_NULL"] + _ARENA + _DVI_ARENA)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("#define HAL_AUDIO_DVI", r.stdout)
+
+    def test_pico2w_dvi_nunchuk_on_gpio_20_21(self):
+        base = ["HAL_RP2350", "BOARD_PICO2W_DVI"] + _ARENA + _DVI_ARENA
+        r = _macros(base + ["NUNCHUCK_INPUT"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        # every frame: the default 100 ms adds 100-200 ms of lag
+        self.assertIn("#define NUNCHUCK_UPDATE_MS 16\n", r.stdout)
+        self.assertIn("#define NUNCHUCK_SDA 20\n", r.stdout)
+        self.assertIn("#define NUNCHUCK_SCL 21\n", r.stdout)
+
+        r = _macros(base + ["GALAGINO_CONTROLLER"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("#define NUNCHUCK_INPUT", r.stdout)
+        self.assertIn("#define GALAGINO_CONTROLLER_SDA 20\n", r.stdout)
+        self.assertIn("#define GALAGINO_CONTROLLER_SCL 21\n", r.stdout)
+
+        r = _macros(base + ["GPIO_BUTTONS"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("#define NUNCHUCK_INPUT", r.stdout)
+        self.assertNotIn("#define GALAGINO_CONTROLLER\n", r.stdout)
+
+    def test_pico2w_dvi_bluetooth_pad_by_default(self):
+        base = ["HAL_RP2350", "BOARD_PICO2W_DVI"] + _ARENA + _DVI_ARENA
+        r = _macros(base)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("#define HAL_GAMEPAD_BT", r.stdout)
+        self.assertNotIn("#define NUNCHUCK_INPUT", r.stdout)
+
+        # a wired source replaces the pad
+        for wired in ("NUNCHUCK_INPUT", "GALAGINO_CONTROLLER", "GPIO_BUTTONS"):
+            r = _macros(base + [wired])
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertNotIn("#define HAL_GAMEPAD_BT", r.stdout)
 
     def test_usbup_flips_the_panel(self):
         r = _macros(["HAL_ESP", "BOARD_FNK0103B", "BOARD_USBUP"] + _ARENA)

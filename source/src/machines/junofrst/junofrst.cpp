@@ -26,7 +26,7 @@ static constexpr uint8_t P1_WARP = 0x10, P1_FIRE = 0x20;
 // warp on the START button: BUTTON_START with a COIN pin (EXTRA is then
 // COIN) or the galagino controller, else START itself reports as
 // BUTTON_EXTRA (BUTTON_START only follows a virtual coin), as contra
-#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+#ifdef INPUT_START_BUTTON
 static const unsigned int WARP_KEY = BUTTON_START;
 #else
 static const unsigned int WARP_KEY = BUTTON_EXTRA;

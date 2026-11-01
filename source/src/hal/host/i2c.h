@@ -9,10 +9,14 @@ namespace host {
 
 // Fake bus: two ports, a device is an address that answers reads with fixed
 // bytes, or a register file (write [reg, value] stores, writeRead [reg]
-// returns it). Writes are counted per device.
+// returns it), or a stream (reads continue at a pointer, a one byte write
+// sets it, probe reads one byte as on the RP2350). Writes are counted per
+// device.
 struct I2cDevice {
   bool present;
   bool registers;
+  bool stream;
+  uint8_t pos;
   uint8_t reply[16];
   uint8_t replyLen;
   uint32_t reads;
@@ -51,6 +55,12 @@ inline void i2cAttach(int port, uint8_t addr, const uint8_t *reply, uint8_t len)
   memcpy(d.reply, reply, d.replyLen);
 }
 
+// Stream device: reads return reply[pos...], 0 past its end.
+inline void i2cAttachStream(int port, uint8_t addr, const uint8_t *reply, uint8_t len) {
+  i2cAttach(port, addr, reply, len);
+  _i2cDevice(port, addr).stream = true;
+}
+
 // Register-file device, all registers 0.
 inline void i2cAttachRegisters(int port, uint8_t addr) {
   I2cDevice &d = _i2cDevice(port, addr);
@@ -69,7 +79,13 @@ class I2c {
 public:
   static bool init(int, int, int, uint32_t) { return true; }
   static uint32_t clockHz(int) { return 400000; }
-  static bool probe(int port, uint8_t addr) { return host::_i2cDevice(port, addr).present; }
+  static bool probe(int port, uint8_t addr) {
+    host::I2cDevice &d = host::_i2cDevice(port, addr);
+    if (d.stream && d.present) {
+      d.pos++;
+    }
+    return d.present;
+  }
   static bool write(int port, uint8_t addr, const uint8_t *data, uint32_t len) {
     host::I2cDevice &d = host::_i2cDevice(port, addr);
     if (!d.present) {
@@ -82,6 +98,9 @@ public:
     if (d.registers && len == 2) {
       d.regs[data[0]] = data[1];
     }
+    if (d.stream && len == 1) {
+      d.pos = data[0];
+    }
     return true;
   }
   static uint32_t read(int port, uint8_t addr, uint8_t *data, uint32_t len) {
@@ -90,6 +109,12 @@ public:
       return 0;
     }
     d.reads++;
+    if (d.stream) {
+      for (uint32_t i = 0; i < len; i++, d.pos++) {
+        data[i] = d.pos < d.replyLen ? d.reply[d.pos] : 0;
+      }
+      return len;
+    }
     const uint32_t n = len < d.replyLen ? len : d.replyLen;
     memcpy(data, d.reply, n);
     return n;

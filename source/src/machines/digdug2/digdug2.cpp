@@ -11,7 +11,7 @@ constexpr unsigned char IN_BUTTON2 = 0x01;   // DSW0 port
 
 // START button: BUTTON_START with a COIN pin (EXTRA is then COIN) or the
 // galagino controller, else START itself reports as BUTTON_EXTRA
-#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+#ifdef INPUT_START_BUTTON
 constexpr unsigned int START_KEY = BUTTON_START;
 #else
 constexpr unsigned int START_KEY = BUTTON_EXTRA;

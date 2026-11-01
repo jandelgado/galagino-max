@@ -18,7 +18,7 @@
 #include "jailbrek_spritemap.h"
 #include "jailbrek_cmap.h"
 
-#if defined(BTN_COIN_PIN) || defined(GALAGINO_CONTROLLER)
+#ifdef INPUT_START_BUTTON
 static const unsigned int ACTION_KEY = BUTTON_START;
 #else
 static const unsigned int ACTION_KEY = BUTTON_EXTRA;
