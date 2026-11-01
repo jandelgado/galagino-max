@@ -472,7 +472,7 @@ void starforce::blit_tile_fg(short row, char col) {
   unsigned char base_tile_code = memory[STARFORCE_FG_VIDEO_RAM + vram_addr];
   unsigned char color_attr = memory[STARFORCE_FG_COLOR_RAM + vram_addr];
   unsigned int final_tile_code = base_tile_code + ((color_attr & 0x10) << 4); // 0x10 << 4 = 256
-  const unsigned int *tile_data = fg_ptr[final_tile_code];
+  const uint32_t *tile_data = fg_ptr[final_tile_code];
   const unsigned short *colors = &starforce_palette[(color_attr & 0x07) << 3]; // * 8 -> << 3
 
   // start address for column offset in framebuffer

@@ -1,17 +1,17 @@
-#include "Arduino.h"
-#include "esp_task_wdt.h"
+#include <stdio.h>
+#include "../hal/hal.h"
 #include "emulation.h"
 #include "input.h"
 #include "../machines/machineBase.h"
 
-// CONFIG_ESP_TASK_WDT_* build flags are ignored: the framework's sdkconfig is
-// precompiled. Arm the watchdog at runtime so a hung emulation task panics.
+// A hung emulation task panics after this many seconds without a frame.
 static const uint32_t EMULATION_WDT_TIMEOUT_S = 8;
 
 // including of "../machines/machineBase.h" in "emulation.h" not possible
 extern machineBase *currentMachine;
 extern Input input;
-TaskHandle_t emulationTaskHandle;
+static hal::TaskHandle emulationTaskHandle;
+static hal::Signal frameSignal;  // video core -> emulation core: next frame
 volatile static char doDeleteEmulationTask;
 
 #if defined(DEBUG_TIMING) || defined(DEBUG_TIMING_FPS_HUD)
@@ -19,7 +19,8 @@ volatile static char doDeleteEmulationTask;
 static uint32_t counter;
 static uint32_t timeTotal = 0;
 static uint32_t cpuStart;
-static uint32_t cpuSum = 0;
+static uint32_t cpuSum = 0;     // microseconds
+static uint32_t cpuMax = 0;
 static uint32_t videoSum = 0;
 #endif
 
@@ -29,17 +30,13 @@ volatile uint16_t emulation_fps;
 
 void emulation_start() {
 #ifdef EMULATION_MEASURE_FPS
-  timeTotal = millis();
+  timeTotal = hal::micros();
 #endif
   currentMachine->reset();
   currentMachine->start();
-  xTaskCreatePinnedToCore(emulation_task, "emulation task", 4096, NULL, 2, &emulationTaskHandle, ARDUINO_RUNNING_CORE == 0 ? 1 : 0);
-
-  // Framework default only warns. Re-init on every machine switch: the new
-  // task has a new handle.
-  esp_task_wdt_deinit();
-  esp_task_wdt_init(EMULATION_WDT_TIMEOUT_S, true);
-  esp_task_wdt_add(emulationTaskHandle);
+  frameSignal.clear();  // a frame signalled for the previous machine is stale
+  emulationTaskHandle = hal::taskSpawn(emulation_task, NULL, "emulation task", 4096, 2, hal::EMULATION_CORE);
+  hal::watchdogWatch(emulationTaskHandle, EMULATION_WDT_TIMEOUT_S);
 }
 
 void emulation_stop() {
@@ -49,8 +46,8 @@ void emulation_stop() {
   input.disable(); // disable input read from nunchuck
   doDeleteEmulationTask = 1;
   while (doDeleteEmulationTask) {
-    xTaskNotifyGive(emulationTaskHandle);
-    vTaskDelay(1);
+    frameSignal.give();
+    hal::sleepMs(1);
   }
 
   emulationTaskHandle = NULL;
@@ -63,49 +60,53 @@ void emulation_notifyGive() {
   if (!emulationTaskHandle)
     return;
 
-  xTaskNotifyGive(emulationTaskHandle);
+  frameSignal.give();
 }
 
 void emulation_videoRendered(void) {
 #ifdef EMULATION_MEASURE_FPS
-  videoSum += millis() - cpuStart;
+  videoSum += hal::micros() - cpuStart;
 #endif
 }
 
-IRAM_ATTR void emulation_task(void *p) {  
+HAL_FAST_CODE void emulation_task(void *p) {  
   currentMachine->start();
 
   for(;;) {
 #ifdef EMULATION_MEASURE_FPS
-    cpuStart = millis();
+    cpuStart = hal::micros();
 #endif
 
     currentMachine->run_frame();
-    esp_task_wdt_reset();
+    hal::watchdogFeed();
 
     if (doDeleteEmulationTask) {
       doDeleteEmulationTask = 0;
-      esp_task_wdt_delete(emulationTaskHandle);
-      vTaskDelete(emulationTaskHandle);
+      hal::watchdogUnwatch(emulationTaskHandle);
+      hal::taskExit();
     }
 
 #ifdef EMULATION_MEASURE_FPS
-    cpuSum += millis() - cpuStart;
+    const uint32_t cpuUs = hal::micros() - cpuStart;
+    cpuSum += cpuUs;
+    if (cpuUs > cpuMax) cpuMax = cpuUs;
 
     // The 60hz vblank rate is in turn 16.6 ms.
   if (counter % 10 == 0) {
     // good time total: 160...170ms
     uint32_t now = cpuStart;
-    uint32_t dt = now - timeTotal;
-    uint32_t hz = dt ? 10000 / dt : 0;
+    uint32_t dt = (now - timeTotal) / 1000;  // ms
+    uint32_t hz = now != timeTotal ? 10000000 / (now - timeTotal) : 0;
 #ifdef DEBUG_TIMING_FPS_HUD
     emulation_fps = hz;
 #endif
 #ifdef DEBUG_TIMING
-    printf("10-frames: %3u Hz | Total: %3u ms | Cpu: %3u ms | Video: %3u ms\n", hz, dt, cpuSum, videoSum);
+    printf("10-frames: %3u Hz | Total: %3u ms | Cpu: %3u ms | Max: %5u us | Video: %3u ms\n", hz, dt,
+           (cpuSum + 500) / 1000, cpuMax, (videoSum + 500) / 1000);
 #endif
     timeTotal = now;
     cpuSum = 0;
+    cpuMax = 0;
     videoSum = 0;
   }
   counter++;
@@ -115,9 +116,9 @@ IRAM_ATTR void emulation_task(void *p) {
   // this unless the game has actually started to speed up the boot process
   // a little bit.
   if(currentMachine->game_started)
-    ulTaskNotifyTake(1, portMAX_DELAY);
+    frameSignal.take(hal::WAIT_FOREVER);
   else
-    vTaskDelay(1); // give a millisecond delay to make the watchdog happy
+    hal::sleepMs(1); // give a millisecond delay to make the watchdog happy
   }
 }
 

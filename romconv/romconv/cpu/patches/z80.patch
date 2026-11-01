@@ -88,9 +88,9 @@ diff -ruN --no-dereference a/z80/Z80.h b/z80/Z80.h
  void JumpZ80(word PC);
  #endif
  
-+#include "esp_attr.h"
++#include "../../hal/hal_attr.h"
 +
-+IRAM_ATTR void StepZ80(register Z80 *R);
++HAL_FAST_CODE void StepZ80(register Z80 *R);
 +unsigned char OpZ80_INL(unsigned short Addr);
 +// opcode byte after a CB/ED/DD/FD prefix (also an M1 fetch)
 +unsigned char OpPrefixZ80_INL(unsigned short Addr);

@@ -4,24 +4,11 @@
 
 // Both cores allocate: the emulation task unpacks ROMs on first CPU access,
 // the render task unpacks tiles/sprites on first draw. Needs a lock.
-#ifdef ARDUINO
-#include <freertos/FreeRTOS.h>
-#include <freertos/portmacro.h>
+#include "../hal/hal.h"
 
 namespace {
-portMUX_TYPE arenaMux = portMUX_INITIALIZER_UNLOCKED;
-
-class CriticalSection {
-public:
-  CriticalSection() { portENTER_CRITICAL(&arenaMux); }
-  ~CriticalSection() { portEXIT_CRITICAL(&arenaMux); }
-};
+using hal::CriticalSection;
 }
-#else
-namespace {
-class CriticalSection { };
-}
-#endif
 
 uint8_t *Arena::blockA = nullptr;
 uint8_t *Arena::blockB = nullptr;

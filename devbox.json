@@ -1,7 +1,10 @@
 {
   "packages": [
     "python@3.13",
-    "uv@latest"
+    "uv@latest",
+    "gcc-arm-embedded@latest",
+    "ninja@latest",
+    "picotool@latest"
   ],
   "shell": {
     "init_hook": [

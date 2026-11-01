@@ -69,13 +69,14 @@ Supported boards (`source/platformio.ini`, `[board_*]`):
 
 | Board                     | Env prefix       | Notes                                              |
 | ---                       | ---              | ---                                                |
-| AZ-Delivery DevKit V4     | `azdelivery`     | Own wiring, ILI9341, pins in `config_local.h`      |
+| AZ-Delivery DevKit V4     | `azdelivery`     | Original galagino wiring, own pins in `config_local.h` |
 | CYD ESP32-2432S028R       | `cyd2432s028r`   | ILI9341, 40 MHz SPI                                |
 | Freenove FNK0103F         | `fnk0103f`       | ILI9341, 40 MHz SPI                                |
 | Freenove FNK0103B         | `fnk0103b`       | ST7789, 80 MHz SPI                                 |
 | Freenove FNK0104 (S3)     | `fnk0104`        | ESP32-S3, 16 MB flash, ES8311 DAC, all games built in |
+| Hand-wired CYD (JC2432W328C) | `cydmanual`   | ST7789, 80 MHz SPI, pins in `boards/cyd_manual.h`  |
 
-Env names are `<board>-<mode>[-usbup]`. Modes: `local` (built-in games), `max` (100+ games at once), `remote` (flash + WiFi download), `full` (16 MB, everything in flash). `usbup` flips the display for a board mounted with the USB connector up.
+Env names are `<board>-<mode>`. Modes: `local` (built-in games), `max` (100+ games at once), `remote` (flash + WiFi download), `full` (16 MB, everything in flash). Board mounted with the USB connector up: `BOARD_USBUP` in `config_local.h`.
 
 Builds and sources:
 
@@ -92,7 +93,9 @@ Builds and sources:
 
 ## Build and Configuration
 
-Needs [PlatformIO](https://platformio.org/) and [uv](https://docs.astral.sh/uv/).
+Needs [PlatformIO](https://platformio.org/) and [uv](https://docs.astral.sh/uv/). The firmware
+builds on ESP-IDF (PlatformIO `espidf` framework, no Arduino core); details in
+[source/BUILD.md](source/BUILD.md).
 
 1. Put the ROM zips and optional SID files into [romszip/](romszip/) (see [ROMs](#roms)).
 2. Convert them: `romconv/convert.sh` (`romconv/convert.bat` on Windows). Pass game names to
@@ -139,7 +142,7 @@ Example `config_local.h`:
 #define LED_PIN           16
 #define SND_RIGHT_CHANNEL         // audio on GPIO 25 instead of 26
 
-// own pins: skip the board block in config.h
+// own pins: skip the default board profile
 #define USE_PIO_CONFIG
 #define TFT_CS            5
 #define TFT_DC            32
@@ -152,17 +155,21 @@ Set in `config_local.h` (`#define X`) or `platformio.ini` (`-D X`).
 
 | Define                                | Default          | Effect                                                    |
 | ---                                   | ---              | ---                                                       |
-| `USE_PIO_CONFIG`                      | off              | Skip the board block of `config.h`, pins come from you    |
+| `BOARD_<NAME>`                        | per env          | Board profile `source/src/boards/<name>.h`: pins, display |
+| `BOARD_USBUP`                         | off              | Board mounted USB connector up: flips the display         |
+| `USE_PIO_CONFIG`                      | off              | Skip the default board profile, pins come from you        |
 | `TFT_ILI9341`, `TFT_ST7789`           | ST7789           | Display controller                                        |
 | `TFT_VFLIP`                           | off              | Display upside down                                       |
 | `TFT_INVERT`                          | off              | CYD clones that show inverted colors                      |
 | `TFT_SPICLK`                          | 40000000         | SPI clock. 40 MHz gives 30 Hz display, 80 MHz 60 Hz       |
+| `TFT_SPI_PORT`                        | 2                | SPI peripheral: 2 = SPI2, 3 = SPI3 (was `TFT_SPI_HOST`)   |
 | `LED_PIN`, `LED_BRIGHTNESS`           | off, 50          | WS2812 stripe, brightness 0..255                          |
 | `SND_RIGHT_CHANNEL`                   | off              | Audio on GPIO 25 instead of 26                            |
 | `SND_DIFF`                            | off              | Differential audio on GPIO 25 and 26                      |
-| `NUNCHUCK_INPUT`                      | off              | Nunchuck input, emulation gets slower                     |
+| `NUNCHUCK_INPUT`                      | off              | Nunchuk on I2C instead of the controller (board pins)     |
 | `GALAGINO_CONTROLLER`                 | per board        | I2C controller with extra buttons                         |
-| `ES8311_AUDIO`                        | per board        | External DAC (ESP32-S3)                                   |
+| `AUDIO_VOLUME`                        | 3                | Start volume, 1 (loudest) .. 30; EXTRA + up/down changes it |
+| `HAL_AUDIO_ESP_DAC`, `HAL_AUDIO_ES8311` | per board      | Audio output: built-in DAC, ES8311 codec (ESP32-S3)       |
 | `MASTER_ATTRACT_MENU_TIMEOUT`         | 20000            | Idle time in menu before a game starts (ms)               |
 | `MASTER_ATTRACT_GAME_TIMEOUT`         | 300000           | Time until an attract game ends (ms)                      |
 | `MASTER_ATTRACT_MENU_SHOW_COUNTDOWN`  | on               | Countdown bar in the menu                                 |

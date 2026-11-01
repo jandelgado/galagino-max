@@ -3,7 +3,7 @@
 
 #include <cstdint>
 #include "bundle.h"
-#include "flash_region.h"
+#include "../hal/flash_region.h"
 
 // Downloaded cache entries (bundle_unpack.h) in a flash region, oldest
 // download evicted first. Each entry: 4 KB tag sector, then the entry,
@@ -24,7 +24,7 @@ public:
   // erase progress for the loader screen: 0 first, then after every sector
   typedef void (*Progress)(void *ctx, uint32_t done, uint32_t total);
 
-  explicit AssetCache(FlashRegion &region) : region(region) { }
+  explicit AssetCache(hal::FlashRegion &region) : region(region) { }
 
   // committed entry with this hash and entryLength, mapped; nullptr if none
   const uint8_t *find(const BundleRef &ref);
@@ -49,7 +49,7 @@ private:
   bool overlapped(uint32_t from, uint32_t to, uint32_t &at);
   bool evict(uint32_t from, uint32_t to, Progress progress, void *ctx);
 
-  FlashRegion &region;
+  hal::FlashRegion &region;
   BundleRef pending = {};
   uint32_t slot = 0;
   uint32_t seq = 0;

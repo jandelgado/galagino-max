@@ -3,11 +3,8 @@
 #include "selftest.h"
 
 #ifdef BOOT_SELFTEST
-#include <Arduino.h>
-#include <Esp.h>
-#include <esp_ota_ops.h>
-#include <esp_image_format.h>
 #include <stdarg.h>
+#include "../../hal/hal.h"
 #include "../../emulation/hud.h"
 
 // delay between info lines
@@ -46,15 +43,10 @@ static const char *ok_ng(bool ok) {
 }
 
 // verify the running app image (checksum + SHA-256) in flash
-static bool rom_ok() {
-  const esp_partition_t *app = esp_ota_get_running_partition();
-  if (!app) {
-    return false;
-  }
-
-  const esp_partition_pos_t pos = { app->address, app->size };
-  esp_image_metadata_t meta;
-  return esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &pos, &meta) == ESP_OK;
+static const char *rom_state() {
+  bool supported;
+  const bool ok = hal::imageVerify(supported);
+  return supported ? ok_ng(ok) : "SKIP";
 }
 
 void SelfTest::setLine(Line line, const char *fmt, ...) {
@@ -328,11 +320,13 @@ const uint8_t SelfTest::PHASE_COUNT = sizeof(PHASES) / sizeof(PHASES[0]);
 
 SelfTest::SelfTest(Input *input, uint8_t games)
     : controls(input, games == 1 ? ControlTest::EXIT_NONE : ControlTest::EXIT_RESET), games_total(games) {
-  setLine(LINE_CHIP, "CHIP   %s REV%u", ESP.getChipModel(), ESP.getChipRevision());
-  setLine(LINE_CPU, "CPU    %uMHZ %u CORES", ESP.getCpuFreqMHz(), ESP.getChipCores());
+  hal::SysInfo sys;
+  hal::sysInfo(sys);
+  setLine(LINE_CHIP, "CHIP   %s REV%u", sys.chip, (unsigned)sys.revision);
+  setLine(LINE_CPU, "CPU    %uMHZ %u CORES", (unsigned)sys.cpuMhz, (unsigned)sys.cores);
   setLine(LINE_RAM, "RAM    OK (%uK)", SRAM_KB);
-  setLine(LINE_ROM, "ROM    %s", ok_ng(rom_ok()));
-  setLine(LINE_FLASH, "FLASH  OK (%uMB)", ESP.getFlashChipSize() / MB);
+  setLine(LINE_ROM, "ROM    %s", rom_state());
+  setLine(LINE_FLASH, "FLASH  OK (%uMB)", (unsigned)(sys.flashBytes / MB));
   setLine(LINE_GAMES, GAMES_DONE_FORMAT, games);
 #ifdef NUNCHUCK_INPUT
   setLine(LINE_NUNCHUCK, "NUNCHUCK %s", ok_ng(input->nunchuckConnected()));
@@ -341,7 +335,7 @@ SelfTest::SelfTest(Input *input, uint8_t games)
 #endif
 
   toneSetup();
-  start_ms = millis();
+  start_ms = hal::millis();
 }
 
 // no CPU to boot: sync to vblank right away
@@ -363,12 +357,12 @@ void SelfTest::prepare_frame() {
   last_keys = keys;
 
   if (mode == MODE_CONTROLS) {
-    controls.frame(keys, millis());
+    controls.frame(keys, hal::millis());
     beep(controls.heldRow());
     return;
   }
 
-  frame_ms = millis() - start_ms;
+  frame_ms = hal::millis() - start_ms;
 
   uint32_t phase_start = 0;
   for (phase = 0; phase < PHASE_COUNT; phase++) {

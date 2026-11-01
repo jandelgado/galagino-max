@@ -1,4 +1,7 @@
 #include "input.h"
+#include <stdio.h>
+#include <string.h>
+#include "../hal/hal.h"
 
 void Input::init(bool SingleMachine) {
   singleMachine = SingleMachine;
@@ -6,15 +9,15 @@ void Input::init(bool SingleMachine) {
   #ifdef GALAGINO_CONTROLLER
   Controller.setup();
   #else
-  pinMode(BTN_START_PIN, INPUT_PULLUP);
+  hal::pinInputPullup(BTN_START_PIN);
   #ifdef BTN_COIN_PIN
-    pinMode(BTN_COIN_PIN, INPUT_PULLUP);
+    hal::pinInputPullup(BTN_COIN_PIN);
   #endif
-  pinMode(BTN_LEFT_PIN, INPUT_PULLUP);
-  pinMode(BTN_RIGHT_PIN, INPUT_PULLUP);
-  pinMode(BTN_DOWN_PIN, INPUT_PULLUP);
-  pinMode(BTN_UP_PIN, INPUT_PULLUP);
-  pinMode(BTN_FIRE_PIN, INPUT_PULLUP);
+  hal::pinInputPullup(BTN_LEFT_PIN);
+  hal::pinInputPullup(BTN_RIGHT_PIN);
+  hal::pinInputPullup(BTN_DOWN_PIN);
+  hal::pinInputPullup(BTN_UP_PIN);
+  hal::pinInputPullup(BTN_FIRE_PIN);
   #endif
 #else
   nunchuck.setup();
@@ -49,11 +52,11 @@ void Input::enable() {
 void Input::disable() {
 #ifdef NUNCHUCK_INPUT
   nunchuck.disable();
-  vTaskDelay(100);
+  hal::sleepMs(100);
 #endif
 #ifdef GALAGINO_CONTROLLER
   Controller.disable();
-  vTaskDelay(100);
+  hal::sleepMs(100);
 #endif
 }
 unsigned int Input::buttons_get(void) {
@@ -67,23 +70,23 @@ unsigned int Input::buttons_get(void) {
   input_states = nunchuck.getInput();  
 #else
   #ifdef BTN_COIN_PIN
-    input_states = (!digitalRead(BTN_COIN_PIN)) ? BUTTON_EXTRA : 0;
+    input_states = (!hal::pinRead(BTN_COIN_PIN)) ? BUTTON_EXTRA : 0;
   #else
-    input_states = (!digitalRead(BTN_START_PIN)) ? BUTTON_EXTRA : 0;
+    input_states = (!hal::pinRead(BTN_START_PIN)) ? BUTTON_EXTRA : 0;
   #endif
   input_states |=
-    (digitalRead(BTN_LEFT_PIN) ? 0 : BUTTON_LEFT) |
-    (digitalRead(BTN_RIGHT_PIN) ? 0 : BUTTON_RIGHT) |
-    (digitalRead(BTN_UP_PIN) ? 0 : BUTTON_UP) |
-    (digitalRead(BTN_DOWN_PIN) ? 0 : BUTTON_DOWN) |
-    (digitalRead(BTN_FIRE_PIN) ? 0 : BUTTON_FIRE);
+    (hal::pinRead(BTN_LEFT_PIN) ? 0 : BUTTON_LEFT) |
+    (hal::pinRead(BTN_RIGHT_PIN) ? 0 : BUTTON_RIGHT) |
+    (hal::pinRead(BTN_UP_PIN) ? 0 : BUTTON_UP) |
+    (hal::pinRead(BTN_DOWN_PIN) ? 0 : BUTTON_DOWN) |
+    (hal::pinRead(BTN_FIRE_PIN) ? 0 : BUTTON_FIRE);
 #endif
   
   unsigned int startAndCoinState = 0;
 #ifdef BTN_COIN_PIN 
   // there is a coin pin -> coin and start work normal
-  startAndCoinState = (digitalRead(BTN_START_PIN) ? 0 : BUTTON_START) |
-    (digitalRead(BTN_COIN_PIN) ? 0 : BUTTON_COIN);
+  startAndCoinState = (hal::pinRead(BTN_START_PIN) ? 0 : BUTTON_START) |
+    (hal::pinRead(BTN_COIN_PIN) ? 0 : BUTTON_COIN);
 #elif defined(GALAGINO_CONTROLLER)
   // Coin and Start work normal - no virtual Coin
 #else
@@ -91,28 +94,28 @@ unsigned int Input::buttons_get(void) {
     case 0:  // idle state
       if(input_states & BUTTON_EXTRA) {
         virtual_coin_state = 1;   // virtual coin pressed
-        virtual_coin_timer = millis();
+        virtual_coin_timer = hal::millis();
       }
       break;
     case 1:  // start was just pressed
       // check if 100 milliseconds have passed
-      if(millis() - virtual_coin_timer > 100) {
+      if(hal::millis() - virtual_coin_timer > 100) {
         virtual_coin_state = 2;   // virtual coin released
-        virtual_coin_timer = millis();        
+        virtual_coin_timer = hal::millis();        
       }
       break;
     case 2:  // virtual coin was released
       // check if 500 milliseconds have passed
-      if(millis() - virtual_coin_timer > 500) {
+      if(hal::millis() - virtual_coin_timer > 500) {
         virtual_coin_state = 3;   // pause between virtual coin an start ended
-        virtual_coin_timer = millis();        
+        virtual_coin_timer = hal::millis();        
       }
       break;
     case 3:  // pause ended
       // check if 100 milliseconds have passed
-      if(millis() - virtual_coin_timer > 100) {
+      if(hal::millis() - virtual_coin_timer > 100) {
         virtual_coin_state = 4;   // virtual start ended
-        virtual_coin_timer = millis();        
+        virtual_coin_timer = hal::millis();        
       }
       break;
     case 4:  // virtual start has ended
@@ -153,11 +156,11 @@ unsigned int Input::buttons_get(void) {
     // reset control
     if(input_states & BUTTON_EXTRA) {
       if(!reset_timer)
-        reset_timer = millis();
+        reset_timer = hal::millis();
     
       // reset if coin (or start if no coin is configured) is held for more than 3 seconds
-      if(millis() - reset_timer > 3000) {
-        reset_timer = millis();
+      if(hal::millis() - reset_timer > 3000) {
+        reset_timer = hal::millis();
         if (_doReset_callback)
           _doReset_callback();
       }

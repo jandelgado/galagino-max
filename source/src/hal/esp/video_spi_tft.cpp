@@ -1,0 +1,383 @@
+#include "video_spi_tft.h"
+#include <esp_heap_caps.h>
+#include <stdio.h>
+#include <string.h>
+#include "../hal.h"
+
+namespace hal {
+
+// max time between full rate frames giving the idle task CPU time
+static const uint32_t IDLE_YIELD_MS = 1000;
+
+static spi_device_interface_config_t if_cfg {
+  .command_bits = 0,
+  .address_bits = 0,
+  .dummy_bits = 0,
+  .mode = 0,  // SPI mode 0
+  .duty_cycle_pos = 128,
+  .cs_ena_pretrans = 0,
+  .cs_ena_posttrans = 0,
+  .clock_speed_hz = TFT_SPICLK,
+  .input_delay_ns = 0,
+  .spics_io_num = -1,  // 5 = VSPI
+  .flags = SPI_DEVICE_HALFDUPLEX,
+  .queue_size = 3,
+  .pre_cb = NULL,
+  .post_cb = NULL,
+};
+
+#if !defined(TFT_MISO) || !defined(TFT_MOSI) || !defined(TFT_SCLK)
+// pins not set by the board: VSPI defaults of the ESP32
+#ifndef TFT_MISO
+#define TFT_MISO 19
+#endif
+
+#ifndef TFT_MOSI
+#define TFT_MOSI 23
+#endif
+
+#ifndef TFT_SCLK
+#define TFT_SCLK 18
+#endif
+
+#endif
+
+// 0x36 - Row address set, same command for ili9341 and st7789
+#define CMD_MADCTL 0x36
+// 0x2C - Write to RAM, same command for ili9341 and st7789
+#define CMD_RAMWR  0x2C
+
+#ifndef TFT_MAC
+#define TFT_MAC 0x48
+#endif
+
+// Use MADCTL macro to simplify TFT FLIPs
+#ifdef TFT_ILI9341
+  #ifdef TFT_VFLIP
+    #define MADCTL_DEFAULT (TFT_MAC ^ 0xc0)
+  #else
+    #define MADCTL_DEFAULT (TFT_MAC)
+  #endif
+  #define MADCTL_SCAN(m) (m)
+#else
+  #ifdef TFT_VFLIP
+    // 0x00 top to bottom + 0x00 left to right
+    #define MADCTL_DEFAULT (0x00)
+  #else
+    // 0x80 bottom to top + 0x40 right to left
+    #define MADCTL_DEFAULT (0xc0)
+  #endif
+  // MADCTL ML (0x10): panel refresh order. Coupled to MY (0x80, row write
+  // order) so the panel scans in the direction the frame is written.
+  // Opposite directions cross once every frame: a tear line on every frame.
+  // See video_vsync_and_vblank.md.
+  #define MADCTL_SCAN(m) (((m) & 0x80) ? ((m) | 0x10) : ((m) & ~0x10))
+#endif
+
+spi_bus_config_t bus_cfg{
+    .mosi_io_num = TFT_MOSI,
+    .miso_io_num = TFT_MISO,
+    .sclk_io_num = TFT_SCLK,
+    .max_transfer_sz = 240 * 8 * 2, // one complete 8x8 tile row at 16 bpp
+    .flags = SPICOMMON_BUSFLAG_MASTER,
+};
+
+#define W16(a)    (a>>8), (a&0xff)    // store 16 bit parameter
+
+static const uint8_t init_cmd[] = {
+#ifdef TFT_ILI9341
+  0xEF, 3, 0x03, 0x80, 0x02,
+  0xCF, 3, 0x00, 0xC1, 0x30,
+  0xED, 4, 0x64, 0x03, 0x12, 0x81,
+  0xE8, 3, 0x85, 0x00, 0x78,
+  0xCB, 5, 0x39, 0x2C, 0x00, 0x34, 0x02,
+  0xF7, 1, 0x20,
+  0xEA, 2, 0x00, 0x00,
+  0xC0, 1, 0x23,                    // Power control VRH[5:0]
+  0xC1, 1, 0x10,                    // Power control SAP[2:0];BT[3:0]
+  0xC5, 2, 0x3e, 0x28,              // VCM control
+  0xC7, 1, 0x86,                    // VCM control2
+  0x36, 1, MADCTL_DEFAULT,
+  0x37, 1, 0x00,                    // Vertical scroll zero
+  0x3A, 1, 0x55,
+  0xB1, 2, 0x00, 0x10,              // Framerate control
+  0xB2, 2, 0x00, 0x10,              // Framerate control
+  0xB3, 2, 0x00, 0x10,              // Framerate control
+  0xB6, 3, 0x08, 0x82, 0x27,        // Display Function Control
+  0xF2, 1, 0x00,                    // 3Gamma Function Disable
+  0x26, 1, 0x01,                    // Gamma curve selected
+  0xE0, 15, 0x0F, 0x31, 0x2B, 0x0C, 0x0E, 0x08, // Set Gamma
+    0x4E, 0xF1, 0x37, 0x07, 0x10, 0x03, 0x0E, 0x09, 0x00,
+  0xE1, 15, 0x00, 0x0E, 0x14, 0x03, 0x11, 0x07, // Set Gamma
+    0x31, 0xC1, 0x48, 0x08, 0x0F, 0x0C, 0x31, 0x36, 0x0F,
+#ifndef TFT_INVERT
+  0x20, 0, //INV_OFF
+#else
+  0x21, 0, //INV_ON
+#endif
+  0xff, 150,                        // 150ms delay
+  0x11, 0,                          // Exit Sleep
+  0xff, 150,                        // 150ms delay
+  0x29, 0,                          // Display on
+  0xff, 150,                        // 150ms delay
+  0x00                              // End of list
+#else
+  // Init commands for 7789 screens
+  0x01, 0,                          // Software reset
+  0xff, 150,                        // 150 ms delay
+  0x11, 0,                          // Out of sleep mode
+  0xff, 10,                         // 10 ms delay
+  0x3a, 1, 0x55,                    // Set color mode 16-bit color
+  0xff, 10,                         // 10 ms delay
+  0x36, 1, MADCTL_SCAN(MADCTL_DEFAULT),
+  0x2a, 4, W16(0), W16(240),        // Column addr set, XSTART = 0, XEND = 240     
+  0x2b, 4, W16(0), W16(320),        // Row addr set, YSTART = 0, YEND = 320
+#ifndef TFT_INVERT
+  0x20, 0, //INV_OFF
+#else
+  0x21, 0, //INV_ON
+#endif
+  0xff, 10,                         // 10 ms delay
+  0x13, 0,                          // Normal display on
+  0xff, 10,                         // 10 ms delay
+  0x29, 0,                          // Main screen turn on
+  0xff, 10,                         // 10 ms delay
+  0x00                              // End of list
+#endif
+};
+
+SpiTftVideo::SpiTftVideo() {
+  hal::pinOutput(TFT_CS, true); // Deselect
+  hal::pinOutput(TFT_DC, true); // Data mode
+
+  // 40Mhz is max possible rate with esp32
+  // 40Mhz = 2.5MPix/s. A frame has 64512 pixels
+  // -> max 38 frames/s = 25.8ms/frame
+  //
+  // Using correct pins ESP32 does 80MHz on SPI2_HOST and SPI3_HOST
+  // Using correct pins ESP32-S3 does 80MHz on SPI2_HOST
+
+  // TFT_SPI_PORT counts SPI peripherals (2 = SPI2, 3 = SPI3); the IDF host
+  // enum starts at SPI1_HOST = 0 (flash).
+  const spi_host_device_t host = (spi_host_device_t)(TFT_SPI_PORT - 1);
+  // unused pins are -1, not 0: GPIO 0 would be claimed (IDF 6 reports it)
+  bus_cfg.quadwp_io_num = -1;
+  bus_cfg.quadhd_io_num = -1;
+  esp_err_t err = spi_bus_initialize(host, &bus_cfg, SPI_DMA_CH_AUTO);
+  if (err == ESP_OK) {
+    err = spi_bus_add_device(host, &if_cfg, &handle);
+  }
+  if (err != ESP_OK) {
+    printf("video: SPI init failed (%d)\n", (int)err);
+  }
+}
+
+void SpiTftVideo::begin(void) {
+  // trigger hardware reset. Not in the constructor: that runs before the
+  // scheduler starts (static init), where sleeping is not possible.
+  if (TFT_RST >= 0)
+  {
+    hal::pinOutput(TFT_RST, false);
+    hal::sleepMs(100);
+    hal::pinWrite(TFT_RST, true);
+    hal::sleepMs(200);
+  } else {
+    sendCommand(0x01, NULL, 0);
+    hal::sleepMs(150);
+  }
+
+  // background buffers which are kept untouched during DMA transfer;
+  // allocated here, after main's larger permanent buffers
+  for(int i = 0; i < DMA_BUFFERS; i++)
+    dma_buffer[i] = (unsigned char*)heap_caps_malloc(240*8*2, MALLOC_CAP_DMA);
+
+  uint8_t cmd;
+  const uint8_t *addr = init_cmd;
+  while(cmd = *addr++) {
+    const uint8_t num = *addr++;
+    if(cmd != 0xff) {
+      sendCommand(cmd, (uint8_t*)addr, num);
+      addr += num;
+    } else
+      hal::sleepMs(num);
+  }
+
+  // write 320x240 16 bit words to zero (black)
+  hal::pinWrite(TFT_CS, false);
+  setAddrWindow(0, 0, 240, 320);
+
+  memset(dma_buffer[0], 0, 240*4*2);   // 4 lines per transfer, bytes must be less than 224*8*2
+  for(int i=0;i<320/4;i++) {
+    transaction[0].flags = 0;
+    transaction[0].length = 240*4*16; // Length in bits
+    transaction[0].tx_buffer = (const void *)dma_buffer[0];
+    spi_device_transmit(handle, &transaction[0]);
+  }
+
+  // set active screen area to centered 224x288 pixels
+  setAddrWindow(TFT_X_OFFSET, TFT_Y_OFFSET, 224, 288);
+
+  // enable backlight if pin is specified
+#ifdef TFT_BL
+  hal::pinOutput(TFT_BL, TFT_BL_LEVEL);
+#endif
+
+  madctl_last = MADCTL_DEFAULT;
+  printf("madctl = 0x%02x\n", madctl_last);
+}
+
+void SpiTftVideo::flip(char flipY, char flipX) {
+  uint8_t madctl = MADCTL_DEFAULT;
+
+  if (flipY) madctl ^= 0xc0; // flip the MY bit
+  if (flipX) madctl ^= 0x40; // flip the MX bit
+
+  if (madctl_last == madctl)
+    return;
+
+  printf("madctl: flipY=%d flipX=%d last=0x%02x new=0x%02x\n", flipY, flipX, madctl_last, madctl);
+
+  dmaWait();
+
+  writeCommand(CMD_MADCTL);
+  write8(MADCTL_SCAN(madctl));
+  writeCommand(CMD_RAMWR);
+
+  madctl_last = madctl;
+}
+
+void SpiTftVideo::flipReset(char flipY, char flipX) {
+  flip(0, 0);
+}
+
+// results come back in queue order: the oldest is dma_next's
+void SpiTftVideo::submit(const uint16_t *colors, uint32_t len) {
+  if(dma_pending == DMA_BUFFERS) {
+    spi_device_get_trans_result(handle, &r_trans, portMAX_DELAY);
+    dma_pending--;
+  }
+
+  spi_transaction_t &t = transaction[dma_next];
+  memcpy(dma_buffer[dma_next], colors, 2 * len);
+  t.flags = 0;
+  t.length = 16 * len; // Length in bits
+  t.tx_buffer = dma_buffer[dma_next];
+  spi_device_queue_trans(handle, &t, portMAX_DELAY);
+
+  dma_pending++;
+  dma_next = (dma_next + 1) % DMA_BUFFERS;
+}
+
+// all queued strips sent, before commands or blocking transfers
+void SpiTftVideo::dmaWait() {
+  for(; dma_pending; dma_pending--)
+    spi_device_get_trans_result(handle, &r_trans, portMAX_DELAY);
+}
+
+void SpiTftVideo::setViewport(uint16_t width) {
+  if(width != 240) width = 224;
+  if(width == viewport_width) return;
+
+  dmaWait();
+
+  if(viewport_width == 240 && width == 224) {
+    memset(dma_buffer[0], 0, 8 * 8 * 2);
+    const uint16_t side_x[2] = { 0, 232 };
+    for(int side = 0; side < 2; side++) {
+      setAddrWindow(side_x[side], TFT_Y_OFFSET, 8, 288);
+      for(int strip = 0; strip < 36; strip++) {
+        transaction[0].flags = 0;
+        transaction[0].length = 8 * 8 * 16;
+        transaction[0].tx_buffer = dma_buffer[0];
+        spi_device_transmit(handle, &transaction[0]);
+      }
+    }
+  }
+
+  setAddrWindow((240 - width) / 2, TFT_Y_OFFSET, width, 288);
+  viewport_width = width;
+}
+
+void SpiTftVideo::sendCommand(uint8_t commandByte, uint8_t *dataBytes, uint8_t numDataBytes) {
+  hal::pinWrite(TFT_CS, false);
+  writeCommand(commandByte);
+  for(int i=0;i<numDataBytes;i++)
+    write8(dataBytes[i]);
+  hal::pinWrite(TFT_CS, true);
+}
+
+void SpiTftVideo::writeCommand(uint8_t cmd) {
+  hal::pinWrite(TFT_DC, false);
+  write8(cmd);
+  hal::pinWrite(TFT_DC, true);
+}
+
+void SpiTftVideo::setAddrWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+  writeCommand(0x2A); // Column address set, same command for ili9341 and st7789
+  write16(x);
+  write16(x + w - 1);
+
+  writeCommand(0x2B); // Row address set, same command for ili9341 and st7789
+  write16(y);
+  write16(y + h - 1);
+
+  writeCommand(0x2C); // Write to RAM, same command for ili9341 and st7789
+}
+
+// command bytes: only with no strip in flight (dmaWait)
+void SpiTftVideo::write16(uint16_t data) {
+  transaction[0].flags = SPI_TRANS_USE_TXDATA;
+  transaction[0].length = 16; // Length in bits
+  transaction[0].rxlength = 0;
+  transaction[0].tx_data[0] = ((data >> 8) & 0xFF);
+  transaction[0].tx_data[1] = data & 0xFF;
+  spi_device_transmit(handle, &transaction[0]);
+}
+
+void SpiTftVideo::write8(uint8_t data) {
+  transaction[0].flags = SPI_TRANS_USE_TXDATA;
+  transaction[0].length = 8; // Length in bits
+  transaction[0].rxlength = 0;
+  transaction[0].tx_data[0] = data;
+  spi_device_transmit(handle, &transaction[0]);
+}
+
+void SpiTftVideo::setHalfRate(bool half) {
+#ifdef VIDEO_HALF_RATE
+  half_rate = true;
+#else
+  half_rate = half;
+#endif
+}
+
+uint8_t SpiTftVideo::screenParts() const {
+  return half_rate ? 2 : 1;
+}
+
+void SpiTftVideo::endFrame(uint8_t part, uint32_t frameStartUs) {
+  if (!half_rate) {
+    const int32_t wait_us = pacer.next(hal::micros());
+    if(wait_us > 0) {
+      hal::sleepMs((wait_us + 999) / 1000);
+      last_yield_ms = hal::millis();
+    }
+    else {
+      // Idle task needs CPU time within the task watchdog timeout. Not every
+      // frame: a 1 tick delay pushes a late frame further behind.
+      if(hal::millis() - last_yield_ms > IDLE_YIELD_MS) {
+        hal::sleepMs(1);
+        last_yield_ms = hal::millis();
+      }
+    }
+  }
+  else {
+    // the screen is updated every second frame: one screen at 60 Hz is 16.6ms
+    unsigned long t1 = (hal::micros() - frameStartUs) / 1000;  // time in milliseconds
+    if(t1 < (part ? 33 : 16))
+      hal::sleepMs((part ? 33 : 16) - t1);
+    else if(part)
+      hal::sleepMs(1);    // at least 1 ms delay to prevent watchdog timeout
+  }
+}
+
+} // namespace hal

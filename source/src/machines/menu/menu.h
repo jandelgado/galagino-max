@@ -1,7 +1,7 @@
 #ifndef MENU_H
 #define MENU_H
 
-#include <Arduino.h>
+#include "../../hal/hal.h"
 #include "../../emulation/input.h"
 #include "../../config.h"
 #include "../machineBase.h"

@@ -575,7 +575,7 @@ static constexpr uint32_t trap_pages(uint8_t w) {
   return page_bit(0x82, w) | page_bit(0x91, w) | page_bit(0x94, w) | page_bit(0x99, w) |
          page_bit(0xb4, w) | page_bit(0xb6, w) | page_bit(0xc6, w);
 }
-static DRAM_ATTR const uint32_t TRAP_PAGES[8] = {trap_pages(0), trap_pages(1), trap_pages(2),
+static HAL_FAST_DATA const uint32_t TRAP_PAGES[8] = {trap_pages(0), trap_pages(1), trap_pages(2),
                                                  trap_pages(3), trap_pages(4), trap_pages(5),
                                                  trap_pages(6), trap_pages(7)};
 

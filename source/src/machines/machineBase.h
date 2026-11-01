@@ -1,14 +1,18 @@
 #ifndef MACHINEBASE_H
 #define MACHINEBASE_H
 
-#include "Arduino.h"
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "../hal/hal.h"
 
 // Per-game hot functions. GAME_NO_IRAM (remote builds) keeps them in flash:
 // the IRAM they took (18 KB) is worth more to the CPU cores there.
 #ifdef GAME_NO_IRAM
 #define GAME_IRAM
 #else
-#define GAME_IRAM IRAM_ATTR
+#define GAME_IRAM HAL_FAST_CODE
 #endif
 #include "../cpus/z80/Z80.h"
 #include "../cpus/i8048/i8048.h"
@@ -18,7 +22,7 @@
 #include "../emulation/audio_mix.h"
 
 #ifdef LED_PIN
-#include <FastLED.h>
+#include "../hal/led_color.h"
 #define NUM_LEDS  7
 
 #define LED_BLACK    CRGB::Black

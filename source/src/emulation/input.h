@@ -1,33 +1,16 @@
 #ifndef INPUT_H
 #define INPUT_H
 
-#include <Arduino.h>
+#include <functional>
+#include "../hal/hal.h"
 #include "../config.h"
+#include "../input/buttons.h"
 #ifdef NUNCHUCK_INPUT
-  #include "nunchuck.h"
+#include "../input/nunchuk.h"
 #endif
 #ifdef GALAGINO_CONTROLLER
-#include "i2c-controller.h"
+#include "../input/galagino_controller.h"
 #endif
-
-// a total of 7 button is needed for most games
-#define BUTTON_LEFT  0x01
-#define BUTTON_RIGHT 0x02
-#define BUTTON_UP    0x04
-#define BUTTON_DOWN  0x08
-#define BUTTON_FIRE  0x10
-#define BUTTON_START 0x20
-#define BUTTON_COIN  0x40
-#define BUTTON_EXTRA 0x80
-
-#define BUTTON_A    0x0100
-#define BUTTON_B    0x0200
-#define BUTTON_X    0x0400
-#define BUTTON_Y    0x0800
-#define BUTTON_L1   0x1000
-#define BUTTON_R1   0x2000
-
-#define BUTTON_MENU 0x8000
 
 class Input {
 public:
@@ -64,7 +47,7 @@ private:
   bool firePressedAtStart;
   unsigned int fire_raw_state = 0;
 #ifdef NUNCHUCK_INPUT
-  Nunchuck nunchuck;
+  Nunchuk nunchuck;
 #endif
 #ifdef GALAGINO_CONTROLLER
   ControllerI2C Controller;

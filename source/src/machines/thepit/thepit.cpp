@@ -1,4 +1,5 @@
 #include "thepit.h"
+#include <algorithm>
 #include "thepit_logo.h"
 #include "thepit_main_rom.h"
 #include "thepit_sound_rom.h"
@@ -340,8 +341,8 @@ void thepit::blit_sprite(short row, unsigned char s) {
 
   // lines of this strip covered by the sprite, minus MAME's clip band
   int top = 8 * row;
-  int y0 = max(spr.y, max(top, SPRITE_MIN_LINE));
-  int y1 = min(spr.y + 16, top + 8);
+  int y0 = std::max<int>(spr.y, std::max<int>(top, SPRITE_MIN_LINE));
+  int y1 = std::min<int>(spr.y + 16, top + 8);
   if (y0 >= y1) {
     return;
   }

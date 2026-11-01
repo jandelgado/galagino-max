@@ -99,10 +99,11 @@ static void taskWrapper(void *param) {
 
   while (gyr->audio_running) {
     gyr->run_audio_batch(100);
+    hal::yield();
   }
 
   gyr->audio_running = 1;
-  vTaskDelete(NULL);
+  hal::taskExit();
 }
 
 void gyruss::start_audio_task() {
@@ -114,16 +115,11 @@ void gyruss::start_audio_task() {
   (void)gyruss_rom_audio.data();
 
   audio_running = 1;
-  emu_core_id = ARDUINO_RUNNING_CORE == 0 ? 1 : 0;
-  int audio_core = emu_core_id == 1 ? 0 : 1;
 
-  // Disable watchdog here for audio task...
-  if (emu_core_id == 1)
-    disableCore0WDT();
-  else
-    disableCore1WDT();
+  // The audio task keeps the video core busy: take its idle task out of the watchdog.
+  hal::idleWatchdogEnable(hal::VIDEO_CORE, false);
 
-  xTaskCreatePinnedToCore(taskWrapper, "gyruss::audio_task", 2048, this, 1, &audio_task_handle, audio_core);
+  audio_task_handle = hal::taskSpawn(taskWrapper, this, "gyruss::audio_task", 2048, 1, hal::VIDEO_CORE);
 }
 
 void gyruss::stop_audio_task() {
@@ -132,12 +128,9 @@ void gyruss::stop_audio_task() {
   audio_running = 0;
 
   while (!audio_running)
-    vTaskDelay(1);
+    hal::sleepMs(1);
 
-  if (emu_core_id == 1)
-    enableCore0WDT();
-  else
-    enableCore1WDT();
+  hal::idleWatchdogEnable(hal::VIDEO_CORE, true);
 
   audio_running = 0;
   audio_task_handle = NULL;
@@ -200,7 +193,7 @@ void gyruss::reset() {
 
 inline bool gyruss::is_audio_cpu() {
   // Determine if current context is audio Z80 (works for both single-core and dual-core)
-  return (xPortGetCoreID() != emu_core_id);  // dual-core: check which core
+  return (hal::coreId() != hal::EMULATION_CORE);  // dual-core: check which core
 }
 
 unsigned char gyruss::opZ80(unsigned short Addr) {

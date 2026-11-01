@@ -5,7 +5,7 @@
 // Menu scrolling and the remote build's menu attract. Logos are stubs: logo
 // i decodes to one color, (i + 1) << 8, which only the highlighted logo
 // shows (the others render grey), so the highlight is found by color.
-// Arduino.h / FastLED.h / esp_attr.h in this directory are host stubs.
+// Arduino.h / FastLED.h / esp_attr.h in this directory are host stubs. Time: hal host clock.
 #define ASSETS_REMOTE
 #include "../../src/emulation/arena.cpp"
 #include "../../src/machines/menu/menu.cpp"
@@ -14,8 +14,6 @@ static const int COUNT = 10;
 // int8_t holds 127: the menu is 1-based
 static const int MANY = 128;
 
-static uint32_t now;
-uint32_t millis() { return now; }
 
 static unsigned int keys;
 unsigned int Input::buttons_get(void) { return keys; }
@@ -73,7 +71,7 @@ static void open(int8_t shown, int8_t preselect, int16_t count = COUNT) {
 
 // one screen: input, then 36 strips, scanned for the highlight color
 static void frame() {
-  now += 33;
+  hal::host::advanceMicros(33000);
   menu->prepare_frame();
   shown_idx = -1;
   shown_first = -1;
@@ -117,7 +115,7 @@ void setUp(void) {
     arena = true;
   }
   memset(uncached, 0, sizeof(uncached));
-  now = 1000;
+  hal::host::setMicros(1000000);
 }
 
 void tearDown(void) {
@@ -230,7 +228,7 @@ static void test_attract_scrolls_to_cached_game_first(void) {
   settle();
   assertCentred(3);
 
-  now += MASTER_ATTRACT_MENU_TIMEOUT;
+  hal::host::advanceMicros((uint64_t)MASTER_ATTRACT_MENU_TIMEOUT * 1000);
   int frames = 0;
   while(menu->selected() == Menu::NONE) {
     TEST_ASSERT_TRUE(++frames < 20);
@@ -244,7 +242,7 @@ static void test_attract_scrolls_to_cached_game_first(void) {
 static void test_attract_starts_cached_game_at_once(void) {
   open(2, 2);
   settle();
-  now += MASTER_ATTRACT_MENU_TIMEOUT;
+  hal::host::advanceMicros((uint64_t)MASTER_ATTRACT_MENU_TIMEOUT * 1000);
   frame();
   TEST_ASSERT_EQUAL_INT(2, menu->selected());
 }

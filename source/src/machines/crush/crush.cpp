@@ -158,7 +158,7 @@ void crush::wrZ80(unsigned short Addr, unsigned char Value) {
         soundregs[Addr - 0x5040] = Value & 0x0f;
 
       if (Addr == 0x505f)
-        timerSoundChanged = millis();
+        timerSoundChanged = hal::millis();
 
       //printf("%x;%x;%x\n", soundregs[0x15], soundregs[0x1a], soundregs[0x1f]);
     }
@@ -166,7 +166,7 @@ void crush::wrZ80(unsigned short Addr, unsigned char Value) {
 
   // Remove ugly sound (protection not to use namco audio hardware?) when game over...
   if (((soundregs[0x15] == 0xc && soundregs[0x1a] == 0x3 && soundregs[0x1f] == 0x6) ||
-    (soundregs[0x15] == 0xf && soundregs[0x1a] == 0x5 && soundregs[0x1f] == 0x9)) && ((millis() - timerSoundChanged) > 40)) {
+    (soundregs[0x15] == 0xf && soundregs[0x1a] == 0x5 && soundregs[0x1f] == 0x9)) && ((hal::millis() - timerSoundChanged) > 40)) {
     printf("%s\n", "Game over - silence");
     soundregs[0x15] = 0;
     soundregs[0x1a] = 0;

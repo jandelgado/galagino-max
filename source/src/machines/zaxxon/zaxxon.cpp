@@ -576,7 +576,7 @@ void zaxxon::gameLeds(CRGB *leds) {
   }
   if (explosion_cnt > 0) {
     for (uint8_t c = 0; c < NUM_LEDS; c++) {
-      leds[c] = (random(2) & 1) == 0 ? LED_RED : LED_YELLOW;
+      leds[c] = (hal::random32() & 1) == 0 ? LED_RED : LED_YELLOW;
     }
     explosion_cnt--;
     return;

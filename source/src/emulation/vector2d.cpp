@@ -81,7 +81,7 @@ static inline void halo(uint16_t *p, uint16_t g) {
 
 // Glow of the pixels line l has in row (the next strip's first) into dst
 // (this strip's last row), stepping a copy of the Bresenham state.
-VEC2D_IRAM void StripRasterizer::glow_above(const Line &l, int16_t x, int16_t y, int16_t err,
+HAL_FAST_CODE void StripRasterizer::glow_above(const Line &l, int16_t x, int16_t y, int16_t err,
                                             int16_t row, uint16_t *dst, uint16_t g) {
   const int16_t step = l.sx ? -1 : 1;
   while (y == row) {
@@ -95,7 +95,7 @@ VEC2D_IRAM void StripRasterizer::glow_above(const Line &l, int16_t x, int16_t y,
   }
 }
 
-VEC2D_IRAM void StripRasterizer::render(uint8_t strip, uint16_t *buf, int16_t width,
+HAL_FAST_CODE void StripRasterizer::render(uint8_t strip, uint16_t *buf, int16_t width,
                                         const uint16_t *palette, const uint16_t *glow) {
   for (uint16_t i = head[strip]; i != NONE; i = next[i]) {
     active[active_count++] = i;
