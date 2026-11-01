@@ -5,6 +5,7 @@
 #include "marble_sound.h"
 
 #include "../../catalog.h"
+#include "../../config.h"
 #ifdef GAME_MARBLE
 
 // Port of dev/marble/marble_flow.py (Marble Love TS: game-tick-timers.ts, timer-cascade.ts,
@@ -34,11 +35,16 @@ static const uint8_t TIME_BONUS = 8;            // +0x1a: 0x28a96 skips the time
 
 static const uint32_t RNG = 0x4003a6, SCORED = 0x40039c;
 
-// race intro: races 0/1 set their time, later races add it (+5 s steps)
+// race intro: races 0/1 set their time, later races add it (+5 s steps, the last one the rest)
+#ifdef MARBLE_MADNESS_CHEAT_EXTRA_TIME
+static const uint8_t RACE_TIME[] = {99, 99, 99, 99, 99, 99};
+#else
 static const uint8_t RACE_TIME[] = {60, 60, 35, 30, 20, 20};
+#endif
 static const uint8_t LAST_RACE = 5;
 static const uint8_t ADD_STEP = 10, ADD_SECONDS = 5;
-static const uint8_t INTRO_END = 61;            // last arm to race start: 61 + race time
+static const uint8_t INTRO_END = 61;            // first add to race start: 60 + race time,
+                                                // never before the last add (cheat times)
 static const uint8_t START_FIRST_ADD = 131;     // new game: init to the first +5 s (scroll in)
 static const uint8_t FRAMES_TO_START = 6;       // 0x400010 vblank acks during the race end
 
@@ -136,10 +142,13 @@ void introStep(Flow &f, Mem &m) {
   const uint16_t first = firstAdd(f);
   const uint8_t time = RACE_TIME[f.race];
   const uint16_t i = ++f.intro;  // frames since the race init
-  if (i >= first && (i - first) % ADD_STEP == 0 && (i - first) / ADD_STEP < time / ADD_SECONDS) {
-    m.ww(PLAYER + TIMER, m.rw(PLAYER + TIMER) + ADD_SECONDS);
+  if (i >= first && (i - first) % ADD_STEP == 0 && (i - first) / ADD_STEP * ADD_SECONDS < time) {
+    const uint8_t rest = time - (i - first) / ADD_STEP * ADD_SECONDS;
+    m.ww(PLAYER + TIMER, m.rw(PLAYER + TIMER) + (rest < ADD_SECONDS ? rest : ADD_SECONDS));
   }
-  if (i != first - 1 + INTRO_END + time) { return; }
+  const uint16_t adds = (time + ADD_SECONDS - 1) / ADD_SECONDS * ADD_STEP;
+  const uint16_t end = INTRO_END - 1 + time;
+  if (i != first + (end > adds ? end : adds)) { return; }
 
   m.wb(PLAYER + TICKS, TICKS_START);
   m.ww(GAME_STATE, RACE);

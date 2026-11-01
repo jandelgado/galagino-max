@@ -31,6 +31,8 @@
 //#define COMMANDO_INVINCIBLE // cheat: Commando player never dies
 //#define COMMANDO_NO_MUSIC   // test: Commando sound effects only, no SID music
 
+//#define MARBLE_MADNESS_CHEAT_EXTRA_TIME // cheat: Marble Madness adds 99 s per race
+
 //#define STARWARS_INVERT_Y   // Star Wars: invert stick Y axis
 
 // Mario Bros.: fit 256 native columns, define one

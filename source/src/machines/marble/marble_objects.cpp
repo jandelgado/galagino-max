@@ -1201,6 +1201,7 @@ void init(Mem &m, uint8_t race) {
   m.ww(PLAYERS, 1);
   m.ww(DYN_PAUSE, 0xffff);
   m.wb(DYN_FLAG, 0);
+  m.wb(WAVE_DONE, 1);  // 0x10504: a wave may start
 
   const uint32_t cam = (uint16_t)m.desc().top + (race == RACE_SILLY ? (uint16_t)m.desc().range : 0);
   m.wl(CAMERA_L, cam);

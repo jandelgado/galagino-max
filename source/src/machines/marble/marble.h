@@ -74,6 +74,7 @@ private:
   marble_hiscore::Table table = {};
   uint32_t patchRec = 0;   // lastPatch record that view.patch was mapped from
   bool odd = false;        // frame without a logic tick
+  uint8_t spun = 0;        // stick trackball spin, k over MARBLE_STICK_K
 
   // sound: commands and the sound board's 6502 on the emulation core, the C64 tune and the
   // board's chips on the audio core
