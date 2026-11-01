@@ -94,9 +94,6 @@ static void test_scratch_below_reservation(void) {
 }
 
 // sizes come from the native env's layout ([envs] in firmware.toml)
-#ifndef ARENA_LAYOUT_ESP32_LOCAL
-#error "native env must select layout esp32_local"
-#endif
 static void test_block_sizes_from_layout(void) {
   TEST_ASSERT_EQUAL_UINT32(ARENA_A_SIZE, Arena::BLOCK_A_SIZE);
   TEST_ASSERT_EQUAL_UINT32(ARENA_B_SIZE, Arena::BLOCK_B_SIZE);

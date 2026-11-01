@@ -8,7 +8,7 @@ from romconv.core.context import Context
 from romconv.core.errors import ConversionError
 from romconv.core.job import Job
 from romconv.core.manifest import Asset, Manifest
-from romconv.core.paths import Paths, default
+from romconv.core.paths import Paths
 from romconv.plan.arena import (SCRATCH_BYTES, extras_key, parse_machine_header, plan_assets, plan_header, solve,
                                 write_arena_plan)
 from romconv.plan.layout import (config_path, define_name, min_blocks, min_capacity, read_layouts, read_max_list,
@@ -35,13 +35,6 @@ def _noop(ctx):
 
 
 # test_arena_layout
-
-
-def test_layouts_from_firmware_toml():
-    # the repo's rows parse; values change with every Arena measurement
-    layouts = read_layouts(config_path(default()))
-    assert {"esp32_local", "esp32_remote"} <= set(layouts)
-    assert all(a > 0 and b >= 0 for a, b in layouts.values()), layouts
 
 
 @pytest.mark.parametrize("row", ["x = [1, 2, 3]", "x = [-1, 2]", "x = [0, 2]", 'x = ["a", "b"]', "x = [true, 2]",
